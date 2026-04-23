@@ -1,10 +1,16 @@
+#[cfg(feature = "alloc")]
 use crate::alloc_prelude::*;
+#[cfg(feature = "alloc")]
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
+#[cfg(feature = "alloc")]
 use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, SolverContact, SolverFlags};
+#[cfg(feature = "alloc")]
 use crate::math::{Real, Vector};
+#[cfg(feature = "alloc")]
 use na::ComplexField;
 
 /// Context given to custom collision filters to filter-out collisions.
+#[cfg(feature = "alloc")]
 pub struct PairFilterContext<'a> {
     /// The set of rigid-bodies.
     pub bodies: &'a RigidBodySet,
@@ -21,6 +27,7 @@ pub struct PairFilterContext<'a> {
 }
 
 /// Context given to custom contact modifiers to modify the contacts seen by the constraints solver.
+#[cfg(feature = "alloc")]
 pub struct ContactModificationContext<'a> {
     /// The set of rigid-bodies.
     pub bodies: &'a RigidBodySet,
@@ -46,6 +53,7 @@ pub struct ContactModificationContext<'a> {
     pub user_data: &'a mut u32,
 }
 
+#[cfg(feature = "alloc")]
 impl ContactModificationContext<'_> {
     /// Helper function to update `self` to emulate a oneway-platform.
     ///
@@ -159,7 +167,7 @@ impl Default for ActiveHooks {
 //       call JS closures. Also, parallelism cannot be enabled for wasm targets, so
 //       not having Send+Sync isn't a problem.
 /// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "alloc"))]
 pub trait PhysicsHooks {
     /// Applies the contact pair filter.
     fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
@@ -176,7 +184,7 @@ pub trait PhysicsHooks {
 }
 
 /// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "alloc"))]
 pub trait PhysicsHooks: Send + Sync {
     /// Applies the contact pair filter.
     ///
@@ -258,6 +266,7 @@ pub trait PhysicsHooks: Send + Sync {
     fn modify_solver_contacts(&self, _context: &mut ContactModificationContext) {}
 }
 
+#[cfg(feature = "alloc")]
 impl PhysicsHooks for () {
     fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
         Some(SolverFlags::default())

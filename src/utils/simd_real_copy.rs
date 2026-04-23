@@ -1,7 +1,7 @@
 //! SimdRealCopy trait for real numbers used by Rapier.
 
 use crate::math::Real;
-use na::SimdRealField;
+use simba::simd::SimdRealField;
 
 /// The trait for real numbers used by Rapier.
 ///

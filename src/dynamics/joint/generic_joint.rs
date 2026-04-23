@@ -2,10 +2,11 @@
 #![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
 use crate::dynamics::integration_parameters::SpringCoefficients;
+#[cfg(feature = "alloc")]
 use crate::dynamics::solver::MotorParameters;
-use crate::dynamics::{
-    FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RigidBody, RopeJoint,
-};
+use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RopeJoint};
+#[cfg(feature = "alloc")]
+use crate::dynamics::RigidBody;
 use crate::math::{Pose, Real, Rotation, SPATIAL_DIM, Vector};
 use crate::utils::{OrthonormalBasis, SimdRealCopy};
 use parry::math::Matrix;
@@ -222,6 +223,7 @@ impl Default for JointMotor {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl JointMotor {
     pub(crate) fn motor_params(&self, dt: Real) -> MotorParameters<Real> {
         let (erp_inv_dt, cfm_coeff, cfm_gain) =
@@ -566,6 +568,7 @@ impl GenericJoint {
         }
     }
 
+    #[cfg(feature = "alloc")]
     pub(crate) fn transform_to_solver_body_space(&mut self, rb1: &RigidBody, rb2: &RigidBody) {
         if rb1.is_fixed() {
             self.local_frame1 = rb1.pos.position * self.local_frame1;

@@ -2,6 +2,7 @@
 
 // This is an RAII structure that enables flushing denormal numbers
 // to zero, and automatically resetting previous flags once it is dropped.
+#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FlushToZeroDenormalsAreZeroFlags {
     original_flags: u32,
@@ -13,6 +14,7 @@ impl FlushToZeroDenormalsAreZeroFlags {
         any(target_arch = "x86_64", target_arch = "x86"),
         target_feature = "sse"
     )))]
+    #[allow(dead_code)]
     pub fn flush_denormal_to_zero() -> Self {
         Self { original_flags: 0 }
     }

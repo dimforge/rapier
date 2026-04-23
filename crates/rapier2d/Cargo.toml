@@ -19,14 +19,21 @@ maintenance = { status = "actively-developed" }
 [lints]
 clippy = { needless_lifetimes = "allow" }
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim3", "f64", "std"))',
+    'cfg(feature, values("dim3", "f64", "std", "alloc"))',
+    'cfg(target_arch, values("spirv"))',
 ] }
 
 [features]
 default = ["dim2", "f32", "std"]
 dim2 = []
 f32 = []
+alloc = [
+    "nalgebra/alloc",
+    "parry2d/alloc",
+    "serde?/alloc",
+]
 std = [
+    "alloc",
     "parry2d/std",
     "nalgebra/std",
     "simba/std",
@@ -69,7 +76,6 @@ required-features = ["dim2", "f32"]
 doctest = false # All doctests are written assuming the 3D version.
 
 [dependencies]
-nalgebra.workspace = true
 glamx.workspace = true
 parry2d.workspace = true
 simba.workspace = true
@@ -84,6 +90,12 @@ wide.workspace = true
 web-time = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+
+# Nalgebra is only included on non-spirv targets. On spirv, rapier exposes only the
+# subset of its API that doesn't require nalgebra.
+[target.'cfg(not(target_arch = "spirv"))'.dependencies]
+nalgebra = { workspace = true }
+glamx = { workspace = true, features = ["nalgebra"] }
 
 [dev-dependencies]
 bincode.workspace = true

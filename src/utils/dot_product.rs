@@ -3,8 +3,11 @@
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 use crate::math::{Real, Vector};
+#[cfg(not(target_arch = "spirv"))]
 use crate::utils::SimdRealCopy;
-use na::{SimdRealField, Vector1, Vector2, Vector3};
+use simba::simd::SimdRealField;
+#[cfg(not(target_arch = "spirv"))]
+use na::{Vector1, Vector2, Vector3};
 
 /// Trait for computing generalized dot products.
 pub trait DotProduct<Rhs>: Sized + Copy {
@@ -18,13 +21,14 @@ pub trait DotProduct<Rhs>: Sized + Copy {
 pub trait SimdLength: DotProduct<Self> {
     /// Computes the SIMD length of this value.
     fn simd_length(&self) -> Self::Result {
-        use crate::na::SimdComplexField;
+        use simba::simd::SimdComplexField;
         self.gdot(*self).simd_sqrt()
     }
 }
 
 impl<T: DotProduct<T>> SimdLength for T {}
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: SimdRealCopy> DotProduct<Vector3<N>> for Vector3<N> {
     type Result = N;
 
@@ -33,6 +37,7 @@ impl<N: SimdRealCopy> DotProduct<Vector3<N>> for Vector3<N> {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: SimdRealCopy> DotProduct<Vector2<N>> for Vector2<N> {
     type Result = N;
 
@@ -41,6 +46,7 @@ impl<N: SimdRealCopy> DotProduct<Vector2<N>> for Vector2<N> {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: SimdRealCopy> DotProduct<Vector1<N>> for N {
     type Result = N;
 
@@ -66,6 +72,7 @@ impl DotProduct<SimdReal> for SimdReal {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: SimdRealCopy> DotProduct<N> for Vector1<N> {
     type Result = N;
 

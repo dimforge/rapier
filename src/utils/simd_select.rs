@@ -3,10 +3,10 @@
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 use crate::math::{Real, Vector};
-use crate::utils::ScalarType;
+use simba::simd::SimdValue;
 
 /// Trait for conditional selection between two values.
-pub trait SimdSelect<N: ScalarType> {
+pub trait SimdSelect<N: SimdValue> {
     /// Select between `self` and `if_false` based on `condition`.
     fn select(self, condition: N::SimdBool, if_false: Self) -> Self;
 }
@@ -18,10 +18,10 @@ impl SimdSelect<Real> for Vector {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
+#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
 impl SimdSelect<SimdReal> for na::Vector3<SimdReal> {
     #[inline]
-    fn select(self, condition: <SimdReal as na::SimdValue>::SimdBool, if_false: Self) -> Self {
-        na::SimdValue::select(self, condition, if_false)
+    fn select(self, condition: <SimdReal as SimdValue>::SimdBool, if_false: Self) -> Self {
+        SimdValue::select(self, condition, if_false)
     }
 }

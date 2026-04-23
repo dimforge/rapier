@@ -3,18 +3,26 @@
 //! See <https://github.com/fitzgen/generational-arena/blob/master/src/lib.rs>.
 //! This has been modified to have a fully deterministic deserialization (including for the order of
 //! Index attribution after a deserialization of the arena).
+#[cfg(feature = "alloc")]
 use crate::alloc_prelude::*;
+#[cfg(feature = "alloc")]
 use alloc::vec;
+#[cfg(feature = "alloc")]
 use core::cmp;
+#[cfg(feature = "alloc")]
 use core::iter::{self, Extend, FromIterator, FusedIterator};
+#[cfg(feature = "alloc")]
 use core::mem;
+#[cfg(feature = "alloc")]
 use core::ops;
+#[cfg(feature = "alloc")]
 use core::slice;
 
 /// The `Arena` allows inserting and removing elements that are referred to by
 /// `Index`.
 ///
 /// [See the module-level documentation for example usage and motivation.](./index.html)
+#[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct Arena<T> {
@@ -24,6 +32,7 @@ pub struct Arena<T> {
     len: usize,
 }
 
+#[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 enum Entry<T> {
@@ -81,14 +90,17 @@ impl Index {
     }
 }
 
+#[cfg(feature = "alloc")]
 const DEFAULT_CAPACITY: usize = 4;
 
+#[cfg(feature = "alloc")]
 impl<T> Default for Arena<T> {
     fn default() -> Arena<T> {
         Arena::new()
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> Arena<T> {
     /// Constructs a new, empty `Arena`.
     ///
@@ -779,6 +791,7 @@ impl<T> Arena<T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> IntoIterator for Arena<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
@@ -809,12 +822,14 @@ impl<T> IntoIterator for Arena<T> {
 ///     assert!(value < 100);
 /// }
 /// ```
+#[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 pub struct IntoIter<T> {
     len: usize,
     inner: vec::IntoIter<Entry<T>>,
 }
 
+#[cfg(feature = "alloc")]
 impl<T> Iterator for IntoIter<T> {
     type Item = T;
 
@@ -839,6 +854,7 @@ impl<T> Iterator for IntoIter<T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> DoubleEndedIterator for IntoIter<T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
@@ -857,14 +873,17 @@ impl<T> DoubleEndedIterator for IntoIter<T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> ExactSizeIterator for IntoIter<T> {
     fn len(&self) -> usize {
         self.len
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> FusedIterator for IntoIter<T> {}
 
+#[cfg(feature = "alloc")]
 impl<'a, T> IntoIterator for &'a Arena<T> {
     type Item = (Index, &'a T);
     type IntoIter = Iter<'a, T>;
@@ -892,12 +911,14 @@ impl<'a, T> IntoIterator for &'a Arena<T> {
 ///     println!("{} is at index {:?}", value, idx);
 /// }
 /// ```
+#[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 pub struct Iter<'a, T: 'a> {
     len: usize,
     inner: iter::Enumerate<slice::Iter<'a, Entry<T>>>,
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, T> Iterator for Iter<'a, T> {
     type Item = (Index, &'a T);
 
@@ -932,6 +953,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> DoubleEndedIterator for Iter<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
@@ -960,14 +982,17 @@ impl<T> DoubleEndedIterator for Iter<'_, T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> ExactSizeIterator for Iter<'_, T> {
     fn len(&self) -> usize {
         self.len
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> FusedIterator for Iter<'_, T> {}
 
+#[cfg(feature = "alloc")]
 impl<'a, T> IntoIterator for &'a mut Arena<T> {
     type Item = (Index, &'a mut T);
     type IntoIter = IterMut<'a, T>;
@@ -995,12 +1020,14 @@ impl<'a, T> IntoIterator for &'a mut Arena<T> {
 ///     *value += 5;
 /// }
 /// ```
+#[cfg(feature = "alloc")]
 #[derive(Debug)]
 pub struct IterMut<'a, T: 'a> {
     len: usize,
     inner: iter::Enumerate<slice::IterMut<'a, Entry<T>>>,
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = (Index, &'a mut T);
 
@@ -1035,6 +1062,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> DoubleEndedIterator for IterMut<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
@@ -1063,12 +1091,14 @@ impl<T> DoubleEndedIterator for IterMut<'_, T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> ExactSizeIterator for IterMut<'_, T> {
     fn len(&self) -> usize {
         self.len
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> FusedIterator for IterMut<'_, T> {}
 
 /// An iterator that removes elements from the arena.
@@ -1095,11 +1125,13 @@ impl<T> FusedIterator for IterMut<'_, T> {}
 /// assert!(arena.get(idx_1).is_none());
 /// assert!(arena.get(idx_2).is_none());
 /// ```
+#[cfg(feature = "alloc")]
 #[derive(Debug)]
 pub struct Drain<'a, T: 'a> {
     inner: iter::Enumerate<vec::Drain<'a, Entry<T>>>,
 }
 
+#[cfg(feature = "alloc")]
 impl<T> Iterator for Drain<'_, T> {
     type Item = (Index, T);
 
@@ -1120,6 +1152,7 @@ impl<T> Iterator for Drain<'_, T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> Extend<T> for Arena<T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for t in iter {
@@ -1128,6 +1161,7 @@ impl<T> Extend<T> for Arena<T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> FromIterator<T> for Arena<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let iter = iter.into_iter();
@@ -1140,6 +1174,7 @@ impl<T> FromIterator<T> for Arena<T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> ops::Index<Index> for Arena<T> {
     type Output = T;
 
@@ -1148,6 +1183,7 @@ impl<T> ops::Index<Index> for Arena<T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> ops::IndexMut<Index> for Arena<T> {
     fn index_mut(&mut self, index: Index) -> &mut Self::Output {
         self.get_mut(index).expect("No element at index")

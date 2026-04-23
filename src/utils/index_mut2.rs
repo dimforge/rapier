@@ -1,4 +1,5 @@
 //! IndexMut2 trait for simultaneously indexing with two distinct indices.
+#[cfg(feature = "alloc")]
 use crate::alloc_prelude::*;
 
 use core::ops::IndexMut;
@@ -20,6 +21,7 @@ pub trait IndexMut2<I>: IndexMut<I> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> IndexMut2<usize> for Vec<T> {
     #[inline]
     fn index_mut2(&mut self, i: usize, j: usize) -> (&mut T, &mut T) {

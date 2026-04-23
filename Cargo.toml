@@ -37,17 +37,17 @@ needless_lifetimes = "allow"
 
 [workspace.dependencies]
 # Core math
-nalgebra = { version = "0.34", default-features = false, features = ["macros", "alloc"] }
-glamx = { version = "0.2", default-features = false, features = ["nalgebra"] }
+nalgebra = { version = "0.34", default-features = false, features = ["macros"] }
+glamx = { version = "0.2", default-features = false }
 simba = { version = "0.9.1", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 approx = { version = "0.5", default-features = false }
 
 # Parry (each crate picks its own variant)
-parry2d = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
-parry3d = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
-parry2d-f64 = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
-parry3d-f64 = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
+parry2d = { version = "0.26.0", default-features = false, features = ["required-features"] }
+parry3d = { version = "0.26.0", default-features = false, features = ["required-features"] }
+parry2d-f64 = { version = "0.26.0", default-features = false, features = ["required-features"] }
+parry3d-f64 = { version = "0.26.0", default-features = false, features = ["required-features"] }
 
 # Utilities
 bitflags = "2"
@@ -60,7 +60,7 @@ wide = { version = "0.7.1", default-features = false }
 # Optional (optional = true must be set per-crate, not here)
 web-time = "1.1"
 rayon = "1"
-serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+serde = { version = "1", default-features = false, features = ["derive"] }
 
 # Dev
 bincode = "1"

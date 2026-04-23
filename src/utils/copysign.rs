@@ -4,7 +4,8 @@ use crate::math::Real;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 #[cfg(feature = "simd-is-enabled")]
-use na::SimdRealField;
+use simba::simd::SimdRealField;
+#[cfg(not(target_arch = "spirv"))]
 use na::{Scalar, Vector2, Vector3};
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
@@ -22,12 +23,14 @@ impl CopySign<Real> for Real {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: Scalar + Copy + CopySign<N>> CopySign<Vector2<N>> for N {
     fn copy_sign_to(self, to: Vector2<N>) -> Vector2<N> {
         Vector2::new(self.copy_sign_to(to.x), self.copy_sign_to(to.y))
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: Scalar + Copy + CopySign<N>> CopySign<Vector3<N>> for N {
     fn copy_sign_to(self, to: Vector3<N>) -> Vector3<N> {
         Vector3::new(
@@ -38,12 +41,14 @@ impl<N: Scalar + Copy + CopySign<N>> CopySign<Vector3<N>> for N {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: Scalar + Copy + CopySign<N>> CopySign<Vector2<N>> for Vector2<N> {
     fn copy_sign_to(self, to: Vector2<N>) -> Vector2<N> {
         Vector2::new(self.x.copy_sign_to(to.x), self.y.copy_sign_to(to.y))
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: Scalar + Copy + CopySign<N>> CopySign<Vector3<N>> for Vector3<N> {
     fn copy_sign_to(self, to: Vector3<N>) -> Vector3<N> {
         Vector3::new(
