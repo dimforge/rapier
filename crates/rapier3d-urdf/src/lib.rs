@@ -234,7 +234,9 @@ impl UrdfRobot {
         let mesh_dir = mesh_dir
             .or_else(|| path.parent())
             .unwrap_or_else(|| Path::new("./"));
-        let robot = urdf_rs::read_file(&path)?;
+        let raw = std::fs::read_to_string(&path)?;
+        let sanitized = sanitize_urdf_str(&raw);
+        let robot = urdf_rs::read_from_string(&sanitized)?;
         Ok((Self::from_robot(&robot, options, mesh_dir), robot))
     }
 
@@ -257,7 +259,8 @@ impl UrdfRobot {
         options: UrdfLoaderOptions,
         mesh_dir: &Path,
     ) -> anyhow::Result<(Self, Robot)> {
-        let robot = urdf_rs::read_from_string(str)?;
+        let sanitized = sanitize_urdf_str(str);
+        let robot = urdf_rs::read_from_string(&sanitized)?;
         Ok((Self::from_robot(&robot, options, mesh_dir), robot))
     }
 
@@ -612,4 +615,47 @@ fn urdf_to_joint(
     //       - Joint::mimic
     //       - Joint::safety_controller
     builder.build()
+}
+
+/// Replaces empty `<geometry></geometry>` blocks with a zero-sized box placeholder so
+/// that strict URDF parsers (e.g. `urdf-rs`) don't reject the file. The downstream
+/// collider construction skips these placeholders.
+fn sanitize_urdf_str(input: &str) -> String {
+    const PLACEHOLDER: &str = "<box size=\"0 0 0\"/>";
+    let mut out = String::with_capacity(input.len());
+    let mut rem = input;
+    while let Some(open_rel) = rem.find("<geometry") {
+        out.push_str(&rem[..open_rel]);
+        let after_open_tag = &rem[open_rel..];
+        // Find the closing `>` of the opening tag to handle attributes / self-closing.
+        let Some(open_end_rel) = after_open_tag.find('>') else {
+            out.push_str(after_open_tag);
+            return out;
+        };
+        let open_tag = &after_open_tag[..=open_end_rel];
+        let body_start = open_end_rel + 1;
+        // Self-closing `<geometry .../>` has nothing to sanitize.
+        if open_tag.ends_with("/>") {
+            out.push_str(open_tag);
+            rem = &after_open_tag[body_start..];
+            continue;
+        }
+        let body_and_after = &after_open_tag[body_start..];
+        let Some(close_rel) = body_and_after.find("</geometry>") else {
+            out.push_str(after_open_tag);
+            return out;
+        };
+        let body = &body_and_after[..close_rel];
+        let close_tag = "</geometry>";
+        out.push_str(open_tag);
+        if body.trim().is_empty() {
+            out.push_str(PLACEHOLDER);
+        } else {
+            out.push_str(body);
+        }
+        out.push_str(close_tag);
+        rem = &body_and_after[close_rel + close_tag.len()..];
+    }
+    out.push_str(rem);
+    out
 }
