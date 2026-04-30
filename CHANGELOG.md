@@ -12,7 +12,7 @@
   `CCDSolver::predict_impacts_at_next_positions` now take an extra `hooks: &dyn PhysicsHooks`
   argument. `PhysicsPipeline::step` callers are unaffected.
 
-## v0.31.0 (09 Jan. 2026)
+## v0.32.0 (09 Jan. 2026)
 
 ### Modified
 
