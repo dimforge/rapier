@@ -107,6 +107,12 @@ pub struct UrdfLoaderOptions {
     pub trimesh_flags: TriMeshFlags,
     /// The transform appended to every created rigid-bodies (default: `Pose::IDENTITY`).
     pub shift: Pose,
+    /// A uniform scale applied to every length read from the URDF file (default: `1.0`).
+    ///
+    /// This affects link positions, joint anchors, mesh scaling, primitive shape sizes,
+    /// inertial offsets, and prismatic joint limits. Mass and inertia tensors are left
+    /// unchanged. The [`Self::shift`] is applied *after* the scaling.
+    pub scale: Real,
     /// A description of the collider properties that need to be applied to every collider created
     /// by the loader (default: `ColliderBuilder::default().density(0.0)`).
     ///
@@ -138,6 +144,7 @@ impl Default for UrdfLoaderOptions {
             make_roots_fixed: false,
             trimesh_flags: TriMeshFlags::all(),
             shift: Pose::IDENTITY,
+            scale: 1.0,
             collider_blueprint: ColliderBuilder::default().density(0.0),
             rigid_body_blueprint: RigidBodyBuilder::dynamic(),
         }
@@ -444,7 +451,8 @@ impl UrdfRobot {
 
 #[rustfmt::skip]
 fn urdf_to_rigid_body(options: &UrdfLoaderOptions, inertial: &Inertial) -> RigidBody {
-    let origin = urdf_to_pose(&inertial.origin);
+    let mut origin = urdf_to_pose(&inertial.origin);
+    origin.translation *= options.scale;
     let mut builder = options.rigid_body_blueprint.clone();
     builder.body_type = RigidBodyType::Dynamic;
 
@@ -471,15 +479,22 @@ fn urdf_to_colliders(
     origin: &UrdfPose,
 ) -> Vec<Collider> {
     let mut shape_transform = Pose::IDENTITY;
+    let s = options.scale;
 
     let mut colliders = Vec::new();
 
     match &geometry {
         Geometry::Box { size } => {
+            // A zero-sized box is the sanitizer's stand-in for an empty `<geometry/>`
+            // tag (some URDFs declare `<collision>` blocks without an actual shape, which
+            // urdf-rs rejects). Skip it so we don't emit a degenerate collider.
+            if size[0] == 0.0 && size[1] == 0.0 && size[2] == 0.0 {
+                return Vec::new();
+            }
             colliders.push(SharedShape::cuboid(
-                size[0] as Real / 2.0,
-                size[1] as Real / 2.0,
-                size[2] as Real / 2.0,
+                size[0] as Real * s / 2.0,
+                size[1] as Real * s / 2.0,
+                size[2] as Real * s / 2.0,
             ));
         }
         Geometry::Cylinder { radius, length } => {
@@ -487,18 +502,18 @@ fn urdf_to_colliders(
             // instead of rapier’s default Y-up.
             shape_transform = Pose::rotation(Vector::X * Real::frac_pi_2());
             colliders.push(SharedShape::cylinder(
-                *length as Real / 2.0,
-                *radius as Real,
+                *length as Real * s / 2.0,
+                *radius as Real * s,
             ));
         }
         Geometry::Capsule { radius, length } => {
             colliders.push(SharedShape::capsule_z(
-                *length as Real / 2.0,
-                *radius as Real,
+                *length as Real * s / 2.0,
+                *radius as Real * s,
             ));
         }
         Geometry::Sphere { radius } => {
-            colliders.push(SharedShape::ball(*radius as Real));
+            colliders.push(SharedShape::ball(*radius as Real * s));
         }
         #[cfg(not(feature = "__meshloader_is_enabled"))]
         Geometry::Mesh { .. } => {
@@ -509,14 +524,15 @@ fn urdf_to_colliders(
         #[cfg(feature = "__meshloader_is_enabled")]
         Geometry::Mesh { filename, scale } => {
             let full_path = _mesh_dir.join(filename);
-            let scale = scale
-                .map(|s| Vector::new(s[0] as Real, s[1] as Real, s[2] as Real))
-                .unwrap_or_else(|| Vector::splat(1.0));
+            let mesh_scale = scale
+                .map(|sc| Vector::new(sc[0] as Real, sc[1] as Real, sc[2] as Real))
+                .unwrap_or_else(|| Vector::splat(1.0))
+                * s;
 
             let Ok(loaded_mesh) = rapier3d_meshloader::load_from_path(
                 full_path,
                 &rapier3d::prelude::MeshConverter::TriMeshWithFlags(options.trimesh_flags),
-                scale,
+                mesh_scale,
             ) else {
                 return Vec::new();
             };
@@ -529,14 +545,15 @@ fn urdf_to_colliders(
         }
     }
 
+    let mut local_pose = urdf_to_pose(origin);
+    local_pose.translation *= s;
+
     colliders
         .drain(..)
         .map(move |shape| {
             let mut builder = options.collider_blueprint.clone();
             builder.shape = shape;
-            builder
-                .position(urdf_to_pose(origin) * shape_transform)
-                .build()
+            builder.position(local_pose * shape_transform).build()
         })
         .collect()
 }
@@ -573,7 +590,8 @@ fn urdf_to_joint(
         urdf_rs::JointType::Prismatic => JointAxesMask::LOCKED_PRISMATIC_AXES,
         urdf_rs::JointType::Spherical => JointAxesMask::LOCKED_SPHERICAL_AXES,
     };
-    let joint_to_parent = urdf_to_pose(&joint.origin);
+    let mut joint_to_parent = urdf_to_pose(&joint.origin);
+    joint_to_parent.translation *= options.scale;
     let joint_axis = Vector::new(
         joint.axis.xyz[0] as Real,
         joint.axis.xyz[1] as Real,
@@ -584,20 +602,29 @@ fn urdf_to_joint(
     link2.set_position(pose1 * joint_to_parent, false);
 
     let mut builder = GenericJointBuilder::new(locked_axes)
-        .local_anchor1(joint_to_parent.translation)
         .contacts_enabled(options.enable_joint_collisions);
 
     if joint_axis != Vector::ZERO {
-        builder = builder
-            .local_axis1(joint_to_parent.rotation * joint_axis)
-            .local_axis2(joint_axis);
+        // Build a single joint frame from the URDF joint axis and reuse it on both
+        // sides — picking independent orthonormal bases for `local_axis1` /
+        // `local_axis2` would yield mismatched secondary axes, leaving the joint
+        // unsatisfied at rest and snapping the bodies on the first step.
+        let basis = GenericJoint::complete_ang_frame(joint_axis);
+        let frame2 = Pose::from_rotation(basis);
+        let frame1 = joint_to_parent * frame2;
+        builder = builder.local_frame1(frame1).local_frame2(frame2);
+    } else {
+        builder = builder.local_frame1(joint_to_parent);
     }
 
     match joint.joint_type {
         urdf_rs::JointType::Prismatic => {
             builder = builder.limits(
                 JointAxis::LinX,
-                [joint.limit.lower as Real, joint.limit.upper as Real],
+                [
+                    joint.limit.lower as Real * options.scale,
+                    joint.limit.upper as Real * options.scale,
+                ],
             )
         }
         urdf_rs::JointType::Revolute => {
