@@ -19,7 +19,7 @@ maintenance = { status = "actively-developed" }
 [lints]
 clippy = { needless_lifetimes = "allow" }
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim2", "f64", "std", "alloc"))',
+    'cfg(feature, values("dim2", "f64", "std", "alloc", "bytemuck"))',
     'cfg(target_arch, values("spirv"))',
 ] }
 
@@ -63,6 +63,10 @@ enhanced-determinism = ["simba/libm_force", "parry3d/enhanced-determinism"]
 debug-render = []
 profiler = ["dep:web-time"] # Enables the internal profiler.
 
+# Enables `bytemuck::Pod`/`Zeroable` impls on plain-data types like `InteractionGroups`,
+# so they can be uploaded straight into GPU buffers.
+bytemuck = ["dep:bytemuck"]
+
 # Feature used for debugging only.
 debug-disable-legitimate-fe-exceptions = []
 
@@ -93,6 +97,7 @@ wide.workspace = true
 web-time = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
 
 # Nalgebra is only included on non-spirv targets. On spirv, rapier exposes only the
 # subset of its API that doesn't require nalgebra.

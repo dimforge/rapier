@@ -51,6 +51,7 @@ parry3d-f64 = { version = "0.26.0", default-features = false, features = ["requi
 
 # Utilities
 bitflags = "2"
+bytemuck = { version = "1", features = ["derive"] }
 log = "0.4"
 thiserror = { version = "2", default-features = false }
 profiling = "1.0"
