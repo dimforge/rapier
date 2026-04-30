@@ -34,7 +34,10 @@ use rapier3d::{
         JointAxis, MassProperties, MultibodyJointHandle, MultibodyJointSet, RigidBody,
         RigidBodyBuilder, RigidBodyHandle, RigidBodySet, RigidBodyType,
     },
-    geometry::{Collider, ColliderBuilder, ColliderHandle, ColliderSet, SharedShape, TriMeshFlags},
+    geometry::{
+        Collider, ColliderBuilder, ColliderHandle, ColliderSet, MeshConverter, SharedShape,
+        TriMeshFlags,
+    },
     glamx::EulerRot,
     math::{Pose, Real, Rotation, Vector},
     na,
@@ -42,6 +45,8 @@ use rapier3d::{
 use std::collections::HashMap;
 use std::path::Path;
 use urdf_rs::{Geometry, Inertial, Joint, Pose as UrdfPose, Robot};
+
+pub use urdf_rs;
 
 #[cfg(doc)]
 use rapier3d::dynamics::Multibody;
@@ -104,7 +109,17 @@ pub struct UrdfLoaderOptions {
     ///
     /// Note that the default enables all the flags. This is operating under the assumption that the provided
     /// mesh are generally well-formed and properly oriented (2-manifolds with outward normals).
+    ///
+    /// Note that this field is only used when [`Self::mesh_converter`] is left at its default
+    /// value. If a custom [`MeshConverter`] is supplied, these flags are ignored.
     pub trimesh_flags: TriMeshFlags,
+    /// Controls how every mesh referenced by the URDF file is converted into a Rapier
+    /// collider shape (default: `None`, in which case the loader falls back to
+    /// [`MeshConverter::TriMeshWithFlags`] using [`Self::trimesh_flags`]).
+    ///
+    /// Set this to e.g. [`MeshConverter::Obb`] to get cheap proxy shapes for physics
+    /// while keeping the original meshes available for rendering through other means.
+    pub mesh_converter: Option<MeshConverter>,
     /// The transform appended to every created rigid-bodies (default: `Pose::IDENTITY`).
     pub shift: Pose,
     /// A uniform scale applied to every length read from the URDF file (default: `1.0`).
@@ -143,6 +158,7 @@ impl Default for UrdfLoaderOptions {
             enable_joint_collisions: false,
             make_roots_fixed: false,
             trimesh_flags: TriMeshFlags::all(),
+            mesh_converter: None,
             shift: Pose::IDENTITY,
             scale: 1.0,
             collider_blueprint: ColliderBuilder::default().density(0.0),
@@ -151,14 +167,43 @@ impl Default for UrdfLoaderOptions {
     }
 }
 
-/// An urdf link loaded as a rapier [`RigidBody`] and its [`Collider`]s.
+/// An auxiliary triangle-mesh visual representation associated to a [`UrdfCollider`].
+///
+/// The loader populates this whenever a [`UrdfLoaderOptions::mesh_converter`] other
+/// than the default trimesh converter is configured (e.g. [`MeshConverter::Obb`]),
+/// so the original mesh data isn't lost when the collider is a cheap proxy shape.
+#[derive(Clone, Debug)]
+pub struct UrdfVisual {
+    /// The triangle-mesh shape that visually represents the collider.
+    pub shape: SharedShape,
+    /// Pose of the visual mesh in the parent collider's local frame. When the
+    /// collider is a proxy whose pose differs from the original mesh's natural
+    /// pose (e.g. the rotated cuboid produced by [`MeshConverter::Obb`]), this
+    /// offset puts the mesh back at its source location.
+    pub local_pose: Pose,
+}
+
+/// A collider produced by the URDF loader together with an optional visual override.
+#[derive(Clone, Debug)]
+pub struct UrdfCollider {
+    /// The collider built for this URDF shape.
+    pub collider: Collider,
+    /// Optional visual triangle-mesh representation. Populated automatically when
+    /// the loader had to substitute the original mesh with a proxy shape (e.g. via
+    /// [`MeshConverter::Obb`]); otherwise `None`, in which case the collider's own
+    /// shape is meant to be rendered.
+    pub visual: Option<UrdfVisual>,
+}
+
+/// An urdf link loaded as a rapier [`RigidBody`] and its [`UrdfCollider`]s.
 #[derive(Clone, Debug)]
 pub struct UrdfLink {
     /// The rigid-body created for this link.
     pub body: RigidBody,
-    /// All the colliders build from the URDF visual and/or collision shapes (if the corresponding
-    /// [`UrdfLoaderOptions`] option is enabled).
-    pub colliders: Vec<Collider>,
+    /// All the colliders built from the URDF visual and/or collision shapes (if the
+    /// corresponding [`UrdfLoaderOptions`] option is enabled), each paired with an
+    /// optional visual override (see [`UrdfCollider::visual`]).
+    pub colliders: Vec<UrdfCollider>,
 }
 
 /// An urdf joint loaded as a rapier [`GenericJoint`].
@@ -198,13 +243,23 @@ pub struct UrdfJointHandle<JointHandle> {
     pub link2: RigidBodyHandle,
 }
 
+/// A handle to an inserted URDF collider together with its optional visual override.
+pub struct UrdfColliderHandle {
+    /// Handle of the inserted collider.
+    pub handle: ColliderHandle,
+    /// Optional visual triangle-mesh representation associated with this collider
+    /// (see [`UrdfCollider::visual`]).
+    pub visual: Option<UrdfVisual>,
+}
+
 /// The handles related to a link read from the URDF file and inserted into Rapier’s
 /// `RigidBodySet` and `ColliderSet`.
 pub struct UrdfLinkHandle {
     /// Handle of the inserted link’s rigid-body.
     pub body: RigidBodyHandle,
-    /// Handle of the colliders attached to [`Self::body`].
-    pub colliders: Vec<ColliderHandle>,
+    /// Handle of the colliders attached to [`Self::body`], each paired with an
+    /// optional visual override.
+    pub colliders: Vec<UrdfColliderHandle>,
 }
 
 /// Handles to all the Rapier objects created when inserting this robot into Rapier’s
@@ -352,6 +407,7 @@ impl UrdfRobot {
         collider_set: &mut ColliderSet,
         joint_set: &mut ImpulseJointSet,
     ) -> UrdfRobotHandles<ImpulseJointHandle> {
+        println!("INSERT");
         let links: Vec<_> = self
             .links
             .into_iter()
@@ -360,7 +416,14 @@ impl UrdfRobot {
                 let colliders = link
                     .colliders
                     .into_iter()
-                    .map(|co| collider_set.insert_with_parent(co, body, rigid_body_set))
+                    .map(|co| {
+                        let handle = collider_set.insert_with_parent(
+                            co.collider,
+                            body,
+                            rigid_body_set,
+                        );
+                        UrdfColliderHandle { handle, visual: co.visual }
+                    })
                     .collect();
                 UrdfLinkHandle { body, colliders }
             })
@@ -404,7 +467,14 @@ impl UrdfRobot {
                 let colliders = link
                     .colliders
                     .into_iter()
-                    .map(|co| collider_set.insert_with_parent(co, body, rigid_body_set))
+                    .map(|co| {
+                        let handle = collider_set.insert_with_parent(
+                            co.collider,
+                            body,
+                            rigid_body_set,
+                        );
+                        UrdfColliderHandle { handle, visual: co.visual }
+                    })
                     .collect();
                 UrdfLinkHandle { body, colliders }
             })
@@ -477,11 +547,13 @@ fn urdf_to_colliders(
     _mesh_dir: &Path, // Unused if none of the meshloader features is enabled.
     geometry: &Geometry,
     origin: &UrdfPose,
-) -> Vec<Collider> {
-    let mut shape_transform = Pose::IDENTITY;
+) -> Vec<UrdfCollider> {
     let s = options.scale;
 
-    let mut colliders = Vec::new();
+    // Per-shape data: the collider shape, the extra local pose to apply on top of
+    // the URDF origin (e.g. cylinder Z-up rotation, or the offset returned by
+    // `MeshConverter::Obb`), and an optional triangle-mesh visual override.
+    let mut shapes: Vec<(SharedShape, Pose, Option<UrdfVisual>)> = Vec::new();
 
     match &geometry {
         Geometry::Box { size } => {
@@ -491,29 +563,34 @@ fn urdf_to_colliders(
             if size[0] == 0.0 && size[1] == 0.0 && size[2] == 0.0 {
                 return Vec::new();
             }
-            colliders.push(SharedShape::cuboid(
-                size[0] as Real * s / 2.0,
-                size[1] as Real * s / 2.0,
-                size[2] as Real * s / 2.0,
+            shapes.push((
+                SharedShape::cuboid(
+                    size[0] as Real * s / 2.0,
+                    size[1] as Real * s / 2.0,
+                    size[2] as Real * s / 2.0,
+                ),
+                Pose::IDENTITY,
+                None,
             ));
         }
         Geometry::Cylinder { radius, length } => {
             // This rotation will make the cylinder Z-up as per the URDF spec,
             // instead of rapier’s default Y-up.
-            shape_transform = Pose::rotation(Vector::X * Real::frac_pi_2());
-            colliders.push(SharedShape::cylinder(
-                *length as Real * s / 2.0,
-                *radius as Real * s,
+            shapes.push((
+                SharedShape::cylinder(*length as Real * s / 2.0, *radius as Real * s),
+                Pose::rotation(Vector::X * Real::frac_pi_2()),
+                None,
             ));
         }
         Geometry::Capsule { radius, length } => {
-            colliders.push(SharedShape::capsule_z(
-                *length as Real * s / 2.0,
-                *radius as Real * s,
+            shapes.push((
+                SharedShape::capsule_z(*length as Real * s / 2.0, *radius as Real * s),
+                Pose::IDENTITY,
+                None,
             ));
         }
         Geometry::Sphere { radius } => {
-            colliders.push(SharedShape::ball(*radius as Real * s));
+            shapes.push((SharedShape::ball(*radius as Real * s), Pose::IDENTITY, None));
         }
         #[cfg(not(feature = "__meshloader_is_enabled"))]
         Geometry::Mesh { .. } => {
@@ -529,31 +606,56 @@ fn urdf_to_colliders(
                 .unwrap_or_else(|| Vector::splat(1.0))
                 * s;
 
-            let Ok(loaded_mesh) = rapier3d_meshloader::load_from_path(
-                full_path,
-                &rapier3d::prelude::MeshConverter::TriMeshWithFlags(options.trimesh_flags),
-                mesh_scale,
-            ) else {
+            let converter = options
+                .mesh_converter
+                .clone()
+                .unwrap_or(MeshConverter::TriMeshWithFlags(options.trimesh_flags));
+            // Whenever the user picks a converter that replaces the mesh with a
+            // proxy shape (e.g. Obb), keep the original triangle mesh around as a
+            // visual representation so renderers can still draw the source mesh.
+            let needs_visual = !matches!(
+                converter,
+                MeshConverter::TriMesh | MeshConverter::TriMeshWithFlags(_)
+            );
+            let visual_converter = MeshConverter::TriMeshWithFlags(options.trimesh_flags);
+            let Ok(loaded_mesh) =
+                rapier3d_meshloader::load_from_path(full_path, &converter, mesh_scale)
+            else {
                 return Vec::new();
             };
-            colliders.append(
-                &mut loaded_mesh
-                    .into_iter()
-                    .filter_map(|x| x.map(|s| s.shape).ok())
-                    .collect(),
-            );
+            for loaded in loaded_mesh.into_iter().filter_map(|x| x.ok()) {
+                let visual = if needs_visual {
+                    rapier3d_meshloader::load_from_raw_mesh(
+                        &loaded.raw_mesh,
+                        &visual_converter,
+                        mesh_scale,
+                    )
+                    .ok()
+                    .map(|(visual_shape, visual_pose)| UrdfVisual {
+                        shape: visual_shape,
+                        // The collider sits at `urdf_origin * loaded.pose`; the
+                        // visual mesh naturally sits at `urdf_origin * visual_pose`.
+                        // Local offset relative to the collider:
+                        local_pose: loaded.pose.inverse() * visual_pose,
+                    })
+                } else {
+                    None
+                };
+                shapes.push((loaded.shape, loaded.pose, visual));
+            }
         }
     }
 
     let mut local_pose = urdf_to_pose(origin);
     local_pose.translation *= s;
 
-    colliders
-        .drain(..)
-        .map(move |shape| {
+    shapes
+        .into_iter()
+        .map(move |(shape, shape_transform, visual)| {
             let mut builder = options.collider_blueprint.clone();
             builder.shape = shape;
-            builder.position(local_pose * shape_transform).build()
+            let collider = builder.position(local_pose * shape_transform).build();
+            UrdfCollider { collider, visual }
         })
         .collect()
 }
