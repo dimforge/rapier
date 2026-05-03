@@ -70,13 +70,19 @@ impl MultibodyJoint {
         self.joint_rot = pos.rotation;
     }
 
-    // pub(crate) fn local_joint_rot(&self) -> &Rotation {
-    //     &self.joint_rot
-    // }
+    /// The joint’s angular coordinates converted to a rotation.
+    pub fn joint_rot(&self) -> Rotation {
+        self.joint_rot
+    }
 
     fn num_free_lin_dofs(&self) -> usize {
         let locked_bits = self.data.locked_axes.bits();
         DIM - (locked_bits & ((1 << DIM) - 1)).count_ones() as usize
+    }
+
+    /// Generalized coordinates for this joint.
+    pub fn coords(&self) -> SpatialVector {
+        self.coords
     }
 
     /// The number of degrees of freedom allowed by the multibody_joint.
