@@ -437,23 +437,23 @@ impl PhysxWorld {
         unsafe {
             for joint in impulse_joints.iter() {
                 let actor1 = rapier2static
-                    .get_mut(&joint.1.body1)
+                    .get_mut(&joint.1.body1())
                     .map(|act| &mut **act as *mut PxRigidStatic as *mut PxRigidActor)
                     .or(rapier2dynamic
-                        .get_mut(&joint.1.body1)
+                        .get_mut(&joint.1.body1())
                         .map(|act| &mut **act as *mut PxRigidDynamic as *mut PxRigidActor))
                     .or(rapier2link
-                        .get_mut(&joint.1.body1)
+                        .get_mut(&joint.1.body1())
                         .map(|lnk| *lnk as *mut PxRigidActor))
                     .unwrap();
                 let actor2 = rapier2static
-                    .get_mut(&joint.1.body2)
+                    .get_mut(&joint.1.body2())
                     .map(|act| &mut **act as *mut PxRigidStatic as *mut PxRigidActor)
                     .or(rapier2dynamic
-                        .get_mut(&joint.1.body2)
+                        .get_mut(&joint.1.body2())
                         .map(|act| &mut **act as *mut PxRigidDynamic as *mut PxRigidActor))
                     .or(rapier2link
-                        .get_mut(&joint.1.body2)
+                        .get_mut(&joint.1.body2())
                         .map(|lnk| *lnk as *mut PxRigidActor))
                     .unwrap();
 

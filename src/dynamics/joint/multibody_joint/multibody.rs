@@ -1029,7 +1029,7 @@ impl Multibody {
                 let link_rb = &bodies[link.rigid_body];
                 let c0 = parent_link.local_to_world * parent_rb.mprops.local_mprops.local_com;
                 let c2 =
-                    link.local_to_world * Vector::from(link.joint.data.local_frame2.translation);
+                    link.local_to_world * link.joint.data.local_frame2.translation;
                 let c3 = link.local_to_world * link_rb.mprops.local_mprops.local_com;
 
                 link.shift02 = c2 - c0;
