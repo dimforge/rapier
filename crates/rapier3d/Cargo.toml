@@ -62,9 +62,6 @@ serde-serialize = [
 enhanced-determinism = ["simba/libm_force", "parry3d/enhanced-determinism"]
 debug-render = []
 profiler = ["dep:web-time"] # Enables the internal profiler.
-
-# Enables `bytemuck::Pod`/`Zeroable` impls on plain-data types like `InteractionGroups`,
-# so they can be uploaded straight into GPU buffers.
 bytemuck = ["dep:bytemuck"]
 
 # Feature used for debugging only.
