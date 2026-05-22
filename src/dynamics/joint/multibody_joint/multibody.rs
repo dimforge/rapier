@@ -210,34 +210,33 @@ impl Multibody {
     }
 
     pub(crate) fn append(&mut self, mut rhs: Multibody, parent: usize, joint: MultibodyJoint) {
+        let joint_ndofs = joint.ndofs();
         let rhs_root_ndofs = rhs.links[0].joint.ndofs();
+        let ndofs_before_append = self.velocities.len();
+        let base_internal_id = self.links.len();
         // Values for rhs will be copied into the buffers of `self` starting at this index.
-        let rhs_copy_shift = self.ndofs + joint.ndofs();
+        let rhs_copy_shift = ndofs_before_append + joint_ndofs;
         // Number of dofs to copy from rhs. The root’s dofs isn’t included because it will be
-        // replaced by `joint.
+        // replaced by `joint`.
         let rhs_copy_ndofs = rhs.ndofs - rhs_root_ndofs;
 
         // Adjust the ids of all the rhs links except the first one.
-        let base_assembly_id = self.velocities.len() - rhs_root_ndofs + joint.ndofs();
-        let base_internal_id = self.links.len() + 1;
-        let base_parent_id = self.links.len();
-
         for link in &mut rhs.links.0[1..] {
-            link.assembly_id += base_assembly_id;
+            link.assembly_id = (link.assembly_id + ndofs_before_append + joint_ndofs) - rhs_root_ndofs;
             link.internal_id += base_internal_id;
-            link.parent_internal_id += base_parent_id;
+            link.parent_internal_id += base_internal_id;
         }
 
         // Adjust the first link.
         {
             rhs.links[0].joint = joint;
-            rhs.links[0].assembly_id = self.velocities.len();
-            rhs.links[0].internal_id = self.links.len();
+            rhs.links[0].assembly_id = ndofs_before_append;
+            rhs.links[0].internal_id = base_internal_id;
             rhs.links[0].parent_internal_id = parent;
         }
 
         // Grow buffers then append data from rhs.
-        self.grow_buffers(rhs_copy_ndofs + rhs.links[0].joint.ndofs(), rhs.links.len());
+        self.grow_buffers(rhs_copy_ndofs + joint_ndofs, rhs.links.len());
 
         if rhs_copy_ndofs > 0 {
             self.velocities
@@ -251,9 +250,10 @@ impl Multibody {
                 .copy_from(&rhs.accelerations.rows(rhs_root_ndofs, rhs_copy_ndofs));
         }
 
+        // Set the default damping for the new joint.
         rhs.links[0]
             .joint
-            .default_damping(&mut self.damping.rows_mut(base_assembly_id, rhs_root_ndofs));
+            .default_damping(&mut self.damping.rows_mut(ndofs_before_append, joint_ndofs));
 
         self.links.append(&mut rhs.links);
         self.ndofs = self.velocities.len();
@@ -595,15 +595,13 @@ impl Multibody {
 
         self.augmented_mass_indices.clear();
 
-        if self.coriolis_v.len() != self.links.len() {
-            self.coriolis_v.resize(
-                self.links.len(),
-                OMatrix::<Real, Dim, Dyn>::zeros(self.ndofs),
-            );
-            self.coriolis_w.resize(
-                self.links.len(),
-                OMatrix::<Real, AngDim, Dyn>::zeros(self.ndofs),
-            );
+        // Resize coriolis workspaces if the link count or number of DOFs change.
+        let coriolis_ndofs = self.coriolis_v.first().map(|m| m.ncols());
+        if self.coriolis_v.len() != self.links.len() || coriolis_ndofs != Some(self.ndofs) {
+            self.coriolis_v =
+                vec![OMatrix::<Real, Dim, Dyn>::zeros(self.ndofs); self.links.len()];
+            self.coriolis_w =
+                vec![OMatrix::<Real, AngDim, Dyn>::zeros(self.ndofs); self.links.len()];
             self.i_coriolis_dt = Jacobian::zeros(self.ndofs);
         }
 

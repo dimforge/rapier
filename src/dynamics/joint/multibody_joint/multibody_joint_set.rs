@@ -209,11 +209,18 @@ impl MultibodyJointSet {
                     if multibody.num_links() == 1 {
                         // We don’t have any multibody_joint attached to this body, remove it.
                         let isolated_link = multibody.link(0).unwrap();
-                        let isolated_graph_id =
-                            self.rb2mb.get(isolated_link.rigid_body.0).unwrap().graph_id;
-                        if let Some(other) = self.connectivity_graph.remove_node(isolated_graph_id)
+
+                        // This body no longer has any multibody_joint attached: remove it from
+                        // the `rb2mb` mapping since it doesn’t have any multibody associated anymore.
+                        let isolated = self
+                            .rb2mb
+                            .remove(isolated_link.rigid_body.0, Default::default())
+                            .unwrap();
+                        if let Some(other) =
+                            self.connectivity_graph.remove_node(isolated.graph_id)
                         {
-                            self.rb2mb.get_mut(other.0).unwrap().graph_id = isolated_graph_id;
+                            // Update graph index due to the `remove_node` swap-remove.
+                            self.rb2mb.get_mut(other.0).unwrap().graph_id = isolated.graph_id;
                         }
                     } else {
                         let mb_id = self.multibodies.insert(multibody);
