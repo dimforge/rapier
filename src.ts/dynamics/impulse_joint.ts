@@ -272,6 +272,14 @@ export class UnitImpulseJoint extends ImpulseJoint {
         );
     }
 
+    public setMotorMaxForce(maxForce: number) {
+        this.rawSet.jointSetMotorMaxForce(
+            this.handle,
+            this.rawAxis(),
+            maxForce,
+        );
+    }
+
     public configureMotorVelocity(targetVel: number, factor: number) {
         this.rawSet.jointConfigureMotorVelocity(
             this.handle,

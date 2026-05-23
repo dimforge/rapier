@@ -108,6 +108,12 @@ impl RawImpulseJointSet {
         })
     }
 
+    pub fn jointSetMotorMaxForce(&mut self, handle: FlatHandle, axis: RawJointAxis, maxForce: f32) {
+        self.map_mut(handle, |j| {
+            j.data.set_motor_max_force(axis.into(), maxForce);
+        })
+    }
+
     /*
     #[cfg(feature = "dim3")]
     pub fn jointConfigureBallMotorVelocity(
