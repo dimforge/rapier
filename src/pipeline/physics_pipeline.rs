@@ -1331,4 +1331,86 @@ mod test {
             &event_handler,
         );
     }
+
+    #[test]
+    fn user_force_persists_across_steps() {
+        // Regression test for issue #903: user-added forces are NOT cleared automatically.
+        // They keep being applied at every physics step until `reset_forces()` is called.
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhaseBvh::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+        let mut bodies = RigidBodySet::new();
+        let params = IntegrationParameters::default();
+
+        let handle = bodies.insert(RigidBodyBuilder::dynamic().additional_mass(1.0));
+        bodies[handle].add_force(Vector::X, true);
+
+        // Step once and record the resulting velocity along X.
+        pipeline.step(
+            Vector::ZERO, // No gravity.
+            &params,
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            &(),
+            &(),
+        );
+        let vel_after_1 = bodies[handle].linvel().x;
+
+        // Step again *without* re-adding the force.
+        pipeline.step(
+            Vector::ZERO,
+            &params,
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            &(),
+            &(),
+        );
+        let vel_after_2 = bodies[handle].linvel().x;
+
+        // A constant force of 1N on a 1kg body increases the velocity by the same amount
+        // every step. If the force had been cleared after the first step, `vel_after_2`
+        // would equal `vel_after_1`.
+        assert!(vel_after_1 > 0.0);
+        assert!(
+            (vel_after_2 - 2.0 * vel_after_1).abs() < 1.0e-5,
+            "force should persist across steps: v1 = {vel_after_1}, v2 = {vel_after_2}"
+        );
+        // The force is still registered on the body.
+        assert_eq!(bodies[handle].user_force(), Vector::X);
+
+        // After `reset_forces`, stepping no longer accelerates the body.
+        bodies[handle].reset_forces(true);
+        pipeline.step(
+            Vector::ZERO,
+            &params,
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            &(),
+            &(),
+        );
+        let vel_after_reset = bodies[handle].linvel().x;
+        assert!((vel_after_reset - vel_after_2).abs() < 1.0e-5);
+    }
 }
