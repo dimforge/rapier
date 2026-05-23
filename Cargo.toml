@@ -56,7 +56,7 @@ log = "0.4"
 thiserror = { version = "2", default-features = false }
 profiling = "1.0"
 static_assertions = "1"
-wide = { version = "0.7.1", default-features = false }
+wide = { version = "0.7.33", default-features = false }
 
 # Optional (optional = true must be set per-crate, not here)
 web-time = "1.1"
