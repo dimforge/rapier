@@ -6,7 +6,7 @@ use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 use parry::bounding_volume::BoundingVolume;
 use parry::partitioning::{Bvh, BvhNode};
 use parry::query::details::{NormalConstraints, ShapeCastOptions};
-use parry::query::{NonlinearRigidMotion, QueryDispatcher, RayCast, ShapeCastHit};
+use parry::query::{NonlinearRigidMotion, PointQuery, QueryDispatcher, RayCast, ShapeCastHit};
 use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCompositeShape};
 
 /// A query system for performing spatial queries on your physics world (raycasts, shape casts, intersections).
@@ -346,10 +346,10 @@ impl<'a> QueryPipeline<'a> {
     pub fn project_point(
         &self,
         point: Vector,
-        _max_dist: Real,
+        max_dist: Real,
         solid: bool,
     ) -> Option<(ColliderHandle, PointProjection)> {
-        self.id_to_handle(CompositeShapeRef(self).project_local_point(point, solid))
+        self.id_to_handle(CompositeShapeRef(self).project_local_point(point, max_dist, solid)?)
     }
 
     /// Returns ALL colliders that contain the given point.
@@ -404,8 +404,9 @@ impl<'a> QueryPipeline<'a> {
     pub fn project_point_and_get_feature(
         &self,
         point: Vector,
+        max_dist: Real,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
-        let (id, (proj, feat)) = CompositeShapeRef(self).project_local_point_and_get_feature(point);
+        let (id, (proj, feat)) = CompositeShapeRef(self).project_local_point_and_get_feature(point, max_dist)?;
         let handle = self.colliders.get_unknown_gen(id)?.1;
         Some((handle, proj, feat))
     }
@@ -777,5 +778,117 @@ impl<'a> QueryFilter<'a> {
     pub fn predicate(mut self, predicate: &'a impl Fn(ColliderHandle, &Collider) -> bool) -> Self {
         self.predicate = Some(predicate);
         self
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::QueryFilter;
+    use crate::dynamics::{
+        CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+        RigidBodyBuilder, RigidBodySet,
+    };
+    use crate::geometry::{BroadPhaseBvh, ColliderBuilder, ColliderSet, NarrowPhase};
+    use crate::math::{Real, Vector};
+    use crate::pipeline::PhysicsPipeline;
+
+    /// Steps the pipeline once so that `broad_phase` ends up with an up-to-date BVH.
+    fn step(
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        broad_phase: &mut BroadPhaseBvh,
+        narrow_phase: &mut NarrowPhase,
+    ) {
+        PhysicsPipeline::new().step(
+            Vector::ZERO,
+            &IntegrationParameters::default(),
+            &mut IslandManager::new(),
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            &mut ImpulseJointSet::new(),
+            &mut MultibodyJointSet::new(),
+            &mut CCDSolver::new(),
+            &(),
+            &(),
+        );
+    }
+
+    /// Regression test for issues #923 and #926: projecting a point when there is no
+    /// collider to project onto must return `None` instead of panicking.
+    #[test]
+    fn project_point_on_empty_pipeline_returns_none() {
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut broad_phase = BroadPhaseBvh::new();
+        let mut narrow_phase = NarrowPhase::new();
+        step(&mut bodies, &mut colliders, &mut broad_phase, &mut narrow_phase);
+
+        let qp = broad_phase.as_query_pipeline(
+            narrow_phase.query_dispatcher(),
+            &bodies,
+            &colliders,
+            QueryFilter::default(),
+        );
+        assert!(qp.project_point(Vector::ZERO, Real::MAX, true).is_none());
+        assert!(qp.project_point_and_get_feature(Vector::ZERO, Real::MAX).is_none());
+    }
+
+    /// Regression test for issue #923: when every collider is removed by the query
+    /// filter, `project_point` must return `None` instead of panicking.
+    #[test]
+    fn project_point_with_all_colliders_filtered_returns_none() {
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut broad_phase = BroadPhaseBvh::new();
+        let mut narrow_phase = NarrowPhase::new();
+
+        // A standalone (non-dynamic) collider.
+        colliders.insert(ColliderBuilder::ball(1.0));
+        step(&mut bodies, &mut colliders, &mut broad_phase, &mut narrow_phase);
+
+        // `only_dynamic` excludes the standalone collider, leaving nothing to project onto.
+        let qp = broad_phase.as_query_pipeline(
+            narrow_phase.query_dispatcher(),
+            &bodies,
+            &colliders,
+            QueryFilter::only_dynamic(),
+        );
+        assert!(qp.project_point(Vector::ZERO, Real::MAX, true).is_none());
+        assert!(qp.project_point_and_get_feature(Vector::ZERO, Real::MAX).is_none());
+    }
+
+    /// Regression test for issue #921: `project_point` must honor its `max_dist` parameter.
+    #[test]
+    fn project_point_respects_max_dist() {
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut broad_phase = BroadPhaseBvh::new();
+        let mut narrow_phase = NarrowPhase::new();
+
+        // A unit ball at the origin.
+        let body = bodies.insert(RigidBodyBuilder::fixed());
+        let handle = colliders.insert_with_parent(ColliderBuilder::ball(1.0), body, &mut bodies);
+        step(&mut bodies, &mut colliders, &mut broad_phase, &mut narrow_phase);
+
+        let qp = broad_phase.as_query_pipeline(
+            narrow_phase.query_dispatcher(),
+            &bodies,
+            &colliders,
+            QueryFilter::default(),
+        );
+
+        // Point 10 units away along X: its closest point on the unit ball is 9 units away.
+        let point = Vector::X * 10.0;
+
+        // `max_dist` smaller than the actual distance => no result.
+        assert!(qp.project_point(point, 1.0, false).is_none());
+
+        // `max_dist` larger than the actual distance => the ball is found...
+        let (found, proj) = qp.project_point(point, 100.0, false).unwrap();
+        assert_eq!(found, handle);
+        // ...and the projection lies within `max_dist` of the queried point.
+        assert!((proj.point - point).length() <= 100.0);
     }
 }

@@ -430,9 +430,10 @@ impl PhysicsWorld {
         &'a self,
         point: Vector,
         filter: QueryFilter<'a>,
+        max_dist: Real,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
         self.query_pipeline_with_filter(filter)
-            .project_point_and_get_feature(point)
+            .project_point_and_get_feature(point, max_dist)
     }
 
     /// Iterate over every collider that the given ray passes through.
