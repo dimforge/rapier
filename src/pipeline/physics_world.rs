@@ -1,13 +1,18 @@
+use crate::alloc_prelude::*;
 use crate::dynamics::{
-    CCDSolver, GenericJoint, ImpulseJointHandle, ImpulseJointSet, IntegrationParameters,
-    IslandManager, MultibodyJointHandle, MultibodyJointSet, RigidBody, RigidBodyHandle,
-    RigidBodySet,
+    CCDSolver, GenericJoint, ImpulseJoint, ImpulseJointHandle, ImpulseJointSet,
+    IntegrationParameters, IslandManager, Multibody, MultibodyJointHandle, MultibodyJointSet,
+    MultibodyLink, MultibodyLinkId, RigidBody, RigidBodyHandle, RigidBodySet,
 };
 use crate::geometry::{
     BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, ContactPair, DefaultBroadPhase,
     NarrowPhase,
 };
+#[cfg(feature = "std")]
+use crate::geometry::{CollisionEvent, ContactForceEvent};
 use crate::math::{Real, Vector};
+#[cfg(feature = "std")]
+use crate::pipeline::ChannelEventCollector;
 use crate::pipeline::{EventHandler, PhysicsHooks, PhysicsPipeline, QueryFilter, QueryPipeline};
 use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::partitioning::BvhNode;
@@ -214,6 +219,27 @@ impl PhysicsWorld {
         )
     }
 
+    /// Wake a sleeping body, forcing it back into the active simulation.
+    ///
+    /// Useful after manually moving a body, applying forces, or otherwise wanting to make
+    /// sure it gets simulated on the next step. No-op for already-awake bodies, and for
+    /// fixed bodies (which don't sleep).
+    ///
+    /// # Parameters
+    /// * `strong` — if `true`, the body is guaranteed to stay awake for several frames.
+    ///   If `false`, it may sleep again immediately if sleep conditions are met.
+    pub fn wake_up(&mut self, handle: RigidBodyHandle, strong: bool) {
+        self.islands.wake_up(&mut self.bodies, handle, strong);
+    }
+
+    /// Wake every sleeping body in the world.
+    pub fn wake_up_all(&mut self, strong: bool) {
+        let handles: Vec<_> = self.bodies.iter().map(|(h, _)| h).collect();
+        for handle in handles {
+            self.islands.wake_up(&mut self.bodies, handle, strong);
+        }
+    }
+
     // ── Colliders ───────────────────────────────────────────────────────
 
     /// Insert a collider, optionally attached to a rigid body, and return its handle.
@@ -285,6 +311,29 @@ impl PhysicsWorld {
             .map(|j| j.data)
     }
 
+    /// Iterate over every impulse joint in the world as `(handle, &joint)` pairs.
+    pub fn impulse_joints(&self) -> impl Iterator<Item = (ImpulseJointHandle, &ImpulseJoint)> {
+        self.impulse_joints.iter()
+    }
+
+    /// Iterate over every impulse joint attached to the given rigid body.
+    ///
+    /// Each item is `(body1, body2, joint_handle, &joint)`. `body1` and `body2` are the
+    /// joint's endpoints — one of them is always `body`, the other is the neighbor.
+    pub fn impulse_joints_with(
+        &self,
+        body: RigidBodyHandle,
+    ) -> impl Iterator<
+        Item = (
+            RigidBodyHandle,
+            RigidBodyHandle,
+            ImpulseJointHandle,
+            &ImpulseJoint,
+        ),
+    > {
+        self.impulse_joints.attached_joints(body)
+    }
+
     // ── Multibody joints ────────────────────────────────────────────────
 
     /// Insert a multibody joint between two bodies and return its handle.
@@ -302,6 +351,33 @@ impl PhysicsWorld {
     /// Remove a multibody joint.
     pub fn remove_multibody_joint(&mut self, handle: MultibodyJointHandle) {
         self.multibody_joints.remove(handle, true);
+    }
+
+    /// Iterate over every multibody joint in the world.
+    ///
+    /// Each item is `(joint_handle, &link_id, &multibody, &link)`.
+    pub fn multibody_joints(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            MultibodyJointHandle,
+            &MultibodyLinkId,
+            &Multibody,
+            &MultibodyLink,
+        ),
+    > {
+        self.multibody_joints.iter()
+    }
+
+    /// Iterate over every multibody joint attached to the given rigid body.
+    ///
+    /// Each item is `(body1, body2, joint_handle)`. `body1` and `body2` are the joint's
+    /// endpoints — one of them is always `body`, the other is the neighbor.
+    pub fn multibody_joints_with(
+        &self,
+        body: RigidBodyHandle,
+    ) -> impl Iterator<Item = (RigidBodyHandle, RigidBodyHandle, MultibodyJointHandle)> + '_ {
+        self.multibody_joints.attached_joints(body)
     }
 
     // ── Scene queries ───────────────────────────────────────────────────
@@ -678,6 +754,18 @@ impl PhysicsWorld {
         &mut self,
     ) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
         self.bodies.iter_mut()
+    }
+
+    /// Iterate over only the currently active (awake) rigid bodies.
+    ///
+    /// Sleeping bodies are skipped, as are bodies that never sleep but aren't part of any
+    /// active island (e.g. unattached fixed bodies). This is the iterator to use when
+    /// rendering or syncing transforms, since transforms of sleeping bodies haven't moved
+    /// since the last step.
+    pub fn active_bodies(&self) -> impl Iterator<Item = (RigidBodyHandle, &RigidBody)> + '_ {
+        self.islands
+            .active_bodies()
+            .filter_map(move |h| Some((h, self.bodies.get(h)?)))
     }
 
     /// Iterate over every collider in the world as `(handle, &collider)` pairs.
