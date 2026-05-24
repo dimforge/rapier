@@ -311,4 +311,28 @@ impl RawGenericJoint {
                 .into(),
         ))
     }
+
+    /// Create a new joint descriptor that builds Revolute joints with
+    /// independent local axes for each attached rigid-body.
+    ///
+    /// This is equivalent to a revolute generic joint with all linear axes
+    /// locked and only angular X free, but it preserves the local hinge axis
+    /// on each body instead of assuming they are identical.
+    #[cfg(feature = "dim3")]
+    pub fn revoluteWithAxes(
+        anchor1: &RawVector,
+        anchor2: &RawVector,
+        axis1: &RawVector,
+        axis2: &RawVector,
+    ) -> Option<RawGenericJoint> {
+        let axis1 = Unit::try_new(axis1.0, 0.0)?;
+        let axis2 = Unit::try_new(axis2.0, 0.0)?;
+        let joint: GenericJoint = GenericJointBuilder::new(JointAxesMask::LOCKED_REVOLUTE_AXES)
+            .local_anchor1(anchor1.0.into())
+            .local_anchor2(anchor2.0.into())
+            .local_axis1(axis1)
+            .local_axis2(axis2)
+            .into();
+        Some(Self(joint))
+    }
 }
