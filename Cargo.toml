@@ -15,6 +15,33 @@ members = [
     "crates/rapier3d-meshloader",
     "crates/mjcf-rs",
     "crates/rapier3d-mjcf",
+    "python/rapier-py-core",
+    "python/rapier-py-2d",
+    "python/rapier-py-2d-f64",
+    "python/rapier-py-3d",
+    "python/rapier-py-3d-f64",
+]
+# Bare `cargo build` / `cargo test` / `cargo clippy` only touches the
+# pure-Rust crates. The Python-binding crates need a Python build env
+# (pyo3 `extension-module`) and are exercised by the dedicated
+# `.github/workflows/python-bindings.yml` workflow via explicit
+# `-p rapier-py-*` invocations.
+default-members = [
+    "crates/rapier2d",
+    "crates/rapier2d-f64",
+    "crates/rapier_testbed2d",
+    "crates/rapier_testbed2d-f64",
+    "examples2d",
+    "crates/rapier3d",
+    "crates/rapier3d-f64",
+    "crates/rapier_testbed3d",
+    "crates/rapier_testbed3d-f64",
+    "examples3d",
+    "examples3d-f64",
+    "crates/rapier3d-urdf",
+    "crates/rapier3d-meshloader",
+    "crates/mjcf-rs",
+    "crates/rapier3d-mjcf",
 ]
 resolver = "2"
 

@@ -32,7 +32,7 @@
 //!
 //! - Simulate anything. Pair this with `rapier3d-mjcf` for that.
 //! - Cover MJCF features that are out of scope for `rapier3d-mjcf`. See the
-//!   `rapier3d-mjcf` planning docs for the complete list.
+//!   `rapier3d-mjcf` README for the complete list.
 
 #![warn(missing_docs)]
 

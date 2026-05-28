@@ -1,0 +1,82 @@
+name: Python wheels
+
+# Build abi3 wheels for the four engine packages across every supported
+# platform and (on a `python-v*` tag) publish them to PyPI via trusted
+# publishing.
+#
+# abi3-py39 means ONE wheel per (package, platform, arch) covers Python 3.9+,
+# so there is deliberately no Python-version axis.
+#
+# NOTE: no sdist is published. The rapier2d/3d engine crates share their
+# source via the repo-root `src/` tree (`[lib] path = "../../src/lib.rs"`),
+# which lives outside any vendored crate directory, and maturin's sdist
+# packer cannot reach parent paths (`..` is rejected in `include`). A source
+# build would therefore be incomplete. The wheel matrix below covers all
+# mainstream platforms; source builds use a full git checkout of the repo.
+# Restoring an sdist is tracked as a follow-up (needs an upstream layout
+# change or registry-based engine deps).
+on:
+  push:
+    tags: ["python-v*"]
+  pull_request:
+    paths:
+      - "python/**"
+      - ".github/workflows/python-wheels.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: wheel ${{ matrix.package.name }} ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - { dir: rapier-py-3d,     name: rapier3d }
+          - { dir: rapier-py-3d-f64, name: rapier3d-f64 }
+          - { dir: rapier-py-2d,     name: rapier2d }
+          - { dir: rapier-py-2d-f64, name: rapier2d-f64 }
+        platform:
+          - { runner: ubuntu-latest,  target: x86_64-unknown-linux-gnu,  manylinux: auto }
+          - { runner: ubuntu-latest,  target: aarch64-unknown-linux-gnu, manylinux: auto }
+          - { runner: ubuntu-latest,  target: x86_64-unknown-linux-musl,  manylinux: musllinux_1_2 }
+          - { runner: ubuntu-latest,  target: aarch64-unknown-linux-musl, manylinux: musllinux_1_2 }
+          - { runner: macos-13,       target: x86_64-apple-darwin }
+          - { runner: macos-14,       target: aarch64-apple-darwin }
+          - { runner: windows-latest, target: x86_64-pc-windows-msvc }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
+          args: --release --out dist -m python/${{ matrix.package.dir }}/Cargo.toml
+          sccache: "true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.package.name }}-${{ matrix.platform.target }}
+          path: dist
+
+  publish:
+    name: Publish to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/python-v')
+    environment: pypi
+    permissions:
+      id-token: write   # OIDC for trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "wheels-*"
+          merge-multiple: true
+      - name: Publish all four packages
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist

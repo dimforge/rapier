@@ -2,3 +2,14 @@
 runner = "wasm-server-runner"
 # Needed for getrandom/uuid: https://github.com/uuid-rs/uuid/issues/792
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
+
+# macOS: PyO3 cdylibs built with the `extension-module` feature don't link
+# against libpython (Python provides those symbols at runtime). `cargo build`
+# doesn't know that, so we tell the linker not to fail on the unresolved
+# Python symbols. (Maturin handles this for us; this only affects bare
+# `cargo build` invocations.)
+[target.'cfg(target_os = "macos")']
+rustflags = [
+    "-C", "link-arg=-undefined",
+    "-C", "link-arg=dynamic_lookup",
+]

@@ -1,0 +1,1896 @@
+//! Macros that emit the user-facing math `#[pyclass]` types
+//! (`Vec2`/`Vec3`/`Point2`/`Point3`/`Rotation2`/`Rotation3`/`Isometry2`/`Isometry3`)
+//! plus helpers, per cdylib.
+//!
+//! Why this lives in a macro rather than a generic module:
+//! `#[pyclass]` types must be **concrete** Rust structs — PyO3 cannot register
+//! generics. Each cdylib has a fixed `(Real, DIM)` pair, so we expand a macro
+//! once per cdylib that synthesizes the concrete types and the `register_math`
+//! function used by `#[pymodule]`.
+//!
+//! Defaults for `approx_eq` tolerances: `1e-7` for `f32`, `1e-14` for `f64`.
+
+/// Default `approx_eq` epsilon for a given scalar.
+pub trait DefaultEpsilon {
+    fn default_epsilon() -> Self;
+}
+impl DefaultEpsilon for f32 {
+    #[inline]
+    fn default_epsilon() -> Self {
+        // Loose enough to absorb a couple of float roundings in chained ops
+        // (e.g. composing two rotations and then transforming a vector). The
+        // spec calls for `1e-7` but in practice accumulated f32 error already
+        // reaches `~3e-7` after two SIMD steps, so we relax slightly.
+        1.0e-5
+    }
+}
+impl DefaultEpsilon for f64 {
+    #[inline]
+    fn default_epsilon() -> Self {
+        // Same rationale: spec is `1e-14`, but f64 chained ops can reach
+        // `~5e-15` quickly. We keep one decade of slack.
+        1.0e-12
+    }
+}
+
+/// Repr format string per scalar (matches Python's default float repr precision).
+pub trait ReprPrecision {
+    /// Format a single scalar for use inside `Vec3(…)`-style reprs.
+    fn fmt_repr(self) -> String;
+}
+impl ReprPrecision for f32 {
+    #[inline]
+    fn fmt_repr(self) -> String {
+        // f32 → match Python single-precision-ish; use 7 sig digits.
+        // We rely on Rust's default `Display` for f32 which is shortest-round-trip.
+        format!("{}", self)
+    }
+}
+impl ReprPrecision for f64 {
+    #[inline]
+    fn fmt_repr(self) -> String {
+        format!("{}", self)
+    }
+}
+
+/// Materialize the math `#[pyclass]` types for a given `(Real, DIM)` pair.
+///
+/// Invoke **after** `define_conv_types!(Real = …, DIM = …)` in the same cdylib
+/// so the `PyVector`/`PyPoint`/`PyRotation`/`PyIsometry`/`PyAngVector` adapters
+/// are in scope.
+///
+/// Produces a function `register_math(py, m) -> PyResult<()>` that the
+/// `#[pymodule]` calls to add the classes to the module table.
+#[macro_export]
+macro_rules! define_math_types {
+    (DIM = 2) => {
+        $crate::__define_math_2d!();
+    };
+    (DIM = 3) => {
+        $crate::__define_math_3d!();
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_math_2d {
+    () => {
+        use $crate::numpy::{PyArray1, PyArrayMethods};
+        use $crate::pyo3::exceptions::{PyTypeError, PyValueError};
+        use $crate::pyo3::prelude::*;
+        use $crate::pyo3::pyclass::CompareOp;
+
+        // ------------------------------------------------------------------
+        // Vec2
+        // ------------------------------------------------------------------
+        /// A 2D vector of two real numbers ``(x, y)``.
+        ///
+        /// Represents a free vector (a direction and magnitude) in 2D space.
+        /// Instances are immutable; arithmetic returns new ``Vec2`` values.
+        ///
+        /// Wraps :class:`nalgebra::Vector2`.
+        ///
+        /// Construct with the component constructor, the named static methods
+        /// (:meth:`zeros`, :meth:`unit_x`, :meth:`unit_y`), or from a Python
+        /// tuple / NumPy array via :meth:`from_tuple` / :meth:`from_ndarray`.
+        ///
+        /// Example::
+        ///
+        ///     from rapier2d import Vec2
+        ///     v = Vec2(1.0, 2.0)
+        ///     w = Vec2.unit_x() + v
+        #[pyclass(name = "Vec2", module = "rapier.dim2", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct Vec2(pub $crate::na::Vector2<Real>);
+
+        #[pymethods]
+        impl Vec2 {
+            /// Create a new 2D vector from its ``x`` and ``y`` components.
+            ///
+            /// :param x: x component.
+            /// :param y: y component.
+            #[new]
+            fn new(x: Real, y: Real) -> Self {
+                Self($crate::na::Vector2::new(x, y))
+            }
+
+            /// Return the zero vector ``(0, 0)``.
+            #[staticmethod]
+            fn zeros() -> Self {
+                Self($crate::na::Vector2::zeros())
+            }
+            /// Return the unit vector along the ``x`` axis, ``(1, 0)``.
+            #[staticmethod]
+            fn unit_x() -> Self {
+                Self($crate::na::Vector2::x())
+            }
+            /// Return the unit vector along the ``y`` axis, ``(0, 1)``.
+            #[staticmethod]
+            fn unit_y() -> Self {
+                Self($crate::na::Vector2::y())
+            }
+
+            /// Build a :class:`Vec2` from a 2-element tuple or list.
+            ///
+            /// :param t: any Python sequence convertible to a 2D vector.
+            #[staticmethod]
+            fn from_tuple(t: PyVector) -> Self {
+                Self(t.0)
+            }
+
+            /// Build a :class:`Vec2` from a length-2 NumPy array.
+            ///
+            /// :param a: a 1D NumPy array of shape ``(2,)``.
+            #[staticmethod]
+            fn from_ndarray(a: PyVector) -> Self {
+                Self(a.0)
+            }
+
+            /// The ``x`` component of the vector.
+            #[getter]
+            fn x(&self) -> Real {
+                self.0.x
+            }
+            /// The ``y`` component of the vector.
+            #[getter]
+            fn y(&self) -> Real {
+                self.0.y
+            }
+
+            /// Dot product with another vector.
+            ///
+            /// :param other: the right-hand side vector.
+            /// :returns: ``self.x * other.x + self.y * other.y``.
+            fn dot(&self, other: PyVector) -> Real {
+                self.0.dot(&other.0)
+            }
+            /// Euclidean (L2) norm, i.e. ``sqrt(x*x + y*y)``.
+            fn norm(&self) -> Real {
+                self.0.norm()
+            }
+            /// Squared Euclidean norm, i.e. ``x*x + y*y``.
+            ///
+            /// Cheaper than :meth:`norm` when only comparisons are needed.
+            fn norm_squared(&self) -> Real {
+                self.0.norm_squared()
+            }
+
+            /// Return a unit-length copy of this vector.
+            ///
+            /// If the vector is exactly zero, returns the zero vector
+            /// unchanged (no division by zero).
+            fn normalize(&self) -> Self {
+                let n = self.0.norm();
+                if n == 0 as Real {
+                    Self(self.0)
+                } else {
+                    Self(self.0 / n)
+                }
+            }
+
+            /// Linear interpolation between ``self`` and ``other``.
+            ///
+            /// :param other: the target vector.
+            /// :param t: interpolation parameter (``0`` returns ``self``,
+            ///     ``1`` returns ``other``). Values outside ``[0, 1]``
+            ///     extrapolate.
+            fn lerp(&self, other: PyVector, t: Real) -> Self {
+                Self(self.0 * (1 as Real - t) + other.0 * t)
+            }
+
+            /// Return the components as a Python tuple ``(x, y)``.
+            fn to_tuple(&self) -> (Real, Real) {
+                (self.0.x, self.0.y)
+            }
+
+            /// Return the components as a length-2 NumPy array.
+            fn to_ndarray<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<Real>> {
+                PyArray1::from_slice_bound(py, &[self.0.x, self.0.y])
+            }
+
+            /// Exact bitwise equality with another vector.
+            ///
+            /// Unlike ``==`` (which uses a tolerance), this requires the
+            /// underlying floats to compare equal bit-for-bit.
+            fn bitwise_equal(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+
+            /// Component-wise addition: ``self + other``.
+            fn __add__(&self, other: PyVector) -> Self {
+                Self(self.0 + other.0)
+            }
+            /// Component-wise subtraction: ``self - other``.
+            fn __sub__(&self, other: PyVector) -> Self {
+                Self(self.0 - other.0)
+            }
+            /// Scalar multiplication: ``self * s``.
+            fn __mul__(&self, s: Real) -> Self {
+                Self(self.0 * s)
+            }
+            /// Reflected scalar multiplication: ``s * self``.
+            fn __rmul__(&self, s: Real) -> Self {
+                Self(self.0 * s)
+            }
+            /// Scalar division: ``self / s``.
+            ///
+            /// :raises ValueError: if ``s`` is zero.
+            fn __truediv__(&self, s: Real) -> PyResult<Self> {
+                if s == 0 as Real {
+                    return Err(PyValueError::new_err("division by zero"));
+                }
+                Ok(Self(self.0 / s))
+            }
+            /// Unary negation: ``-self``.
+            fn __neg__(&self) -> Self {
+                Self(-self.0)
+            }
+
+            /// Number of components (always ``2``).
+            fn __len__(&self) -> usize {
+                2
+            }
+
+            /// Component access by index ``0`` or ``1`` (negative indices
+            /// supported).
+            ///
+            /// :raises IndexError: if ``idx`` is out of range.
+            fn __getitem__(&self, idx: isize) -> PyResult<Real> {
+                let i = if idx < 0 { idx + 2 } else { idx };
+                match i {
+                    0 => Ok(self.0.x),
+                    1 => Ok(self.0.y),
+                    _ => Err(pyo3::exceptions::PyIndexError::new_err(
+                        "Vec2 index out of range",
+                    )),
+                }
+            }
+
+            /// Iterate over the components in the order ``x``, ``y``.
+            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<Vec2Iter>> {
+                let py = slf.py();
+                Py::new(py, Vec2Iter { v: slf.0, i: 0 })
+            }
+
+            /// Human-readable representation, e.g. ``Vec2(1, 2)``.
+            fn __repr__(&self) -> String {
+                use $crate::math::ReprPrecision;
+                format!("Vec2({}, {})", self.0.x.fmt_repr(), self.0.y.fmt_repr())
+            }
+
+            /// Tolerant equality comparison.
+            ///
+            /// Two vectors compare equal when their Euclidean distance is at
+            /// most a small default epsilon (``1e-5`` for ``f32``,
+            /// ``1e-12`` for ``f64``). Only ``==`` and ``!=`` are supported.
+            ///
+            /// :raises TypeError: for ordering comparisons.
+            fn __richcmp__(&self, other: PyVector, op: CompareOp) -> PyResult<bool> {
+                use $crate::math::DefaultEpsilon;
+                let eps: Real = Real::default_epsilon();
+                let close = (self.0 - other.0).norm() <= eps;
+                match op {
+                    CompareOp::Eq => Ok(close),
+                    CompareOp::Ne => Ok(!close),
+                    _ => Err(PyTypeError::new_err("Vec2 supports only == and !=")),
+                }
+            }
+        }
+
+        /// Iterator helper yielding the components of a :class:`Vec2` in
+        /// ``x``, ``y`` order. Produced by iterating over a :class:`Vec2`.
+        #[pyclass]
+        pub struct Vec2Iter {
+            v: $crate::na::Vector2<Real>,
+            i: usize,
+        }
+        #[pymethods]
+        impl Vec2Iter {
+            /// Return ``self`` (iterators are their own iterators).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+                slf
+            }
+            /// Yield the next component, or stop after ``y``.
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Real> {
+                let r = match slf.i {
+                    0 => Some(slf.v.x),
+                    1 => Some(slf.v.y),
+                    _ => None,
+                };
+                if r.is_some() {
+                    slf.i += 1;
+                }
+                r
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Point2
+        // ------------------------------------------------------------------
+        /// A point in 2D affine space ``(x, y)``.
+        ///
+        /// Conceptually distinct from :class:`Vec2`: a point represents a
+        /// location, a vector represents a displacement. Subtracting two
+        /// points yields a :class:`Vec2`; adding a :class:`Vec2` to a point
+        /// yields a new point.
+        ///
+        /// Wraps :class:`nalgebra::Point2`.
+        ///
+        /// Example::
+        ///
+        ///     from rapier2d import Point2, Vec2
+        ///     p = Point2(1.0, 2.0)
+        ///     q = p + Vec2(3.0, 0.0)        # Point2(4, 2)
+        ///     displacement = q - p          # Vec2(3, 0)
+        #[pyclass(name = "Point2", module = "rapier.dim2", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct Point2(pub $crate::na::Point2<Real>);
+
+        #[pymethods]
+        impl Point2 {
+            /// Create a new 2D point from its ``x`` and ``y`` coordinates.
+            ///
+            /// :param x: x coordinate.
+            /// :param y: y coordinate.
+            #[new]
+            fn new(x: Real, y: Real) -> Self {
+                Self($crate::na::Point2::new(x, y))
+            }
+            /// Return the origin, ``Point2(0, 0)``.
+            #[staticmethod]
+            fn origin() -> Self {
+                Self($crate::na::Point2::origin())
+            }
+            /// Build a :class:`Point2` from a 2-element tuple or list.
+            #[staticmethod]
+            fn from_tuple(t: PyPoint) -> Self {
+                Self(t.0)
+            }
+            /// Build a :class:`Point2` from a length-2 NumPy array.
+            #[staticmethod]
+            fn from_ndarray(a: PyPoint) -> Self {
+                Self(a.0)
+            }
+
+            /// The ``x`` coordinate of the point.
+            #[getter]
+            fn x(&self) -> Real {
+                self.0.x
+            }
+            /// The ``y`` coordinate of the point.
+            #[getter]
+            fn y(&self) -> Real {
+                self.0.y
+            }
+
+            /// The coordinates of the point as a :class:`Vec2` from origin.
+            #[getter]
+            fn coords(&self) -> Vec2 {
+                Vec2(self.0.coords)
+            }
+
+            /// Return the coordinates as a Python tuple ``(x, y)``.
+            fn to_tuple(&self) -> (Real, Real) {
+                (self.0.x, self.0.y)
+            }
+            /// Return the coordinates as a length-2 NumPy array.
+            fn to_ndarray<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<Real>> {
+                PyArray1::from_slice_bound(py, &[self.0.x, self.0.y])
+            }
+
+            /// Exact bitwise equality with another point.
+            ///
+            /// Unlike ``==`` (tolerance-based), requires bit-identical
+            /// component values.
+            fn bitwise_equal(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+
+            /// Translate by a vector: ``point + vector`` returns a new
+            /// :class:`Point2`.
+            // p + v -> Point
+            fn __add__(&self, v: PyVector) -> Self {
+                Self(self.0 + v.0)
+            }
+
+            /// Subtraction. ``point - point`` returns a :class:`Vec2`
+            /// (displacement). ``point - vector`` returns a :class:`Point2`
+            /// (translation by ``-vector``).
+            // p - p -> Vec ;  p - v -> Point
+            fn __sub__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+                let py = other.py();
+                if let Ok(p) = other.extract::<PyRef<'_, Point2>>() {
+                    return Ok(Vec2(self.0 - p.0).into_py(py));
+                }
+                if let Ok(p) = other.extract::<PyPoint>() {
+                    return Ok(Vec2(self.0 - p.0).into_py(py));
+                }
+                let v: PyVector = other.extract()?;
+                Ok(Point2(self.0 - v.0).into_py(py))
+            }
+
+            /// Number of coordinates (always ``2``).
+            fn __len__(&self) -> usize {
+                2
+            }
+            /// Coordinate access by index ``0`` or ``1`` (negative indices
+            /// supported).
+            ///
+            /// :raises IndexError: if ``idx`` is out of range.
+            fn __getitem__(&self, idx: isize) -> PyResult<Real> {
+                let i = if idx < 0 { idx + 2 } else { idx };
+                match i {
+                    0 => Ok(self.0.x),
+                    1 => Ok(self.0.y),
+                    _ => Err(pyo3::exceptions::PyIndexError::new_err(
+                        "Point2 index out of range",
+                    )),
+                }
+            }
+            /// Iterate over the coordinates in the order ``x``, ``y``.
+            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<Point2Iter>> {
+                let py = slf.py();
+                Py::new(py, Point2Iter { p: slf.0, i: 0 })
+            }
+
+            /// Human-readable representation, e.g. ``Point2(1, 2)``.
+            fn __repr__(&self) -> String {
+                use $crate::math::ReprPrecision;
+                format!("Point2({}, {})", self.0.x.fmt_repr(), self.0.y.fmt_repr())
+            }
+
+            /// Tolerant equality (Euclidean distance ≤ default epsilon).
+            /// Only ``==`` and ``!=`` are supported.
+            ///
+            /// :raises TypeError: for ordering comparisons.
+            fn __richcmp__(&self, other: PyPoint, op: CompareOp) -> PyResult<bool> {
+                use $crate::math::DefaultEpsilon;
+                let eps: Real = Real::default_epsilon();
+                let close = (self.0 - other.0).norm() <= eps;
+                match op {
+                    CompareOp::Eq => Ok(close),
+                    CompareOp::Ne => Ok(!close),
+                    _ => Err(PyTypeError::new_err("Point2 supports only == and !=")),
+                }
+            }
+        }
+
+        /// Iterator yielding the coordinates of a :class:`Point2` in
+        /// ``x``, ``y`` order.
+        #[pyclass]
+        pub struct Point2Iter {
+            p: $crate::na::Point2<Real>,
+            i: usize,
+        }
+        #[pymethods]
+        impl Point2Iter {
+            /// Return ``self`` (iterators are their own iterators).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+                slf
+            }
+            /// Yield the next coordinate, or stop after ``y``.
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Real> {
+                let r = match slf.i {
+                    0 => Some(slf.p.x),
+                    1 => Some(slf.p.y),
+                    _ => None,
+                };
+                if r.is_some() {
+                    slf.i += 1;
+                }
+                r
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Rotation2
+        // ------------------------------------------------------------------
+        /// A 2D rotation, represented internally as a unit complex number.
+        ///
+        /// Encodes a rotation by an angle (in radians) about the origin.
+        /// The unit-complex representation is numerically stable and avoids
+        /// the storage / normalization issues of a 2x2 matrix.
+        ///
+        /// Wraps :class:`nalgebra::UnitComplex`.
+        ///
+        /// Example::
+        ///
+        ///     from math import pi
+        ///     from rapier2d import Rotation2, Vec2
+        ///     r = Rotation2(pi / 2)
+        ///     v = r * Vec2(1.0, 0.0)        # Vec2(0, 1)
+        #[pyclass(name = "Rotation2", module = "rapier.dim2", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct Rotation2(pub $crate::na::UnitComplex<Real>);
+
+        #[pymethods]
+        impl Rotation2 {
+            /// Create a rotation by ``angle`` radians (counter-clockwise).
+            ///
+            /// :param angle: rotation angle in radians.
+            #[new]
+            fn new(angle: Real) -> Self {
+                Self($crate::na::UnitComplex::new(angle))
+            }
+
+            /// Return the identity rotation (angle = 0).
+            #[staticmethod]
+            fn identity() -> Self {
+                Self($crate::na::UnitComplex::identity())
+            }
+            /// Build a rotation from an angle in radians.
+            ///
+            /// Equivalent to the constructor; provided for symmetry with
+            /// :class:`Rotation3`.
+            #[staticmethod]
+            fn from_angle(angle: Real) -> Self {
+                Self($crate::na::UnitComplex::new(angle))
+            }
+
+            /// Rotation angle in radians, in ``[-pi, pi]``.
+            #[getter]
+            fn angle(&self) -> Real {
+                self.0.angle()
+            }
+            /// Cosine of the rotation angle.
+            #[getter]
+            fn cos_angle(&self) -> Real {
+                self.0.cos_angle()
+            }
+            /// Sine of the rotation angle.
+            #[getter]
+            fn sin_angle(&self) -> Real {
+                self.0.sin_angle()
+            }
+
+            /// Return the inverse rotation (rotation by ``-angle``).
+            fn inverse(&self) -> Self {
+                Self(self.0.inverse())
+            }
+
+            /// Return the equivalent 2x2 rotation matrix, row-major flattened
+            /// into a length-4 NumPy array.
+            fn to_matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<Real>> {
+                let m = self.0.to_rotation_matrix();
+                let mm = m.matrix();
+                // Row-major flatten 2x2
+                PyArray1::from_slice_bound(py, &[mm[(0, 0)], mm[(0, 1)], mm[(1, 0)], mm[(1, 1)]])
+            }
+
+            /// Returns the rotation angle as a 1-element tuple — matches
+            /// `PyRotation`'s `FromPyObject` impl in 2D.
+            fn to_tuple(&self) -> (Real,) {
+                (self.0.angle(),)
+            }
+
+            /// Rotate a vector and return a new :class:`Vec2`.
+            ///
+            /// :param v: the input vector.
+            fn transform_vector(&self, v: PyVector) -> Vec2 {
+                Vec2(self.0 * v.0)
+            }
+            /// Rotate a point about the origin and return a new
+            /// :class:`Point2`.
+            ///
+            /// :param p: the input point.
+            fn transform_point(&self, p: PyPoint) -> Point2 {
+                Point2(self.0 * p.0)
+            }
+
+            /// Spherical-linear interpolation between two rotations.
+            ///
+            /// :param other: the target rotation.
+            /// :param t: interpolation parameter in ``[0, 1]``.
+            fn slerp(&self, other: PyRotation, t: Real) -> Self {
+                Self(self.0.slerp(&other.0, t))
+            }
+
+            /// Exact bitwise equality with another rotation.
+            fn bitwise_equal(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+
+            /// Multiplication ``self * rhs``. Composes / transforms depending
+            /// on the right-hand side:
+            ///
+            /// - ``Rotation2 * Rotation2`` → composed :class:`Rotation2`.
+            /// - ``Rotation2 * Point2`` → rotated :class:`Point2`.
+            /// - ``Rotation2 * Vec2`` → rotated :class:`Vec2`.
+            fn __mul__(&self, rhs: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+                let py = rhs.py();
+                if let Ok(r) = rhs.extract::<PyRotation>() {
+                    return Ok(Rotation2(self.0 * r.0).into_py(py));
+                }
+                if let Ok(p) = rhs.extract::<PyRef<'_, Point2>>() {
+                    return Ok(Point2(self.0 * p.0).into_py(py));
+                }
+                if let Ok(p) = rhs.extract::<PyPoint>() {
+                    return Ok(Point2(self.0 * p.0).into_py(py));
+                }
+                let v: PyVector = rhs.extract()?;
+                Ok(Vec2(self.0 * v.0).into_py(py))
+            }
+
+            /// Human-readable representation, e.g. ``Rotation2(angle=1.5708)``.
+            fn __repr__(&self) -> String {
+                use $crate::math::ReprPrecision;
+                format!("Rotation2(angle={})", self.0.angle().fmt_repr())
+            }
+
+            /// Tolerant equality. Two rotations compare equal when the
+            /// shortest signed angular distance between them is at most a
+            /// default epsilon. Only ``==`` and ``!=`` are supported.
+            ///
+            /// :raises TypeError: for ordering comparisons.
+            fn __richcmp__(&self, other: PyRotation, op: CompareOp) -> PyResult<bool> {
+                use $crate::math::DefaultEpsilon;
+                let eps: Real = Real::default_epsilon();
+                let close = (self.0.angle_to(&other.0)).abs() <= eps;
+                match op {
+                    CompareOp::Eq => Ok(close),
+                    CompareOp::Ne => Ok(!close),
+                    _ => Err(PyTypeError::new_err("Rotation2 supports only == and !=")),
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Isometry2
+        // ------------------------------------------------------------------
+        /// A 2D rigid-body transformation: a rotation followed by a
+        /// translation.
+        ///
+        /// Equivalently, an element of the special Euclidean group ``SE(2)``.
+        /// Composition is right-to-left as usual: ``A * B`` applies ``B``
+        /// first then ``A``.
+        ///
+        /// Wraps :class:`nalgebra::Isometry2`.
+        ///
+        /// Example::
+        ///
+        ///     from math import pi
+        ///     from rapier2d import Isometry2, Vec2, Rotation2
+        ///     pose = Isometry2(Vec2(1.0, 0.0), Rotation2(pi / 2))
+        ///     identity = Isometry2.identity()
+        #[pyclass(name = "Isometry2", module = "rapier.dim2", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct Isometry2(pub $crate::na::Isometry2<Real>);
+
+        #[pymethods]
+        impl Isometry2 {
+            /// Create an isometry from an optional translation and rotation.
+            ///
+            /// Both arguments default to identity (zero translation,
+            /// no rotation).
+            ///
+            /// :param translation: a :class:`Vec2` (or tuple / ndarray).
+            /// :param rotation: a :class:`Rotation2` (or scalar angle).
+            #[new]
+            #[pyo3(signature = (translation=None, rotation=None))]
+            fn new(translation: Option<PyVector>, rotation: Option<PyRotation>) -> Self {
+                let t = translation
+                    .map(|v| v.0)
+                    .unwrap_or_else($crate::na::Vector2::zeros);
+                let r = rotation
+                    .map(|r| r.0)
+                    .unwrap_or_else($crate::na::UnitComplex::identity);
+                Self($crate::na::Isometry2::from_parts(
+                    $crate::na::Translation2::from(t),
+                    r,
+                ))
+            }
+
+            /// Return the identity isometry (no translation, no rotation).
+            #[staticmethod]
+            fn identity() -> Self {
+                Self($crate::na::Isometry2::identity())
+            }
+
+            /// Translation-only constructor.
+            ///
+            /// Named `from_translation` (not `translation`) so it doesn't shadow
+            /// the `translation` property used to read the translation vector.
+            #[staticmethod]
+            #[pyo3(signature = (x, y))]
+            fn from_translation(x: Real, y: Real) -> Self {
+                Self($crate::na::Isometry2::translation(x, y))
+            }
+
+            /// Rotation-only constructor.
+            #[staticmethod]
+            fn from_rotation(angle: Real) -> Self {
+                Self($crate::na::Isometry2::rotation(angle))
+            }
+
+            /// Translation component of the isometry as a :class:`Vec2`.
+            #[getter]
+            fn translation(&self) -> Vec2 {
+                Vec2(self.0.translation.vector)
+            }
+            /// Rotation component of the isometry as a :class:`Rotation2`.
+            #[getter]
+            fn rotation(&self) -> Rotation2 {
+                Rotation2(self.0.rotation)
+            }
+
+            /// Return the inverse isometry, such that ``self * self.inverse()``
+            /// is the identity.
+            fn inverse(&self) -> Self {
+                Self(self.0.inverse())
+            }
+
+            /// Apply the full transformation (rotation then translation)
+            /// to a point.
+            fn transform_point(&self, p: PyPoint) -> Point2 {
+                Point2(self.0 * p.0)
+            }
+            /// Apply only the rotation part to a vector. Vectors are not
+            /// translated.
+            fn transform_vector(&self, v: PyVector) -> Vec2 {
+                Vec2(self.0 * v.0)
+            }
+
+            /// Return the equivalent 3x3 homogeneous matrix, row-major
+            /// flattened into a length-9 NumPy array.
+            fn to_matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<Real>> {
+                let m = self.0.to_homogeneous();
+                let mut out = [0 as Real; 9];
+                for r in 0..3 {
+                    for c in 0..3 {
+                        out[r * 3 + c] = m[(r, c)];
+                    }
+                }
+                PyArray1::from_slice_bound(py, &out)
+            }
+
+            /// Interpolate between two isometries: linear interpolation on
+            /// the translation, slerp on the rotation.
+            ///
+            /// :param other: the target isometry.
+            /// :param t: interpolation parameter in ``[0, 1]``.
+            fn lerp_slerp(&self, other: &Self, t: Real) -> Self {
+                Self(self.0.lerp_slerp(&other.0, t))
+            }
+
+            /// Exact bitwise equality with another isometry.
+            fn bitwise_equal(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+
+            /// Multiplication ``self * rhs``. Composes / transforms depending
+            /// on the right-hand side:
+            ///
+            /// - ``Isometry2 * Isometry2`` → composed :class:`Isometry2`.
+            /// - ``Isometry2 * Point2`` → transformed :class:`Point2`.
+            /// - ``Isometry2 * Vec2`` → rotated :class:`Vec2` (no
+            ///   translation).
+            fn __mul__(&self, rhs: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+                let py = rhs.py();
+                if let Ok(i) = rhs.extract::<PyRef<'_, Isometry2>>() {
+                    return Ok(Isometry2(self.0 * i.0).into_py(py));
+                }
+                if let Ok(i) = rhs.extract::<PyIsometry>() {
+                    return Ok(Isometry2(self.0 * i.0).into_py(py));
+                }
+                if let Ok(p) = rhs.extract::<PyRef<'_, Point2>>() {
+                    return Ok(Point2(self.0 * p.0).into_py(py));
+                }
+                if let Ok(p) = rhs.extract::<PyPoint>() {
+                    return Ok(Point2(self.0 * p.0).into_py(py));
+                }
+                let v: PyVector = rhs.extract()?;
+                Ok(Vec2(self.0 * v.0).into_py(py))
+            }
+
+            /// Human-readable representation showing translation and angle.
+            fn __repr__(&self) -> String {
+                use $crate::math::ReprPrecision;
+                format!(
+                    "Isometry2(translation=({}, {}), angle={})",
+                    self.0.translation.x.fmt_repr(),
+                    self.0.translation.y.fmt_repr(),
+                    self.0.rotation.angle().fmt_repr(),
+                )
+            }
+
+            /// Tolerant equality. Both translation distance and rotation
+            /// angle must be within a default epsilon. Only ``==`` and ``!=``
+            /// are supported.
+            ///
+            /// :raises TypeError: for ordering comparisons.
+            fn __richcmp__(&self, other: PyIsometry, op: CompareOp) -> PyResult<bool> {
+                use $crate::math::DefaultEpsilon;
+                let eps: Real = Real::default_epsilon();
+                let t_close =
+                    (self.0.translation.vector - other.0.translation.vector).norm() <= eps;
+                let r_close = (self.0.rotation.angle_to(&other.0.rotation)).abs() <= eps;
+                let close = t_close && r_close;
+                match op {
+                    CompareOp::Eq => Ok(close),
+                    CompareOp::Ne => Ok(!close),
+                    _ => Err(PyTypeError::new_err("Isometry2 supports only == and !=")),
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Free helper: rotation_from_angle
+        // ------------------------------------------------------------------
+        /// Build a :class:`Rotation2` from an angle in radians.
+        ///
+        /// Mirrors the dimension-agnostic Rust helper
+        /// ``rapier::math::rotation_from_angle``; in 2D the "angular
+        /// vector" is just a scalar angle.
+        ///
+        /// :param angle: rotation angle in radians.
+        #[pyfunction]
+        fn rotation_from_angle(angle: Real) -> Rotation2 {
+            Rotation2($crate::na::UnitComplex::new(angle))
+        }
+
+        // ------------------------------------------------------------------
+        // register_math
+        // ------------------------------------------------------------------
+        pub fn register_math(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+            m.add_class::<Vec2>()?;
+            m.add_class::<Vec2Iter>()?;
+            m.add_class::<Point2>()?;
+            m.add_class::<Point2Iter>()?;
+            m.add_class::<Rotation2>()?;
+            m.add_class::<Isometry2>()?;
+            m.add_function($crate::pyo3::wrap_pyfunction!(rotation_from_angle, m)?)?;
+            Ok(())
+        }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_math_3d {
+    () => {
+        use $crate::numpy::{PyArray1, PyArrayMethods};
+        use $crate::pyo3::exceptions::{PyTypeError, PyValueError};
+        use $crate::pyo3::prelude::*;
+        use $crate::pyo3::pyclass::CompareOp;
+
+        // ------------------------------------------------------------------
+        // Vec3
+        // ------------------------------------------------------------------
+        /// A 3D vector of three real numbers ``(x, y, z)``.
+        ///
+        /// Represents a free vector (a direction and magnitude) in 3D space.
+        /// Instances are immutable; arithmetic returns new ``Vec3`` values.
+        ///
+        /// Also exposed under the Python alias ``AngVector3`` to denote an
+        /// "angular vector" — a scaled axis-angle rotation parameterization
+        /// used by Rapier's joints and motors.
+        ///
+        /// Wraps :class:`nalgebra::Vector3`.
+        ///
+        /// Example::
+        ///
+        ///     from rapier3d import Vec3
+        ///     v = Vec3(1.0, 2.0, 3.0)
+        ///     up = Vec3.unit_y()
+        ///     n  = v.cross(up).normalize()
+        #[pyclass(name = "Vec3", module = "rapier.dim3", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct Vec3(pub $crate::na::Vector3<Real>);
+
+        #[pymethods]
+        impl Vec3 {
+            /// Create a new 3D vector from its components.
+            ///
+            /// :param x: x component.
+            /// :param y: y component.
+            /// :param z: z component.
+            #[new]
+            fn new(x: Real, y: Real, z: Real) -> Self {
+                Self($crate::na::Vector3::new(x, y, z))
+            }
+
+            /// Return the zero vector ``(0, 0, 0)``.
+            #[staticmethod]
+            fn zeros() -> Self {
+                Self($crate::na::Vector3::zeros())
+            }
+            /// Return the unit vector along the ``x`` axis, ``(1, 0, 0)``.
+            #[staticmethod]
+            fn unit_x() -> Self {
+                Self($crate::na::Vector3::x())
+            }
+            /// Return the unit vector along the ``y`` axis, ``(0, 1, 0)``.
+            #[staticmethod]
+            fn unit_y() -> Self {
+                Self($crate::na::Vector3::y())
+            }
+            /// Return the unit vector along the ``z`` axis, ``(0, 0, 1)``.
+            #[staticmethod]
+            fn unit_z() -> Self {
+                Self($crate::na::Vector3::z())
+            }
+
+            /// Build a :class:`Vec3` from a 3-element tuple or list.
+            #[staticmethod]
+            fn from_tuple(t: PyVector) -> Self {
+                Self(t.0)
+            }
+            /// Build a :class:`Vec3` from a length-3 NumPy array.
+            #[staticmethod]
+            fn from_ndarray(a: PyVector) -> Self {
+                Self(a.0)
+            }
+
+            /// The ``x`` component of the vector.
+            #[getter]
+            fn x(&self) -> Real {
+                self.0.x
+            }
+            /// The ``y`` component of the vector.
+            #[getter]
+            fn y(&self) -> Real {
+                self.0.y
+            }
+            /// The ``z`` component of the vector.
+            #[getter]
+            fn z(&self) -> Real {
+                self.0.z
+            }
+
+            /// Dot product with another vector.
+            ///
+            /// :param other: the right-hand side vector.
+            /// :returns: ``x1*x2 + y1*y2 + z1*z2``.
+            fn dot(&self, other: PyVector) -> Real {
+                self.0.dot(&other.0)
+            }
+            /// Cross product with another vector.
+            ///
+            /// :param other: the right-hand side vector.
+            /// :returns: a new :class:`Vec3` orthogonal to both inputs,
+            ///     following the right-hand rule.
+            fn cross(&self, other: PyVector) -> Self {
+                Self(self.0.cross(&other.0))
+            }
+            /// Euclidean (L2) norm, ``sqrt(x*x + y*y + z*z)``.
+            fn norm(&self) -> Real {
+                self.0.norm()
+            }
+            /// Squared Euclidean norm, ``x*x + y*y + z*z``.
+            ///
+            /// Cheaper than :meth:`norm` when only comparisons are needed.
+            fn norm_squared(&self) -> Real {
+                self.0.norm_squared()
+            }
+            /// Return a unit-length copy of this vector.
+            ///
+            /// If the vector is exactly zero, returns the zero vector
+            /// unchanged (no division by zero).
+            fn normalize(&self) -> Self {
+                let n = self.0.norm();
+                if n == 0 as Real {
+                    Self(self.0)
+                } else {
+                    Self(self.0 / n)
+                }
+            }
+            /// Linear interpolation between ``self`` and ``other``.
+            ///
+            /// :param other: the target vector.
+            /// :param t: interpolation parameter (``0`` returns ``self``,
+            ///     ``1`` returns ``other``).
+            fn lerp(&self, other: PyVector, t: Real) -> Self {
+                Self(self.0 * (1 as Real - t) + other.0 * t)
+            }
+
+            /// Return the components as a Python tuple ``(x, y, z)``.
+            fn to_tuple(&self) -> (Real, Real, Real) {
+                (self.0.x, self.0.y, self.0.z)
+            }
+            /// Return the components as a length-3 NumPy array.
+            fn to_ndarray<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<Real>> {
+                PyArray1::from_slice_bound(py, &[self.0.x, self.0.y, self.0.z])
+            }
+
+            /// Exact bitwise equality with another vector.
+            ///
+            /// Unlike ``==`` (tolerance-based), requires bit-identical
+            /// component values.
+            fn bitwise_equal(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+
+            /// Component-wise addition: ``self + other``.
+            fn __add__(&self, other: PyVector) -> Self {
+                Self(self.0 + other.0)
+            }
+            /// Component-wise subtraction: ``self - other``.
+            fn __sub__(&self, other: PyVector) -> Self {
+                Self(self.0 - other.0)
+            }
+            /// Scalar multiplication: ``self * s``.
+            fn __mul__(&self, s: Real) -> Self {
+                Self(self.0 * s)
+            }
+            /// Reflected scalar multiplication: ``s * self``.
+            fn __rmul__(&self, s: Real) -> Self {
+                Self(self.0 * s)
+            }
+            /// Scalar division: ``self / s``.
+            ///
+            /// :raises ValueError: if ``s`` is zero.
+            fn __truediv__(&self, s: Real) -> PyResult<Self> {
+                if s == 0 as Real {
+                    return Err(PyValueError::new_err("division by zero"));
+                }
+                Ok(Self(self.0 / s))
+            }
+            /// Unary negation: ``-self``.
+            fn __neg__(&self) -> Self {
+                Self(-self.0)
+            }
+
+            /// Number of components (always ``3``).
+            fn __len__(&self) -> usize {
+                3
+            }
+            /// Component access by index ``0``, ``1`` or ``2`` (negative
+            /// indices supported).
+            ///
+            /// :raises IndexError: if ``idx`` is out of range.
+            fn __getitem__(&self, idx: isize) -> PyResult<Real> {
+                let i = if idx < 0 { idx + 3 } else { idx };
+                match i {
+                    0 => Ok(self.0.x),
+                    1 => Ok(self.0.y),
+                    2 => Ok(self.0.z),
+                    _ => Err(pyo3::exceptions::PyIndexError::new_err(
+                        "Vec3 index out of range",
+                    )),
+                }
+            }
+            /// Iterate over the components in the order ``x``, ``y``, ``z``.
+            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<Vec3Iter>> {
+                let py = slf.py();
+                Py::new(py, Vec3Iter { v: slf.0, i: 0 })
+            }
+
+            /// Human-readable representation, e.g. ``Vec3(1, 2, 3)``.
+            fn __repr__(&self) -> String {
+                use $crate::math::ReprPrecision;
+                format!(
+                    "Vec3({}, {}, {})",
+                    self.0.x.fmt_repr(),
+                    self.0.y.fmt_repr(),
+                    self.0.z.fmt_repr()
+                )
+            }
+
+            /// Tolerant equality (Euclidean distance ≤ default epsilon).
+            /// Only ``==`` and ``!=`` are supported.
+            ///
+            /// :raises TypeError: for ordering comparisons.
+            fn __richcmp__(&self, other: PyVector, op: CompareOp) -> PyResult<bool> {
+                use $crate::math::DefaultEpsilon;
+                let eps: Real = Real::default_epsilon();
+                let close = (self.0 - other.0).norm() <= eps;
+                match op {
+                    CompareOp::Eq => Ok(close),
+                    CompareOp::Ne => Ok(!close),
+                    _ => Err(PyTypeError::new_err("Vec3 supports only == and !=")),
+                }
+            }
+        }
+
+        /// Iterator yielding the components of a :class:`Vec3` in
+        /// ``x``, ``y``, ``z`` order.
+        #[pyclass]
+        pub struct Vec3Iter {
+            v: $crate::na::Vector3<Real>,
+            i: usize,
+        }
+        #[pymethods]
+        impl Vec3Iter {
+            /// Return ``self`` (iterators are their own iterators).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+                slf
+            }
+            /// Yield the next component, or stop after ``z``.
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Real> {
+                let r = match slf.i {
+                    0 => Some(slf.v.x),
+                    1 => Some(slf.v.y),
+                    2 => Some(slf.v.z),
+                    _ => None,
+                };
+                if r.is_some() {
+                    slf.i += 1;
+                }
+                r
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Point3
+        // ------------------------------------------------------------------
+        /// A point in 3D affine space ``(x, y, z)``.
+        ///
+        /// Conceptually distinct from :class:`Vec3`: a point represents a
+        /// location, a vector represents a displacement. Subtracting two
+        /// points yields a :class:`Vec3`; adding a :class:`Vec3` to a point
+        /// yields a new point.
+        ///
+        /// Wraps :class:`nalgebra::Point3`.
+        ///
+        /// Example::
+        ///
+        ///     from rapier3d import Point3, Vec3
+        ///     a = Point3(1.0, 2.0, 3.0)
+        ///     b = a + Vec3(0.0, 0.0, 1.0)   # Point3(1, 2, 4)
+        ///     d = b - a                     # Vec3(0, 0, 1)
+        #[pyclass(name = "Point3", module = "rapier.dim3", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct Point3(pub $crate::na::Point3<Real>);
+
+        #[pymethods]
+        impl Point3 {
+            /// Create a new 3D point from its coordinates.
+            ///
+            /// :param x: x coordinate.
+            /// :param y: y coordinate.
+            /// :param z: z coordinate.
+            #[new]
+            fn new(x: Real, y: Real, z: Real) -> Self {
+                Self($crate::na::Point3::new(x, y, z))
+            }
+            /// Return the origin, ``Point3(0, 0, 0)``.
+            #[staticmethod]
+            fn origin() -> Self {
+                Self($crate::na::Point3::origin())
+            }
+            /// Build a :class:`Point3` from a 3-element tuple or list.
+            #[staticmethod]
+            fn from_tuple(t: PyPoint) -> Self {
+                Self(t.0)
+            }
+            /// Build a :class:`Point3` from a length-3 NumPy array.
+            #[staticmethod]
+            fn from_ndarray(a: PyPoint) -> Self {
+                Self(a.0)
+            }
+
+            /// The ``x`` coordinate of the point.
+            #[getter]
+            fn x(&self) -> Real {
+                self.0.x
+            }
+            /// The ``y`` coordinate of the point.
+            #[getter]
+            fn y(&self) -> Real {
+                self.0.y
+            }
+            /// The ``z`` coordinate of the point.
+            #[getter]
+            fn z(&self) -> Real {
+                self.0.z
+            }
+
+            /// The coordinates of the point as a :class:`Vec3` from origin.
+            #[getter]
+            fn coords(&self) -> Vec3 {
+                Vec3(self.0.coords)
+            }
+
+            /// Return the coordinates as a Python tuple ``(x, y, z)``.
+            fn to_tuple(&self) -> (Real, Real, Real) {
+                (self.0.x, self.0.y, self.0.z)
+            }
+            /// Return the coordinates as a length-3 NumPy array.
+            fn to_ndarray<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<Real>> {
+                PyArray1::from_slice_bound(py, &[self.0.x, self.0.y, self.0.z])
+            }
+
+            /// Linear interpolation between two points.
+            ///
+            /// :param other: the target point.
+            /// :param t: interpolation parameter (``0`` returns ``self``,
+            ///     ``1`` returns ``other``).
+            fn lerp(&self, other: PyPoint, t: Real) -> Self {
+                Self($crate::na::Point3::from(
+                    self.0.coords * (1 as Real - t) + other.0.coords * t,
+                ))
+            }
+
+            /// Exact bitwise equality with another point.
+            fn bitwise_equal(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+
+            /// Translate by a vector: ``point + vector`` returns a new
+            /// :class:`Point3`.
+            fn __add__(&self, v: PyVector) -> Self {
+                Self(self.0 + v.0)
+            }
+
+            /// Subtraction. ``point - point`` returns a :class:`Vec3`
+            /// (displacement). ``point - vector`` returns a :class:`Point3`
+            /// (translation by ``-vector``).
+            fn __sub__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+                let py = other.py();
+                if let Ok(p) = other.extract::<PyRef<'_, Point3>>() {
+                    return Ok(Vec3(self.0 - p.0).into_py(py));
+                }
+                if let Ok(p) = other.extract::<PyPoint>() {
+                    return Ok(Vec3(self.0 - p.0).into_py(py));
+                }
+                let v: PyVector = other.extract()?;
+                Ok(Point3(self.0 - v.0).into_py(py))
+            }
+
+            /// Number of coordinates (always ``3``).
+            fn __len__(&self) -> usize {
+                3
+            }
+            /// Coordinate access by index ``0``, ``1`` or ``2`` (negative
+            /// indices supported).
+            ///
+            /// :raises IndexError: if ``idx`` is out of range.
+            fn __getitem__(&self, idx: isize) -> PyResult<Real> {
+                let i = if idx < 0 { idx + 3 } else { idx };
+                match i {
+                    0 => Ok(self.0.x),
+                    1 => Ok(self.0.y),
+                    2 => Ok(self.0.z),
+                    _ => Err(pyo3::exceptions::PyIndexError::new_err(
+                        "Point3 index out of range",
+                    )),
+                }
+            }
+            /// Iterate over the coordinates in the order ``x``, ``y``, ``z``.
+            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<Point3Iter>> {
+                let py = slf.py();
+                Py::new(py, Point3Iter { p: slf.0, i: 0 })
+            }
+
+            /// Human-readable representation, e.g. ``Point3(1, 2, 3)``.
+            fn __repr__(&self) -> String {
+                use $crate::math::ReprPrecision;
+                format!(
+                    "Point3({}, {}, {})",
+                    self.0.x.fmt_repr(),
+                    self.0.y.fmt_repr(),
+                    self.0.z.fmt_repr()
+                )
+            }
+
+            /// Tolerant equality (Euclidean distance ≤ default epsilon).
+            /// Only ``==`` and ``!=`` are supported.
+            ///
+            /// :raises TypeError: for ordering comparisons.
+            fn __richcmp__(&self, other: PyPoint, op: CompareOp) -> PyResult<bool> {
+                use $crate::math::DefaultEpsilon;
+                let eps: Real = Real::default_epsilon();
+                let close = (self.0 - other.0).norm() <= eps;
+                match op {
+                    CompareOp::Eq => Ok(close),
+                    CompareOp::Ne => Ok(!close),
+                    _ => Err(PyTypeError::new_err("Point3 supports only == and !=")),
+                }
+            }
+        }
+
+        /// Iterator yielding the coordinates of a :class:`Point3` in
+        /// ``x``, ``y``, ``z`` order.
+        #[pyclass]
+        pub struct Point3Iter {
+            p: $crate::na::Point3<Real>,
+            i: usize,
+        }
+        #[pymethods]
+        impl Point3Iter {
+            /// Return ``self`` (iterators are their own iterators).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+                slf
+            }
+            /// Yield the next coordinate, or stop after ``z``.
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<Real> {
+                let r = match slf.i {
+                    0 => Some(slf.p.x),
+                    1 => Some(slf.p.y),
+                    2 => Some(slf.p.z),
+                    _ => None,
+                };
+                if r.is_some() {
+                    slf.i += 1;
+                }
+                r
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Rotation3 (alias Quaternion)
+        // ------------------------------------------------------------------
+        /// A 3D rotation, represented internally as a unit quaternion.
+        ///
+        /// Encodes a rotation about an arbitrary axis in 3D space. Unit
+        /// quaternions avoid gimbal lock and are numerically friendly under
+        /// composition. The double-cover property (``q`` and ``-q`` encode
+        /// the same orientation) is accounted for in equality comparisons.
+        ///
+        /// Also exposed under the Python alias ``Quaternion``.
+        ///
+        /// Wraps :class:`nalgebra::UnitQuaternion`.
+        ///
+        /// Construct with :meth:`identity`, :meth:`from_axis_angle`,
+        /// :meth:`from_euler_angles`, :meth:`from_scaled_axis`,
+        /// :meth:`from_quaternion`, or the look-at builders. The raw
+        /// constructor takes quaternion coefficients ``(w, x, y, z)``.
+        ///
+        /// Example::
+        ///
+        ///     from math import pi
+        ///     from rapier3d import Rotation3, Vec3
+        ///     r = Rotation3.from_axis_angle(Vec3.unit_z(), pi / 2)
+        ///     v = r * Vec3(1.0, 0.0, 0.0)   # ~Vec3(0, 1, 0)
+        #[pyclass(name = "Rotation3", module = "rapier.dim3", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct Rotation3(pub $crate::na::UnitQuaternion<Real>);
+
+        #[pymethods]
+        impl Rotation3 {
+            /// Build a unit quaternion from raw coefficients ``(w, x, y, z)``.
+            ///
+            /// The input is normalized internally, so the supplied values do
+            /// not need to lie on the unit sphere. Default arguments form
+            /// the identity rotation.
+            ///
+            /// :param w: real part.
+            /// :param x: i (x-axis imaginary) part.
+            /// :param y: j (y-axis imaginary) part.
+            /// :param z: k (z-axis imaginary) part.
+            #[new]
+            #[pyo3(signature = (w=1.0 as Real, x=0.0 as Real, y=0.0 as Real, z=0.0 as Real))]
+            fn new(w: Real, x: Real, y: Real, z: Real) -> Self {
+                let q = $crate::na::Quaternion::new(w, x, y, z);
+                Self($crate::na::UnitQuaternion::from_quaternion(q))
+            }
+
+            /// Return the identity rotation (zero rotation angle).
+            #[staticmethod]
+            fn identity() -> Self {
+                Self($crate::na::UnitQuaternion::identity())
+            }
+
+            /// Build a rotation from an axis-angle pair.
+            ///
+            /// :param axis: a non-zero rotation axis. It will be normalized.
+            /// :param angle: rotation angle in radians (right-hand rule).
+            /// :raises ValueError: if ``axis`` is the zero vector.
+            #[staticmethod]
+            fn from_axis_angle(axis: PyVector, angle: Real) -> PyResult<Self> {
+                let v = axis.0;
+                if v.norm() == 0 as Real {
+                    return Err(PyValueError::new_err("axis must be non-zero"));
+                }
+                let unit = $crate::na::Unit::new_normalize(v);
+                Ok(Self($crate::na::UnitQuaternion::from_axis_angle(
+                    &unit, angle,
+                )))
+            }
+
+            /// Build a rotation from Tait-Bryan ``XYZ`` Euler angles in
+            /// radians.
+            ///
+            /// :param roll: rotation about the local x-axis.
+            /// :param pitch: rotation about the local y-axis.
+            /// :param yaw: rotation about the local z-axis.
+            #[staticmethod]
+            fn from_euler_angles(roll: Real, pitch: Real, yaw: Real) -> Self {
+                Self($crate::na::UnitQuaternion::from_euler_angles(
+                    roll, pitch, yaw,
+                ))
+            }
+
+            /// Build a rotation from a scaled axis-angle vector
+            /// ``axis * angle``.
+            ///
+            /// The vector's direction is the rotation axis; its magnitude is
+            /// the rotation angle in radians.
+            #[staticmethod]
+            fn from_scaled_axis(v: PyVector) -> Self {
+                Self($crate::na::UnitQuaternion::from_scaled_axis(v.0))
+            }
+
+            /// Build a rotation directly from quaternion coefficients
+            /// ``(w, x, y, z)``. Input is normalized.
+            #[staticmethod]
+            fn from_quaternion(w: Real, x: Real, y: Real, z: Real) -> Self {
+                let q = $crate::na::Quaternion::new(w, x, y, z);
+                Self($crate::na::UnitQuaternion::from_quaternion(q))
+            }
+
+            /// Left-handed look-at rotation: aligns the local ``-z`` axis to
+            /// ``dir`` and the local ``y`` axis as close to ``up`` as
+            /// possible.
+            #[staticmethod]
+            fn look_at_lh(dir: PyVector, up: PyVector) -> Self {
+                Self($crate::na::UnitQuaternion::look_at_lh(&dir.0, &up.0))
+            }
+            /// Right-handed look-at rotation: aligns the local ``z`` axis to
+            /// ``dir`` and the local ``y`` axis as close to ``up`` as
+            /// possible.
+            #[staticmethod]
+            fn look_at_rh(dir: PyVector, up: PyVector) -> Self {
+                Self($crate::na::UnitQuaternion::look_at_rh(&dir.0, &up.0))
+            }
+            /// Rotation whose local ``z`` axis points along ``dir`` and
+            /// local ``y`` axis aligns with ``up`` as closely as possible.
+            #[staticmethod]
+            fn face_toward(dir: PyVector, up: PyVector) -> Self {
+                Self($crate::na::UnitQuaternion::face_towards(&dir.0, &up.0))
+            }
+
+            /// Build a :class:`Rotation3` from a 4-element tuple
+            /// ``(x, y, z, w)``.
+            #[staticmethod]
+            fn from_tuple(t: PyRotation) -> Self {
+                Self(t.0)
+            }
+            /// Build a :class:`Rotation3` from a length-4 NumPy array
+            /// ``[x, y, z, w]``.
+            #[staticmethod]
+            fn from_ndarray(a: PyRotation) -> Self {
+                Self(a.0)
+            }
+
+            /// Unit rotation axis as a :class:`Vec3`, or ``None`` if the
+            /// rotation is the identity (no well-defined axis).
+            #[getter]
+            fn axis(&self) -> Option<Vec3> {
+                self.0.axis().map(|u| Vec3(u.into_inner()))
+            }
+            /// Rotation angle in radians, in ``[0, pi]``.
+            #[getter]
+            fn angle(&self) -> Real {
+                self.0.angle()
+            }
+            /// Scaled axis ``axis * angle`` as a :class:`Vec3`.
+            #[getter]
+            fn scaled_axis(&self) -> Vec3 {
+                Vec3(self.0.scaled_axis())
+            }
+            /// Tait-Bryan ``XYZ`` Euler angles as ``(roll, pitch, yaw)`` in
+            /// radians.
+            #[getter]
+            fn euler_angles(&self) -> (Real, Real, Real) {
+                self.0.euler_angles()
+            }
+            /// Quaternion as `(x, y, z, w)`.
+            #[getter]
+            fn quaternion(&self) -> (Real, Real, Real, Real) {
+                let q = self.0.quaternion();
+                (q.i, q.j, q.k, q.w)
+            }
+            /// Real (``w``) part of the underlying quaternion.
+            #[getter]
+            fn w(&self) -> Real {
+                self.0.quaternion().w
+            }
+            /// First imaginary (``i`` / ``x``) part of the quaternion.
+            #[getter]
+            fn i(&self) -> Real {
+                self.0.quaternion().i
+            }
+            /// Second imaginary (``j`` / ``y``) part of the quaternion.
+            #[getter]
+            fn j(&self) -> Real {
+                self.0.quaternion().j
+            }
+            /// Third imaginary (``k`` / ``z``) part of the quaternion.
+            #[getter]
+            fn k(&self) -> Real {
+                self.0.quaternion().k
+            }
+
+            /// Return the inverse rotation (equivalent to the quaternion
+            /// conjugate for unit quaternions).
+            fn inverse(&self) -> Self {
+                Self(self.0.inverse())
+            }
+
+            /// Return the equivalent 3x3 rotation matrix, row-major
+            /// flattened into a length-9 NumPy array.
+            fn to_matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<Real>> {
+                let m = self.0.to_rotation_matrix();
+                let mm = m.matrix();
+                let mut out = [0 as Real; 9];
+                for r in 0..3 {
+                    for c in 0..3 {
+                        out[r * 3 + c] = mm[(r, c)];
+                    }
+                }
+                PyArray1::from_slice_bound(py, &out)
+            }
+
+            /// Returns the quaternion as `(x, y, z, w)`.
+            ///
+            /// This matches `PyRotation`'s `FromPyObject` impl, so any Rust
+            /// API that takes `PyRotation` accepts a `Rotation3` instance.
+            fn to_tuple(&self) -> (Real, Real, Real, Real) {
+                let q = self.0.quaternion();
+                (q.i, q.j, q.k, q.w)
+            }
+
+            /// Rotate a point about the origin and return a new
+            /// :class:`Point3`.
+            fn transform_point(&self, p: PyPoint) -> Point3 {
+                Point3(self.0 * p.0)
+            }
+            /// Rotate a vector and return a new :class:`Vec3`.
+            fn transform_vector(&self, v: PyVector) -> Vec3 {
+                Vec3(self.0 * v.0)
+            }
+
+            /// Spherical-linear interpolation between two rotations.
+            ///
+            /// :param other: the target rotation.
+            /// :param t: interpolation parameter in ``[0, 1]``.
+            fn slerp(&self, other: PyRotation, t: Real) -> Self {
+                Self(self.0.slerp(&other.0, t))
+            }
+
+            /// Exact bitwise equality with another rotation.
+            fn bitwise_equal(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+
+            /// Multiplication ``self * rhs``. Composes / transforms depending
+            /// on the right-hand side:
+            ///
+            /// - ``Rotation3 * Rotation3`` → composed :class:`Rotation3`.
+            /// - ``Rotation3 * Point3`` → rotated :class:`Point3`.
+            /// - ``Rotation3 * Vec3`` → rotated :class:`Vec3`.
+            fn __mul__(&self, rhs: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+                let py = rhs.py();
+                if let Ok(r) = rhs.extract::<PyRef<'_, Rotation3>>() {
+                    return Ok(Rotation3(self.0 * r.0).into_py(py));
+                }
+                if let Ok(r) = rhs.extract::<PyRotation>() {
+                    return Ok(Rotation3(self.0 * r.0).into_py(py));
+                }
+                if let Ok(p) = rhs.extract::<PyRef<'_, Point3>>() {
+                    return Ok(Point3(self.0 * p.0).into_py(py));
+                }
+                if let Ok(p) = rhs.extract::<PyPoint>() {
+                    return Ok(Point3(self.0 * p.0).into_py(py));
+                }
+                let v: PyVector = rhs.extract()?;
+                Ok(Vec3(self.0 * v.0).into_py(py))
+            }
+
+            /// Human-readable representation, e.g.
+            /// ``Rotation3(w=1, x=0, y=0, z=0)``.
+            fn __repr__(&self) -> String {
+                use $crate::math::ReprPrecision;
+                let q = self.0.quaternion();
+                format!(
+                    "Rotation3(w={}, x={}, y={}, z={})",
+                    q.w.fmt_repr(),
+                    q.i.fmt_repr(),
+                    q.j.fmt_repr(),
+                    q.k.fmt_repr()
+                )
+            }
+
+            /// Tolerant equality on quaternion coefficients. Accounts for
+            /// the quaternion double cover, so ``q`` and ``-q`` compare
+            /// equal. Only ``==`` and ``!=`` are supported.
+            ///
+            /// :raises TypeError: for ordering comparisons.
+            fn __richcmp__(&self, other: PyRotation, op: CompareOp) -> PyResult<bool> {
+                use $crate::math::DefaultEpsilon;
+                let eps: Real = Real::default_epsilon();
+                let a = self.0.quaternion();
+                let b = other.0.quaternion();
+                // q == -q for orientation; check both.
+                let close_pos = (a.w - b.w).abs() <= eps
+                    && (a.i - b.i).abs() <= eps
+                    && (a.j - b.j).abs() <= eps
+                    && (a.k - b.k).abs() <= eps;
+                let close_neg = (a.w + b.w).abs() <= eps
+                    && (a.i + b.i).abs() <= eps
+                    && (a.j + b.j).abs() <= eps
+                    && (a.k + b.k).abs() <= eps;
+                let close = close_pos || close_neg;
+                match op {
+                    CompareOp::Eq => Ok(close),
+                    CompareOp::Ne => Ok(!close),
+                    _ => Err(PyTypeError::new_err("Rotation3 supports only == and !=")),
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Isometry3
+        // ------------------------------------------------------------------
+        /// A 3D rigid-body transformation: a rotation followed by a
+        /// translation.
+        ///
+        /// Equivalently, an element of the special Euclidean group ``SE(3)``.
+        /// Used throughout Rapier to encode the pose of a rigid body or a
+        /// collider relative to its parent. Composition is right-to-left:
+        /// ``A * B`` applies ``B`` first then ``A``.
+        ///
+        /// Wraps :class:`nalgebra::Isometry3`.
+        ///
+        /// Example::
+        ///
+        ///     from math import pi
+        ///     from rapier3d import Isometry3, Vec3, Rotation3
+        ///     pose = Isometry3(
+        ///         Vec3(0.0, 1.0, 0.0),
+        ///         Rotation3.from_axis_angle(Vec3.unit_y(), pi / 2),
+        ///     )
+        #[pyclass(name = "Isometry3", module = "rapier.dim3", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct Isometry3(pub $crate::na::Isometry3<Real>);
+
+        #[pymethods]
+        impl Isometry3 {
+            /// Create an isometry from an optional translation and rotation.
+            ///
+            /// Both arguments default to identity (zero translation,
+            /// identity rotation).
+            ///
+            /// :param translation: a :class:`Vec3` (or tuple / ndarray).
+            /// :param rotation: a :class:`Rotation3` (or
+            ///     ``(x, y, z, w)``-style input).
+            #[new]
+            #[pyo3(signature = (translation=None, rotation=None))]
+            fn new(translation: Option<PyVector>, rotation: Option<PyRotation>) -> Self {
+                let t = translation
+                    .map(|v| v.0)
+                    .unwrap_or_else($crate::na::Vector3::zeros);
+                let r = rotation
+                    .map(|r| r.0)
+                    .unwrap_or_else($crate::na::UnitQuaternion::identity);
+                Self($crate::na::Isometry3::from_parts(
+                    $crate::na::Translation3::from(t),
+                    r,
+                ))
+            }
+
+            /// Return the identity isometry (no translation, no rotation).
+            #[staticmethod]
+            fn identity() -> Self {
+                Self($crate::na::Isometry3::identity())
+            }
+
+            /// Translation-only constructor.
+            ///
+            /// Named `from_translation` (not `translation`) so it doesn't shadow
+            /// the `translation` property used to read the translation vector.
+            #[staticmethod]
+            fn from_translation(x: Real, y: Real, z: Real) -> Self {
+                Self($crate::na::Isometry3::translation(x, y, z))
+            }
+
+            /// Rotation-only constructor from a scaled-axis-angle (axis * angle).
+            #[staticmethod]
+            fn from_rotation(scaled_axis: PyVector) -> Self {
+                Self($crate::na::Isometry3::rotation(scaled_axis.0))
+            }
+
+            /// Build an isometry whose local ``z`` axis points along
+            /// ``target - eye`` and whose local ``y`` aligns with ``up`` as
+            /// closely as possible.
+            ///
+            /// :param eye: the origin of the isometry.
+            /// :param target: the point being looked at.
+            /// :param up: the desired up direction.
+            #[staticmethod]
+            fn face_toward(eye: PyPoint, target: PyPoint, up: PyVector) -> Self {
+                Self($crate::na::Isometry3::face_towards(
+                    &eye.0, &target.0, &up.0,
+                ))
+            }
+
+            /// Left-handed look-at view isometry: maps world space into a
+            /// camera frame whose ``-z`` looks at ``target`` from ``eye``.
+            #[staticmethod]
+            fn look_at_lh(eye: PyPoint, target: PyPoint, up: PyVector) -> Self {
+                Self($crate::na::Isometry3::look_at_lh(&eye.0, &target.0, &up.0))
+            }
+            /// Right-handed look-at view isometry: maps world space into a
+            /// camera frame whose ``z`` looks at ``target`` from ``eye``.
+            #[staticmethod]
+            fn look_at_rh(eye: PyPoint, target: PyPoint, up: PyVector) -> Self {
+                Self($crate::na::Isometry3::look_at_rh(&eye.0, &target.0, &up.0))
+            }
+
+            /// Translation component of the isometry as a :class:`Vec3`.
+            #[getter]
+            fn translation(&self) -> Vec3 {
+                Vec3(self.0.translation.vector)
+            }
+            /// Rotation component of the isometry as a :class:`Rotation3`.
+            #[getter]
+            fn rotation(&self) -> Rotation3 {
+                Rotation3(self.0.rotation)
+            }
+
+            /// Return the inverse isometry, such that
+            /// ``self * self.inverse()`` is the identity.
+            fn inverse(&self) -> Self {
+                Self(self.0.inverse())
+            }
+
+            /// Apply the full transformation (rotation then translation)
+            /// to a point.
+            fn transform_point(&self, p: PyPoint) -> Point3 {
+                Point3(self.0 * p.0)
+            }
+            /// Apply only the rotation part to a vector. Vectors are not
+            /// translated.
+            fn transform_vector(&self, v: PyVector) -> Vec3 {
+                Vec3(self.0 * v.0)
+            }
+
+            /// Return the equivalent 4x4 homogeneous matrix, row-major
+            /// flattened into a length-16 NumPy array.
+            fn to_matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<Real>> {
+                let m = self.0.to_homogeneous();
+                let mut out = [0 as Real; 16];
+                for r in 0..4 {
+                    for c in 0..4 {
+                        out[r * 4 + c] = m[(r, c)];
+                    }
+                }
+                PyArray1::from_slice_bound(py, &out)
+            }
+
+            /// Interpolate between two isometries: linear interpolation on
+            /// the translation, slerp on the rotation.
+            ///
+            /// :param other: the target isometry.
+            /// :param t: interpolation parameter in ``[0, 1]``.
+            fn lerp_slerp(&self, other: &Self, t: Real) -> Self {
+                Self(self.0.lerp_slerp(&other.0, t))
+            }
+
+            /// Exact bitwise equality with another isometry.
+            fn bitwise_equal(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+
+            /// Multiplication ``self * rhs``. Composes / transforms depending
+            /// on the right-hand side:
+            ///
+            /// - ``Isometry3 * Isometry3`` → composed :class:`Isometry3`.
+            /// - ``Isometry3 * Point3`` → transformed :class:`Point3`.
+            /// - ``Isometry3 * Vec3`` → rotated :class:`Vec3` (no
+            ///   translation).
+            fn __mul__(&self, rhs: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+                let py = rhs.py();
+                if let Ok(i) = rhs.extract::<PyRef<'_, Isometry3>>() {
+                    return Ok(Isometry3(self.0 * i.0).into_py(py));
+                }
+                if let Ok(i) = rhs.extract::<PyIsometry>() {
+                    return Ok(Isometry3(self.0 * i.0).into_py(py));
+                }
+                if let Ok(p) = rhs.extract::<PyRef<'_, Point3>>() {
+                    return Ok(Point3(self.0 * p.0).into_py(py));
+                }
+                if let Ok(p) = rhs.extract::<PyPoint>() {
+                    return Ok(Point3(self.0 * p.0).into_py(py));
+                }
+                let v: PyVector = rhs.extract()?;
+                Ok(Vec3(self.0 * v.0).into_py(py))
+            }
+
+            /// Human-readable representation showing translation and the
+            /// rotation as quaternion components.
+            fn __repr__(&self) -> String {
+                use $crate::math::ReprPrecision;
+                let t = self.0.translation.vector;
+                let q = self.0.rotation.quaternion();
+                format!(
+                    "Isometry3(translation=({}, {}, {}), rotation=(w={}, x={}, y={}, z={}))",
+                    t.x.fmt_repr(),
+                    t.y.fmt_repr(),
+                    t.z.fmt_repr(),
+                    q.w.fmt_repr(),
+                    q.i.fmt_repr(),
+                    q.j.fmt_repr(),
+                    q.k.fmt_repr()
+                )
+            }
+
+            /// Tolerant equality. Both translation distance and the
+            /// quaternion components must be within a default epsilon
+            /// (accounting for the quaternion double cover). Only ``==``
+            /// and ``!=`` are supported.
+            ///
+            /// :raises TypeError: for ordering comparisons.
+            fn __richcmp__(&self, other: PyIsometry, op: CompareOp) -> PyResult<bool> {
+                use $crate::math::DefaultEpsilon;
+                let eps: Real = Real::default_epsilon();
+                let t_close =
+                    (self.0.translation.vector - other.0.translation.vector).norm() <= eps;
+                let a = self.0.rotation.quaternion();
+                let b = other.0.rotation.quaternion();
+                let r_close_pos = (a.w - b.w).abs() <= eps
+                    && (a.i - b.i).abs() <= eps
+                    && (a.j - b.j).abs() <= eps
+                    && (a.k - b.k).abs() <= eps;
+                let r_close_neg = (a.w + b.w).abs() <= eps
+                    && (a.i + b.i).abs() <= eps
+                    && (a.j + b.j).abs() <= eps
+                    && (a.k + b.k).abs() <= eps;
+                let close = t_close && (r_close_pos || r_close_neg);
+                match op {
+                    CompareOp::Eq => Ok(close),
+                    CompareOp::Ne => Ok(!close),
+                    _ => Err(PyTypeError::new_err("Isometry3 supports only == and !=")),
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Free helper: rotation_from_angle
+        //
+        // In 3D the "angular vector" is a scaled axis-angle. This wraps
+        // `rapier::math::rotation_from_angle` semantics.
+        // ------------------------------------------------------------------
+        /// Build a :class:`Rotation3` from a scaled-axis-angle vector.
+        ///
+        /// Mirrors the dimension-agnostic Rust helper
+        /// ``rapier::math::rotation_from_angle``; in 3D the "angular vector"
+        /// is ``axis * angle`` (its direction is the axis, its magnitude is
+        /// the rotation angle in radians).
+        ///
+        /// :param v: scaled-axis-angle vector.
+        #[pyfunction]
+        fn rotation_from_angle(v: PyVector) -> Rotation3 {
+            Rotation3($crate::na::UnitQuaternion::from_scaled_axis(v.0))
+        }
+
+        // ------------------------------------------------------------------
+        // register_math
+        // ------------------------------------------------------------------
+        pub fn register_math(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+            m.add_class::<Vec3>()?;
+            m.add_class::<Vec3Iter>()?;
+            m.add_class::<Point3>()?;
+            m.add_class::<Point3Iter>()?;
+            m.add_class::<Rotation3>()?;
+            m.add_class::<Isometry3>()?;
+            // Alias `Quaternion` -> Rotation3.
+            m.add("Quaternion", py.get_type_bound::<Rotation3>())?;
+            // `AngVector3` is a Python-level alias for `Vec3`.
+            m.add("AngVector3", py.get_type_bound::<Vec3>())?;
+            m.add_function($crate::pyo3::wrap_pyfunction!(rotation_from_angle, m)?)?;
+            Ok(())
+        }
+    };
+}

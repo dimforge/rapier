@@ -42,8 +42,7 @@ robot.insert_using_impulse_joints(&mut bodies, &mut colliders, &mut impulse_join
 ## Feature matrix
 
 This crate is rolled out in phases. The table tracks what each phase
-delivers and the current implementation status. See [`docs/`](docs/) for
-the planning rationale.
+delivers and the current implementation status.
 
 Legend: ✅ supported · ⚠️ partial / approximated · 📦 preserved as
 metadata · ❌ out of scope.
@@ -171,8 +170,6 @@ convention. (Tracked for a future polish pass.)
 - `<geom type="sdf">`.
 - `<compiler coordinate="global">` (deprecated MJCF feature).
 - MJCF write-back (the parser is read-only).
-
-See [`docs/04-out-of-scope.md`](docs/04-out-of-scope.md) for rationale.
 
 ## Limitations
 

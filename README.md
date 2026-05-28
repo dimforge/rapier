@@ -49,9 +49,18 @@ The easiest way to get started with Rapier is to:
    Their source code are available on the `examples2d/` and `examples3d/` directory.
 3. Don't hesitate to ask for help on [Discord](https://discord.gg/vt9DJSW), or by opening an issue on GitHub.
 
+## Python bindings
+
+Python bindings are under development. They ship as four PyPI packages —
+`rapier2d`, `rapier3d`, `rapier2d-f64`, `rapier3d-f64` — one per
+(dimension, scalar) flavor. See [`python/README.md`](python/README.md) for how
+to build the bindings, the docs, and the testbed from a checkout, and
+[`python/docs/`](python/docs/) for the API documentation.
+
 ## AI coding disclaimer and policy
 
-AI coding is extensively used for the implementation and maintenance of the following crates: `mjcf-rs`, `rapier3d-mjcf`.
+AI coding is extensively used for the implementation and maintenance of the following crates: `mjcf-rs`,
+`rapier3d-mjcf`, as well as the Python bindings (`python/rapier-py*`), including their tests, examples, and docs.
 
 We actively use AI assistance (with human reviews) for the following tasks:
     - Documentation generation.
