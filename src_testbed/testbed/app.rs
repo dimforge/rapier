@@ -103,6 +103,15 @@ impl TestbedApp {
     }
 
     pub async fn run_with_init(mut self, init: impl FnMut(&mut Testbed)) {
+        // Install a default logger so warnings emitted by the example
+        // builders (e.g. the MJCF loader complaining about missing mesh
+        // files or features) actually print. Uses RUST_LOG if set, falls
+        // back to `warn` level otherwise. `try_init` yields silently to a
+        // user-installed logger so embedders aren't forced into this
+        // backend.
+        let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
+            .try_init();
+
         #[cfg(feature = "profiler_ui")]
         profiling::puffin::set_scopes_on(true);
 
@@ -625,6 +634,22 @@ impl TestbedApp {
                 self.state.flags.contains(TestbedStateFlags::WIREFRAME),
             );
         }
+
+        if self
+            .state
+            .action_flags
+            .contains(TestbedActionFlags::FRAME_SCENE)
+        {
+            self.state
+                .action_flags
+                .set(TestbedActionFlags::FRAME_SCENE, false);
+            frame_scene(
+                &self.harness.physics.colliders,
+                &self.harness.physics.bodies,
+                &self.graphics,
+                camera,
+            );
+        }
     }
 
     fn handle_sleep_settings(&mut self) {
@@ -654,5 +679,101 @@ impl TestbedApp {
         for mut plugin in self.plugins.0.drain(..) {
             plugin.clear_graphics(&mut self.graphics, window);
         }
+    }
+}
+
+/// Recenter the camera so the AABB of all the collider and visual-mesh
+/// shapes in the scene fills the viewport. Acts as a "frame all" /
+/// "best view" command.
+fn frame_scene(
+    colliders: &rapier::geometry::ColliderSet,
+    bodies: &rapier::dynamics::RigidBodySet,
+    graphics: &crate::graphics::GraphicsManager,
+    camera: &mut Camera,
+) {
+    use rapier::parry::bounding_volume::BoundingVolume;
+    use rapier::parry::math::Real;
+
+    // Helper: skip AABBs with non-finite extents (half-spaces, broken
+    // shapes) so they don't blow up the union.
+    fn is_finite_aabb(a: &rapier::parry::bounding_volume::Aabb) -> bool {
+        if !a.mins.x.is_finite()
+            || !a.mins.y.is_finite()
+            || !a.maxs.x.is_finite()
+            || !a.maxs.y.is_finite()
+        {
+            return false;
+        }
+        #[cfg(feature = "dim3")]
+        if !a.mins.z.is_finite() || !a.maxs.z.is_finite() {
+            return false;
+        }
+        true
+    }
+
+    let mut aabb: Option<rapier::parry::bounding_volume::Aabb> = None;
+    let mut merge = |a: rapier::parry::bounding_volume::Aabb| {
+        if !is_finite_aabb(&a) {
+            return;
+        }
+        aabb = Some(match aabb {
+            None => a,
+            Some(prev) => prev.merged(&a),
+        });
+    };
+    // 1. Physical colliders.
+    for (_, co) in colliders.iter() {
+        merge(co.compute_aabb());
+    }
+    // 2. Render-only meshes attached to a body — they're not in the
+    //    collider set but still visible, and their extent can exceed
+    //    the colliders' (e.g. simplified primitive colliders + full
+    //    visual mesh). Compute each one's AABB at its current world
+    //    pose: `body.position * vm.delta`.
+    for vm in graphics.body_attached_nodes() {
+        let Some(rb) = bodies.get(vm.body) else {
+            continue;
+        };
+        let world_pose = *rb.position() * vm.delta;
+        merge(vm.shape.compute_aabb(&world_pose));
+    }
+    let Some(aabb) = aabb else {
+        return;
+    };
+
+    let center = aabb.center();
+    let extents = aabb.extents();
+
+    #[cfg(feature = "dim3")]
+    {
+        // Bounding-sphere radius around the AABB center.
+        let half = extents * 0.5 as Real;
+        let radius = (half.x * half.x + half.y * half.y + half.z * half.z)
+            .sqrt()
+            .max(0.5);
+        let fov = camera.fov();
+        // Distance such that the bounding sphere subtends the camera's
+        // vertical FoV exactly. A small margin (1.1×) prevents the AABB
+        // edges from being clipped by the frustum / window aspect.
+        let dist = radius / (fov as Real * 0.5).sin().max(1e-3) * 1.1;
+
+        let kiss_center =
+            kiss3d::glamx::Vec3::new(center.x as f32, center.y as f32, center.z as f32);
+        // Approach from along +X / +Y / +Z roughly equally so any axis-up
+        // convention reads naturally.
+        let dir = kiss3d::glamx::Vec3::new(1.0, 1.0, 1.0).normalize();
+        let eye = kiss_center + dir * dist as f32;
+        camera.look_at(eye, kiss_center);
+    }
+
+    #[cfg(feature = "dim2")]
+    {
+        let kiss_center = kiss3d::glamx::Vec2::new(center.x as f32, center.y as f32);
+        // PanZoomCamera2d's "zoom" is pixels per world unit. Pick a zoom
+        // that fits the larger of the two extents in the smallest framebuffer
+        // dimension we're aware of (assume 800×600 default).
+        let max_extent = extents.x.max(extents.y).max(0.5);
+        let zoom = (600.0 as Real / max_extent / 1.2) as f32;
+        camera.look_at(kiss_center, zoom);
     }
 }

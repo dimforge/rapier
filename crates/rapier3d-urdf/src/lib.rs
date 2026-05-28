@@ -450,7 +450,6 @@ impl UrdfRobot {
         collider_set: &mut ColliderSet,
         joint_set: &mut ImpulseJointSet,
     ) -> UrdfRobotHandles<ImpulseJointHandle> {
-        println!("INSERT");
         let links: Vec<_> = self
             .links
             .into_iter()

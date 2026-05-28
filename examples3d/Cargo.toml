@@ -35,6 +35,10 @@ path = "../crates/rapier3d"
 path = "../crates/rapier3d-urdf"
 features = ["stl"]
 
+[dependencies.rapier3d-mjcf]
+path = "../crates/rapier3d-mjcf"
+features = ["stl", "wavefront"]
+
 [[bin]]
 name = "all_examples3"
 path = "./all_examples3.rs"

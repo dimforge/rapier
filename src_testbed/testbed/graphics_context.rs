@@ -4,7 +4,7 @@ use kiss3d::color::Color;
 use kiss3d::window::Window;
 use rapier::dynamics::RigidBodyHandle;
 use rapier::dynamics::RigidBodySet;
-use rapier::geometry::{ColliderHandle, ColliderSet};
+use rapier::geometry::{ColliderHandle, ColliderSet, SharedShape};
 
 use crate::Camera;
 use crate::graphics::GraphicsManager;
@@ -48,6 +48,43 @@ impl<'a> TestbedGraphics<'a> {
 
     pub fn remove_collider(&mut self, handle: ColliderHandle) {
         self.graphics.remove_collider_nodes(handle);
+    }
+
+    /// Attach a render-only mesh to `body`. The mesh follows the body's
+    /// pose offset by `local_pose` and does not participate in physics.
+    ///
+    /// `uvs` is an optional per-vertex UV buffer (used only when the
+    /// shape is a `TriMesh` *and* `texture` is also set). `texture` is
+    /// an optional path to a 2D color image to apply.
+    pub fn add_body_render_mesh(
+        &mut self,
+        body: RigidBodyHandle,
+        shape: &SharedShape,
+        local_pose: rapier::math::Pose,
+        color: Color,
+        uvs: Option<&[[f32; 2]]>,
+        texture: Option<&std::path::Path>,
+    ) {
+        self.graphics.add_body_render_mesh(
+            self.window,
+            body,
+            shape,
+            local_pose,
+            color,
+            uvs,
+            texture,
+        );
+    }
+
+    /// Show or hide every collider-derived render node.
+    pub fn set_colliders_visible(&mut self, visible: bool) {
+        self.graphics.set_colliders_visible(visible);
+    }
+
+    /// Show or hide every body-attached render-only mesh (registered via
+    /// [`Self::add_body_render_mesh`]).
+    pub fn set_body_render_meshes_visible(&mut self, visible: bool) {
+        self.graphics.set_body_render_meshes_visible(visible);
     }
 
     pub fn keys(&self) -> &KeysState {

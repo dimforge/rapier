@@ -203,6 +203,18 @@ pub(crate) fn update_ui(
                         .action_flags
                         .set(TestbedActionFlags::RESTORE_SNAPSHOT, true);
                 }
+
+                ui.separator();
+
+                if ui
+                    .button("Frame all")
+                    .on_hover_text("Recenter the camera so the entire scene fills the view")
+                    .clicked()
+                {
+                    state
+                        .action_flags
+                        .set(TestbedActionFlags::FRAME_SCENE, true);
+                }
             });
         });
 }
@@ -371,14 +383,20 @@ fn settings_tab(
     ui.add(Slider::new(&mut state.nsteps, 1..=100).text("Steps/frame"))
         .on_hover_text("Physics steps per rendered frame.");
 
-    // Gravity
-    let mut gravity_y = harness.physics.gravity.y;
+    // Gravity slider — operates along the current up-axis so the
+    // slider's "down" matches the camera's "down". Scenes that switch
+    // to Z-up (e.g. the MJCF demo) get gravity along -Z instead of the
+    // hard-coded -Y. Any orthogonal components of gravity are
+    // preserved when the slider moves.
+    let up = state.up_axis;
+    let mut gravity_along_up = harness.physics.gravity.dot(up);
     if ui
-        .add(Slider::new(&mut gravity_y, 0.0..=-200.0).text("Gravity"))
-        .on_hover_text("Gravity (m/s^2). Default: -9.81")
+        .add(Slider::new(&mut gravity_along_up, 0.0..=-200.0).text("Gravity"))
+        .on_hover_text("Gravity (m/s^2) along the up-axis. Default: -9.81")
         .changed()
     {
-        harness.physics.gravity.y = gravity_y;
+        let current = harness.physics.gravity.dot(up);
+        harness.physics.gravity += up * (gravity_along_up - current);
     }
 
     // Sleep
@@ -795,16 +813,70 @@ fn example_settings_ui(ui_context: &egui::Context, state: &mut TestbedState) {
                     SettingValue::Bool { value } => {
                         ui.checkbox(value, name);
                     }
-                    SettingValue::String { value, range } => {
-                        ComboBox::from_label(name)
-                            .width(150.0)
-                            .selected_text(&range[*value])
-                            .show_ui(ui, |ui| {
-                                for (id, option) in range.iter().enumerate() {
-                                    ui.selectable_value(value, id, option);
+                    SettingValue::String {
+                        value,
+                        range,
+                        display_mode,
+                    } => match display_mode {
+                        crate::settings::StringDisplayMode::ComboBox => {
+                            ComboBox::from_label(name)
+                                .width(150.0)
+                                .selected_text(&range[*value])
+                                .show_ui(ui, |ui| {
+                                    for (id, option) in range.iter().enumerate() {
+                                        ui.selectable_value(value, id, option);
+                                    }
+                                });
+                        }
+                        crate::settings::StringDisplayMode::List => {
+                            let current = range.get(*value).cloned().unwrap_or_default();
+                            let n = range.len();
+                            ui.horizontal(|ui| {
+                                // `<` / `>` step through the list one
+                                // entry at a time. Mirrors the `-` / `+`
+                                // pair on `U32` settings.
+                                let can_prev = n > 0 && *value > 0;
+                                let can_next = n > 0 && *value + 1 < n;
+                                if ui
+                                    .add_enabled(can_prev, egui::Button::new("<"))
+                                    .on_hover_text("Previous")
+                                    .clicked()
+                                {
+                                    *value -= 1;
                                 }
+                                if ui
+                                    .add_enabled(can_next, egui::Button::new(">"))
+                                    .on_hover_text("Next")
+                                    .clicked()
+                                {
+                                    *value += 1;
+                                }
+                                ui.label(RichText::new(format!("{name}:")).strong());
+                                ui.label(current);
                             });
-                    }
+                            // Bound the height so a long option list
+                            // doesn't crowd out the rest of the panel.
+                            egui::ScrollArea::vertical()
+                                .id_salt(name.as_str())
+                                .max_height(300.0)
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
+                                    for (id, opt) in range.iter().enumerate() {
+                                        let is_selected = *value == id;
+                                        let text = if is_selected {
+                                            RichText::new(opt).strong()
+                                        } else {
+                                            RichText::new(opt)
+                                        };
+                                        if ui.selectable_label(is_selected, text).clicked()
+                                            && !is_selected
+                                        {
+                                            *value = id;
+                                        }
+                                    }
+                                });
+                        }
+                    },
                 }
 
                 any_changed = any_changed || *value != prev_value;

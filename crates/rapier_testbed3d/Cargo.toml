@@ -63,6 +63,8 @@ profiling = "1.0"
 puffin_egui = { version = "0.29", optional = true }
 indexmap = { version = "2", features = ["serde"] }
 kiss3d = { version = "0.42.0", features = ["egui", "serde"] }
+log = "0.4"
+env_logger = "0.11"
 
 [dependencies.rapier]
 package = "rapier3d"

@@ -1,0 +1,282 @@
+<mujoco model="cassie">
+  <compiler eulerseq="zyx" meshdir="assets" texturedir="assets" autolimits="true"/>
+
+  <option timestep="0.0005"/>
+  <!-- Timestep is set to 0.0005 because the standard Cassie controller runs at 2 kHz -->
+  <!-- Larger values still have stable dynamics -->
+
+  <default>
+    <geom contype="0" conaffinity="0" condim="1" solref="0.005 1"/>
+    <equality solref="0.005 1"/>
+    <default class="cassie">
+      <geom material="cassie" group="2"/>
+    </default>
+    <default class="collision">
+      <geom contype="1" group="3" type="capsule"/>
+      <default class="collision-left">
+        <geom contype="2" conaffinity="4"/>
+      </default>
+      <default class="collision-right">
+        <geom contype="4" conaffinity="2"/>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <texture name="cassie" file="cassie-texture.png" type="2d"/>
+    <material name="cassie" texture="cassie"/>
+    <mesh name="cassie-pelvis" file="pelvis.obj"/>
+    <mesh name="left-hip-roll" file="hip-roll.obj"/>
+    <mesh name="left-hip-yaw" file="hip-yaw.obj"/>
+    <mesh name="left-hip-pitch" file="hip-pitch.obj"/>
+    <mesh name="left-achilles-rod" file="achilles-rod.obj"/>
+    <mesh name="left-knee" file="knee.obj"/>
+    <mesh name="left-knee-spring" file="knee-spring.obj"/>
+    <mesh name="left-shin" file="shin.obj"/>
+    <mesh name="left-tarsus" file="tarsus.obj"/>
+    <mesh name="left-heel-spring" file="heel-spring.obj"/>
+    <mesh name="left-foot-crank" file="foot-crank.obj"/>
+    <mesh name="left-plantar-rod" file="plantar-rod.obj"/>
+    <mesh name="left-foot" file="foot.obj"/>
+    <mesh name="right-hip-roll" scale="1 -1 1" file="hip-roll.obj"/>
+    <mesh name="right-hip-yaw" scale="1 -1 1" file="hip-yaw.obj"/>
+    <mesh name="right-hip-pitch" scale="1 1 -1" file="hip-pitch.obj"/>
+    <mesh name="right-achilles-rod" scale="1 1 -1" file="achilles-rod.obj"/>
+    <mesh name="right-knee" scale="1 1 -1" file="knee.obj"/>
+    <mesh name="right-knee-spring" scale="1 1 -1" file="knee-spring.obj"/>
+    <mesh name="right-shin" scale="1 1 -1" file="shin.obj"/>
+    <mesh name="right-tarsus" scale="1 1 -1" file="tarsus.obj"/>
+    <mesh name="right-heel-spring" scale="1 1 -1" file="heel-spring.obj"/>
+    <mesh name="right-foot-crank" scale="1 1 -1" file="foot-crank.obj"/>
+    <mesh name="right-plantar-rod" scale="1 1 -1" file="plantar-rod.obj"/>
+    <mesh name="right-foot" scale="1 1 -1" file="foot.obj"/>
+  </asset>
+
+  <worldbody>
+    <light name="spotlight" mode="targetbodycom" target="cassie-pelvis" pos="0 -1 2"/>
+    <body name="cassie-pelvis" pos="0 0 1.1" childclass="cassie">
+      <camera name="track" pos="0 -3 1" zaxis="0 -1 0.5" mode="track"/>
+      <inertial pos="0.05066 0.000346 0.02841" mass="10.33"
+        fullinertia="0.085821 0.049222 0.08626 1.276e-05 -0.00016022 -0.000414"/>
+      <freejoint/>
+      <geom type="mesh" mesh="cassie-pelvis" euler="0 0 90"/>
+      <!-- <geom type="sphere" size="0.15" pos="0.02 0 0.02" class="collision"/> -->
+      <geom type="ellipsoid" size="0.15 0.12 0.13" pos="0.03 0 0.03" class="collision"/>
+      <geom size="0.095" fromto="-.04 0.14 .01 .02 0.14 .01" class="collision"/>
+      <geom size="0.095" fromto="-.04 -.14 .01 .02 -.14 .01" class="collision"/>
+      <site name="imu" size="0.01" pos="0.03155 0 -0.07996"/>
+      <body name="left-hip-roll" pos="0.021 0.135 0" xyaxes="0 0 -1 0 1 0">
+        <inertial pos="-0.01793 0.0001 -0.04428" mass="1.82"
+          fullinertia="0.003431 0.003793 0.002135 -6.65e-07 -0.00084 3.99e-06"/>
+        <joint name="left-hip-roll" type="hinge" range="-15 22.5" damping="1" armature="0.038125"/>
+        <geom type="mesh" mesh="left-hip-roll" euler="0 0 90"/>
+        <body name="left-hip-yaw" pos="0 0 -0.07" xyaxes="0 0 1 0 1 0">
+          <inertial pos="0 -1e-05 -0.034277" mass="1.171"
+            fullinertia="0.002443 0.002803 0.000842 -4e-08 2.462e-07 -2.71e-08"/>
+          <joint name="left-hip-yaw" type="hinge" range="-22.5 22.5" damping="1" armature="0.038125"/>
+          <geom type="mesh" mesh="left-hip-yaw" euler="0 0 90"/>
+          <body name="left-hip-pitch" pos="0 0 -0.09" xyaxes="0 0 -1 1 0 0">
+            <inertial pos="0.05946 5e-05 -0.03581" mass="5.52"
+              fullinertia="0.010898 0.029714 0.030257 -0.0002669 -5.721e-05 9.17e-06"/>
+            <joint name="left-hip-pitch" type="hinge" range="-50 80" damping="1" armature="0.09344"/>
+            <geom type="mesh" mesh="left-hip-pitch" euler="0 0 90"/>
+            <geom size="0.08" fromto="0 0 -0.05 0.12 0 -0.05" class="collision"/>
+            <body name="left-achilles-rod" pos="0 0 0.045" xyaxes="0.7922 -0.60599 -0.072096 0.60349 0.79547 -0.054922">
+              <inertial pos="0.24719 0 0" mass="0.1567" fullinertia="3.754e-06 0.004487 0.004488 -3.74e-08 -1.61e-08 0"/>
+              <joint name="left-achilles-rod" type="ball" damping="0.01"/>
+              <geom type="mesh" mesh="left-achilles-rod" euler="0 0 90"/>
+            </body>
+            <body name="left-knee" pos="0.12 0 0.0045" xyaxes="0.70711 -0.70711 0 0.70711 0.70711 0">
+              <inertial pos="0.023 0.03207 -0.002181" mass="0.7578"
+                fullinertia="0.001376 0.0010335 0.0021637 -0.00039744 -4.085e-05 -5.374e-05"/>
+              <joint name="left-knee" type="hinge" ref="-45" range="-164 -37" damping="1" armature="0.09344"/>
+              <geom type="mesh" mesh="left-knee" euler="0 0 90"/>
+              <body name="left-knee-spring" pos="0.06068 0.08241 0">
+                <inertial pos="0.0836 0.0034 0" mass="0.186" fullinertia="5.215e-05 0.00041205 0.0003669 6.87e-06 0 0"/>
+                <geom type="mesh" mesh="left-knee-spring" euler="0 0 90"/>
+              </body>
+              <body name="left-shin" pos="0.06068 0.04741 0">
+                <inertial pos="0.18338 0.001169 0.0002123" mass="0.577"
+                  fullinertia="0.00035939 0.014728 0.014707 -0.00020981 2.266e-05 -1.2e-07"/>
+                <joint name="left-shin" type="hinge" range="-20 20" stiffness="1500" damping="0.1"/>
+                <geom type="mesh" mesh="left-shin" euler="0 0 90"/>
+                <geom size="0.04" fromto="-.06 0 0 0.17 -.01 0" class="collision-left"/>
+                <geom size="0.027" fromto="0.17 -.023 0 0.38 0 0" class="collision-left"/>
+                <geom size="0.025" fromto="-.045 .045 0 0.43476 0 0" class="collision-left"/>
+                <body name="left-tarsus" pos="0.43476 0.02 0" xyaxes="0.52992 0.84805 0 -0.84805 0.52992 0">
+                  <inertial pos="0.11046 -0.03058 -0.00131" mass="0.782"
+                    fullinertia="0.00039238 0.013595 0.013674 0.00023651 -4.987e-05 -4.82e-06"/>
+                  <joint name="left-tarsus" type="hinge" ref="58" range="50 170" damping="0.1"/>
+                  <geom type="mesh" mesh="left-tarsus" euler="0 0 90"/>
+                  <geom size="0.028" fromto=".01 -0.03059 0.00092 0.23 -0.04 0" class="collision-left"/>
+                  <geom size="0.033" fromto=".04 -0.07 0.00092 0.208 -0.04 0" class="collision-left"/>
+                  <geom size="0.02" fromto="0.208 -0.04 0 0.43 -0.04 0" class="collision-left"/>
+                  <body name="left-heel-spring" pos="-0.01269 -0.03059 0.00092"
+                    xyaxes="-0.91211 0.40829 0.036948 -0.40992 -0.90952 -0.068841">
+                    <inertial pos="0.081 0.0022 0" mass="0.126"
+                      fullinertia="2.959e-05 0.00022231 0.0002007 7.15e-06 -6e-07 1e-07"/>
+                    <joint name="left-heel-spring" type="hinge" stiffness="1250"/>
+                    <geom type="mesh" mesh="left-heel-spring" euler="0 0 90"/>
+                  </body>
+                  <body name="left-foot-crank" pos="0.058 -0.034 0.02275">
+                    <inertial pos="0.00493 2e-05 -0.00215" mass="0.1261"
+                      fullinertia="2.6941e-05 4.9621e-05 6.3362e-05 -2.1e-09 -3.9623e-06 -1.09e-08"/>
+                    <joint name="left-foot-crank" type="hinge" range="-140 -30" damping="1"/>
+                    <geom type="mesh" mesh="left-foot-crank" euler="0 0 90"/>
+                    <body name="left-plantar-rod" pos="0.055 0 -0.00791">
+                      <inertial pos="0.17792 0 0" mass="0.1186"
+                        fullinertia="2.779e-06 0.001774 0.001775 -2.34e-08 -8.1e-09 0"/>
+                      <joint name="left-plantar-rod" type="hinge"/>
+                      <geom type="mesh" mesh="left-plantar-rod" euler="0 0 90"/>
+                    </body>
+                  </body>
+                  <body name="left-foot" pos="0.408 -0.04 0">
+                    <inertial pos="0.00474 0.02748 -0.00014" mass="0.1498"
+                      fullinertia="0.00017388 0.00016793 0.00033261 0.00011814 1.36e-06 -4e-07"/>
+                    <joint name="left-foot" type="hinge" range="-140 -30" damping="1" armature="0.01225"/>
+                    <geom type="mesh" mesh="left-foot" euler="0 0 90"/>
+                    <geom size="0.02" fromto="-0.052821 0.092622 0 0.069746 -0.010224 0" class="collision-left"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="right-hip-roll" pos="0.021 -0.135 0" xyaxes="0 0 -1 0 1 0">
+        <inertial pos="-0.01793 0.0001 -0.04428" mass="1.82"
+          fullinertia="0.003431 0.003793 0.002135 6.65e-07 -0.00084 -3.99e-06"/>
+        <joint name="right-hip-roll" type="hinge" range="-22.5 15" damping="1" armature="0.038125"/>
+        <geom type="mesh" mesh="right-hip-roll" euler="0 0 -90"/>
+        <body name="right-hip-yaw" pos="0 0 -0.07" xyaxes="0 0 1 0 1 0">
+          <inertial pos="0 1e-05 -0.034277" mass="1.171"
+            fullinertia="0.002443 0.002803 0.000842 4e-08 2.462e-07 2.71e-08"/>
+          <joint name="right-hip-yaw" type="hinge" range="-22.5 22.5" damping="1" armature="0.038125"/>
+          <geom type="mesh" mesh="right-hip-yaw" euler="0 0 -90"/>
+          <body name="right-hip-pitch" pos="0 0 -0.09" xyaxes="0 0 -1 1 0 0">
+            <inertial pos="0.05946 5e-05 0.03581" mass="5.52"
+              fullinertia="0.010898 0.029714 0.030257 -0.0002669 5.721e-05 -9.17e-06"/>
+            <joint name="right-hip-pitch" type="hinge" range="-50 80" damping="1" armature="0.09344"/>
+            <geom type="mesh" mesh="right-hip-pitch" euler="0 0 -90"/>
+            <geom size="0.08" fromto="0 0 0.05 0.12 0 0.05" class="collision"/>
+            <body name="right-achilles-rod" pos="0 0 -0.045" xyaxes="0.7922 -0.60599 0.072096 0.60349 0.79547 0.054922">
+              <inertial pos="0.24719 0 0" mass="0.1567" fullinertia="3.754e-06 0.004487 0.004488 -3.74e-08 1.61e-08 0"/>
+              <joint name="right-achilles-rod" type="ball" damping="0.01"/>
+              <geom type="mesh" mesh="right-achilles-rod" euler="0 0 -90"/>
+            </body>
+            <body name="right-knee" pos="0.12 0 -0.0045" xyaxes="0.70711 -0.70711 0 0.70711 0.70711 0">
+              <inertial pos="0.023 0.03207 0.002181" mass="0.7578"
+                fullinertia="0.001376 0.0010335 0.0021637 -0.00039744 4.085e-05 5.374e-05"/>
+              <joint name="right-knee" type="hinge" ref="-45" range="-164 -37" damping="1" armature="0.09344"/>
+              <geom type="mesh" mesh="right-knee" euler="0 0 -90"/>
+              <body name="right-knee-spring" pos="0.06068 0.08241 0">
+                <inertial pos="0.0836 0.0034 0" mass="0.186" fullinertia="5.215e-05 0.00041205 0.0003669 6.87e-06 0 0"/>
+                <geom type="mesh" mesh="right-knee-spring" euler="0 0 -90"/>
+              </body>
+              <body name="right-shin" pos="0.06068 0.04741 0">
+                <inertial pos="0.18338 0.001169 -0.0002123" mass="0.577"
+                  fullinertia="0.00035939 0.014728 0.014707 -0.00020981 -2.266e-05 1.2e-07"/>
+                <joint name="right-shin" type="hinge" range="-20 20" stiffness="1500" damping="0.1"/>
+                <geom type="mesh" mesh="right-shin" euler="0 0 -90"/>
+                <geom size="0.04" fromto="-.06 0 0 0.17 -.01 0" class="collision-right"/>
+                <geom size="0.027" fromto="0.17 -.023 0 0.38 0 0" class="collision-right"/>
+                <geom size="0.025" fromto="-.045 .045 0 0.43476 0 0" class="collision-right"/>
+                <body name="right-tarsus" pos="0.43476 0.02 0" xyaxes="0.52992 0.84805 0 -0.84805 0.52992 0">
+                  <inertial pos="0.11046 -0.03058 0.00131" mass="0.782"
+                    fullinertia="0.00039238 0.013595 0.013674 0.00023651 4.987e-05 4.82e-06"/>
+                  <joint name="right-tarsus" type="hinge" ref="58" range="50 170" damping="0.1"/>
+                  <geom type="mesh" mesh="right-tarsus" euler="0 0 -90"/>
+                  <geom size="0.028" fromto=".01 -0.03059 0.00092 0.23 -0.04 0" class="collision-right"/>
+                  <geom size="0.033" fromto=".04 -0.07 0.00092 0.208 -0.04 0" class="collision-right"/>
+                  <geom size="0.02" fromto="0.208 -0.04 0 0.43 -0.04 0" class="collision-right"/>
+                  <body name="right-heel-spring" pos="-0.01269 -0.03059 -0.00092"
+                    xyaxes="-0.91211 0.40829 -0.036948 -0.40992 -0.90952 0.068841">
+                    <inertial pos="0.081 0.0022 0" mass="0.126"
+                      fullinertia="2.959e-05 0.00022231 0.0002007 7.15e-06 6e-07 -1e-07"/>
+                    <joint name="right-heel-spring" type="hinge" stiffness="1250"/>
+                    <geom type="mesh" mesh="right-heel-spring" euler="0 0 -90"/>
+                  </body>
+                  <body name="right-foot-crank" pos="0.058 -0.034 -0.02275">
+                    <inertial pos="0.00493 2e-05 0.00215" mass="0.1261"
+                      fullinertia="2.6941e-05 4.9621e-05 6.3362e-05 -2.1e-09 3.9623e-06 1.09e-08"/>
+                    <joint name="right-foot-crank" type="hinge" range="-140 -30" damping="1"/>
+                    <geom type="mesh" mesh="right-foot-crank" euler="0 0 -90"/>
+                    <body name="right-plantar-rod" pos="0.055 0 0.00791">
+                      <inertial pos="0.17792 0 0" mass="0.1186"
+                        fullinertia="2.779e-06 0.001774 0.001775 -2.34e-08 8.1e-09 0"/>
+                      <joint name="right-plantar-rod" type="hinge"/>
+                      <geom type="mesh" mesh="right-plantar-rod" euler="0 0 -90"/>
+                    </body>
+                  </body>
+                  <body name="right-foot" pos="0.408 -0.04 0">
+                    <inertial pos="0.00474 0.02748 0.00014" mass="0.1498"
+                      fullinertia="0.00017388 0.00016793 0.00033261 0.00011814 -1.36e-06 4e-07"/>
+                    <joint name="right-foot" type="hinge" range="-140 -30" damping="1" armature="0.01225"/>
+                    <geom type="mesh" mesh="right-foot" euler="0 0 -90"/>
+                    <geom size="0.02" fromto="-0.052821 0.092622 0 0.069746 -0.010224 0" class="collision-right"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <equality>
+    <connect body1="left-plantar-rod" body2="left-foot" anchor="0.35012 0 0"/>
+    <connect body1="left-achilles-rod" body2="left-heel-spring" anchor="0.5012 0 0"/>
+    <connect body1="right-plantar-rod" body2="right-foot" anchor="0.35012 0 0"/>
+    <connect body1="right-achilles-rod" body2="right-heel-spring" anchor="0.5012 0 0"/>
+  </equality>
+
+  <actuator>
+    <!-- User parameter is the maximum no-load motor RPM -->
+    <motor name="left-hip-roll" joint="left-hip-roll" gear="25" ctrlrange="-4.5 4.5" user="2900"/>
+    <motor name="left-hip-yaw" joint="left-hip-yaw" gear="25" ctrlrange="-4.5 4.5" user="2900"/>
+    <motor name="left-hip-pitch" joint="left-hip-pitch" gear="16" ctrlrange="-12.2 12.2" user="1300"/>
+    <motor name="left-knee" joint="left-knee" gear="16" ctrlrange="-12.2 12.2" user="1300"/>
+    <motor name="left-foot" joint="left-foot" gear="50" ctrlrange="-0.9 0.9" user="5500"/>
+    <motor name="right-hip-roll" joint="right-hip-roll" gear="25" ctrlrange="-4.5 4.5" user="2900"/>
+    <motor name="right-hip-yaw" joint="right-hip-yaw" gear="25" ctrlrange="-4.5 4.5" user="2900"/>
+    <motor name="right-hip-pitch" joint="right-hip-pitch" gear="16" ctrlrange="-12.2 12.2" user="1300"/>
+    <motor name="right-knee" joint="right-knee" gear="16" ctrlrange="-12.2 12.2" user="1300"/>
+    <motor name="right-foot" joint="right-foot" gear="50" ctrlrange="-0.9 0.9" user="5500"/>
+  </actuator>
+
+  <sensor>
+    <!-- User parameter is the number of absolute encoder bits -->
+    <actuatorpos name="left-hip-roll-input" actuator="left-hip-roll" user="13"/>
+    <actuatorpos name="left-hip-yaw-input" actuator="left-hip-yaw" user="13"/>
+    <actuatorpos name="left-hip-pitch-input" actuator="left-hip-pitch" user="13"/>
+    <actuatorpos name="left-knee-input" actuator="left-knee" user="13"/>
+    <actuatorpos name="left-foot-input" actuator="left-foot" user="18"/>
+
+    <jointpos name="left-shin-output" joint="left-shin" user="18" noise="2e-4"/>
+    <jointpos name="left-tarsus-output" joint="left-tarsus" user="18" noise="2e-4"/>
+    <jointpos name="left-foot-output" joint="left-foot" user="13"/>
+
+    <actuatorpos name="right-hip-roll-input" actuator="right-hip-roll" user="13"/>
+    <actuatorpos name="right-hip-yaw-input" actuator="right-hip-yaw" user="13"/>
+    <actuatorpos name="right-hip-pitch-input" actuator="right-hip-pitch" user="13"/>
+    <actuatorpos name="right-knee-input" actuator="right-knee" user="13"/>
+    <actuatorpos name="right-foot-input" actuator="right-foot" user="18"/>
+
+    <jointpos name="right-shin-output" joint="right-shin" user="18" noise="2e-4"/>
+    <jointpos name="right-tarsus-output" joint="right-tarsus" user="18" noise="2e-4"/>
+    <jointpos name="right-foot-output" joint="right-foot" user="13"/>
+
+    <framequat name="pelvis-orientation" objtype="site" objname="imu"/>
+    <gyro name="pelvis-angular-velocity" site="imu" noise="5e-4" cutoff="34.9"/>
+    <accelerometer name="pelvis-linear-acceleration" site="imu" noise="1e-2" cutoff="157"/>
+    <magnetometer name="pelvis-magnetometer" site="imu"/>
+  </sensor>
+
+  <keyframe>
+    <key name="home"
+      qpos="0 0 1.0059301 1 0 0 0 0.00449956 0 0.497301 0.97861 -0.0164104 0.0177766
+        -0.204298 -1.1997 0 1.42671 -2.25907e-06 -1.52439 1.50645 -1.59681 -0.00449956 0 0.497301
+        0.97874 0.0038687 -0.0151572 -0.204509 -1.1997 0 1.42671 0 -1.52439 1.50645 -1.59681"/>
+  </keyframe>
+</mujoco>

@@ -47,6 +47,8 @@ mod joint_motor_position3;
 mod joints3;
 mod keva3;
 mod locked_rotations3;
+mod mjcf3;
+mod mujoco_menagerie3;
 mod newton_cradle3;
 mod one_way_platforms3;
 mod platform3;
@@ -152,6 +154,10 @@ pub async fn main() {
         // ── Robotics ───────────────────────────────────────────────────────
         #[cfg(not(target_arch = "wasm32"))]
         Example::new(ROBOTICS, "URDF", urdf3::init_world),
+        #[cfg(not(target_arch = "wasm32"))]
+        Example::new(ROBOTICS, "MJCF", mjcf3::init_world),
+        #[cfg(not(target_arch = "wasm32"))]
+        Example::new(ROBOTICS, "Mujoco Menagerie", mujoco_menagerie3::init_world),
         // ── Debug ──────────────────────────────────────────────────────────
         Example::new(DEBUG, "Multibody joints", debug_articulations3::init_world),
         Example::new(

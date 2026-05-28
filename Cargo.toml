@@ -13,6 +13,8 @@ members = [
     "examples3d-f64",
     "crates/rapier3d-urdf",
     "crates/rapier3d-meshloader",
+    "crates/mjcf-rs",
+    "crates/rapier3d-mjcf",
 ]
 resolver = "2"
 

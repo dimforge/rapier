@@ -55,6 +55,9 @@ bitflags! {
         const TAKE_SNAPSHOT = 1 << 4;
         const RESTORE_SNAPSHOT = 1 << 5;
         const APP_STARTED = 1 << 6;
+        /// Recenter the camera so the entire scene is visible and fills
+        /// the viewport.
+        const FRAME_SCENE = 1 << 7;
     }
 }
 
@@ -108,6 +111,12 @@ pub struct TestbedState {
     pub camera_locked: bool,
     pub selected_tab: UiTab,
     pub prev_save_data: SerializableTestbedState,
+    /// Unit up-vector kept in sync with the camera (see
+    /// [`crate::Testbed::set_up_axis`]). The gravity slider in the
+    /// testbed UI reads this so it can keep gravity aligned with "down"
+    /// (`-up_axis`) instead of the hard-coded Y-axis it used to assume.
+    /// Defaults to `Vector::Y`.
+    pub up_axis: rapier::math::Vector,
 }
 
 impl Default for TestbedState {
@@ -144,6 +153,7 @@ impl Default for TestbedState {
             camera_locked: false,
             selected_tab: UiTab::default(),
             prev_save_data: SerializableTestbedState::default(),
+            up_axis: rapier::math::Vector::Y,
         }
     }
 }

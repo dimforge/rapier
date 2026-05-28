@@ -56,7 +56,7 @@
 - Update `glamx` to 0.3.
 - Updated `wide` version to `1` ([#902](https://github.com/dimforge/rapier/issues/902)).
 
-## v0.31.0 (09 Jan. 2026)
+## v0.32.0 (09 Jan. 2026)
 
 ### Modified
 

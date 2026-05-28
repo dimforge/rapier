@@ -30,7 +30,7 @@ pub mod physics;
 mod physx_backend;
 mod plugin;
 mod save;
-mod settings;
+pub mod settings;
 mod testbed;
 pub mod ui;
 
