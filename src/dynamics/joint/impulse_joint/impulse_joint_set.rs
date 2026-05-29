@@ -6,34 +6,9 @@ use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractio
 
 use crate::data::Coarena;
 use crate::data::arena::Arena;
-use crate::dynamics::{GenericJoint, IslandManager, RigidBodyHandle, RigidBodySet};
-
-/// The unique identifier of a joint added to the joint set.
-/// The unique identifier of a collider added to a collider set.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[repr(transparent)]
-pub struct ImpulseJointHandle(pub crate::data::arena::Index);
-
-impl ImpulseJointHandle {
-    /// Converts this handle into its (index, generation) components.
-    pub fn into_raw_parts(self) -> (u32, u32) {
-        self.0.into_raw_parts()
-    }
-
-    /// Reconstructs an handle from its (index, generation) components.
-    pub fn from_raw_parts(id: u32, generation: u32) -> Self {
-        Self(crate::data::arena::Index::from_raw_parts(id, generation))
-    }
-
-    /// An always-invalid joint handle.
-    pub fn invalid() -> Self {
-        Self(crate::data::arena::Index::from_raw_parts(
-            crate::INVALID_U32,
-            crate::INVALID_U32,
-        ))
-    }
-}
+use crate::dynamics::{
+    GenericJoint, ImpulseJointHandle, IslandManager, RigidBodyHandle, RigidBodySet,
+};
 
 pub(crate) type JointIndex = usize;
 pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
@@ -375,6 +350,102 @@ impl ImpulseJointSet {
         ImpulseJointHandle(handle)
     }
 
+    /// Rewires an existing joint to a new pair of bodies, preserving its
+    /// [`ImpulseJointHandle`], its `GenericJoint` configuration, and its
+    /// warm-started impulses.
+    ///
+    /// Unlike directly mutating `body1`/`body2` (which isn't possible anyway
+    /// since those fields are crate-private), this also updates the
+    /// interaction graph and schedules the new pair for island merging so
+    /// the solver, island manager, and joint constraint builder stay in
+    /// sync. Use this when retargeting a persistent joint — e.g. a mouse
+    /// "pick" joint that is pre-allocated at startup and reattached to
+    /// whatever body the user grabs.
+    ///
+    /// # Parameters
+    /// * `handle` - The joint to rewire. If the handle is invalid this
+    ///   returns `None`.
+    /// * `new_body1`, `new_body2` - The new endpoints.
+    /// * `wake_up` - If `true`, wakes up both the previous and new endpoints.
+    ///
+    /// Returns a mutable reference to the updated joint, or `None` if the
+    /// handle was stale. When `new_body1`/`new_body2` match the joint's
+    /// current endpoints, this is a no-op and returns the joint unchanged.
+    ///
+    /// # Example
+    /// ```
+    /// # use rapier3d::prelude::*;
+    /// # let mut bodies = RigidBodySet::new();
+    /// # let mut joints = ImpulseJointSet::new();
+    /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let body3 = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let joint = RevoluteJointBuilder::new(Vector::Y).build();
+    /// let joint_handle = joints.insert(body1, body2, joint, true);
+    /// // Swap body2 for body3 without losing the handle or the joint data.
+    /// joints.set_bodies(joint_handle, body1, body3, true);
+    /// ```
+    #[profiling::function]
+    pub fn set_bodies(
+        &mut self,
+        handle: ImpulseJointHandle,
+        new_body1: RigidBodyHandle,
+        new_body2: RigidBodyHandle,
+        wake_up: bool,
+    ) -> Option<&mut ImpulseJoint> {
+        let edge_id = *self.joint_ids.get(handle.0)?;
+
+        // Early-out when the endpoints haven't actually changed.
+        let (old_body1, old_body2) = {
+            let joint = self.joint_graph.graph.edge_weight(edge_id)?;
+            (joint.body1, joint.body2)
+        };
+        if old_body1 == new_body1 && old_body2 == new_body2 {
+            return self.joint_graph.graph.edge_weight_mut(edge_id);
+        }
+
+        // Detach the edge from its current endpoints. `remove_edge` uses
+        // `swap_remove`, so another edge may have taken `edge_id`'s slot —
+        // patch its handle→edge mapping exactly like `ImpulseJointSet::remove`.
+        let mut joint = self.joint_graph.graph.remove_edge(edge_id)?;
+        if let Some(swapped) = self.joint_graph.graph.edge_weight(edge_id) {
+            self.joint_ids[swapped.handle.0] = edge_id;
+        }
+
+        // Ensure both new endpoints have graph nodes (same dance `insert`
+        // does for first-time endpoints).
+        let default_id = InteractionGraph::<(), ()>::invalid_graph_index();
+        let mut graph_index1 = *self
+            .rb_graph_ids
+            .ensure_element_exist(new_body1.0, default_id);
+        let mut graph_index2 = *self
+            .rb_graph_ids
+            .ensure_element_exist(new_body2.0, default_id);
+        if !InteractionGraph::<RigidBodyHandle, ImpulseJoint>::is_graph_index_valid(graph_index1) {
+            graph_index1 = self.joint_graph.graph.add_node(new_body1);
+            self.rb_graph_ids.insert(new_body1.0, graph_index1);
+        }
+        if !InteractionGraph::<RigidBodyHandle, ImpulseJoint>::is_graph_index_valid(graph_index2) {
+            graph_index2 = self.joint_graph.graph.add_node(new_body2);
+            self.rb_graph_ids.insert(new_body2.0, graph_index2);
+        }
+
+        joint.body1 = new_body1;
+        joint.body2 = new_body2;
+        let new_edge_id = self.joint_graph.add_edge(graph_index1, graph_index2, joint);
+        self.joint_ids[handle.0] = new_edge_id;
+
+        if wake_up {
+            self.to_wake_up.insert(old_body1);
+            self.to_wake_up.insert(old_body2);
+            self.to_wake_up.insert(new_body1);
+            self.to_wake_up.insert(new_body2);
+        }
+        self.to_join.insert((new_body1, new_body2));
+
+        self.joint_graph.graph.edge_weight_mut(new_edge_id)
+    }
+
     /// Retrieve all the enabled impulse joints happening between two active bodies.
     // NOTE: this is very similar to the code from NarrowPhase::select_active_interactions.
     pub(crate) fn select_active_interactions(
@@ -430,7 +501,7 @@ impl ImpulseJointSet {
     /// # let joint = RevoluteJointBuilder::new(Vector::Y).build();
     /// # let joint_handle = joints.insert(body1, body2, joint, true);
     /// if let Some(joint) = joints.remove(joint_handle, true) {
-    ///     println!("Removed joint between {:?} and {:?}", joint.body1, joint.body2);
+    ///     println!("Removed joint between {:?} and {:?}", joint.body1(), joint.body2());
     /// }
     /// ```
     #[profiling::function]

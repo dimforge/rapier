@@ -1,32 +1,48 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
+#[cfg(feature = "alloc")]
 pub use self::broad_phase_bvh::{BroadPhaseBvh, BvhOptimizationStrategy};
 pub use self::broad_phase_pair_event::{BroadPhasePairEvent, ColliderPair};
+#[cfg(feature = "alloc")]
 pub use self::collider::{Collider, ColliderBuilder};
+#[cfg(feature = "alloc")]
 pub use self::collider_components::*;
+pub use self::collider_handle::ColliderHandle;
+#[cfg(feature = "alloc")]
 pub use self::collider_set::{ColliderSet, ModifiedColliders};
+#[cfg(feature = "alloc")]
 pub use self::contact_pair::{
     ContactData, ContactManifoldData, ContactPair, IntersectionPair, SimdSolverContact,
     SolverContact, SolverFlags,
 };
+#[cfg(feature = "alloc")]
 pub use self::interaction_graph::{
     ColliderGraphIndex, InteractionGraph, RigidBodyGraphIndex, TemporaryInteractionIndex,
 };
 pub use self::interaction_groups::{Group, InteractionGroups, InteractionTestMode};
+#[cfg(feature = "alloc")]
 pub use self::mesh_converter::{MeshConverter, MeshConverterError};
+#[cfg(feature = "alloc")]
 pub use self::narrow_phase::NarrowPhase;
+#[cfg(feature = "alloc")]
 pub use parry::utils::Array2;
 
 pub use parry::bounding_volume::BoundingVolume;
+#[cfg(feature = "alloc")]
 pub use parry::partitioning::{Bvh, BvhBuildStrategy};
+#[cfg(feature = "alloc")]
 pub use parry::query::{PointQuery, PointQueryWithLocation, RayCast, TrackedContact};
+#[cfg(feature = "alloc")]
 pub use parry::shape::{SharedShape, VoxelState, VoxelType, Voxels};
 
+#[cfg(feature = "alloc")]
 use crate::math::{Real, Vector};
 
 /// A contact between two colliders.
+#[cfg(feature = "alloc")]
 pub type Contact = parry::query::TrackedContact<ContactData>;
 /// A contact manifold between two colliders.
+#[cfg(feature = "alloc")]
 pub type ContactManifold = parry::query::ContactManifold<ContactManifoldData, ContactData>;
 /// A segment shape.
 pub type Segment = parry::shape::Segment;
@@ -39,6 +55,7 @@ pub type Ball = parry::shape::Ball;
 /// A capsule shape.
 pub type Capsule = parry::shape::Capsule;
 /// A heightfield shape.
+#[cfg(feature = "alloc")]
 pub type HeightField = parry::shape::HeightField;
 /// A cylindrical shape.
 #[cfg(feature = "dim3")]
@@ -57,6 +74,7 @@ pub type PointProjection = parry::query::PointProjection;
 /// The result of a shape-cast between two shapes.
 pub type ShapeCastHit = parry::query::ShapeCastHit;
 /// The default broad-phase implementation recommended for general-purpose usage.
+#[cfg(feature = "alloc")]
 pub type DefaultBroadPhase = BroadPhaseBvh;
 
 bitflags::bitflags! {
@@ -155,6 +173,7 @@ impl CollisionEvent {
     }
 }
 
+#[cfg(feature = "alloc")]
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 /// Event occurring when the sum of the magnitudes of the contact forces
 /// between two colliders exceed a threshold.
@@ -177,6 +196,7 @@ pub struct ContactForceEvent {
     pub max_force_magnitude: Real,
 }
 
+#[cfg(feature = "alloc")]
 impl ContactForceEvent {
     /// Init a contact force event from a contact pair.
     pub fn from_contact_pair(dt: Real, pair: &ContactPair, total_force_magnitude: Real) -> Self {
@@ -212,26 +232,37 @@ impl ContactForceEvent {
     }
 }
 
+#[cfg(feature = "alloc")]
 pub(crate) use self::narrow_phase::ContactManifoldIndex;
+#[cfg(feature = "alloc")]
 pub use parry::shape::*;
 
-#[cfg(feature = "serde-serialize")]
+#[cfg(all(feature = "serde-serialize", feature = "alloc"))]
 pub(crate) fn default_persistent_query_dispatcher()
 -> alloc::sync::Arc<dyn parry::query::PersistentQueryDispatcher<ContactManifoldData, ContactData>> {
     alloc::sync::Arc::new(parry::query::DefaultQueryDispatcher)
 }
 
+#[cfg(feature = "alloc")]
 mod collider_components;
+mod collider_handle;
+#[cfg(feature = "alloc")]
 mod contact_pair;
+#[cfg(feature = "alloc")]
 mod interaction_graph;
 mod interaction_groups;
+#[cfg(feature = "alloc")]
 mod narrow_phase;
 
+#[cfg(feature = "alloc")]
 mod broad_phase_bvh;
 mod broad_phase_pair_event;
+#[cfg(feature = "alloc")]
 mod collider;
+#[cfg(feature = "alloc")]
 mod collider_set;
+#[cfg(feature = "alloc")]
 mod mesh_converter;
 
-#[cfg(feature = "dim3")]
+#[cfg(all(feature = "dim3", feature = "alloc"))]
 mod manifold_reduction;

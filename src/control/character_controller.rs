@@ -1237,4 +1237,73 @@ mod test {
             translation.z
         );
     }
+
+    #[test]
+    fn character_controller_negative_up_axis() {
+        // Regression test for issue #492: a `KinematicCharacterController` whose `up` vector
+        // points along negative Y must not panic in `move_shape`, and must still detect the
+        // ground.
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhaseBvh::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+        let mut bodies = RigidBodySet::new();
+
+        // In a world whose "up" is -Y, the floor is *above* the character (higher Y).
+        // Floor half-height 0.1 centered at y = 0.6 => its lower face is at y = 0.5.
+        let ground = RigidBodyBuilder::fixed().translation(Vector::new(0.0, 0.6, 0.0));
+        let ground_handle = bodies.insert(ground);
+        colliders.insert_with_parent(
+            ColliderBuilder::cuboid(10.0, 0.1, 10.0),
+            ground_handle,
+            &mut bodies,
+        );
+
+        // Character ball of radius 0.5 at the origin => its top is at y = 0.5, i.e. touching
+        // the floor's lower face.
+        let character_handle = bodies.insert(RigidBodyBuilder::kinematic_position_based());
+        let character_collider = ColliderBuilder::ball(0.5).build();
+        colliders.insert_with_parent(character_collider.clone(), character_handle, &mut bodies);
+
+        let integration_parameters = IntegrationParameters::default();
+        pipeline.step(
+            Vector::ZERO,
+            &integration_parameters,
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            &(),
+            &(),
+        );
+
+        let controller = KinematicCharacterController {
+            up: -Vector::Y,
+            ..Default::default()
+        };
+
+        let filter = QueryFilter::new().exclude_rigid_body(character_handle);
+        let query_pipeline =
+            bf.as_query_pipeline(nf.query_dispatcher(), &bodies, &colliders, filter);
+
+        // This used to panic with "The loosening margin must be positive." (issue #492).
+        let movement = controller.move_shape(
+            integration_parameters.dt,
+            &query_pipeline,
+            character_collider.shape(),
+            bodies[character_handle].position(),
+            Vector::new(0.1, 0.0, 0.0),
+            |_| {},
+        );
+
+        // The floor lies in the +Y direction, i.e. along `-up`, so the character is grounded.
+        assert!(movement.grounded);
+    }
 }

@@ -57,12 +57,18 @@ impl GenericContactConstraintBuilder {
         let (vels1, mprops1, type1) = (&rb1.vels, &rb1.mprops, &rb1.body_type);
         let (vels2, mprops2, type2) = (&rb2.vels, &rb2.mprops, &rb2.body_type);
 
+        // A multibody's fixed root behaves exactly like a regular fixed body.
+        // Thus, a contact against a fixed root must not reference the multibody's
+        // `solver_id`, because the multibody is only set up on the island owning
+        // its *dynamic* links.
         let multibody1 = multibodies
             .rigid_body_link(handle1)
-            .map(|m| (&multibodies[m.multibody], m.id));
+            .map(|m| (&multibodies[m.multibody], m.id))
+            .filter(|(mb, link_id)| *link_id != 0 || mb.root_is_dynamic);
         let multibody2 = multibodies
             .rigid_body_link(handle2)
-            .map(|m| (&multibodies[m.multibody], m.id));
+            .map(|m| (&multibodies[m.multibody], m.id))
+            .filter(|(mb, link_id)| *link_id != 0 || mb.root_is_dynamic);
         let solver_vel1 =
             multibody1
                 .map(|mb| mb.0.solver_id)

@@ -19,14 +19,21 @@ maintenance = { status = "actively-developed" }
 [lints]
 clippy = { needless_lifetimes = "allow" }
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim2", "f32", "std", "simd-is-enabled", "simd-stable", "simd-nightly"))',
+    'cfg(feature, values("dim2", "f32", "std", "alloc", "bytemuck", "simd-is-enabled", "simd-stable", "simd-nightly"))',
+    'cfg(target_arch, values("spirv"))',
 ] }
 
 [features]
 default = ["dim3", "f64", "std"]
 dim3 = []
 f64 = []
+alloc = [
+    "nalgebra/alloc",
+    "parry3d-f64/alloc",
+    "serde?/alloc",
+]
 std = [
+    "alloc",
     "parry3d-f64/std",
     "nalgebra/std",
     "simba/std",
@@ -55,6 +62,7 @@ serde-serialize = [
 enhanced-determinism = ["simba/libm_force", "parry3d-f64/enhanced-determinism"]
 debug-render = []
 profiler = ["dep:web-time"] # Enables the internal profiler.
+bytemuck = ["dep:bytemuck"]
 
 # Feature used for debugging only.
 debug-disable-legitimate-fe-exceptions = []
@@ -73,7 +81,6 @@ required-features = ["dim3", "f64"]
 doctest = false # All doctests are written assuming the 3D f32 version.
 
 [dependencies]
-nalgebra.workspace = true
 glamx.workspace = true
 parry3d-f64.workspace = true
 simba.workspace = true
@@ -87,6 +94,13 @@ static_assertions.workspace = true
 web-time = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+
+# Nalgebra is only included on non-spirv targets. On spirv, rapier exposes only the
+# subset of its API that doesn't require nalgebra.
+[target.'cfg(not(target_arch = "spirv"))'.dependencies]
+nalgebra = { workspace = true }
+glamx = { workspace = true, features = ["nalgebra"] }
 
 [dev-dependencies]
 bincode.workspace = true

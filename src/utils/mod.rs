@@ -1,5 +1,6 @@
 //! Miscellaneous utilities.
 
+#[cfg(not(target_arch = "spirv"))]
 mod angular_inertia_ops;
 mod component_mul;
 mod copysign;
@@ -10,8 +11,11 @@ mod fp_flags;
 mod index_mut2;
 mod matrix_column;
 mod orthonormal_basis;
+#[cfg(not(target_arch = "spirv"))]
 mod pos_ops;
+#[cfg(not(target_arch = "spirv"))]
 mod rotation_ops;
+#[cfg(not(target_arch = "spirv"))]
 mod scalar_type;
 mod simd_real_copy;
 mod simd_select;
@@ -21,24 +25,31 @@ pub use copysign::CopySign;
 pub use index_mut2::IndexMut2;
 pub use matrix_column::MatrixColumn;
 pub use orthonormal_basis::OrthonormalBasis;
+#[cfg(not(target_arch = "spirv"))]
 pub use pos_ops::PoseOps;
+#[cfg(not(target_arch = "spirv"))]
 pub use rotation_ops::RotationOps;
+#[cfg(not(target_arch = "spirv"))]
 pub use scalar_type::ScalarType;
 pub use simd_real_copy::SimdRealCopy;
 pub use simd_select::SimdSelect;
 
+#[cfg(not(target_arch = "spirv"))]
 pub use angular_inertia_ops::AngularInertiaOps;
 pub use cross_product::CrossProduct;
 pub use cross_product_matrix::CrossProductMatrix;
 pub use dot_product::{DotProduct, SimdLength};
+#[allow(unused_imports)]
 pub(crate) use fp_flags::{DisableFloatingPointExceptionsFlags, FlushToZeroDenormalsAreZeroFlags};
 
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;
-use crate::math::{Real, SimdVector, Vector};
-#[cfg(feature = "dim2")]
+#[cfg(not(target_arch = "spirv"))]
+use crate::math::SimdVector;
+use crate::math::{Real, Vector};
+#[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
 use na::Matrix2;
-#[cfg(feature = "dim3")]
+#[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
 use na::Matrix3;
 
 /// Dimension minus one (1 for 2D, 2 for 3D).
@@ -62,22 +73,24 @@ pub fn try_normalize_and_get_length(v: Vector, threshold: Real) -> Option<(Vecto
 }
 
 /// Convert glam Vector to nalgebra `SimdVector<Real>`
+#[cfg(not(target_arch = "spirv"))]
 #[inline]
 pub fn vect_to_na(v: Vector) -> SimdVector<Real> {
     v.into()
 }
 
+#[cfg(not(target_arch = "spirv"))]
 use crate::math::Matrix;
 
 /// Convert glam Matrix to nalgebra `Matrix2<Real>` (2D matrix)
-#[cfg(feature = "dim2")]
+#[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
 #[inline]
 pub fn mat_to_na(m: Matrix) -> Matrix2<Real> {
     m.into()
 }
 
 /// Convert glam Matrix to nalgebra `Matrix3<Real>` (3D matrix)
-#[cfg(feature = "dim3")]
+#[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
 #[inline]
 pub fn mat_to_na(m: Matrix) -> Matrix3<Real> {
     Matrix3::new(
@@ -88,6 +101,7 @@ pub fn mat_to_na(m: Matrix) -> Matrix3<Real> {
 
 const INV_EPSILON: Real = 1.0e-20;
 
+#[allow(dead_code)]
 pub(crate) fn inv(val: Real) -> Real {
     if (-INV_EPSILON..=INV_EPSILON).contains(&val) {
         0.0
@@ -96,11 +110,13 @@ pub(crate) fn inv(val: Real) -> Real {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn simd_inv<N: SimdRealCopy>(val: N) -> N {
     let eps = N::splat(INV_EPSILON);
     N::zero().select(val.simd_gt(-eps) & val.simd_lt(eps), N::one() / val)
 }
 
+#[allow(dead_code)]
 pub(crate) fn select_other<T: PartialEq>(pair: (T, T), elt: T) -> T {
     if pair.0 == elt { pair.1 } else { pair.0 }
 }

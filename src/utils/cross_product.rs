@@ -1,7 +1,10 @@
 //! SimdCross trait for generalized cross product.
 
 use crate::math::{Real, Vector};
-use na::{SimdRealField, Vector2, Vector3};
+#[cfg(not(target_arch = "spirv"))]
+use na::{Vector2, Vector3};
+#[cfg(not(target_arch = "spirv"))]
+use simba::simd::SimdRealField;
 
 /// Trait for computing generalized cross products.
 pub trait CrossProduct<Rhs>: Sized {
@@ -11,6 +14,7 @@ pub trait CrossProduct<Rhs>: Sized {
     fn gcross(&self, rhs: Rhs) -> Self::Result;
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<T: SimdRealField + Copy> CrossProduct<Vector3<T>> for Vector3<T> {
     type Result = Self;
 
@@ -19,6 +23,7 @@ impl<T: SimdRealField + Copy> CrossProduct<Vector3<T>> for Vector3<T> {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<T: SimdRealField + Copy> CrossProduct<Vector2<T>> for Vector2<T> {
     type Result = T;
 
@@ -27,6 +32,7 @@ impl<T: SimdRealField + Copy> CrossProduct<Vector2<T>> for Vector2<T> {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<T: SimdRealField + Copy> CrossProduct<Vector2<T>> for T {
     type Result = Vector2<T>;
 
@@ -35,6 +41,7 @@ impl<T: SimdRealField + Copy> CrossProduct<Vector2<T>> for T {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<T: SimdRealField + Copy> CrossProduct<Vector3<T>> for T {
     type Result = Vector3<T>;
 

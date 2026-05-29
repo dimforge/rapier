@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let friction = 0.7;
 
@@ -16,9 +13,8 @@ pub fn init_world(testbed: &mut Testbed) {
      * Ground
      */
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -2.0));
-    let ground_handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(40.0, 2.0).friction(friction);
-    colliders.insert_with_parent(collider, ground_handle, &mut bodies);
+    let _ = world.insert(rigid_body, collider);
 
     /*
      * Create the cubes
@@ -47,23 +43,20 @@ pub fn init_world(testbed: &mut Testbed) {
                         y + card_height - 0.015 * scale,
                     ))
                     .rotation(angle2);
-                let ground_handle = bodies.insert(rigid_body);
-                colliders.insert_with_parent(card_box.clone(), ground_handle, &mut bodies);
+                let _ = world.insert(rigid_body, card_box.clone());
             }
 
             let rigid_body = RigidBodyBuilder::dynamic()
                 .translation(Vector::new(z, y))
                 .rotation(angle1);
-            let ground_handle = bodies.insert(rigid_body);
-            colliders.insert_with_parent(card_box.clone(), ground_handle, &mut bodies);
+            let _ = world.insert(rigid_body, card_box.clone());
 
             z += 0.175 * scale;
 
             let rigid_body = RigidBodyBuilder::dynamic()
                 .translation(Vector::new(z, y))
                 .rotation(angle0);
-            let ground_handle = bodies.insert(rigid_body);
-            colliders.insert_with_parent(card_box.clone(), ground_handle, &mut bodies);
+            let _ = world.insert(rigid_body, card_box.clone());
 
             z += 0.175 * scale;
         }
@@ -76,6 +69,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
 }

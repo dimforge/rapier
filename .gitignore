@@ -9,3 +9,4 @@ package-lock.json
 .history
 .vscode/
 *.autosave.json
+.claude

@@ -1,10 +1,11 @@
-#[cfg(doc)]
+#[cfg(all(doc, feature = "alloc"))]
 use super::RigidBodyActivation;
 use crate::math::Real;
 use simba::simd::SimdRealField;
 
 // TODO: enabling the block solver in 3d introduces a lot of jitters in
 //       the 3D domino demo. So for now we dont enable it in 3D.
+#[allow(dead_code)]
 pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
 
 /// Friction models used for all contact constraints between two rigid-bodies.

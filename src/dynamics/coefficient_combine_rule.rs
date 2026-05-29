@@ -45,6 +45,7 @@ pub enum CoefficientCombineRule {
 }
 
 impl CoefficientCombineRule {
+    #[allow(dead_code)]
     pub(crate) fn combine(
         coeff1: Real,
         coeff2: Real,

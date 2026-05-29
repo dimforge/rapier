@@ -2,10 +2,7 @@ use rapier_testbed2d::Testbed;
 use rapier2d::prelude::*;
 
 pub fn init_world(testbed: &mut Testbed) {
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     let rad = 0.5;
 
@@ -15,9 +12,8 @@ pub fn init_world(testbed: &mut Testbed) {
         .into_iter()
         .map(|pos| {
             let rigid_body = RigidBodyBuilder::kinematic_position_based().translation(pos);
-            let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(rad * 10.0, rad);
-            colliders.insert_with_parent(collider, handle, &mut bodies);
+            let (handle, _) = world.insert(rigid_body, collider);
             handle
         })
         .collect::<Vec<_>>();
@@ -70,6 +66,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::ZERO, 20.0);
 }

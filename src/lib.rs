@@ -21,6 +21,7 @@
 #[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 #[cfg(all(feature = "dim2", feature = "f32"))]
@@ -33,12 +34,14 @@ pub extern crate parry3d as parry;
 pub extern crate parry3d_f64 as parry;
 
 /// Internal prelude re-exporting alloc types for no_std compatibility.
+#[cfg(feature = "alloc")]
 #[doc(hidden)]
 #[allow(unused_imports)]
 pub(crate) mod alloc_prelude {
     pub use alloc::{boxed::Box, string::String, string::ToString, vec, vec::Vec};
 }
 
+#[cfg(not(target_arch = "spirv"))]
 pub extern crate nalgebra as na;
 #[cfg(feature = "serde-serialize")]
 #[macro_use]
@@ -63,6 +66,7 @@ core::compile_error!(
     "SIMD cannot be enabled when the `enhanced-determinism` feature is also enabled."
 );
 
+#[allow(unused_macros)]
 macro_rules! enable_flush_to_zero(
     () => {
         let _flush_to_zero = crate::utils::FlushToZeroDenormalsAreZeroFlags::flush_denormal_to_zero();
@@ -93,6 +97,7 @@ macro_rules! gather(
     }
 );
 
+#[allow(unused_macros)]
 macro_rules! array(
     ($callback: expr) => {
         {
@@ -122,6 +127,7 @@ macro_rules! par_iter {
     }};
 }
 
+#[allow(unused_macros)]
 macro_rules! par_iter_mut {
     ($t: expr) => {{
         #[cfg(not(feature = "parallel"))]
@@ -168,7 +174,9 @@ macro_rules! try_ret {
 //     };
 // }
 
+#[allow(dead_code)]
 pub(crate) const INVALID_U32: u32 = u32::MAX;
+#[allow(dead_code)]
 pub(crate) const INVALID_USIZE: usize = INVALID_U32 as usize;
 
 /// The string version of Rapier.
@@ -214,65 +222,67 @@ pub mod math {
     // Note: These override the non-generic versions above when used with <T> syntax
 
     /// Generic vector type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type SimdVector<N> = na::Vector2<N>;
     /// Generic vector type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type SimdVector<N> = na::Vector3<N>;
     /// Generic angular vector type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type SimdAngVector<N> = N;
     /// Generic angular vector type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type SimdAngVector<N> = na::Vector3<N>;
     /// Generic point type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type SimdPoint<N> = na::Point2<N>;
     /// Generic point type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type SimdPoint<N> = na::Point3<N>;
     /// Generic isometry type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type SimdPose<N> = na::Isometry2<N>;
     /// Generic isometry type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type SimdPose<N> = na::Isometry3<N>;
     /// Generic rotation type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type SimdRotation<N> = na::UnitComplex<N>;
     /// Generic rotation type (nalgebra) for SoA SIMD code
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type SimdRotation<N> = na::UnitQuaternion<N>;
     /// Generic angular inertia type for SoA SIMD code (scalar in 2D, SdpMatrix3 in 3D)
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type SimdAngularInertia<N> = N;
     /// Generic angular inertia type for SoA SIMD code (scalar in 2D, SdpMatrix3 in 3D)
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type SimdAngularInertia<N> = parry::utils::SdpMatrix3<N>;
     /// Generic 2D/3D square matrix for SoA SIMD code
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type SimdMatrix<N> = na::Matrix2<N>;
     /// Generic 2D/3D square matrix for SoA SIMD code
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type SimdMatrix<N> = na::Matrix3<N>;
 
     // Dimension types for nalgebra matrix operations (used in multibody code)
     /// The dimension type constant (U2 for 2D).
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type Dim = na::U2;
     /// The dimension type constant (U3 for 3D).
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type Dim = na::U3;
     /// The angular dimension type constant (U1 for 2D).
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type AngDim = na::U1;
     /// The angular dimension type constant (U3 for 3D).
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type AngDim = na::U3;
 
     /// Dynamic vector type for multibody/solver code
+    #[cfg(feature = "alloc")]
     pub type DVector = na::DVector<Real>;
     /// Dynamic matrix type for multibody/solver code
+    #[cfg(feature = "alloc")]
     pub type DMatrix = na::DMatrix<Real>;
 
     /*
@@ -285,19 +295,19 @@ pub mod math {
     pub const MAX_MANIFOLD_POINTS: usize = 2;
 
     /// The type of a constraint Jacobian in twist coordinates.
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", feature = "alloc"))]
     pub type Jacobian<N> = na::Matrix3xX<N>;
 
     /// The type of a slice of the constraint Jacobian in twist coordinates.
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", feature = "alloc"))]
     pub type JacobianView<'a, N> = na::MatrixView3xX<'a, N>;
 
     /// The type of a mutable slice of the constraint Jacobian in twist coordinates.
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", feature = "alloc"))]
     pub type JacobianViewMut<'a, N> = na::MatrixViewMut3xX<'a, N>;
 
     /// The type of impulse applied for friction constraints.
-    #[cfg(feature = "dim2")]
+    #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
     pub type TangentImpulse<N> = na::Vector1<N>;
 
     /// The maximum number of possible rotations and translations of a rigid body.
@@ -318,19 +328,19 @@ pub mod math {
     pub const MAX_MANIFOLD_POINTS: usize = 4;
 
     /// The type of a constraint Jacobian in twist coordinates.
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", feature = "alloc"))]
     pub type Jacobian<N> = na::Matrix6xX<N>;
 
     /// The type of a slice of the constraint Jacobian in twist coordinates.
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", feature = "alloc"))]
     pub type JacobianView<'a, N> = na::MatrixView6xX<'a, N>;
 
     /// The type of a mutable slice of the constraint Jacobian in twist coordinates.
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", feature = "alloc"))]
     pub type JacobianViewMut<'a, N> = na::MatrixViewMut6xX<'a, N>;
 
     /// The type of impulse applied for friction constraints.
-    #[cfg(feature = "dim3")]
+    #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]
     pub type TangentImpulse<N> = na::Vector2<N>;
 
     /// The maximum number of possible rotations and translations of a rigid body.
@@ -344,10 +354,15 @@ pub mod math {
 
 /// Prelude containing the common types defined by Rapier.
 pub mod prelude {
+    #[cfg(feature = "alloc")]
     pub use crate::dynamics::*;
+    #[cfg(feature = "alloc")]
     pub use crate::geometry::*;
     pub use crate::math::*;
+    #[cfg(feature = "alloc")]
     pub use crate::pipeline::*;
+    #[cfg(not(target_arch = "spirv"))]
     pub use na::{point, vector};
+    #[cfg(not(target_arch = "spirv"))]
     pub extern crate nalgebra;
 }

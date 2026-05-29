@@ -2,12 +2,16 @@
 
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
-#[cfg(feature = "simd-is-enabled")]
+#[cfg(not(target_arch = "spirv"))]
+use crate::math::Real;
+#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
 use crate::math::SimdReal;
-use crate::math::{Real, Vector};
-#[cfg(feature = "simd-is-enabled")]
+use crate::math::Vector;
+#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
 use crate::num::Zero;
+#[cfg(not(target_arch = "spirv"))]
 use crate::utils::SimdRealCopy;
+#[cfg(not(target_arch = "spirv"))]
 use na::{Matrix2, Matrix3, Vector2, Vector3};
 
 /// Trait for computing cross product matrices.
@@ -22,6 +26,7 @@ pub trait CrossProductMatrix: Sized {
     fn gcross_matrix_tr(self) -> Self::CrossMatTr;
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: SimdRealCopy> CrossProductMatrix for Vector3<N> {
     type CrossMat = Matrix3<N>;
     type CrossMatTr = Matrix3<N>;
@@ -47,6 +52,7 @@ impl<N: SimdRealCopy> CrossProductMatrix for Vector3<N> {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: SimdRealCopy> CrossProductMatrix for Vector2<N> {
     type CrossMat = Vector2<N>;
     type CrossMatTr = Vector2<N>;
@@ -60,6 +66,7 @@ impl<N: SimdRealCopy> CrossProductMatrix for Vector2<N> {
         Vector2::new(-self.y, self.x)
     }
 }
+#[cfg(not(target_arch = "spirv"))]
 impl CrossProductMatrix for Real {
     type CrossMat = Matrix2<Real>;
     type CrossMatTr = Matrix2<Real>;
@@ -75,7 +82,7 @@ impl CrossProductMatrix for Real {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
+#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
 impl CrossProductMatrix for SimdReal {
     type CrossMat = Matrix2<SimdReal>;
     type CrossMatTr = Matrix2<SimdReal>;

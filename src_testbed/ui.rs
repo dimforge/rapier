@@ -41,7 +41,7 @@ fn setup_custom_theme(ctx: &egui::Context) {
     let rounding = CornerRadius::same(6);
     let small_rounding = CornerRadius::same(4);
 
-    ctx.style_mut(|style| {
+    ctx.global_style_mut(|style| {
         let v = &mut style.visuals;
         v.dark_mode = false;
 

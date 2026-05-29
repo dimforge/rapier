@@ -3,46 +3,10 @@ use parry::utils::hashset::HashSet;
 
 use crate::data::{Arena, Coarena, Index};
 use crate::dynamics::joint::MultibodyLink;
-use crate::dynamics::{GenericJoint, Multibody, MultibodyJoint, RigidBodyHandle};
+use crate::dynamics::{
+    GenericJoint, Multibody, MultibodyIndex, MultibodyJoint, MultibodyJointHandle, RigidBodyHandle,
+};
 use crate::geometry::{InteractionGraph, RigidBodyGraphIndex};
-
-/// The unique handle of an multibody_joint added to a `MultibodyJointSet`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[repr(transparent)]
-pub struct MultibodyJointHandle(pub Index);
-
-/// The temporary index of a multibody added to a `MultibodyJointSet`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-#[repr(transparent)]
-pub struct MultibodyIndex(pub Index);
-
-impl MultibodyJointHandle {
-    /// Converts this handle into its (index, generation) components.
-    pub fn into_raw_parts(self) -> (u32, u32) {
-        self.0.into_raw_parts()
-    }
-
-    /// Reconstructs an handle from its (index, generation) components.
-    pub fn from_raw_parts(id: u32, generation: u32) -> Self {
-        Self(Index::from_raw_parts(id, generation))
-    }
-
-    /// An always-invalid rigid-body handle.
-    pub fn invalid() -> Self {
-        Self(Index::from_raw_parts(
-            crate::INVALID_U32,
-            crate::INVALID_U32,
-        ))
-    }
-}
-
-impl Default for MultibodyJointHandle {
-    fn default() -> Self {
-        Self::invalid()
-    }
-}
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -245,11 +209,17 @@ impl MultibodyJointSet {
                     if multibody.num_links() == 1 {
                         // We don’t have any multibody_joint attached to this body, remove it.
                         let isolated_link = multibody.link(0).unwrap();
-                        let isolated_graph_id =
-                            self.rb2mb.get(isolated_link.rigid_body.0).unwrap().graph_id;
-                        if let Some(other) = self.connectivity_graph.remove_node(isolated_graph_id)
+
+                        // This body no longer has any multibody_joint attached: remove it from
+                        // the `rb2mb` mapping since it doesn’t have any multibody associated anymore.
+                        let isolated = self
+                            .rb2mb
+                            .remove(isolated_link.rigid_body.0, Default::default())
+                            .unwrap();
+                        if let Some(other) = self.connectivity_graph.remove_node(isolated.graph_id)
                         {
-                            self.rb2mb.get_mut(other.0).unwrap().graph_id = isolated_graph_id;
+                            // Update graph index due to the `remove_node` swap-remove.
+                            self.rb2mb.get_mut(other.0).unwrap().graph_id = isolated.graph_id;
                         }
                     } else {
                         let mb_id = self.multibodies.insert(multibody);

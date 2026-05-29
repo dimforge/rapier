@@ -375,7 +375,7 @@ impl GraphicsManager {
     }
 
     fn gen_color(rng: &mut Pcg32) -> Rgba<f32> {
-        use rand::Rng;
+        use rand::RngExt;
         let [r, g, b]: [f32; 3] = rng.random();
         [r, g, b, 1.0].into()
     }
@@ -606,7 +606,7 @@ impl GraphicsManager {
         };
 
         if let Some(ref mut n) = node {
-            n.set_color(color);
+            n.set_color_recursive(color);
             if sensor {
                 n.set_surface_rendering_activation(false);
                 n.set_lines_width(1.0, false);
@@ -727,7 +727,7 @@ impl GraphicsManager {
         };
 
         if let Some(ref mut n) = node {
-            n.set_color(color);
+            n.set_color_recursive(color);
         }
 
         node
@@ -854,7 +854,7 @@ impl GraphicsManager {
                 node.node
                     .set_pose(co_pos.append_translation(self.gfx_shift).into());
                 node.node
-                    .set_color(node.tmp_color.take().unwrap_or(node.color));
+                    .set_color_recursive(node.tmp_color.take().unwrap_or(node.color));
             }
         }
     }
@@ -953,7 +953,7 @@ impl GraphicsManager {
                 ));
                 node.node.set_rotation(co_pos.rotation.angle() as f32);
                 node.node
-                    .set_color(node.tmp_color.take().unwrap_or(node.color));
+                    .set_color_recursive(node.tmp_color.take().unwrap_or(node.color));
             }
         }
     }

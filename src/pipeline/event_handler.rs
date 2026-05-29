@@ -1,7 +1,10 @@
+#[cfg(feature = "alloc")]
 use crate::dynamics::RigidBodySet;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "alloc"))]
 use crate::geometry::ContactForceEvent;
+#[cfg(feature = "alloc")]
 use crate::geometry::{ColliderSet, CollisionEvent, ContactPair};
+#[cfg(feature = "alloc")]
 use crate::math::Real;
 
 bitflags::bitflags! {
@@ -87,6 +90,7 @@ impl Default for ActiveEvents {
 /// #   fn handle_contact_force_event(&self, _dt: Real, _bodies: &RigidBodySet, _colliders: &ColliderSet, _contact_pair: &ContactPair, _total_force_magnitude: Real) {}
 /// }
 /// ```
+#[cfg(feature = "alloc")]
 pub trait EventHandler: Send + Sync {
     /// Called when two colliders start or stop touching each other.
     ///
@@ -136,6 +140,7 @@ pub trait EventHandler: Send + Sync {
     );
 }
 
+#[cfg(feature = "alloc")]
 impl EventHandler for () {
     fn handle_collision_event(
         &self,

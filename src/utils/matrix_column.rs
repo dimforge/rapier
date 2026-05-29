@@ -1,6 +1,7 @@
 //! MatrixColumn trait for matrix column access.
 
 use crate::math::{Matrix, Vector};
+#[cfg(not(target_arch = "spirv"))]
 use na::Scalar;
 
 /// Extension trait for matrix column access (like nalgebra's `.column()`)
@@ -26,6 +27,7 @@ impl MatrixColumn for Matrix {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<T: Scalar> MatrixColumn for na::Matrix3<T> {
     type Column = na::Vector3<T>;
     #[inline]
@@ -34,6 +36,7 @@ impl<T: Scalar> MatrixColumn for na::Matrix3<T> {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<T: Scalar> MatrixColumn for na::Matrix2<T> {
     type Column = na::Vector2<T>;
     #[inline]

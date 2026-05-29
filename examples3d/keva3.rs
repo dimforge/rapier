@@ -4,8 +4,7 @@ use rapier3d::prelude::*;
 
 pub fn build_block(
     testbed: &mut Testbed,
-    bodies: &mut RigidBodySet,
-    colliders: &mut ColliderSet,
+    world: &mut PhysicsWorld,
     half_extents: Vector,
     shift: Vector,
     (mut numx, numy, mut numz): (usize, usize, usize),
@@ -45,9 +44,8 @@ pub fn build_block(
                     y + dim.y + shift.y,
                     z + dim.z + shift.z,
                 ));
-                let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
-                colliders.insert_with_parent(collider, handle, bodies);
+                let (handle, _) = world.insert(rigid_body, collider);
 
                 testbed.set_initial_body_color(handle, color0);
                 std::mem::swap(&mut color0, &mut color1);
@@ -66,9 +64,8 @@ pub fn build_block(
                 dim.y + shift.y + block_height,
                 j as f32 * dim.z * 2.0 + dim.z + shift.z,
             ));
-            let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
-            colliders.insert_with_parent(collider, handle, bodies);
+            let (handle, _) = world.insert(rigid_body, collider);
             testbed.set_initial_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
         }
@@ -79,10 +76,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -91,9 +85,8 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_height = 0.1;
 
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let (_handle, _) = world.insert(rigid_body, collider);
 
     /*
      * Create the cubes
@@ -112,8 +105,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let block_width = numx as f32 * half_extents.z * 2.0;
         build_block(
             testbed,
-            &mut bodies,
-            &mut colliders,
+            &mut world,
             half_extents,
             Vector::new(-block_width / 2.0, block_height, -block_width / 2.0),
             (numx, numy, numz),
@@ -127,6 +119,6 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 }

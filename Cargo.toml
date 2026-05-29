@@ -37,30 +37,31 @@ needless_lifetimes = "allow"
 
 [workspace.dependencies]
 # Core math
-nalgebra = { version = "0.34", default-features = false, features = ["macros", "alloc"] }
-glamx = { version = "0.1", default-features = false, features = ["nalgebra"] }
-simba = { version = "0.9.1", default-features = false }
+nalgebra = { version = "0.35", default-features = false, features = ["macros"] }
+glamx = { version = "0.3", default-features = false }
+simba = { version = "0.10", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 approx = { version = "0.5", default-features = false }
 
 # Parry (each crate picks its own variant)
-parry2d = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
-parry3d = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
-parry2d-f64 = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
-parry3d-f64 = { version = "0.26.0", default-features = false, features = ["required-features", "alloc"] }
+parry2d = { version = "0.28", default-features = false, features = ["required-features"] }
+parry3d = { version = "0.28", default-features = false, features = ["required-features"] }
+parry2d-f64 = { version = "0.28", default-features = false, features = ["required-features"] }
+parry3d-f64 = { version = "0.28", default-features = false, features = ["required-features"] }
 
 # Utilities
 bitflags = "2"
+bytemuck = { version = "1", features = ["derive"] }
 log = "0.4"
 thiserror = { version = "2", default-features = false }
 profiling = "1.0"
 static_assertions = "1"
-wide = { version = "0.7.1", default-features = false }
+wide = { version = "1", default-features = false }
 
 # Optional (optional = true must be set per-crate, not here)
 web-time = "1.1"
 rayon = "1"
-serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+serde = { version = "1", default-features = false, features = ["derive"] }
 
 # Dev
 bincode = "1"
@@ -97,7 +98,7 @@ puffin_egui = { git = "https://github.com/tedsteen/puffin.git", rev = "11771ebe0
 # # See https://github.com/dimforge/rapier/issues/760.
 # puffin_egui = { version = "0.29", optional = true, git = "https://github.com/Vrixyz/puffin.git", branch = "expose_ui_options" }
 # puffin = { version = "0.19", optional = true, git = "https://github.com/Vrixyz/puffin.git", branch = "expose_ui_options" }
-# # 
+
 
 [profile.release]
 #debug = true

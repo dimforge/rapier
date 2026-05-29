@@ -5,10 +5,7 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -16,23 +13,20 @@ pub fn init_world(testbed: &mut Testbed) {
     let ground_size = 25.0;
 
     let rigid_body = RigidBodyBuilder::fixed();
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, 1.2);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let _ = world.insert(rigid_body, collider);
 
     let rigid_body = RigidBodyBuilder::fixed()
         .rotation(std::f32::consts::FRAC_PI_2)
         .translation(Vector::new(ground_size, ground_size));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, 1.2);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let _ = world.insert(rigid_body, collider);
 
     let rigid_body = RigidBodyBuilder::fixed()
         .rotation(std::f32::consts::FRAC_PI_2)
         .translation(Vector::new(-ground_size, ground_size));
-    let handle = bodies.insert(rigid_body);
     let collider = ColliderBuilder::cuboid(ground_size, 1.2);
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    let _ = world.insert(rigid_body, collider);
 
     /*
      * Create the trimeshes from a tessellated SVG.
@@ -46,14 +40,13 @@ pub fn init_world(testbed: &mut Testbed) {
                 .contact_skin(0.2);
             let rigid_body = RigidBodyBuilder::dynamic()
                 .translation(Vector::new(ith as f32 * 8.0 - 20.0, 20.0 + k as f32 * 11.0));
-            let handle = bodies.insert(rigid_body);
-            colliders.insert_with_parent(collider, handle, &mut bodies);
+            let _ = world.insert(rigid_body, collider);
         }
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
+    testbed.set_physics_world(world);
     testbed.look_at(Vec2::new(0.0, 20.0), 17.0);
 }

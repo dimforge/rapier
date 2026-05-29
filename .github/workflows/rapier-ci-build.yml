@@ -78,18 +78,26 @@ jobs:
         with:
           toolchain: stable
           targets: "x86_64-unknown-linux-gnu,thumbv7em-none-eabihf"
-      - name: Check rapier2d thumbv7em-none-eabihf
+      - name: Check rapier2d thumbv7em-none-eabihf (no alloc)
         run: cargo check --verbose -p rapier2d --no-default-features --features dim2,f32 --target=thumbv7em-none-eabihf
-      - name: Check rapier3d thumbv7em-none-eabihf
+      - name: Check rapier3d thumbv7em-none-eabihf (no alloc)
         run: cargo check --verbose -p rapier3d --no-default-features --features dim3,f32 --target=thumbv7em-none-eabihf
-      - name: Check rapier2d-f64 thumbv7em-none-eabihf
+      - name: Check rapier2d-f64 thumbv7em-none-eabihf (no alloc)
         run: cargo check --verbose -p rapier2d-f64 --no-default-features --features dim2,f64 --target=thumbv7em-none-eabihf
-      - name: Check rapier3d-f64 thumbv7em-none-eabihf
+      - name: Check rapier3d-f64 thumbv7em-none-eabihf (no alloc)
         run: cargo check --verbose -p rapier3d-f64 --no-default-features --features dim3,f64 --target=thumbv7em-none-eabihf
-      - name: Check rapier2d thumbv7em-none-eabihf + debug-render
-        run: cargo check --verbose -p rapier2d --no-default-features --features dim2,f32,debug-render --target=thumbv7em-none-eabihf
-      - name: Check rapier3d thumbv7em-none-eabihf + debug-render
-        run: cargo check --verbose -p rapier3d --no-default-features --features dim3,f32,debug-render --target=thumbv7em-none-eabihf
+      - name: Check rapier2d thumbv7em-none-eabihf + alloc
+        run: cargo check --verbose -p rapier2d --no-default-features --features dim2,f32,alloc --target=thumbv7em-none-eabihf
+      - name: Check rapier3d thumbv7em-none-eabihf + alloc
+        run: cargo check --verbose -p rapier3d --no-default-features --features dim3,f32,alloc --target=thumbv7em-none-eabihf
+      - name: Check rapier2d-f64 thumbv7em-none-eabihf + alloc
+        run: cargo check --verbose -p rapier2d-f64 --no-default-features --features dim2,f64,alloc --target=thumbv7em-none-eabihf
+      - name: Check rapier3d-f64 thumbv7em-none-eabihf + alloc
+        run: cargo check --verbose -p rapier3d-f64 --no-default-features --features dim3,f64,alloc --target=thumbv7em-none-eabihf
+      - name: Check rapier2d thumbv7em-none-eabihf + alloc + debug-render
+        run: cargo check --verbose -p rapier2d --no-default-features --features dim2,f32,alloc,debug-render --target=thumbv7em-none-eabihf
+      - name: Check rapier3d thumbv7em-none-eabihf + alloc + debug-render
+        run: cargo check --verbose -p rapier3d --no-default-features --features dim3,f32,alloc,debug-render --target=thumbv7em-none-eabihf
   build-wasm:
     runs-on: ubuntu-latest
     env:

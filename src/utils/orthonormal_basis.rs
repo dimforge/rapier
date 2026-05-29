@@ -3,7 +3,9 @@
 #[cfg(feature = "dim3")]
 use crate::math::Real;
 use crate::math::Vector;
+#[cfg(not(target_arch = "spirv"))]
 use crate::utils::{CopySign, SimdRealCopy};
+#[cfg(not(target_arch = "spirv"))]
 use na::{Vector2, Vector3};
 
 /// Trait to compute the orthonormal basis of a vector.
@@ -16,6 +18,7 @@ pub trait OrthonormalBasis: Sized {
     fn orthonormal_vector(self) -> Self;
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: SimdRealCopy> OrthonormalBasis for Vector2<N> {
     type Basis = [Vector2<N>; 1];
     fn orthonormal_basis(self) -> [Vector2<N>; 1] {
@@ -26,6 +29,7 @@ impl<N: SimdRealCopy> OrthonormalBasis for Vector2<N> {
     }
 }
 
+#[cfg(not(target_arch = "spirv"))]
 impl<N: SimdRealCopy + CopySign<N>> OrthonormalBasis for Vector3<N> {
     type Basis = [Vector3<N>; 2];
     // Robust and branchless implementation from Pixar:

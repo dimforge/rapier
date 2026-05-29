@@ -1125,8 +1125,9 @@ impl RigidBody {
 impl RigidBody {
     /// Clears all forces that were added with `add_force()`.
     ///
-    /// Forces are automatically cleared each physics step, so you rarely need this.
-    /// Useful if you want to cancel forces mid-frame.
+    /// User-defined forces are **not** cleared automatically: once added, a force keeps being
+    /// applied at every physics step until you change it or clear it with this method. Call this
+    /// when you want a previously-added force to stop being applied.
     pub fn reset_forces(&mut self, wake_up: bool) {
         if self.forces.user_force != Vector::ZERO {
             self.forces.user_force = Vector::ZERO;
@@ -1139,7 +1140,8 @@ impl RigidBody {
 
     /// Clears all torques that were added with `add_torque()`.
     ///
-    /// Torques are automatically cleared each physics step. Rarely needed.
+    /// User-defined torques are **not** cleared automatically: once added, a torque keeps being
+    /// applied at every physics step until you change it or clear it with this method.
     #[cfg(feature = "dim2")]
     pub fn reset_torques(&mut self, wake_up: bool) {
         if self.forces.user_torque != 0.0 {
@@ -1153,7 +1155,8 @@ impl RigidBody {
 
     /// Clears all torques that were added with `add_torque()`.
     ///
-    /// Torques are automatically cleared each physics step. Rarely needed.
+    /// User-defined torques are **not** cleared automatically: once added, a torque keeps being
+    /// applied at every physics step until you change it or clear it with this method.
     #[cfg(feature = "dim3")]
     pub fn reset_torques(&mut self, wake_up: bool) {
         if self.forces.user_torque != AngVector::ZERO {
@@ -1167,15 +1170,17 @@ impl RigidBody {
 
     /// Applies a continuous force to this body (like thrust, wind, or magnets).
     ///
-    /// Unlike [`apply_impulse()`](Self::apply_impulse) which is instant, forces are applied
-    /// continuously over time and accumulate until the next physics step. Use for:
+    /// Unlike [`apply_impulse()`](Self::apply_impulse) which is instant, a force is applied
+    /// continuously over time. Successive calls to `add_force()` accumulate. Use for:
     /// - Rocket/jet thrust
     /// - Wind or water currents
     /// - Magnetic/gravity fields
     /// - Continuous pushing/pulling
     ///
-    /// Forces are automatically cleared after each physics step, so you typically call this
-    /// every frame if you want continuous force application.
+    /// User-defined forces are **not** cleared automatically: once added, a force keeps being
+    /// applied at every physics step until you change it or clear it with
+    /// [`reset_forces()`](Self::reset_forces). To apply a force for a single step only, call
+    /// `reset_forces()` after stepping the simulation.
     ///
     /// # Example
     /// ```
@@ -1199,7 +1204,8 @@ impl RigidBody {
 
     /// Applies a continuous rotational force (torque) to spin this body.
     ///
-    /// Like `add_force()` but for rotation. Accumulates until next physics step.
+    /// Like `add_force()` but for rotation. Successive calls accumulate, and the torque is **not**
+    /// cleared automatically (see [`reset_torques()`](Self::reset_torques)).
     /// In 2D: positive = counter-clockwise, negative = clockwise.
     ///
     /// Only affects dynamic bodies.

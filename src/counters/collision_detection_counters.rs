@@ -2,7 +2,7 @@ use crate::counters::Timer;
 use core::fmt::{Display, Formatter, Result};
 
 /// Performance counters related to collision detection.
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct CollisionDetectionCounters {
     /// Number of contact pairs detected.
     pub ncontact_pairs: usize,
