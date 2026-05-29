@@ -49,6 +49,21 @@ The easiest way to get started with Rapier is to:
    Their source code are available on the `examples2d/` and `examples3d/` directory.
 3. Don't hesitate to ask for help on [Discord](https://discord.gg/vt9DJSW), or by opening an issue on GitHub.
 
+## AI coding disclaimer and policy
+
+AI coding is extensively used for the implementation and maintenance of the following crates: `mjcf-rs`, `rapier3d-mjcf`.
+
+We actively use AI assistance (with human reviews) for the following tasks:
+    - Documentation generation.
+    - Changelogs generation.
+    - Tests generation.
+    - CI configuration and scripts.
+
+We accept contributions involving AI coding as long as:
+    - They are verified to work properly by a human.
+    - The code quality is up to human-written code standards.
+    - Include non-regression tests whenever applicable (which itself can be AI-generated).
+
 ## Resources and discussions
 
 - [Dimforge](https://dimforge.com): See all the open-source projects we are working on! Follow our announcements

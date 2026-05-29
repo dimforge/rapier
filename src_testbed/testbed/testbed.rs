@@ -4,7 +4,7 @@ use kiss3d::color::Color;
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, MultibodyJointSet, RigidBodyHandle, RigidBodySet,
 };
-use rapier::geometry::{ColliderHandle, ColliderSet};
+use rapier::geometry::{ColliderHandle, ColliderSet, SharedShape};
 use rapier::pipeline::{PhysicsHooks, PhysicsWorld};
 
 #[cfg(feature = "dim3")]
@@ -226,6 +226,45 @@ impl Testbed<'_> {
         }
     }
 
+    /// Set the world-up direction the orbit camera uses for its yaw /
+    /// pitch axis. The testbed defaults to Y-up; call this with
+    /// [`Vec3::Z`] (for example) when loading a model that uses a
+    /// different convention so the orbit controls feel natural.
+    ///
+    /// Call this **before** [`Self::look_at`] — the camera's
+    /// pitch/yaw are computed against the up axis.
+    #[cfg(feature = "dim3")]
+    pub fn set_up_axis(&mut self, up_axis: Vec3) {
+        // Mirror what the camera does internally so the gravity slider
+        // (which reads `state.up_axis`) and the orbit camera stay in
+        // sync. Stored normalized — magnitude is meaningless for an
+        // axis and the camera normalizes too.
+        // `up_axis` is an `f32` `Vec3` (matching the camera); the stored
+        // axis uses the math `Vector`, which is `DVec3` in double-precision
+        // builds. The conversion is a no-op when `Real` is `f32`.
+        #[allow(clippy::useless_conversion)]
+        {
+            self.state.up_axis = up_axis.normalize().into();
+        }
+        if !self.state.camera_locked
+            && let Some(graphics) = &mut self.graphics
+        {
+            graphics.camera.set_up_axis(up_axis);
+        }
+    }
+
+    /// Programmatic equivalent of clicking the testbed's "Frame all"
+    /// button — recenters the orbit camera so the union AABB of every
+    /// collider fills the viewport. The recentering is done on the
+    /// next frame (it needs the inserted collider AABBs, which aren't
+    /// available until after the scene-graphics-reset pass), so call
+    /// this anywhere in `init_world` after `set_physics_world`.
+    pub fn request_frame_all(&mut self) {
+        self.state
+            .action_flags
+            .set(TestbedActionFlags::FRAME_SCENE, true);
+    }
+
     pub fn set_initial_body_color(&mut self, body: RigidBodyHandle, color: Color) {
         if let Some(graphics) = &mut self.graphics {
             graphics.graphics.set_initial_body_color(body, color);
@@ -245,6 +284,52 @@ impl Testbed<'_> {
             graphics
                 .graphics
                 .set_body_wireframe(body, wireframe_enabled);
+        }
+    }
+
+    /// Attach a render-only mesh to `body`. The mesh follows the body's
+    /// pose offset by `local_pose` and does not participate in physics —
+    /// it is purely a visualization. Use this to render MJCF-style
+    /// `<geom contype="0" conaffinity="0">` visual meshes without
+    /// inserting them as colliders.
+    ///
+    /// `uvs` is an optional per-vertex UV buffer (used only when the
+    /// shape is a `TriMesh` *and* `texture` is also set). `texture` is
+    /// an optional path to a 2D color image to apply.
+    pub fn add_body_render_mesh(
+        &mut self,
+        body: RigidBodyHandle,
+        shape: &SharedShape,
+        local_pose: rapier::math::Pose,
+        color: Color,
+        uvs: Option<&[[f32; 2]]>,
+        texture: Option<&std::path::Path>,
+    ) {
+        if let Some(graphics) = &mut self.graphics {
+            graphics.graphics.add_body_render_mesh(
+                graphics.window,
+                body,
+                shape,
+                local_pose,
+                color,
+                uvs,
+                texture,
+            );
+        }
+    }
+
+    /// Show or hide every collider-derived render node.
+    pub fn set_colliders_visible(&mut self, visible: bool) {
+        if let Some(graphics) = &mut self.graphics {
+            graphics.graphics.set_colliders_visible(visible);
+        }
+    }
+
+    /// Show or hide every body-attached render-only mesh (registered via
+    /// [`Self::add_body_render_mesh`]).
+    pub fn set_body_render_meshes_visible(&mut self, visible: bool) {
+        if let Some(graphics) = &mut self.graphics {
+            graphics.graphics.set_body_render_meshes_visible(visible);
         }
     }
 

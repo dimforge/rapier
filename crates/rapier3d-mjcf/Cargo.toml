@@ -1,0 +1,41 @@
+[package]
+name = "rapier3d-mjcf"
+version = "0.1.0"
+authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+description = "MuJoCo MJCF loader for the 3D rapier physics engine."
+documentation = "https://docs.rs/rapier3d-mjcf"
+homepage = "https://rapier.rs"
+repository = "https://github.com/dimforge/rapier"
+readme = "README.md"
+categories = [
+    "science",
+    "game-development",
+    "mathematics",
+    "simulation",
+    "wasm",
+]
+keywords = ["physics", "joints", "multibody", "robotics", "mjcf"]
+license = "Apache-2.0"
+edition = "2024"
+
+[features]
+default = []
+## Enable loading `.stl` meshes referenced by MJCF `<mesh>` assets.
+stl = ["dep:rapier3d-meshloader", "rapier3d-meshloader/stl", "__meshloader_is_enabled"]
+## Enable loading `.obj` meshes referenced by MJCF `<mesh>` assets.
+wavefront = ["dep:rapier3d-meshloader", "rapier3d-meshloader/wavefront", "__meshloader_is_enabled"]
+## Enable parsing MuJoCo's custom `.msh` mesh format.
+msh = ["mjcf-rs/msh"]
+__meshloader_is_enabled = []
+
+[dependencies]
+log = "0.4"
+anyhow = "1"
+bitflags = "2"
+
+mjcf-rs = { version = "0.1.0", path = "../mjcf-rs" }
+rapier3d = { version = "0.32.0", path = "../rapier3d" }
+rapier3d-meshloader = { version = "0.13.0", path = "../rapier3d-meshloader", default-features = false, optional = true }
+
+[dev-dependencies]
+tempfile = "3"

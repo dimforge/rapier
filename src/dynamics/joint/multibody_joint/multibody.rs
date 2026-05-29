@@ -491,7 +491,7 @@ impl Multibody {
 
     /// Computes the constant terms of the dynamics.
     #[profiling::function]
-    pub(crate) fn update_dynamics(&mut self, dt: Real, bodies: &mut RigidBodySet) {
+    pub(crate) fn update_velocities(&mut self, bodies: &mut RigidBodySet) {
         /*
          * Compute velocities.
          * NOTE: this is needed for kinematic bodies too.
@@ -522,11 +522,6 @@ impl Multibody {
 
             bodies.index_mut_internal(link.rigid_body).vels = new_rb_vels;
         }
-
-        /*
-         * Update augmented mass matrix.
-         */
-        self.update_inertias(dt, bodies);
     }
 
     fn update_body_jacobians(&mut self) {
@@ -580,7 +575,7 @@ impl Multibody {
         }
     }
 
-    fn update_inertias(&mut self, dt: Real, bodies: &RigidBodySet) {
+    pub(crate) fn update_mass_matrix(&mut self, dt: Real, bodies: &RigidBodySet) {
         if self.ndofs == 0 {
             return; // Nothing to do.
         }

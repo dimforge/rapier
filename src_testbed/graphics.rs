@@ -4,8 +4,9 @@ use crate::testbed::TestbedStateFlags;
 use kiss3d::prelude::*;
 use rand_pcg::Pcg32;
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
-use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
+use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType, SharedShape};
 use std::collections::HashMap;
+use std::path::Path;
 
 #[cfg(feature = "dim2")]
 pub use kiss3d::prelude::SceneNode2d as SceneNode;
@@ -50,6 +51,22 @@ pub struct IndividualNode {
     pub tmp_color: Option<Color>,
 }
 
+/// A render-only scene node anchored to a rigid body rather than to a
+/// collider. Used for visualization meshes that participate in *no*
+/// physics — typical MJCF case: `<geom type="mesh">` with
+/// `contype=conaffinity=0`.
+pub struct BodyAttachedNode {
+    pub node: SceneNode,
+    pub body: RigidBodyHandle,
+    pub delta: rapier::math::Pose,
+    pub color: Color,
+    /// The shape the renderer is drawing, kept alive so the "Frame
+    /// all" command can union visual-mesh AABBs into its computation
+    /// without having to dig the geometry back out of the kiss3d
+    /// `SceneNode`.
+    pub shape: SharedShape,
+}
+
 /// Location of a collider in the graphics system
 #[derive(Clone, Debug)]
 pub enum NodeLocation {
@@ -69,6 +86,15 @@ pub struct GraphicsManager {
     templates: HashMap<ShapeTemplateType, ShapeTemplate>,
     /// Individual nodes for complex shapes (trimesh, heightfield, etc.)
     individual_nodes: Vec<IndividualNode>,
+    /// Body-attached render-only meshes (no physics counterpart).
+    body_attached_nodes: Vec<BodyAttachedNode>,
+    /// Per-channel visibility — `false` hides every collider-derived node
+    /// (instanced + individual). Composed with the global `DRAW_SURFACES`
+    /// flag, which still wins when off.
+    colliders_visible: bool,
+    /// Per-channel visibility for body-attached render-only meshes
+    /// (e.g. MJCF visual meshes added via [`Self::add_body_render_mesh`]).
+    body_render_meshes_visible: bool,
     /// Map from collider to its render nodes
     c2nodes: HashMap<ColliderHandle, NodeLocation>,
     /// Colliders attached to a particular body, used to identify the
@@ -102,6 +128,9 @@ impl GraphicsManager {
             rand: Pcg32::new(0, 1),
             templates: HashMap::new(),
             individual_nodes: Vec::new(),
+            body_attached_nodes: Vec::new(),
+            colliders_visible: true,
+            body_render_meshes_visible: true,
             c2nodes: HashMap::new(),
             b2colliders: HashMap::new(),
             b2color: HashMap::new(),
@@ -131,12 +160,130 @@ impl GraphicsManager {
 
         self.templates.clear();
         self.individual_nodes.clear();
+        self.body_attached_nodes.clear();
         self.c2nodes.clear();
         self.b2colliders.clear();
         self.c2color.clear();
         self.b2color.clear();
         self.b2wireframe.clear();
         self.rand = Pcg32::new(0, 1);
+        // Per-channel visibility is also reset so example A doesn't leak
+        // its rendering choices into example B after a swap.
+        self.colliders_visible = true;
+        self.body_render_meshes_visible = true;
+    }
+
+    /// Show or hide every collider-derived render node (instanced
+    /// primitives + complex individual meshes). The global
+    /// `DRAW_SURFACES` flag still wins when off.
+    pub fn set_colliders_visible(&mut self, visible: bool) {
+        self.colliders_visible = visible;
+    }
+
+    /// Show or hide body-attached render-only meshes registered via
+    /// [`Self::add_body_render_mesh`].
+    pub fn set_body_render_meshes_visible(&mut self, visible: bool) {
+        self.body_render_meshes_visible = visible;
+    }
+
+    /// Attach a render-only mesh to a rigid body. The mesh follows the
+    /// body's pose at every frame, transformed by `local_pose`. It does
+    /// not participate in physics in any way — this is purely a
+    /// visualization channel for things like MJCF `<geom>` elements with
+    /// `contype = conaffinity = 0`.
+    ///
+    /// `uvs` is an optional per-vertex UV buffer (parallel to the
+    /// `shape`'s vertex buffer when the shape is a `TriMesh`). It's
+    /// only consulted when `texture` is also `Some` — there's no point
+    /// uploading UVs that no shader can sample.
+    ///
+    /// `texture` is a path to a 2D color image on disk. kiss3d loads
+    /// it via `set_texture_from_file` and caches it under the path's
+    /// string form, so multiple meshes referencing the same file share
+    /// a single GPU texture.
+    pub fn add_body_render_mesh(
+        &mut self,
+        _window: &mut Window,
+        body: RigidBodyHandle,
+        shape: &SharedShape,
+        local_pose: rapier::math::Pose,
+        color: Color,
+        uvs: Option<&[[f32; 2]]>,
+        texture: Option<&Path>,
+    ) {
+        // Plumbing per-vertex UVs into a custom kiss3d mesh is only
+        // supported in 3D; 2D always uses the standard node path.
+        #[cfg(feature = "dim3")]
+        let mut node = {
+            let textured = uvs.is_some() && texture.is_some();
+            if textured && matches!(shape.shape_type(), ShapeType::TriMesh) {
+                // Build the kiss3d mesh ourselves so we can plumb UVs in;
+                // the standard `create_individual_node` path doesn't carry
+                // them through.
+                //
+                // OBJ stores UV `v=0` at the *bottom* of the image while
+                // wgpu samples textures from the top — flip `v` so the
+                // texture lands the right way up.
+                let trimesh = shape.as_trimesh().unwrap();
+                let uvs_vec: Vec<Vec2> = uvs
+                    .unwrap()
+                    .iter()
+                    .map(|uv| Vec2::new(uv[0], 1.0 - uv[1]))
+                    .collect();
+                // If the UV count doesn't match the vertex count we drop
+                // the UVs — `replicate_vertices` would otherwise panic.
+                let uvs_opt = if uvs_vec.len() == trimesh.vertices().len() {
+                    Some(uvs_vec)
+                } else {
+                    None
+                };
+                let vtx: Vec<Vec3> = trimesh
+                    .vertices()
+                    .iter()
+                    .map(|pt| Vec3::new(pt.x as f32, pt.y as f32, pt.z as f32))
+                    .collect();
+                let idx = trimesh.indices().to_vec();
+                let mut mesh = kiss3d::procedural::RenderMesh::new(
+                    vtx,
+                    None,
+                    uvs_opt,
+                    Some(kiss3d::procedural::IndexBuffer::Unified(idx)),
+                );
+                mesh.replicate_vertices();
+                mesh.recompute_normals();
+                Some(self.scene.add_render_mesh(mesh, Vec3::ONE))
+            } else {
+                Self::create_individual_node(&mut self.scene, &**shape, color, false)
+            }
+        };
+        #[cfg(feature = "dim2")]
+        let mut node = {
+            // Custom UV plumbing is unsupported in 2D; ignore `uvs`.
+            let _ = uvs;
+            Self::create_individual_node(&mut self.scene, &**shape, color, false)
+        };
+
+        if let Some(n) = node.as_mut() {
+            n.set_color(color);
+            if let Some(tex_path) = texture {
+                // The cache key uses the absolute path string so the
+                // same texture file is uploaded only once across the
+                // whole scene.
+                let key = tex_path.to_string_lossy();
+                n.set_texture_from_file(tex_path, &key);
+            }
+        }
+
+        let Some(node) = node else {
+            return;
+        };
+        self.body_attached_nodes.push(BodyAttachedNode {
+            node,
+            body,
+            delta: local_pose,
+            color,
+            shape: shape.clone(),
+        });
     }
 
     pub fn scene(&self) -> &SceneNode {
@@ -145,6 +292,16 @@ impl GraphicsManager {
 
     pub fn scene_mut(&mut self) -> &mut SceneNode {
         &mut self.scene
+    }
+
+    /// Iterator over every render-only mesh attached to a rigid body
+    /// via [`Self::add_body_render_mesh`]. Lets "Frame all" union the
+    /// visual meshes' AABBs alongside the colliders' so models whose
+    /// visual extent is bigger than their collision extent (or whose
+    /// physics-significant geoms are tiny next to the rendered mesh)
+    /// still fit in the frame.
+    pub fn body_attached_nodes(&self) -> impl Iterator<Item = &BodyAttachedNode> {
+        self.body_attached_nodes.iter()
     }
 
     /// Get or create a template node for a shape type
@@ -300,6 +457,14 @@ impl GraphicsManager {
         if let Some(colliders) = self.b2colliders.get(&body).cloned() {
             for collider in colliders {
                 self.remove_collider_nodes(collider);
+            }
+        }
+        // Drop any render-only meshes anchored to this body. We walk the
+        // list in reverse so the swap_remove doesn't disturb earlier
+        // indices we still need to visit.
+        for i in (0..self.body_attached_nodes.len()).rev() {
+            if self.body_attached_nodes[i].body == body {
+                let _ = self.body_attached_nodes.swap_remove(i);
             }
         }
     }
@@ -737,16 +902,18 @@ impl GraphicsManager {
     pub fn draw(
         &mut self,
         flags: TestbedStateFlags,
-        _bodies: &RigidBodySet,
+        bodies: &RigidBodySet,
         colliders: &ColliderSet,
     ) {
         let draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
+        let show_colliders = draw_surfaces && self.colliders_visible;
+        let show_body_meshes = draw_surfaces && self.body_render_meshes_visible;
 
         // Update instance data for all templates
         for (template_type, template) in &mut self.templates {
             template
                 .node
-                .set_visible(draw_surfaces && !template.colliders.is_empty());
+                .set_visible(show_colliders && !template.colliders.is_empty());
 
             if template.colliders.is_empty() {
                 continue;
@@ -845,9 +1012,15 @@ impl GraphicsManager {
             template.node.set_instances(&instances);
         }
 
-        // Update individual nodes
+        // Update individual nodes. Colliders are colliders — whatever
+        // their shape — and follow the collider visibility toggle.
+        // The MJCF loader synthesizes a separate visual-mesh entry for
+        // any mesh-typed collision-active geom that isn't otherwise
+        // mirrored by a visual-only counterpart on the same body, so
+        // "Render visual meshes" still shows the full geometry of
+        // those models without conflating channels.
         for node in &mut self.individual_nodes {
-            node.node.set_visible(draw_surfaces);
+            node.node.set_visible(show_colliders);
 
             if let Some(co) = colliders.get(node.collider) {
                 let co_pos = *co.position() * node.delta;
@@ -855,6 +1028,18 @@ impl GraphicsManager {
                     .set_pose(co_pos.append_translation(self.gfx_shift).into());
                 node.node
                     .set_color_recursive(node.tmp_color.take().unwrap_or(node.color));
+            }
+        }
+
+        // Update body-attached render-only nodes (e.g. MJCF visual meshes).
+        for node in &mut self.body_attached_nodes {
+            node.node.set_visible(show_body_meshes);
+
+            if let Some(rb) = bodies.get(node.body) {
+                let pose = *rb.position() * node.delta;
+                node.node
+                    .set_pose(pose.append_translation(self.gfx_shift).into());
+                node.node.set_color(node.color);
             }
         }
     }
@@ -867,12 +1052,13 @@ impl GraphicsManager {
         colliders: &ColliderSet,
     ) {
         let draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
+        let show_colliders = draw_surfaces && self.colliders_visible;
 
         // Update instance data for all templates
         for (template_type, template) in &mut self.templates {
             template
                 .node
-                .set_visible(draw_surfaces && !template.colliders.is_empty());
+                .set_visible(show_colliders && !template.colliders.is_empty());
 
             if template.colliders.is_empty() {
                 continue;
@@ -943,7 +1129,7 @@ impl GraphicsManager {
 
         // Update individual nodes
         for node in &mut self.individual_nodes {
-            node.node.set_visible(draw_surfaces);
+            node.node.set_visible(show_colliders);
 
             if let Some(co) = colliders.get(node.collider) {
                 let co_pos = *co.position() * node.delta;

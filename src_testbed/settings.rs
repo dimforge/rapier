@@ -1,6 +1,18 @@
 use indexmap::IndexMap;
 use std::ops::RangeInclusive;
 
+/// How a [`SettingValue::String`] is presented in the Example Settings
+/// panel.
+#[derive(Copy, Clone, PartialEq, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub enum StringDisplayMode {
+    /// Single-line dropdown (default). Right for short option lists.
+    #[default]
+    ComboBox,
+    /// Vertically-scrollable column of selectable labels. Use this when
+    /// the option list is long enough that a ComboBox feels heavy.
+    List,
+}
+
 #[derive(Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum SettingValue {
     Label(String),
@@ -18,6 +30,10 @@ pub enum SettingValue {
     String {
         value: usize,
         range: Vec<String>,
+        /// Controls how this setting is rendered in the UI. Defaults to
+        /// [`StringDisplayMode::ComboBox`].
+        #[serde(default)]
+        display_mode: StringDisplayMode,
     },
 }
 
@@ -125,32 +141,70 @@ impl ExampleSettings {
             SettingValue::String {
                 value: selected,
                 range,
+                display_mode: StringDisplayMode::ComboBox,
             },
         );
     }
 
-    pub fn get_or_set_string(
+    /// Insert a [`SettingValue::String`] if absent, otherwise return the
+    /// existing index. The setting is rendered with `display_mode` —
+    /// pass [`StringDisplayMode::List`] for option lists long enough
+    /// that a ComboBox feels heavy.
+    ///
+    /// If the entry already exists with a *different* `display_mode`,
+    /// the display mode is updated in place but the user's selected
+    /// value is preserved.
+    pub fn get_or_set_string_with(
         &mut self,
         key: &'static str,
         default: usize,
         range: Vec<String>,
+        display_mode: StringDisplayMode,
     ) -> usize {
+        let clamped_default = if range.is_empty() {
+            0
+        } else {
+            default.min(range.len() - 1)
+        };
         let to_insert = SettingValue::String {
-            value: default,
+            value: clamped_default,
             range,
+            display_mode,
         };
         let entry = self
             .values
             .entry(key.to_string())
             .or_insert(to_insert.clone());
         match entry {
-            SettingValue::String { value, .. } => *value,
+            SettingValue::String {
+                value,
+                display_mode: existing_mode,
+                ..
+            } => {
+                // Keep the user's prior selection but pick up display-mode
+                // changes from the caller.
+                if *existing_mode != display_mode {
+                    *existing_mode = display_mode;
+                }
+                *value
+            }
             _ => {
-                // The entry doesn’t have the right type. Overwrite with the new value.
+                // The entry doesn't have the right type. Overwrite.
                 *entry = to_insert;
-                default
+                clamped_default
             }
         }
+    }
+
+    /// Convenience wrapper around [`Self::get_or_set_string_with`] that
+    /// uses [`StringDisplayMode::ComboBox`].
+    pub fn get_or_set_string(
+        &mut self,
+        key: &'static str,
+        default: usize,
+        range: Vec<String>,
+    ) -> usize {
+        self.get_or_set_string_with(key, default, range, StringDisplayMode::ComboBox)
     }
 
     pub fn get_bool(&self, key: &'static str) -> Option<bool> {
@@ -183,7 +237,7 @@ impl ExampleSettings {
 
     pub fn get_string(&self, key: &'static str) -> Option<&str> {
         match self.values.get(key)? {
-            SettingValue::String { value, range } => Some(&range[*value]),
+            SettingValue::String { value, range, .. } => Some(&range[*value]),
             _ => None,
         }
     }

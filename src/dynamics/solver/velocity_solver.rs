@@ -131,7 +131,8 @@ impl VelocitySolver {
             let multibody = multibodies
                 .get_multibody_mut_internal(link.multibody)
                 .unwrap();
-            multibody.update_dynamics(params.dt, bodies);
+            multibody.update_velocities(bodies);
+            multibody.update_mass_matrix(params.dt, bodies);
             multibody.update_acceleration(bodies);
 
             let mut solver_vels_incr = self
@@ -275,7 +276,8 @@ impl VelocitySolver {
             if !is_last_substep {
                 // These are very expensive and not needed if we don’t
                 // have to run another step.
-                multibody.update_dynamics(params.dt, bodies);
+                multibody.update_velocities(bodies);
+                multibody.update_mass_matrix(params.dt, bodies);
                 multibody.update_acceleration(bodies);
 
                 let mut solver_vels_incr = self
