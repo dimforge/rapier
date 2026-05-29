@@ -13,7 +13,6 @@ mod joint;
 mod mass;
 mod options;
 mod parse;
-mod pose_utils;
 mod runtime;
 mod types;
 

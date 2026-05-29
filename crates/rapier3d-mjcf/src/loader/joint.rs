@@ -3,14 +3,14 @@
 //! [`GenericJoint`] that captures axis orientation, limits, motors, and
 //! per-DoF springs.
 
+use mjcf_rs::Pose as MPose;
 use mjcf_rs::body as mb;
-use mjcf_rs::pose::{self as mp, Pose as MPose};
+use mjcf_rs::glam::{DQuat, DVec3};
 
 use rapier3d::dynamics::{GenericJoint, GenericJointBuilder, JointAxesMask, JointAxis, MotorModel};
-use rapier3d::math::Real;
+use rapier3d::math::{Pose, Real};
 
 use super::conversion::Conversion;
-use super::pose_utils::{invert_pose, mpose_to_rapier};
 
 impl<'a> Conversion<'a> {
     /// Build a serial joint connecting `prev` body to `cur` body.
@@ -29,12 +29,13 @@ impl<'a> Conversion<'a> {
         // `prev_world_pose` (the parent pose for the first joint, the body
         // pose afterwards), so the world-space anchor is computed the same
         // way regardless of position in the chain.
-        let anchor_in_child = MPose {
-            pos: [joint.pos[0] * s, joint.pos[1] * s, joint.pos[2] * s],
-            quat: [1.0, 0.0, 0.0, 0.0],
-        };
-        let anchor_world = mp::pose_mul(cur_world_pose, anchor_in_child);
-        let local1 = mp::pose_mul(invert_pose(prev_world_pose), anchor_world);
+        let anchor_in_child = MPose::from_translation(DVec3::new(
+            joint.pos[0] * s,
+            joint.pos[1] * s,
+            joint.pos[2] * s,
+        ));
+        let anchor_world = cur_world_pose * anchor_in_child;
+        let local1 = prev_world_pose.inverse() * anchor_world;
         let local2 = anchor_in_child;
 
         // Build the joint axes mask.
@@ -52,20 +53,16 @@ impl<'a> Conversion<'a> {
         let mut frame1 = local1;
         let mut frame2 = local2;
         if matches!(joint.type_, mb::JointType::Hinge | mb::JointType::Slide) && axis_norm > 1e-12 {
-            let basis = axis_basis_quat(axis);
-            let frame_rot = MPose {
-                pos: [0.0; 3],
-                quat: basis,
-            };
+            let frame_rot = MPose::from_rotation(axis_basis_quat(axis));
             // Apply the same rotation on both sides so the joint resolves at zero at rest.
-            frame1 = mp::pose_mul(frame1, frame_rot);
-            frame2 = mp::pose_mul(frame2, frame_rot);
+            frame1 *= frame_rot;
+            frame2 *= frame_rot;
         }
 
         let mut builder = GenericJointBuilder::new(locked)
             .contacts_enabled(self.options.enable_joint_collisions)
-            .local_frame1(mpose_to_rapier(frame1))
-            .local_frame2(mpose_to_rapier(frame2));
+            .local_frame1(Pose::from(frame1))
+            .local_frame2(Pose::from(frame2));
 
         // Limits.
         //
@@ -159,28 +156,16 @@ impl<'a> Conversion<'a> {
     }
 }
 
-fn axis_basis_quat(axis: [f64; 3]) -> [f64; 4] {
+fn axis_basis_quat(axis: [f64; 3]) -> DQuat {
     // Build a rotation that maps the world X axis to `axis`. For prismatic
     // / hinge joints, rapier locks all but the X axis, so the free axis is
     // X — re-orienting both joint frames by this rotation lines up the
     // joint's free axis with the MJCF-specified axis.
-    let n = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt();
-    if n <= 1e-30 {
-        return [1.0, 0.0, 0.0, 0.0];
-    }
-    let a = [axis[0] / n, axis[1] / n, axis[2] / n];
-    // X × a = (0, -a.z, a.y)
-    let cross = [0.0, -a[2], a[1]];
-    let cn = (cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]).sqrt();
-    if cn <= 1e-30 {
-        if a[0] > 0.0 {
-            [1.0, 0.0, 0.0, 0.0]
-        } else {
-            // 180° about Y to flip X.
-            [0.0, 0.0, 1.0, 0.0]
-        }
+    let a = DVec3::from_array(axis);
+    let n = a.length();
+    if n <= 1e-15 {
+        DQuat::IDENTITY
     } else {
-        let cos = a[0].clamp(-1.0, 1.0);
-        mp::quat_from_axis_angle(cross, cos.acos())
+        DQuat::from_rotation_arc(DVec3::X, a / n)
     }
 }

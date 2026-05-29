@@ -4,11 +4,12 @@
 
 use roxmltree::Node;
 
+use crate::Pose;
 use crate::body::{Body, Geom, GeomType, InertiaSpec, Inertial, Joint, JointType, Site, SiteType};
 use crate::error::ParseError;
 use crate::model::{BodyEntry, BodyId};
-use crate::pose::{Pose, pose_mul};
 use crate::types::Tristate;
+use glamx::glam::{DQuat, DVec3};
 
 use super::parse_utils::{
     deg_to_rad, parse_bool, parse_f64, parse_f64_list, parse_quat, parse_rotation_attr, parse_vec3,
@@ -57,7 +58,7 @@ impl ParseState {
     ) -> Result<BodyId, ParseError> {
         let mut body = Body::default();
         let mut pose_pos = [0.0; 3];
-        let mut pose_rot = [1.0, 0.0, 0.0, 0.0];
+        let mut pose_rot = DQuat::IDENTITY;
         let mut has_rot = false;
         for attr in node.attributes() {
             match attr.name() {
@@ -86,13 +87,7 @@ impl ParseState {
             }
         }
         let _ = has_rot;
-        body.pose = pose_mul(
-            ambient_frame,
-            Pose {
-                pos: pose_pos,
-                quat: pose_rot,
-            },
-        );
+        body.pose = ambient_frame * Pose::from_parts(DVec3::from_array(pose_pos), pose_rot);
 
         let childclass_for_children = body
             .childclass
@@ -172,7 +167,7 @@ impl ParseState {
         ambient_frame: Pose,
     ) -> Result<(), ParseError> {
         let mut pos = [0.0; 3];
-        let mut rot = [1.0, 0.0, 0.0, 0.0];
+        let mut rot = DQuat::IDENTITY;
         let mut frame_class = None;
         for attr in node.attributes() {
             match attr.name() {
@@ -190,7 +185,7 @@ impl ParseState {
                 _ => {}
             }
         }
-        let combined = pose_mul(ambient_frame, Pose { pos, quat: rot });
+        let combined = ambient_frame * Pose::from_parts(DVec3::from_array(pos), rot);
         let cclass = frame_class
             .as_deref()
             .or(ambient_childclass)
@@ -199,12 +194,12 @@ impl ParseState {
             match child.tag_name().name() {
                 "geom" => {
                     let mut g = self.resolve_geom(child, cclass.as_deref())?;
-                    g.pose = pose_mul(combined, g.pose);
+                    g.pose = combined * g.pose;
                     self.model.bodies[parent_id].body.geoms.push(g);
                 }
                 "site" => {
                     let mut s = self.resolve_site(child, cclass.as_deref())?;
-                    s.pose = pose_mul(combined, s.pose);
+                    s.pose = combined * s.pose;
                     self.model.bodies[parent_id].body.sites.push(s);
                 }
                 "body" => {
@@ -223,7 +218,7 @@ impl ParseState {
     pub(super) fn parse_inertial(&self, node: Node) -> Result<Inertial, ParseError> {
         let mut i = Inertial::default();
         let mut pose_pos = [0.0; 3];
-        let mut pose_rot = [1.0, 0.0, 0.0, 0.0];
+        let mut pose_rot = DQuat::IDENTITY;
         let mut diag: Option<[f64; 3]> = None;
         let mut full: Option<[f64; 6]> = None;
         for attr in node.attributes() {
@@ -244,10 +239,7 @@ impl ParseState {
                 _ => {}
             }
         }
-        i.pose = Pose {
-            pos: pose_pos,
-            quat: pose_rot,
-        };
+        i.pose = Pose::from_parts(DVec3::from_array(pose_pos), pose_rot);
         i.inertia = if let Some(f) = full {
             InertiaSpec::Full(f)
         } else if let Some(d) = diag {

@@ -5,9 +5,9 @@
 //! "main" outward, merging at each step before the instance's own
 //! attributes are applied on top.
 
+use crate::Pose;
 use crate::assets::MeshInertia;
 use crate::body::{GeomType, JointType, SiteType};
-use crate::pose::Pose;
 use crate::types::Tristate;
 
 #[derive(Default, Clone)]

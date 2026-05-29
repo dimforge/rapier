@@ -8,10 +8,8 @@ use std::path::Path;
 use crate::body::{Geom, GeomType, JointType, Site};
 use crate::error::ParseError;
 use crate::model::Model;
-use crate::pose::{
-    normalize, quat_from_axis_angle, quat_from_euler, quat_from_xy_axes, quat_from_z_axis,
-};
 use crate::types::Tristate;
+use glamx::glam::{DMat3, DQuat, DVec3};
 
 pub(super) fn parse_bool(s: &str) -> Result<bool, ParseError> {
     match s {
@@ -135,9 +133,21 @@ pub(super) fn parse_gear(s: &str) -> Result<[f64; 6], ParseError> {
     Ok(out)
 }
 
-pub(super) fn parse_quat(s: &str, tag: &str, attr: &str) -> Result<[f64; 4], ParseError> {
+pub(super) fn parse_quat(s: &str, tag: &str, attr: &str) -> Result<DQuat, ParseError> {
     let v = parse_vec4(s, tag, attr)?;
-    Ok(normalize(v))
+    Ok(quat_wxyz(v))
+}
+
+/// Build a unit quaternion from MJCF's canonical `(w, x, y, z)` order. A zero
+/// (degenerate) input collapses to the identity rather than producing NaNs.
+fn quat_wxyz(v: [f64; 4]) -> DQuat {
+    // glam stores quaternions as (x, y, z, w).
+    let q = DQuat::from_xyzw(v[1], v[2], v[3], v[0]);
+    if q.length_squared() <= 1e-30 {
+        DQuat::IDENTITY
+    } else {
+        q.normalize()
+    }
 }
 
 pub(super) fn parse_tristate(s: &str) -> Result<Tristate, ParseError> {
@@ -201,7 +211,7 @@ pub(super) fn parse_rotation_attr(
     value: &str,
     tag: &str,
     compiler: &crate::compiler::Compiler,
-) -> Result<[f64; 4], ParseError> {
+) -> Result<DQuat, ParseError> {
     match name {
         "axisangle" => {
             let v = parse_vec4(value, tag, "axisangle")?;
@@ -230,6 +240,71 @@ pub(super) fn parse_rotation_attr(
         }
         _ => unreachable!(),
     }
+}
+
+/// Quaternion from an axis (auto-normalized) and an angle in radians. A
+/// zero-length axis yields the identity.
+fn quat_from_axis_angle(axis: [f64; 3], angle_rad: f64) -> DQuat {
+    let axis = DVec3::from_array(axis);
+    let len = axis.length();
+    if len <= 1e-15 {
+        DQuat::IDENTITY
+    } else {
+        DQuat::from_axis_angle(axis / len, angle_rad)
+    }
+}
+
+/// Quaternion from Euler angles using the given axis sequence.
+///
+/// `seq` is a 3-character string drawn from `{x, y, z, X, Y, Z}` that names
+/// the axes in *intrinsic* application order (MJCF default `"xyz"`).
+/// Lowercase = intrinsic (rotating frame), uppercase = extrinsic (fixed
+/// frame). MJCF uses intrinsic by default.
+fn quat_from_euler(angles: [f64; 3], seq: &str) -> DQuat {
+    let mut q = DQuat::IDENTITY;
+    for (i, ch) in seq.chars().enumerate() {
+        let angle = angles[i];
+        let intrinsic = ch.is_ascii_lowercase();
+        let axis = match ch.to_ascii_lowercase() {
+            'x' => DVec3::X,
+            'y' => DVec3::Y,
+            'z' => DVec3::Z,
+            _ => continue,
+        };
+        let r = DQuat::from_axis_angle(axis, angle);
+        q = if intrinsic { q * r } else { r * q };
+    }
+    q.normalize()
+}
+
+/// Rotation that maps the world Z axis onto `axis`. Used for `zaxis="..."`.
+fn quat_from_z_axis(axis: [f64; 3]) -> DQuat {
+    let axis = DVec3::from_array(axis);
+    let len = axis.length();
+    if len <= 1e-15 {
+        DQuat::IDENTITY
+    } else {
+        DQuat::from_rotation_arc(DVec3::Z, axis / len)
+    }
+}
+
+/// Rotation from `xyaxes="x1 x2 x3 y1 y2 y3"`. The Z axis is X × Y; Y is then
+/// re-orthonormalized (Z × X) to guarantee an orthonormal basis.
+fn quat_from_xy_axes(x: [f64; 3], y: [f64; 3]) -> DQuat {
+    let x = DVec3::from_array(x);
+    let nx = x.length();
+    if nx <= 1e-15 {
+        return DQuat::IDENTITY;
+    }
+    let x = x / nx;
+    let z = x.cross(DVec3::from_array(y));
+    let nz = z.length();
+    if nz <= 1e-15 {
+        return DQuat::IDENTITY;
+    }
+    let z = z / nz;
+    let y = z.cross(x);
+    DQuat::from_mat3(&DMat3::from_cols(x, y, z)).normalize()
 }
 
 /// Prefix a name so attached sub-model entities don't collide with the

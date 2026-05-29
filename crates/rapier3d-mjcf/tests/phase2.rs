@@ -113,8 +113,8 @@ fn frame_folds_pose_into_children() {
     let (_robot, model) = MjcfRobot::from_str(xml, MjcfLoaderOptions::default(), ".").unwrap();
     // The child's body pose should be (0.1, 0, 0) translated by (0, 0, 0.5).
     let child = &model.bodies[2].body;
-    assert!((child.pose.pos[0] - 0.1).abs() < 1e-12);
-    assert!((child.pose.pos[2] - 0.5).abs() < 1e-12);
+    assert!((child.pose.translation.x - 0.1).abs() < 1e-12);
+    assert!((child.pose.translation.z - 0.5).abs() < 1e-12);
 }
 
 #[test]

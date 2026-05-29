@@ -129,8 +129,8 @@ fn add_floor(world: &mut PhysicsWorld) {
     let mut floor_hext = total_aabb.half_extents();
     let mut floor_center = total_aabb.center();
     floor_center.z -= floor_hext.z * 2.0;
-    floor_hext.x *= 4.0;
-    floor_hext.y *= 4.0;
+    floor_hext.x *= 10.0;
+    floor_hext.y *= 10.0;
     // floor_hext.z = 1.0;
     world.insert_collider(
         ColliderBuilder::cuboid(floor_hext.x, floor_hext.y, floor_hext.z).translation(floor_center),
@@ -179,9 +179,7 @@ fn load_into_world(
         MjcfMultibodyOptions::DISABLE_SELF_CONTACTS
     } else {
         MjcfMultibodyOptions::default()
-    } | MjcfMultibodyOptions::SKIP_LOOP_CLOSURES
-        | MjcfMultibodyOptions::SKIP_JOINT_LIMITS
-        | MjcfMultibodyOptions::SKIP_JOINT_MOTORS;
+    } | MjcfMultibodyOptions::SKIP_LOOP_CLOSURES;
 
     let body_handles = if use_multibody {
         let handles = robot.clone().insert_using_multibody_joints(

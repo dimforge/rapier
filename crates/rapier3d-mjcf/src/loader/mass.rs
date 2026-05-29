@@ -11,10 +11,9 @@ use mjcf_rs::compiler::InertiaFromGeom;
 use mjcf_rs::model::BodyEntry;
 
 use rapier3d::dynamics::{MassProperties, MultibodyJointHandle, MultibodyJointSet};
-use rapier3d::math::{Matrix, Real, Vector};
+use rapier3d::math::{Matrix, Pose, Real, Vector};
 
 use super::conversion::Conversion;
-use super::pose_utils::mpose_to_rapier;
 
 impl<'a> Conversion<'a> {
     /// Compute mass properties from `<inertial>` (or derive from geoms when
@@ -115,15 +114,15 @@ pub(super) fn inertial_to_mass_props(i: &mb::Inertial, scale: Real) -> MassPrope
     // rotational dynamics stay consistent with the (also-scaled) com
     // offset and joint anchor positions. Mass itself is not scaled.
     let com = Vector::new(
-        i.pose.pos[0] as Real * scale,
-        i.pose.pos[1] as Real * scale,
-        i.pose.pos[2] as Real * scale,
+        i.pose.translation.x as Real * scale,
+        i.pose.translation.y as Real * scale,
+        i.pose.translation.z as Real * scale,
     );
     let s2 = scale * scale;
     match i.inertia {
         mb::InertiaSpec::Diagonal(d) => {
             let principal = Vector::new(d[0] as Real * s2, d[1] as Real * s2, d[2] as Real * s2);
-            let r = mpose_to_rapier(i.pose).rotation;
+            let r = Pose::from(i.pose).rotation;
             MassProperties::with_principal_inertia_frame(com, i.mass as Real, principal, r)
         }
         mb::InertiaSpec::Full(f) => {

@@ -5,11 +5,12 @@
 
 use roxmltree::Node;
 
+use crate::Pose;
 use crate::assets::MeshInertia;
 use crate::body::SiteType;
 use crate::error::ParseError;
 use crate::extras::ActuatorKind;
-use crate::pose::Pose;
+use glamx::glam::{DQuat, DVec3};
 
 use super::parse_utils::{
     parse_bool, parse_f64, parse_f64_list, parse_friction, parse_gear, parse_geom_type, parse_i32,
@@ -163,10 +164,10 @@ impl ParseState {
             }
         }
         if pose_pos.is_some() || pose_rot.is_some() {
-            p.pose = Some(Pose {
-                pos: pose_pos.unwrap_or([0.0; 3]),
-                quat: pose_rot.unwrap_or([1.0, 0.0, 0.0, 0.0]),
-            });
+            p.pose = Some(Pose::from_parts(
+                DVec3::from_array(pose_pos.unwrap_or([0.0; 3])),
+                pose_rot.unwrap_or(DQuat::IDENTITY),
+            ));
         }
         Ok(p)
     }
@@ -211,10 +212,10 @@ impl ParseState {
             }
         }
         if pose_pos.is_some() || pose_rot.is_some() {
-            p.pose = Some(Pose {
-                pos: pose_pos.unwrap_or([0.0; 3]),
-                quat: pose_rot.unwrap_or([1.0, 0.0, 0.0, 0.0]),
-            });
+            p.pose = Some(Pose::from_parts(
+                DVec3::from_array(pose_pos.unwrap_or([0.0; 3])),
+                pose_rot.unwrap_or(DQuat::IDENTITY),
+            ));
         }
         Ok(p)
     }
@@ -250,10 +251,10 @@ impl ParseState {
             }
         }
         if pose_pos.is_some() || pose_rot.is_some() {
-            p.refpose = Some(Pose {
-                pos: pose_pos.unwrap_or([0.0; 3]),
-                quat: pose_rot.unwrap_or([1.0, 0.0, 0.0, 0.0]),
-            });
+            p.refpose = Some(Pose::from_parts(
+                DVec3::from_array(pose_pos.unwrap_or([0.0; 3])),
+                pose_rot.unwrap_or(DQuat::IDENTITY),
+            ));
         }
         Ok(p)
     }

@@ -4,12 +4,13 @@
 
 use roxmltree::Node;
 
+use crate::Pose;
 use crate::contact::{ContactExclude, ContactPair};
 use crate::equality::{Equality, EqualityCommon, EqualityConnect, EqualityWeld};
 use crate::error::ParseError;
 use crate::extras::{Actuator, ActuatorKind, Keyframe, Sensor};
-use crate::pose::Pose;
 use crate::types::Tristate;
+use glamx::glam::{DQuat, DVec3};
 
 use super::parse_utils::{
     parse_bool, parse_f64, parse_f64_list, parse_friction, parse_gear, parse_tristate, parse_u32,
@@ -116,10 +117,11 @@ impl ParseState {
                             "relpose" => {
                                 let v = parse_f64_list(attr.value())?;
                                 if v.len() == 7 {
-                                    let pose = Pose {
-                                        pos: [v[0], v[1], v[2]],
-                                        quat: [v[3], v[4], v[5], v[6]],
-                                    };
+                                    // `relpose` is `pos(3) quat(w, x, y, z)(4)`.
+                                    let pose = Pose::from_parts(
+                                        DVec3::new(v[0], v[1], v[2]),
+                                        DQuat::from_xyzw(v[4], v[5], v[6], v[3]),
+                                    );
                                     w.relpose = Some(pose);
                                 }
                             }

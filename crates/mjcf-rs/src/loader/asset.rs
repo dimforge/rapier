@@ -6,10 +6,11 @@ use std::path::{Path, PathBuf};
 
 use roxmltree::Node;
 
+use crate::Pose;
 use crate::assets::{Hfield, Material, Mesh, MeshInertia, Texture};
 use crate::error::ParseError;
 use crate::model::Model;
-use crate::pose::Pose;
+use glamx::glam::{DQuat, DVec3};
 
 use super::parse_utils::{
     absolutize_model_assets, asset_default_name, parse_f64, parse_f64_list, parse_quat, parse_u32,
@@ -75,12 +76,10 @@ impl ParseState {
                         }
                     }
                     if let (Some(p), q) = (pose_pos, pose_rot) {
-                        m.refpose = Pose {
-                            pos: p,
-                            quat: q.unwrap_or([1.0, 0.0, 0.0, 0.0]),
-                        };
+                        m.refpose =
+                            Pose::from_parts(DVec3::from_array(p), q.unwrap_or(DQuat::IDENTITY));
                     } else if let Some(q) = pose_rot {
-                        m.refpose.quat = q;
+                        m.refpose.rotation = q;
                     }
                     if m.name.is_none() {
                         m.name = asset_default_name(m.file.as_deref());

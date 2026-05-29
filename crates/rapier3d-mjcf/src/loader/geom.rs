@@ -2,9 +2,10 @@
 //! (via a tiny icosphere), `fromto`, mesh / heightfield assets, plus the
 //! per-collider plumbing (groups, friction, margin, hooks).
 
+use mjcf_rs::Pose as MPose;
 use mjcf_rs::body as mb;
+use mjcf_rs::glam::{DQuat, DVec3};
 use mjcf_rs::model::{BodyEntry, BodyId};
-use mjcf_rs::pose::Pose as MPose;
 use rapier3d::dynamics::RigidBody;
 #[cfg(feature = "__meshloader_is_enabled")]
 use rapier3d::geometry::MeshConverter;
@@ -15,7 +16,6 @@ use rapier3d::pipeline::ActiveHooks;
 
 use super::conversion::Conversion;
 use super::options::ContactFilterMode;
-use super::pose_utils::{mpose_to_rapier, scale_pose};
 
 impl<'a> Conversion<'a> {
     /// Build the rapier shape + the geom's body-frame pose. The returned
@@ -35,12 +35,13 @@ impl<'a> Conversion<'a> {
     /// the full pose to assign to the rapier collider / renderer.
     pub(super) fn geom_body_frame_pose(&self, g: &mb::Geom) -> Pose {
         let s = self.options.scale;
-        let pose = if let Some(ft) = g.fromto {
+        let mut pose = if let Some(ft) = g.fromto {
             from_to_size_and_pose(g.type_, ft, &g.size).1
         } else {
             g.pose
         };
-        mpose_to_rapier(scale_pose(pose, s as f64))
+        pose.translation *= s as f64;
+        Pose::from(pose)
     }
 
     /// Same as [`Self::build_geom_shape`] but forces `<mesh>` assets to
@@ -591,18 +592,18 @@ pub(super) fn from_to_size_and_pose(
     ft: [f64; 6],
     explicit: &[f64; 3],
 ) -> ([f64; 3], MPose) {
-    use mjcf_rs::pose as mp;
-    let p1 = [ft[0], ft[1], ft[2]];
-    let p2 = [ft[3], ft[4], ft[5]];
-    let mid = [
-        (p1[0] + p2[0]) * 0.5,
-        (p1[1] + p2[1]) * 0.5,
-        (p1[2] + p2[2]) * 0.5,
-    ];
-    let dir = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]];
-    let len = (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]).sqrt();
+    let p1 = DVec3::new(ft[0], ft[1], ft[2]);
+    let p2 = DVec3::new(ft[3], ft[4], ft[5]);
+    let mid = (p1 + p2) * 0.5;
+    let dir = p2 - p1;
+    let len = dir.length();
     let half = len * 0.5;
-    let quat = mp::quat_from_z_axis(dir);
+    // Rotation mapping the world Z axis onto the capsule/box long axis.
+    let quat = if len <= 1e-15 {
+        DQuat::IDENTITY
+    } else {
+        DQuat::from_rotation_arc(DVec3::Z, dir / len)
+    };
     let mut size = *explicit;
     if matches!(type_, mb::GeomType::Capsule | mb::GeomType::Cylinder) {
         size[1] = half;
@@ -610,5 +611,5 @@ pub(super) fn from_to_size_and_pose(
     if matches!(type_, mb::GeomType::Box) {
         size[2] = half;
     }
-    (size, MPose { pos: mid, quat })
+    (size, MPose::from_parts(mid, quat))
 }

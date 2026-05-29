@@ -7,11 +7,12 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use mjcf_rs::Pose as MPose;
 use mjcf_rs::body as mb;
 use mjcf_rs::equality::{Equality as MjcfEquality, EqualityConnect, EqualityWeld};
 use mjcf_rs::extras::Sensor as MjcfSensor;
+use mjcf_rs::glam::DVec3;
 use mjcf_rs::model::{BodyEntry, BodyId, Model};
-use mjcf_rs::pose::{self as mp, Pose as MPose};
 
 use rapier3d::dynamics::{
     GenericJointBuilder, JointAxesMask, MassProperties, RigidBodyBuilder, RigidBodyType,
@@ -21,7 +22,6 @@ use rapier3d::math::{Pose, Real, Vector};
 
 use super::mass::scale_mass_properties;
 use super::options::MjcfLoaderOptions;
-use super::pose_utils::{invert_pose, mpose_to_rapier, mpose_to_rapier_with_shift, scale_pose};
 use super::types::{
     MjcfActuatorBinding, MjcfBody, MjcfEqualityJoint, MjcfJoint, MjcfRobot, MjcfSensorBinding,
     MjcfVisualMesh, SensorObjectRef,
@@ -190,10 +190,11 @@ impl<'a> Conversion<'a> {
         let parent_mjcf = entry.parent.unwrap_or(0);
         let parent_rapier = self.leaf_of_mjcf_body[parent_mjcf].unwrap_or(0);
         let parent_world_pose = self.world_pose_of_rapier_body[parent_rapier];
-        let body_world_pose = mp::pose_mul(
-            parent_world_pose,
-            scale_pose(entry.body.pose, self.options.scale as f64),
+        let scaled_pose = MPose::from_parts(
+            entry.body.pose.translation * self.options.scale as f64,
+            entry.body.pose.rotation,
         );
+        let body_world_pose = parent_world_pose * scaled_pose;
 
         let joints = &entry.body.joints;
         let has_free = joints.iter().any(|j| j.type_ == mb::JointType::Free);
@@ -225,9 +226,9 @@ impl<'a> Conversion<'a> {
             if parent_mjcf == 0 {
                 self.welded_to_world.insert(mjcf_id);
             } else {
-                let parent_to_child = mp::pose_mul(invert_pose(parent_world_pose), body_world_pose);
+                let parent_to_child = parent_world_pose.inverse() * body_world_pose;
                 let joint = GenericJointBuilder::new(JointAxesMask::LOCKED_FIXED_AXES)
-                    .local_frame1(mpose_to_rapier(parent_to_child))
+                    .local_frame1(parent_to_child.into())
                     .local_frame2(Pose::IDENTITY)
                     .contacts_enabled(self.options.enable_joint_collisions)
                     .build();
@@ -350,9 +351,7 @@ impl<'a> Conversion<'a> {
         } else {
             RigidBodyBuilder::dynamic()
         };
-        builder = builder
-            .pose(mpose_to_rapier(world_pose))
-            .can_sleep(entry.body.sleep);
+        builder = builder.pose(world_pose.into()).can_sleep(entry.body.sleep);
         let body = builder.build();
         let idx = self.robot.bodies.len();
         self.robot.bodies.push(MjcfBody {
@@ -384,7 +383,7 @@ impl<'a> Conversion<'a> {
         world_pose: MPose,
         force_fixed: bool,
     ) -> RigidBodyBuilder {
-        let with_shift = mpose_to_rapier_with_shift(world_pose, self.options.shift);
+        let with_shift = self.options.shift * Pose::from(world_pose);
         let mut builder = self.options.rigid_body_blueprint.clone();
         if force_fixed {
             builder.body_type = RigidBodyType::Fixed;
@@ -559,22 +558,18 @@ impl<'a> Conversion<'a> {
         // away from where the model intended, and the impulse joint
         // starts violated by that amount.
         let s = self.options.scale as f64;
-        let anchor1 = MPose {
-            pos: [c.anchor[0] * s, c.anchor[1] * s, c.anchor[2] * s],
-            quat: [1.0, 0.0, 0.0, 0.0],
-        };
+        let anchor1 = MPose::from_translation(DVec3::new(
+            c.anchor[0] * s,
+            c.anchor[1] * s,
+            c.anchor[2] * s,
+        ));
         // Compute the equivalent anchor in body2's frame (so the joint
         // resolves at zero).
         let world1 = self.world_pose_of_rapier_body[body1];
         let world2 = self.world_pose_of_rapier_body[body2];
-        let anchor_world = mp::pose_mul(world1, anchor1);
-        let anchor2 = mp::pose_mul(invert_pose(world2), anchor_world);
-        Some((
-            body1,
-            body2,
-            mpose_to_rapier(anchor1),
-            mpose_to_rapier(anchor2),
-        ))
+        let anchor_world = world1 * anchor1;
+        let anchor2 = world2.inverse() * anchor_world;
+        Some((body1, body2, Pose::from(anchor1), Pose::from(anchor2)))
     }
 
     fn resolve_weld_frames(&self, w: &EqualityWeld) -> Option<(usize, usize, Pose, Pose)> {
@@ -610,27 +605,21 @@ impl<'a> Conversion<'a> {
         let s = self.options.scale as f64;
         let frame1_local = w
             .anchor
-            .map(|a| MPose {
-                pos: [a[0] * s, a[1] * s, a[2] * s],
-                quat: [1.0, 0.0, 0.0, 0.0],
-            })
+            .map(|a| MPose::from_translation(DVec3::new(a[0] * s, a[1] * s, a[2] * s)))
             .unwrap_or(MPose::IDENTITY);
-        let frame1_world = mp::pose_mul(world1, frame1_local);
+        let frame1_world = world1 * frame1_local;
         let frame2_world = if let Some(rel) = w.relpose {
-            let scaled_rel = MPose {
-                pos: [rel.pos[0] * s, rel.pos[1] * s, rel.pos[2] * s],
-                quat: rel.quat,
-            };
-            mp::pose_mul(frame1_world, scaled_rel)
+            let scaled_rel = MPose::from_parts(rel.translation * s, rel.rotation);
+            frame1_world * scaled_rel
         } else {
             frame1_world
         };
-        let frame2_local = mp::pose_mul(invert_pose(world2), frame2_world);
+        let frame2_local = world2.inverse() * frame2_world;
         Some((
             body1,
             body2,
-            mpose_to_rapier(frame1_local),
-            mpose_to_rapier(frame2_local),
+            Pose::from(frame1_local),
+            Pose::from(frame2_local),
         ))
     }
 
