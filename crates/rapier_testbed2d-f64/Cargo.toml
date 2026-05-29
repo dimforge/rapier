@@ -43,10 +43,10 @@ unstable-puffin-pr-235 = []
 features = ["parallel", "profiler_ui"]
 
 [dependencies]
-nalgebra = { version = "0.34", features = ["rand", "glam029"] }
-glamx = "0.2"
-rand = "0.9"
-rand_pcg = "0.9"
+nalgebra = { version = "0.35", features = ["rand"] }
+glamx = "0.3"
+rand = "0.10"
+rand_pcg = "0.10"
 web-time = { version = "1.1" }
 bitflags = "2"
 num_cpus = { version = "1", optional = true }
@@ -60,7 +60,7 @@ puffin_egui = { version = "0.29", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 indexmap = { version = "2", features = ["serde"] }
-kiss3d = { version = "0.41.0", features = ["egui", "serde"] }
+kiss3d = { version = "0.42.0", features = ["egui", "serde"] }
 
 [dependencies.rapier]
 package = "rapier2d-f64"

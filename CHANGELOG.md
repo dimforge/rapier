@@ -1,16 +1,67 @@
 ## Unreleased
 
+### Added
+
+- New `PhysicsWorld` convenience wrapper bundling `RigidBodySet`, `ColliderSet`, the broad/narrow
+  phases, islands, joints, the CCD solver, gravity, and integration parameters in a single struct,
+  for simpler setup of basic simulations. It also exposes helpers for waking bodies (`wake_up`,
+  `wake_up_all`), iterating only active bodies (`active_bodies`), and iterating joints — including
+  those attached to a given body (`impulse_joints`, `impulse_joints_with`, `multibody_joints`,
+  `multibody_joints_with`).
+- `std`/`alloc` feature gating: `no_std` builds are now supported, and a subset of the library
+  compiles without `alloc` as well (e.g. for `spirv` targets)
+  ([#928](https://github.com/dimforge/rapier/pull/928)).
+- `InteractionGroups` and `Group` now derive `bytemuck::NoUninit` under the `bytemuck` feature,
+  and `InteractionTestMode` is `#[repr(u32)]`, making them GPU-uploadable.
+- `MultibodyJoint::joint_rot()` and `MultibodyJoint::coords()` expose the joint’s rotation and
+  generalized coordinates publicly.
+- `ImpulseJointSet::set_bodies` rewires an existing impulse joint to a new pair of bodies while
+  preserving its handle, configuration, and warm-started impulses.
+- `rapier3d-urdf`:
+  - New `UrdfLoaderOptions::mesh_converter` lets the loader replace the original mesh with a
+    cheap proxy shape (e.g. `MeshConverter::Obb`) while keeping the source mesh available for
+    rendering via the new `UrdfCollider::visual` / `UrdfVisual` types.
+  - New `UrdfLoaderOptions::scale` applies a uniform scale to link positions, joint anchors,
+    mesh sizes, primitive shape sizes, inertial offsets, and prismatic joint limits.
+  - New `UrdfLoaderOptions::squeeze_empty_fixed_links` (default `true`) removes empty links
+    connected by fixed joints, splicing the kinematic chain so bodyless “frame-only” links
+    (e.g. `world`, `*_tcp`) no longer create mass-less rigid-bodies.
+  - URDF files with empty `<geometry></geometry>` blocks are now accepted (sanitized before
+    parsing, then skipped when building colliders).
+  - The `urdf_rs` crate is re-exported.
+
 ### Fixed
 
+- `QueryPipeline::project_point` now honors its `max_dist` argument (it was previously ignored).
+- Several multibody-related crashes ([#906](https://github.com/dimforge/rapier/issues/906),
+  [#907](https://github.com/dimforge/rapier/issues/907),
+  [#908](https://github.com/dimforge/rapier/issues/908),
+  [#927](https://github.com/dimforge/rapier/issues/927)).
 - Continuous Collision Detection now consults the user's `PhysicsHooks::filter_contact_pair`
   hook, matching narrow-phase semantics. Previously, CCD would clamp a fast-moving body's
-  motion at a predicted impact with a pair the user had filtered out. Closes #754.
+  motion at a predicted impact with a pair the user had filtered out
+  ([#929](https://github.com/dimforge/rapier/pull/929), closes
+  [#754](https://github.com/dimforge/rapier/issues/754)).
+- Corrected the documentation of `RigidBody::add_force` / `add_torque` / `reset_forces` /
+  `reset_torques`: user-defined forces and torques are **not** cleared automatically between
+  steps and persist until explicitly reset
+  ([#903](https://github.com/dimforge/rapier/issues/903)).
 
 ### Modified
 
 - **Breaking (CCD solver direct callers only):** `CCDSolver::find_first_impact` and
   `CCDSolver::predict_impacts_at_next_positions` now take an extra `hooks: &dyn PhysicsHooks`
   argument. `PhysicsPipeline::step` callers are unaffected.
+- **Breaking:** `QueryPipeline::project_point_and_get_feature` now takes an additional
+  `max_dist: Real` argument.
+- **Breaking (`rapier3d-urdf`):** `UrdfLink::colliders` and `UrdfLinkHandle::colliders` changed
+  from `Vec<Collider>` / `Vec<ColliderHandle>` to `Vec<UrdfCollider>` / `Vec<UrdfColliderHandle>`
+  to carry the optional visual mesh override.
+- **Behavior change (`rapier3d-urdf`):** with `squeeze_empty_fixed_links` defaulting to `true`,
+  empty links bridged by fixed joints are now collapsed by default. Set it to `false` to keep
+  the previous behavior.
+- Update `glamx` to 0.3.
+- Updated `wide` version to `1` ([#902](https://github.com/dimforge/rapier/issues/902)).
 
 ## v0.31.0 (09 Jan. 2026)
 
