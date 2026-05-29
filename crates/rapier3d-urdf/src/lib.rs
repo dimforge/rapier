@@ -651,7 +651,6 @@ fn urdf_to_colliders(
 
             let converter = options
                 .mesh_converter
-                .clone()
                 .unwrap_or(MeshConverter::TriMeshWithFlags(options.trimesh_flags));
             // Whenever the user picks a converter that replaces the mesh with a
             // proxy shape (e.g. Obb), keep the original triangle mesh around as a

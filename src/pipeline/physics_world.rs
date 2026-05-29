@@ -8,8 +8,6 @@ use crate::geometry::{
     BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, ContactPair, DefaultBroadPhase,
     NarrowPhase,
 };
-#[cfg(feature = "std")]
-use crate::geometry::{CollisionEvent, ContactForceEvent};
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks, PhysicsPipeline, QueryFilter, QueryPipeline};
 use parry::bounding_volume::{Aabb, BoundingVolume};
