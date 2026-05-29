@@ -1,12 +1,12 @@
 #![allow(clippy::bad_bit_mask)] // Clippy will complain about the bitmasks due to JointAxesMask::FREE_FIXED_AXES being 0.
 #![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
+#[cfg(feature = "alloc")]
+use crate::dynamics::RigidBody;
 use crate::dynamics::integration_parameters::SpringCoefficients;
 #[cfg(feature = "alloc")]
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RopeJoint};
-#[cfg(feature = "alloc")]
-use crate::dynamics::RigidBody;
 use crate::math::{Pose, Real, Rotation, SPATIAL_DIM, Vector};
 use crate::utils::{OrthonormalBasis, SimdRealCopy};
 use parry::math::Matrix;

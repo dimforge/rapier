@@ -92,7 +92,10 @@ pub fn init_world(testbed: &mut Testbed) {
             Vector::new((i as f32 - 125.0) * voxel_size.x / 2.0, y * voxel_size.y)
         })
         .collect();
-    world.insert_collider(ColliderBuilder::voxels_from_points(voxel_size, &voxels), None);
+    world.insert_collider(
+        ColliderBuilder::voxels_from_points(voxel_size, &voxels),
+        None,
+    );
 
     /*
      * Set up the testbed.

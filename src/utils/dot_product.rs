@@ -5,9 +5,9 @@ use crate::math::SimdReal;
 use crate::math::{Real, Vector};
 #[cfg(not(target_arch = "spirv"))]
 use crate::utils::SimdRealCopy;
-use simba::simd::SimdRealField;
 #[cfg(not(target_arch = "spirv"))]
 use na::{Vector1, Vector2, Vector3};
+use simba::simd::SimdRealField;
 
 /// Trait for computing generalized dot products.
 pub trait DotProduct<Rhs>: Sized + Copy {

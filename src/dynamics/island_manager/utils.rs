@@ -41,14 +41,17 @@ pub(super) fn push_linked_bodies(
             let Some(mb) = multibody_joints.get_multibody(link.multibody) else {
                 continue;
             };
-            let Some(lnk) = mb.link(link.id) else { continue };
+            let Some(lnk) = mb.link(link.id) else {
+                continue;
+            };
 
             if !mb.root_is_dynamic && lnk.is_root() {
                 // If we are attached to the root, and the root is fixed, then
                 // we need to push the root’s children too so that the entire multibody
                 // ends up on the same island, even if the root has multiple branches
                 // attached to it.
-                for root_adj in multibody_joints.bodies_attached_with_enabled_joint(lnk.rigid_body) {
+                for root_adj in multibody_joints.bodies_attached_with_enabled_joint(lnk.rigid_body)
+                {
                     if root_adj != handle {
                         stack.push(root_adj);
                     }

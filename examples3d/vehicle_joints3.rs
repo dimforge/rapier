@@ -122,8 +122,7 @@ pub fn init_world(testbed: &mut Testbed) {
 
         // Joint between the axle and the wheel.
         let wheel_joint = RevoluteJointBuilder::new(Vector::X);
-        let wheel_joint_handle =
-            world.insert_impulse_joint(axle_handle, wheel_handle, wheel_joint);
+        let wheel_joint_handle = world.insert_impulse_joint(axle_handle, wheel_handle, wheel_joint);
 
         if is_front {
             steering_joints.push(body_axle_joint_handle);

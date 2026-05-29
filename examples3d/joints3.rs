@@ -1,11 +1,7 @@
 use rapier_testbed3d::Testbed;
 use rapier3d::prelude::*;
 
-fn create_coupled_joints(
-    world: &mut PhysicsWorld,
-    origin: Vector,
-    use_articulations: bool,
-) {
+fn create_coupled_joints(world: &mut PhysicsWorld, origin: Vector, use_articulations: bool) {
     let ground = world.insert_body(RigidBodyBuilder::fixed().translation(origin));
     let (body1, _) = world.insert(
         RigidBodyBuilder::dynamic()
@@ -309,11 +305,7 @@ fn create_fixed_joints(
     }
 }
 
-fn create_spherical_joints(
-    world: &mut PhysicsWorld,
-    num: usize,
-    use_articulations: bool,
-) {
+fn create_spherical_joints(world: &mut PhysicsWorld, num: usize, use_articulations: bool) {
     let rad = 0.4;
     let shift = 1.0;
 
@@ -562,11 +554,7 @@ fn do_init_world(testbed: &mut Testbed, use_articulations: bool) {
         3,
         use_articulations,
     );
-    create_revolute_joints_with_limits(
-        &mut world,
-        Vector::new(34.0, 0.0, 0.0),
-        use_articulations,
-    );
+    create_revolute_joints_with_limits(&mut world, Vector::new(34.0, 0.0, 0.0), use_articulations);
     create_fixed_joints(
         &mut world,
         Vector::new(0.0, 10.0, 0.0),
@@ -585,21 +573,9 @@ fn do_init_world(testbed: &mut Testbed, use_articulations: bool) {
         3,
         use_articulations,
     );
-    create_spherical_joints(
-        &mut world,
-        15,
-        use_articulations,
-    );
-    create_spherical_joints_with_limits(
-        &mut world,
-        Vector::new(-5.0, 0.0, 0.0),
-        use_articulations,
-    );
-    create_coupled_joints(
-        &mut world,
-        Vector::new(0.0, 20.0, 0.0),
-        use_articulations,
-    );
+    create_spherical_joints(&mut world, 15, use_articulations);
+    create_spherical_joints_with_limits(&mut world, Vector::new(-5.0, 0.0, 0.0), use_articulations);
+    create_coupled_joints(&mut world, Vector::new(0.0, 20.0, 0.0), use_articulations);
 
     /*
      * Set up the testbed.

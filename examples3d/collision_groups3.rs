@@ -32,8 +32,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let green_floor = ColliderBuilder::cuboid(1.0, 0.1, 1.0)
         .translation(Vector::new(0.0, 1.0, 0.0))
         .collision_groups(GREEN_GROUP);
-    let green_collider_handle =
-        world.insert_collider(green_floor, Some(floor_handle));
+    let green_collider_handle = world.insert_collider(green_floor, Some(floor_handle));
 
     testbed.set_initial_collider_color(green_collider_handle, BLUE);
 

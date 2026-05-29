@@ -5,9 +5,9 @@ pub use self::broad_phase_bvh::{BroadPhaseBvh, BvhOptimizationStrategy};
 pub use self::broad_phase_pair_event::{BroadPhasePairEvent, ColliderPair};
 #[cfg(feature = "alloc")]
 pub use self::collider::{Collider, ColliderBuilder};
-pub use self::collider_handle::ColliderHandle;
 #[cfg(feature = "alloc")]
 pub use self::collider_components::*;
+pub use self::collider_handle::ColliderHandle;
 #[cfg(feature = "alloc")]
 pub use self::collider_set::{ColliderSet, ModifiedColliders};
 #[cfg(feature = "alloc")]
@@ -243,9 +243,9 @@ pub(crate) fn default_persistent_query_dispatcher()
     alloc::sync::Arc::new(parry::query::DefaultQueryDispatcher)
 }
 
-mod collider_handle;
 #[cfg(feature = "alloc")]
 mod collider_components;
+mod collider_handle;
 #[cfg(feature = "alloc")]
 mod contact_pair;
 #[cfg(feature = "alloc")]

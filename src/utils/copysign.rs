@@ -3,10 +3,10 @@
 use crate::math::Real;
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
-#[cfg(feature = "simd-is-enabled")]
-use simba::simd::SimdRealField;
 #[cfg(not(target_arch = "spirv"))]
 use na::{Scalar, Vector2, Vector3};
+#[cfg(feature = "simd-is-enabled")]
+use simba::simd::SimdRealField;
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
 pub trait CopySign<Rhs>: Sized {

@@ -25,9 +25,11 @@ pub fn init_world(testbed: &mut Testbed) {
 
     // The robot can be inserted using impulse joints.
     // (We clone because we want to insert the same robot once more afterward.)
-    robot
-        .clone()
-        .insert_using_impulse_joints(&mut world.bodies, &mut world.colliders, &mut world.impulse_joints);
+    robot.clone().insert_using_impulse_joints(
+        &mut world.bodies,
+        &mut world.colliders,
+        &mut world.impulse_joints,
+    );
     // Insert the robot a second time, but using multibody joints this time.
     robot.append_transform(&Pose::translation(10.0, 0.0, 0.0));
     robot.insert_using_multibody_joints(

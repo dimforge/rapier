@@ -2,10 +2,10 @@
 
 #[cfg(feature = "dim3")]
 use crate::math::Matrix;
-#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
-use crate::math::SimdReal;
 #[cfg(not(target_arch = "spirv"))]
 use crate::math::Real;
+#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
+use crate::math::SimdReal;
 use crate::math::Vector;
 #[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
 use crate::num::Zero;

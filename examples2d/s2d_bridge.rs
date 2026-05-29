@@ -31,7 +31,11 @@ pub fn init_world(testbed: &mut Testbed) {
         let pivot = Vector::new(x_base + 1.0 * i as f32, 20.0);
         let joint = RevoluteJointBuilder::new()
             .local_anchor1(world.bodies[prev].position().inverse_transform_point(pivot))
-            .local_anchor2(world.bodies[handle].position().inverse_transform_point(pivot))
+            .local_anchor2(
+                world.bodies[handle]
+                    .position()
+                    .inverse_transform_point(pivot),
+            )
             .contacts_enabled(false);
         world.insert_impulse_joint(prev, handle, joint);
         prev = handle;
@@ -40,7 +44,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let pivot = Vector::new(x_base + 1.0 * count as f32, 20.0);
     let joint = RevoluteJointBuilder::new()
         .local_anchor1(world.bodies[prev].position().inverse_transform_point(pivot))
-        .local_anchor2(world.bodies[ground].position().inverse_transform_point(pivot))
+        .local_anchor2(
+            world.bodies[ground]
+                .position()
+                .inverse_transform_point(pivot),
+        )
         .contacts_enabled(false);
     world.insert_impulse_joint(prev, ground, joint);
 

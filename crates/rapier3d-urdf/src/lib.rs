@@ -460,12 +460,12 @@ impl UrdfRobot {
                     .colliders
                     .into_iter()
                     .map(|co| {
-                        let handle = collider_set.insert_with_parent(
-                            co.collider,
-                            body,
-                            rigid_body_set,
-                        );
-                        UrdfColliderHandle { handle, visual: co.visual }
+                        let handle =
+                            collider_set.insert_with_parent(co.collider, body, rigid_body_set);
+                        UrdfColliderHandle {
+                            handle,
+                            visual: co.visual,
+                        }
                     })
                     .collect();
                 UrdfLinkHandle { body, colliders }
@@ -511,12 +511,12 @@ impl UrdfRobot {
                     .colliders
                     .into_iter()
                     .map(|co| {
-                        let handle = collider_set.insert_with_parent(
-                            co.collider,
-                            body,
-                            rigid_body_set,
-                        );
-                        UrdfColliderHandle { handle, visual: co.visual }
+                        let handle =
+                            collider_set.insert_with_parent(co.collider, body, rigid_body_set);
+                        UrdfColliderHandle {
+                            handle,
+                            visual: co.visual,
+                        }
                     })
                     .collect();
                 UrdfLinkHandle { body, colliders }
@@ -746,8 +746,8 @@ fn urdf_to_joint(
 
     link2.set_position(pose1 * joint_to_parent, false);
 
-    let mut builder = GenericJointBuilder::new(locked_axes)
-        .contacts_enabled(options.enable_joint_collisions);
+    let mut builder =
+        GenericJointBuilder::new(locked_axes).contacts_enabled(options.enable_joint_collisions);
 
     if joint_axis != Vector::ZERO {
         // Build a single joint frame from the URDF joint axis and reuse it on both
@@ -943,9 +943,7 @@ fn squeeze_empty_fixed_links(robot: &mut Robot) -> HashSet<String> {
 
                     if !still_has_child {
                         robot.joints.remove(pj_idx);
-                        if let Some(li) =
-                            robot.links.iter().position(|l| &l.name == empty_name)
-                        {
+                        if let Some(li) = robot.links.iter().position(|l| &l.name == empty_name) {
                             robot.links.remove(li);
                         }
                         progressed = true;
@@ -967,14 +965,9 @@ fn squeeze_empty_fixed_links(robot: &mut Robot) -> HashSet<String> {
                             spliced_any = true;
                         }
                     }
-                    let still_has_child = robot
-                        .joints
-                        .iter()
-                        .any(|j| j.parent.link == *empty_name);
+                    let still_has_child = robot.joints.iter().any(|j| j.parent.link == *empty_name);
                     if !still_has_child {
-                        if let Some(li) =
-                            robot.links.iter().position(|l| &l.name == empty_name)
-                        {
+                        if let Some(li) = robot.links.iter().position(|l| &l.name == empty_name) {
                             robot.links.remove(li);
                         }
                         progressed = true;

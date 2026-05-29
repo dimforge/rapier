@@ -222,7 +222,8 @@ impl Multibody {
 
         // Adjust the ids of all the rhs links except the first one.
         for link in &mut rhs.links.0[1..] {
-            link.assembly_id = (link.assembly_id + ndofs_before_append + joint_ndofs) - rhs_root_ndofs;
+            link.assembly_id =
+                (link.assembly_id + ndofs_before_append + joint_ndofs) - rhs_root_ndofs;
             link.internal_id += base_internal_id;
             link.parent_internal_id += base_internal_id;
         }
@@ -598,8 +599,7 @@ impl Multibody {
         // Resize coriolis workspaces if the link count or number of DOFs change.
         let coriolis_ndofs = self.coriolis_v.first().map(|m| m.ncols());
         if self.coriolis_v.len() != self.links.len() || coriolis_ndofs != Some(self.ndofs) {
-            self.coriolis_v =
-                vec![OMatrix::<Real, Dim, Dyn>::zeros(self.ndofs); self.links.len()];
+            self.coriolis_v = vec![OMatrix::<Real, Dim, Dyn>::zeros(self.ndofs); self.links.len()];
             self.coriolis_w =
                 vec![OMatrix::<Real, AngDim, Dyn>::zeros(self.ndofs); self.links.len()];
             self.i_coriolis_dt = Jacobian::zeros(self.ndofs);
@@ -1026,8 +1026,7 @@ impl Multibody {
                 let parent_rb = &bodies[parent_link.rigid_body];
                 let link_rb = &bodies[link.rigid_body];
                 let c0 = parent_link.local_to_world * parent_rb.mprops.local_mprops.local_com;
-                let c2 =
-                    link.local_to_world * link.joint.data.local_frame2.translation;
+                let c2 = link.local_to_world * link.joint.data.local_frame2.translation;
                 let c3 = link.local_to_world * link_rb.mprops.local_mprops.local_com;
 
                 link.shift02 = c2 - c0;

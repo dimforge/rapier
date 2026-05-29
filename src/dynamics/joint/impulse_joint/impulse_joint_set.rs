@@ -6,7 +6,9 @@ use crate::geometry::{InteractionGraph, RigidBodyGraphIndex, TemporaryInteractio
 
 use crate::data::Coarena;
 use crate::data::arena::Arena;
-use crate::dynamics::{GenericJoint, ImpulseJointHandle, IslandManager, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{
+    GenericJoint, ImpulseJointHandle, IslandManager, RigidBodyHandle, RigidBodySet,
+};
 
 pub(crate) type JointIndex = usize;
 pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
@@ -430,9 +432,7 @@ impl ImpulseJointSet {
 
         joint.body1 = new_body1;
         joint.body2 = new_body2;
-        let new_edge_id = self
-            .joint_graph
-            .add_edge(graph_index1, graph_index2, joint);
+        let new_edge_id = self.joint_graph.add_edge(graph_index1, graph_index2, joint);
         self.joint_ids[handle.0] = new_edge_id;
 
         if wake_up {

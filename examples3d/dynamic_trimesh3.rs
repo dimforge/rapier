@@ -35,7 +35,10 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     let heightfield = HeightField::new(heights, Vector::new(100.0, 2.0, 100.0));
     let mut trimesh = TriMesh::from(heightfield);
     let _ = trimesh.set_flags(TriMeshFlags::FIX_INTERNAL_EDGES);
-    world.insert_collider(ColliderBuilder::new(SharedShape::new(trimesh.clone())), None);
+    world.insert_collider(
+        ColliderBuilder::new(SharedShape::new(trimesh.clone())),
+        None,
+    );
 
     /*
      * Create the convex decompositions.

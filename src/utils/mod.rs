@@ -44,9 +44,9 @@ pub(crate) use fp_flags::{DisableFloatingPointExceptionsFlags, FlushToZeroDenorm
 
 #[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;
-use crate::math::{Real, Vector};
 #[cfg(not(target_arch = "spirv"))]
 use crate::math::SimdVector;
+use crate::math::{Real, Vector};
 #[cfg(all(feature = "dim2", not(target_arch = "spirv")))]
 use na::Matrix2;
 #[cfg(all(feature = "dim3", not(target_arch = "spirv")))]

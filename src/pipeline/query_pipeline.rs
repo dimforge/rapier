@@ -6,7 +6,7 @@ use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 use parry::bounding_volume::BoundingVolume;
 use parry::partitioning::{Bvh, BvhNode};
 use parry::query::details::{NormalConstraints, ShapeCastOptions};
-use parry::query::{NonlinearRigidMotion, PointQuery, QueryDispatcher, RayCast, ShapeCastHit};
+use parry::query::{NonlinearRigidMotion, QueryDispatcher, RayCast, ShapeCastHit};
 use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCompositeShape};
 
 /// A query system for performing spatial queries on your physics world (raycasts, shape casts, intersections).
@@ -406,7 +406,8 @@ impl<'a> QueryPipeline<'a> {
         point: Vector,
         max_dist: Real,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
-        let (id, (proj, feat)) = CompositeShapeRef(self).project_local_point_and_get_feature(point, max_dist)?;
+        let (id, (proj, feat)) =
+            CompositeShapeRef(self).project_local_point_and_get_feature(point, max_dist)?;
         let handle = self.colliders.get_unknown_gen(id)?.1;
         Some((handle, proj, feat))
     }
@@ -823,7 +824,12 @@ mod test {
         let mut colliders = ColliderSet::new();
         let mut broad_phase = BroadPhaseBvh::new();
         let mut narrow_phase = NarrowPhase::new();
-        step(&mut bodies, &mut colliders, &mut broad_phase, &mut narrow_phase);
+        step(
+            &mut bodies,
+            &mut colliders,
+            &mut broad_phase,
+            &mut narrow_phase,
+        );
 
         let qp = broad_phase.as_query_pipeline(
             narrow_phase.query_dispatcher(),
@@ -832,7 +838,10 @@ mod test {
             QueryFilter::default(),
         );
         assert!(qp.project_point(Vector::ZERO, Real::MAX, true).is_none());
-        assert!(qp.project_point_and_get_feature(Vector::ZERO, Real::MAX).is_none());
+        assert!(
+            qp.project_point_and_get_feature(Vector::ZERO, Real::MAX)
+                .is_none()
+        );
     }
 
     /// Regression test for issue #923: when every collider is removed by the query
@@ -846,7 +855,12 @@ mod test {
 
         // A standalone (non-dynamic) collider.
         colliders.insert(ColliderBuilder::ball(1.0));
-        step(&mut bodies, &mut colliders, &mut broad_phase, &mut narrow_phase);
+        step(
+            &mut bodies,
+            &mut colliders,
+            &mut broad_phase,
+            &mut narrow_phase,
+        );
 
         // `only_dynamic` excludes the standalone collider, leaving nothing to project onto.
         let qp = broad_phase.as_query_pipeline(
@@ -856,7 +870,10 @@ mod test {
             QueryFilter::only_dynamic(),
         );
         assert!(qp.project_point(Vector::ZERO, Real::MAX, true).is_none());
-        assert!(qp.project_point_and_get_feature(Vector::ZERO, Real::MAX).is_none());
+        assert!(
+            qp.project_point_and_get_feature(Vector::ZERO, Real::MAX)
+                .is_none()
+        );
     }
 
     /// Regression test for issue #921: `project_point` must honor its `max_dist` parameter.
@@ -870,7 +887,12 @@ mod test {
         // A unit ball at the origin.
         let body = bodies.insert(RigidBodyBuilder::fixed());
         let handle = colliders.insert_with_parent(ColliderBuilder::ball(1.0), body, &mut bodies);
-        step(&mut bodies, &mut colliders, &mut broad_phase, &mut narrow_phase);
+        step(
+            &mut bodies,
+            &mut colliders,
+            &mut broad_phase,
+            &mut narrow_phase,
+        );
 
         let qp = broad_phase.as_query_pipeline(
             narrow_phase.query_dispatcher(),

@@ -2,9 +2,9 @@
 
 use crate::math::{Real, Vector};
 #[cfg(not(target_arch = "spirv"))]
-use simba::simd::SimdRealField;
-#[cfg(not(target_arch = "spirv"))]
 use na::{Vector2, Vector3};
+#[cfg(not(target_arch = "spirv"))]
+use simba::simd::SimdRealField;
 
 /// Trait for computing generalized cross products.
 pub trait CrossProduct<Rhs>: Sized {

@@ -1,8 +1,8 @@
 //! Data structures modified with guaranteed deterministic behavior after deserialization.
 
-pub use self::arena::Index;
 #[cfg(feature = "alloc")]
 pub use self::arena::Arena;
+pub use self::arena::Index;
 #[cfg(feature = "alloc")]
 pub use self::coarena::Coarena;
 #[cfg(feature = "alloc")]

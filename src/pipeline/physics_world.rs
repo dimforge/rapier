@@ -11,8 +11,6 @@ use crate::geometry::{
 #[cfg(feature = "std")]
 use crate::geometry::{CollisionEvent, ContactForceEvent};
 use crate::math::{Real, Vector};
-#[cfg(feature = "std")]
-use crate::pipeline::ChannelEventCollector;
 use crate::pipeline::{EventHandler, PhysicsHooks, PhysicsPipeline, QueryFilter, QueryPipeline};
 use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::partitioning::BvhNode;
@@ -135,11 +133,7 @@ impl PhysicsWorld {
     ///     println!("Collision event: {:?}", event);
     /// }
     /// ```
-    pub fn step_with_events(
-        &mut self,
-        hooks: &dyn PhysicsHooks,
-        events: &dyn EventHandler,
-    ) {
+    pub fn step_with_events(&mut self, hooks: &dyn PhysicsHooks, events: &dyn EventHandler) {
         self.physics_pipeline.step(
             self.gravity,
             &self.integration_parameters,
@@ -306,9 +300,7 @@ impl PhysicsWorld {
     ///
     /// Returns the removed joint data, or `None` if the handle was invalid.
     pub fn remove_impulse_joint(&mut self, handle: ImpulseJointHandle) -> Option<GenericJoint> {
-        self.impulse_joints
-            .remove(handle, true)
-            .map(|j| j.data)
+        self.impulse_joints.remove(handle, true).map(|j| j.data)
     }
 
     /// Iterate over every impulse joint in the world as `(handle, &joint)` pairs.
@@ -404,10 +396,7 @@ impl PhysicsWorld {
     }
 
     /// Get a [`QueryPipeline`] with a custom [`QueryFilter`].
-    pub fn query_pipeline_with_filter<'a>(
-        &'a self,
-        filter: QueryFilter<'a>,
-    ) -> QueryPipeline<'a> {
+    pub fn query_pipeline_with_filter<'a>(&'a self, filter: QueryFilter<'a>) -> QueryPipeline<'a> {
         self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
@@ -474,13 +463,14 @@ impl PhysicsWorld {
         stop_at_penetration: bool,
         filter: QueryFilter<'a>,
     ) -> Option<(ColliderHandle, ShapeCastHit)> {
-        self.query_pipeline_with_filter(filter).cast_shape_nonlinear(
-            shape_motion,
-            shape,
-            start_time,
-            end_time,
-            stop_at_penetration,
-        )
+        self.query_pipeline_with_filter(filter)
+            .cast_shape_nonlinear(
+                shape_motion,
+                shape,
+                start_time,
+                end_time,
+                stop_at_penetration,
+            )
     }
 
     /// Find the closest point on any collider to the given point.
@@ -531,12 +521,9 @@ impl PhysicsWorld {
             .filter_map(move |leaf| {
                 let (co, co_handle) = colliders.get_unknown_gen(leaf)?;
                 if filter.test(bodies, co_handle, co) {
-                    let intersection = co.shape.cast_ray_and_get_normal(
-                        co.position(),
-                        &ray,
-                        max_toi,
-                        solid,
-                    )?;
+                    let intersection =
+                        co.shape
+                            .cast_ray_and_get_normal(co.position(), &ray, max_toi, solid)?;
                     Some((co_handle, co, intersection))
                 } else {
                     None
@@ -750,9 +737,7 @@ impl PhysicsWorld {
     }
 
     /// Iterate over every rigid body in the world as `(handle, &mut body)` pairs.
-    pub fn rigid_bodies_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
+    pub fn rigid_bodies_mut(&mut self) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
         self.bodies.iter_mut()
     }
 
@@ -774,9 +759,7 @@ impl PhysicsWorld {
     }
 
     /// Iterate over every collider in the world as `(handle, &mut collider)` pairs.
-    pub fn all_colliders_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (ColliderHandle, &mut Collider)> {
+    pub fn all_colliders_mut(&mut self) -> impl Iterator<Item = (ColliderHandle, &mut Collider)> {
         self.colliders.iter_mut()
     }
 
@@ -787,7 +770,11 @@ impl PhysicsWorld {
     /// This is a convenience method that passes all the required state to the
     /// debug-render pipeline.
     #[cfg(feature = "debug-render")]
-    pub fn debug_render(&self, pipeline: &mut DebugRenderPipeline, backend: &mut impl DebugRenderBackend) {
+    pub fn debug_render(
+        &self,
+        pipeline: &mut DebugRenderPipeline,
+        backend: &mut impl DebugRenderBackend,
+    ) {
         pipeline.render(
             backend,
             &self.bodies,

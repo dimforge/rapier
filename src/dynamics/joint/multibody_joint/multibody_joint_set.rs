@@ -216,8 +216,7 @@ impl MultibodyJointSet {
                             .rb2mb
                             .remove(isolated_link.rigid_body.0, Default::default())
                             .unwrap();
-                        if let Some(other) =
-                            self.connectivity_graph.remove_node(isolated.graph_id)
+                        if let Some(other) = self.connectivity_graph.remove_node(isolated.graph_id)
                         {
                             // Update graph index due to the `remove_node` swap-remove.
                             self.rb2mb.get_mut(other.0).unwrap().graph_id = isolated.graph_id;

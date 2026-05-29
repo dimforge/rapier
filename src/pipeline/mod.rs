@@ -2,9 +2,9 @@
 
 #[cfg(feature = "alloc")]
 pub use collision_pipeline::CollisionPipeline;
+pub use event_handler::ActiveEvents;
 #[cfg(all(feature = "std", feature = "alloc"))]
 pub use event_handler::ChannelEventCollector;
-pub use event_handler::ActiveEvents;
 #[cfg(feature = "alloc")]
 pub use event_handler::EventHandler;
 pub use physics_hooks::ActiveHooks;

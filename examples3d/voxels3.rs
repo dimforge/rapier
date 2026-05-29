@@ -114,8 +114,7 @@ pub fn init_world(testbed: &mut Testbed) {
                     let body = RigidBodyBuilder::fixed().translation(Vector::new(x, y, z));
                     let mut shapes_iter = shapes.iter();
                     let first_shape = shapes_iter.next().unwrap();
-                    let (handle, _) =
-                        world.insert(body, ColliderBuilder::new(first_shape.clone()));
+                    let (handle, _) = world.insert(body, ColliderBuilder::new(first_shape.clone()));
 
                     for shape in shapes_iter {
                         let collider = ColliderBuilder::new(shape.clone());
