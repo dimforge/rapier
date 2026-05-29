@@ -183,8 +183,11 @@ fn discardvisual_drops_visual_geoms() {
       </worldbody>
     </mujoco>
     "#;
-    let mut opts = MjcfLoaderOptions::default();
-    opts.create_colliders_from_visual_shapes = true; // would normally accept it
+    // create_colliders_from_visual_shapes would normally accept the visual geom.
+    let opts = MjcfLoaderOptions {
+        create_colliders_from_visual_shapes: true,
+        ..Default::default()
+    };
     let (robot, _) = MjcfRobot::from_str(xml, opts, ".").unwrap();
     // discardvisual=true should still drop the visual geom even though
     // create_colliders_from_visual_shapes is on.

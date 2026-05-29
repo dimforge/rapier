@@ -127,9 +127,7 @@ pub struct MjcfActuatorBinding {
 }
 
 /// `<sensor>` definition resolved against the rapier handles. The simulation
-/// itself is up to the user — call
-/// [`MjcfRobotHandles::read_sensor`](super::MjcfRobotHandles::read_sensor) /
-/// [`MjcfRobot::read_sensor`] to query.
+/// itself is up to the user — call [`MjcfRobot::read_sensor`] to query.
 #[derive(Clone, Debug)]
 pub struct MjcfSensorBinding {
     /// Original sensor metadata.

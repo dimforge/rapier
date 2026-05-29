@@ -73,7 +73,7 @@ fn equality_weld_keeps_bodies_rigidly_attached() {
     // Step a few times — the bodies should remain in roughly the same
     // relative position despite gravity.
     step_n(&mut bodies, &mut colliders, &mut impulse_joints, 50, &());
-    let a = bodies.iter().nth(0).map(|(_, b)| b.translation()).unwrap();
+    let a = bodies.iter().next().map(|(_, b)| b.translation()).unwrap();
     let b_ = bodies.iter().nth(1).map(|(_, b)| b.translation()).unwrap();
     let delta = b_ - a;
     // Original separation was ~0.3 along x.

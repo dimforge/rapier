@@ -59,7 +59,7 @@ pub use types::*;
 /// `axisangle`, `euler`, `xyaxes`, `zaxis`) are all collapsed into the
 /// quaternion stored here by the loader.
 pub use glamx::DPose3 as Pose;
-/// Re-export of [`glam`](glamx::glam), the math library backing [`Pose`], so
+/// Re-export of [`glam`], the math library backing [`Pose`], so
 /// downstream crates can name [`glam::DQuat`]/[`glam::DVec3`] without taking a
 /// direct dependency on glam.
 pub use glamx::glam;
