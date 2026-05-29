@@ -85,10 +85,10 @@ pub fn init_world(testbed: &mut Testbed) {
         testbed.request_frame_all();
     }
 
-    if let Some((robot, body_handles)) = loaded {
-        if render_visual_meshes {
-            register_visual_meshes(testbed, &robot, &body_handles, render_visual_primitives);
-        }
+    if let Some((robot, body_handles)) = loaded
+        && render_visual_meshes
+    {
+        register_visual_meshes(testbed, &robot, &body_handles, render_visual_primitives);
     }
 
     testbed.set_colliders_visible(render_colliders);

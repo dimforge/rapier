@@ -18,6 +18,10 @@ extend-ignore-re = [
 [default.extend-identifiers]
 anc_color = "anc_color"
 rady = "rady"
+iit_softfoot = "iit_softfoot"
+FoV = "FoV"
+# Shepperd's method: named after S. W. Shepperd (quaternion extraction).
+Shepperd = "Shepperd"
 
 # Case insensitive, matches inside word.
 [default.extend-words]

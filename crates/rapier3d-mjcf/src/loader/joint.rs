@@ -19,23 +19,21 @@ impl<'a> Conversion<'a> {
         joint: &mb::Joint,
         prev_world_pose: MPose,
         cur_world_pose: MPose,
-        has_predecessor: bool,
     ) -> GenericJoint {
         let s = self.options.scale as f64;
         // The MJCF joint anchor is in the **child body's local frame**.
         // For multi-joint chains, only the first joint has the body's full
         // pose between the parent and child; subsequent joints sit at the
         // body frame's origin (the intermediate bodies are at the body's
-        // world pose).
+        // world pose). That distinction is captured by the caller through
+        // `prev_world_pose` (the parent pose for the first joint, the body
+        // pose afterwards), so the world-space anchor is computed the same
+        // way regardless of position in the chain.
         let anchor_in_child = MPose {
             pos: [joint.pos[0] * s, joint.pos[1] * s, joint.pos[2] * s],
             quat: [1.0, 0.0, 0.0, 0.0],
         };
-        let anchor_world = if has_predecessor {
-            mp::pose_mul(cur_world_pose, anchor_in_child)
-        } else {
-            mp::pose_mul(cur_world_pose, anchor_in_child)
-        };
+        let anchor_world = mp::pose_mul(cur_world_pose, anchor_in_child);
         let local1 = mp::pose_mul(invert_pose(prev_world_pose), anchor_world);
         let local2 = anchor_in_child;
 
@@ -80,27 +78,25 @@ impl<'a> Conversion<'a> {
         let limited = joint
             .limited
             .resolve(self.model.compiler.autolimits, joint.range.is_some());
-        if limited {
-            if let Some(r) = joint.range {
-                let s_lin = self.options.scale;
-                let ref_ = joint.ref_ as Real;
-                let ref_lin = ref_ * s_lin;
-                match joint.type_ {
-                    mb::JointType::Hinge => {
-                        builder = builder
-                            .limits(JointAxis::AngX, [r[0] as Real - ref_, r[1] as Real - ref_]);
-                    }
-                    mb::JointType::Slide => {
-                        builder = builder.limits(
-                            JointAxis::LinX,
-                            [
-                                r[0] as Real * s_lin - ref_lin,
-                                r[1] as Real * s_lin - ref_lin,
-                            ],
-                        );
-                    }
-                    _ => {}
+        if limited && let Some(r) = joint.range {
+            let s_lin = self.options.scale;
+            let ref_ = joint.ref_ as Real;
+            let ref_lin = ref_ * s_lin;
+            match joint.type_ {
+                mb::JointType::Hinge => {
+                    builder =
+                        builder.limits(JointAxis::AngX, [r[0] as Real - ref_, r[1] as Real - ref_]);
                 }
+                mb::JointType::Slide => {
+                    builder = builder.limits(
+                        JointAxis::LinX,
+                        [
+                            r[0] as Real * s_lin - ref_lin,
+                            r[1] as Real * s_lin - ref_lin,
+                        ],
+                    );
+                }
+                _ => {}
             }
         }
 

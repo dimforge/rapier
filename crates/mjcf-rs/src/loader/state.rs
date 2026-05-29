@@ -68,10 +68,10 @@ impl ParseState {
                 root.tag_name().name()
             )));
         }
-        if let Some(name) = root.attribute("model") {
-            if self.model.name.is_none() {
-                self.model.name = Some(name.to_string());
-            }
+        if let Some(name) = root.attribute("model")
+            && self.model.name.is_none()
+        {
+            self.model.name = Some(name.to_string());
         }
         self.process_root_children(root)?;
         Ok(())
@@ -168,10 +168,10 @@ impl ParseState {
             });
         }
         // Adopt model name if absent.
-        if let Some(name) = inc_root.attribute("model") {
-            if self.model.name.is_none() {
-                self.model.name = Some(name.to_string());
-            }
+        if let Some(name) = inc_root.attribute("model")
+            && self.model.name.is_none()
+        {
+            self.model.name = Some(name.to_string());
         }
         // Process the included file's top-level children just like we do
         // for the main file. Defaults / assets / etc. all merge.

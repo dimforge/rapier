@@ -263,12 +263,7 @@ impl<'a> Conversion<'a> {
             // final body's world pose — they're mass-less spacers, and the
             // joint's pos/axis encodes the geometric DoF.
             let cur_world_pose = body_world_pose;
-            let joint = self.build_serial_joint(
-                j,
-                prev_world_pose,
-                cur_world_pose,
-                /*has_predecessor=*/ idx > 0,
-            );
+            let joint = self.build_serial_joint(j, prev_world_pose, cur_world_pose);
             // Per-DoF damping: applied uniformly across the joint's free
             // DoFs. The `disable_joint_motors` option intentionally does
             // NOT affect this — per-DoF damping is not a motor, it's a
@@ -311,7 +306,7 @@ impl<'a> Conversion<'a> {
         } else {
             None
         };
-        if let Some(mp_) = derived_mp.clone() {
+        if let Some(mp_) = derived_mp {
             builder = builder.additional_mass_properties(mp_);
         }
         let mut body = builder.build();
@@ -471,10 +466,10 @@ impl<'a> Conversion<'a> {
 
     fn lookup_tables(&mut self) {
         for (i, b) in self.robot.bodies.iter().enumerate() {
-            if !b.is_intermediate {
-                if let Some(name) = &b.name {
-                    self.robot.body_name_to_idx.insert(name.clone(), i);
-                }
+            if !b.is_intermediate
+                && let Some(name) = &b.name
+            {
+                self.robot.body_name_to_idx.insert(name.clone(), i);
             }
         }
         // Geoms keyed against the actual rapier collider index in each body.

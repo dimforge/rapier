@@ -339,10 +339,10 @@ impl ParseState {
         let mut acc = JointPrototype::default();
         // Walk from the most-general (main) to the most-specific.
         for c in self.class_chain(class).into_iter().rev() {
-            if let Some(d) = self.defaults.get(&c) {
-                if let Some(p) = &d.joint {
-                    acc = merge_joint_proto(Some(acc), p.clone());
-                }
+            if let Some(d) = self.defaults.get(&c)
+                && let Some(p) = &d.joint
+            {
+                acc = merge_joint_proto(Some(acc), p.clone());
             }
         }
         acc
@@ -351,10 +351,10 @@ impl ParseState {
     pub(super) fn merged_geom_proto(&self, class: Option<&str>) -> GeomPrototype {
         let mut acc = GeomPrototype::default();
         for c in self.class_chain(class).into_iter().rev() {
-            if let Some(d) = self.defaults.get(&c) {
-                if let Some(p) = &d.geom {
-                    acc = merge_geom_proto(Some(acc), p.clone());
-                }
+            if let Some(d) = self.defaults.get(&c)
+                && let Some(p) = &d.geom
+            {
+                acc = merge_geom_proto(Some(acc), p.clone());
             }
         }
         acc
@@ -363,10 +363,10 @@ impl ParseState {
     pub(super) fn merged_site_proto(&self, class: Option<&str>) -> SitePrototype {
         let mut acc = SitePrototype::default();
         for c in self.class_chain(class).into_iter().rev() {
-            if let Some(d) = self.defaults.get(&c) {
-                if let Some(p) = &d.site {
-                    acc = merge_site_proto(Some(acc), p.clone());
-                }
+            if let Some(d) = self.defaults.get(&c)
+                && let Some(p) = &d.site
+            {
+                acc = merge_site_proto(Some(acc), p.clone());
             }
         }
         acc
@@ -375,10 +375,10 @@ impl ParseState {
     pub(super) fn merged_mesh_proto(&self, class: Option<&str>) -> MeshPrototype {
         let mut acc = MeshPrototype::default();
         for c in self.class_chain(class).into_iter().rev() {
-            if let Some(d) = self.defaults.get(&c) {
-                if let Some(p) = &d.mesh {
-                    acc = merge_mesh_proto(Some(acc), p.clone());
-                }
+            if let Some(d) = self.defaults.get(&c)
+                && let Some(p) = &d.mesh
+            {
+                acc = merge_mesh_proto(Some(acc), p.clone());
             }
         }
         acc
@@ -414,10 +414,10 @@ impl ParseState {
     pub(super) fn merged_pair_proto(&self, class: Option<&str>) -> PairPrototype {
         let mut acc = PairPrototype::default();
         for c in self.class_chain(class).into_iter().rev() {
-            if let Some(d) = self.defaults.get(&c) {
-                if let Some(p) = &d.pair {
-                    acc = merge_pair_proto(Some(acc), p.clone());
-                }
+            if let Some(d) = self.defaults.get(&c)
+                && let Some(p) = &d.pair
+            {
+                acc = merge_pair_proto(Some(acc), p.clone());
             }
         }
         acc
@@ -426,10 +426,10 @@ impl ParseState {
     pub(super) fn merged_equality_proto(&self, class: Option<&str>) -> EqualityPrototype {
         let mut acc = EqualityPrototype::default();
         for c in self.class_chain(class).into_iter().rev() {
-            if let Some(d) = self.defaults.get(&c) {
-                if let Some(p) = &d.equality {
-                    acc = merge_equality_proto(Some(acc), p.clone());
-                }
+            if let Some(d) = self.defaults.get(&c)
+                && let Some(p) = &d.equality
+            {
+                acc = merge_equality_proto(Some(acc), p.clone());
             }
         }
         acc

@@ -146,8 +146,8 @@ impl MjcfRobot {
             let (Some(l1), Some(l2)) = (l1, l2) else {
                 joint_handles.push(MjcfJointHandle {
                     joint: None,
-                    link1: l1.unwrap_or_else(|| RigidBodyHandle::invalid()),
-                    link2: l2.unwrap_or_else(|| RigidBodyHandle::invalid()),
+                    link1: l1.unwrap_or_else(RigidBodyHandle::invalid),
+                    link2: l2.unwrap_or_else(RigidBodyHandle::invalid),
                 });
                 continue;
             };
@@ -179,10 +179,10 @@ impl MjcfRobot {
                 );
             }
             if let Some(h) = h {
-                if options.contains(MjcfMultibodyOptions::DISABLE_SELF_CONTACTS) {
-                    if let Some((mb, _)) = multibody_joints.get_mut(h) {
-                        mb.set_self_contacts_enabled(false);
-                    }
+                if options.contains(MjcfMultibodyOptions::DISABLE_SELF_CONTACTS)
+                    && let Some((mb, _)) = multibody_joints.get_mut(h)
+                {
+                    mb.set_self_contacts_enabled(false);
                 }
                 // Route MJCF `<joint damping>` through the multibody's
                 // per-DoF damping (more numerically stable than motor
@@ -226,7 +226,7 @@ impl MjcfRobot {
                 joint: a
                     .joint_index
                     .and_then(|i| joint_handles.get(i))
-                    .map(|jh| jh.joint.clone()),
+                    .map(|jh| jh.joint),
             })
             .collect();
         MjcfRobotHandles {

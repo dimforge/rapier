@@ -87,7 +87,7 @@ impl<'a> Conversion<'a> {
                 // a 90° rotation around X.
                 let rot = Pose::from_parts(
                     Vector::ZERO,
-                    Rotation::from_axis_angle(Vector::X, std::f32::consts::FRAC_PI_2 as Real),
+                    Rotation::from_axis_angle(Vector::X, std::f32::consts::FRAC_PI_2),
                 );
                 Some((SharedShape::cylinder(half, r), rot))
             }
@@ -206,7 +206,7 @@ impl<'a> Conversion<'a> {
             // matter what the compiler / options say. Non-convex
             // visuals would otherwise render as their hull, and the
             // hull computation itself can fail on degenerate visual
-            // geometry (coplanar / colinear vertex sets).
+            // geometry (coplanar / collinear vertex sets).
             //
             // Also: use *empty* flags here, not `self.options.trimesh_flags`.
             // The default flags include `MERGE_DUPLICATE_VERTICES`, which
@@ -218,13 +218,13 @@ impl<'a> Conversion<'a> {
             // uniformly.
             MeshConverter::TriMeshWithFlags(rapier3d::geometry::TriMeshFlags::empty())
         } else {
-            self.options.mesh_converter.clone().unwrap_or_else(|| {
-                if self.model.compiler.convex_hull {
+            self.options
+                .mesh_converter
+                .unwrap_or(if self.model.compiler.convex_hull {
                     MeshConverter::ConvexHull
                 } else {
                     MeshConverter::TriMeshWithFlags(self.options.trimesh_flags)
-                }
-            })
+                })
         };
         let loaded = match rapier3d_meshloader::load_from_path(&path, &converter, scale) {
             Ok(v) => v,
@@ -237,22 +237,20 @@ impl<'a> Conversion<'a> {
                 return None;
             }
         };
-        // Take the first sub-mesh.
-        for m in loaded {
-            if let Ok(m) = m {
-                let uvs = if force_trimesh {
-                    Some(m.raw_mesh.texcoords[0].clone()).filter(|uvs| !uvs.is_empty())
-                } else {
-                    None
-                };
-                let diffuse_texture = m.material.texture.diffuse.clone();
-                return Some(LoadedMesh {
-                    shape: m.shape,
-                    pose: m.pose,
-                    uvs,
-                    diffuse_texture,
-                });
-            }
+        // Take the first successfully-loaded sub-mesh.
+        if let Some(m) = loaded.into_iter().flatten().next() {
+            let uvs = if force_trimesh {
+                Some(m.raw_mesh.texcoords[0].clone()).filter(|uvs| !uvs.is_empty())
+            } else {
+                None
+            };
+            let diffuse_texture = m.material.texture.diffuse.clone();
+            return Some(LoadedMesh {
+                shape: m.shape,
+                pose: m.pose,
+                uvs,
+                diffuse_texture,
+            });
         }
         log::warn!(
             "<geom name={:?} mesh=\"{asset_name}\" file=\"{}\">: file loaded but no usable sub-mesh could be produced; skipping",

@@ -239,7 +239,13 @@ impl Testbed<'_> {
         // (which reads `state.up_axis`) and the orbit camera stay in
         // sync. Stored normalized — magnitude is meaningless for an
         // axis and the camera normalizes too.
-        self.state.up_axis = up_axis.normalize();
+        // `up_axis` is an `f32` `Vec3` (matching the camera); the stored
+        // axis uses the math `Vector`, which is `DVec3` in double-precision
+        // builds. The conversion is a no-op when `Real` is `f32`.
+        #[allow(clippy::useless_conversion)]
+        {
+            self.state.up_axis = up_axis.normalize().into();
+        }
         if !self.state.camera_locked
             && let Some(graphics) = &mut self.graphics
         {

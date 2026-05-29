@@ -30,8 +30,7 @@ impl<'a> Conversion<'a> {
         let auto_geom = self.model.compiler.inertia_from_geom == InertiaFromGeom::Auto
             && entry.body.inertial.is_none();
         let mut mp = if force_geom || auto_geom {
-            self.geoms_to_mass_props(entry)
-                .or_else(|| from_inertial.clone())
+            self.geoms_to_mass_props(entry).or(from_inertial)
         } else {
             from_inertial
         };
@@ -68,7 +67,7 @@ impl<'a> Conversion<'a> {
                 arm * a.y * a.z,
                 arm * a.z * a.z,
             ]);
-            let cur = mp.clone().unwrap_or_default();
+            let cur = mp.unwrap_or_default();
             let cur_inertia = cur.reconstruct_inertia_matrix();
             let new_inertia = cur_inertia + extra;
             mp = Some(MassProperties::with_inertia_matrix(

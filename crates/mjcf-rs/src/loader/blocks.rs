@@ -24,12 +24,14 @@ impl ParseState {
                 "pair" => {
                     let class = child.attribute("class").map(|s| s.to_string());
                     let proto = self.merged_pair_proto(class.as_deref());
-                    let mut p = ContactPair::default();
-                    p.class = class;
-                    p.condim = proto.condim;
-                    p.friction = proto.friction;
-                    p.margin = proto.margin;
-                    p.gap = proto.gap;
+                    let mut p = ContactPair {
+                        class,
+                        condim: proto.condim,
+                        friction: proto.friction,
+                        margin: proto.margin,
+                        gap: proto.gap,
+                        ..Default::default()
+                    };
                     for attr in child.attributes() {
                         match attr.name() {
                             "name" => p.name = Some(attr.value().to_string()),
@@ -68,9 +70,11 @@ impl ParseState {
             let tag = child.tag_name().name();
             let class = child.attribute("class").map(|s| s.to_string());
             let proto = self.merged_equality_proto(class.as_deref());
-            let mut common = EqualityCommon::default();
-            common.class = class;
-            common.active = proto.active.unwrap_or(true);
+            let mut common = EqualityCommon {
+                class,
+                active: proto.active.unwrap_or(true),
+                ..Default::default()
+            };
             for attr in child.attributes() {
                 match attr.name() {
                     "name" => common.name = Some(attr.value().to_string()),
@@ -153,20 +157,22 @@ impl ParseState {
             };
             let class = child.attribute("class").map(|s| s.to_string());
             let proto = self.merged_actuator_proto(kind, class.as_deref());
-            let mut a = Actuator::default();
-            a.kind = kind;
-            a.class = class;
-            a.gear = proto.gear.unwrap_or([1.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
-            a.ctrl_range = proto.ctrl_range;
-            a.force_range = proto.force_range;
-            a.ctrl_limited = proto.ctrl_limited.unwrap_or(Tristate::Auto);
-            a.force_limited = proto.force_limited.unwrap_or(Tristate::Auto);
-            a.gainprm = proto.gainprm.unwrap_or_default();
-            a.biasprm = proto.biasprm.unwrap_or_default();
-            a.dyn_type = proto.dyn_type.clone();
-            a.dynprm = proto.dynprm.unwrap_or_default();
-            a.kp = proto.kp;
-            a.kv = proto.kv;
+            let mut a = Actuator {
+                kind,
+                class,
+                gear: proto.gear.unwrap_or([1.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                ctrl_range: proto.ctrl_range,
+                force_range: proto.force_range,
+                ctrl_limited: proto.ctrl_limited.unwrap_or(Tristate::Auto),
+                force_limited: proto.force_limited.unwrap_or(Tristate::Auto),
+                gainprm: proto.gainprm.unwrap_or_default(),
+                biasprm: proto.biasprm.unwrap_or_default(),
+                dyn_type: proto.dyn_type.clone(),
+                dynprm: proto.dynprm.unwrap_or_default(),
+                kp: proto.kp,
+                kv: proto.kv,
+                ..Default::default()
+            };
             for attr in child.attributes() {
                 match attr.name() {
                     "name" => a.name = Some(attr.value().to_string()),
@@ -202,8 +208,10 @@ impl ParseState {
                 self.parse_include(child, true)?;
                 continue;
             }
-            let mut s = Sensor::default();
-            s.kind = tag.to_string();
+            let mut s = Sensor {
+                kind: tag.to_string(),
+                ..Default::default()
+            };
             for attr in child.attributes() {
                 match attr.name() {
                     "name" => s.name = Some(attr.value().to_string()),

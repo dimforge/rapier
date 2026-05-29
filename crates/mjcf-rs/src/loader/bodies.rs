@@ -120,9 +120,11 @@ impl ParseState {
                     self.model.bodies[id].body.joints.push(j);
                 }
                 "freejoint" => {
-                    let mut j = Joint::default();
-                    j.type_ = JointType::Free;
-                    j.name = child.attribute("name").map(|s| s.to_string());
+                    let j = Joint {
+                        type_: JointType::Free,
+                        name: child.attribute("name").map(|s| s.to_string()),
+                        ..Default::default()
+                    };
                     self.model.bodies[id].body.joints.push(j);
                 }
                 "geom" => {
@@ -271,22 +273,24 @@ impl ParseState {
         let mut instance = self.parse_joint_prototype(node)?;
         instance = merge_joint_proto(Some(proto), instance);
 
-        let mut j = Joint::default();
-        j.name = node.attribute("name").map(|s| s.to_string());
-        j.class = class;
-        j.type_ = instance.type_.unwrap_or(JointType::Hinge);
-        j.pos = instance.pos.unwrap_or([0.0; 3]);
-        j.axis = instance.axis.unwrap_or([0.0, 0.0, 1.0]);
-        j.limited = instance.limited.unwrap_or(Tristate::Auto);
-        j.range = instance.range;
-        j.stiffness = instance.stiffness.unwrap_or(0.0);
-        j.damping = instance.damping.unwrap_or(0.0);
-        j.springref = instance.springref.unwrap_or(0.0);
-        j.springdamper = instance.springdamper;
-        j.armature = instance.armature.unwrap_or(0.0);
-        j.frictionloss = instance.frictionloss.unwrap_or(0.0);
-        j.ref_ = instance.ref_.unwrap_or(0.0);
-        j.margin = instance.margin.unwrap_or(0.0);
+        let mut j = Joint {
+            name: node.attribute("name").map(|s| s.to_string()),
+            class,
+            type_: instance.type_.unwrap_or(JointType::Hinge),
+            pos: instance.pos.unwrap_or([0.0; 3]),
+            axis: instance.axis.unwrap_or([0.0, 0.0, 1.0]),
+            limited: instance.limited.unwrap_or(Tristate::Auto),
+            range: instance.range,
+            stiffness: instance.stiffness.unwrap_or(0.0),
+            damping: instance.damping.unwrap_or(0.0),
+            springref: instance.springref.unwrap_or(0.0),
+            springdamper: instance.springdamper,
+            armature: instance.armature.unwrap_or(0.0),
+            frictionloss: instance.frictionloss.unwrap_or(0.0),
+            ref_: instance.ref_.unwrap_or(0.0),
+            margin: instance.margin.unwrap_or(0.0),
+            ..Default::default()
+        };
 
         // Convert hinge angle units from degrees if needed.
         if matches!(j.type_, JointType::Hinge) && self.model.compiler.angle_is_degree {
@@ -313,32 +317,34 @@ impl ParseState {
         let mut instance = self.parse_geom_prototype(node)?;
         instance = merge_geom_proto(Some(proto), instance);
 
-        let mut g = Geom::default();
-        g.name = node.attribute("name").map(|s| s.to_string());
-        g.class = class;
-        g.type_ = instance.type_.unwrap_or(GeomType::Sphere);
-        g.size = instance.size.unwrap_or([0.0, 0.0, 0.0]);
-        g.pose = instance.pose.unwrap_or_default();
-        g.fromto = instance.fromto;
-        g.friction = instance.friction.unwrap_or([1.0, 0.005, 0.0001]);
-        g.mass = instance.mass;
-        g.density = instance.density;
-        g.margin = instance.margin.unwrap_or(0.0);
-        g.contype = instance.contype.unwrap_or(1);
-        g.conaffinity = instance.conaffinity.unwrap_or(1);
-        g.condim = instance.condim.unwrap_or(3);
-        g.group = instance.group.unwrap_or(0);
-        g.priority = instance.priority.unwrap_or(0);
-        g.rgba = instance.rgba;
-        g.material = instance.material.clone();
         // `instance.mesh` / `instance.hfield` already reflect the
         // class-default chain (the prototype merge stored anything the
         // `<default class="X"><geom mesh="…"/></default>` chain
         // provided). The geom's own `mesh=` / `hfield=` attributes were
         // merged in by `parse_geom_prototype` and override the
         // inherited values.
-        g.mesh = instance.mesh.clone();
-        g.hfield = instance.hfield.clone();
+        let mut g = Geom {
+            name: node.attribute("name").map(|s| s.to_string()),
+            class,
+            type_: instance.type_.unwrap_or(GeomType::Sphere),
+            size: instance.size.unwrap_or([0.0, 0.0, 0.0]),
+            pose: instance.pose.unwrap_or_default(),
+            fromto: instance.fromto,
+            friction: instance.friction.unwrap_or([1.0, 0.005, 0.0001]),
+            mass: instance.mass,
+            density: instance.density,
+            margin: instance.margin.unwrap_or(0.0),
+            contype: instance.contype.unwrap_or(1),
+            conaffinity: instance.conaffinity.unwrap_or(1),
+            condim: instance.condim.unwrap_or(3),
+            group: instance.group.unwrap_or(0),
+            priority: instance.priority.unwrap_or(0),
+            rgba: instance.rgba,
+            material: instance.material.clone(),
+            mesh: instance.mesh.clone(),
+            hfield: instance.hfield.clone(),
+            ..Default::default()
+        };
 
         for attr in node.attributes() {
             if attr.name() == "user" {

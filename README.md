@@ -53,7 +53,7 @@ The easiest way to get started with Rapier is to:
 
 AI coding is extensively used for the implementation and maintenance of the following crates: `mjcf-rs`, `rapier3d-mjcf`.
 
-We actively use AI assistance (with human reviews) for the folowing tasks:
+We actively use AI assistance (with human reviews) for the following tasks:
     - Documentation generation.
     - Changelogs generation.
     - Tests generation.
@@ -62,7 +62,7 @@ We actively use AI assistance (with human reviews) for the folowing tasks:
 We accept contributions involving AI coding as long as:
     - They are verified to work properly by a human.
     - The code quality is up to human-written code standards.
-    - Include a non-regression test (which itself can be AI-generated).
+    - Include non-regression tests whenever applicable (which itself can be AI-generated).
 
 ## Resources and discussions
 

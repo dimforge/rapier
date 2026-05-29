@@ -24,13 +24,15 @@ impl ParseState {
                 "mesh" => {
                     let class = child.attribute("class").map(|s| s.to_string());
                     let proto = self.merged_mesh_proto(class.as_deref());
-                    let mut m = Mesh::default();
-                    m.class = class;
-                    m.scale = proto.scale.unwrap_or([1.0, 1.0, 1.0]);
-                    m.inertia = proto.inertia.unwrap_or_default();
-                    m.refpose = proto.refpose.unwrap_or_default();
-                    m.max_hull_vert = proto.max_hull_vert;
-                    m.smoothnormal = proto.smoothnormal.unwrap_or(0.0);
+                    let mut m = Mesh {
+                        class,
+                        scale: proto.scale.unwrap_or([1.0, 1.0, 1.0]),
+                        inertia: proto.inertia.unwrap_or_default(),
+                        refpose: proto.refpose.unwrap_or_default(),
+                        max_hull_vert: proto.max_hull_vert,
+                        smoothnormal: proto.smoothnormal.unwrap_or(0.0),
+                        ..Default::default()
+                    };
                     let mut pose_pos = None;
                     let mut pose_rot = None;
                     for attr in child.attributes() {

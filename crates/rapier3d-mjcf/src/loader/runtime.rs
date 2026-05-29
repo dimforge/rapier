@@ -179,10 +179,10 @@ impl<H> MjcfRobotHandles<H> {
             } else {
                 Rotation::IDENTITY
             };
-            if let Some(handle) = self.bodies.get(*idx).and_then(|b| b.as_ref()) {
-                if let Some(rb) = bodies.get_mut(handle.body) {
-                    rb.set_position(Pose::from_parts(pos, q), true);
-                }
+            if let Some(handle) = self.bodies.get(*idx).and_then(|b| b.as_ref())
+                && let Some(rb) = bodies.get_mut(handle.body)
+            {
+                rb.set_position(Pose::from_parts(pos, q), true);
             }
         }
     }

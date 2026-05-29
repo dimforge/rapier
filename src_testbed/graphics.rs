@@ -211,44 +211,55 @@ impl GraphicsManager {
         uvs: Option<&[[f32; 2]]>,
         texture: Option<&Path>,
     ) {
-        let textured = uvs.is_some() && texture.is_some();
-        let mut node = if textured && matches!(shape.shape_type(), ShapeType::TriMesh) {
-            // Build the kiss3d mesh ourselves so we can plumb UVs in;
-            // the standard `create_individual_node` path doesn't carry
-            // them through.
-            //
-            // OBJ stores UV `v=0` at the *bottom* of the image while
-            // wgpu samples textures from the top — flip `v` so the
-            // texture lands the right way up.
-            let trimesh = shape.as_trimesh().unwrap();
-            let uvs_vec: Vec<Vec2> = uvs
-                .unwrap()
-                .iter()
-                .map(|uv| Vec2::new(uv[0], 1.0 - uv[1]))
-                .collect();
-            // If the UV count doesn't match the vertex count we drop
-            // the UVs — `replicate_vertices` would otherwise panic.
-            let uvs_opt = if uvs_vec.len() == trimesh.vertices().len() {
-                Some(uvs_vec)
+        // Plumbing per-vertex UVs into a custom kiss3d mesh is only
+        // supported in 3D; 2D always uses the standard node path.
+        #[cfg(feature = "dim3")]
+        let mut node = {
+            let textured = uvs.is_some() && texture.is_some();
+            if textured && matches!(shape.shape_type(), ShapeType::TriMesh) {
+                // Build the kiss3d mesh ourselves so we can plumb UVs in;
+                // the standard `create_individual_node` path doesn't carry
+                // them through.
+                //
+                // OBJ stores UV `v=0` at the *bottom* of the image while
+                // wgpu samples textures from the top — flip `v` so the
+                // texture lands the right way up.
+                let trimesh = shape.as_trimesh().unwrap();
+                let uvs_vec: Vec<Vec2> = uvs
+                    .unwrap()
+                    .iter()
+                    .map(|uv| Vec2::new(uv[0], 1.0 - uv[1]))
+                    .collect();
+                // If the UV count doesn't match the vertex count we drop
+                // the UVs — `replicate_vertices` would otherwise panic.
+                let uvs_opt = if uvs_vec.len() == trimesh.vertices().len() {
+                    Some(uvs_vec)
+                } else {
+                    None
+                };
+                let vtx: Vec<Vec3> = trimesh
+                    .vertices()
+                    .iter()
+                    .map(|pt| Vec3::new(pt.x as f32, pt.y as f32, pt.z as f32))
+                    .collect();
+                let idx = trimesh.indices().to_vec();
+                let mut mesh = kiss3d::procedural::RenderMesh::new(
+                    vtx,
+                    None,
+                    uvs_opt,
+                    Some(kiss3d::procedural::IndexBuffer::Unified(idx)),
+                );
+                mesh.replicate_vertices();
+                mesh.recompute_normals();
+                Some(self.scene.add_render_mesh(mesh, Vec3::ONE))
             } else {
-                None
-            };
-            let vtx: Vec<Vec3> = trimesh
-                .vertices()
-                .iter()
-                .map(|pt| Vec3::new(pt.x as f32, pt.y as f32, pt.z as f32))
-                .collect();
-            let idx = trimesh.indices().to_vec();
-            let mut mesh = kiss3d::procedural::RenderMesh::new(
-                vtx,
-                None,
-                uvs_opt,
-                Some(kiss3d::procedural::IndexBuffer::Unified(idx)),
-            );
-            mesh.replicate_vertices();
-            mesh.recompute_normals();
-            Some(self.scene.add_render_mesh(mesh, Vec3::ONE))
-        } else {
+                Self::create_individual_node(&mut self.scene, &**shape, color, false)
+            }
+        };
+        #[cfg(feature = "dim2")]
+        let mut node = {
+            // Custom UV plumbing is unsupported in 2D; ignore `uvs`.
+            let _ = uvs;
             Self::create_individual_node(&mut self.scene, &**shape, color, false)
         };
 

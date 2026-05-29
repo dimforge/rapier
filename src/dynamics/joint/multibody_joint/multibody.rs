@@ -491,7 +491,7 @@ impl Multibody {
 
     /// Computes the constant terms of the dynamics.
     #[profiling::function]
-    pub(crate) fn update_velocities(&mut self, dt: Real, bodies: &mut RigidBodySet) {
+    pub(crate) fn update_velocities(&mut self, bodies: &mut RigidBodySet) {
         /*
          * Compute velocities.
          * NOTE: this is needed for kinematic bodies too.
