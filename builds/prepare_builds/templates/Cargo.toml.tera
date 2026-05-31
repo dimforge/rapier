@@ -38,7 +38,7 @@ rapier{{ dimension }}d = { version = "0.30.1", features = [
 # The explicit dependency to parry only needed to pin the patch version.
 parry{{ dimension }}d = { version = "^0.25.3" }
 ref-cast = "1"
-wasm-bindgen = "0.2.100"
+wasm-bindgen = "0.2.109"
 js-sys = "0.3"
 nalgebra = "0.34"
 serde = { version = "1", features = ["derive", "rc"] }
