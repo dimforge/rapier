@@ -210,6 +210,48 @@ export class ImpulseJoint {
         rawPoint.free();
     }
 
+    // #if DIM3
+    /**
+     * Sets the rotation quaternion that aligns this joint's first local axis to the `x` axis.
+     */
+    public setFrameX1(rot: Rotation) {
+        const rawRot = RotationOps.intoRaw(rot);
+        this.rawSet.jointSetFrameX1(this.handle, rawRot);
+        rawRot.free();
+    }
+
+    /**
+     * Sets the rotation quaternion that aligns this joint's second local axis to the `x` axis.
+     */
+    public setFrameX2(rot: Rotation) {
+        const rawRot = RotationOps.intoRaw(rot);
+        this.rawSet.jointSetFrameX2(this.handle, rawRot);
+        rawRot.free();
+    }
+
+    /**
+     * Sets the full local frame (anchor position and rotation) for the first rigid-body attachment.
+     */
+    public setLocalFrame1(anchor: Vector, rot: Rotation) {
+        const rawAnchor = VectorOps.intoRaw(anchor);
+        const rawRot = RotationOps.intoRaw(rot);
+        this.rawSet.jointSetLocalFrame1(this.handle, rawAnchor, rawRot);
+        rawAnchor.free();
+        rawRot.free();
+    }
+
+    /**
+     * Sets the full local frame (anchor position and rotation) for the second rigid-body attachment.
+     */
+    public setLocalFrame2(anchor: Vector, rot: Rotation) {
+        const rawAnchor = VectorOps.intoRaw(anchor);
+        const rawRot = RotationOps.intoRaw(rot);
+        this.rawSet.jointSetLocalFrame2(this.handle, rawAnchor, rawRot);
+        rawAnchor.free();
+        rawRot.free();
+    }
+    // #endif
+
     /**
      * Controls whether contacts are computed between colliders attached
      * to the rigid-bodies linked by this joint.
