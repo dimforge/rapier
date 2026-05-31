@@ -17,8 +17,10 @@ name: Python wheels
 # change or registry-based engine deps).
 on:
   push:
+    branches: [master]
     tags: ["python-v*"]
   pull_request:
+    branches: [master]
     paths:
       - "python/**"
       - ".github/workflows/python-wheels.yml"
