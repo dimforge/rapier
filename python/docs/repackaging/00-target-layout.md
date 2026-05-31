@@ -78,7 +78,7 @@ Documented in Phase 5; no separate `-determinism` dist for now.
 | `from rapier import dim2`           | `import rapier2d`             |
 | `from rapier.dim3 import f64`       | `import rapier3d_f64`        |
 | `from rapier.dim2 import f64`       | `import rapier2d_f64`        |
-| `rapier.RapierError` (cross-flavor) | per-package `rapierNd.RapierError` |
+| `rapier.RapierError` (cross-flavor) | per-package `rapier{2,3}d.RapierError` |
 
 There is no longer a single exception base shared across flavors; each package
 exposes its own `RapierError` tree. Note this prominently in the changelog.

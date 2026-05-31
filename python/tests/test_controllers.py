@@ -418,7 +418,12 @@ def test_vehicle_brakes_decelerate(ns):
         w.step()
         w.update_query_pipeline()
         veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
-    forward_before = abs(w.rigid_bodies[h].linvel.x)
+    # Use the controller's forward speed (along the chassis axis), not the
+    # world-space `linvel.x`: the vehicle's heading drifts during the run, and
+    # how much it drifts is not bit-reproducible across architectures (x86_64
+    # vs aarch64). `current_vehicle_speed` is the heading-independent measure of
+    # "how fast is it going forward", so the brake check is robust everywhere.
+    forward_before = abs(veh.current_vehicle_speed)
     assert forward_before > 0.1, f"vehicle never accelerated ({forward_before})"
 
     # Brake.
@@ -430,7 +435,7 @@ def test_vehicle_brakes_decelerate(ns):
         w.step()
         w.update_query_pipeline()
         veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
-    forward_after = abs(w.rigid_bodies[h].linvel.x)
+    forward_after = abs(veh.current_vehicle_speed)
     assert forward_after < forward_before, (
         f"brakes did not slow the vehicle (before={forward_before}, after={forward_after})"
     )

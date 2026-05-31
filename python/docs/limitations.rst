@@ -21,7 +21,7 @@ Snapshot blobs are not flavor-tagged
 :meth:`rapier3d.PhysicsWorld.snapshot` emits a bincode blob with a
 ``b"RPYS"`` magic prefix and a u32 version, but **not** a
 ``(dim, scalar)`` tag. Restoring an f32 snapshot through
-``rapier3d_f64.PhysicsWorld.restore(...)`` will silently mis-decode
+``rapier3d_f64.PhysicsWorld.restore(...)`` will silently misinterpret
 the floats. Always restore through the same flavor that snapshotted.
 
 ``rapier-py-3d-f64`` lacks URDF / mesh loaders

@@ -33,5 +33,5 @@ Flavor-tagging caveat
 
 Snapshots are **not** tagged with the ``(dim, scalar)`` flavor that
 produced them. Restoring an f32 snapshot through
-``rapier3d_f64.PhysicsWorld.restore(...)`` will silently mis-decode
+``rapier3d_f64.PhysicsWorld.restore(...)`` will silently misinterpret
 the floats. See :doc:`../limitations` for the long version.
