@@ -54,8 +54,11 @@ impl<'a> TestbedGraphics<'a> {
     /// pose offset by `local_pose` and does not participate in physics.
     ///
     /// `uvs` is an optional per-vertex UV buffer (used only when the
-    /// shape is a `TriMesh` *and* `texture` is also set). `texture` is
-    /// an optional path to a 2D color image to apply.
+    /// shape is a `TriMesh` *and* `texture` is also set). `normals` is an
+    /// optional per-vertex normal buffer parallel to the shape's vertices;
+    /// when supplied the renderer uses it verbatim instead of recomputing
+    /// flat per-face normals. `texture` is an optional path to a 2D color
+    /// image to apply.
     pub fn add_body_render_mesh(
         &mut self,
         body: RigidBodyHandle,
@@ -63,6 +66,7 @@ impl<'a> TestbedGraphics<'a> {
         local_pose: rapier::math::Pose,
         color: Color,
         uvs: Option<&[[f32; 2]]>,
+        normals: Option<&[[f32; 3]]>,
         texture: Option<&std::path::Path>,
     ) {
         self.graphics.add_body_render_mesh(
@@ -72,6 +76,7 @@ impl<'a> TestbedGraphics<'a> {
             local_pose,
             color,
             uvs,
+            normals,
             texture,
         );
     }

@@ -259,6 +259,7 @@ fn register_visual_meshes(
                 vm.local_pose,
                 color,
                 vm.uvs.as_deref(),
+                vm.normals.as_deref(),
                 vm.texture.as_deref(),
             );
         }

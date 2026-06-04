@@ -45,6 +45,7 @@ mod error;
 pub mod extras;
 mod loader;
 pub mod model;
+pub mod normals;
 pub mod types;
 
 #[cfg(feature = "msh")]

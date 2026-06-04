@@ -75,6 +75,15 @@ pub struct MjcfVisualMesh {
     /// carried UV data; `None` for primitives and for meshes whose
     /// source didn't include texture coordinates.
     pub uvs: Option<Vec<[f32; 2]>>,
+    /// Per-vertex normals parallel to the shape's vertex buffer. Computed
+    /// from the geometry (crease-aware smoothing, honoring the asset's
+    /// `smoothnormal`) the way MuJoCo generates mesh normals — faceted
+    /// sources like STL carry no usable shared-vertex normals of their own.
+    /// `Some` for mesh geoms; `None` for primitives. When present, a
+    /// renderer should use these directly instead of recomputing flat
+    /// per-face normals, so meshes render smooth-shaded like MuJoCo's
+    /// viewer rather than faceted.
+    pub normals: Option<Vec<[f32; 3]>>,
     /// Resolved filesystem path to a 2D color texture. Pulled from the
     /// MJCF `<material texture=…>` when set, otherwise from the OBJ
     /// MTL's `map_Kd`. `None` for geoms that aren't textured.
