@@ -1,0 +1,4 @@
+# The website (docusaurus site + documentation code snippets) lives in this
+# monorepo but is documentation, not part of the engine's source. Mark it so
+# GitHub Linguist excludes it from the repository's language statistics.
+website/** linguist-documentation
