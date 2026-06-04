@@ -52,14 +52,14 @@ fn main() {
             // Calculate the possible movement.
             let corrected_movement = character_controller.move_shape(
                 dt,              // The timestep length (can be set to SimulationSettings::dt).
-                &query_pipeline, // The query pipelien.
+                &query_pipeline, // The query pipeline.
                 character_shape, // The character’s shape.
                 character_pos,   // The character’s initial position.
                 desired_translation,
                 |_| {}, // We don’t care about events in this example.
             );
 
-            // TODO: apply the `corrected_movement.translation` to the rigid-body or collider based on the rules described bellow.
+            // TODO: apply the `corrected_movement.translation` to the rigid-body or collider based on the rules described below.
             // DOCUSAURUS: Setup stop
         }
 
