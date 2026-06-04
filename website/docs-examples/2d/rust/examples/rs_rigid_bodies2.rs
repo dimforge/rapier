@@ -21,16 +21,16 @@ fn main() {
     let rigid_body = RigidBodyBuilder::new(RigidBodyType::Dynamic)
         // The rigid body translation.
         // Default: zero vector.
-        .translation(vector![0.0, 5.0])
+        .translation(Vector::new(0.0, 5.0))
         // The rigid body rotation.
         // Default: no rotation.
         .rotation(5.0)
         // The rigid body position. Will override `.translation(...)` and `.rotation(...)`.
         // Default: the identity isometry.
-        .position(Isometry::new(vector![1.0, 2.0], 0.4))
+        .pose(Pose::new(Vector::new(1.0, 2.0), 0.4))
         // The linear velocity of this body.
         // Default: zero velocity.
-        .linvel(vector![1.0, 2.0])
+        .linvel(Vector::new(1.0, 2.0))
         // The angular velocity of this body.
         // Default: zero velocity.
         .angvel(2.0)
@@ -54,13 +54,13 @@ fn main() {
     let rigid_body = RigidBodyBuilder::dynamic()
         // The rigid body translation.
         // Default: zero vector.
-        .translation(vector![0.0, 5.0])
+        .translation(Vector::new(0.0, 5.0))
         // The rigid body rotation.
         // Default: no rotation.
         .rotation(5.0)
         // The rigid body position. Will override `.translation(...)` and `.rotation(...)`.
         // Default: the identity isometry.
-        .position(Isometry::new(vector![1.0, 2.0], 0.4))
+        .pose(Pose::new(Vector::new(1.0, 2.0), 0.4))
         // All done, actually build the rigid-body.
         .build();
     // DOCUSAURUS: Position1 stop
@@ -68,20 +68,16 @@ fn main() {
     let rigid_body_handle = rigid_body_set.insert(rigid_body);
 
     // DOCUSAURUS: Position2 start
-    use nalgebra::UnitComplex;
     /* Set the position after the rigid-body creation. */
     let rigid_body = rigid_body_set.get_mut(rigid_body_handle).unwrap();
     // The `true` argument makes sure the rigid-body is awake.
-    rigid_body.set_translation(vector![0.0, 5.0], true);
-    rigid_body.set_rotation(UnitComplex::new(0.2), true);
-    assert_eq!(*rigid_body.translation(), vector![0.0, 5.0]);
+    rigid_body.set_translation(Vector::new(0.0, 5.0), true);
+    rigid_body.set_rotation(Rotation::new(0.2), true);
+    assert_eq!(rigid_body.translation(), Vector::new(0.0, 5.0));
     assert_eq!(rigid_body.rotation().angle(), 0.2);
 
-    rigid_body.set_position(Isometry::new(vector![1.0, 2.0], 0.4), true);
-    assert_eq!(
-        *rigid_body.position(),
-        Isometry::new(vector![1.0, 2.0], 0.4)
-    );
+    rigid_body.set_position(Pose::new(Vector::new(1.0, 2.0), 0.4), true);
+    assert_eq!(*rigid_body.position(), Pose::new(Vector::new(1.0, 2.0), 0.4));
     // DOCUSAURUS: Position2 stop
 
     // DOCUSAURUS: Velocity1 start
@@ -89,7 +85,7 @@ fn main() {
     let rigid_body = RigidBodyBuilder::dynamic()
         // The linear velocity of this body.
         // Default: zero velocity.
-        .linvel(vector![1.0, 3.0])
+        .linvel(Vector::new(1.0, 3.0))
         // The angular velocity of this body.
         // Default: zero velocity.
         .angvel(3.0)
@@ -103,9 +99,9 @@ fn main() {
     /* Set the velocities after the rigid-body creation. */
     let rigid_body = rigid_body_set.get_mut(rigid_body_handle).unwrap();
     // The `true` argument makes sure the rigid-body is awake.
-    rigid_body.set_linvel(vector![1.0, 3.0], true);
+    rigid_body.set_linvel(Vector::new(1.0, 3.0), true);
     rigid_body.set_angvel(3.0, true);
-    assert_eq!(*rigid_body.linvel(), vector![1.0, 3.0]);
+    assert_eq!(rigid_body.linvel(), Vector::new(1.0, 3.0));
     assert_eq!(rigid_body.angvel(), 3.0);
     // DOCUSAURUS: Velocity2 stop
 
@@ -131,13 +127,13 @@ fn main() {
     // The `true` argument makes sure the rigid-body is awake.
     rigid_body.reset_forces(true); // Reset the forces to zero.
     rigid_body.reset_torques(true); // Reset the torques to zero.
-    rigid_body.add_force(vector![0.0, 1000.0], true);
+    rigid_body.add_force(Vector::new(0.0, 1000.0), true);
     rigid_body.add_torque(100.0, true);
-    rigid_body.add_force_at_point(vector![0.0, 1000.0], point![1.0, 2.0], true);
+    rigid_body.add_force_at_point(Vector::new(0.0, 1000.0), Vector::new(1.0, 2.0), true);
 
-    rigid_body.apply_impulse(vector![0.0, 1000.0], true);
+    rigid_body.apply_impulse(Vector::new(0.0, 1000.0), true);
     rigid_body.apply_torque_impulse(100.0, true);
-    rigid_body.apply_impulse_at_point(vector![0.0, 1000.0], point![1.0, 2.0], true);
+    rigid_body.apply_impulse_at_point(Vector::new(0.0, 1000.0), Vector::new(1.0, 2.0), true);
     // DOCUSAURUS: Forces stop
 
     // DOCUSAURUS: Mass1 start
@@ -154,7 +150,7 @@ fn main() {
     let rigid_body = RigidBodyBuilder::dynamic()
         .additional_mass(0.5)
         // Sets both the mass and angular inertia at once.
-        .additional_mass_properties(MassProperties::new(point![0.0, 1.0], 0.5, 0.3))
+        .additional_mass_properties(MassProperties::new(Vector::new(0.0, 1.0), 0.5, 0.3))
         .build();
     // DOCUSAURUS: Mass2 stop
 
@@ -163,7 +159,7 @@ fn main() {
     let rigid_body = rigid_body_set.get_mut(rigid_body_handle).unwrap();
     // The `true` argument makes sure the rigid-body is awake.
     rigid_body
-        .set_additional_mass_properties(MassProperties::new(point![0.0, 1.0], 0.5, 0.3), true);
+        .set_additional_mass_properties(MassProperties::new(Vector::new(0.0, 1.0), 0.5, 0.3), true);
     // DOCUSAURUS: Mass3 stop
 
     // DOCUSAURUS: LockedAxes1 start

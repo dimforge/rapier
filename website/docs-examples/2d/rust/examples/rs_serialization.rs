@@ -15,7 +15,7 @@ struct PhysicsState {
     pub multibody_joints: MultibodyJointSet,
     pub ccd_solver: CCDSolver,
     pub integration_parameters: IntegrationParameters,
-    pub gravity: Vector<f32>,
+    pub gravity: Vector,
 }
 
 fn main() {
@@ -44,14 +44,14 @@ fn setup_physics_scene() -> PhysicsState {
 
     /* Create the bouncing ball. */
     let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(vector![0.0, 10.0])
+        .translation(Vector::new(0.0, 10.0))
         .build();
     let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
     let ball_body_handle = rigid_body_set.insert(rigid_body);
     collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
 
     /* Create other structures necessary for the simulation. */
-    let gravity = vector![0.0, -9.81];
+    let gravity = Vector::new(0.0, -9.81);
     let integration_parameters = IntegrationParameters::default();
     let mut physics_pipeline = PhysicsPipeline::new();
     let mut island_manager = IslandManager::new();
@@ -66,7 +66,7 @@ fn setup_physics_scene() -> PhysicsState {
     /* Run the game loop, stepping the simulation once per frame. */
     for _ in 0..200 {
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,

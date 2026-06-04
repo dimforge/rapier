@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 # Use the in-tree rapier so doc snippets are checked against local changes.
 rapier2d = { path = "../../../../crates/rapier2d", features = ["serde-serialize"] }
-nalgebra = { version = "0.35" }
 # Used for events handling
 crossbeam = "0.8.4"
 # Used For serialization

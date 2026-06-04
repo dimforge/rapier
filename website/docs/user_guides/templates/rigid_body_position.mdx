@@ -3,7 +3,7 @@ import TabItem from '@theme/TabItem';
 
 The position of a rigid-body represents its location (translation) in 2D or 3D world-space, as well as its orientation (rotation).
 <rapier>Its translational part is represented as a vector and its rotational part as an unit quaternion (in 3D) or a unit complex
-number (in 2D). Both are combined into an isometry</rapier><bevy> stored in the standard Bevy `Transform` component</bevy>.
+number (in 2D). Both are combined into a pose (the `Pose` type)</rapier><bevy> stored in the standard Bevy `Transform` component</bevy>.
 
 The position of a rigid-body can be set when creating it. It can also be set after
 its creation as illustrated below.

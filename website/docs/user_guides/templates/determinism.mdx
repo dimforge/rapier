@@ -31,8 +31,8 @@ following additional conditions must be met:
   as well as WASM targets.
 - If some of the values used to initialized Rapier structures are computed using floating points functions (sin, cos, tan, etc.) other
   than addition/subtraction/multiplication/division, then you need to make sure the functions being used originate from
-  the `ComplexField` or `RealField` traits from `nalgebra`. For example, do `ComplexField::sin(0.4)` (where `ComplexField` is imported
-  by `use nalgebra::ComplexField`) instead of `0.4.sin()`:
+  the `ComplexField` or `RealField` traits from `nalgebra` (re-exported by Rapier as `na`). For example, do `ComplexField::sin(0.4)`
+  (where `ComplexField` is imported by `use rapier3d::na::ComplexField`) instead of `0.4.sin()`:
   
 ```rust
 <load path='/3d/rust/examples/rs_determinism.rs' marker='Determinism' />

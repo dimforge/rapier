@@ -5,7 +5,6 @@ let template = {
     'user_guides/templates_injected/getting_started',
     'user_guides/templates_injected/getting_started_bevy',
     'user_guides/templates_injected/getting_started_js',
-    'user_guides/templates_injected/introduction_to_nalgebra',
     'user_guides/templates_injected/simulation_structures',
     'user_guides/templates_injected/rigid_bodies',
     'user_guides/templates_injected/colliders',
@@ -25,9 +24,8 @@ let template = {
 };
 
 let specialized_guides = {
-  'Rust (0.29)': [
+  'Rust (0.32)': [
     'user_guides/rust/getting_started',
-    'user_guides/rust/introduction_to_nalgebra',
     'user_guides/rust/simulation_structures',
     'user_guides/rust/rigid_bodies',
     'user_guides/rust/colliders',

@@ -1,15 +1,12 @@
-use nalgebra::{Matrix3x2, UnitComplex};
-use rapier3d::{parry::transformation::voxelization::FillMode, prelude::*};
-
 fn main() {
     let mut rigid_body_set = RigidBodySet::new();
     let vertices = vec![
-        point![-1.0, -1.0, 0.0],
-        point![1.0, -1.0, 0.0],
-        point![1.0, 1.0, 0.0],
+        Vector::new(-1.0, -1.0, 0.0),
+        Vector::new(1.0, -1.0, 0.0),
+        Vector::new(1.0, 1.0, 0.0),
     ];
     let indices = vec![[0, 2, 1]];
-    let heights = DMatrix::from_vec(2, 2, vec![0.0, 1.0, 0.5, 0.0]);
+    let heights = Array2::new(2, 2, vec![0.0, 1.0, 0.5, 0.0]);
     let scale = Vector::new(1.0, 1.0, 1.0);
     // DOCUSAURUS: Creation start
     use rapier3d::prelude::*;
@@ -36,13 +33,13 @@ fn main() {
     let collider = ColliderBuilder::new(SharedShape::ball(0.5))
         // The collider translation wrt. the body it is attached to.
         // Default: the zero vector.
-        .translation(vector![1.0, 2.0, 3.0])
+        .translation(Vector::new(1.0, 2.0, 3.0))
         // The collider rotation wrt. the body it is attached to.
         // Default: the identity rotation.
-        .rotation(vector![0.0, PI, 0.0])
+        .rotation(Vector::new(0.0, PI, 0.0))
         // The collider position wrt. the body it is attached to.
         // Default: the identity isometry.
-        .position(Isometry::new(vector![1.0, 2.0, 3.0], vector![0.0, PI, 0.0]))
+        .position(Pose::new(Vector::new(1.0, 2.0, 3.0), Vector::new(0.0, PI, 0.0)))
         // The collider density. If non-zero the collider's mass and angular inertia will be added
         // to the inertial properties of the body it is attached to.
         // Default: 1.0
@@ -67,7 +64,7 @@ fn main() {
     // A voxels shape from arbitrary points
     let shape = ColliderBuilder::voxels_from_points(
         Vector::new(1.0, 1.0, 1.0),
-        &[point![0.0, 0.0, 0.0], point![1.0, 1.0, 1.0]],
+        &[Vector::new(0.0, 0.0, 0.0), Vector::new(1.0, 1.0, 1.0)],
     );
     // DOCUSAURUS: VoxelsPoints stop
 
@@ -82,9 +79,9 @@ fn main() {
     // Third option: by setting the mass-properties explicitly.
     let collider = ColliderBuilder::cuboid(1.0, 2.0, 3.0)
         .mass_properties(MassProperties::new(
-            point![0.0, 1.0, 0.0],
+            Vector::new(0.0, 1.0, 0.0),
             0.5,
-            vector![0.3, 0.2, 0.1],
+            Vector::new(0.3, 0.2, 0.1),
         ))
         .build();
     // When the collider is attached, the rigid-body's mass and angular
@@ -96,12 +93,12 @@ fn main() {
     // DOCUSAURUS: Position1 start
     /* Set the collider position when the collider is created. */
     let collider = ColliderBuilder::ball(0.5)
-        .translation(vector![1.0, 2.0, 3.0])
-        .rotation(vector![0.1, 0.2, 0.4])
+        .translation(Vector::new(1.0, 2.0, 3.0))
+        .rotation(Vector::new(0.1, 0.2, 0.4))
         // Set both translation and rotation at once.
-        .position(Isometry::new(
-            vector![1.0, 2.0, 3.0],
-            vector![0.1, 0.2, 0.4],
+        .position(Pose::new(
+            Vector::new(1.0, 2.0, 3.0),
+            Vector::new(0.1, 0.2, 0.4),
         ))
         .build();
     // DOCUSAURUS: Position1 stop
@@ -109,22 +106,25 @@ fn main() {
     // DOCUSAURUS: Position2 start
     /* Set the collider position after the collider creation. */
     let collider = collider_set.get_mut(collider_handle).unwrap();
-    collider.set_translation(vector![1.0, 2.0, 3.0]);
-    collider.set_rotation(Rotation::from_scaled_axis(vector![0.1, 0.2, 0.4]));
+    collider.set_translation(Vector::new(1.0, 2.0, 3.0));
+    collider.set_rotation(Rotation::from_scaled_axis(Vector::new(0.1, 0.2, 0.4)));
     // Set both the translation and rotation at once.
-    collider.set_position(Isometry::new(
-        vector![1.0, 2.0, 3.0],
-        vector![0.1, 0.2, 0.4],
+    collider.set_position(Pose::new(
+        Vector::new(1.0, 2.0, 3.0),
+        Vector::new(0.1, 0.2, 0.4),
     ));
-    assert_eq!(*collider.translation(), vector![1.0, 2.0, 3.0]);
-    assert_eq!(collider.rotation().scaled_axis(), vector![0.1, 0.2, 0.4]);
+    assert_eq!(collider.translation(), Vector::new(1.0, 2.0, 3.0));
+    assert_eq!(
+        collider.rotation().to_scaled_axis(),
+        Vector::new(0.1, 0.2, 0.4)
+    );
     // DOCUSAURUS: Position2 stop
 
     // DOCUSAURUS: Position3 start
     let rigid_body = RigidBodyBuilder::dynamic().build();
     let rigid_body_handle = rigid_body_set.insert(rigid_body);
     let collider = ColliderBuilder::ball(0.5)
-        .translation(vector![1.0, 2.0, 3.0])
+        .translation(Vector::new(1.0, 2.0, 3.0))
         .build();
     // Attach the collider to the rigid-body. The collider's position wrt. the rigid-body
     // is automatically set to the collider current position when this method is called.
@@ -134,10 +134,10 @@ fn main() {
     // DOCUSAURUS: Position4 start
     /* Set the collider position wrt. its parent after the collider creation. */
     let collider = collider_set.get_mut(collider_handle).unwrap();
-    collider.set_position_wrt_parent(Isometry::translation(1.0, 2.0, 3.0));
+    collider.set_position_wrt_parent(Pose::translation(1.0, 2.0, 3.0));
     assert_eq!(
-        collider.position_wrt_parent().unwrap().translation.vector,
-        vector![1.0, 2.0, 3.0]
+        collider.position_wrt_parent().unwrap().translation,
+        Vector::new(1.0, 2.0, 3.0)
     );
     // DOCUSAURUS: Position4 stop
 }

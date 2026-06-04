@@ -1,10 +1,13 @@
-use nalgebra::{Isometry2, UnitComplex};
 use rapier2d::{parry::transformation::voxelization::FillMode, prelude::*};
 
 fn main() {
-    let vertices = vec![point![-1.0, -1.0], point![1.0, -1.0], point![1.0, 1.0]];
+    let vertices = vec![
+        Vector::new(-1.0, -1.0),
+        Vector::new(1.0, -1.0),
+        Vector::new(1.0, 1.0),
+    ];
     let indices = vec![[0, 2, 1]];
-    let heights = nalgebra::DVector::<Real>::from_vec(vec![0.0, 1.0, 0.5, 0.9]);
+    let heights = vec![0.0, 1.0, 0.5, 0.9];
     let scale = Vector::new(1.0, 1.0);
 
     // DOCUSAURUS: Creation start
@@ -30,13 +33,13 @@ fn main() {
     let collider = ColliderBuilder::new(SharedShape::ball(0.5))
         // The collider translation wrt. the body it is attached to.
         // Default: the zero vector.
-        .translation(vector![1.0, 2.0])
+        .translation(Vector::new(1.0, 2.0))
         // The collider rotation wrt. the body it is attached to.
         // Default: the identity rotation.
         .rotation(PI)
         // The collider position wrt. the body it is attached to.
         // Default: the identity isometry.
-        .position(Isometry::new(vector![1.0, 2.0], PI))
+        .position(Pose::new(Vector::new(1.0, 2.0), PI))
         // The collider density. If non-zero the collider's mass and angular inertia will be added
         // to the inertial properties of the body it is attached to.
         // Default: 1.0
@@ -75,11 +78,15 @@ fn main() {
     // A voxels shape from arbitrary points
     let shape = ColliderBuilder::voxels_from_points(
         Vector::new(1.0, 1.0),
-        &[point![0.0, 0.0], point![1.0, 1.0], point![-1.0, 1.0]],
+        &[
+            Vector::new(0.0, 0.0),
+            Vector::new(1.0, 1.0),
+            Vector::new(-1.0, 1.0),
+        ],
     );
     // DOCUSAURUS: VoxelsPoints stop
 
-    let mesh = vec![point![0.0, 0.0], point![0.0, 10.0]];
+    let mesh = vec![Vector::new(0.0, 0.0), Vector::new(0.0, 10.0)];
     let indices: Vec<_> = (0..mesh.len() as u32)
         .map(|i| [i, (i + 1) % mesh.len() as u32])
         .collect();
@@ -88,8 +95,8 @@ fn main() {
     // DOCUSAURUS: VoxelsMesh stop
 
     let shape = ColliderBuilder::ball(0.5).shape;
-    let pos1 = Isometry2::translation(0.0, 1.0);
-    let pos2 = Isometry2::translation(0.0, 1.0);
+    let pos1 = Pose::translation(0.0, 1.0);
+    let pos2 = Pose::translation(0.0, 1.0);
     // DOCUSAURUS: Compound start
     let _ = ColliderBuilder::compound(vec![(pos1, shape.clone()), (pos2, shape.clone())]);
     // DOCUSAURUS: Compound stop
@@ -104,7 +111,7 @@ fn main() {
     let collider = ColliderBuilder::cuboid(1.0, 2.0).mass(0.8).build();
     // Third option: by setting the mass-properties explicitly.
     let collider = ColliderBuilder::cuboid(1.0, 2.0)
-        .mass_properties(MassProperties::new(point![0.0, 1.0], 0.5, 0.3))
+        .mass_properties(MassProperties::new(Vector::new(0.0, 1.0), 0.5, 0.3))
         .build();
     // When the collider is attached, the rigid-body's mass and angular
     // inertia is automatically updated to take the collider into account.
@@ -114,21 +121,21 @@ fn main() {
     // DOCUSAURUS: Position1 start
     /* Set the collider position when the collider is created. */
     let collider = ColliderBuilder::ball(0.5)
-        .translation(vector![1.0, 2.0])
+        .translation(Vector::new(1.0, 2.0))
         .rotation(0.4)
         // Set both translation and rotation at once.
-        .position(Isometry::new(vector![1.0, 2.0], 0.4))
+        .position(Pose::new(Vector::new(1.0, 2.0), 0.4))
         .build();
     // DOCUSAURUS: Position1 stop
 
     // DOCUSAURUS: Position2 start
     /* Set the collider position after the collider creation. */
     let collider = collider_set.get_mut(collider_handle).unwrap();
-    collider.set_translation(vector![1.0, 2.0]);
-    collider.set_rotation(UnitComplex::new(0.4));
+    collider.set_translation(Vector::new(1.0, 2.0));
+    collider.set_rotation(Rotation::new(0.4));
     // Set both the translation and rotation at once.
-    collider.set_position(Isometry::new(vector![1.0, 2.0], 0.4));
-    assert_eq!(*collider.translation(), vector![1.0, 2.0]);
+    collider.set_position(Pose::new(Vector::new(1.0, 2.0), 0.4));
+    assert_eq!(collider.translation(), Vector::new(1.0, 2.0));
     assert_eq!(collider.rotation().angle(), 0.4);
     // DOCUSAURUS: Position2 stop
 
@@ -136,7 +143,7 @@ fn main() {
     let rigid_body = RigidBodyBuilder::dynamic().build();
     let rigid_body_handle = rigid_body_set.insert(rigid_body);
     let collider = ColliderBuilder::ball(0.5)
-        .translation(vector![1.0, 2.0])
+        .translation(Vector::new(1.0, 2.0))
         .build();
     // Attach the collider to the rigid-body. The collider's position wrt. the rigid-body
     // is automatically set to the collider current position when this method is called.
@@ -146,10 +153,10 @@ fn main() {
     // DOCUSAURUS: Position4 start
     /* Set the collider position wrt. its parent after the collider creation. */
     let collider = collider_set.get_mut(collider_handle).unwrap();
-    collider.set_position_wrt_parent(Isometry::translation(1.0, 2.0));
+    collider.set_position_wrt_parent(Pose::translation(1.0, 2.0));
     assert_eq!(
-        collider.position_wrt_parent().unwrap().translation.vector,
-        vector![1.0, 2.0]
+        collider.position_wrt_parent().unwrap().translation,
+        Vector::new(1.0, 2.0)
     );
     // DOCUSAURUS: Position4 stop
 
@@ -203,10 +210,12 @@ fn main() {
         .collision_groups(InteractionGroups::new(
             Group::GROUP_1 | Group::GROUP_3 | Group::GROUP_4,
             Group::GROUP_3,
+            InteractionTestMode::And,
         ))
         .solver_groups(InteractionGroups::new(
             Group::GROUP_1 | Group::GROUP_2,
             Group::GROUP_1 | Group::GROUP_2 | Group::GROUP_4,
+            InteractionTestMode::And,
         ))
         .build();
     // DOCUSAURUS: Groups1 stop
@@ -217,23 +226,27 @@ fn main() {
     collider.set_collision_groups(InteractionGroups::new(
         Group::GROUP_1 | Group::GROUP_3 | Group::GROUP_4,
         Group::GROUP_3,
+        InteractionTestMode::And,
     ));
     collider.set_solver_groups(InteractionGroups::new(
         Group::GROUP_1 | Group::GROUP_2,
         Group::GROUP_1 | Group::GROUP_2 | Group::GROUP_4,
+        InteractionTestMode::And,
     ));
     assert_eq!(
         collider.collision_groups(),
         InteractionGroups::new(
             Group::GROUP_1 | Group::GROUP_3 | Group::GROUP_4,
-            Group::GROUP_3
+            Group::GROUP_3,
+            InteractionTestMode::And
         )
     );
     assert_eq!(
         collider.solver_groups(),
         InteractionGroups::new(
             Group::GROUP_1 | Group::GROUP_2,
-            Group::GROUP_1 | Group::GROUP_2 | Group::GROUP_4
+            Group::GROUP_1 | Group::GROUP_2 | Group::GROUP_4,
+            InteractionTestMode::And
         )
     );
     // DOCUSAURUS: Groups2 stop

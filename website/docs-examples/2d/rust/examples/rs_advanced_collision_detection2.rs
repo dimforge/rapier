@@ -10,7 +10,7 @@ fn main() {
 
     /* Create the bouncing ball. */
     let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(vector![0.0, 10.0])
+        .translation(Vector::new(0.0, 10.0))
         .build();
     let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
     let ball_body_handle = rigid_body_set.insert(rigid_body);
@@ -18,7 +18,7 @@ fn main() {
         collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
 
     /* Create other structures necessary for the simulation. */
-    let gravity = vector![0.0, -9.81];
+    let gravity = Vector::new(0.0, -9.81);
     let integration_parameters = IntegrationParameters::default();
     let mut physics_pipeline = PhysicsPipeline::new();
     let mut island_manager = IslandManager::new();
@@ -37,7 +37,7 @@ fn main() {
     let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
 
     physics_pipeline.step(
-        &gravity,
+        gravity,
         &integration_parameters,
         &mut island_manager,
         &mut broad_phase,
@@ -66,7 +66,7 @@ fn main() {
     /* Find the contact pair, if it exists, between two colliders. */
     if let Some(contact_pair) = narrow_phase.contact_pair(collider_handle1, collider_handle2) {
         // The contact pair exists meaning that the broad-phase identified a potential contact.
-        if contact_pair.has_any_active_contact {
+        if contact_pair.has_any_active_contact() {
             // The contact pair has active contacts, meaning that it
             // contains contacts for which contact forces were computed.
         }

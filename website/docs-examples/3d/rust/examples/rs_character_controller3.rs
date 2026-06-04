@@ -1,7 +1,4 @@
-use rapier3d::{
-    control::{CharacterAutostep, CharacterLength, KinematicCharacterController},
-    prelude::*,
-};
+use rapier3d::{control::KinematicCharacterController, prelude::*};
 
 fn main() {
     let mut bodies = RigidBodySet::new();
@@ -13,14 +10,14 @@ fn main() {
 
     /* Create the body to control. */
     let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(vector![0.0, 10.0, 0.0])
+        .translation(Vector::new(0.0, 10.0, 0.0))
         .build();
     let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
     let rigid_body_handle = bodies.insert(rigid_body);
     colliders.insert_with_parent(collider.clone(), rigid_body_handle, &mut bodies);
 
     /* Create other structures necessary for the simulation. */
-    let gravity = vector![0.0, -9.81, 0.0];
+    let gravity = Vector::new(0.0, -9.81, 0.0);
     let integration_parameters = IntegrationParameters::default();
     let mut physics_pipeline = PhysicsPipeline::new();
     let mut island_manager = IslandManager::new();
@@ -39,7 +36,7 @@ fn main() {
             let character_pos = bodies[rigid_body_handle].position();
             // DOCUSAURUS: Setup start
             // The translation we would like to apply if there were no obstacles.
-            let desired_translation = vector![1.0, -2.0, 3.0];
+            let desired_translation = Vector::new(1.0, -2.0, 3.0);
             // Create the character controller, here with the default configuration.
             let character_controller = KinematicCharacterController::default();
             // Init the query pipeline.
@@ -67,7 +64,7 @@ fn main() {
         }
 
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,

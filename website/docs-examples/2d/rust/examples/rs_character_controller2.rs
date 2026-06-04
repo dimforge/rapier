@@ -13,14 +13,14 @@ fn main() {
 
     /* Create the body to control. */
     let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(vector![0.0, 10.0])
+        .translation(Vector::new(0.0, 10.0))
         .build();
     let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
     let rigid_body_handle = bodies.insert(rigid_body);
     colliders.insert_with_parent(collider.clone(), rigid_body_handle, &mut bodies);
 
     /* Create other structures necessary for the simulation. */
-    let gravity = vector![0.0, -9.81];
+    let gravity = Vector::new(0.0, -9.81);
     let integration_parameters = IntegrationParameters::default();
     let mut physics_pipeline = PhysicsPipeline::new();
     let mut island_manager = IslandManager::new();
@@ -39,7 +39,7 @@ fn main() {
             let character_pos = bodies[rigid_body_handle].position();
             // DOCUSAURUS: Setup start
             // The translation we would like to apply if there were no obstacles.
-            let desired_translation = vector![1.0, -2.0];
+            let desired_translation = Vector::new(1.0, -2.0);
             // Create the character controller, here with the default configuration.
             let character_controller = KinematicCharacterController::default();
             // Init the query pipeline.
@@ -66,7 +66,7 @@ fn main() {
         }
 
         physics_pipeline.step(
-            &gravity,
+            gravity,
             &integration_parameters,
             &mut island_manager,
             &mut broad_phase,
@@ -91,7 +91,7 @@ fn main() {
 
         {
             let character_pos = bodies[rigid_body_handle].position();
-            let desired_translation = vector![1.0, -2.0];
+            let desired_translation = Vector::new(1.0, -2.0);
             // DOCUSAURUS: Collisions1 start
             let character_controller = KinematicCharacterController::default();
             // Use a closure to handle or collect the collisions while
@@ -116,7 +116,7 @@ fn main() {
                 dt,
                 &query_pipeline,
                 character_shape,
-                &character_pos,
+                character_pos,
                 desired_translation,
                 |collision| collisions.push(collision),
             );
@@ -153,7 +153,7 @@ fn main() {
 
     // DOCUSAURUS: UpVector start
     // Set the up-vector to the positive X axis.
-    character_controller.up = Vector::x_axis();
+    character_controller.up = Vector::X;
     // DOCUSAURUS: UpVector stop
 
     // DOCUSAURUS: Slopes start

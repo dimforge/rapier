@@ -10,7 +10,7 @@ fn main() {
 
     /* Create the bouncing ball. */
     let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(vector![0.0, 10.0])
+        .translation(Vector::new(0.0, 10.0))
         .build();
     let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
     let ball_body_handle = rigid_body_set.insert(rigid_body);
@@ -29,11 +29,11 @@ fn main() {
     let event_handler = ();
 
     let collider = ColliderBuilder::cuboid(1.0, 1.0)
-        .translation(vector![0.0, 10.0])
+        .translation(Vector::new(0.0, 10.0))
         .build();
     let handle1 = collider_set.insert(collider);
     let collider = ColliderBuilder::cuboid(1.0, 1.0)
-        .translation(vector![0.0, 15.0])
+        .translation(Vector::new(0.0, 15.0))
         .build();
     let handle_to_remove = collider_set.insert(collider);
 
@@ -44,9 +44,9 @@ fn main() {
         true,
     );
     let collider = collider_set.get_mut(handle1).unwrap();
-    collider.set_translation(vector![0.0, 12.0]);
+    collider.set_translation(Vector::new(0.0, 12.0));
     let collider = ColliderBuilder::cuboid(1.0, 1.0)
-        .translation(vector![0.0, 10.0])
+        .translation(Vector::new(0.0, 10.0))
         .build();
     let handle2 = collider_set.insert(collider);
     let modified_colliders = vec![handle1, handle2];
@@ -59,7 +59,7 @@ fn main() {
 
     let player_handle = ball_body_handle;
     // DOCUSAURUS: QueryFilter start
-    let ray = Ray::new(point![1.0, 2.0], vector![0.0, 1.0]);
+    let ray = Ray::new(Vector::new(1.0, 2.0), Vector::new(0.0, 1.0));
     let max_toi = 4.0;
     let solid = true;
     let filter = QueryFilter::exclude_dynamic()
@@ -68,6 +68,7 @@ fn main() {
         .groups(InteractionGroups::new(
             Group::GROUP_1 | Group::GROUP_2,
             Group::GROUP_1,
+            InteractionTestMode::And,
         ))
         .predicate(&|handle, collider| collider.user_data == 10);
     let query_pipeline = broad_phase.as_query_pipeline(
@@ -91,7 +92,7 @@ fn raycast_section(
     collider_set: &ColliderSet,
 ) {
     // DOCUSAURUS: Raycast start
-    let ray = Ray::new(point![1.0, 2.0], vector![0.0, 1.0]);
+    let ray = Ray::new(Vector::new(1.0, 2.0), Vector::new(0.0, 1.0));
     let max_toi = 4.0;
     let solid = true;
     let filter = QueryFilter::default();
@@ -140,9 +141,9 @@ fn shapecast_section(
     collider_set: &ColliderSet,
 ) {
     // DOCUSAURUS: Shapecast start
-    let shape = Cuboid::new(vector![1.0, 2.0]);
-    let shape_pos = Isometry::new(vector![0.0, 1.0], 0.2,);
-    let shape_vel = vector![0.1, 0.4];
+    let shape = Cuboid::new(Vector::new(1.0, 2.0));
+    let shape_pos = Pose::new(Vector::new(0.0, 1.0), 0.2);
+    let shape_vel = Vector::new(0.1, 0.4);
     let max_toi = 4.0;
     let filter = QueryFilter::default();
     let options = ShapeCastOptions {
@@ -160,7 +161,7 @@ fn shapecast_section(
     );
 
     if let Some((handle, hit)) = query_pipeline.cast_shape(
-        &shape_pos, &shape_vel, &shape, options
+        &shape_pos, shape_vel, &shape, options
     ) {
         // The first collider hit has the handle `handle`. The `hit` is a
         // structure containing details about the hit configuration.
@@ -177,7 +178,7 @@ fn point_projection_section(
     collider_set: &ColliderSet,
 ) {
     // DOCUSAURUS: PointProjection start
-    let point = point![1.0, 2.0];
+    let point = Vector::new(1.0, 2.0);
     let solid = true;
     let max_dist = 12.0;
     let filter = QueryFilter::default();
@@ -190,7 +191,7 @@ fn point_projection_section(
     );
 
     if let Some((handle, projection)) = query_pipeline.project_point(
-        &point, max_dist, solid
+        point, max_dist, solid
     ) {
         // The collider closest to the point has this `handle`.
         println!("Projected point on collider {:?}. Point projection: {}", handle, projection.point);
@@ -212,8 +213,8 @@ fn intersection_section(
     collider_set: &ColliderSet,
 ) {
     // DOCUSAURUS: IntersectionTest start
-    let shape = Cuboid::new(vector![1.0, 2.0]);
-    let shape_pos = Isometry::new(vector![0.0, 1.0], 0.2);
+    let shape = Cuboid::new(Vector::new(1.0, 2.0));
+    let shape_pos = Pose::new(Vector::new(0.0, 1.0), 0.2);
     let filter = QueryFilter::default();
 
     let query_pipeline = broad_phase.as_query_pipeline(
@@ -227,7 +228,7 @@ fn intersection_section(
         println!("The collider {:?} intersects our shape.", handle);
     }
 
-    let aabb = Aabb::new(point![-1.0, -2.0], point![1.0, 2.0]);
+    let aabb = Aabb::new(Vector::new(-1.0, -2.0), Vector::new(1.0, 2.0));
     for (handle, _) in query_pipeline.intersect_aabb_conservative(aabb) {
         println!("The collider {:?} has an AABB intersecting our test AABB", handle);
     }
