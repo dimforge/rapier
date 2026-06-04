@@ -1,5 +1,5 @@
 import {Collider, ColliderHandle} from "./collider";
-import {Vector, VectorOps} from "../math";
+import {Vector, VectorOps, scratchBuffer} from "../math";
 import {
     RawFeatureType,
     RawPointColliderProjection,
@@ -26,15 +26,25 @@ export class PointProjection {
         this.isInside = isInside;
     }
 
-    public static fromRaw(raw: RawPointProjection): PointProjection {
+    /**
+     * @param raw - The raw projection returned by the WASM query. It is freed by this method.
+     * @param target - If provided, this object is populated and returned instead of
+     * allocating a new one.
+     */
+    public static fromBuffer(
+        raw: RawPointProjection,
+        target?: PointProjection,
+    ): PointProjection {
         if (!raw) return null;
 
-        const result = new PointProjection(
-            VectorOps.fromRaw(raw.point()),
-            raw.isInside(),
-        );
+        raw.point(scratchBuffer);
+
+        target ??= new PointProjection(VectorOps.zeros(), false);
+        target.point = VectorOps.fromBuffer(scratchBuffer, target.point);
+        target.isInside = raw.isInside();
+
         raw.free();
-        return result;
+        return target;
     }
 }
 
@@ -79,20 +89,29 @@ export class PointColliderProjection {
         if (featureType !== undefined) this.featureType = featureType;
     }
 
-    public static fromRaw(
+    /**
+     * @param colliderSet - The set the projected-on collider belongs to.
+     * @param raw - The raw projection returned by the WASM query. It is freed by this method.
+     * @param target - If provided, this object is populated and returned instead of
+     * allocating a new one.
+     */
+    public static fromBuffer(
         colliderSet: ColliderSet,
         raw: RawPointColliderProjection,
+        target?: PointColliderProjection,
     ): PointColliderProjection {
         if (!raw) return null;
 
-        const result = new PointColliderProjection(
-            colliderSet.get(raw.colliderHandle()),
-            VectorOps.fromRaw(raw.point()),
-            raw.isInside(),
-            raw.featureType() as number as FeatureType,
-            raw.featureId(),
-        );
+        raw.point(scratchBuffer);
+
+        target ??= new PointColliderProjection(null, VectorOps.zeros(), false);
+        target.collider = colliderSet.get(raw.colliderHandle());
+        target.point = VectorOps.fromBuffer(scratchBuffer, target.point);
+        target.isInside = raw.isInside();
+        target.featureType = raw.featureType() as number as FeatureType;
+        target.featureId = raw.featureId();
+
         raw.free();
-        return result;
+        return target;
     }
 }

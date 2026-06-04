@@ -14,7 +14,8 @@
     "//": "Better keep rimraf version in sync with wasm-pack, see https://github.com/rustwasm/wasm-pack/issues/1444",
     "devDependencies": {
         "rimraf": "^3.0.2",
-        "typedoc": "^0.25.13"
+        "typedoc": "^0.25.13",
+        "typescript": "~5.4.5"
     },
     "dependencies": {
         "wasm-pack": "^0.12.1"

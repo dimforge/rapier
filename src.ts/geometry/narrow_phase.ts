@@ -1,6 +1,6 @@
 import {RawNarrowPhase, RawContactManifold} from "../raw";
 import {ColliderHandle} from "./collider";
-import {Vector, VectorOps} from "../math";
+import {Vector, VectorOps, scratchBuffer} from "../math";
 
 /**
  * The narrow-phase used for precise collision-detection.
@@ -113,16 +113,37 @@ export class TempContactManifold {
         this.raw = raw;
     }
 
-    public normal(): Vector {
-        return VectorOps.fromRaw(this.raw.normal());
+    /**
+     * The contact normal of the manifold, expressed in world-space.
+     *
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
+     */
+    public normal(target?: Vector): Vector {
+        this.raw.normal(scratchBuffer);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
 
-    public localNormal1(): Vector {
-        return VectorOps.fromRaw(this.raw.local_n1());
+    /**
+     * The contact normal of the manifold, expressed in the local-space of the first shape.
+     *
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
+     */
+    public localNormal1(target?: Vector): Vector {
+        this.raw.local_n1(scratchBuffer);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
 
-    public localNormal2(): Vector {
-        return VectorOps.fromRaw(this.raw.local_n2());
+    /**
+     * The contact normal of the manifold, expressed in the local-space of the second shape.
+     *
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
+     */
+    public localNormal2(target?: Vector): Vector {
+        this.raw.local_n2(scratchBuffer);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
 
     public subshape1(): number {
@@ -137,12 +158,28 @@ export class TempContactManifold {
         return this.raw.num_contacts();
     }
 
-    public localContactPoint1(i: number): Vector | null {
-        return VectorOps.fromRaw(this.raw.contact_local_p1(i));
+    /**
+     * The local-space contact point on the first shape, for the `i`-th contact.
+     *
+     * @param {number} i - The index of the contact to read.
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
+     */
+    public localContactPoint1(i: number, target?: Vector): Vector | null {
+        const exists = this.raw.contact_local_p1(i, scratchBuffer);
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
-    public localContactPoint2(i: number): Vector | null {
-        return VectorOps.fromRaw(this.raw.contact_local_p2(i));
+    /**
+     * The local-space contact point on the second shape, for the `i`-th contact.
+     *
+     * @param {number} i - The index of the contact to read.
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
+     */
+    public localContactPoint2(i: number, target?: Vector): Vector | null {
+        const exists = this.raw.contact_local_p2(i, scratchBuffer);
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
     public contactDist(i: number): number {
@@ -181,8 +218,16 @@ export class TempContactManifold {
         return this.raw.num_solver_contacts();
     }
 
-    public solverContactPoint(i: number): Vector {
-        return VectorOps.fromRaw(this.raw.solver_contact_point(i));
+    /**
+     * The world-space position of the `i`-th solver contact point.
+     *
+     * @param {number} i - The index of the solver contact to read.
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
+     */
+    public solverContactPoint(i: number, target?: Vector): Vector | null {
+        const exists = this.raw.solver_contact_point(i, scratchBuffer);
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
     public solverContactDist(i: number): number {
@@ -197,7 +242,15 @@ export class TempContactManifold {
         return this.raw.solver_contact_restitution(i);
     }
 
-    public solverContactTangentVelocity(i: number): Vector {
-        return VectorOps.fromRaw(this.raw.solver_contact_tangent_velocity(i));
+    /**
+     * The tangent (surface) velocity of the `i`-th solver contact point.
+     *
+     * @param {number} i - The index of the solver contact to read.
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
+     */
+    public solverContactTangentVelocity(i: number, target?: Vector): Vector {
+        this.raw.solver_contact_tangent_velocity(i, scratchBuffer);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
 }

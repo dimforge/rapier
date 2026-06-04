@@ -3,6 +3,9 @@ import {RawVector, RawRotation} from "./raw";
 import {RawSdpMatrix3} from "./raw";
 // #endif
 
+// scratchBuffer should be as big as the biggest index Rust tries to set on it.
+export const scratchBuffer = new Float32Array(16);
+
 // #if DIM2
 export interface Vector {
     x: number;
@@ -29,6 +32,15 @@ export class VectorOps {
 
     public static zeros(): Vector {
         return VectorOps.new(0.0, 0.0);
+    }
+
+    public static fromBuffer(buffer: Float32Array, target?: Vector): Vector {
+        if (!buffer) return null;
+
+        target ??= VectorOps.zeros();
+        target.x = buffer[0];
+        target.y = buffer[1];
+        return target;
     }
 
     // FIXME: type ram: RawVector?
@@ -110,6 +122,16 @@ export class VectorOps {
         return VectorOps.new(0.0, 0.0, 0.0);
     }
 
+    public static fromBuffer(buffer: Float32Array, target?: Vector): Vector {
+        if (!buffer) return null;
+
+        target ??= VectorOps.zeros();
+        target.x = buffer[0];
+        target.y = buffer[1];
+        target.z = buffer[2];
+        return target;
+    }
+
     // FIXME: type ram: RawVector?
     public static fromRaw(raw: RawVector): Vector {
         if (!raw) return null;
@@ -153,6 +175,20 @@ export class Quaternion implements Rotation {
 export class RotationOps {
     public static identity(): Rotation {
         return new Quaternion(0.0, 0.0, 0.0, 1.0);
+    }
+
+    public static fromBuffer(
+        buffer: Float32Array,
+        target?: Rotation,
+    ): Rotation {
+        if (!buffer) return null;
+
+        target ??= RotationOps.identity();
+        target.x = buffer[0];
+        target.y = buffer[1];
+        target.z = buffer[2];
+        target.w = buffer[3];
+        return target;
     }
 
     public static fromRaw(raw: RawRotation): Rotation {
@@ -253,6 +289,22 @@ export class SdpMatrix3 {
 }
 
 export class SdpMatrix3Ops {
+    public static fromBuffer(
+        buffer: Float32Array,
+        target?: SdpMatrix3,
+    ): SdpMatrix3 {
+        if (!buffer) return null;
+
+        target ??= new SdpMatrix3(buffer);
+        target.elements[0] = buffer[0];
+        target.elements[1] = buffer[1];
+        target.elements[2] = buffer[2];
+        target.elements[3] = buffer[3];
+        target.elements[4] = buffer[4];
+        target.elements[5] = buffer[5];
+        return target;
+    }
+
     public static fromRaw(raw: RawSdpMatrix3): SdpMatrix3 {
         const sdpMatrix3 = new SdpMatrix3(raw.elements());
         raw.free();

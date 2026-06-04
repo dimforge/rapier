@@ -1,8 +1,8 @@
 use crate::dynamics::{RawRigidBodySet, RawRigidBodyType};
 use crate::geometry::RawColliderSet;
 #[cfg(feature = "dim3")]
-use crate::math::RawSdpMatrix3;
-use crate::math::{RawRotation, RawVector};
+use crate::math::RawRotation;
+use crate::math::RawVector;
 use crate::utils::{self, FlatHandle};
 use na::Point;
 use rapier::dynamics::MassProperties;
@@ -11,13 +11,52 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 impl RawRigidBodySet {
     /// The world-space translation of this rigid-body.
-    pub fn rbTranslation(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |rb| RawVector(rb.position().translation.vector))
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim2")]
+    pub fn rbTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.position().translation.vector;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// The world-space translation of this rigid-body.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.position().translation.vector;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// The world-space orientation of this rigid-body.
-    pub fn rbRotation(&self, handle: FlatHandle) -> RawRotation {
-        self.map(handle, |rb| RawRotation(rb.position().rotation))
+    #[cfg(feature = "dim2")]
+    pub fn rbRotation(&self, handle: FlatHandle) -> f32 {
+        self.map(handle, |rb| rb.position().rotation.angle())
+    }
+
+    /// The world-space orientation of this rigid-body.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbRotation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.position().rotation;
+            let inner = u.into_inner();
+            scratch_buffer.set_index(0, inner.i);
+            scratch_buffer.set_index(1, inner.j);
+            scratch_buffer.set_index(2, inner.k);
+            scratch_buffer.set_index(3, inner.w);
+        });
     }
 
     /// Put the given rigid-body to sleep.
@@ -40,10 +79,34 @@ impl RawRigidBodySet {
     /// If this rigid-body is kinematic this value is set by the `setNextKinematicTranslation`
     /// method and is used for estimating the kinematic body velocity at the next timestep.
     /// For non-kinematic bodies, this value is currently unspecified.
-    pub fn rbNextTranslation(&self, handle: FlatHandle) -> RawVector {
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim2")]
+    pub fn rbNextTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
-            RawVector(rb.next_position().translation.vector)
-        })
+            let u = rb.next_position().translation.vector;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// The world-space predicted translation of this rigid-body.
+    ///
+    /// If this rigid-body is kinematic this value is set by the `setNextKinematicTranslation`
+    /// method and is used for estimating the kinematic body velocity at the next timestep.
+    /// For non-kinematic bodies, this value is currently unspecified.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbNextTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.next_position().translation.vector;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// The world-space predicted orientation of this rigid-body.
@@ -51,8 +114,29 @@ impl RawRigidBodySet {
     /// If this rigid-body is kinematic this value is set by the `setNextKinematicRotation`
     /// method and is used for estimating the kinematic body velocity at the next timestep.
     /// For non-kinematic bodies, this value is currently unspecified.
-    pub fn rbNextRotation(&self, handle: FlatHandle) -> RawRotation {
-        self.map(handle, |rb| RawRotation(rb.next_position().rotation))
+    #[cfg(feature = "dim2")]
+    pub fn rbNextRotation(&self, handle: FlatHandle) -> f32 {
+        self.map(handle, |rb| rb.next_position().rotation.angle())
+    }
+
+    /// The world-space predicted orientation of this rigid-body.
+    ///
+    /// If this rigid-body is kinematic this value is set by the `setNextKinematicRotation`
+    /// method and is used for estimating the kinematic body velocity at the next timestep.
+    /// For non-kinematic bodies, this value is currently unspecified.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbNextRotation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.next_position().rotation;
+            let inner = u.into_inner();
+            scratch_buffer.set_index(0, inner.i);
+            scratch_buffer.set_index(1, inner.j);
+            scratch_buffer.set_index(2, inner.k);
+            scratch_buffer.set_index(3, inner.w);
+        });
     }
 
     /// Sets the translation of this rigid-body.
@@ -282,8 +366,30 @@ impl RawRigidBodySet {
     }
 
     /// The linear velocity of this rigid-body.
-    pub fn rbLinvel(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |rb| RawVector(*rb.linvel()))
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim2")]
+    pub fn rbLinvel(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.linvel();
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// The linear velocity of this rigid-body.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbLinvel(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.linvel();
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// The angular velocity of this rigid-body.
@@ -293,16 +399,54 @@ impl RawRigidBodySet {
     }
 
     /// The angular velocity of this rigid-body.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
     #[cfg(feature = "dim3")]
-    pub fn rbAngvel(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |rb| RawVector(*rb.angvel()))
+    pub fn rbAngvel(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.angvel();
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// The velocity of the given world-space point on this rigid-body.
-    pub fn rbVelocityAtPoint(&self, handle: FlatHandle, point: &RawVector) -> RawVector {
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim2")]
+    pub fn rbVelocityAtPoint(
+        &self,
+        handle: FlatHandle,
+        point: &RawVector,
+        scratch_buffer: &js_sys::Float32Array,
+    ) {
         self.map(handle, |rb| {
-            rb.velocity_at_point(&Point::from(point.0)).into()
-        })
+            let u = rb.velocity_at_point(&Point::from(point.0));
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// The velocity of the given world-space point on this rigid-body.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbVelocityAtPoint(
+        &self,
+        handle: FlatHandle,
+        point: &RawVector,
+        scratch_buffer: &js_sys::Float32Array,
+    ) {
+        self.map(handle, |rb| {
+            let u = rb.velocity_at_point(&Point::from(point.0));
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     pub fn rbLockTranslations(&mut self, handle: FlatHandle, locked: bool, wake_up: bool) {
@@ -383,20 +527,84 @@ impl RawRigidBodySet {
     }
 
     /// The inverse mass taking into account translation locking.
-    pub fn rbEffectiveInvMass(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |rb| rb.mass_properties().effective_inv_mass.into())
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim2")]
+    pub fn rbEffectiveInvMass(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.mass_properties().effective_inv_mass;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// The inverse mass taking into account translation locking.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbEffectiveInvMass(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.mass_properties().effective_inv_mass;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// The center of mass of a rigid-body expressed in its local-space.
-    pub fn rbLocalCom(&self, handle: FlatHandle) -> RawVector {
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim2")]
+    pub fn rbLocalCom(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
-            rb.mass_properties().local_mprops.local_com.into()
-        })
+            let u = rb.mass_properties().local_mprops.local_com;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// The center of mass of a rigid-body expressed in its local-space.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbLocalCom(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.mass_properties().local_mprops.local_com;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// The world-space center of mass of the rigid-body.
-    pub fn rbWorldCom(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |rb| rb.mass_properties().world_com.into())
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim2")]
+    pub fn rbWorldCom(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.mass_properties().world_com;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// The world-space center of mass of the rigid-body.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbWorldCom(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.mass_properties().world_com;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// The inverse of the principal angular inertia of the rigid-body.
@@ -405,52 +613,69 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbInvPrincipalInertia(&self, handle: FlatHandle) -> f32 {
         self.map(handle, |rb| {
-            rb.mass_properties()
-                .local_mprops
-                .inv_principal_inertia
-                .into()
+            rb.mass_properties().local_mprops.inv_principal_inertia
         })
     }
 
     /// The inverse of the principal angular inertia of the rigid-body.
     ///
     /// Components set to zero are assumed to be infinite along the corresponding principal axis.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
     #[cfg(feature = "dim3")]
-    pub fn rbInvPrincipalInertia(&self, handle: FlatHandle) -> RawVector {
+    pub fn rbInvPrincipalInertia(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
-            rb.mass_properties()
-                .local_mprops
-                .inv_principal_inertia
-                .into()
-        })
+            let u = rb.mass_properties().local_mprops.inv_principal_inertia;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
-    #[cfg(feature = "dim3")]
     /// The principal vectors of the local angular inertia tensor of the rigid-body.
-    pub fn rbPrincipalInertiaLocalFrame(&self, handle: FlatHandle) -> RawRotation {
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbPrincipalInertiaLocalFrame(
+        &self,
+        handle: FlatHandle,
+        scratch_buffer: &js_sys::Float32Array,
+    ) {
         self.map(handle, |rb| {
-            RawRotation::from(
-                rb.mass_properties()
-                    .local_mprops
-                    .principal_inertia_local_frame,
-            )
-        })
+            let u = rb
+                .mass_properties()
+                .local_mprops
+                .principal_inertia_local_frame;
+            let inner = u.into_inner();
+            scratch_buffer.set_index(0, inner.i);
+            scratch_buffer.set_index(1, inner.j);
+            scratch_buffer.set_index(2, inner.k);
+            scratch_buffer.set_index(3, inner.w);
+        });
     }
 
     /// The angular inertia along the principal inertia axes of the rigid-body.
     #[cfg(feature = "dim2")]
     pub fn rbPrincipalInertia(&self, handle: FlatHandle) -> f32 {
         self.map(handle, |rb| {
-            rb.mass_properties().local_mprops.principal_inertia().into()
+            rb.mass_properties().local_mprops.principal_inertia()
         })
     }
 
     /// The angular inertia along the principal inertia axes of the rigid-body.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
     #[cfg(feature = "dim3")]
-    pub fn rbPrincipalInertia(&self, handle: FlatHandle) -> RawVector {
+    pub fn rbPrincipalInertia(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
-            rb.mass_properties().local_mprops.principal_inertia().into()
-        })
+            let u = rb.mass_properties().local_mprops.principal_inertia();
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// The world-space inverse angular inertia tensor of the rigid-body,
@@ -458,17 +683,30 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbEffectiveWorldInvInertia(&self, handle: FlatHandle) -> f32 {
         self.map(handle, |rb| {
-            rb.mass_properties().effective_world_inv_inertia.into()
+            rb.mass_properties().effective_world_inv_inertia
         })
     }
 
     /// The world-space inverse angular inertia tensor of the rigid-body,
     /// taking into account rotation locking.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
     #[cfg(feature = "dim3")]
-    pub fn rbEffectiveWorldInvInertia(&self, handle: FlatHandle) -> RawSdpMatrix3 {
+    pub fn rbEffectiveWorldInvInertia(
+        &self,
+        handle: FlatHandle,
+        scratch_buffer: &js_sys::Float32Array,
+    ) {
         self.map(handle, |rb| {
-            rb.mass_properties().effective_world_inv_inertia.into()
-        })
+            let u = rb.mass_properties().effective_world_inv_inertia;
+            scratch_buffer.set_index(0, u.m11);
+            scratch_buffer.set_index(1, u.m12);
+            scratch_buffer.set_index(2, u.m13);
+            scratch_buffer.set_index(3, u.m22);
+            scratch_buffer.set_index(4, u.m23);
+            scratch_buffer.set_index(5, u.m33);
+        });
     }
 
     /// The effective world-space angular inertia (that takes the potential rotation locking into account) of
@@ -476,17 +714,30 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbEffectiveAngularInertia(&self, handle: FlatHandle) -> f32 {
         self.map(handle, |rb| {
-            rb.mass_properties().effective_angular_inertia().into()
+            rb.mass_properties().effective_angular_inertia()
         })
     }
 
     /// The effective world-space angular inertia (that takes the potential rotation locking into account) of
     /// this rigid-body.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
     #[cfg(feature = "dim3")]
-    pub fn rbEffectiveAngularInertia(&self, handle: FlatHandle) -> RawSdpMatrix3 {
+    pub fn rbEffectiveAngularInertia(
+        &self,
+        handle: FlatHandle,
+        scratch_buffer: &js_sys::Float32Array,
+    ) {
         self.map(handle, |rb| {
-            rb.mass_properties().effective_angular_inertia().into()
-        })
+            let u = rb.mass_properties().effective_angular_inertia();
+            scratch_buffer.set_index(0, u.m11);
+            scratch_buffer.set_index(1, u.m12);
+            scratch_buffer.set_index(2, u.m13);
+            scratch_buffer.set_index(3, u.m22);
+            scratch_buffer.set_index(4, u.m23);
+            scratch_buffer.set_index(5, u.m33);
+        });
     }
 
     /// Wakes this rigid-body up.
@@ -733,8 +984,31 @@ impl RawRigidBodySet {
 
     /// Retrieves the constant force(s) the user added to this rigid-body.
     /// Returns zero if the rigid-body is not dynamic.
-    pub fn rbUserForce(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |rb| rb.user_force().into())
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim2")]
+    pub fn rbUserForce(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.user_force();
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// Retrieves the constant force(s) the user added to this rigid-body.
+    /// Returns zero if the rigid-body is not dynamic.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
+    #[cfg(feature = "dim3")]
+    pub fn rbUserForce(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.user_force();
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// Retrieves the constant torque(s) the user added to this rigid-body.
@@ -746,8 +1020,16 @@ impl RawRigidBodySet {
 
     /// Retrieves the constant torque(s) the user added to this rigid-body.
     /// Returns zero if the rigid-body is not dynamic.
+    ///
+    /// # Parameters
+    /// - `scratch_buffer`: The array to be populated.
     #[cfg(feature = "dim3")]
-    pub fn rbUserTorque(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |rb| rb.user_torque().into())
+    pub fn rbUserTorque(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |rb| {
+            let u = rb.user_torque();
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 }

@@ -1,7 +1,7 @@
 import {RawContactForceEvent, RawEventQueue} from "../raw";
 import {RigidBodyHandle} from "../dynamics";
 import {Collider, ColliderHandle} from "../geometry";
-import {Vector, VectorOps} from "../math";
+import {Vector, VectorOps, scratchBuffer} from "../math";
 
 /**
  * Flags indicating what events are enabled for colliders.
@@ -52,8 +52,9 @@ export class TempContactForceEvent {
     /**
      * The sum of all the forces between the two colliders.
      */
-    public totalForce(): Vector {
-        return VectorOps.fromRaw(this.raw.total_force());
+    public totalForce(target?: Vector): Vector {
+        this.raw.total_force(scratchBuffer);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
 
     /**
@@ -70,8 +71,9 @@ export class TempContactForceEvent {
     /**
      * The world-space (unit) direction of the force with strongest magnitude.
      */
-    public maxForceDirection(): Vector {
-        return VectorOps.fromRaw(this.raw.max_force_direction());
+    public maxForceDirection(target?: Vector): Vector {
+        this.raw.max_force_direction(scratchBuffer);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
 
     /**

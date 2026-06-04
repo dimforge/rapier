@@ -1,4 +1,4 @@
-import {Vector, VectorOps} from "../math";
+import {Vector, VectorOps, scratchBuffer} from "../math";
 import {
     RawFeatureType,
     RawRayColliderIntersection,
@@ -81,17 +81,27 @@ export class RayIntersection {
         if (featureType !== undefined) this.featureType = featureType;
     }
 
-    public static fromRaw(raw: RawRayIntersection): RayIntersection {
+    /**
+     * @param raw - The raw intersection returned by the WASM query. It is freed by this method.
+     * @param target - If provided, this object is populated and returned instead of
+     * allocating a new one.
+     */
+    public static fromBuffer(
+        raw: RawRayIntersection,
+        target?: RayIntersection,
+    ): RayIntersection {
         if (!raw) return null;
 
-        const result = new RayIntersection(
-            raw.time_of_impact(),
-            VectorOps.fromRaw(raw.normal()),
-            raw.featureType() as number as FeatureType,
-            raw.featureId(),
-        );
+        raw.normal(scratchBuffer);
+
+        target ??= new RayIntersection(0, VectorOps.zeros());
+        target.timeOfImpact = raw.time_of_impact();
+        target.normal = VectorOps.fromBuffer(scratchBuffer, target.normal);
+        target.featureType = raw.featureType() as number as FeatureType;
+        target.featureId = raw.featureId();
+
         raw.free();
-        return result;
+        return target;
     }
 }
 
@@ -138,21 +148,30 @@ export class RayColliderIntersection {
         if (featureType !== undefined) this.featureType = featureType;
     }
 
-    public static fromRaw(
+    /**
+     * @param colliderSet - The set the hit collider belongs to.
+     * @param raw - The raw intersection returned by the WASM query. It is freed by this method.
+     * @param target - If provided, this object is populated and returned instead of
+     * allocating a new one.
+     */
+    public static fromBuffer(
         colliderSet: ColliderSet,
         raw: RawRayColliderIntersection,
+        target?: RayColliderIntersection,
     ): RayColliderIntersection {
         if (!raw) return null;
 
-        const result = new RayColliderIntersection(
-            colliderSet.get(raw.colliderHandle()),
-            raw.time_of_impact(),
-            VectorOps.fromRaw(raw.normal()),
-            raw.featureType() as number as FeatureType,
-            raw.featureId(),
-        );
+        raw.normal(scratchBuffer);
+
+        target ??= new RayColliderIntersection(null, 0, VectorOps.zeros());
+        target.collider = colliderSet.get(raw.colliderHandle());
+        target.timeOfImpact = raw.time_of_impact();
+        target.normal = VectorOps.fromBuffer(scratchBuffer, target.normal);
+        target.featureType = raw.featureType() as number as FeatureType;
+        target.featureId = raw.featureId();
+
         raw.free();
-        return result;
+        return target;
     }
 }
 

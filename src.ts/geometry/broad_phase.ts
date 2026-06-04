@@ -4,7 +4,7 @@ import {ColliderSet} from "./collider_set";
 import {Ray, RayColliderHit, RayColliderIntersection} from "./ray";
 import {InteractionGroups} from "./interaction_groups";
 import {ColliderHandle} from "./collider";
-import {Rotation, RotationOps, Vector, VectorOps} from "../math";
+import {Rotation, RotationOps, Vector, VectorOps, scratchBuffer} from "../math";
 import {Shape} from "./shape";
 import {PointColliderProjection} from "./point";
 import {ColliderShapeCastHit} from "./toi";
@@ -111,10 +111,11 @@ export class BroadPhase {
         filterExcludeCollider?: ColliderHandle,
         filterExcludeRigidBody?: RigidBodyHandle,
         filterPredicate?: (collider: ColliderHandle) => boolean,
+        target?: RayColliderIntersection,
     ): RayColliderIntersection | null {
         let rawOrig = VectorOps.intoRaw(ray.origin);
         let rawDir = VectorOps.intoRaw(ray.dir);
-        let result = RayColliderIntersection.fromRaw(
+        let result = RayColliderIntersection.fromBuffer(
             colliders,
             this.raw.castRayAndGetNormal(
                 narrowPhase.raw,
@@ -130,6 +131,7 @@ export class BroadPhase {
                 filterExcludeRigidBody,
                 filterPredicate,
             ),
+            target,
         );
 
         rawOrig.free();
@@ -170,7 +172,7 @@ export class BroadPhase {
         let rawDir = VectorOps.intoRaw(ray.dir);
         let rawCallback = (rawInter: RawRayColliderIntersection) => {
             return callback(
-                RayColliderIntersection.fromRaw(colliders, rawInter),
+                RayColliderIntersection.fromBuffer(colliders, rawInter),
             );
         };
 
@@ -265,9 +267,10 @@ export class BroadPhase {
         filterExcludeCollider?: ColliderHandle,
         filterExcludeRigidBody?: RigidBodyHandle,
         filterPredicate?: (collider: ColliderHandle) => boolean,
+        target?: PointColliderProjection,
     ): PointColliderProjection | null {
         let rawPoint = VectorOps.intoRaw(point);
-        let result = PointColliderProjection.fromRaw(
+        let result = PointColliderProjection.fromBuffer(
             colliders,
             this.raw.projectPoint(
                 narrowPhase.raw,
@@ -281,6 +284,7 @@ export class BroadPhase {
                 filterExcludeRigidBody,
                 filterPredicate,
             ),
+            target,
         );
 
         rawPoint.free();
@@ -306,9 +310,10 @@ export class BroadPhase {
         filterExcludeCollider?: ColliderHandle,
         filterExcludeRigidBody?: RigidBodyHandle,
         filterPredicate?: (collider: ColliderHandle) => boolean,
+        target?: PointColliderProjection,
     ): PointColliderProjection | null {
         let rawPoint = VectorOps.intoRaw(point);
-        let result = PointColliderProjection.fromRaw(
+        let result = PointColliderProjection.fromBuffer(
             colliders,
             this.raw.projectPointAndGetFeature(
                 narrowPhase.raw,
@@ -321,6 +326,7 @@ export class BroadPhase {
                 filterExcludeRigidBody,
                 filterPredicate,
             ),
+            target,
         );
 
         rawPoint.free();
@@ -387,6 +393,8 @@ export class BroadPhase {
      *   that it’s on a path to exit that penetration state.
      * @param groups - The bit groups and filter associated to the shape to cast, in order to only
      *   test on colliders with collision groups compatible with this group.
+     * @param {ColliderShapeCastHit?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
      */
     public castShape(
         narrowPhase: NarrowPhase,
@@ -404,32 +412,43 @@ export class BroadPhase {
         filterExcludeCollider?: ColliderHandle,
         filterExcludeRigidBody?: RigidBodyHandle,
         filterPredicate?: (collider: ColliderHandle) => boolean,
+        target?: ColliderShapeCastHit,
     ): ColliderShapeCastHit | null {
         let rawPos = VectorOps.intoRaw(shapePos);
         let rawRot = RotationOps.intoRaw(shapeRot);
         let rawVel = VectorOps.intoRaw(shapeVel);
         let rawShape = shape.intoRaw();
 
-        let result = ColliderShapeCastHit.fromRaw(
-            colliders,
-            this.raw.castShape(
-                narrowPhase.raw,
-                bodies.raw,
-                colliders.raw,
-                rawPos,
-                rawRot,
-                rawVel,
-                rawShape,
-                targetDistance,
-                maxToi,
-                stopAtPenetration,
-                filterFlags,
-                filterGroups,
-                filterExcludeCollider,
-                filterExcludeRigidBody,
-                filterPredicate,
-            ),
+        const rawColliderShapeCastHit = this.raw.castShape(
+            narrowPhase.raw,
+            bodies.raw,
+            colliders.raw,
+            rawPos,
+            rawRot,
+            rawVel,
+            rawShape,
+            targetDistance,
+            maxToi,
+            stopAtPenetration,
+            filterFlags,
+            filterGroups,
+            filterExcludeCollider,
+            filterExcludeRigidBody,
+            filterPredicate,
         );
+
+        let result = null;
+        if (rawColliderShapeCastHit) {
+            const colliderHandle: number =
+                rawColliderShapeCastHit.colliderHandle();
+            rawColliderShapeCastHit.getComponents(scratchBuffer);
+            result = ColliderShapeCastHit.fromBuffer(
+                colliders.get(colliderHandle),
+                scratchBuffer,
+                target,
+            );
+            rawColliderShapeCastHit.free();
+        }
 
         rawPos.free();
         rawRot.free();

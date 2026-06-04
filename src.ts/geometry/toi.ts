@@ -1,7 +1,5 @@
 import {Collider} from "./collider";
 import {Vector, VectorOps} from "../math";
-import {RawShapeCastHit, RawColliderShapeCastHit} from "../raw";
-import {ColliderSet} from "./collider_set";
 
 /**
  * The intersection between a ray and a collider.
@@ -46,21 +44,50 @@ export class ShapeCastHit {
         this.normal2 = normal2;
     }
 
-    public static fromRaw(
-        colliderSet: ColliderSet,
-        raw: RawShapeCastHit,
+    public static fromBuffer(
+        collider: Collider,
+        buffer: Float32Array,
+        target?: ShapeCastHit,
     ): ShapeCastHit {
-        if (!raw) return null;
+        if (!buffer) return null;
 
-        const result = new ShapeCastHit(
-            raw.time_of_impact(),
-            VectorOps.fromRaw(raw.witness1()),
-            VectorOps.fromRaw(raw.witness2()),
-            VectorOps.fromRaw(raw.normal1()),
-            VectorOps.fromRaw(raw.normal2()),
+        target ??= new ShapeCastHit(
+            0,
+            VectorOps.zeros(),
+            VectorOps.zeros(),
+            VectorOps.zeros(),
+            VectorOps.zeros(),
         );
-        raw.free();
-        return result;
+
+        target.time_of_impact = buffer[0];
+
+        // #if DIM2
+        target.witness1.x = buffer[1];
+        target.witness1.y = buffer[2];
+        target.witness2.x = buffer[3];
+        target.witness2.y = buffer[4];
+        target.normal1.x = buffer[5];
+        target.normal1.y = buffer[6];
+        target.normal2.x = buffer[7];
+        target.normal2.y = buffer[8];
+        // #endif
+
+        // #if DIM3
+        target.witness1.x = buffer[1];
+        target.witness1.y = buffer[2];
+        target.witness1.z = buffer[3];
+        target.witness2.x = buffer[4];
+        target.witness2.y = buffer[5];
+        target.witness2.z = buffer[6];
+        target.normal1.x = buffer[7];
+        target.normal1.y = buffer[8];
+        target.normal1.z = buffer[9];
+        target.normal2.x = buffer[10];
+        target.normal2.y = buffer[11];
+        target.normal2.z = buffer[12];
+        // #endif
+
+        return target;
     }
 }
 
@@ -85,21 +112,52 @@ export class ColliderShapeCastHit extends ShapeCastHit {
         this.collider = collider;
     }
 
-    public static fromRaw(
-        colliderSet: ColliderSet,
-        raw: RawColliderShapeCastHit,
+    public static fromBuffer(
+        collider: Collider,
+        buffer: Float32Array,
+        target?: ColliderShapeCastHit,
     ): ColliderShapeCastHit {
-        if (!raw) return null;
+        if (!buffer) return null;
 
-        const result = new ColliderShapeCastHit(
-            colliderSet.get(raw.colliderHandle()),
-            raw.time_of_impact(),
-            VectorOps.fromRaw(raw.witness1()),
-            VectorOps.fromRaw(raw.witness2()),
-            VectorOps.fromRaw(raw.normal1()),
-            VectorOps.fromRaw(raw.normal2()),
+        target ??= new ColliderShapeCastHit(
+            null,
+            0,
+            VectorOps.zeros(),
+            VectorOps.zeros(),
+            VectorOps.zeros(),
+            VectorOps.zeros(),
         );
-        raw.free();
-        return result;
+
+        target.collider = collider;
+
+        target.time_of_impact = buffer[0];
+
+        // #if DIM2
+        target.witness1.x = buffer[1];
+        target.witness1.y = buffer[2];
+        target.witness2.x = buffer[3];
+        target.witness2.y = buffer[4];
+        target.normal1.x = buffer[5];
+        target.normal1.y = buffer[6];
+        target.normal2.x = buffer[7];
+        target.normal2.y = buffer[8];
+        // #endif
+
+        // #if DIM3
+        target.witness1.x = buffer[1];
+        target.witness1.y = buffer[2];
+        target.witness1.z = buffer[3];
+        target.witness2.x = buffer[4];
+        target.witness2.y = buffer[5];
+        target.witness2.z = buffer[6];
+        target.normal1.x = buffer[7];
+        target.normal1.y = buffer[8];
+        target.normal1.z = buffer[9];
+        target.normal2.x = buffer[10];
+        target.normal2.y = buffer[11];
+        target.normal2.z = buffer[12];
+        // #endif
+
+        return target;
     }
 }

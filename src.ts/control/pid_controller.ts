@@ -1,5 +1,5 @@
 import {RawPidController} from "../raw";
-import {Rotation, RotationOps, Vector, VectorOps} from "../math";
+import {Rotation, RotationOps, scratchBuffer, Vector, VectorOps} from "../math";
 import {Collider, ColliderSet, InteractionGroups, Shape} from "../geometry";
 import {QueryFilterFlags, World} from "../pipeline";
 import {IntegrationParameters, RigidBody, RigidBodySet} from "../dynamics";
@@ -151,20 +151,22 @@ export class PidController {
         body: RigidBody,
         targetPosition: Vector,
         targetLinvel: Vector,
+        target?: Vector,
     ): Vector {
         let rawPos = VectorOps.intoRaw(targetPosition);
         let rawVel = VectorOps.intoRaw(targetLinvel);
-        let correction = this.raw.linear_correction(
+        this.raw.linear_correction(
             this.params.dt,
             this.bodies.raw,
             body.handle,
             rawPos,
             rawVel,
+            scratchBuffer,
         );
         rawPos.free();
         rawVel.free();
 
-        return VectorOps.fromRaw(correction);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
 
     // #if DIM2
@@ -188,20 +190,22 @@ export class PidController {
         body: RigidBody,
         targetRotation: Rotation,
         targetAngVel: Vector,
+        target?: Vector,
     ): Vector {
         let rawPos = RotationOps.intoRaw(targetRotation);
         let rawVel = VectorOps.intoRaw(targetAngVel);
-        let correction = this.raw.angular_correction(
+        this.raw.angular_correction(
             this.params.dt,
             this.bodies.raw,
             body.handle,
             rawPos,
             rawVel,
+            scratchBuffer,
         );
         rawPos.free();
         rawVel.free();
 
-        return VectorOps.fromRaw(correction);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
     // #endif
 }

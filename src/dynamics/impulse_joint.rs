@@ -23,29 +23,81 @@ impl RawImpulseJointSet {
     }
 
     /// The angular part of the joint’s local frame relative to the first rigid-body it is attached to.
-    pub fn jointFrameX1(&self, handle: FlatHandle) -> RawRotation {
-        self.map(handle, |j| j.data.local_frame1.rotation.into())
+    #[cfg(feature = "dim3")]
+    pub fn jointFrameX1(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |j| {
+            let u = j.data.local_frame1.rotation.into_inner();
+            scratch_buffer.set_index(0, u.i);
+            scratch_buffer.set_index(1, u.j);
+            scratch_buffer.set_index(2, u.k);
+            scratch_buffer.set_index(3, u.w);
+        });
     }
 
     /// The angular part of the joint’s local frame relative to the second rigid-body it is attached to.
-    pub fn jointFrameX2(&self, handle: FlatHandle) -> RawRotation {
-        self.map(handle, |j| j.data.local_frame2.rotation.into())
+    #[cfg(feature = "dim3")]
+    pub fn jointFrameX2(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |j| {
+            let u = j.data.local_frame2.rotation.into_inner();
+            scratch_buffer.set_index(0, u.i);
+            scratch_buffer.set_index(1, u.j);
+            scratch_buffer.set_index(2, u.k);
+            scratch_buffer.set_index(3, u.w);
+        });
     }
 
     /// The position of the first anchor of this joint.
     ///
     /// The first anchor gives the position of the points application point on the
     /// local frame of the first rigid-body it is attached to.
-    pub fn jointAnchor1(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |j| j.data.local_frame1.translation.vector.into())
+    #[cfg(feature = "dim2")]
+    pub fn jointAnchor1(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |j| {
+            let u = j.data.local_frame1.translation.vector;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
     }
 
     /// The position of the second anchor of this joint.
     ///
     /// The second anchor gives the position of the points application point on the
     /// local frame of the second rigid-body it is attached to.
-    pub fn jointAnchor2(&self, handle: FlatHandle) -> RawVector {
-        self.map(handle, |j| j.data.local_frame2.translation.vector.into())
+    #[cfg(feature = "dim3")]
+    pub fn jointAnchor1(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |j| {
+            let u = j.data.local_frame1.translation.vector;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
+    }
+
+    /// The position of the second anchor of this joint.
+    ///
+    /// The second anchor gives the position of the points application point on the
+    /// local frame of the second rigid-body it is attached to.
+    #[cfg(feature = "dim2")]
+    pub fn jointAnchor2(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |j| {
+            let u = j.data.local_frame2.translation.vector;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        });
+    }
+
+    /// The position of the second anchor of this joint.
+    ///
+    /// The second anchor gives the position of the points application point on the
+    /// local frame of the second rigid-body it is attached to.
+    #[cfg(feature = "dim3")]
+    pub fn jointAnchor2(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
+        self.map(handle, |j| {
+            let u = j.data.local_frame2.translation.vector;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        });
     }
 
     /// Sets the position of the first local anchor
@@ -77,16 +129,28 @@ impl RawImpulseJointSet {
     }
 
     /// Sets the full local frame (anchor + rotation) for the first rigid-body attachment.
-    pub fn jointSetLocalFrame1(&mut self, handle: FlatHandle, anchor: &RawVector, rot: &RawRotation) {
+    pub fn jointSetLocalFrame1(
+        &mut self,
+        handle: FlatHandle,
+        anchor: &RawVector,
+        rot: &RawRotation,
+    ) {
         self.map_mut(handle, |j| {
-            j.data.set_local_frame1(Isometry::from_parts(anchor.0.into(), rot.0));
+            j.data
+                .set_local_frame1(Isometry::from_parts(anchor.0.into(), rot.0));
         });
     }
 
     /// Sets the full local frame (anchor + rotation) for the second rigid-body attachment.
-    pub fn jointSetLocalFrame2(&mut self, handle: FlatHandle, anchor: &RawVector, rot: &RawRotation) {
+    pub fn jointSetLocalFrame2(
+        &mut self,
+        handle: FlatHandle,
+        anchor: &RawVector,
+        rot: &RawRotation,
+    ) {
         self.map_mut(handle, |j| {
-            j.data.set_local_frame2(Isometry::from_parts(anchor.0.into(), rot.0));
+            j.data
+                .set_local_frame2(Isometry::from_parts(anchor.0.into(), rot.0));
         });
     }
 

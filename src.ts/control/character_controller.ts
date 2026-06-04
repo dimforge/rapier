@@ -1,5 +1,5 @@
 import {RawKinematicCharacterController, RawCharacterCollision} from "../raw";
-import {Rotation, Vector, VectorOps} from "../math";
+import {Rotation, Vector, VectorOps, scratchBuffer} from "../math";
 import {
     BroadPhase,
     Collider,
@@ -333,8 +333,9 @@ export class KinematicCharacterController {
     /**
      * The movement computed by the last call to `this.computeColliderMovement`.
      */
-    public computedMovement(): Vector {
-        return VectorOps.fromRaw(this.raw.computedMovement());
+    public computedMovement(target?: Vector): Vector {
+        this.raw.computedMovement(scratchBuffer);
+        return VectorOps.fromBuffer(scratchBuffer, target);
     }
 
     /**
@@ -368,17 +369,25 @@ export class KinematicCharacterController {
         } else {
             let c = this.rawCharacterCollision;
             out = out ?? new CharacterCollision();
-            out.translationDeltaApplied = VectorOps.fromRaw(
-                c.translationDeltaApplied(),
+            c.translationDeltaApplied(scratchBuffer);
+            out.translationDeltaApplied = VectorOps.fromBuffer(
+                scratchBuffer,
+                out.translationDeltaApplied,
             );
-            out.translationDeltaRemaining = VectorOps.fromRaw(
-                c.translationDeltaRemaining(),
+            c.translationDeltaRemaining(scratchBuffer);
+            out.translationDeltaRemaining = VectorOps.fromBuffer(
+                scratchBuffer,
+                out.translationDeltaRemaining,
             );
             out.toi = c.toi();
-            out.witness1 = VectorOps.fromRaw(c.worldWitness1());
-            out.witness2 = VectorOps.fromRaw(c.worldWitness2());
-            out.normal1 = VectorOps.fromRaw(c.worldNormal1());
-            out.normal2 = VectorOps.fromRaw(c.worldNormal2());
+            c.worldWitness1(scratchBuffer);
+            out.witness1 = VectorOps.fromBuffer(scratchBuffer, out.witness1);
+            c.worldWitness2(scratchBuffer);
+            out.witness2 = VectorOps.fromBuffer(scratchBuffer, out.witness2);
+            c.worldNormal1(scratchBuffer);
+            out.normal1 = VectorOps.fromBuffer(scratchBuffer, out.normal1);
+            c.worldNormal2(scratchBuffer);
+            out.normal2 = VectorOps.fromBuffer(scratchBuffer, out.normal2);
             out.collider = this.colliders.get(c.handle());
             return out;
         }

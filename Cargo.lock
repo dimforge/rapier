@@ -338,12 +338,13 @@ dependencies = [
 
 [[package]]
 name = "dimforge_rapier2d"
-version = "0.19.2"
+version = "0.19.3"
 dependencies = [
  "bincode",
  "js-sys",
  "nalgebra",
  "palette",
+ "parry2d",
  "rapier2d",
  "ref-cast",
  "serde",
@@ -352,12 +353,13 @@ dependencies = [
 
 [[package]]
 name = "dimforge_rapier2d-deterministic"
-version = "0.19.2"
+version = "0.19.3"
 dependencies = [
  "bincode",
  "js-sys",
  "nalgebra",
  "palette",
+ "parry2d",
  "rapier2d",
  "ref-cast",
  "serde",
@@ -366,12 +368,13 @@ dependencies = [
 
 [[package]]
 name = "dimforge_rapier2d-simd"
-version = "0.19.2"
+version = "0.19.3"
 dependencies = [
  "bincode",
  "js-sys",
  "nalgebra",
  "palette",
+ "parry2d",
  "rapier2d",
  "ref-cast",
  "serde",
@@ -380,12 +383,13 @@ dependencies = [
 
 [[package]]
 name = "dimforge_rapier3d"
-version = "0.19.2"
+version = "0.19.3"
 dependencies = [
  "bincode",
  "js-sys",
  "nalgebra",
  "palette",
+ "parry3d",
  "rapier3d",
  "ref-cast",
  "serde",
@@ -394,12 +398,13 @@ dependencies = [
 
 [[package]]
 name = "dimforge_rapier3d-deterministic"
-version = "0.19.2"
+version = "0.19.3"
 dependencies = [
  "bincode",
  "js-sys",
  "nalgebra",
  "palette",
+ "parry3d",
  "rapier3d",
  "ref-cast",
  "serde",
@@ -408,12 +413,13 @@ dependencies = [
 
 [[package]]
 name = "dimforge_rapier3d-simd"
-version = "0.19.2"
+version = "0.19.3"
 dependencies = [
  "bincode",
  "js-sys",
  "nalgebra",
  "palette",
+ "parry3d",
  "rapier3d",
  "ref-cast",
  "serde",
@@ -464,6 +470,30 @@ name = "foldhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
+name = "futures-core"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d"
+
+[[package]]
+name = "futures-task"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "037711b3d59c33004d3856fbdc83b99d4ff37a24768fa1be9ce3538a1cde4393"
+
+[[package]]
+name = "futures-util"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "pin-project-lite",
+ "slab",
+]
 
 [[package]]
 name = "generic-array"
@@ -726,10 +756,12 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "js-sys"
-version = "0.3.77"
+version = "0.3.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cfaf33c695fc6e08064efbc1f72ec937429614f25eef83af942d0e227c3a28f"
+checksum = "142bc4740e452c1e57ade0cbc129f139c9093e354346f0872ef985f4f5cf5f11"
 dependencies = [
+ "cfg-if",
+ "futures-util",
  "once_cell",
  "wasm-bindgen",
 ]
@@ -926,9 +958,9 @@ dependencies = [
 
 [[package]]
 name = "parry2d"
-version = "0.25.2"
+version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92ea16e5cdf52dd91b2a98ef781a2121f48dfb0880a92ae1ec6bc9e78097fceb"
+checksum = "ef681740349cec3ab9b5996b03b459b383b6998e1ffcb2804e8b57eb1e8491d9"
 dependencies = [
  "approx",
  "arrayvec",
@@ -955,9 +987,9 @@ dependencies = [
 
 [[package]]
 name = "parry3d"
-version = "0.25.2"
+version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb2b4291e3c8fcba5f514ed627228c92fa4c94c38bb202c35be7b3b021090193"
+checksum = "e99471b7b6870f7fe406d5611dd4b4c9b07aa3e5436b1d27e1515f9832bb0c6b"
 dependencies = [
  "approx",
  "arrayvec",
@@ -1101,6 +1133,12 @@ checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
 dependencies = [
  "siphasher",
 ]
+
+[[package]]
+name = "pin-project-lite"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "ppv-lite86"
@@ -1639,35 +1677,22 @@ checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.100"
+version = "0.2.122"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1edc8929d7499fc4e8f0be2262a241556cfc54a0bea223790e71446f2aab1ef5"
+checksum = "3ed04576f974d2b2fba0f38c51dbc5518011e38c36bf1143164be765528fd409"
 dependencies = [
  "cfg-if",
  "once_cell",
  "rustversion",
  "wasm-bindgen-macro",
-]
-
-[[package]]
-name = "wasm-bindgen-backend"
-version = "0.2.100"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f0a0651a5c2bc21487bde11ee802ccaf4c51935d0d3d42a6101f98161700bc6"
-dependencies = [
- "bumpalo",
- "log",
- "proc-macro2",
- "quote",
- "syn",
  "wasm-bindgen-shared",
 ]
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.100"
+version = "0.2.122"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fe63fc6d09ed3792bd0897b314f53de8e16568c2b3f7982f468c0bf9bd0b407"
+checksum = "916151b09da36bd82f6615cbf3a419e2f0ba23a03c6160e8e92eb6bd4aa1dec6"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -1675,22 +1700,22 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.100"
+version = "0.2.122"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ae87ea40c9f689fc23f209965b6fb8a99ad69aeeb0231408be24920604395de"
+checksum = "299047362ccbfce148b67ab7e73349f77748e00c8296f9542adfad2ad82c5c5e"
 dependencies = [
+ "bumpalo",
  "proc-macro2",
  "quote",
  "syn",
- "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.100"
+version = "0.2.122"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a05d73b933a847d6cccdda8f838a22ff101ad9bf93e33684f39c1f5f0eece3d"
+checksum = "9a929b2c61f11ba3e9bc35b50c1f25cb38e0e892c0c231ae2b8cf78d5dad4437"
 dependencies = [
  "unicode-ident",
 ]

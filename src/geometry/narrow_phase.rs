@@ -1,4 +1,3 @@
-use crate::math::RawVector;
 use crate::utils::{self, FlatHandle};
 use rapier::geometry::{ContactManifold, ContactPair, NarrowPhase};
 use rapier::math::Real;
@@ -93,20 +92,65 @@ impl RawContactPair {
 
 #[wasm_bindgen]
 impl RawContactManifold {
-    pub fn normal(&self) -> RawVector {
-        unsafe { RawVector((*self.0).data.normal) }
+    #[cfg(feature = "dim2")]
+    pub fn normal(&self, scratch_buffer: &js_sys::Float32Array) {
+        unsafe {
+            let u = (*self.0).data.normal;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn normal(&self, scratch_buffer: &js_sys::Float32Array) {
+        unsafe {
+            let u = (*self.0).data.normal;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        }
     }
 
     // pub fn user_data(&self) -> u32 {
     //     unsafe { (*self.0).data.user_data }
     // }
 
-    pub fn local_n1(&self) -> RawVector {
-        unsafe { (*self.0).local_n1.into() }
+    #[cfg(feature = "dim2")]
+    pub fn local_n1(&self, scratch_buffer: &js_sys::Float32Array) {
+        unsafe {
+            let u = (*self.0).local_n1;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        }
     }
 
-    pub fn local_n2(&self) -> RawVector {
-        unsafe { (*self.0).local_n2.into() }
+    #[cfg(feature = "dim3")]
+    pub fn local_n1(&self, scratch_buffer: &js_sys::Float32Array) {
+        unsafe {
+            let u = (*self.0).local_n1;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        }
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn local_n2(&self, scratch_buffer: &js_sys::Float32Array) {
+        unsafe {
+            let u = (*self.0).local_n2;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn local_n2(&self, scratch_buffer: &js_sys::Float32Array) {
+        unsafe {
+            let u = (*self.0).local_n2;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        }
     }
 
     pub fn subshape1(&self) -> u32 {
@@ -121,12 +165,54 @@ impl RawContactManifold {
         unsafe { (*self.0).points.len() }
     }
 
-    pub fn contact_local_p1(&self, i: usize) -> Option<RawVector> {
-        unsafe { (&(*self.0).points).get(i).map(|c| c.local_p1.coords.into()) }
+    #[cfg(feature = "dim2")]
+    pub fn contact_local_p1(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        unsafe {
+            (&(*self.0).points).get(i).map_or(false, |c| {
+                let u = c.local_p1.coords;
+                scratch_buffer.set_index(0, u.x);
+                scratch_buffer.set_index(1, u.y);
+                true
+            })
+        }
     }
 
-    pub fn contact_local_p2(&self, i: usize) -> Option<RawVector> {
-        unsafe { (&(*self.0).points).get(i).map(|c| c.local_p2.coords.into()) }
+    #[cfg(feature = "dim3")]
+    pub fn contact_local_p1(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        unsafe {
+            (&(*self.0).points).get(i).map_or(false, |c| {
+                let u = c.local_p1.coords;
+                scratch_buffer.set_index(0, u.x);
+                scratch_buffer.set_index(1, u.y);
+                scratch_buffer.set_index(2, u.z);
+                true
+            })
+        }
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn contact_local_p2(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        unsafe {
+            (&(*self.0).points).get(i).map_or(false, |c| {
+                let u = c.local_p2.coords;
+                scratch_buffer.set_index(0, u.x);
+                scratch_buffer.set_index(1, u.y);
+                true
+            })
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn contact_local_p2(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        unsafe {
+            (&(*self.0).points).get(i).map_or(false, |c| {
+                let u = c.local_p2.coords;
+                scratch_buffer.set_index(0, u.x);
+                scratch_buffer.set_index(1, u.y);
+                scratch_buffer.set_index(2, u.z);
+                true
+            })
+        }
     }
 
     pub fn contact_dist(&self, i: usize) -> Real {
@@ -184,12 +270,28 @@ impl RawContactManifold {
         unsafe { (*self.0).data.solver_contacts.len() }
     }
 
-    pub fn solver_contact_point(&self, i: usize) -> Option<RawVector> {
+    #[cfg(feature = "dim2")]
+    pub fn solver_contact_point(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
         unsafe {
-            (&(*self.0).data)
-                .solver_contacts
-                .get(i)
-                .map(|c| c.point.coords.into())
+            (&(*self.0).data).solver_contacts.get(i).map_or(false, |c| {
+                let u = c.point.coords;
+                scratch_buffer.set_index(0, u.x);
+                scratch_buffer.set_index(1, u.y);
+                true
+            })
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn solver_contact_point(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        unsafe {
+            (&(*self.0).data).solver_contacts.get(i).map_or(false, |c| {
+                let u = c.point.coords;
+                scratch_buffer.set_index(0, u.x);
+                scratch_buffer.set_index(1, u.y);
+                scratch_buffer.set_index(2, u.z);
+                true
+            })
         }
     }
 
@@ -211,7 +313,22 @@ impl RawContactManifold {
         unsafe { (&(*self.0).data).solver_contacts[i].restitution }
     }
 
-    pub fn solver_contact_tangent_velocity(&self, i: usize) -> RawVector {
-        unsafe { (&(*self.0).data).solver_contacts[i].tangent_velocity.into() }
+    #[cfg(feature = "dim2")]
+    pub fn solver_contact_tangent_velocity(&self, i: usize, scratch_buffer: &js_sys::Float32Array) {
+        unsafe {
+            let u = (&(*self.0).data).solver_contacts[i].tangent_velocity;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+        }
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn solver_contact_tangent_velocity(&self, i: usize, scratch_buffer: &js_sys::Float32Array) {
+        unsafe {
+            let u = (&(*self.0).data).solver_contacts[i].tangent_velocity;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+        }
     }
 }

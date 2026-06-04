@@ -105,12 +105,35 @@ impl RawDynamicRayCastVehicleController {
     /*
      * Getters + setters
      */
-    pub fn wheel_chassis_connection_point_cs(&self, i: usize) -> Option<RawVector> {
-        self.controller
-            .wheels()
-            .get(i)
-            .map(|w| w.chassis_connection_point_cs.into())
+    #[cfg(feature = "dim2")]
+    pub fn wheel_chassis_connection_point_cs(
+        &self,
+        i: usize,
+        scratch_buffer: &js_sys::Float32Array,
+    ) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.chassis_connection_point_cs;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            true
+        })
     }
+
+    #[cfg(feature = "dim3")]
+    pub fn wheel_chassis_connection_point_cs(
+        &self,
+        i: usize,
+        scratch_buffer: &js_sys::Float32Array,
+    ) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.chassis_connection_point_cs;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            true
+        })
+    }
+
     pub fn set_wheel_chassis_connection_point_cs(&mut self, i: usize, value: &RawVector) {
         if let Some(wheel) = self.controller.wheels_mut().get_mut(i) {
             wheel.chassis_connection_point_cs = value.0.into();
@@ -225,21 +248,54 @@ impl RawDynamicRayCastVehicleController {
         }
     }
 
-    pub fn wheel_direction_cs(&self, i: usize) -> Option<RawVector> {
-        self.controller
-            .wheels()
-            .get(i)
-            .map(|w| w.direction_cs.into())
+    #[cfg(feature = "dim2")]
+    pub fn wheel_direction_cs(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.direction_cs;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            true
+        })
     }
+
+    #[cfg(feature = "dim3")]
+    pub fn wheel_direction_cs(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.direction_cs;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            true
+        })
+    }
+
     pub fn set_wheel_direction_cs(&mut self, i: usize, value: &RawVector) {
         if let Some(wheel) = self.controller.wheels_mut().get_mut(i) {
             wheel.direction_cs = value.0;
         }
     }
 
-    pub fn wheel_axle_cs(&self, i: usize) -> Option<RawVector> {
-        self.controller.wheels().get(i).map(|w| w.axle_cs.into())
+    #[cfg(feature = "dim2")]
+    pub fn wheel_axle_cs(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.axle_cs;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            true
+        })
     }
+
+    #[cfg(feature = "dim3")]
+    pub fn wheel_axle_cs(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.axle_cs;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            true
+        })
+    }
+
     pub fn set_wheel_axle_cs(&mut self, i: usize, value: &RawVector) {
         if let Some(wheel) = self.controller.wheels_mut().get_mut(i) {
             wheel.axle_cs = value.0;
@@ -290,18 +346,46 @@ impl RawDynamicRayCastVehicleController {
             .map(|w| w.wheel_suspension_force)
     }
 
-    pub fn wheel_contact_normal_ws(&self, i: usize) -> Option<RawVector> {
-        self.controller
-            .wheels()
-            .get(i)
-            .map(|w| w.raycast_info().contact_normal_ws.into())
+    #[cfg(feature = "dim2")]
+    pub fn wheel_contact_normal_ws(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.raycast_info().contact_normal_ws;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            true
+        })
     }
 
-    pub fn wheel_contact_point_ws(&self, i: usize) -> Option<RawVector> {
-        self.controller
-            .wheels()
-            .get(i)
-            .map(|w| w.raycast_info().contact_point_ws.into())
+    #[cfg(feature = "dim3")]
+    pub fn wheel_contact_normal_ws(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.raycast_info().contact_normal_ws;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            true
+        })
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn wheel_contact_point_ws(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.raycast_info().contact_point_ws;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            true
+        })
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn wheel_contact_point_ws(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.raycast_info().contact_point_ws;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            true
+        })
     }
 
     pub fn wheel_suspension_length(&self, i: usize) -> Option<Real> {
@@ -311,11 +395,25 @@ impl RawDynamicRayCastVehicleController {
             .map(|w| w.raycast_info().suspension_length)
     }
 
-    pub fn wheel_hard_point_ws(&self, i: usize) -> Option<RawVector> {
-        self.controller
-            .wheels()
-            .get(i)
-            .map(|w| w.raycast_info().hard_point_ws.into())
+    #[cfg(feature = "dim2")]
+    pub fn wheel_hard_point_ws(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.raycast_info().hard_point_ws;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            true
+        })
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn wheel_hard_point_ws(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+        self.controller.wheels().get(i).map_or(false, |w| {
+            let u = w.raycast_info().hard_point_ws;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            true
+        })
     }
 
     pub fn wheel_is_in_contact(&self, i: usize) -> bool {

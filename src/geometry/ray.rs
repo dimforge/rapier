@@ -1,6 +1,5 @@
 use crate::geometry::feature::IntoTypeValue;
 use crate::geometry::RawFeatureType;
-use crate::math::RawVector;
 use crate::utils::{self, FlatHandle};
 use rapier::geometry::{ColliderHandle, RayIntersection};
 use wasm_bindgen::prelude::*;
@@ -10,8 +9,21 @@ pub struct RawRayIntersection(pub(crate) RayIntersection);
 
 #[wasm_bindgen]
 impl RawRayIntersection {
-    pub fn normal(&self) -> RawVector {
-        self.0.normal.into()
+    /// Writes the hit normal components into the given scratch buffer.
+    #[cfg(feature = "dim2")]
+    pub fn normal(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.normal;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+    }
+
+    /// Writes the hit normal components into the given scratch buffer.
+    #[cfg(feature = "dim3")]
+    pub fn normal(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.normal;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
     }
 
     pub fn time_of_impact(&self) -> f32 {
@@ -39,8 +51,21 @@ impl RawRayColliderIntersection {
         utils::flat_handle(self.handle.0)
     }
 
-    pub fn normal(&self) -> RawVector {
-        self.inter.normal.into()
+    /// Writes the hit normal components into the given scratch buffer.
+    #[cfg(feature = "dim2")]
+    pub fn normal(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.inter.normal;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+    }
+
+    /// Writes the hit normal components into the given scratch buffer.
+    #[cfg(feature = "dim3")]
+    pub fn normal(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.inter.normal;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
     }
 
     pub fn time_of_impact(&self) -> f32 {

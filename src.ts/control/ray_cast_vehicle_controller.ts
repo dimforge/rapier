@@ -1,5 +1,5 @@
 import {RawDynamicRayCastVehicleController} from "../raw";
-import {Vector, VectorOps} from "../math";
+import {scratchBuffer, Vector, VectorOps} from "../math";
 import {
     BroadPhase,
     Collider,
@@ -163,11 +163,23 @@ export class DynamicRayCastVehicleController {
     /*
      * Getters + setters
      */
+
     /**
      * The position of the i-th wheel, relative to the chassis.
+     *
+     * @param {number} i
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
      */
-    public wheelChassisConnectionPointCs(i: number): Vector | null {
-        return VectorOps.fromRaw(this.raw.wheel_chassis_connection_point_cs(i));
+    public wheelChassisConnectionPointCs(
+        i: number,
+        target?: Vector,
+    ): Vector | null {
+        const exists = this.raw.wheel_chassis_connection_point_cs(
+            i,
+            scratchBuffer,
+        );
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
     /**
@@ -331,9 +343,14 @@ export class DynamicRayCastVehicleController {
      * The direction of the i-th wheel’s suspension, relative to the chassis.
      *
      * The ray-casting will happen following this direction to detect the ground.
+     *
+     * @param {number} i
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
      */
-    public wheelDirectionCs(i: number): Vector | null {
-        return VectorOps.fromRaw(this.raw.wheel_direction_cs(i));
+    public wheelDirectionCs(i: number, target?: Vector): Vector | null {
+        const exists = this.raw.wheel_direction_cs(i, scratchBuffer);
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
     /**
@@ -351,9 +368,14 @@ export class DynamicRayCastVehicleController {
      * The i-th wheel’s axle axis, relative to the chassis.
      *
      * The axis index defined as 0 = X, 1 = Y, 2 = Z.
+     *
+     * @param {number} i
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
      */
-    public wheelAxleCs(i: number): Vector | null {
-        return VectorOps.fromRaw(this.raw.wheel_axle_cs(i));
+    public wheelAxleCs(i: number, target?: Vector): Vector | null {
+        const exists = this.raw.wheel_axle_cs(i, scratchBuffer);
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
     /**
@@ -439,16 +461,26 @@ export class DynamicRayCastVehicleController {
 
     /**
      *  The (world-space) contact normal between the i-th wheel and the floor.
+     *
+     * @param {number} i
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
      */
-    public wheelContactNormal(i: number): Vector | null {
-        return VectorOps.fromRaw(this.raw.wheel_contact_normal_ws(i));
+    public wheelContactNormal(i: number, target?: Vector): Vector | null {
+        const exists = this.raw.wheel_contact_normal_ws(i, scratchBuffer);
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
     /**
      *  The (world-space) point hit by the wheel’s ray-cast for the i-th wheel.
+     *
+     * @param {number} i
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
      */
-    public wheelContactPoint(i: number): Vector | null {
-        return VectorOps.fromRaw(this.raw.wheel_contact_point_ws(i));
+    public wheelContactPoint(i: number, target?: Vector): Vector | null {
+        const exists = this.raw.wheel_contact_point_ws(i, scratchBuffer);
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
     /**
@@ -460,9 +492,14 @@ export class DynamicRayCastVehicleController {
 
     /**
      *  The (world-space) starting point of the ray-cast for the i-th wheel.
+     *
+     * @param {number} i
+     * @param {Vector?} target - The object to be populated. If provided,
+     * the function returns this object instead of creating a new one.
      */
-    public wheelHardPoint(i: number): Vector | null {
-        return VectorOps.fromRaw(this.raw.wheel_hard_point_ws(i));
+    public wheelHardPoint(i: number, target?: Vector): Vector | null {
+        const exists = this.raw.wheel_hard_point_ws(i, scratchBuffer);
+        return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
     /**

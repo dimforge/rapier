@@ -1,4 +1,4 @@
-import {Vector, VectorOps} from "../math";
+import {Vector, VectorOps, scratchBuffer} from "../math";
 import {RawShapeContact} from "../raw";
 
 /**
@@ -46,17 +46,56 @@ export class ShapeContact {
         this.normal2 = normal2;
     }
 
-    public static fromRaw(raw: RawShapeContact): ShapeContact {
+    /**
+     * @param raw - The raw contact returned by the WASM query. It is freed by this method.
+     * @param target - If provided, this object is populated and returned instead of
+     * allocating a new one.
+     */
+    public static fromBuffer(
+        raw: RawShapeContact,
+        target?: ShapeContact,
+    ): ShapeContact {
         if (!raw) return null;
 
-        const result = new ShapeContact(
-            raw.distance(),
-            VectorOps.fromRaw(raw.point1()),
-            VectorOps.fromRaw(raw.point2()),
-            VectorOps.fromRaw(raw.normal1()),
-            VectorOps.fromRaw(raw.normal2()),
-        );
+        raw.getComponents(scratchBuffer);
         raw.free();
-        return result;
+
+        target ??= new ShapeContact(
+            0,
+            VectorOps.zeros(),
+            VectorOps.zeros(),
+            VectorOps.zeros(),
+            VectorOps.zeros(),
+        );
+
+        target.distance = scratchBuffer[0];
+
+        // #if DIM2
+        target.point1.x = scratchBuffer[1];
+        target.point1.y = scratchBuffer[2];
+        target.point2.x = scratchBuffer[3];
+        target.point2.y = scratchBuffer[4];
+        target.normal1.x = scratchBuffer[5];
+        target.normal1.y = scratchBuffer[6];
+        target.normal2.x = scratchBuffer[7];
+        target.normal2.y = scratchBuffer[8];
+        // #endif
+
+        // #if DIM3
+        target.point1.x = scratchBuffer[1];
+        target.point1.y = scratchBuffer[2];
+        target.point1.z = scratchBuffer[3];
+        target.point2.x = scratchBuffer[4];
+        target.point2.y = scratchBuffer[5];
+        target.point2.z = scratchBuffer[6];
+        target.normal1.x = scratchBuffer[7];
+        target.normal1.y = scratchBuffer[8];
+        target.normal1.z = scratchBuffer[9];
+        target.normal2.x = scratchBuffer[10];
+        target.normal2.y = scratchBuffer[11];
+        target.normal2.z = scratchBuffer[12];
+        // #endif
+
+        return target;
     }
 }

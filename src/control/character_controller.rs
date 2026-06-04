@@ -212,8 +212,19 @@ impl RawKinematicCharacterController {
         }
     }
 
-    pub fn computedMovement(&self) -> RawVector {
-        self.result.translation.into()
+    #[cfg(feature = "dim2")]
+    pub fn computedMovement(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.result.translation;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn computedMovement(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.result.translation;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
     }
 
     pub fn computedGrounded(&self) -> bool {
@@ -260,31 +271,97 @@ impl RawCharacterCollision {
         utils::flat_handle(self.0.handle.0)
     }
 
-    pub fn translationDeltaApplied(&self) -> RawVector {
-        self.0.translation_applied.into()
+    #[cfg(feature = "dim2")]
+    pub fn translationDeltaApplied(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.translation_applied;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
     }
 
-    pub fn translationDeltaRemaining(&self) -> RawVector {
-        self.0.translation_remaining.into()
+    #[cfg(feature = "dim3")]
+    pub fn translationDeltaApplied(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.translation_applied;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn translationDeltaRemaining(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.translation_remaining;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn translationDeltaRemaining(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.translation_remaining;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
     }
 
     pub fn toi(&self) -> Real {
         self.0.hit.time_of_impact
     }
 
-    pub fn worldWitness1(&self) -> RawVector {
-        self.0.hit.witness1.coords.into() // Already in world-space.
+    #[cfg(feature = "dim2")]
+    pub fn worldWitness1(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.hit.witness1.coords; // Already in world-space.
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
     }
 
-    pub fn worldWitness2(&self) -> RawVector {
-        (self.0.character_pos * self.0.hit.witness2).coords.into()
+    #[cfg(feature = "dim3")]
+    pub fn worldWitness1(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.hit.witness1.coords; // Already in world-space.
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
     }
 
-    pub fn worldNormal1(&self) -> RawVector {
-        self.0.hit.normal1.into_inner().into() // Already in world-space.
+    #[cfg(feature = "dim2")]
+    pub fn worldWitness2(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = (self.0.character_pos * self.0.hit.witness2).coords;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
     }
 
-    pub fn worldNormal2(&self) -> RawVector {
-        (self.0.character_pos * self.0.hit.normal2.into_inner()).into()
+    #[cfg(feature = "dim3")]
+    pub fn worldWitness2(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = (self.0.character_pos * self.0.hit.witness2).coords;
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn worldNormal1(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.hit.normal1.into_inner(); // Already in world-space.
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn worldNormal1(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.hit.normal1.into_inner(); // Already in world-space.
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn worldNormal2(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.character_pos * self.0.hit.normal2.into_inner();
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn worldNormal2(&self, scratch_buffer: &js_sys::Float32Array) {
+        let u = self.0.character_pos * self.0.hit.normal2.into_inner();
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
     }
 }

@@ -210,15 +210,27 @@ impl RawPidController {
         rb_handle: FlatHandle,
         target_translation: &RawVector,
         target_linvel: &RawVector,
-    ) -> RawVector {
+        scratch_buffer: &js_sys::Float32Array,
+    ) {
         let rb_handle = crate::utils::body_handle(rb_handle);
         let Some(rb) = bodies.0.get(rb_handle) else {
-            return RawVector(Vector::zeros());
+            scratch_buffer.set_index(0, 0.0);
+            scratch_buffer.set_index(1, 0.0);
+            #[cfg(feature = "dim3")]
+            scratch_buffer.set_index(2, 0.0);
+            return;
         };
 
-        self.controller
-            .linear_rigid_body_correction(dt, rb, target_translation.0.into(), target_linvel.0)
-            .into()
+        let u: Vector<f32> = self.controller.linear_rigid_body_correction(
+            dt,
+            rb,
+            target_translation.0.into(),
+            target_linvel.0,
+        );
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        #[cfg(feature = "dim3")]
+        scratch_buffer.set_index(2, u.z);
     }
 
     #[cfg(feature = "dim2")]
@@ -251,14 +263,24 @@ impl RawPidController {
         rb_handle: FlatHandle,
         target_rotation: &RawRotation,
         target_angvel: &RawVector,
-    ) -> RawVector {
+        scratch_buffer: &js_sys::Float32Array,
+    ) {
         let rb_handle = crate::utils::body_handle(rb_handle);
         let Some(rb) = bodies.0.get(rb_handle) else {
-            return RawVector(Vector::zeros());
+            scratch_buffer.set_index(0, 0.0);
+            scratch_buffer.set_index(1, 0.0);
+            scratch_buffer.set_index(2, 0.0);
+            return;
         };
 
-        self.controller
-            .angular_rigid_body_correction(dt, rb, target_rotation.0, target_angvel.0)
-            .into()
+        let u: Vector<f32> = self.controller.angular_rigid_body_correction(
+            dt,
+            rb,
+            target_rotation.0,
+            target_angvel.0,
+        );
+        scratch_buffer.set_index(0, u.x);
+        scratch_buffer.set_index(1, u.y);
+        scratch_buffer.set_index(2, u.z);
     }
 }
