@@ -1,0 +1,167 @@
+---
+id: simulation_structures
+title: Simulation structures
+sidebar_label: Simulation structures
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+This page describes <rapier> all the data structures needed for stepping the simulation as illustrated by the
+[basic simulation example](./getting_started.mdx#basic-simulation-example)</rapier><bevy> all the useful
+components and resources added automatically by the `RapierPhysicsPlugin`</bevy>.
+
+<bevy>
+
+## Rapier Context
+
+The data structures handled by rapier for a specific context are stored in different components.
+
+An ergonomic `QueryData` helper is provided to reduce boilerplate:
+See https://docs.rs/bevy_rapier3d/latest/bevy_rapier3d/plugin/context/systemparams/struct.RapierContext.html
+
+</bevy>
+
+## Gravity
+Gravity is represented as a vector. It affects every dynamic rigid-body taking part of the simulation. The gravity
+can be altered at each timestep <rapier>(by passing a different vector to `PhysicsPipeline::step`)</rapier><bevy>(by
+modifying the component field `RapierConfiguration::gravity`)</bevy>.
+Learn more about per-rigid-body gravity modification in [the dedicated section](./rigid_bodies.mdx#gravity).
+
+## Integration parameters
+The `IntegrationParameters` <bevy>component field from `RapierContext`</bevy> controls various aspects of the physics simulation,
+including the timestep length, number of solver iterations, number of CCD substeps, etc. The default integration parameters are set to
+achieve a good balance between performance and accuracy for games. They can be changed to make the simulation more
+accurate at the expense of a bit of performance. Learn more about each integration parameter in
+[the API docs](https://docs.rs/rapier3d/latest/rapier3d/dynamics/struct.IntegrationParameters.html).
+
+## Island manager
+The `IslandManager` <bevy>component field from `RapierContext`</bevy> is responsible for tracking the set of dynamic rigid-bodies that are still moving
+and these that are no longer moving (and can ignored by subsequent timesteps to avoid useless computations).
+The island manager is automatically updated by `PhysicsPipeline::step` and can be queried to retrieve
+the list of all the rigid-bodies modified by the physics engine during the last timestep. This can be useful
+to update the rendering of only the rigid-bodies that moved:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_simulation_structures2.rs' marker='IslandManager' />
+```
+
+</rapier>
+
+<bevy>
+<technote>
+this is not used, nothing links to it. Also, it's not compiling.
+</technote>
+
+```rust
+fn print_active_bodies_positions(island_manager: Res<IslandManager>, positions: Query<&RigidBodyPositionComponent>) {
+    // Iter on each dynamic rigid-bodies that moved.
+    for rigid_body_handle in island_manager.active_dynamic_bodies() {
+        if let Ok(rb_pos) = positions.get(rigid_body_handle.entity()) {
+            println!("Rigid body {:?} has a new position: {}", rigid_body_handle, rb_pos.position);
+        }
+    }
+}
+```
+
+</bevy>
+
+Learn more about sleeping rigid-bodies in [the dedicated section](./rigid_bodies.mdx#sleeping).
+
+## Physics pipeline
+The `PhysicsPipeline` <bevy>from the `RapierContextSimulation` component </bevy>is responsible for tying everything together in order to run the physics simulation.
+It will take care of updating every data-structures mentioned in this page (except the other pipelines), running the collision-detection,
+running the force computation and integration, and running CCD resolution.
+<rapier>
+
+`PhysicsPipeline::step` executes one timestep.
+Its usage is illustrated in [the basic simulation example](./getting_started.mdx#basic-simulation-example).
+
+</rapier>
+
+## Collision pipeline
+The `CollisionPipeline` is similar to the `PhysicsPipeline` except that it will only run collision-detection.
+It won't perform any dynamics (force computation, integration, CCD, etc.) It is generally used instead of
+the `PhysicsPipeline` when one only needs collision-detection.
+
+:::info
+Running both the `CollisionPipeline` and the `PhysicsPipeline` is useless because the `PhysicsPipeline` already
+does collision-detection.
+:::
+
+
+## Query pipeline
+The `QueryPipeline` is responsible for efficiently running [scene queries](./scene_queries.mdx), e.g., ray-casting,
+shape-casting (sweep tests), intersection tests, on all the colliders of the scene.
+
+<rapier>
+The `QueryPipeline` is a temporary object that is initialized from the broad-phase, collider set, and rigid-body set.
+It reuses the acceleration data-structure (BVH) from the broad-phase which is automatically updated by the physics
+stepping function.
+
+```rust
+// Game loop.
+loop {
+  // Stepping the simulation will update the broad-phase.
+  physics_pipeline.step(...);
+
+  // Init a temporary query pipeline by borrowing from the broad-phase
+  // and collides/rigid-bodies. Scene queries will take into account
+  // the last objects positions know at the end of the last physics
+  // simulation step.
+    let query_pipeline = broad_phase.as_query_pipeline(
+        narrow_phase.query_dispatcher(),
+        rigid_body_set,
+        collider_set,
+        filter,
+    );
+}
+```
+
+</rapier>
+
+Learn more about scene queries with the `QueryPipeline` in the [dedicated page](./scene_queries.mdx).
+
+<rapier>
+
+## Rigid-body set
+The `RigidBodySet` contains all the **rigid-bodies** that needs to be simulated. This set is represented as a
+generational-arena, i.e., a vector where each element is indexed using a __handle__ that combines
+an `u32` index and an `u32` generation number. This ensures that every rigid-body is given a unique handle.
+Learn more about rigid-bodies in [the dedicated page](./rigid_bodies.mdx).
+
+## Collider set
+The `ColliderSet` contains all the **colliders** that needs to be simulated. This set is represented as a
+generational-arena, i.e., a vector where each element is indexed using a __handle__ that combines
+an `u32` index and an `u32` generation number. This ensures that every collider is
+given a unique handle.
+Learn more about colliders in [the dedicated page](./colliders.mdx).
+
+## Joint set
+The `ImpulseJointSet` contains all the **impulse-based joints** that needs to be simulated. This set is represented as a
+generational-arena, i.e., a vector where each element is indexed using a __handle__ that combines
+an `u32` index and an `u32` generation number. This ensures that every joint is
+given a unique handle.
+Learn more about joints in [the dedicated page](./joints.mdx).
+
+</rapier>
+
+## CCD solver
+The CCD solver <bevy>resource</bevy> is responsible for the resolution of Continuous-Collision-Detection. By itself, this structure
+doesn't expose any useful feature. So it should simply be passed to the `PhysicsPipeline::step` method.
+Learn more about CCD in [the dedicated section](./rigid_bodies.mdx#continuous-collision-detection).
+
+## Physics hooks
+The physics hooks are trait-objects implementing the `PhysicsHooks` trait. They can be used to apply arbitrary
+rules to ignore collision detection between some pairs of colliders. They can also be used to modify the contacts
+processed by the constraints solver for computing forces.
+Learn more about physics hooks in [the dedicated section](./advanced_collision_detection.mdx#physics-hooks).
+
+
+## Event handler
+The event handlers are trait-objects implementing the `EventHandler` trait. They can be used to get notified
+when two non-sensor colliders start/stop having contacts, and when one sensor collider and one other collider
+start/stop intersecting. Learn more about collision events in
+[the dedicated section](./advanced_collision_detection.mdx#collision-and-contact-force-events).

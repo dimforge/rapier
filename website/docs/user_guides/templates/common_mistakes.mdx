@@ -1,0 +1,171 @@
+---
+id: common_mistakes
+title: Common mistakes
+sidebar_label: Common mistakes
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<notjs>
+
+## My local build of Rapier is slower than the online demos
+Make sure you are building your project (or just the Rapier dependency) in release mode, e.g., `cargo build --release`.
+Rapier can be 100 times slower without optimizations enabled. Keep in mind that it is possible to compile your project
+without optimizations while keeping optimizations enabled for Rapier itself:
+
+<rapier>
+
+```toml
+# Add this to your Cargo.toml
+[profile.dev.package.rapier3d]
+opt-level = 3
+```
+
+</rapier>
+<bevy>
+
+```toml
+# Add this to your Cargo.toml
+[profile.dev.package.bevy_rapier3d]
+opt-level = 3
+```
+
+</bevy>
+
+See the [cargo book about profile overrides](https://doc.rust-lang.org/cargo/reference/profiles.html#overrides) for
+details about this technique.
+
+:::info
+Also note that setting the number codegen units to 1 will further improve performances in a noticeable way, even for a
+release build (though the build itself will take longer to complete):
+```toml
+# Add this to your Cargo.toml
+[profile.release]
+codegen-units = 1
+```
+:::
+
+</notjs>
+
+## Rigid-body isn't affected by gravity
+If you expect your rigid-body to fall because of gravity but it doesn't, please make sure to double-check
+the following:
+- Your gravity vector is non-zero.
+- Your rigid-body is a dynamic rigid-body.
+- You didn't lock the translations of the rigid-body.
+- The rigid-body has a non-zero mass.
+
+Note that a collider not attached to a dynamic rigid-body will never fall because it won't be affected by forces.
+  
+:::note
+If the rigid-body has no collider attached to it, its mass will be zero unless you gave it a mass (or mass properties)
+explicitly. If the rigid-body has colliders attached to it and you didn't give the rigid-body a mass explicitly, make
+sure that at least one of the colliders has a non-zero density (or non-zero mass if you set it explicitly on the
+collider).
+:::
+:::warning
+Currently, colliders with triangle-meshes won't have their mass properties computed automatically. So if a rigid-body
+only has triangle-mesh colliders attached to it, you need to set its mass/angular inertia manually.
+:::
+
+## Applying a force to a rigid-body doesn't work
+If applying a force or an impulse to a rigid-body doesn't work, please make sure to double-check the following:
+
+<rapier>
+
+- The rigid-body is a dynamic rigid-body.
+- The rigid-body has a non-zero mass (or non-zero angular inertia for torques).
+- The force or impulse must be strong enough to actually push the rigid-body. You may for example try with a very
+      high force/impulse value (say, with a magnitude of `100_000.0`) and see if this stronger force works.
+- The rigid-body is [awake](./rigid_bodies.mdx#sleeping), either by calling `RigidBody::wake_up(true)` explicitly, or by using `true` as the
+  last argument of the force/impulse application method.
+  
+</rapier>
+
+
+<bevy>
+
+- The rigid-body is a dynamic rigid-body.
+- The rigid-body has a non-zero mass (or non-zero angular inertia for torques).
+- The force or impulse must be strong enough to actually push the rigid-body. You may for example try with a very
+  high force/impulse value (say, with a magnitude of `100_000.0`) and see if this stronger force works.
+
+</bevy>
+
+
+<js>
+
+- The rigid-body is a dynamic rigid-body.
+- The rigid-body has a non-zero mass (or non-zero angular inertia for torques).
+- The force or impulse must be strong enough to actually push the rigid-body. You may for example try with a very
+  high force/impulse value (say, with a magnitude of `100000.0`) and see if this stronger force works.
+
+</js>
+
+:::note
+If the rigid-body has no collider attached to it, its mass will be zero unless you gave it a mass (or mass properties)
+explicitly. If the rigid-body has colliders attached to it and you didn't give the rigid-body a mass explicitly, make
+sure that at least one of the colliders has a non-zero density (or non-zero mass if you set it explicitly on the
+collider).
+:::
+
+<notjs>
+
+## The simulation panics!
+It may happen that Rapier panics with the following panic message:
+```rust
+"assertion failed: proxy.aabb.maxs[dim] >= self.min_bound"
+```
+This panics generally means that something went wrong in the simulation, resulting in `NaN` values appearing in the
+collider positions. The most common configuration that makes this panic happen is if two dynamic rigid-bodies with 
+a zero mass start being in contact. To fix this, make sure that your dynamic rigid-bodies have a non-zero mass.
+
+:::note
+If the rigid-body has no collider attached to it, its mass will be zero unless you gave it a mass (or mass properties)
+explicitly. If the rigid-body has colliders attached to it and you didn't give the rigid-body a mass explicitly, make
+sure that at least one of the colliders has a non-zero density (or non-zero mass if you set it explicitly on the
+collider).
+:::
+
+</notjs>
+
+## Why is everything moving in slow-motion?
+A common mistake, especially in 2D, is to use pixels as the length unit in the physics world. Let's say that in 2D
+you have a 100x100 pixels sprite for your player. It may be tempting to use a 100x100 cuboid collider for this
+sprite: <rapier>`ColliderBuilder::cuboid(50.0, 50.0)`</rapier><bevy>`Collider::cuboid(50.0, 50.0)`</bevy><js>`ColliderDesc.cuboid(50.0, 50.0)`</js> (we set `50.0`
+because this is the half-width of the cuboid). Doing this will make it look like the simulation runs in __slow-motion__
+because the cuboid will be huge compared to the magnitude of the default gravity (-9.81).
+
+The recommended way of using Rapier is to use [SI units](https://en.wikipedia.org/wiki/International_System_of_Units)
+(meters, seconds, kilograms, etc.) If the player sprite is a 100x100 cuboid, then it is as if your player is 100 meters
+tall and 100 meters wide, which is huge. Therefore it is recommended to have a scaling factor between the graphics
+and the physics. For example we can say that 1 physics meter is equal to 50 pixels. This means that we can
+initialize our player collider as a 2x2 cuboid while still using a 100x100 pixels sprite.
+
+<rapier>
+
+All we need to do to keep measures in sync is to multiply by our scaling factor 50 all the positions given by the
+physics engine before rendering:
+
+```rust
+// Scale the translation to convert from meters to pixels
+sprite.set_translation(rigid_body.translation() * 50.0);
+// Rotation angles don't need to be scaled
+sprite.set_rotation(rigid_body.rotation().angle());
+```
+
+</rapier>
+<bevy>
+
+In this example, we could set `RapierPhysicsPlugin::pixels_per_meter(50.0)` so that while all the transforms,
+collider size, positions, etc. are expressed in pixels on your end, `bevy_rapier` will automatically divide
+them by 50.0 whenever it inputs/reads data into/from Rapier itself.
+
+</bevy>
+<js>
+
+All we need to do to keep measures in sync is to multiply by our scaling factor 50 all the positions given by the
+physics engine before rendering.
+
+</js>

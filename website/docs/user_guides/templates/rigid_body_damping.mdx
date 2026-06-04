@@ -1,0 +1,41 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Damping lets you slow down a rigid-body automatically. This can be used to achieve a wide variety of effects like
+fake air friction. Each rigid-body is given a **linear damping coefficient** (affecting its linear velocity) and an
+**angular damping coefficient** (affecting its angular velocity). Larger values of the damping coefficients lead to
+a stronger slow-downs. Their default values are `0.0` (no damping at all).
+
+
+This damping coefficients can be set when the rigid-body is created or after its creation:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Damping1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Damping2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='Damping1' />
+```
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='Damping2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Damping1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Damping2' />
+```
+
+</js>

@@ -1,0 +1,24 @@
+{
+  "name": "rapier_snippets_javascript2d",
+  "version": "1.0.0",
+  "description": "Javascript snippets from rapier.rs. Exists only to check it's compiling",
+  "scripts": {
+    "build": "bash build.sh",
+    "start": "static-web-server -w static-web-server.toml",
+    "preview": "npm run build && npm run start"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "html-loader": "^5.0.0",
+    "html-webpack-plugin": "^5.6.0",
+    "pixi-viewport": "^4.37.0",
+    "pixi.js": "^6.3.2",
+    "ts-loader": "^9.5.1",
+    "wasm-pack": "^0.12.1",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@dimforge/rapier2d": "0.17.3"
+  }
+}

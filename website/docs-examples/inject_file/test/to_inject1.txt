@@ -1,0 +1,34 @@
+incorrect data1 1
+// DOCUSAURUS: ToInject1_1 start
+correct data1 1
+// DOCUSAURUS: ToInject1_1 stop
+incorrect data1 2
+// DOCUSAURUS: ToInject1_2 start
+correct data1 2
+// DOCUSAURUS: ToInject1_2 stop
+incorrect data1 3
+
+
+// Short marker to verify it's not taking the longer ones.
+// DOCUSAURUS: ToInject start
+correct data short
+// DOCUSAURUS: ToInject stop
+
+// DOCUSAURUS: ToInject1_nest start
+correct data nest1
+// DOCUSAURUS: ToInject1_nested start
+correct data nested
+// DOCUSAURUS: ToInject1_nested stop
+correct data nest2
+// DOCUSAURUS: ToInject1_nest stop
+
+some outside data
+// DOCUSAURUS: ToInject1_indent start
+    correct data not indented
+        empty line without space next
+            empty line without space next
+
+    correct data not indented again
+// DOCUSAURUS: ToInject1_indent stop
+
+outside data again

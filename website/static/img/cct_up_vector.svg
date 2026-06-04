@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 1450 340" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1,0,0,1,-505,-78)">
+        <g transform="matrix(-0.093472,-1.05928,1.05928,-0.093472,1567.27,1735.93)">
+            <path d="M1442.71,250.748C1442.71,250.748 1462.82,256.178 1453.5,293.053" style="fill:none;stroke:rgb(175,7,30);stroke-width:7.67px;"/>
+        </g>
+        <g transform="matrix(1.06339,0,0,1.06339,-271.568,-43.0986)">
+            <path d="M1440.94,248.031C1440.94,248.031 1462.07,258.401 1452.76,295.276" style="fill:none;stroke:rgb(175,7,30);stroke-width:7.67px;stroke-linecap:round;"/>
+        </g>
+        <g id="Capsule">
+        </g>
+        <g id="Capsule1" serif:id="Capsule">
+        </g>
+        <g id="Capsule2" serif:id="Capsule">
+        </g>
+        <g id="Capsule3" serif:id="Capsule">
+        </g>
+        <g id="Capsule4" serif:id="Capsule">
+        </g>
+        <g id="Capsule5" serif:id="Capsule">
+        </g>
+        <g id="Capsule6" serif:id="Capsule">
+        </g>
+        <g id="Capsule7" serif:id="Capsule">
+        </g>
+        <g id="Capsule8" serif:id="Capsule">
+        </g>
+        <g id="Capsule9" serif:id="Capsule">
+        </g>
+        <g id="Capsule10" serif:id="Capsule">
+        </g>
+        <g id="Capsule11" serif:id="Capsule">
+        </g>
+        <g transform="matrix(1.06339,0,0,1.06339,-608.415,-166.824)">
+            <g transform="matrix(0.940385,-0,-0,0.940385,1047.04,230.229)">
+                <path d="M180.571,63.563L192.802,39.102L205.032,63.563C198.917,57.448 186.687,57.448 180.571,63.563Z" style="fill:rgb(197,15,248);"/>
+                <path d="M192.802,193.295L192.802,58.671" style="fill:none;stroke:rgb(197,15,248);stroke-width:8.15px;"/>
+            </g>
+        </g>
+        <g transform="matrix(1.06339,0,0,0.991504,436.872,-139.146)">
+            <g transform="matrix(0.940385,-0,-0,1.00857,64.0661,219.007)">
+                <path d="M1225.86,72.046L1238.09,47.586L1250.32,72.046C1244.2,65.931 1231.97,65.931 1225.86,72.046Z" style="fill:rgb(197,15,248);"/>
+                <path d="M1238.09,191.354L1238.09,67.154" style="fill:none;stroke:rgb(197,15,248);stroke-width:8.15px;stroke-linecap:round;"/>
+            </g>
+        </g>
+        <g transform="matrix(1.06339,0,0,0.991504,436.872,-139.146)">
+            <g transform="matrix(0.940385,-0,-0,1.00857,64.0661,219.007)">
+                <path d="M1171.45,89.029L1171.09,61.683L1193.18,77.8C1184.94,75.175 1174.08,80.789 1171.45,89.029Z" style="fill:rgb(76,76,76);"/>
+                <path d="M1238.09,191.354C1238.09,191.354 1198.34,114.417 1180.07,79.068" style="fill:none;stroke:rgb(76,76,76);stroke-width:8.15px;stroke-linecap:round;"/>
+            </g>
+        </g>
+        <g transform="matrix(-1.56096e-16,-1.06339,-2.54924,6.51141e-17,1572.25,1577.51)">
+            <path d="M1228.35,412L1228.35,267" style="fill:none;stroke:rgb(0,151,255);stroke-width:4.17px;stroke-linecap:round;"/>
+        </g>
+        <g transform="matrix(-1.56096e-16,-1.06339,-2.54924,6.51141e-17,2034.7,1579.05)">
+            <path d="M1228.35,412L1228.35,267" style="fill:none;stroke:rgb(0,151,255);stroke-width:4.17px;stroke-linecap:round;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-69.166,-37.7546)">
+            <text x="779.528px" y="242.445px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:41.667px;fill:rgb(197,15,248);">Up</text>
+        </g>
+        <g transform="matrix(1,0,0,1,-243.257,87.8199)">
+            <text x="779.528px" y="242.445px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:41.667px;fill:rgb(0,151,255);">Horizontal plane</text>
+        </g>
+        <g transform="matrix(1.06339,0,0,1.06339,-296.721,-30.5388)">
+            <path d="M1211.97,354.331L1559.06,188.976" style="fill:none;stroke:rgb(76,76,76);stroke-width:7.67px;stroke-linecap:round;"/>
+        </g>
+        <g transform="matrix(1.06339,0,0,1.06339,286.122,-23.5937)">
+            <path d="M1211.97,354.331L1559.06,188.976" style="fill:none;stroke:rgb(76,76,76);stroke-width:7.67px;stroke-linecap:round;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-601.511,169.838)">
+            <text x="1559.06px" y="224.792px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:50px;fill:rgb(76,76,76);">Floor</text>
+        </g>
+        <g transform="matrix(1,0,0,1,-18.6681,176.783)">
+            <text x="1559.06px" y="224.792px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:50px;fill:rgb(76,76,76);">Floor</text>
+        </g>
+        <g transform="matrix(1,0,0,1,-192.219,-39.5246)">
+            <text x="1476.38px" y="289.689px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:41.667px;fill:rgb(175,7,30);">Slope angle</text>
+        </g>
+        <g transform="matrix(1,0,0,1,126.869,-172.606)">
+            <text x="1476.38px" y="289.689px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:41.667px;fill:rgb(175,7,30);">Slope angle</text>
+        </g>
+        <g id="Capsule12" serif:id="Capsule">
+        </g>
+        <g id="Capsule13" serif:id="Capsule">
+        </g>
+    </g>
+</svg>

@@ -1,0 +1,128 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+<rapier>
+
+A collider is created by a `ColliderBuilder` structure that is based on the builder pattern. Then it needs
+to be inserted into the `ColliderSet` that will be processed by the physics-pipeline, collision-pipeline, or
+query-pipeline.
+
+:::info
+The following example shows several setters that can be called to customize the
+collider being built. The input values are just random so using this example as-is will not
+lead to a useful result.
+:::
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_colliders3.rs' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+A collider is created by adding the `Collider` component. Other components like `Transform`,
+`Sensor`, `Friction`, etc. can be added to customize the collider.
+
+:::info
+The following example shows several initializations of components to customize
+collider being built. The input values are just random so using this example
+as-is will not lead to a useful result.
+:::
+
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Creation1' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/colliders3.rs' marker='Creation1' />
+```
+
+  </TabItem>
+</Tabs>
+
+A collider can optionally be attached to a rigid-body. Attaching a collider to a rigid-body will result in the
+rigid-body being affected by collisions. The collider's position will be automatically updated from the position
+of the rigid-body it is attached to. There are two ways of attaching a collider to a rigid-body. The second
+way allows you to attach multiple colliders to the same rigid-body:
+1. Attach the `Collider` to the same entity as the `RigidBody`.
+2. Attach the `Collider` to an entity that is a child of the entity containing the `RigidBody`.
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Creation2' />
+```
+
+
+</bevy>
+<js>
+
+A collider is created by a `World.createCollider` method. The initial state of
+the collider to create is described by an instance of the `ColliderDesc` class.
+
+Each collider create by the physics world is given an integer identifier. This identifier
+is guaranteed to the different from any identifier of colliders still existing in the physics
+world. However, the identifier may be equal to the identifier of an older collider that has
+already been removed from the physics world with `World.removeCollider`.
+
+:::info
+The following example shows several setters that can be called to customize the
+collider being built. The input values are just random so using this example as-is will not
+lead to a useful result.
+:::
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/colliders.ts' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>

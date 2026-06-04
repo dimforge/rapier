@@ -1,0 +1,218 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+The position of a collider represents its location (translation) in 2D or 3D world-space as well as its orientation (rotation).
+<bevy>Both are combined in a Bevy `Transform` component.</bevy> <rust>Its translational part is represented as a vector and
+its rotational part as an unit quaternion (in 3D) or a unit complex number (in 2D). Both are
+combined into a pose (the `Pose` type).</rust> <js>Its translational part is represented as a vector and its rotational part as an unit
+quaternion (in 3D) or an angle (in 2D).</js>
+
+:::warning
+Please read carefully the paragraph after the next example. It explains how the collider position (and the action of setting
+this position) behaves differently when it is attached to a rigid-body.
+:::
+
+It is possible to set this position when the collider is created or after its creation:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Position1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Position2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_colliders3.rs' marker='Position1' />
+```
+```rust
+<load path='/3d/rust/examples/rs_colliders3.rs' marker='Position2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Position1' />
+```
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Position2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/colliders3.rs' marker='Position1' />
+```
+```rust
+<load path='/3d/bevy/examples/colliders3.rs' marker='Position2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Position1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Position2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/colliders.ts' marker='Position1' />
+```
+```js
+<load path='/3d/javascript/src/snippets/colliders.ts' marker='Position2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+
+
+If a collider is **attached to a rigid-body**, its position is automatically updated by the physics pipeline when a
+rigid-body is moved by the physics pipeline. If a change to the rigid-body position is made by the user then the collider
+position will be updated during the next timestep.
+
+<bevy>Therefore, setting the `Transform` of a collider attached to a rigid-body will modify the position of the
+collider **relative** to the rigid-body it is attached to:</bevy>
+<rapier>Therefore, directly setting the position of a collider attached to a rigid-body will have **no
+lasting effect**. Instead, it is possible to set the position of the collider **relative** to the rigid-body it is
+attached to:</rapier>
+<js>Therefore, directly setting the position of a collider attached to a rigid-body will have **no
+lasting effect**. Instead, it is possible to set the position of the collider **relative** to the rigid-body it is
+attached to:</js>
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Position3' />
+```
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Position4' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_colliders3.rs' marker='Position3' />
+```
+```rust
+<load path='/3d/rust/examples/rs_colliders3.rs' marker='Position4' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Position3' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/colliders3.rs' marker='Position3' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Position3' />
+```
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Position4' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/colliders.ts' marker='Position3' />
+```
+```js
+<load path='/3d/javascript/src/snippets/colliders.ts' marker='Position4' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>

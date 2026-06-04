@@ -1,0 +1,4 @@
+[general]
+cache-control-headers = false
+compression = false
+port = 8080

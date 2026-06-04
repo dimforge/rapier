@@ -1,0 +1,112 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+Shape-casting (aka. sweep tests) is the big brother of ray-casting. The only difference with ray-cast is that instead of being a point
+travelling along a straight line, we have a complete shape travelling along a straight line. This is typically used for
+character controllers in games to determine by how much the player can move before it hits the environment.
+
+:::info
+Just like ray-casting, it is possible to control the behavior of the shape-casting like limiting the distance
+travelled by the shape cast, and ignoring some colliders. See the details about the `max_toi` and
+`filter` arguments in the [ray-casting](./scene_queries.mdx#ray-casting) section.
+:::
+
+There is only one shape-casting method: <rapier>`QueryPipeline::cast_shape`</rapier><bevy>`RapierContext::cast_shape`</bevy><js>`World.castShape`</js>.
+This method has similar arguments as <rapier>`QueryPipeline::cast_ray`</rapier><bevy>`RapierContext::cast_ray`</bevy><js>`World.castRay`</js> except
+that the ray is replaced by three arguments: the **shape** being cast, the **initial position** of the shape (this is analog to `ray.origin`) and
+the **linear velocity** the shape is travelling at (this is analog to `ray.dir`):
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+    {label: 'Example 2D', value: '2D'},
+    {label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_scene_queries2.rs' marker='Shapecast' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_scene_queries3.rs' marker='Shapecast' />
+```
+
+</TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/scene_queries2.rs' marker='Shapecast' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/scene_queries3.rs' marker='Shapecast' />
+```
+
+</TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/scene_queries.ts' marker='Shapecast' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/scene_queries.ts' marker='Shapecast' />
+```
+
+</TabItem>
+</Tabs>
+
+</js>
+
+The result of the shape-casting includes the handle of the first collider being hit, as well as
+detailed information about the geometry of the hit:
+- **`hit.toi`**: indicates the time of impact between the shape and the collider hit. This means that
+after travelling a distance of <notjs>`shape_vel * hit.toi`</notjs><js>`shapeVel * hit.toi`</js> the collider and the
+cast shape are exactly touching. If `hit.toi == 0.0` then the shape is already intersecting a collider at its initial
+position.
+- **`hit.witness1`**: indicates the contact point when the cast shape and the collider are touching, expressed in the
+local-space of the collider hit by the shape.
+- **`hit.witness2`**: indicates the contact point when the cast shape and the collider are touching, expressed in the
+local-space of the cast shape.
+- **`hit.normal1`**: indicates the normal at the contact point `hit.witness1`, expressed in the local-space of
+the collider hit by the shape.
+- **`hit.normal2`**: indicates the normal at the contact point `hit.witness2`, expressed in the local-space of
+the cast shape.

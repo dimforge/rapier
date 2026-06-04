@@ -1,0 +1,62 @@
+---
+id: scene_queries
+title: Scene queries
+sidebar_label: Scene queries
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Scene queries are geometric queries that take all the colliders of the physics world into account. These queries are
+available through the <rapier>[QueryPipeline](./simulation_structures.mdx#query-pipeline)</rapier><bevy>`RapierQueryPipeline` component</bevy><js>`World` class</js>.
+
+<rapier>
+The `QueryPipeline` is a temporary object that is initialized from the broad-phase, collider set, and rigid-body set.
+It reuses the acceleration data-structure (BVH) from the broad-phase which is automatically updated by the physics
+stepping function.
+
+```rust
+// Game loop.
+loop {
+  // Stepping the simulation will update the broad-phase.
+  physics_pipeline.step(...);
+
+  // Init a temporary query pipeline by borrowing from the broad-phase
+  // and collides/rigid-bodies. Scene queries will take into account
+  // the last objects positions know at the end of the last physics
+  // simulation step.
+    let query_pipeline = broad_phase.as_query_pipeline(
+        narrow_phase.query_dispatcher(),
+        rigid_body_set,
+        collider_set,
+        filter,
+    );
+}
+```
+
+</rapier>
+
+## Ray-casting
+import RayCasting from './scene_queries_ray_casting.mdx'
+
+<RayCasting />
+
+## Shape-casting
+import ShapeCasting from './scene_queries_shape_casting.mdx'
+
+<ShapeCasting />
+
+## Point projection
+import PointProjection from './scene_queries_point_projection.mdx'
+
+<PointProjection />
+
+## Intersection test
+import IntersectionTest from './scene_queries_intersection_test.mdx'
+
+<IntersectionTest />
+
+## Query filters
+import QueryFilters from './scene_queries_filters.mdx'
+
+<QueryFilters />

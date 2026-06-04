@@ -1,0 +1,10 @@
+[package]
+name = "rapier_snippets_rust3d"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Use the in-tree rapier so doc snippets are checked against local changes.
+rapier3d = { path = "../../../../crates/rapier3d", features = ["enhanced-determinism"] }

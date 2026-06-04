@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 1173 389" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1,0,0,1,-370,-1879)">
+        <g id="Capsule">
+        </g>
+        <g id="Capsule1" serif:id="Capsule">
+        </g>
+        <g id="Capsule2" serif:id="Capsule" transform="matrix(0.857143,0,0,0.857143,352.666,1883.86)">
+            <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(221,221,221);"/>
+            <g transform="matrix(1,0,0,1,-5.68434e-14,129.921)">
+                <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(221,221,221);"/>
+            </g>
+            <rect x="200.787" y="124.016" width="82.677" height="135.827" style="fill:rgb(221,221,221);"/>
+        </g>
+        <g id="Capsule3" serif:id="Capsule" transform="matrix(0.857143,0,0,0.857143,931.06,1889.76)">
+            <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(221,221,221);"/>
+            <g transform="matrix(1,0,0,1,-5.68434e-14,129.921)">
+                <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(221,221,221);"/>
+            </g>
+            <rect x="200.787" y="124.016" width="82.677" height="135.827" style="fill:rgb(221,221,221);"/>
+        </g>
+        <g id="Capsule4" serif:id="Capsule" transform="matrix(0.857143,0,0,0.857143,352.805,1828.18)">
+            <path d="M200.787,124.016C200.787,101.2 219.311,82.677 242.126,82.677C264.941,82.677 283.465,101.2 283.465,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.89px;stroke-dasharray:2.89,11.58,0,0;stroke-dashoffset:2.89;"/>
+            <g transform="matrix(1,0,0,1,-5.68434e-14,129.921)">
+                <path d="M283.465,121.752C283.465,144.567 264.941,165.354 242.126,165.354C219.311,165.354 200.787,146.831 200.787,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.89px;stroke-dasharray:2.89,11.58,0,0;"/>
+            </g>
+            <path d="M200.787,124.016L200.787,259.843" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.89px;stroke-dasharray:2.89,11.58,0,0;"/>
+            <path d="M283.465,253.74L283.465,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.89px;stroke-dasharray:2.89,11.58,0,0;"/>
+        </g>
+        <g id="Capsule5" serif:id="Capsule" transform="matrix(0.857143,0,0,0.857143,931.199,1834.08)">
+            <path d="M200.787,124.016C200.787,101.2 219.311,82.677 242.126,82.677C264.941,82.677 283.465,101.2 283.465,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.89px;stroke-dasharray:2.89,11.58,0,0;stroke-dashoffset:2.89;"/>
+            <g transform="matrix(1,0,0,1,-5.68434e-14,129.921)">
+                <path d="M283.465,121.752C283.465,144.567 264.941,165.354 242.126,165.354C219.311,165.354 200.787,146.831 200.787,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.89px;stroke-dasharray:2.89,11.58,0,0;"/>
+            </g>
+            <path d="M200.787,124.016L200.787,259.843" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.89px;stroke-dasharray:2.89,11.58,0,0;"/>
+            <path d="M283.465,253.74L283.465,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.89px;stroke-dasharray:2.89,11.58,0,0;"/>
+        </g>
+        <g id="Capsule6" serif:id="Capsule">
+        </g>
+        <g id="Capsule7" serif:id="Capsule">
+        </g>
+        <g id="Capsule8" serif:id="Capsule">
+        </g>
+        <g id="Capsule9" serif:id="Capsule" transform="matrix(0.857143,0,0,0.857143,501.125,1812.99)">
+            <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(76,76,76);"/>
+            <g transform="matrix(1,0,0,1,-5.68434e-14,129.921)">
+                <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(76,76,76);"/>
+            </g>
+            <rect x="200.787" y="124.016" width="82.677" height="135.827" style="fill:rgb(76,76,76);"/>
+        </g>
+        <g id="Capsule10" serif:id="Capsule" transform="matrix(0.857143,0,0,0.857143,1079.52,1818.9)">
+            <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(76,76,76);"/>
+            <g transform="matrix(1,0,0,1,-5.68434e-14,129.921)">
+                <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(76,76,76);"/>
+            </g>
+            <rect x="200.787" y="124.016" width="82.677" height="135.827" style="fill:rgb(76,76,76);"/>
+        </g>
+        <g id="Capsule11" serif:id="Capsule">
+        </g>
+        <g transform="matrix(1,0,0,1,-153.543,1801.18)">
+            <text x="732.283px" y="443.105px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:25px;fill:rgb(0,96,196);">Desired movement</text>
+        </g>
+        <g transform="matrix(1,0,0,1,424.851,1807.09)">
+            <text x="732.283px" y="443.105px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:25px;fill:rgb(0,96,196);">Desired movement</text>
+        </g>
+        <g transform="matrix(-1.69076,0.215821,-0.12662,-0.991951,1867.24,2411.92)">
+            <g transform="matrix(-0.581967,-0.12662,0.0742863,-0.991951,831.758,718.209)">
+                <path d="M265.434,331.197L244.173,323.756L262.883,311.212C258.524,316.846 259.8,326.839 265.434,331.197Z" style="fill:rgb(0,96,196);"/>
+                <path d="M392.493,304.823C392.493,304.823 298.497,316.822 260.161,321.715" style="fill:none;stroke:rgb(0,96,196);stroke-width:6.72px;"/>
+            </g>
+        </g>
+        <g transform="matrix(-1.69076,0.215821,-0.12662,-0.991951,2445.64,2417.82)">
+            <g transform="matrix(-0.581967,-0.12662,0.0742863,-0.991951,1167.93,797.303)">
+                <path d="M843.828,337.103L822.567,329.661L841.277,317.118C836.918,322.752 838.194,332.744 843.828,337.103Z" style="fill:rgb(0,96,196);"/>
+                <path d="M970.888,310.729C970.888,310.729 876.891,322.727 838.555,327.621" style="fill:none;stroke:rgb(0,96,196);stroke-width:6.72px;"/>
+            </g>
+        </g>
+        <g transform="matrix(-1.69076,0.215821,-0.12662,-0.991951,1813.41,2199.32)">
+            <g transform="matrix(-0.581967,-0.12662,0.0742863,-0.991951,816.223,500.505)">
+                <path d="M211.602,118.599L190.341,111.157L209.051,98.614C204.692,104.248 205.968,114.24 211.602,118.599Z" style="fill:rgb(0,96,196);"/>
+                <path d="M338.661,92.225C338.661,92.225 244.665,104.223 206.329,109.117" style="fill:none;stroke:rgb(0,96,196);stroke-width:6.72px;"/>
+            </g>
+        </g>
+        <g transform="matrix(-1.69076,0.215821,-0.12662,-0.991951,2391.81,2205.22)">
+            <g transform="matrix(-0.581967,-0.12662,0.0742863,-0.991951,1152.39,579.6)">
+                <path d="M789.996,124.504L768.735,117.063L787.445,104.52C783.086,110.154 784.362,120.146 789.996,124.504Z" style="fill:rgb(0,96,196);"/>
+                <path d="M917.056,98.13C917.056,98.13 823.059,110.129 784.723,115.022" style="fill:none;stroke:rgb(0,96,196);stroke-width:6.72px;"/>
+            </g>
+        </g>
+        <g transform="matrix(1,0,0,1,200.787,17.7165)">
+            <path d="M177.165,2125.98L472.441,2125.98L472.441,2055.12L732.283,2055.12" style="fill:none;stroke:rgb(76,76,76);stroke-width:8.15px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,27.7396,31.3696)">
+            <path d="M1073.11,2158.36C1086.02,2147.09 1246.05,1989.77 1488.19,2031.5" style="fill:none;stroke:rgb(76,76,76);stroke-width:8.15px;"/>
+        </g>
+        <g transform="matrix(1,-0.000335043,-0.000335043,1.14286,201.309,-167.763)">
+            <g transform="matrix(0.999999,0.000293163,0.000293163,0.875001,169.29,1790.97)">
+                <path d="M202.505,233.457L190.341,257.952L178.044,233.524C184.176,239.623 196.406,239.589 202.505,233.457Z" style="fill:rgb(10,148,3);"/>
+                <path d="M190.203,207.333C190.203,207.333 190.249,224.139 190.288,238.383" style="fill:none;stroke:rgb(10,148,3);stroke-width:8.15px;"/>
+            </g>
+        </g>
+        <g transform="matrix(1,-0.000335043,-0.000335043,1.14286,779.704,-161.858)">
+            <g transform="matrix(0.999999,0.000293163,0.000293163,0.875001,-409.105,1785.63)">
+                <path d="M780.899,239.363L768.735,263.857L756.438,239.43C762.57,245.528 774.8,245.495 780.899,239.363Z" style="fill:rgb(10,148,3);"/>
+                <path d="M768.597,213.238C768.597,213.238 768.643,230.044 768.682,244.289" style="fill:none;stroke:rgb(10,148,3);stroke-width:8.15px;"/>
+            </g>
+        </g>
+        <g transform="matrix(1,0,0,1,295.276,90.8015)">
+            <text x="165.354px" y="2018.86px" style="font-family:'Arial-BoldMT', 'Arial', sans-serif;font-weight:700;font-size:33.333px;fill:rgb(10,148,3);stroke:white;stroke-width:0.47px;stroke-linecap:butt;stroke-miterlimit:2;">Snap</text>
+        </g>
+        <g transform="matrix(1,0,0,1,873.67,96.707)">
+            <text x="165.354px" y="2018.86px" style="font-family:'Arial-BoldMT', 'Arial', sans-serif;font-weight:700;font-size:33.333px;fill:rgb(10,148,3);stroke:white;stroke-width:0.47px;stroke-linecap:butt;stroke-miterlimit:2;">Snap</text>
+        </g>
+        <g id="Capsule12" serif:id="Capsule">
+        </g>
+        <g id="Capsule13" serif:id="Capsule">
+        </g>
+    </g>
+</svg>

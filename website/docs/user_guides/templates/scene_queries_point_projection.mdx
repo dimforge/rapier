@@ -1,0 +1,87 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+Point projection will either project a point on the closest collider of the scene (<rapier>`QueryPipeline::project_point`</rapier><bevy>`RapierContext::project_point`</bevy><js>`World.projectPoint`</js>),
+or will enumerate every collider containing given point (<rapier>`QueryPipeline::intersections_with_point`</rapier><bevy>`RapierContext::intersections_with_point`</bevy><js>`World.intersectionsWithPoint`</js>).
+
+<rapier>
+
+<Tabs
+    groupId="dim"
+    defaultValue="2D"
+    values={[
+        {label: 'Example 2D', value: '2D'},
+        {label: 'Example 3D', value: '3D'},
+    ]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_scene_queries2.rs' marker='PointProjection' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_scene_queries3.rs' marker='PointProjection' />
+```
+
+</TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/scene_queries2.rs' marker='PointProjection' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/scene_queries3.rs' marker='PointProjection' />
+```
+
+</TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/scene_queries.ts' marker='PointProjection' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/scene_queries.ts' marker='PointProjection' />
+```
+
+</TabItem>
+</Tabs>
+
+</js>
+
+It is possible to only apply the scene query to a subsets of the colliders using [a query filter](./scene_queries.mdx#query-filters)

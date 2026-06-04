@@ -1,0 +1,31 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+There are four types of rigid-bodies, identified by the <rapier>`RigidBodyType` enumeration</rapier><bevy>`RigidBody` component</bevy><js>`RigidBodyType` enumeration</js>:
+
+* **<rapier>`RigidBodyType::Dynamic`</rapier><bevy>`RigidBodyType::Dynamic`</bevy><js>`RigidBodyType.Dynamic`</js>:** Indicates that the body is affected by
+  external forces and contacts.
+* **<rapier>`RigidBodyType::Fixed`</rapier><bevy>`RigidBodyType::Fixed`</bevy><js>`RigidBodyType.Fixed`</js>:** Indicates the body cannot move. It acts as
+  if it has an infinite mass and will not be affected by any force. It will continue to collide with dynamic bodies but
+  not with fixed nor with kinematic bodies. This is typically used for the ground or for temporarily freezing a body.
+* **<rapier>`RigidBodyType::KinematicPositionBased`</rapier><bevy>`RigidBodyType::KinematicPositionBased`</bevy><js>`RigidBodyType.KinematicPositionBased`</js>:** Indicates
+  that the body position must not be altered by the physics engine. The user is free to set its next position and the
+  body velocity will be deduced at each update accordingly to ensure a realistic behavior of dynamic bodies in contact
+  with it. This is typically used for moving **platforms**, **elevators**, etc.
+* **<rapier>`RigidBodyType::KinematicVelocityBased`</rapier><bevy>`RigidBodyType::KinematicVelocityBased`</bevy><js>`RigidBodyType.KinematicVelocityBased`</js>:** Indicates
+  that the body velocity must not be altered by the physics engine. The user is free to set its velocity and the next
+  body position will be deduced at each update accordingly to ensure a realistic behavior of dynamic bodies in contact
+  with it. This is typically used for moving **platforms**, **elevators**, etc.
+
+Both position-based and velocity-based kinematic bodies are mostly the same. Choosing between both is mostly a matter of
+preference between position-based control and velocity-based control.
+
+:::info
+The whole point of kinematic bodies is to let the user have **total control over their trajectory**. This means that
+kinematic bodies will simply ignore any contact force and go through walls and the ground.
+In other words: if you tell the kinematic to go somewhere, it will go there, no questions asked.
+
+Taking obstacles into
+account needs to be done manually either by using [scene queries](./scene_queries.mdx) to detect nearby obstacles, or by using the built-in
+[character controller](./character_controller.mdx).
+:::

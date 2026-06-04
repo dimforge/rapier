@@ -1,0 +1,100 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+The most efficient way of preventing some pairs of colliders from interacting with each other is to use collision
+groups or solver groups. Each collider is given:
+- A `collision_groups` for filtering what pair of colliders should have their contacts (or intersection test if
+  at least one of the colliders is a sensor) computed by the narrow-phase.
+  This filtering happens right after the broad-phase, at the beginning of the narrow phase.
+- A `solver_groups` for filtering what pair of colliders should have their contact forces computed. This filtering
+  happens at the end of the narrow-phase, before the constraints solver.
+
+In other words, the `solver_groups` is here to prevent contact forces from being computed between some colliders, whereas the
+`collision_groups` will also prevent the contact themselves (and contact events) from being computed. The
+`collision_groups` should be preferred most of the time because it skips more computations. The `solver_groups` is only
+useful if you really want the contact information to be computed but not the forces, for example so that you can apply your
+own forces based on these contacts.
+
+A collision group or solver group is described as a pair of bit masks:
+- The groups **membership** indicates what groups the collider is part of (one bit per group).
+- The groups **filter** indicates what groups the collider can interact with (one bit per group).
+
+<notjs>
+
+:::info
+Because the `membership` and `filter` bit masks are `u32` there is a total of 32 groups. By default all bits are set to
+1: the collider is part of every group, and can interact with every group.
+:::
+
+</notjs>
+<js>
+
+The `membership` and `filter` are both 16-bit bit masks packed into a single 32-bits value. The 16 left-most bits
+contain the memberships whereas the 16 right-most bits contain the filter.
+
+</js>
+
+For example, let's say we want our collider `A` to be part of the groups `[0, 2, 3]` and to be able to interact
+with the groups `[2]`, then its groups membership is <notjs>`0b1101` and its groups filter is
+`0b0100`.</notjs> <js>`0b0000_0000_0000_1101 = 0x000D` and its groups filter is `0b0000_0000_0000_0100 = 0x0004`. The
+corresponding packed bit mask is `0x000D0004`.</js> The collision groups and solver groups of a collider can be set 
+during or after its creation:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Groups1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Groups2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Groups1' />
+```
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Groups2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Groups1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Groups2' />
+```
+
+</js>
+
+After the broad-phase detects that two colliders `A` and `B` may start being in contact, the narrow-phase will check the collision
+groups of both colliders to see if it needs to compute contacts. The check operates as follows:
+- If the collider `A` is not member of any collision group in the filter of `B`, then no contact is computed.
+- If the collider `B` is not member of any collision group in the filter of `A`, then no contact is computed.
+- The exact bit-wise check is the following:
+
+<notjs>
+
+```rust
+   (A.collision_groups().memberships & B.collision_groups().filter) != 0
+&& (B.collision_groups().memberships & A.collision_groups().filter) != 0
+```
+
+</notjs>
+<js>
+
+```rust
+   ((A.collisionGroups() >> 16) & (B.collisionGroups() & 0xffff)) != 0
+&& ((B.collisionGroups() >> 16) & (A.collisionGroups() & 0xffff)) != 0
+```
+
+</js>
+
+If this test succeeds, then the narrow-phase will compute the contacts. Then it will check the solver groups of both
+colliders, using the same kind of tests as described before but using the `solver_groups` instead of `collision_groups`.
+If the test succeeds then the constraints solver will compute forces for these contacts. Otherwise, it won't.

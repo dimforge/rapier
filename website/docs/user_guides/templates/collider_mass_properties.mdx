@@ -1,0 +1,98 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+The [mass properties of a rigid-body](./rigid_bodies.mdx#mass-properties) is computed as the sum of the mass-properties
+manually set by the user for the rigid-body, plus the **mass-properties of the colliders** attached to it. There are two
+ways to define the mass-properties of a collider:
+1. The **easiest, automatic, way**: by giving the collider a non-zero density (the default density is 1.0) or a non-zero
+   mass. This will make sure the other mass-properties like the angular inertia tensor are computed automatically from
+   the collider's shape.
+2. The **manual way**: by giving an explicit mass and angular inertia to the collider.
+
+It is recommended to use the density-based or mass-based approaches as it will ensure the automatically-computed
+mass-properties are coherent with the geometric shape. Wrong mass-properties (especially the angular inertia part and
+center-of-mass location) may lead to odd behaviors. The manual approach is usually useful when modeling real-world
+objects for which you already know the real-world mass, center-of-mass, and angular inertia tensor.
+
+The mass-properties of a collider can only be set when the collider is created:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Mass' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_colliders3.rs' marker='Mass' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Mass' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/colliders3.rs' marker='Mass' />
+```
+
+  </TabItem>
+</Tabs>
+
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Mass' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/colliders.ts' marker='Mass' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>

@@ -1,0 +1,60 @@
+---
+id: determinism
+title: Determinism
+sidebar_label: Determinism
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<notjs>
+
+By default, Rapier is **locally deterministic**, meaning that running the exact same simulation (with the **same initial
+conditions**) twice with the same machine, using the same version of Rapier, and the same version of the Rust compiler,
+will result in the exact same simulation results. However, doing this on two different computers may result in
+completely different results.
+
+:::note
+Two simulations run with the **same initial conditions** if all the [simulation structures](./simulation_structures.mdx) are
+initialized with the same values, rigid-bodies/colliders/joints are constructed the same way, and they are added/removed
+to sets (rigid-body sets, etc.) in the exact same order.
+:::
+
+It is possible to make Rapier **cross-platform deterministic**, meaning that running a simulation with two different
+computers (including different OS and/or different processors) will result in the exact same results. In order to
+achieve this, both computers must start the simulation with the **same initial conditions** as discussed above, and the
+following additional conditions must be met:
+- The `enhanced-determinism` feature of Rapier is enabled. Note that the `enhanced-determinism` feature cannot be
+  enabled at the same time as the `simd-nightly`, `simd-stable`, and `parallel` features.
+- The target platforms must strictly comply to the IEEE 754-2008 floating-points standard. This ensures that
+  floating-point computations behave the same on all platforms. This include most modern mainstream processors
+  as well as WASM targets.
+- If some of the values used to initialized Rapier structures are computed using floating points functions (sin, cos, tan, etc.) other
+  than addition/subtraction/multiplication/division, then you need to make sure the functions being used originate from
+  the `ComplexField` or `RealField` traits from `nalgebra` (re-exported by Rapier as `na`). For example, do `ComplexField::sin(0.4)`
+  (where `ComplexField` is imported by `use rapier3d::na::ComplexField`) instead of `0.4.sin()`:
+  
+```rust
+<load path='/3d/rust/examples/rs_determinism.rs' marker='Determinism' />
+```
+
+</notjs>
+<js>
+
+The WASM/Typescript/JavaScript version of Rapier is fully cross-platform deterministic. This means that running the same simulation
+(with the **same initial conditions**) using the same version of Rapier, on two different machines (even with different
+browsers, operating systems, and processors, will give the exact same results. In particular, creating a snapshot of the
+`World` with `world.createSnapshot()` and taking a MD5 hash of the resulting byte array will return the exact same hash
+on different machines (assuming the snapshot itself is taken after the same number of timesteps).
+
+:::note
+Two simulations run with the **same initial conditions** if all the simulation parameters are initialized with the same
+values, rigid-bodies/colliders/joints are constructed the same way, and they are added/removed in the exact same order.
+:::
+
+Keep in mind that all the values used to initialize the physics simulation must result from cross-platform
+deterministic operations to in order to preserve the determinism of the physics engine itself. Otherwise, you won't
+get the exact same initial conditions on all the platforms. In particular, transcendental functions like
+`Math.sin, Math.cos` are not cross-platform determinism and may give different results on different platforms.
+
+</js>

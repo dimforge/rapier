@@ -1,0 +1,10 @@
+[package]
+name = "rapier_snippets_bevy2d"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = "0.16"
+bevy_rapier2d = "0.30"

@@ -6,6 +6,10 @@
 [files]
 extend-exclude = [
     ".git/",
+    # The website's static assets are generated/vendored: prebuilt demo
+    # bundles, generated TypeDoc HTML, and exported SVGs — not authored prose.
+    "website/static/",
+    "website/.yarn/",
 ]
 ignore-hidden = false
 

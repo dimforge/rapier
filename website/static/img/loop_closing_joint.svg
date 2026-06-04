@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="442px" height="296px" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <path d="M194.064,18.377C194.064,18.377 302.267,-0.185 302.242,83.11" style="fill:none;stroke:rgb(222,116,201);stroke-width:4.17px;stroke-dasharray:4.17,8.33,0,0;"/>
+    <text x="31.228px" y="51.737px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(226,0,0);">Ball joint</text>
+    <text x="79.344px" y="177.325px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(0,33,255);">Ball joint</text>
+    <text x="181.704px" y="177.325px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(243,126,0);">Ball joint</text>
+    <text x="126.605px" y="291.97px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(0,184,48);">Ball joint</text>
+    <g>
+        <path d="M80.69,228.209L61.909,190.003" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M48.322,181.838C48.971,175.884 54.229,171.565 60.058,172.2C65.886,172.835 70.091,178.185 69.443,184.139C68.794,190.093 63.535,194.412 57.707,193.777C51.878,193.142 47.673,187.792 48.322,181.838Z" style="fill:rgb(0,33,255);stroke:black;stroke-width:1.67px;"/>
+        <path d="M49.464,195.572C45.433,192.323 43.086,187.085 43.697,181.479C44.641,172.816 52.292,166.533 60.772,167.457C67.156,168.153 72.86,174.048 74.561,179.968" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M38.495,139.19L51.94,168.802" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <g>
+        <path d="M212.939,246.659L170.393,248.176" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M157.386,257.237C152.218,254.21 150.427,247.645 153.39,242.586C156.353,237.527 162.954,235.876 168.123,238.903C173.291,241.93 175.082,248.495 172.119,253.554C169.156,258.613 162.555,260.263 157.386,257.237Z" style="fill:rgb(0,184,48);stroke:black;stroke-width:1.67px;"/>
+        <path d="M170.387,261.81C165.774,264.16 160.034,264.16 155.168,261.31C147.648,256.907 145.043,247.356 149.353,239.995C152.599,234.453 160.311,231.658 166.409,232.527" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M114.449,248.766L146.97,248.605" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <g>
+        <path d="M290.963,139.19L275.024,178.667" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M278.003,194.236C273.134,197.725 266.409,196.687 262.994,191.921C259.58,187.155 260.761,180.453 265.63,176.965C270.499,173.477 277.224,174.515 280.638,179.281C284.053,184.047 282.872,190.748 278.003,194.236Z" style="fill:rgb(243,126,0);stroke:black;stroke-width:1.67px;"/>
+        <path d="M287.474,184.225C287.742,189.395 285.405,194.637 280.82,197.922C273.736,202.996 263.952,201.487 258.984,194.553C255.244,189.332 255.832,181.15 259.108,175.934" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M252.782,230.004L265.877,200.236" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <ellipse cx="32.574" cy="119.574" rx="31.741" ry="31.667" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <circle cx="244.628" cy="247.848" r="31.688" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <ellipse cx="91.333" cy="247.826" rx="31.741" ry="31.667" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <ellipse cx="297.274" cy="114.725" rx="31.688" ry="31.615" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <ellipse cx="168.683" cy="32.448" rx="31.688" ry="31.615" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <text x="145.179px" y="39.052px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Link 1</text>
+    <text x="273.77px" y="121.329px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Link 5</text>
+    <text x="221.943px" y="254.547px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Link 4</text>
+    <text x="66.559px" y="254.313px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Link 3</text>
+    <text x="9.069px" y="126.178px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Link 2</text>
+    <g>
+        <path d="M59.593,102.344L95.54,79.535" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <ellipse cx="102.185" cy="75.767" rx="10.852" ry="10.623" style="fill:rgb(226,0,0);stroke:black;stroke-width:1.67px;"/>
+        <path d="M88.656,67.766C91.449,63.408 96.402,60.507 102.041,60.507C110.755,60.507 117.83,67.433 117.83,75.963C117.83,82.385 112.588,88.694 106.886,91.026" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M143.518,50.755L115.536,67.329" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <g transform="matrix(0.367529,0,0,0.367529,-37.6665,-499.223)">
+        <text x="962.134px" y="1454.14px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:50px;fill:rgb(222,116,201);">BallConstraint</text>
+        <text x="931.556px" y="1489.27px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:34.011px;fill:rgb(222,116,201);">(Loop-closing constraint)</text>
+    </g>
+</svg>

@@ -1,0 +1,48 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+When a dynamic rigid-body doesn't move (or moves very slowly) during a few seconds, it will be marked as **sleeping**
+by the physics pipeline. Rigid-bodies marked as sleeping are no longer simulated by
+the physics engine until they are woken up. That way the physics engine doesn't waste any computational resources
+simulating objects that don't actually move. They are woken up automatically whenever another non-sleeping rigid-body
+starts interacting with them (either with a joint, or with one of its attached colliders generating contacts).
+
+<bevy>
+
+When using the `bevy_rapier` plugin, rigid-bodies are also automatically woken up whenever one of the
+components of the rigid-body is modified (to apply forces, change its position, etc.) They will **not** be awaken
+automatically when changing the gravity though. So you may sometimes want to wake a rigid-body manually by setting
+the component field `Sleeping::sleeping` to `true`.
+
+</bevy>
+
+<rapier>
+
+However, a sleeping rigid-body won't respond to any user action. This is why it is possible to wake-up the rigid-body
+manually with `RigidBody::wake_up`. Some rigid-body methods take an additional `wake_up` boolean argument that, if
+true, ensures that the rigid-body wakes up before the action takes place. For example:
+- `RigidBody::add_force(force, true)` will wake-up the rigid-body before adding the force.
+- `ImpulseJointSet::remove(..., true)` will wake-up the two rigid-bodies attached by the removed joints.
+- `ColliderSet::remove(..., true)` will wake-up the rigid-body the removed collider is attached to.
+
+Unless you want to achieve special effects, it is recommended to always set the `wake_up` argument to `true`.
+One example of case where setting the argument of `wake_up` to `false` makes sense is to simulate a custom
+constant gravity with `RigidBody::add_force(force, false)`. This will result in the force being added
+to the rigid-body, but will allow the rigid-body to fall asleep if it reaches a dynamic equilibrium.
+
+</rapier>
+<js>
+
+However, a sleeping rigid-body won't respond to any user action. This is why it is possible to wake-up the rigid-body
+manually with `RigidBody.wakeUp()`. Some rigid-body methods take an additional `wakeUp` boolean argument that, if
+true, ensures that the rigid-body wakes up before the action takes place. For example:
+- `RigidBody.addForce(force, true)` will wake-up the rigid-body before adding the force.
+- `World.removeJoint(joint, true)` will wake-up the two rigid-bodies attached by the removed joints.
+- `World.removeCollider(collider, true)` will wake-up the rigid-body the removed collider is attached to.
+
+Unless you want to achieve special effects, it is recommended to always set the `wakeUp` argument to `true`.
+One example of case where setting the argument of `wakeUp` to `false` makes sense is to simulate a custom
+constant gravity with `RigidBody.addForce(force, false)`. This will result in the force being applied
+to the rigid-body, but will allow the rigid-body to fall asleep if it reaches a dynamic equilibrium.
+
+</js>

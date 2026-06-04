@@ -148,3 +148,41 @@ jobs:
       - uses: actions/checkout@v4
       - name: publish dry-run
         run: ./publish-all.sh
+  # Builds the docusaurus website (user guides + docs site).
+  website-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./website
+    steps:
+      - uses: actions/checkout@v4
+      - name: User guides generation
+        run: ./generate_user_guides.sh
+      - name: yarn install
+        run: corepack enable && yarn
+      - name: yarn build
+        run: PUBLISH_MODE=1 yarn build
+  # Checks the Rust documentation snippets compile against the in-tree rapier.
+  website-rust-snippets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux dependencies
+        uses: ./.github/actions/install-linux-deps
+      - name: Tests injection + code snippets
+        run: cd website/docs-examples && cargo test
+  # Checks the JavaScript documentation snippets build (against the published @dimforge/rapier).
+  website-javascript-snippets:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dimension: [2d, 3d]
+    defaults:
+      run:
+        working-directory: ./website/docs-examples/${{ matrix.dimension }}/javascript
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: npm ci
+      - name: Builds javascript snippets.
+        run: npm run build

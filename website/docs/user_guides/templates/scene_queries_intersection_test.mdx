@@ -1,0 +1,97 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Intersection tests will find all the colliders with a shape intersecting a given shape. This can be useful for, e.g.,
+selecting all the objects that intersect a given area. There are two kind of intersection tests:
+- The exact intersection test <rapier>`QueryPipeline::intersections_with_shape`</rapier><bevy>`RapierContext::intersections_with_shape`</bevy><js>`World.intersectionsWithShape`</js>
+  searches for all the colliders with shapes intersecting the given shape.
+- The approximate intersection test <rapier>`QueryPipeline::colliders_with_aabb_intersecting_aabb`</rapier><bevy>`RapierContext::colliders_with_aabb_intersecting_aabb`</bevy><js>`World.collidersWithAabbIntersectingAabb`</js> searches
+for all the colliders with an AABB intersecting the given AABB. This does not check if the actual shapes of these colliders
+intersect the AABB.
+
+:::info
+See the [ray-casting](./scene_queries.mdx#ray-casting) section for details about intersection tests between a ray and the colliders on the scene.
+And see the [point projection](./scene_queries.mdx#point-projection) section for details about the intersection test between the colliders and
+a point.
+:::
+
+<rapier>
+
+<Tabs
+    groupId="dim"
+    defaultValue="2D"
+    values={[
+        {label: 'Example 2D', value: '2D'},
+        {label: 'Example 3D', value: '3D'},
+    ]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_scene_queries2.rs' marker='IntersectionTest' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_scene_queries3.rs' marker='IntersectionTest' />
+```
+
+</TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+    groupId="dim"
+    defaultValue="2D"
+    values={[
+        {label: 'Example 2D', value: '2D'},
+        {label: 'Example 3D', value: '3D'},
+    ]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/scene_queries2.rs' marker='IntersectionTest' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/scene_queries3.rs' marker='IntersectionTest' />
+```
+
+</TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/scene_queries.ts' marker='IntersectionTest' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/scene_queries.ts' marker='IntersectionTest' />
+```
+
+</TabItem>
+</Tabs>
+
+</js>
+
+It is possible to only apply the scene query to a subsets of the colliders using [a query filter](./scene_queries.mdx#query-filters)

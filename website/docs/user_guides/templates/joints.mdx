@@ -1,0 +1,452 @@
+---
+id: joints
+title: Joints
+sidebar_label: Joints
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+One of the most appealing features of a physics engine is to simulate articulations. Articulations, aka. _joints_, allow
+the restriction of the motion of one body relative to another body. For example, one well-known joint is the ball-in-socket
+joint also known as the spherical joint: it allows one object to rotate freely with regard to the other but not to translate.
+This is typically used to simulate shoulders of a ragdoll.
+
+## Basic concepts
+
+Joints can be modeled in various ways but let's talk about the concept of **Degrees Of Freedom (DOF)** first. In 3D, a
+rigid-body is capable of translating along the 3 coordinates axes $\mathbf{x}$, $\mathbf{y}$ and $\mathbf{z}$, and to
+rotate along those three axes as well. Therefore, a rigid-body is said to have **3 translational DOF** and **3 rotational DOF**.
+We can also say a 3D rigid-body has a total of **6 DOF**. The 2D case is similar but with less possibilities of movements:
+a 2D rigid-body has 2 translational DOF and only 1 rotational DOF (which forms a total of 3 DOF). The number of **relative DOF**
+of a body wrt. another body is the number of possible relative translations and rotations.
+
+The goal of a joint is to reduce the number of DOF a body has. For example, the aforementioned spherical joint removes all relative
+translations between two bodies. Therefore, it allows only the 3 rotational DOF in 3D simulations or the 1 rotational DOF
+in 2D simulations. Other joints exist allowing other combinations of relative DOF. Note that because there are less possible
+motions in 2D, some joints are only defined in 3D. This is illustrated by empty cells in the following table for joints
+that are not defined in 2D:
+
+| Joint           | Allowed DOF in 2D | Allowed DOF in 3D | Rapier support
+|-----------------|-------------------|---------------|---------------|
+| _Fixed joint_       | None           | None| Yes |
+| _Free joint_        | All            | All | Through GenericJoint |
+| _Prismatic joint_   | 1 Translation  | 1 Translation | Yes |
+| _Revolute joint_    | 1 Rotation     | 1 Rotation    | Yes |
+| _Spherical joint_   | 1 Rotation     | 3 Rotations | Yes|
+| _Cartesian joint_   | 2 Translations | 3 Translations | Through GenericJoint |
+| _Planar joint_      |                | 2 Translations + 1 Rotation | Through GenericJoint |
+| _Cylindrical joint_ |                | 1 Translation + 1 Rotation (along the same axis) | Through GenericJoint |
+| _Pin-slot joint_    |                | 1 Translation + 1 Rotation (along different axes) | Through GenericJoint |
+| _Rectangular joint_ |                | 2 Translations | Through GenericJoint |
+| _Universal joint_   |                | 2 Rotations | Through GenericJoint |
+
+Joints must be inserted into either an `ImpulseJointSet` or a `MultibodyJointSet`.
+The difference between those is explained in [next section](./joint_constraints.mdx).
+
+## Fixed joint
+A fixed joint ensures that two rigid-bodies don't move relative to each other. Fixed joints are characterized by
+one **local frame** (represented by a `Pose`) on each rigid-body. The fixed-joint makes these frames
+coincide in world-space.
+
+:::info
+Attaching multiple colliders to a single rigid-body will have the same effect as using one rigid-body
+per collider and attaching them with a fixed joint. However the multi-collider approach will be much
+more efficient and numerically efficient than the joint approach. So a fixed-joint should only be used when the multi-collider
+doesn't fit your use-case (for example if you want to read the force applied by the joint in order to
+break it dynamically).
+:::
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_joints2.rs' marker='FixedJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_joints3.rs' marker='FixedJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/joints2.rs' marker='FixedJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/joints3.rs' marker='FixedJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/joints.ts' marker='FixedJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/joints.ts' marker='FixedJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+
+
+## Spherical joint
+The spherical joint ensures that two points on the local-spaces of two rigid-bodies always coincide (it prevents any
+relative translational motion at this points). This is typically used to simulate ragdolls arms, pendulums, etc.
+They are characterized by one **local anchor** on each rigid-body. Each anchor represents the location
+of the points that need to coincide on the local-space of each rigid-body.
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_joints3.rs' marker='SphericalJoint' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/joints3.rs' marker='SphericalJoint' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/3d/javascript/src/snippets/joints.ts' marker='SphericalJoint' />
+```
+
+</js>
+
+
+:::note
+In 2D, revolute joints and spherical joints are the same thing. Therefore, there is no `SphericalJoint` type in
+2D (use the `RevoluteJoint` type instead).
+:::
+
+## Revolute joint
+The revolute joint prevents any relative movement between two rigid-bodies, except for relative rotations
+along one axis. This is typically used to simulate wheels, fans, etc. They are characterized by one **local
+anchor** as well as one **local axis** on each rigid-body.
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_joints2.rs' marker='RevoluteJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_joints3.rs' marker='RevoluteJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/joints2.rs' marker='RevoluteJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/joints3.rs' marker='RevoluteJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/joints.ts' marker='RevoluteJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/joints.ts' marker='RevoluteJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+
+## Prismatic joint
+The prismatic joint prevents any relative movement between two rigid-bodies, except for relative translations
+along one axis. It is characterized by one **local anchor** as well as one **local axis** on each rigid-body.
+In 3D, an optional **local tangent axis** can be specified for each rigid-body. If a local tangent axis
+equal to zero is specified, it will be computed automatically. Setting this tangent axis lets you control the
+fixed relative orientation of the rigid-bodies.
+
+The prismatic joint supports the application of **joint limits**. This will restrict the relative distance between
+the rigid-body anchors (along the free joint axis) to remain in the specified range `PrismaticJoint::limits`.
+The signed distance is computed as `(anchor2 - anchor1).dot(axis1)`.
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_joints2.rs' marker='PrismaticJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_joints3.rs' marker='PrismaticJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/joints2.rs' marker='PrismaticJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/joints3.rs' marker='PrismaticJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/joints.ts' marker='PrismaticJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/joints.ts' marker='PrismaticJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+
+## Joint motors
+Spherical, revolute, and prismatic joints support **joint motors**.
+
+Motors allow you to make the linked rigid-bodies move relative to one another, along the free degrees of freedom left
+by the joint, as if a motor was pushing them. The joint motor is simulated with a PD controller (Proportional Derivative controller) where you
+can set a target relative velocity along the free degrees of freedom as well as a target position. The `stiffness` of
+the PD controller controls the strength of the force that will be applied to make the bodies reach the target relative
+positions along the free DOFs. The `damping` of the PD controller controls the strength of the force that will be applied
+to make the bodies reach the target relative velocities along the free DOFs. All joints supporting motors have the
+following methods:
+- <notjs> `configure_motor_position(target_pos, stiffness, damping)` </notjs><js> `configureMotorPosition(targetPos, stiffness, damping)` </js>:
+  this tells the joint motor that we want the relative position
+  of the rigid-bodies along the free DOFs to be equal to <notjs> `target_pos` </notjs><js> `target_pos` </js>, and that
+  the relative velocity when it reaches that position should be zero.
+- <notjs>`configure_motor_velocity(target_vel, damping)`</notjs><js>`configureMotorVelocity(targetVel, damping)`</js>:
+  this tells the joint motor that we want the relative relative velocity of the rigid-bodies along the free DOFs to be
+  equal to <notjs>`target_vel`</notjs><js>`targeVel`</js>. There is no restriction on the relative position
+  along the free DOF.
+- <notjs>`configure_motor(target_pos, target_vel, stiffness, damping)`</notjs><js>`configureMotor(targetPos, targetVel, stiffness, damping)`</js>:
+  this lets you control all the parameters of the motor's spring-like equation. This should be used only if the other configuration methods are not flexible enough.
+- <notjs>`configure_motor_model(model)`</notjs><js>`configureMotorModel(model)`</js>: this selects the mathematical model for the motor's controller. All the available
+  models use a __spring-like__ equation. See the [API documentation of MotorModel](https://docs.rs/rapier3d/latest/rapier3d/dynamics/enum.MotorModel.html)
+  for details.
+  
+It is also possible to configure the maximum impulse applied by the motor: this limits the maximum force/torque the
+motor is able to deliver. The following examples show the configuration of the joint motor for a prismatic joint:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_joints2.rs' marker='Motor' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_joints3.rs' marker='Motor' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/joints2.rs' marker='Motor' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/joints3.rs' marker='Motor' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/joints.ts' marker='Motor' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/joints.ts' marker='Motor' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>

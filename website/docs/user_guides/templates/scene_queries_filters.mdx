@@ -1,0 +1,42 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+It is common to exclude some colliders from being considered by a scene query. For example, a ray-cast performed for a
+character controller will usually want to skip the character itself. Sometimes, we may even want it to ignore both the
+character and any collider attached to a dynamic rigid-body, and ignore all sensors. To allow this filtering, most
+scene queries take <notjs>a `QueryFilter` argument that lets you describe what needs to be excluded. In particular
+its fields:</notjs><js>several optional arguments that lets you describe what needs to be excluded. In particular, the
+arguments:</js>
+- `flags` allows you to discard whole families of colliders based on their types or their parent types (e.g. exclude all
+  sensors and all the colliders attached to a dynamic rigid-body).
+- `groups` is used to apply the [collision group](./colliders.mdx#collision-groups-and-solver-groups) rules for the scene query.
+  The scene query will only consider hits with colliders with collision groups compatible with this  collision group
+  (using the bitwise test described in the [collision groups section](./colliders.mdx#collision-groups-and-solver-groups)).
+- `exclude_collider` is the handle of one collider the query must ignore.
+- `exclude_rigid_body` is the handle of one rigid-body with attached colliders the query must ignore.
+- `predicate` is a user-defined closure to apply any filtering rule. This can be used if the other filtering options
+  above are not flexible enough.
+
+Here is an an example of usage of the query filters with ray-casting:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_scene_queries2.rs' marker='QueryFilter' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/scene_queries2.rs' marker='QueryFilter' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/scene_queries.ts' marker='QueryFilter' />
+```
+
+</js>

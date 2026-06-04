@@ -1,0 +1,55 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Dominance is a non-realistic, but sometimes useful, feature. It can be used to make one rigid-body immune to forces
+originating from contacts with some other bodies. For example this can be used to model a player represented as a
+dynamic rigid-body that cannot be "pushed back" by any, or some, other dynamic rigid-bodies part of the environment.
+
+
+Each rigid-body is part of a dominance group in `[-127; 127]` (the default group is `0`). If the colliders from two rigid-bodies
+are in contact, the one with the highest dominance will act as if it has an infinite mass, making it immune to the
+contact forces the other body would apply on it. If both bodies are part of the same dominance group, then their
+contacts will work in the usual way (both are affected by opposite forces with the same magnitude).
+
+For example, if a dynamic body `A` is in the dominance group `10`, and a dynamic body `B` in the dominance group `-20`, then
+a contact between a collider attached to `A` and a collider attached `B` will result in `A` remaining immobile and `B` being
+pushed by `A` (independently from their mass).
+
+:::info
+A non-dynamic rigid-body is always considered as being part of a dominance group greater than any dynamic rigid-body.
+This means that dynamic/fixed and dynamic/kinematic contacts will continue to work normally, independently from the
+dominance group they were given by the user.
+:::
+
+The dominance group can be set when the rigid-body is created or after its creation:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Dominance1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Dominance2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='Dominance1' />
+```
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='Dominance2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Dominance1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Dominance2' />
+```
+
+</js>

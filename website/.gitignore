@@ -1,0 +1,40 @@
+.idea
+
+# Dependencies
+node_modules
+
+# Production
+/build
+
+# Generated files
+.docusaurus
+.cache-loader
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+build
+
+## For yarn 4: See https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Ignore these because they are generated automatically from docs/user_guides/templates
+docs/user_guides/rust
+docs/user_guides/bevy_plugin
+docs/user_guides/javascript
+docs/user_guides/templates_injected
+tmp_*
