@@ -16,7 +16,7 @@ enhanced-determinism = ["rapier2d/enhanced-determinism"]
 rand = "0.10"
 lyon = "0.17"
 dot_vox = "5"
-kiss3d = { version = "0.42.0", features = ["egui", "serde"] }
+kiss3d = { version = "0.43.0", features = ["egui", "serde"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 usvg = "0.14"

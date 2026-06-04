@@ -179,6 +179,10 @@ mod tests {
         let (v, i) = hinge(std::f64::consts::FRAC_PI_2);
         let n = smooth_vertex_normals(&v, &i, /*smooth=*/ true);
         assert!(dot(n[0], n[4]) > 0.999, "{:?} vs {:?}", n[0], n[4]);
-        assert!(dot(n[0], [0.0, 0.0, 1.0]) < 0.999, "should blend: {:?}", n[0]);
+        assert!(
+            dot(n[0], [0.0, 0.0, 1.0]) < 0.999,
+            "should blend: {:?}",
+            n[0]
+        );
     }
 }

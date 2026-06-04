@@ -249,7 +249,11 @@ impl GraphicsManager {
                 // the artist made it smooth instead of faceting everything.
                 let normals_opt: Option<Vec<Vec3>> = normals
                     .filter(|n| n.len() == trimesh.vertices().len())
-                    .map(|n| n.iter().map(|nrm| Vec3::new(nrm[0], nrm[1], nrm[2])).collect());
+                    .map(|n| {
+                        n.iter()
+                            .map(|nrm| Vec3::new(nrm[0], nrm[1], nrm[2]))
+                            .collect()
+                    });
 
                 let have_normals = normals_opt.is_some();
                 let mut mesh = kiss3d::procedural::RenderMesh::new(
