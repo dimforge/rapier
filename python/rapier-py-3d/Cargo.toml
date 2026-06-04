@@ -29,7 +29,7 @@ determinism = ["rapier3d/enhanced-determinism"]
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multiple-pymethods"] }
 rapier-py-core = { path = "../rapier-py-core" }
-rapier3d = { path = "../../crates/rapier3d", features = ["serde-serialize", "debug-render"] }
+rapier3d = { path = "../../crates/rapier3d", features = ["serde-serialize", "debug-render", "simd-stable"] }
 # Phase 09 — Loaders. URDF + MJCF + mesh. Mesh-loader features are
 # explicitly enabled so .stl / .obj / .dae meshes referenced from URDF /
 # MJCF files work out of the box.

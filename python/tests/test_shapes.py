@@ -92,6 +92,17 @@ def test_as_convex_polyhedron(ns):
     assert cp is not None
     assert cp.num_points() >= 4
 
+    # Triangulated face topology (used by the testbed to build a real mesh
+    # rather than falling back to a bounding box). Indices must form
+    # triangles referencing valid points, with enough faces to enclose a
+    # solid (a tetrahedron is the minimum: 4 triangles).
+    pts = cp.points
+    idx = cp.indices
+    assert idx.ndim == 2 and idx.shape[1] == 3
+    assert idx.shape[0] >= 4
+    assert idx.min() >= 0
+    assert idx.max() < pts.shape[0]
+
 
 def test_as_compound(ns):
     ball = ns.SharedShape.ball(0.5)
@@ -100,6 +111,24 @@ def test_as_compound(ns):
     cmp = s.as_compound()
     assert cmp is not None
     assert cmp.num_shapes() == 2
+
+
+def test_as_voxels(ns):
+    # A flat 4x4 grid of points -> 16 filled voxels of size 1.
+    pts = np.array(
+        [[i, 0.0, j] for i in range(4) for j in range(4)], dtype=np.float32
+    )
+    s = ns.SharedShape.voxels_from_points((1.0, 1.0, 1.0), pts)
+    assert s.shape_type == ns.ShapeType.VOXELS
+    vx = s.as_voxels()
+    assert vx is not None
+    # voxel_size echoes what we passed.
+    np.testing.assert_allclose(np.asarray(vx.voxel_size), [1.0, 1.0, 1.0])
+    # 16 filled voxels, each center is (D,)-dimensional. The testbed renders
+    # one cuboid per center, so these must be present and well-shaped.
+    centers = vx.centers
+    assert vx.num_voxels() == 16
+    assert centers.shape == (16, 3)
 
 
 def test_round_cuboid(ns):

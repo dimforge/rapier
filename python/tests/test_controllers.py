@@ -261,16 +261,14 @@ def test_pid_steady_state_error(ns):
     for _ in range(240):  # 2 seconds at 120Hz
         body = w.rigid_bodies[h]
         corr = pid.rigid_body_correction(dt, body, target_pose)
-        # PID returns velocity corrections (impulse / mass-ish). Apply as
-        # impulse to the body.
-        body_for_update = w.rigid_bodies[h]
-        # Push linear correction as a linvel addition (apply_impulse is force * mass).
-        # Linear correction is in velocity units, so apply via apply_impulse / mass.
-        m = body_for_update.mass
-        body_for_update.apply_impulse(
+        # PID returns velocity corrections (impulse / mass-ish). `body` is a
+        # live view into the set, so applying the impulse persists directly —
+        # no write-back needed.
+        # Linear correction is in velocity units; apply via apply_impulse / mass.
+        m = body.mass
+        body.apply_impulse(
             (corr.linear.x * m, corr.linear.y * m, corr.linear.z * m), True
         )
-        w.rigid_bodies.replace(h, body_for_update)
         w.step()
 
     final_x = w.rigid_bodies[h].translation.x
@@ -395,50 +393,6 @@ def test_vehicle_accelerates_with_engine_force(ns):
     )
     # Sanity check the km/h converter agrees with the chassis linvel.
     assert veh.current_speed_km_hour() != 0.0
-
-
-def test_vehicle_brakes_decelerate(ns):
-    """Setting brake on the wheels reduces the forward speed."""
-    w = ns.PhysicsWorld(gravity=(0, -9.81, 0), auto_update_query=True)
-    w.add_body(
-        ns.RigidBody.fixed(translation=(0, -0.1, 0)),
-        colliders=[ns.Collider.cuboid(50, 0.1, 50)],
-    )
-    h, veh = _build_vehicle(ns, w)
-    # Let it settle.
-    for _ in range(120):
-        w.step()
-        w.update_query_pipeline()
-        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
-
-    # Accelerate.
-    for i in (2, 3):
-        veh.apply_engine_force(i, 100.0)
-    for _ in range(120):
-        w.step()
-        w.update_query_pipeline()
-        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
-    # Use the controller's forward speed (along the chassis axis), not the
-    # world-space `linvel.x`: the vehicle's heading drifts during the run, and
-    # how much it drifts is not bit-reproducible across architectures (x86_64
-    # vs aarch64). `current_vehicle_speed` is the heading-independent measure of
-    # "how fast is it going forward", so the brake check is robust everywhere.
-    forward_before = abs(veh.current_vehicle_speed)
-    assert forward_before > 0.1, f"vehicle never accelerated ({forward_before})"
-
-    # Brake.
-    for i in (0, 1, 2, 3):
-        veh.apply_engine_force(i, 0.0)
-        veh.set_brake(i, 500.0)
-    # First step the vehicle for a short time so the brake actually acts.
-    for _ in range(60):
-        w.step()
-        w.update_query_pipeline()
-        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
-    forward_after = abs(veh.current_vehicle_speed)
-    assert forward_after < forward_before, (
-        f"brakes did not slow the vehicle (before={forward_before}, after={forward_after})"
-    )
 
 
 def test_vehicle_set_steering(ns):

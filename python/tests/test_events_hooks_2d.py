@@ -80,10 +80,8 @@ def test_physics_hooks_filter_2d(ns):
     w.physics_hooks = Filter()
     c1 = w.colliders[ch1]
     c1.active_hooks = ns.ActiveHooks.FILTER_CONTACT_PAIR
-    w.colliders.replace(ch1, c1)
     c2 = w.colliders[ch2]
     c2.active_hooks = ns.ActiveHooks.FILTER_CONTACT_PAIR
-    w.colliders.replace(ch2, c2)
 
     start = w.rigid_bodies[w.colliders[ch1].parent].translation.x
     for _ in range(60):

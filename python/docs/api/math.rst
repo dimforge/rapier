@@ -12,7 +12,12 @@ Vectors and points
 
 .. autoclass:: Vec3
 .. autoclass:: Point3
-.. autoclass:: AngVector3
+
+.. data:: AngVector3
+
+   Alias of :class:`Vec3`, used for 3D angular quantities (angular
+   velocity, torque). In 2D the corresponding quantity is a plain
+   ``float`` and there is no ``AngVector2`` type.
 
 Rotations and orientations
 --------------------------

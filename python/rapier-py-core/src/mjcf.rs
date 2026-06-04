@@ -363,6 +363,23 @@ macro_rules! __define_loaders_mjcf {
                 Ok((MjcfRobot { inner: Some(robot) }, MjcfModel { raw: model }))
             }
 
+            /// Prepend ``transform`` to the robot's root poses.
+            ///
+            /// Repositions the whole robot before insertion (e.g. to place a
+            /// second copy beside the first). Must be called before the robot
+            /// is consumed by an ``insert_*`` call.
+            ///
+            /// :param transform: world-space :class:`Isometry3` to apply.
+            /// :raises MjcfError: if this robot has already been consumed.
+            fn append_transform(&mut self, transform: Isometry3) -> $crate::pyo3::PyResult<()> {
+                let robot = self.inner.as_mut().ok_or_else(|| {
+                    $crate::errors::MjcfError::new_err("MjcfRobot was already consumed")
+                })?;
+                let pose: rapier::math::Pose = transform.0.into();
+                robot.append_transform(&pose);
+                Ok(())
+            }
+
             /// Insert the model into the world using *impulse joints*.
             ///
             /// This call **consumes** the :class:`MjcfRobot`.

@@ -17,7 +17,7 @@ Snapshot API
 ------------
 
 The snapshot methods live on :class:`PhysicsWorld` itself — see
-:doc:`pipeline` for the full class:
+:doc:`world` for the full class:
 
 .. autoclass:: PhysicsWorld
    :no-index:
@@ -26,7 +26,11 @@ The snapshot methods live on :class:`PhysicsWorld` itself — see
 Errors
 ------
 
-.. autoclass:: rapier3d.SerializationError
+:meth:`~rapier3d.PhysicsWorld.restore`, ``from_bytes(...)``, and the
+``pickle.loads`` / ``copy.deepcopy`` paths raise
+:class:`~rapier3d.SerializationError` (a subclass of
+:class:`~rapier3d.RapierError`) on malformed or truncated input. See
+:doc:`errors`.
 
 Flavor-tagging caveat
 ---------------------
@@ -34,4 +38,5 @@ Flavor-tagging caveat
 Snapshots are **not** tagged with the ``(dim, scalar)`` flavor that
 produced them. Restoring an f32 snapshot through
 ``rapier3d_f64.PhysicsWorld.restore(...)`` will silently misinterpret
-the floats. See :doc:`../limitations` for the long version.
+the floats. Always restore a snapshot through the same flavor that
+produced it.

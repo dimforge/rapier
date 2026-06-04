@@ -57,7 +57,6 @@ def init_world(testbed) -> None:
         platform = tb.bodies.get(platform_handle)
         if platform is not None:
             platform.angvel = -0.15
-            tb.bodies.replace(platform_handle, platform)
 
     testbed.add_callback(callback)
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints)

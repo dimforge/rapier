@@ -1664,6 +1664,30 @@ macro_rules! __define_geometry_3d {
             fn num_points(&self) -> usize {
                 self.0.points().len()
             }
+
+            /// Triangulated face indices as an `(M, 3)` ndarray of `u32`.
+            ///
+            /// Each (convex) face is fan-triangulated; the indices reference
+            /// rows of `points` and tile the polyhedron's surface. This lets a
+            /// renderer build the actual mesh straight from parry's topology
+            /// instead of recomputing a convex hull.
+            #[getter]
+            fn indices<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
+                let adj = self.0.vertices_adj_to_face();
+                let mut tris: Vec<Vec<u32>> = Vec::new();
+                for face in self.0.faces() {
+                    let first = face.first_vertex_or_edge as usize;
+                    let n = face.num_vertices_or_edges as usize;
+                    if n < 3 {
+                        continue;
+                    }
+                    let v0 = adj[first];
+                    for i in 1..n - 1 {
+                        tris.push(vec![v0, adj[first + i], adj[first + i + 1]]);
+                    }
+                }
+                PyArray2::from_vec2_bound(py, &tris).expect("contiguous 2D ndarray")
+            }
         }
 
         // ---- 3D HeightField additional accessor: heights as (nrows, ncols) ndarray ----
@@ -2166,6 +2190,56 @@ macro_rules! __define_geometry_shapes_common {
         }
 
         // ============================================================
+        // Voxels (voxel-grid shape)
+        // ============================================================
+
+        /// Voxel-grid shape view.
+        ///
+        /// Inspection-only — typically obtained via `shape.as_voxels()`.
+        /// Construct one with `SharedShape.voxels(...)` /
+        /// `SharedShape.voxels_from_points(...)` (or the matching
+        /// `Collider.*` builders).
+        #[pyclass(name = "Voxels", module = "rapier")]
+        #[derive(Clone)]
+        pub struct Voxels(pub rapier::parry::shape::Voxels);
+
+        #[pymethods]
+        impl Voxels {
+            /// Per-axis size of one voxel cell, as a `(D,)` ndarray.
+            #[getter]
+            fn voxel_size<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> Bound<'py, $crate::numpy::PyArray1<Real>> {
+                let s = self.0.voxel_size();
+                let arr: [Real; $dim] = s.into();
+                $crate::numpy::PyArray1::from_iter_bound(py, arr.into_iter())
+            }
+
+            /// Centers of all **filled** (non-empty) voxels, as an `(M, D)`
+            /// ndarray. Building one cuboid (of size `voxel_size`) per center
+            /// reconstructs the solid; empty cells are skipped.
+            #[getter]
+            fn centers<'py>(&self, py: Python<'py>) -> Bound<'py, $crate::numpy::PyArray2<Real>> {
+                let v: Vec<Vec<Real>> = self
+                    .0
+                    .voxels()
+                    .filter(|vox| !vox.state.is_empty())
+                    .map(|vox| {
+                        let arr: [Real; $dim] = vox.center.into();
+                        arr.to_vec()
+                    })
+                    .collect();
+                $crate::numpy::PyArray2::from_vec2_bound(py, &v).expect("contiguous ndarray")
+            }
+
+            /// Number of filled (non-empty) voxels.
+            fn num_voxels(&self) -> usize {
+                self.0.voxels().filter(|vox| !vox.state.is_empty()).count()
+            }
+        }
+
+        // ============================================================
         // HeightField (2D: 1-D heights; 3D: 2-D heights)
         // ============================================================
 
@@ -2388,6 +2462,10 @@ macro_rules! __define_geometry_shapes_common {
             /// Downcast to `Compound` if this is a compound shape.
             fn as_compound(&self) -> Option<Compound> {
                 self.0.as_compound().map(|s| Compound(s.clone()))
+            }
+            /// Downcast to `Voxels` if this is a voxel-grid shape.
+            fn as_voxels(&self) -> Option<Voxels> {
+                self.0.as_voxels().map(|s| Voxels(s.clone()))
             }
 
             /// Downcast to `Cuboid` if this is a *rounded* cuboid shape.
@@ -3419,14 +3497,90 @@ macro_rules! __define_geometry_collider {
         /// `ColliderSet.insert_with_parent(...)`. Use the static shape
         /// factories (`Collider.ball`, `Collider.cuboid`, etc.) to obtain
         /// a `ColliderBuilder` and chain configuration calls, then
-        /// `.build()` to get a `Collider`. Mutating an existing collider
-        /// fetched from `ColliderSet.get(handle)` modifies the local
-        /// clone — call `ColliderSet.replace(handle, collider)` to push
-        /// the changes back.
+        /// `.build()` to get a `Collider`. A collider fetched from
+        /// `ColliderSet[handle]` is a live **view**: reads and writes go
+        /// straight through to the set with no copy, so mutations persist
+        /// immediately.
         #[pyclass(name = "Collider", module = "rapier")]
-        #[derive(Clone)]
         pub struct Collider {
-            pub collider: rapier::geometry::Collider,
+            pub backing: ColliderBacking,
+        }
+
+        /// Storage backing a `Collider`: a standalone owned collider
+        /// (pre-insertion) or a handle-backed view into a `ColliderSet`.
+        #[derive(Debug)]
+        pub enum ColliderBacking {
+            Owned(Box<rapier::geometry::Collider>),
+            InSet {
+                set: Py<ColliderSet>,
+                handle: rapier::geometry::ColliderHandle,
+            },
+        }
+
+        impl Clone for ColliderBacking {
+            fn clone(&self) -> Self {
+                match self {
+                    ColliderBacking::Owned(c) => ColliderBacking::Owned(c.clone()),
+                    ColliderBacking::InSet { set, handle } => {
+                        Python::with_gil(|py| ColliderBacking::InSet {
+                            set: set.clone_ref(py),
+                            handle: *handle,
+                        })
+                    }
+                }
+            }
+        }
+        impl Clone for Collider {
+            fn clone(&self) -> Self {
+                Collider {
+                    backing: self.backing.clone(),
+                }
+            }
+        }
+
+        impl Collider {
+            fn new_owned(collider: rapier::geometry::Collider) -> Self {
+                Collider {
+                    backing: ColliderBacking::Owned(Box::new(collider)),
+                }
+            }
+
+            /// Run `f` with a shared reference to the underlying collider.
+            fn with_ref<R>(&self, f: impl FnOnce(&rapier::geometry::Collider) -> R) -> R {
+                match &self.backing {
+                    ColliderBacking::Owned(c) => f(c),
+                    ColliderBacking::InSet { set, handle } => Python::with_gil(|py| {
+                        let set = set.bind(py).borrow();
+                        let c = set
+                            .0
+                            .get(*handle)
+                            .expect("Collider refers to a collider that was removed from its set");
+                        f(c)
+                    }),
+                }
+            }
+
+            /// Run `f` with a mutable reference to the underlying collider,
+            /// writing straight through to the set for an `InSet` view.
+            fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::geometry::Collider) -> R) -> R {
+                match &mut self.backing {
+                    ColliderBacking::Owned(c) => f(c),
+                    ColliderBacking::InSet { set, handle } => Python::with_gil(|py| {
+                        let mut set = set.bind(py).borrow_mut();
+                        let c = set
+                            .0
+                            .get_mut(*handle)
+                            .expect("Collider refers to a collider that was removed from its set");
+                        f(c)
+                    }),
+                }
+            }
+
+            /// Clone the underlying collider out (used by `insert` and callers
+            /// needing an owned `&rapier::Collider`).
+            pub fn to_owned_collider(&self) -> rapier::geometry::Collider {
+                self.with_ref(|c| c.clone())
+            }
         }
 
         #[pymethods]
@@ -3436,7 +3590,7 @@ macro_rules! __define_geometry_collider {
             /// Handle of the parent rigid-body, if any.
             #[getter]
             fn parent(&self) -> Option<RigidBodyHandle> {
-                self.collider.parent().map(RigidBodyHandle)
+                self.with_ref(|c| c.parent()).map(RigidBodyHandle)
             }
 
             // ---- position / translation / rotation ----
@@ -3444,33 +3598,35 @@ macro_rules! __define_geometry_collider {
             /// World-space pose of the collider.
             #[getter]
             fn position(&self) -> $Iso {
-                let p = self.collider.position();
-                let iso: $crate::na::Isometry<Real, _, $dim> = (*p).into();
-                $Iso(iso)
+                self.with_ref(|c| {
+                    let iso: $crate::na::Isometry<Real, _, $dim> = (*c.position()).into();
+                    $Iso(iso)
+                })
             }
             #[setter]
             fn set_position(&mut self, p: PyIsometry) {
-                self.collider.set_position(p.0.into());
+                self.with_mut(|c| c.set_position(p.0.into()));
             }
             /// World-space translation component of the pose.
             #[getter]
             fn translation(&self) -> $Vec {
-                let v: $crate::na::SVector<Real, $dim> = self.collider.translation().into();
-                $Vec(v)
+                self.with_ref(|c| {
+                    let v: $crate::na::SVector<Real, $dim> = c.translation().into();
+                    $Vec(v)
+                })
             }
             #[setter]
             fn set_translation(&mut self, v: PyVector) {
-                self.collider.set_translation(v.0.into());
+                self.with_mut(|c| c.set_translation(v.0.into()));
             }
             /// World-space rotation component of the pose.
             #[getter]
             fn rotation(&self) -> $Rot {
-                let r = self.collider.rotation();
-                $Rot(r.into())
+                self.with_ref(|c| $Rot(c.rotation().into()))
             }
             #[setter]
             fn set_rotation(&mut self, r: PyRotation) {
-                self.collider.set_rotation(r.0.into());
+                self.with_mut(|c| c.set_rotation(r.0.into()));
             }
 
             // ---- shape ----
@@ -3478,11 +3634,11 @@ macro_rules! __define_geometry_collider {
             /// Underlying collision shape.
             #[getter]
             fn shape(&self) -> SharedShape {
-                SharedShape(self.collider.shared_shape().clone())
+                self.with_ref(|c| SharedShape(c.shared_shape().clone()))
             }
             #[setter]
             fn set_shape(&mut self, s: SharedShape) {
-                self.collider.set_shape(s.0);
+                self.with_mut(|c| c.set_shape(s.0));
             }
 
             // ---- mass / density / mass_properties ----
@@ -3490,34 +3646,34 @@ macro_rules! __define_geometry_collider {
             /// Uniform density used to derive mass when no explicit mass is set.
             #[getter]
             fn density(&self) -> Real {
-                self.collider.density()
+                self.with_ref(|c| c.density())
             }
             #[setter]
             fn set_density(&mut self, v: Real) {
-                self.collider.set_density(v);
+                self.with_mut(|c| c.set_density(v));
             }
             /// Explicit mass of the collider.
             #[getter]
             fn mass(&self) -> Real {
-                self.collider.mass()
+                self.with_ref(|c| c.mass())
             }
             #[setter]
             fn set_mass(&mut self, v: Real) {
-                self.collider.set_mass(v);
+                self.with_mut(|c| c.set_mass(v));
             }
             /// Full mass properties (mass, center of mass, inertia tensor).
             #[getter]
             fn mass_properties(&self) -> MassProperties {
-                MassProperties(self.collider.mass_properties())
+                MassProperties(self.with_ref(|c| c.mass_properties()))
             }
             #[setter]
             fn set_mass_properties(&mut self, mp: MassProperties) {
-                self.collider.set_mass_properties(mp.0);
+                self.with_mut(|c| c.set_mass_properties(mp.0));
             }
             /// Volume (3D) or area (2D) of the shape.
             #[getter]
             fn volume(&self) -> Real {
-                self.collider.volume()
+                self.with_ref(|c| c.volume())
             }
 
             // ---- material ----
@@ -3525,43 +3681,43 @@ macro_rules! __define_geometry_collider {
             /// Friction coefficient.
             #[getter]
             fn friction(&self) -> Real {
-                self.collider.friction()
+                self.with_ref(|c| c.friction())
             }
             #[setter]
             fn set_friction(&mut self, v: Real) {
-                self.collider.set_friction(v);
+                self.with_mut(|c| c.set_friction(v));
             }
             /// Restitution coefficient (bounciness).
             #[getter]
             fn restitution(&self) -> Real {
-                self.collider.restitution()
+                self.with_ref(|c| c.restitution())
             }
             #[setter]
             fn set_restitution(&mut self, v: Real) {
-                self.collider.set_restitution(v);
+                self.with_mut(|c| c.set_restitution(v));
             }
             /// Rule used to combine friction with another collider's friction.
             #[getter]
             fn friction_combine_rule(&self) -> CoefficientCombineRule {
-                CoefficientCombineRule::from_rapier(self.collider.friction_combine_rule())
+                CoefficientCombineRule::from_rapier(self.with_ref(|c| c.friction_combine_rule()))
             }
             #[setter]
             fn set_friction_combine_rule(&mut self, v: CoefficientCombineRule) {
-                self.collider.set_friction_combine_rule(v.to_rapier());
+                self.with_mut(|c| c.set_friction_combine_rule(v.to_rapier()));
             }
             /// Rule used to combine restitution with another collider.
             #[getter]
             fn restitution_combine_rule(&self) -> CoefficientCombineRule {
-                CoefficientCombineRule::from_rapier(self.collider.restitution_combine_rule())
+                CoefficientCombineRule::from_rapier(self.with_ref(|c| c.restitution_combine_rule()))
             }
             #[setter]
             fn set_restitution_combine_rule(&mut self, v: CoefficientCombineRule) {
-                self.collider.set_restitution_combine_rule(v.to_rapier());
+                self.with_mut(|c| c.set_restitution_combine_rule(v.to_rapier()));
             }
             /// Material bundle (friction, restitution, and their combine rules).
             #[getter]
             fn material(&self) -> ColliderMaterial {
-                ColliderMaterial(*self.collider.material())
+                self.with_ref(|c| ColliderMaterial(*c.material()))
             }
 
             // ---- sensor / enabled ----
@@ -3569,20 +3725,20 @@ macro_rules! __define_geometry_collider {
             /// True iff this collider is a sensor (no contact response).
             #[getter]
             fn is_sensor(&self) -> bool {
-                self.collider.is_sensor()
+                self.with_ref(|c| c.is_sensor())
             }
             #[setter]
             fn set_is_sensor(&mut self, v: bool) {
-                self.collider.set_sensor(v);
+                self.with_mut(|c| c.set_sensor(v));
             }
             /// True iff the collider is currently enabled.
             #[getter]
             fn is_enabled(&self) -> bool {
-                self.collider.is_enabled()
+                self.with_ref(|c| c.is_enabled())
             }
             #[setter]
             fn set_is_enabled(&mut self, v: bool) {
-                self.collider.set_enabled(v);
+                self.with_mut(|c| c.set_enabled(v));
             }
 
             // ---- hooks / events ----
@@ -3590,30 +3746,30 @@ macro_rules! __define_geometry_collider {
             /// Event flags opted into by this collider (see `ActiveEvents`).
             #[getter]
             fn active_events(&self) -> ActiveEvents {
-                ActiveEvents(self.collider.active_events())
+                ActiveEvents(self.with_ref(|c| c.active_events()))
             }
             #[setter]
             fn set_active_events(&mut self, v: ActiveEvents) {
-                self.collider.set_active_events(v.0);
+                self.with_mut(|c| c.set_active_events(v.0));
             }
             /// Hook flags opted into by this collider (see `ActiveHooks`).
             #[getter]
             fn active_hooks(&self) -> ActiveHooks {
-                ActiveHooks(self.collider.active_hooks())
+                ActiveHooks(self.with_ref(|c| c.active_hooks()))
             }
             #[setter]
             fn set_active_hooks(&mut self, v: ActiveHooks) {
-                self.collider.set_active_hooks(v.0);
+                self.with_mut(|c| c.set_active_hooks(v.0));
             }
             /// Rigid-body type combinations this collider collides with
             /// (see `ActiveCollisionTypes`).
             #[getter]
             fn active_collision_types(&self) -> ActiveCollisionTypes {
-                ActiveCollisionTypes(self.collider.active_collision_types())
+                ActiveCollisionTypes(self.with_ref(|c| c.active_collision_types()))
             }
             #[setter]
             fn set_active_collision_types(&mut self, v: ActiveCollisionTypes) {
-                self.collider.set_active_collision_types(v.0);
+                self.with_mut(|c| c.set_active_collision_types(v.0));
             }
 
             // ---- groups ----
@@ -3621,20 +3777,20 @@ macro_rules! __define_geometry_collider {
             /// Groups controlling which colliders form contact pairs.
             #[getter]
             fn collision_groups(&self) -> InteractionGroups {
-                InteractionGroups(self.collider.collision_groups())
+                InteractionGroups(self.with_ref(|c| c.collision_groups()))
             }
             #[setter]
             fn set_collision_groups(&mut self, v: InteractionGroups) {
-                self.collider.set_collision_groups(v.0);
+                self.with_mut(|c| c.set_collision_groups(v.0));
             }
             /// Groups controlling which contact pairs reach the solver.
             #[getter]
             fn solver_groups(&self) -> InteractionGroups {
-                InteractionGroups(self.collider.solver_groups())
+                InteractionGroups(self.with_ref(|c| c.solver_groups()))
             }
             #[setter]
             fn set_solver_groups(&mut self, v: InteractionGroups) {
-                self.collider.set_solver_groups(v.0);
+                self.with_mut(|c| c.set_solver_groups(v.0));
             }
 
             // ---- contact skin & event threshold ----
@@ -3643,22 +3799,22 @@ macro_rules! __define_geometry_collider {
             /// reduce jitter on resting contacts.
             #[getter]
             fn contact_skin(&self) -> Real {
-                self.collider.contact_skin()
+                self.with_ref(|c| c.contact_skin())
             }
             #[setter]
             fn set_contact_skin(&mut self, v: Real) {
-                self.collider.set_contact_skin(v);
+                self.with_mut(|c| c.set_contact_skin(v));
             }
             /// Force magnitude above which a `ContactForceEvent` is emitted.
             ///
             /// Requires `ActiveEvents.CONTACT_FORCE_EVENTS`.
             #[getter]
             fn contact_force_event_threshold(&self) -> Real {
-                self.collider.contact_force_event_threshold()
+                self.with_ref(|c| c.contact_force_event_threshold())
             }
             #[setter]
             fn set_contact_force_event_threshold(&mut self, v: Real) {
-                self.collider.set_contact_force_event_threshold(v);
+                self.with_mut(|c| c.set_contact_force_event_threshold(v));
             }
 
             // ---- user_data ----
@@ -3666,18 +3822,18 @@ macro_rules! __define_geometry_collider {
             /// Free 128-bit user payload (opaque to the engine).
             #[getter]
             fn user_data(&self) -> u128 {
-                self.collider.user_data
+                self.with_ref(|c| c.user_data)
             }
             #[setter]
             fn set_user_data(&mut self, v: u128) {
-                self.collider.user_data = v;
+                self.with_mut(|c| c.user_data = v);
             }
 
             // ---- compute helpers ----
 
             /// Compute the world-space AABB of this collider.
             fn compute_aabb(&self) -> Aabb {
-                Aabb(self.collider.compute_aabb())
+                Aabb(self.with_ref(|c| c.compute_aabb()))
             }
 
             // ---- Builder forwards (mirror RigidBody.dynamic etc) ----
@@ -3898,9 +4054,9 @@ macro_rules! __define_geometry_collider {
             fn __repr__(&self) -> String {
                 format!(
                     "Collider(shape={:?}, sensor={}, parent={:?})",
-                    self.collider.shape().shape_type(),
-                    self.collider.is_sensor(),
-                    self.collider.parent().map(|h| h.into_raw_parts()),
+                    self.with_ref(|c| c.shape().shape_type()),
+                    self.with_ref(|c| c.is_sensor()),
+                    self.with_ref(|c| c.parent()).map(|h| h.into_raw_parts()),
                 )
             }
         }
@@ -4162,9 +4318,7 @@ macro_rules! __define_geometry_collider {
 
             /// Finalize the builder into a `Collider`.
             fn build(&self) -> Collider {
-                Collider {
-                    collider: self.builder.clone().build(),
-                }
+                Collider::new_owned(self.builder.clone().build())
             }
         }
 
@@ -4175,8 +4329,9 @@ macro_rules! __define_geometry_collider {
         /// Owning container of `Collider`s identified by `ColliderHandle`.
         ///
         /// Acts like a dict keyed by handles: supports `len(set)`,
-        /// `handle in set`, `set[handle]`, iteration, plus `insert`,
-        /// `remove`, and `replace` for mutation.
+        /// `handle in set`, `set[handle]`, iteration, plus `insert` and
+        /// `remove`. `set[handle]` returns a live view, so mutating it
+        /// (e.g. `set[h].set_sensor(True)`) persists in place.
         #[pyclass(name = "ColliderSet", module = "rapier", unsendable)]
         pub struct ColliderSet(pub rapier::geometry::ColliderSet);
 
@@ -4198,7 +4353,7 @@ macro_rules! __define_geometry_collider {
                     return Ok(ColliderHandle(self.0.insert(b.builder.clone().build())));
                 }
                 if let Ok(c) = builder.extract::<PyRef<'_, Collider>>() {
-                    return Ok(ColliderHandle(self.0.insert(c.collider.clone())));
+                    return Ok(ColliderHandle(self.0.insert(c.to_owned_collider())));
                 }
                 Err(PyTypeError::new_err(
                     "ColliderSet.insert expects a Collider or ColliderBuilder",
@@ -4223,7 +4378,7 @@ macro_rules! __define_geometry_collider {
                 let coll = if let Ok(b) = builder.extract::<PyRef<'_, ColliderBuilder>>() {
                     b.builder.clone().build()
                 } else if let Ok(c) = builder.extract::<PyRef<'_, Collider>>() {
-                    c.collider.clone()
+                    c.to_owned_collider()
                 } else {
                     return Err(PyTypeError::new_err(
                         "ColliderSet.insert_with_parent expects a Collider or ColliderBuilder",
@@ -4251,29 +4406,35 @@ macro_rules! __define_geometry_collider {
             ) -> Option<Collider> {
                 self.0
                     .remove(handle.0, &mut islands.0, &mut bodies.0, wake_parent)
-                    .map(|c| Collider { collider: c })
+                    .map(Collider::new_owned)
             }
 
-            /// Return a clone of the collider for `handle`, or `None` if
-            /// the handle is unknown. Use `replace` to push changes back.
-            fn get(&self, handle: &ColliderHandle) -> Option<Collider> {
-                self.0
-                    .get(handle.0)
-                    .cloned()
-                    .map(|c| Collider { collider: c })
+            /// Return a live **view** of the collider for `handle`, or `None`
+            /// if the handle is unknown. Reads and writes go straight through
+            /// to the set with no copy.
+            fn get(slf: &Bound<'_, Self>, handle: &ColliderHandle) -> Option<Collider> {
+                slf.borrow().0.get(handle.0)?;
+                Some(Collider {
+                    backing: ColliderBacking::InSet {
+                        set: slf.clone().unbind(),
+                        handle: handle.0,
+                    },
+                })
             }
 
-            fn __getitem__(&self, handle: &ColliderHandle) -> PyResult<Collider> {
-                self.0
-                    .get(handle.0)
-                    .cloned()
-                    .map(|c| Collider { collider: c })
-                    .ok_or_else(|| {
-                        $crate::errors::InvalidHandle::new_err(format!(
-                            "no collider for {:?}",
-                            handle.0.into_raw_parts(),
-                        ))
-                    })
+            fn __getitem__(slf: &Bound<'_, Self>, handle: &ColliderHandle) -> PyResult<Collider> {
+                if slf.borrow().0.get(handle.0).is_none() {
+                    return Err($crate::errors::InvalidHandle::new_err(format!(
+                        "no collider for {:?}",
+                        handle.0.into_raw_parts(),
+                    )));
+                }
+                Ok(Collider {
+                    backing: ColliderBacking::InSet {
+                        set: slf.clone().unbind(),
+                        handle: handle.0,
+                    },
+                })
             }
 
             fn __contains__(&self, handle: &ColliderHandle) -> bool {
@@ -4292,20 +4453,17 @@ macro_rules! __define_geometry_collider {
                 self.0 = rapier::geometry::ColliderSet::new();
             }
 
-            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<ColliderSetIter>> {
-                let pairs: Vec<(ColliderHandle, Collider)> = slf
-                    .0
-                    .iter()
-                    .map(|(h, c)| {
-                        (
-                            ColliderHandle(h),
-                            Collider {
-                                collider: c.clone(),
-                            },
-                        )
-                    })
-                    .collect();
-                Py::new(slf.py(), ColliderSetIter { pairs, i: 0 })
+            fn __iter__(slf: &Bound<'_, Self>) -> PyResult<Py<ColliderSetIter>> {
+                let handles: Vec<rapier::geometry::ColliderHandle> =
+                    slf.borrow().0.iter().map(|(h, _)| h).collect();
+                Py::new(
+                    slf.py(),
+                    ColliderSetIter {
+                        set: slf.clone().unbind(),
+                        handles,
+                        i: 0,
+                    },
+                )
             }
 
             /// Return an iterator over the ``ColliderHandle`` values in the set.
@@ -4313,27 +4471,13 @@ macro_rules! __define_geometry_collider {
                 let h: Vec<ColliderHandle> = slf.0.iter().map(|(h, _)| ColliderHandle(h)).collect();
                 Py::new(slf.py(), ColliderHandleIter { handles: h, i: 0 })
             }
-
-            /// Push the (possibly mutated) `Collider` back into the set.
-            ///
-            /// Mirrors `RigidBodySet.replace` — `get(handle)` returns a clone,
-            /// so changes don't persist until you `replace`.
-            fn replace(&mut self, handle: &ColliderHandle, c: &Collider) -> PyResult<()> {
-                let dst = self.0.get_mut(handle.0).ok_or_else(|| {
-                    $crate::errors::InvalidHandle::new_err(format!(
-                        "no collider for {:?}",
-                        handle.0.into_raw_parts(),
-                    ))
-                })?;
-                dst.copy_from(&c.collider);
-                Ok(())
-            }
         }
 
         /// Iterator yielding `(handle, collider)` pairs from a `ColliderSet`.
         #[pyclass]
         pub struct ColliderSetIter {
-            pairs: Vec<(ColliderHandle, Collider)>,
+            set: Py<ColliderSet>,
+            handles: Vec<rapier::geometry::ColliderHandle>,
             i: usize,
         }
         #[pymethods]
@@ -4342,12 +4486,19 @@ macro_rules! __define_geometry_collider {
                 slf
             }
             fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<(ColliderHandle, Collider)> {
-                if slf.i >= slf.pairs.len() {
+                if slf.i >= slf.handles.len() {
                     return None;
                 }
-                let p = slf.pairs[slf.i].clone();
+                let py = slf.py();
+                let handle = slf.handles[slf.i];
                 slf.i += 1;
-                Some(p)
+                let set = slf.set.clone_ref(py);
+                Some((
+                    ColliderHandle(handle),
+                    Collider {
+                        backing: ColliderBacking::InSet { set, handle },
+                    },
+                ))
             }
         }
 
@@ -4829,6 +4980,7 @@ macro_rules! __define_geometry_register {
             m.add_class::<TriMesh>()?;
             m.add_class::<HeightField>()?;
             m.add_class::<Compound>()?;
+            m.add_class::<Voxels>()?;
             m.add_class::<Cylinder>()?;
             m.add_class::<Cone>()?;
             m.add_class::<ConvexPolyhedron>()?;
@@ -4888,6 +5040,7 @@ macro_rules! __define_geometry_register {
             m.add_class::<TriMesh>()?;
             m.add_class::<HeightField>()?;
             m.add_class::<Compound>()?;
+            m.add_class::<Voxels>()?;
             m.add_class::<Segment>()?;
             m.add_class::<Polyline>()?;
             m.add_class::<ConvexPolygon>()?;

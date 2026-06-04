@@ -47,6 +47,6 @@ helpers.
 .. note::
 
    The same class exists for every ``(dim, scalar)`` flavor:
-   ``rapier.PhysicsWorld`` (3D / f32, re-exported at the top level),
-   ``rapier2d.PhysicsWorld``, ``rapier3d_f64.PhysicsWorld``, and
-   ``rapier2d_f64.PhysicsWorld``. See :doc:`../dim_scalar`.
+   ``rapier3d.PhysicsWorld`` (3D / f32), ``rapier2d.PhysicsWorld``,
+   ``rapier3d_f64.PhysicsWorld``, and ``rapier2d_f64.PhysicsWorld``.
+   See :doc:`../dim_scalar`.

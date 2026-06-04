@@ -7,9 +7,6 @@ release cadence. The authoritative changelog is the Cargo
 `Rapier repository
 <https://github.com/dimforge/rapier/blob/master/CHANGELOG.md>`_.
 
-A summary of what's in the current alpha is in
-:doc:`limitations`.
-
 Unreleased
 ----------
 

@@ -57,8 +57,11 @@ dim-specific types:
 * ``Vec2`` / ``Point2`` / ``Rotation2`` / ``Isometry2`` versus
   ``Vec3`` / ``Point3`` / ``Rotation3`` / ``Quaternion`` / ``Isometry3``.
 * ``SphericalJoint`` and the ray-cast vehicle controller are 3D-only.
-* ``polyline`` is 2D-only.
-* ``AngVector`` is a plain ``float`` in 2D and a 3-tuple in 3D.
+* ``Cylinder``, ``Cone``, and ``ConvexPolyhedron`` are 3D-only shapes;
+  ``Segment``, ``Polyline``, and ``ConvexPolygon`` are 2D-only.
+* Angular quantities (angular velocity, torque) are a plain ``float`` in
+  2D — there is no ``AngVector2`` type. In 3D, ``AngVector3`` is an alias
+  for :class:`~rapier3d.Vec3`.
 
 Choosing a precision
 --------------------
@@ -76,5 +79,6 @@ The two flavors have separate cdylibs and separate types — instances
 do not interoperate. ``Vec3(1, 2, 3)`` from ``rapier3d`` is a
 **different class** from ``Vec3(1, 2, 3)`` from ``rapier3d_f64``.
 
-Snapshot blobs are *not* tagged with their flavor — see
-:doc:`limitations` for details.
+Snapshot blobs are *not* tagged with their flavor: always restore a
+snapshot through the same ``(dim, scalar)`` flavor that produced it,
+otherwise the floats will be silently misinterpreted.

@@ -158,7 +158,7 @@ class _Arcball:
         if self._dragging == "rotate":
             # full-screen drag ≈ 2π yaw / π pitch
             self._yaw -= dx * math.pi
-            self._pitch += dy * math.pi
+            self._pitch -= dy * math.pi
             # Clamp away from the poles to avoid flips.
             limit = math.pi / 2.0 - 0.02
             self._pitch = max(-limit, min(limit, self._pitch))
@@ -309,7 +309,7 @@ class Testbed:
         self._initial_camera_eye: Optional[Tuple[float, float, float]] = None
         self._initial_camera_at: Optional[Tuple[float, float, float]] = None
         self._initial_2d_center: Tuple[float, float] = (0.0, 0.0)
-        self._initial_2d_zoom: float = 1.0
+        self._initial_2d_zoom: float = 15.0
 
         # ---- mesh-rendering state ----------------------------------------
         # One NodePath per collider, parented to ``_mesh_root``. Each
@@ -440,8 +440,12 @@ class Testbed:
         if self._base is not None:
             self._apply_camera_3d(e, a)
 
-    def set_camera_2d(self, center: Vec2Like = (0.0, 0.0), zoom: float = 1.0) -> None:
-        """Position the 2D orthographic camera."""
+    def set_camera_2d(self, center: Vec2Like = (0.0, 0.0), zoom: float = 15.0) -> None:
+        """Position the 2D orthographic camera.
+
+        ``zoom`` is pixels per world unit (matching the Rust testbed's
+        ``look_at(at, zoom)``); the visible world height is ``600 / zoom``.
+        """
         if self.dim != 2:
             raise RuntimeError("set_camera_2d requires a 2D testbed")
         c = _as_tuple2(center)
@@ -1004,16 +1008,19 @@ class Testbed:
         except Exception:
             pass
 
-        # Orthographic lens. Film size = visible world width/height in
-        # world units. zoom > 1 ⇒ closer-in (smaller film), zoom < 1
-        # ⇒ wider view.
+        # Orthographic lens. `zoom` matches the Rust testbed convention
+        # (`look_at(at, zoom)`): zoom is *pixels per world unit* against a
+        # 600px reference, so the visible world height is `600 / zoom`. (The
+        # examples pass the same zoom values as their Rust counterparts.)
         lens = OrthographicLens()
-        film = 40.0 / z
+        film = 600.0 / z
         try:
             aspect = self._base.getAspectRatio()
         except Exception:
             aspect = 16.0 / 9.0
-        lens.setFilmSize(film * max(aspect, 1.0), film)
+        # Film width tracks the window aspect so world units stay square (no
+        # stretching). Recomputed on resize in `_cam2d_tick`.
+        lens.setFilmSize(film * aspect, film)
         lens.setNearFar(-1000, 1000)
         try:
             self._base.cam.node().setLens(lens)
@@ -1032,7 +1039,7 @@ class Testbed:
         self._cam2d_zoom = z
         self._cam2d_lens = lens
         self._cam2d_film_height = film
-        self._cam2d_aspect = max(aspect, 1.0)
+        self._cam2d_aspect = aspect
 
         # Bind mouse pan + wheel zoom once.
         if not getattr(self, "_cam2d_bound", False):
@@ -1065,6 +1072,25 @@ class Testbed:
     def _cam2d_tick(self, task: Any) -> Any:
         from direct.task import Task
         from panda3d.core import LPoint3, LVector3
+
+        if self._base is None:
+            return Task.cont
+
+        # Keep the orthographic projection square when the window is resized:
+        # the film width must follow the live window aspect, else the scene
+        # stretches. (Done here rather than via an "aspectRatioChanged" accept
+        # so we don't clobber the overlay-text resize handler on the same
+        # event.)
+        if hasattr(self, "_cam2d_lens"):
+            try:
+                aspect = self._base.getAspectRatio()
+            except Exception:
+                aspect = self._cam2d_aspect
+            if aspect > 1e-6 and abs(aspect - self._cam2d_aspect) > 1e-6:
+                self._cam2d_lens.setFilmSize(
+                    self._cam2d_film_height * aspect, self._cam2d_film_height
+                )
+                self._cam2d_aspect = aspect
 
         if not self._cam2d_dragging or self._cam2d_last_mouse is None:
             return Task.cont

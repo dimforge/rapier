@@ -22,6 +22,8 @@ determinism = ["rapier2d-f64/enhanced-determinism"]
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multiple-pymethods"] }
 rapier-py-core = { path = "../rapier-py-core" }
+# NB: the f64 engine crate has no `simd-stable` feature (SIMD via `wide` is
+# f32-only), so this binding can't enable it.
 rapier2d-f64 = { path = "../../crates/rapier2d-f64", features = ["serde-serialize", "debug-render"] }
 # Phase 11 — Serialization, snapshots.
 serde = { workspace = true, features = ["derive", "std"] }

@@ -26,6 +26,9 @@ Shepperd = "Shepperd"
 # with `bb`) and `typ` (a "type" value — `type` is reserved in Rust/Python).
 ba = "ba"
 typ = "typ"
+# Template mesh data in the testbed instancer: `tpos`/`tnrm`/`tidx`
+# (template positions/normals/indices). Only `tpos` collides with a word.
+tpos = "tpos"
 
 # Case insensitive, matches inside word.
 [default.extend-words]

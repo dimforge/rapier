@@ -22,7 +22,7 @@ determinism = ["rapier2d/enhanced-determinism"]
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multiple-pymethods"] }
 rapier-py-core = { path = "../rapier-py-core" }
-rapier2d = { path = "../../crates/rapier2d", features = ["serde-serialize", "debug-render"] }
+rapier2d = { path = "../../crates/rapier2d", features = ["serde-serialize", "debug-render", "simd-stable"] }
 # Phase 11 — Serialization, snapshots.
 serde = { workspace = true, features = ["derive", "std"] }
 bincode = { workspace = true }

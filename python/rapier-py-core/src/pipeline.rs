@@ -2121,7 +2121,7 @@ macro_rules! __define_pipeline_shared {
                 let body = if let Ok(b) = builder.extract::<PyRef<'_, RigidBodyBuilder>>() {
                     b.builder.clone().build()
                 } else if let Ok(rb) = builder.extract::<PyRef<'_, RigidBody>>() {
-                    rb.body.clone()
+                    rb.to_owned_body()
                 } else {
                     return Err(PyTypeError::new_err(
                         "PhysicsWorld.add_body expects a RigidBody or RigidBodyBuilder",
@@ -2136,7 +2136,7 @@ macro_rules! __define_pipeline_shared {
                         let coll = if let Ok(b) = item.extract::<PyRef<'_, ColliderBuilder>>() {
                             b.builder.clone().build()
                         } else if let Ok(c) = item.extract::<PyRef<'_, Collider>>() {
-                            c.collider.clone()
+                            c.to_owned_collider()
                         } else {
                             return Err(PyTypeError::new_err(
                                 "PhysicsWorld.add_body colliders must be Collider or ColliderBuilder instances",
@@ -2168,7 +2168,7 @@ macro_rules! __define_pipeline_shared {
                 let coll = if let Ok(b) = builder.extract::<PyRef<'_, ColliderBuilder>>() {
                     b.builder.clone().build()
                 } else if let Ok(c) = builder.extract::<PyRef<'_, Collider>>() {
-                    c.collider.clone()
+                    c.to_owned_collider()
                 } else {
                     return Err(PyTypeError::new_err(
                         "PhysicsWorld.add_collider expects a Collider or ColliderBuilder",
@@ -2207,7 +2207,7 @@ macro_rules! __define_pipeline_shared {
                     &mut ij.0,
                     &mut mj.0,
                     true,
-                ).map(|body| RigidBody { body }))
+                ).map(RigidBody::new_owned))
             }
 
             /// Remove a collider, detaching it from its parent body if any.
@@ -2224,7 +2224,7 @@ macro_rules! __define_pipeline_shared {
                 let mut bset = self.bodies.borrow_mut(py);
                 let mut islands = self.islands.borrow_mut(py);
                 Ok(cset.0.remove(handle.0, &mut islands.0, &mut bset.0, true)
-                    .map(|collider| Collider { collider }))
+                    .map(Collider::new_owned))
             }
 
             /// Debug repr — shows body and collider counts.
@@ -2380,9 +2380,15 @@ macro_rules! __qp_query {
             |h: rapier::geometry::ColliderHandle, co: &rapier::geometry::Collider| -> bool {
                 let _ = co;
                 if let Some(ref obj) = py_pred_obj {
-                    // Build a Python-side `Collider` clone for the callback.
+                    // Hand the predicate a live view into the set (no copy of the
+                    // collider). The set is already borrowed immutably for the
+                    // query, so the view's reads re-borrow shared — fine; the
+                    // predicate must not mutate the collider mid-query.
                     let coll_py = Collider {
-                        collider: co.clone(),
+                        backing: ColliderBacking::InSet {
+                            set: $self.colliders.clone_ref($py),
+                            handle: h,
+                        },
                     };
                     let h_py = ColliderHandle(h);
                     match obj.call1($py, (h_py, coll_py)) {

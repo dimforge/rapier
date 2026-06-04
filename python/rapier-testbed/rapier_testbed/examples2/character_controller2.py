@@ -141,7 +141,6 @@ def init_world(testbed) -> None:
         platform = tb.bodies.get(platform_handle)
         if platform is not None:
             platform.linvel = linvel
-            tb.bodies.replace(platform_handle, platform)
 
     testbed.add_callback(cb)
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints)

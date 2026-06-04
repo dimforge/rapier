@@ -175,14 +175,43 @@ macro_rules! __define_serde_common {
         // RigidBody / RigidBodyBuilder / Collider / ColliderBuilder
         // ============================================================
 
+        // RigidBody is a thin view (owned standalone, or a handle into a set),
+        // so it has no single `body` field for the generic serde macro to read.
+        // Serialize by reading the underlying body out; deserialize as a fresh
+        // owned body.
+        #[pymethods]
         impl RigidBody {
-            /// Used by `from_bytes` / pickle to reconstruct.
-            #[inline]
-            pub(crate) fn _from_inner(body: rapier::dynamics::RigidBody) -> Self {
-                Self { body }
+            fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+                let inner = self.to_owned_body();
+                let payload =
+                    $crate::bincode::serialize(&inner).map_err($crate::serde_io::bincode_err)?;
+                Ok($crate::serde_io::bytes_to_py(
+                    py,
+                    &$crate::serde_io::wrap_bincode(payload),
+                ))
+            }
+
+            #[staticmethod]
+            fn from_bytes(blob: &Bound<'_, PyBytes>) -> PyResult<Self> {
+                let buf = blob.as_bytes();
+                let body = $crate::serde_io::unwrap_bincode(buf)?;
+                let inner: rapier::dynamics::RigidBody =
+                    $crate::bincode::deserialize(body).map_err($crate::serde_io::bincode_err)?;
+                Ok(RigidBody::new_owned(inner))
+            }
+
+            fn __reduce__<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<(Py<PyAny>, (Bound<'py, PyBytes>,))> {
+                let blob = self.to_bytes(py)?;
+                let ctor: Py<PyAny> = py
+                    .get_type_bound::<RigidBody>()
+                    .getattr("from_bytes")?
+                    .unbind();
+                Ok((ctor, (blob,)))
             }
         }
-        $crate::__serde_owned_value!(RigidBody, body, RigidBody::_from_inner, "from_bytes");
 
         // RigidBodyBuilder is NOT `Serialize`/`Deserialize` upstream. To make
         // it picklable, we round-trip through its built form (a RigidBody),
@@ -244,13 +273,41 @@ macro_rules! __define_serde_common {
             }
         }
 
+        // Collider is a thin view (owned, or a handle into a set); serialize by
+        // reading the underlying collider out, deserialize as a fresh owned one.
+        #[pymethods]
         impl Collider {
-            #[inline]
-            pub(crate) fn _from_inner(collider: rapier::geometry::Collider) -> Self {
-                Self { collider }
+            fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+                let inner = self.to_owned_collider();
+                let payload =
+                    $crate::bincode::serialize(&inner).map_err($crate::serde_io::bincode_err)?;
+                Ok($crate::serde_io::bytes_to_py(
+                    py,
+                    &$crate::serde_io::wrap_bincode(payload),
+                ))
+            }
+
+            #[staticmethod]
+            fn from_bytes(blob: &Bound<'_, PyBytes>) -> PyResult<Self> {
+                let buf = blob.as_bytes();
+                let body = $crate::serde_io::unwrap_bincode(buf)?;
+                let inner: rapier::geometry::Collider =
+                    $crate::bincode::deserialize(body).map_err($crate::serde_io::bincode_err)?;
+                Ok(Collider::new_owned(inner))
+            }
+
+            fn __reduce__<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<(Py<PyAny>, (Bound<'py, PyBytes>,))> {
+                let blob = self.to_bytes(py)?;
+                let ctor: Py<PyAny> = py
+                    .get_type_bound::<Collider>()
+                    .getattr("from_bytes")?
+                    .unbind();
+                Ok((ctor, (blob,)))
             }
         }
-        $crate::__serde_owned_value!(Collider, collider, Collider::_from_inner, "from_bytes");
 
         impl ColliderBuilder {
             #[inline]
@@ -312,7 +369,38 @@ macro_rules! __define_serde_common {
         $crate::__serde_owned_value!(RopeJointBuilder, 0, RopeJointBuilder, "from_bytes");
         $crate::__serde_owned_value!(SpringJoint, 0, SpringJoint, "from_bytes");
         $crate::__serde_owned_value!(SpringJointBuilder, 0, SpringJointBuilder, "from_bytes");
-        $crate::__serde_owned_value!(GenericJoint, 0, GenericJoint, "from_bytes");
+        // GenericJoint is a thin view (owned, or a view into an in-set joint's
+        // data); serialize the underlying value, deserialize as owned.
+        #[pymethods]
+        impl GenericJoint {
+            fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+                let inner = self.to_owned_generic();
+                let payload =
+                    $crate::bincode::serialize(&inner).map_err($crate::serde_io::bincode_err)?;
+                Ok($crate::serde_io::bytes_to_py(
+                    py,
+                    &$crate::serde_io::wrap_bincode(payload),
+                ))
+            }
+            #[staticmethod]
+            fn from_bytes(blob: &Bound<'_, PyBytes>) -> PyResult<Self> {
+                let body = $crate::serde_io::unwrap_bincode(blob.as_bytes())?;
+                let inner: rapier::dynamics::GenericJoint =
+                    $crate::bincode::deserialize(body).map_err($crate::serde_io::bincode_err)?;
+                Ok(GenericJoint::new_owned(inner))
+            }
+            fn __reduce__<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<(Py<PyAny>, (Bound<'py, PyBytes>,))> {
+                let blob = self.to_bytes(py)?;
+                let ctor: Py<PyAny> = py
+                    .get_type_bound::<GenericJoint>()
+                    .getattr("from_bytes")?
+                    .unbind();
+                Ok((ctor, (blob,)))
+            }
+        }
         $crate::__serde_owned_value!(GenericJointBuilder, 0, GenericJointBuilder, "from_bytes");
 
         $crate::__define_serde_dim_specific_joints!($dim);

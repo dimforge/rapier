@@ -43,6 +43,7 @@ _ST_CUBOID: int = 1
 _ST_CAPSULE: int = 2
 _ST_SEGMENT: int = 3
 _ST_TRIANGLE: int = 4
+_ST_VOXELS: int = 5
 _ST_TRIMESH: int = 6
 _ST_POLYLINE: int = 7
 _ST_HEIGHTFIELD: int = 9
@@ -479,36 +480,53 @@ def _heightfield_mesh_2d(heights: np.ndarray, scale: Tuple[float, float]) -> Tup
     return _trimesh_mesh(pts, idx)
 
 
-def _convex_polyhedron_mesh(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Convex polyhedron via a tiny QuickHull (NumPy-only).
+def _convex_polyhedron_mesh(
+    points: np.ndarray, indices: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Convex polyhedron → flat-shaded mesh from parry's own topology.
 
-    Returns a per-face flat-shaded mesh. Falls back to the AABB if the
-    hull build fails (≤3 unique points).
+    ``points``/``indices`` come straight from
+    :class:`rapier3d.ConvexPolyhedron` (``ch.points`` / ``ch.indices``),
+    where each face has already been fan-triangulated by the engine — so
+    no hull recomputation (and no scipy) is needed. Falls back to a tiny
+    box only for degenerate input (no triangles).
     """
-    pts = np.asarray(points, dtype=np.float64).reshape(-1, 3)
-    pts = np.unique(pts, axis=0)
-    if pts.shape[0] < 4:
+    pts = np.asarray(points, dtype=np.float32).reshape(-1, 3)
+    idx = np.asarray(indices, dtype=np.uint32).reshape(-1, 3)
+    if idx.shape[0] == 0 or pts.shape[0] == 0:
         # Degenerate: emit a tiny box around the centroid so something
         # at least shows up in the viewport.
         if pts.shape[0] == 0:
             return _cuboid_mesh(0.01, 0.01, 0.01)
         c = pts.mean(axis=0).astype(np.float32)
-        pos, nrm, idx = _cuboid_mesh(0.05, 0.05, 0.05)
-        return pos + c, nrm, idx
-    try:
-        from scipy.spatial import ConvexHull
-        hull = ConvexHull(pts)
-        verts = hull.points.astype(np.float32)
-        faces = hull.simplices.astype(np.uint32)
-        return _trimesh_mesh(verts, faces)
-    except Exception:
-        # No scipy — fall back to AABB of the points.
-        mn = pts.min(axis=0)
-        mx = pts.max(axis=0)
-        hx, hy, hz = (mx - mn) * 0.5
-        center = (mn + mx) * 0.5
-        pos, nrm, idx = _cuboid_mesh(float(hx), float(hy), float(hz))
-        return pos + center.astype(np.float32), nrm, idx
+        pos, nrm, idx2 = _cuboid_mesh(0.05, 0.05, 0.05)
+        return pos + c, nrm, idx2
+    return _trimesh_mesh(pts, idx)
+
+
+def _voxels_mesh(
+    centers: np.ndarray, half_extents: Tuple[float, float, float]
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """One cuboid per voxel center, tiled into a single mesh.
+
+    Builds a unit cuboid of the voxel's half-extents and broadcasts it to
+    every center, offsetting positions and shifting indices per instance.
+    """
+    c = np.asarray(centers, dtype=np.float32).reshape(-1, 3)
+    n = c.shape[0]
+    hx, hy, hz = half_extents
+    tpos, tnrm, tidx = _cuboid_mesh(hx, hy, hz)  # (24,3),(24,3),(12,3)
+    if n == 0:
+        return tpos[:0], tnrm[:0], tidx[:0]
+    nv = tpos.shape[0]
+    # Positions: template + per-instance center.
+    pos = (tpos[None, :, :] + c[:, None, :]).reshape(-1, 3).astype(np.float32)
+    # Normals are identical for every instance.
+    nrm = np.tile(tnrm, (n, 1)).astype(np.float32)
+    # Indices: template offset by nv per instance.
+    offsets = (np.arange(n, dtype=np.uint32) * nv)[:, None, None]
+    idx = (tidx[None, :, :] + offsets).reshape(-1, 3).astype(np.uint32)
+    return pos, nrm, idx
 
 
 def _disk_mesh_2d(radius: float, segments: int = 36) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -713,6 +731,22 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
         out.append((iso_identity, p, n, i))
         return out
 
+    if stype == _ST_VOXELS:
+        vx = shape.as_voxels()
+        centers = np.asarray(vx.centers, dtype=np.float32)
+        vs = np.asarray(vx.voxel_size, dtype=np.float32)
+        if dim == 2:
+            # 2D world (x, y) → 3D (x, y, 0); give a thin slab in z.
+            c3 = np.zeros((centers.shape[0], 3), dtype=np.float32)
+            c3[:, :2] = centers.reshape(-1, 2)
+            centers = c3
+            half = (float(vs[0]) * 0.5, float(vs[1]) * 0.5, 0.01)
+        else:
+            half = (float(vs[0]) * 0.5, float(vs[1]) * 0.5, float(vs[2]) * 0.5)
+        p, n, i = _voxels_mesh(centers, half)
+        out.append((iso_identity, p, n, i))
+        return out
+
     if stype == _ST_HEIGHTFIELD:
         hf = shape.as_heightfield()
         sc = hf.scale
@@ -729,7 +763,7 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
 
     if stype == _ST_CONVEX_POLYHEDRON:
         ch = shape.as_convex_polyhedron()
-        p, n, i = _convex_polyhedron_mesh(ch.points)
+        p, n, i = _convex_polyhedron_mesh(ch.points, ch.indices)
         out.append((iso_identity, p, n, i))
         return out
 
@@ -793,7 +827,7 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
         return out
     if stype == _ST_ROUND_CONVEX_POLYHEDRON:
         ch = shape.as_round_convex_polyhedron()
-        p, n, i = _convex_polyhedron_mesh(ch.points)
+        p, n, i = _convex_polyhedron_mesh(ch.points, ch.indices)
         out.append((iso_identity, p, n, i))
         return out
     if stype == _ST_ROUND_CONVEX_POLYGON:

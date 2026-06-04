@@ -1972,21 +1972,21 @@ macro_rules! __define_dynamics_rigid_body_3d {
             /// Angular velocity as a world-space 3-vector (read+write).
             #[getter]
             fn angvel(&self) -> Vec3 {
-                let v: $crate::na::Vector3<Real> = self.body.angvel().into();
+                let v: $crate::na::Vector3<Real> = self.with_ref(|b| b.angvel()).into();
                 Vec3(v)
             }
             /// Set the angular velocity (wakes the body).
             #[setter]
             fn set_angvel(&mut self, v: PyVector) {
                 let g: rapier::math::Vector = v.0.into();
-                self.body.set_angvel(g.into(), true);
+                self.with_mut(|b| b.set_angvel(g.into(), true));
             }
 
             /// Torque accumulated by user calls during the current step
             /// (read-only). Cleared automatically at the next step.
             #[getter]
             fn user_torque(&self) -> Vec3 {
-                let v: $crate::na::Vector3<Real> = self.body.user_torque().into();
+                let v: $crate::na::Vector3<Real> = self.with_ref(|b| b.user_torque()).into();
                 Vec3(v)
             }
 
@@ -1994,7 +1994,7 @@ macro_rules! __define_dynamics_rigid_body_3d {
             /// (``True`` = free to rotate).
             #[getter]
             fn enabled_rotations(&self) -> (bool, bool, bool) {
-                let arr = self.body.is_rotation_locked();
+                let arr = self.with_ref(|b| b.is_rotation_locked());
                 (!arr[0], !arr[1], !arr[2])
             }
             /// Enable / disable rotation around each axis.
@@ -2003,14 +2003,14 @@ macro_rules! __define_dynamics_rigid_body_3d {
             ///     allows rotation and ``False`` locks it.
             #[setter]
             fn set_enabled_rotations(&mut self, v: (bool, bool, bool)) {
-                self.body.set_enabled_rotations(v.0, v.1, v.2, true);
+                self.with_mut(|b| b.set_enabled_rotations(v.0, v.1, v.2, true));
             }
 
             /// Per-axis translation enable mask as ``(tx, ty, tz)`` booleans
             /// (``True`` = free to translate).
             #[getter]
             fn enabled_translations(&self) -> (bool, bool, bool) {
-                let la = self.body.locked_axes();
+                let la = self.with_ref(|b| b.locked_axes());
                 (
                     !la.contains(rapier::dynamics::LockedAxes::TRANSLATION_LOCKED_X),
                     !la.contains(rapier::dynamics::LockedAxes::TRANSLATION_LOCKED_Y),
@@ -2022,7 +2022,7 @@ macro_rules! __define_dynamics_rigid_body_3d {
             /// :param v: tuple ``(tx, ty, tz)`` of booleans.
             #[setter]
             fn set_enabled_translations(&mut self, v: (bool, bool, bool)) {
-                self.body.set_enabled_translations(v.0, v.1, v.2, true);
+                self.with_mut(|b| b.set_enabled_translations(v.0, v.1, v.2, true));
             }
 
             /// Accumulate a torque to be applied during the next step.
@@ -2036,7 +2036,7 @@ macro_rules! __define_dynamics_rigid_body_3d {
             #[pyo3(signature = (torque, wake_up=true))]
             fn add_torque(&mut self, torque: PyVector, wake_up: bool) {
                 let g: rapier::math::Vector = torque.0.into();
-                self.body.add_torque(g.into(), wake_up);
+                self.with_mut(|b| b.add_torque(g.into(), wake_up));
             }
 
             /// Apply an instantaneous angular impulse (units: ``N·m·s``).
@@ -2046,7 +2046,7 @@ macro_rules! __define_dynamics_rigid_body_3d {
             #[pyo3(signature = (torque_impulse, wake_up=true))]
             fn apply_torque_impulse(&mut self, torque_impulse: PyVector, wake_up: bool) {
                 let g: rapier::math::Vector = torque_impulse.0.into();
-                self.body.apply_torque_impulse(g.into(), wake_up);
+                self.with_mut(|b| b.apply_torque_impulse(g.into(), wake_up));
             }
 
             /// Whether gyroscopic forces are accounted for during integration
@@ -2054,12 +2054,12 @@ macro_rules! __define_dynamics_rigid_body_3d {
             /// spinning tops).
             #[getter]
             fn gyroscopic_forces_enabled(&self) -> bool {
-                self.body.gyroscopic_forces_enabled()
+                self.with_ref(|b| b.gyroscopic_forces_enabled())
             }
             /// Enable or disable gyroscopic forces.
             #[setter]
             fn set_gyroscopic_forces_enabled(&mut self, v: bool) {
-                self.body.enable_gyroscopic_forces(v);
+                self.with_mut(|b| b.enable_gyroscopic_forces(v));
             }
 
             /// Predict the angular velocity after ``dt`` seconds *with*
@@ -2069,8 +2069,9 @@ macro_rules! __define_dynamics_rigid_body_3d {
             ///
             /// :param dt: integration timestep in seconds.
             fn angvel_with_gyroscopic_forces(&self, dt: Real) -> Vec3 {
-                let v: $crate::na::Vector3<Real> =
-                    self.body.angvel_with_gyroscopic_forces(dt).into();
+                let v: $crate::na::Vector3<Real> = self
+                    .with_ref(|b| b.angvel_with_gyroscopic_forces(dt))
+                    .into();
                 Vec3(v)
             }
 
@@ -2204,38 +2205,38 @@ macro_rules! __define_dynamics_rigid_body_2d {
             /// (read+write).
             #[getter]
             fn angvel(&self) -> Real {
-                self.body.angvel()
+                self.with_ref(|b| b.angvel())
             }
             /// Set the angular velocity (wakes the body).
             #[setter]
             fn set_angvel(&mut self, v: Real) {
-                self.body.set_angvel(v, true);
+                self.with_mut(|b| b.set_angvel(v, true));
             }
 
             /// Torque accumulated by user calls during the current step
             /// (read-only). Cleared automatically at the next step.
             #[getter]
             fn user_torque(&self) -> Real {
-                self.body.user_torque()
+                self.with_ref(|b| b.user_torque())
             }
 
             /// Whether rotation is enabled, as a single-element tuple
             /// ``(rz,)`` for API symmetry with 3D (``True`` = free to rotate).
             #[getter]
             fn enabled_rotations(&self) -> (bool,) {
-                (!self.body.is_rotation_locked(),)
+                (!self.with_ref(|b| b.is_rotation_locked()),)
             }
             /// Enable or disable rotation. Pass ``(True,)`` to allow rotation.
             #[setter]
             fn set_enabled_rotations(&mut self, v: (bool,)) {
-                self.body.lock_rotations(!v.0, true);
+                self.with_mut(|b| b.lock_rotations(!v.0, true));
             }
 
             /// Per-axis translation enable mask as ``(tx, ty)`` booleans
             /// (``True`` = free to translate).
             #[getter]
             fn enabled_translations(&self) -> (bool, bool) {
-                let la = self.body.locked_axes();
+                let la = self.with_ref(|b| b.locked_axes());
                 (
                     !la.contains(rapier::dynamics::LockedAxes::TRANSLATION_LOCKED_X),
                     !la.contains(rapier::dynamics::LockedAxes::TRANSLATION_LOCKED_Y),
@@ -2244,7 +2245,7 @@ macro_rules! __define_dynamics_rigid_body_2d {
             /// Enable / disable translation along ``x`` and ``y``.
             #[setter]
             fn set_enabled_translations(&mut self, v: (bool, bool)) {
-                self.body.set_enabled_translations(v.0, v.1, true);
+                self.with_mut(|b| b.set_enabled_translations(v.0, v.1, true));
             }
 
             /// Accumulate a (scalar) torque to be applied during the next
@@ -2254,7 +2255,7 @@ macro_rules! __define_dynamics_rigid_body_2d {
             /// :param wake_up: if ``True`` (default), wake the body up.
             #[pyo3(signature = (torque, wake_up=true))]
             fn add_torque(&mut self, torque: Real, wake_up: bool) {
-                self.body.add_torque(torque, wake_up);
+                self.with_mut(|b| b.add_torque(torque, wake_up));
             }
 
             /// Apply an instantaneous (scalar) angular impulse.
@@ -2263,7 +2264,7 @@ macro_rules! __define_dynamics_rigid_body_2d {
             /// :param wake_up: if ``True`` (default), wake the body up.
             #[pyo3(signature = (torque_impulse, wake_up=true))]
             fn apply_torque_impulse(&mut self, torque_impulse: Real, wake_up: bool) {
-                self.body.apply_torque_impulse(torque_impulse, wake_up);
+                self.with_mut(|b| b.apply_torque_impulse(torque_impulse, wake_up));
             }
 
             /// Start building a dynamic rigid body.
@@ -2407,13 +2408,96 @@ macro_rules! __define_dynamics_rigid_body_common {
         ///     rb = RigidBody.dynamic(translation=Vec3(0, 5, 0)).build()
         ///     handle = bodies.insert(rb)
         ///
-        /// Bodies obtained from a ``RigidBodySet`` are clones of the stored
-        /// version — call ``RigidBodySet.replace(handle, body)`` to persist
-        /// mutations back to the set.
+        /// A body obtained from a ``RigidBodySet`` (e.g. ``world.rigid_bodies[h]``)
+        /// is a lightweight **view** into the stored body: reads and writes go
+        /// straight through to the set with no copy, so ``body.linvel = v``
+        /// persists immediately. A body created via ``build()`` (not yet in a
+        /// set) owns its data until inserted.
         #[pyclass(name = "RigidBody", module = "rapier")]
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub struct RigidBody {
-            pub body: rapier::dynamics::RigidBody,
+            pub backing: RigidBodyBacking,
+        }
+
+        /// Storage backing a `RigidBody`: either a standalone owned body
+        /// (pre-insertion) or a handle-backed view into a `RigidBodySet`.
+        #[derive(Debug)]
+        pub enum RigidBodyBacking {
+            Owned(Box<rapier::dynamics::RigidBody>),
+            InSet {
+                set: Py<RigidBodySet>,
+                handle: rapier::dynamics::RigidBodyHandle,
+            },
+        }
+
+        // `Py<T>` is not `derive`-Clone (cloning bumps the refcount under the
+        // GIL), so implement Clone by hand.
+        impl Clone for RigidBodyBacking {
+            fn clone(&self) -> Self {
+                match self {
+                    RigidBodyBacking::Owned(b) => RigidBodyBacking::Owned(b.clone()),
+                    RigidBodyBacking::InSet { set, handle } => {
+                        Python::with_gil(|py| RigidBodyBacking::InSet {
+                            set: set.clone_ref(py),
+                            handle: *handle,
+                        })
+                    }
+                }
+            }
+        }
+        impl Clone for RigidBody {
+            fn clone(&self) -> Self {
+                RigidBody {
+                    backing: self.backing.clone(),
+                }
+            }
+        }
+
+        impl RigidBody {
+            fn new_owned(body: rapier::dynamics::RigidBody) -> Self {
+                RigidBody {
+                    backing: RigidBodyBacking::Owned(Box::new(body)),
+                }
+            }
+
+            /// Run `f` with a shared reference to the underlying body. For an
+            /// `InSet` view this briefly borrows the set; a stale handle (body
+            /// already removed) panics, surfacing as a Python exception.
+            fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::RigidBody) -> R) -> R {
+                match &self.backing {
+                    RigidBodyBacking::Owned(b) => f(b),
+                    RigidBodyBacking::InSet { set, handle } => Python::with_gil(|py| {
+                        let set = set.bind(py).borrow();
+                        let body = set
+                            .0
+                            .get(*handle)
+                            .expect("RigidBody refers to a body that was removed from its set");
+                        f(body)
+                    }),
+                }
+            }
+
+            /// Run `f` with a mutable reference to the underlying body, writing
+            /// straight through to the set for an `InSet` view.
+            fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::RigidBody) -> R) -> R {
+                match &mut self.backing {
+                    RigidBodyBacking::Owned(b) => f(b),
+                    RigidBodyBacking::InSet { set, handle } => Python::with_gil(|py| {
+                        let mut set = set.bind(py).borrow_mut();
+                        let body = set
+                            .0
+                            .get_mut(*handle)
+                            .expect("RigidBody refers to a body that was removed from its set");
+                        f(body)
+                    }),
+                }
+            }
+
+            /// Clone the underlying body out (used by `insert` and by callers
+            /// that need an owned `&rapier::RigidBody`).
+            pub fn to_owned_body(&self) -> rapier::dynamics::RigidBody {
+                self.with_ref(|b| b.clone())
+            }
         }
 
         #[pymethods]
@@ -2423,80 +2507,90 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// World-space pose of the body (read+write).
             #[getter]
             fn position(&self) -> $Iso {
-                let r = self.body.position();
-                let na_iso: $crate::na::Isometry<Real, _, $dim> = (*r).into();
-                $Iso(na_iso)
+                self.with_ref(|b| {
+                    let r = b.position();
+                    let na_iso: $crate::na::Isometry<Real, _, $dim> = (*r).into();
+                    $Iso(na_iso)
+                })
             }
             /// Teleport the body to ``p`` (wakes it). Use sparingly on
             /// dynamic bodies as this bypasses the integrator.
             #[setter]
             fn set_position(&mut self, p: PyIsometry) {
                 let g: rapier::math::Pose = p.0.into();
-                self.body.set_position(g, true);
+                self.with_mut(|b| b.set_position(g, true));
             }
 
             /// Translation portion of the pose (read+write).
             #[getter]
             fn translation(&self) -> $Vec {
-                let v: $crate::na::SVector<Real, $dim> = self.body.translation().into();
-                $Vec(v)
+                self.with_ref(|b| {
+                    let v: $crate::na::SVector<Real, $dim> = b.translation().into();
+                    $Vec(v)
+                })
             }
             /// Set the translation, leaving the rotation unchanged.
             #[setter]
             fn set_translation(&mut self, v: PyVector) {
                 let g: rapier::math::Vector = v.0.into();
-                self.body.set_translation(g, true);
+                self.with_mut(|b| b.set_translation(g, true));
             }
 
             /// Rotation portion of the pose (read+write).
             #[getter]
             fn rotation(&self) -> $Rot {
-                let r = *self.body.rotation();
-                $Rot(r.into())
+                self.with_ref(|b| {
+                    let r = *b.rotation();
+                    $Rot(r.into())
+                })
             }
             /// Set the rotation, leaving the translation unchanged.
             #[setter]
             fn set_rotation(&mut self, r: PyRotation) {
                 let g: rapier::math::Rotation = r.0.into();
-                self.body.set_rotation(g, true);
+                self.with_mut(|b| b.set_rotation(g, true));
             }
 
             /// Linear velocity in world space (read+write).
             #[getter]
             fn linvel(&self) -> $Vec {
-                let v: $crate::na::SVector<Real, $dim> = self.body.linvel().into();
-                $Vec(v)
+                self.with_ref(|b| {
+                    let v: $crate::na::SVector<Real, $dim> = b.linvel().into();
+                    $Vec(v)
+                })
             }
             /// Set the linear velocity (wakes the body).
             #[setter]
             fn set_linvel(&mut self, v: PyVector) {
                 let g: rapier::math::Vector = v.0.into();
-                self.body.set_linvel(g, true);
+                self.with_mut(|b| b.set_linvel(g, true));
             }
 
             /// Total mass of the body (colliders + additional) (read-only).
             #[getter]
             fn mass(&self) -> Real {
-                self.body.mass()
+                self.with_ref(|b| b.mass())
             }
             /// Inverse mass — ``0`` for fixed or infinite-mass bodies
             /// (read-only).
             #[getter]
             fn inv_mass(&self) -> Real {
-                self.body.mass_properties().local_mprops.inv_mass
+                self.with_ref(|b| b.mass_properties().local_mprops.inv_mass)
             }
 
             /// Center of mass in world space (read-only).
             #[getter]
             fn center_of_mass(&self) -> $Point {
-                let v: $crate::na::SVector<Real, $dim> = self.body.center_of_mass().into();
+                let v: $crate::na::SVector<Real, $dim> =
+                    self.with_ref(|b| b.center_of_mass()).into();
                 $Point($crate::na::Point::from(v))
             }
 
             /// Center of mass in body-local space (read-only).
             #[getter]
             fn local_center_of_mass(&self) -> $Point {
-                let v: $crate::na::SVector<Real, $dim> = self.body.local_center_of_mass().into();
+                let v: $crate::na::SVector<Real, $dim> =
+                    self.with_ref(|b| b.local_center_of_mass()).into();
                 $Point($crate::na::Point::from(v))
             }
 
@@ -2507,114 +2601,115 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// ``recompute_mass_properties_from_colliders``.
             #[getter]
             fn mass_properties(&self) -> MassProperties {
-                MassProperties(self.body.mass_properties().local_mprops)
+                self.with_ref(|b| MassProperties(b.mass_properties().local_mprops))
             }
 
             /// Behavior class of the body (dynamic/fixed/kinematic)
             /// (read+write).
             #[getter]
             fn body_type(&self) -> RigidBodyType {
-                RigidBodyType::from_rapier(self.body.body_type())
+                RigidBodyType::from_rapier(self.with_ref(|b| b.body_type()))
             }
             /// Change the body's behavior class.
             #[setter]
             fn set_body_type(&mut self, t: RigidBodyType) {
-                self.body.set_body_type(t.to_rapier(), true);
+                let rt = t.to_rapier();
+                self.with_mut(|b| b.set_body_type(rt, true));
             }
 
             /// Multiplier applied to the world gravity for this body
             /// (read+write). ``0`` disables gravity for the body.
             #[getter]
             fn gravity_scale(&self) -> Real {
-                self.body.gravity_scale()
+                self.with_ref(|b| b.gravity_scale())
             }
             /// Set the gravity scale.
             #[setter]
             fn set_gravity_scale(&mut self, v: Real) {
-                self.body.set_gravity_scale(v, true);
+                self.with_mut(|b| b.set_gravity_scale(v, true));
             }
 
             /// Per-second linear-velocity damping coefficient (read+write).
             #[getter]
             fn linear_damping(&self) -> Real {
-                self.body.linear_damping()
+                self.with_ref(|b| b.linear_damping())
             }
             /// Set the linear damping coefficient.
             #[setter]
             fn set_linear_damping(&mut self, v: Real) {
-                self.body.set_linear_damping(v);
+                self.with_mut(|b| b.set_linear_damping(v));
             }
 
             /// Per-second angular-velocity damping coefficient (read+write).
             #[getter]
             fn angular_damping(&self) -> Real {
-                self.body.angular_damping()
+                self.with_ref(|b| b.angular_damping())
             }
             /// Set the angular damping coefficient.
             #[setter]
             fn set_angular_damping(&mut self, v: Real) {
-                self.body.set_angular_damping(v);
+                self.with_mut(|b| b.set_angular_damping(v));
             }
 
             /// Dominance group of the body (read+write); see
             /// ``RigidBodyDominance``.
             #[getter]
             fn dominance_group(&self) -> i8 {
-                self.body.dominance_group()
+                self.with_ref(|b| b.dominance_group())
             }
             /// Set the dominance group (``[-127, 127]``).
             #[setter]
             fn set_dominance_group(&mut self, v: i8) {
-                self.body.set_dominance_group(v);
+                self.with_mut(|b| b.set_dominance_group(v));
             }
 
             /// Extra solver iterations spent on this body's island
             /// (read+write). ``0`` keeps the global default.
             #[getter]
             fn additional_solver_iterations(&self) -> usize {
-                self.body.additional_solver_iterations()
+                self.with_ref(|b| b.additional_solver_iterations())
             }
             /// Set the number of additional solver iterations.
             #[setter]
             fn set_additional_solver_iterations(&mut self, v: usize) {
-                self.body.set_additional_solver_iterations(v);
+                self.with_mut(|b| b.set_additional_solver_iterations(v));
             }
 
             /// Currently locked degrees of freedom (read+write).
             #[getter]
             fn locked_axes(&self) -> LockedAxes {
-                LockedAxes(self.body.locked_axes())
+                LockedAxes(self.with_ref(|b| b.locked_axes()))
             }
             /// Replace the locked axes flag set (wakes the body).
             #[setter]
             fn set_locked_axes(&mut self, v: LockedAxes) {
-                self.body.set_locked_axes(v.0, true);
+                self.with_mut(|b| b.set_locked_axes(v.0, true));
             }
 
             /// Whether the body is currently sleeping (read-only).
             #[getter]
             fn is_sleeping(&self) -> bool {
-                self.body.is_sleeping()
+                self.with_ref(|b| b.is_sleeping())
             }
             /// Whether the body is currently moving (read-only).
             #[getter]
             fn is_moving(&self) -> bool {
-                self.body.is_moving()
+                self.with_ref(|b| b.is_moving())
             }
             /// Whether the body is dynamic (read-only).
             #[getter]
             fn is_dynamic(&self) -> bool {
-                self.body.is_dynamic()
+                self.with_ref(|b| b.is_dynamic())
             }
             /// Whether the body is kinematic (either variant) (read-only).
             #[getter]
             fn is_kinematic(&self) -> bool {
-                self.body.is_kinematic()
+                self.with_ref(|b| b.is_kinematic())
             }
             /// Whether the body is fixed (read-only).
             #[getter]
             fn is_fixed(&self) -> bool {
-                self.body.is_fixed()
+                self.with_ref(|b| b.is_fixed())
             }
 
             /// Whether the body participates in simulation (read+write).
@@ -2622,83 +2717,80 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// A disabled body is fully skipped by the solver and queries.
             #[getter]
             fn is_enabled(&self) -> bool {
-                self.body.is_enabled()
+                self.with_ref(|b| b.is_enabled())
             }
             /// Enable or disable the body.
             #[setter]
             fn set_is_enabled(&mut self, v: bool) {
-                self.body.set_enabled(v);
+                self.with_mut(|b| b.set_enabled(v));
             }
 
             /// Whether substep CCD is enabled for this body (read+write).
             #[getter]
             fn ccd_enabled(&self) -> bool {
-                self.body.is_ccd_enabled()
+                self.with_ref(|b| b.is_ccd_enabled())
             }
             /// Enable or disable substep CCD for this body.
             #[setter]
             fn set_ccd_enabled(&mut self, v: bool) {
-                self.body.enable_ccd(v);
+                self.with_mut(|b| b.enable_ccd(v));
             }
 
             /// Soft-CCD prediction distance (read+write); ``0`` disables it.
             #[getter]
             fn soft_ccd_prediction(&self) -> Real {
-                self.body.soft_ccd_prediction()
+                self.with_ref(|b| b.soft_ccd_prediction())
             }
             /// Set the soft-CCD prediction distance.
             #[setter]
             fn set_soft_ccd_prediction(&mut self, v: Real) {
-                self.body.set_soft_ccd_prediction(v);
+                self.with_mut(|b| b.set_soft_ccd_prediction(v));
             }
 
             /// Application-defined ``u128`` payload attached to this body
             /// (read+write).
             #[getter]
             fn user_data(&self) -> u128 {
-                self.body.user_data
+                self.with_ref(|b| b.user_data)
             }
             /// Set the application-defined payload.
             #[setter]
             fn set_user_data(&mut self, v: u128) {
-                self.body.user_data = v;
+                self.with_mut(|b| b.user_data = v);
             }
 
             /// Force accumulated by user calls during the current step
             /// (read-only). Cleared automatically before the next step.
             #[getter]
             fn user_force(&self) -> $Vec {
-                let v: $crate::na::SVector<Real, $dim> = self.body.user_force().into();
+                let v: $crate::na::SVector<Real, $dim> = self.with_ref(|b| b.user_force()).into();
                 $Vec(v)
             }
 
             /// Handles of all colliders attached to this body (read-only).
             #[getter]
             fn colliders(&self) -> Vec<ColliderHandle> {
-                self.body
-                    .colliders()
-                    .iter()
-                    .copied()
-                    .map(ColliderHandle)
-                    .collect()
+                self.with_ref(|b| b.colliders().iter().copied().map(ColliderHandle).collect())
             }
 
             /// Activation / sleep state of this body (read+write).
             #[getter]
             fn activation(&self) -> RigidBodyActivation {
-                RigidBodyActivation(*self.body.activation())
+                self.with_ref(|b| RigidBodyActivation(*b.activation()))
             }
             /// Replace the activation state.
             #[setter]
             fn set_activation(&mut self, v: RigidBodyActivation) {
-                *self.body.activation_mut() = v.0;
+                self.with_mut(|b| *b.activation_mut() = v.0);
             }
 
             /// Predicted world-space pose after the next step (read-only).
             #[getter]
             fn next_position(&self) -> $Iso {
-                let p: $crate::na::Isometry<Real, _, $dim> = (*self.body.next_position()).into();
-                $Iso(p)
+                self.with_ref(|b| {
+                    let p: $crate::na::Isometry<Real, _, $dim> = (*b.next_position()).into();
+                    $Iso(p)
+                })
             }
 
             // ---- mutating methods ----
@@ -2714,7 +2806,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             #[pyo3(signature = (force, wake_up=true))]
             fn add_force(&mut self, force: PyVector, wake_up: bool) {
                 let g: rapier::math::Vector = force.0.into();
-                self.body.add_force(g, wake_up);
+                self.with_mut(|b| b.add_force(g, wake_up));
             }
 
             /// Accumulate a force applied at a given world-space point.
@@ -2729,7 +2821,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             fn add_force_at_point(&mut self, force: PyVector, point: PyPoint, wake_up: bool) {
                 let f: rapier::math::Vector = force.0.into();
                 let p: rapier::math::Vector = point.0.coords.into();
-                self.body.add_force_at_point(f, p, wake_up);
+                self.with_mut(|b| b.add_force_at_point(f, p, wake_up));
             }
 
             /// Apply an instantaneous linear impulse (units: ``N·s``).
@@ -2739,7 +2831,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             #[pyo3(signature = (impulse, wake_up=true))]
             fn apply_impulse(&mut self, impulse: PyVector, wake_up: bool) {
                 let g: rapier::math::Vector = impulse.0.into();
-                self.body.apply_impulse(g, wake_up);
+                self.with_mut(|b| b.apply_impulse(g, wake_up));
             }
 
             /// Apply an instantaneous impulse at a given world-space point.
@@ -2751,7 +2843,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             fn apply_impulse_at_point(&mut self, impulse: PyVector, point: PyPoint, wake_up: bool) {
                 let imp: rapier::math::Vector = impulse.0.into();
                 let p: rapier::math::Vector = point.0.coords.into();
-                self.body.apply_impulse_at_point(imp, p, wake_up);
+                self.with_mut(|b| b.apply_impulse_at_point(imp, p, wake_up));
             }
 
             /// Clear any accumulated forces on this body.
@@ -2759,14 +2851,14 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// :param wake_up: if ``True`` (default), wake the body up.
             #[pyo3(signature = (wake_up=true))]
             fn reset_forces(&mut self, wake_up: bool) {
-                self.body.reset_forces(wake_up);
+                self.with_mut(|b| b.reset_forces(wake_up));
             }
             /// Clear any accumulated torques on this body.
             ///
             /// :param wake_up: if ``True`` (default), wake the body up.
             #[pyo3(signature = (wake_up=true))]
             fn reset_torques(&mut self, wake_up: bool) {
-                self.body.reset_torques(wake_up);
+                self.with_mut(|b| b.reset_torques(wake_up));
             }
 
             /// Wake the body, allowing it to participate in the next step.
@@ -2775,11 +2867,11 @@ macro_rules! __define_dynamics_rigid_body_common {
             ///     so the body stays awake longer before re-sleeping.
             #[pyo3(signature = (strong=true))]
             fn wake_up(&mut self, strong: bool) {
-                self.body.wake_up(strong);
+                self.with_mut(|b| b.wake_up(strong));
             }
             /// Put the body to sleep immediately.
             fn sleep(&mut self) {
-                self.body.sleep();
+                self.with_mut(|b| b.sleep());
             }
 
             /// World-space velocity at the given world-space point.
@@ -2790,7 +2882,8 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// :param point: world-space point.
             fn velocity_at_point(&self, point: PyPoint) -> $Vec {
                 let p: rapier::math::Vector = point.0.coords.into();
-                let v: $crate::na::SVector<Real, $dim> = self.body.velocity_at_point(p).into();
+                let v: $crate::na::SVector<Real, $dim> =
+                    self.with_ref(|b| b.velocity_at_point(p)).into();
                 $Vec(v)
             }
 
@@ -2799,7 +2892,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// :returns: :math:`E_k = \\tfrac{1}{2} m \\|v\\|^2 +
             ///     \\tfrac{1}{2} \\omega^\\top I \\omega`.
             fn kinetic_energy(&self) -> Real {
-                self.body.kinetic_energy()
+                self.with_ref(|b| b.kinetic_energy())
             }
 
             /// Gravitational potential energy after integrating for ``dt``
@@ -2811,7 +2904,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// :param gravity: gravity vector in world space.
             fn gravitational_potential_energy(&self, dt: Real, gravity: PyVector) -> Real {
                 let g: rapier::math::Vector = gravity.0.into();
-                self.body.gravitational_potential_energy(dt, g)
+                self.with_ref(|b| b.gravitational_potential_energy(dt, g))
             }
 
             /// Predict the body's pose after ``dt`` seconds using its
@@ -2820,8 +2913,9 @@ macro_rules! __define_dynamics_rigid_body_common {
             ///
             /// :param dt: prediction horizon in seconds.
             fn predict_position_using_velocity(&self, dt: Real) -> $Iso {
-                let p: $crate::na::Isometry<Real, _, $dim> =
-                    self.body.predict_position_using_velocity(dt).into();
+                let p: $crate::na::Isometry<Real, _, $dim> = self
+                    .with_ref(|b| b.predict_position_using_velocity(dt))
+                    .into();
                 $Iso(p)
             }
 
@@ -2831,11 +2925,11 @@ macro_rules! __define_dynamics_rigid_body_common {
             ///
             /// :param dt: prediction horizon in seconds.
             fn predict_position_using_velocity_and_forces(&self, dt: Real) -> $Iso {
-                let p: $crate::na::Isometry<Real, _, $dim> = self
-                    .body
-                    .predict_position_using_velocity_and_forces(dt)
-                    .into();
-                $Iso(p)
+                self.with_ref(|b| {
+                    let p: $crate::na::Isometry<Real, _, $dim> =
+                        b.predict_position_using_velocity_and_forces(dt).into();
+                    $Iso(p)
+                })
             }
 
             /// Overwrite this body's mass properties from the attached
@@ -2848,8 +2942,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// :param colliders: the ``ColliderSet`` holding this body's
             ///     colliders.
             fn recompute_mass_properties_from_colliders(&mut self, colliders: &ColliderSet) {
-                self.body
-                    .recompute_mass_properties_from_colliders(&colliders.0);
+                self.with_mut(|b| b.recompute_mass_properties_from_colliders(&colliders.0));
             }
 
             /// Add ``mass`` on top of the colliders' contribution.
@@ -2858,7 +2951,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// :param wake_up: if ``True`` (default), wake the body up.
             #[pyo3(signature = (mass, wake_up=true))]
             fn set_additional_mass(&mut self, mass: Real, wake_up: bool) {
-                self.body.set_additional_mass(mass, wake_up);
+                self.with_mut(|b| b.set_additional_mass(mass, wake_up));
             }
 
             /// Add full mass properties on top of the colliders'
@@ -2868,7 +2961,7 @@ macro_rules! __define_dynamics_rigid_body_common {
             /// :param wake_up: if ``True`` (default), wake the body up.
             #[pyo3(signature = (mp, wake_up=true))]
             fn set_additional_mass_properties(&mut self, mp: &MassProperties, wake_up: bool) {
-                self.body.set_additional_mass_properties(mp.0, wake_up);
+                self.with_mut(|b| b.set_additional_mass_properties(mp.0, wake_up));
             }
 
             /// Convenience for accumulating ``gravity * mass`` as a force
@@ -2879,16 +2972,16 @@ macro_rules! __define_dynamics_rigid_body_common {
             fn add_gravitational_force(&mut self, gravity: PyVector) {
                 // Add gravity * mass as a force.
                 let g: rapier::math::Vector = gravity.0.into();
-                let m = self.body.mass();
-                self.body.add_force(g * m, true);
+                let m = self.with_ref(|b| b.mass());
+                self.with_mut(|b| b.add_force(g * m, true));
             }
 
             fn __repr__(&self) -> String {
-                let p = self.body.translation();
+                let p = self.with_ref(|b| b.translation());
                 format!(
                     "RigidBody(translation={:?}, type={:?})",
                     p,
-                    self.body.body_type()
+                    self.with_ref(|b| b.body_type())
                 )
             }
         }
@@ -3222,9 +3315,7 @@ macro_rules! __define_dynamics_rigid_body_common {
 
             /// Finalize the builder and return the configured ``RigidBody``.
             fn build(&self) -> RigidBody {
-                RigidBody {
-                    body: self.builder.build(),
-                }
+                RigidBody::new_owned(self.builder.build())
             }
         }
     };
@@ -3243,9 +3334,9 @@ macro_rules! __define_dynamics_rigid_body_set {
         /// until ``remove``-d. The set supports ``len()``, ``in``, iteration
         /// (yielding ``(handle, body)`` pairs) and ``[handle]`` lookup.
         ///
-        /// Bodies returned by ``get`` / ``__getitem__`` are *clones* of the
-        /// stored values. Call ``replace(handle, body)`` to write a modified
-        /// copy back into the set.
+        /// Bodies returned by ``get`` / ``__getitem__`` / iteration are live
+        /// **views** into the set: ``set[h].linvel = v`` mutates the stored
+        /// body in place, with no copy.
         #[pyclass(name = "RigidBodySet", module = "rapier", unsendable)]
         pub struct RigidBodySet(pub rapier::dynamics::RigidBodySet);
 
@@ -3269,7 +3360,7 @@ macro_rules! __define_dynamics_rigid_body_set {
                     return Ok(RigidBodyHandle(self.0.insert(rb)));
                 }
                 if let Ok(rb) = body.extract::<PyRef<'_, RigidBody>>() {
-                    let cloned = rb.body.clone();
+                    let cloned = rb.to_owned_body();
                     return Ok(RigidBodyHandle(self.0.insert(cloned)));
                 }
                 Err(PyTypeError::new_err(
@@ -3306,32 +3397,43 @@ macro_rules! __define_dynamics_rigid_body_set {
                         &mut multibody_joints.0,
                         remove_attached_colliders,
                     )
-                    .map(|body| RigidBody { body })
+                    .map(RigidBody::new_owned)
             }
 
-            /// Return a *clone* of the body identified by ``handle``, or
+            /// Return a live **view** of the body identified by ``handle``, or
             /// ``None`` if there is none.
             ///
-            /// Mutating the returned body does not modify the stored one;
-            /// use ``replace`` to commit changes.
-            fn get(&self, handle: &RigidBodyHandle) -> Option<RigidBody> {
-                self.0.get(handle.0).cloned().map(|body| RigidBody { body })
+            /// The returned body reads and writes straight through to the set:
+            /// ``set.get(h).linvel = v`` persists immediately, with no copy.
+            fn get(slf: &Bound<'_, Self>, handle: &RigidBodyHandle) -> Option<RigidBody> {
+                slf.borrow().0.get(handle.0)?;
+                Some(RigidBody {
+                    backing: RigidBodyBacking::InSet {
+                        set: slf.clone().unbind(),
+                        handle: handle.0,
+                    },
+                })
             }
 
-            /// Indexing form of ``get``.
+            /// Indexing form of ``get`` — returns a live view into the set.
             ///
             /// :raises InvalidHandle: if ``handle`` does not match any body.
-            fn __getitem__(&self, handle: &RigidBodyHandle) -> PyResult<RigidBody> {
-                self.0
-                    .get(handle.0)
-                    .cloned()
-                    .map(|body| RigidBody { body })
-                    .ok_or_else(|| {
-                        $crate::errors::InvalidHandle::new_err(format!(
-                            "no rigid body for {:?}",
-                            handle.0.into_raw_parts()
-                        ))
-                    })
+            fn __getitem__(
+                slf: &Bound<'_, Self>,
+                handle: &RigidBodyHandle,
+            ) -> PyResult<RigidBody> {
+                if slf.borrow().0.get(handle.0).is_none() {
+                    return Err($crate::errors::InvalidHandle::new_err(format!(
+                        "no rigid body for {:?}",
+                        handle.0.into_raw_parts()
+                    )));
+                }
+                Ok(RigidBody {
+                    backing: RigidBodyBacking::InSet {
+                        set: slf.clone().unbind(),
+                        handle: handle.0,
+                    },
+                })
             }
 
             /// ``handle in self`` — whether ``handle`` refers to a body
@@ -3351,14 +3453,14 @@ macro_rules! __define_dynamics_rigid_body_set {
 
             /// Iterate over ``(handle, body)`` pairs.
             ///
-            /// Each yielded body is a clone of the stored value.
-            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<RigidBodySetIter>> {
-                let pairs: Vec<(RigidBodyHandle, RigidBody)> = slf
-                    .0
-                    .iter()
-                    .map(|(h, b)| (RigidBodyHandle(h), RigidBody { body: b.clone() }))
-                    .collect();
-                Py::new(slf.py(), RigidBodySetIter { pairs, i: 0 })
+            /// Each yielded body is a live view into the set (no copy).
+            fn __iter__(slf: &Bound<'_, Self>) -> PyResult<Py<RigidBodySetIter>> {
+                let handles: Vec<rapier::dynamics::RigidBodyHandle> =
+                    slf.borrow().0.iter().map(|(h, _)| h).collect();
+                Py::new(
+                    slf.py(),
+                    RigidBodySetIter { set: slf.clone().unbind(), handles, i: 0 },
+                )
             }
 
             /// Iterate over the handles of every body in the set.
@@ -3368,36 +3470,16 @@ macro_rules! __define_dynamics_rigid_body_set {
                 Py::new(slf.py(), RigidBodyHandleIter { handles, i: 0 })
             }
 
-            /// Update a stored rigid body from a (possibly mutated) standalone
-            /// ``RigidBody`` value.
-            ///
-            /// Use this after mutating a body returned by ``get()`` to
-            /// persist the change in the set.
-            ///
-            /// :raises InvalidHandle: if ``handle`` does not match any body.
-            fn replace(
-                &mut self,
-                handle: &RigidBodyHandle,
-                body: &RigidBody,
-            ) -> PyResult<()> {
-                let dst = self.0.get_mut(handle.0).ok_or_else(|| {
-                    $crate::errors::InvalidHandle::new_err(format!(
-                        "no rigid body for {:?}",
-                        handle.0.into_raw_parts()
-                    ))
-                })?;
-                dst.copy_from(&body.body);
-                Ok(())
-            }
         }
 
         /// Iterator yielding ``(RigidBodyHandle, RigidBody)`` pairs from a
         /// ``RigidBodySet``.
         ///
-        /// Each ``RigidBody`` is a clone of the stored value.
+        /// Each ``RigidBody`` is a live view into the set.
         #[pyclass]
         pub struct RigidBodySetIter {
-            pairs: Vec<(RigidBodyHandle, RigidBody)>,
+            set: Py<RigidBodySet>,
+            handles: Vec<rapier::dynamics::RigidBodyHandle>,
             i: usize,
         }
 
@@ -3406,12 +3488,17 @@ macro_rules! __define_dynamics_rigid_body_set {
             /// Return ``self`` so the object satisfies the iterator protocol.
             fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> { slf }
             /// Return the next ``(handle, body)`` pair, or raise
-            /// ``StopIteration``.
+            /// ``StopIteration``. The body is built lazily as a live view.
             fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<(RigidBodyHandle, RigidBody)> {
-                if slf.i >= slf.pairs.len() { return None; }
-                let pair = slf.pairs[slf.i].clone();
+                if slf.i >= slf.handles.len() { return None; }
+                let py = slf.py();
+                let handle = slf.handles[slf.i];
                 slf.i += 1;
-                Some(pair)
+                let set = slf.set.clone_ref(py);
+                Some((
+                    RigidBodyHandle(handle),
+                    RigidBody { backing: RigidBodyBacking::InSet { set, handle } },
+                ))
             }
         }
     };

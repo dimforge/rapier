@@ -1,8 +1,10 @@
 Loaders
 =======
 
-Loaders for external scene formats. All three are **3D-only / f32**
-— see :doc:`../limitations` for the rationale.
+Loaders for external scene formats. All three are **3D-only / f32**:
+the upstream ``rapier3d-urdf``, ``rapier3d-meshloader``, and
+``rapier3d-mjcf`` crates are 3D-only and have no ``-f64`` variant, so
+the loaders are registered solely by the f32-3D ``rapier3d`` cdylib.
 
 URDF
 ----
@@ -16,13 +18,12 @@ Mesh
 .. automodule:: rapier3d.loaders.mesh
    :members:
 
-MJCF (stub)
------------
+MJCF
+----
 
 .. automodule:: rapier3d.loaders.mjcf
    :members:
 
-The MJCF loader is a stub in this branch — only the
-:class:`~rapier3d.MjcfError` exception type is exposed. Full MJCF
-support arrives when the ``mjcf`` Rust branch is merged. See
-:doc:`../limitations`.
+Parses MuJoCo MJCF (XML) models into rapier bodies, colliders, joints,
+and ``<equality>`` loop closures. Actuator, sensor, and keyframe
+elements are not surfaced to Python.

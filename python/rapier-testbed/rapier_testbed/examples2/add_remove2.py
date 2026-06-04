@@ -43,7 +43,6 @@ def init_world(testbed) -> None:
             tr = rb.translation
             new_pose = rp.Isometry2((float(tr.x), float(tr.y)), angle)
             rb.position = new_pose
-            tb.bodies.replace(rb_handle, rb)
 
         if state["step"] % 10 == 0:
             x = rng.random() * 10.0 - 5.0

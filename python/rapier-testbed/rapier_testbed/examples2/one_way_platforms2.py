@@ -85,10 +85,8 @@ def init_world(testbed) -> None:
                 continue
             if rb.translation.y > 1.0:
                 rb.gravity_scale = 1.0
-                tb.bodies.replace(h, rb)
             elif rb.translation.y < -1.0:
                 rb.gravity_scale = -1.0
-                tb.bodies.replace(h, rb)
 
     testbed.add_callback(spawn_cube_callback)
     testbed.set_world_with_params(

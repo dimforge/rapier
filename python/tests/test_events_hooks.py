@@ -146,13 +146,11 @@ def test_physics_hooks_filter_contact_pair_returning_none_drops_pair(ns):
 
     w.physics_hooks = Filter()
     # The colliders must opt in to the filter hook.
-    # Use replace pattern to update active_hooks.
+    # Colliders are live views; mutating them persists directly.
     c1 = w.colliders[ch1]
     c1.active_hooks = ns.ActiveHooks.FILTER_CONTACT_PAIR
-    w.colliders.replace(ch1, c1)
     c2 = w.colliders[ch2]
     c2.active_hooks = ns.ActiveHooks.FILTER_CONTACT_PAIR
-    w.colliders.replace(ch2, c2)
 
     # Track ball positions to verify they passed through.
     start_pos = w.rigid_bodies[w.colliders[ch1].parent].translation.x
@@ -286,10 +284,8 @@ def test_pair_filter_context_exposes_handles(ns):
     w.physics_hooks = Filter()
     c1 = w.colliders[ch1]
     c1.active_hooks = ns.ActiveHooks.FILTER_CONTACT_PAIR
-    w.colliders.replace(ch1, c1)
     c2 = w.colliders[ch2]
     c2.active_hooks = ns.ActiveHooks.FILTER_CONTACT_PAIR
-    w.colliders.replace(ch2, c2)
     for _ in range(60):
         w.step()
     assert len(seen) > 0

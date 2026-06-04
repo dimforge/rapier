@@ -963,9 +963,8 @@ macro_rules! __define_controllers_pid {
                 let rb = body.extract::<PyRef<'_, RigidBody>>()?;
                 let target_pose: rapier::math::Pose = target_pose.0.into();
                 let zero_vels = rapier::dynamics::RigidBodyVelocity::<Real>::zero();
-                let corr = self
-                    .0
-                    .rigid_body_correction(&rb.body, target_pose, zero_vels);
+                let owned = rb.to_owned_body();
+                let corr = self.0.rigid_body_correction(&owned, target_pose, zero_vels);
                 Ok(PidCorrection::from_velocity(corr))
             }
 
@@ -1079,7 +1078,8 @@ macro_rules! __define_controllers_pid {
                 let rb = body.extract::<PyRef<'_, RigidBody>>()?;
                 let pose: rapier::math::Pose = target_pose.0.into();
                 let zero_vels = rapier::dynamics::RigidBodyVelocity::<Real>::zero();
-                let corr = self.0.rigid_body_correction(dt, &rb.body, pose, zero_vels);
+                let owned = rb.to_owned_body();
+                let corr = self.0.rigid_body_correction(dt, &owned, pose, zero_vels);
                 Ok(PidCorrection::from_velocity(corr))
             }
 

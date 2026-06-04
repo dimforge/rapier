@@ -13,7 +13,7 @@ need::
     pip install rapier2d-f64    # 2D, f64
 
 Wheels are ``abi3`` (Python ≥ 3.9) and are published for Linux
-(manylinux + musllinux, x86_64 + aarch64), macOS (x86_64 + arm64), and
+(manylinux + musllinux, x86_64 + aarch64), macOS (arm64), and
 Windows x64.
 
 To build from a `Rapier checkout <https://github.com/dimforge/rapier>`_
@@ -35,7 +35,7 @@ also compiled in.
 First simulation
 ----------------
 
-The ``rapier.PhysicsWorld`` umbrella aggregates every sub-state the
+The ``rapier3d.PhysicsWorld`` umbrella aggregates every sub-state the
 engine needs (body / collider / joint sets, broad / narrow phase,
 island manager, CCD solver, integration parameters). For most users
 it's the right entry point:
@@ -75,4 +75,3 @@ What to read next
 * :doc:`api/joints` — impulse + multibody joints, motors, limits.
 * :doc:`api/controllers` — kinematic character, PID/PD, ray-cast
   vehicle.
-* :doc:`limitations` — known gaps (MJCF, snapshot tagging, f64 loaders).

@@ -63,7 +63,6 @@ Contents
 
    getting_started
    dim_scalar
-   limitations
    changelog
 
 .. toctree::
@@ -81,6 +80,7 @@ Contents
    api/loaders
    api/debug_render
    api/serde
+   api/errors
 
 Indices and tables
 ==================

@@ -63,7 +63,6 @@ def init_world(testbed) -> None:
         platform = tb.bodies.get(velocity_based_platform_handle)
         if platform is not None:
             platform.linvel = velocity
-            tb.bodies.replace(velocity_based_platform_handle, platform)
 
         platform = tb.bodies.get(position_based_platform_handle)
         if platform is not None:
@@ -73,7 +72,6 @@ def init_world(testbed) -> None:
                 0.0,
             )
             platform.position = new_pos
-            tb.bodies.replace(position_based_platform_handle, platform)
 
     testbed.add_callback(callback)
     testbed.set_world(bodies, colliders, impulse_joints, multibody_joints)
