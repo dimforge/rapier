@@ -1,0 +1,39 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "rapier3d-f64"
+dynamic = ["version"]
+description = "Python bindings for Rapier (3D, f64) — a fast, deterministic physics engine."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Sébastien Crozet", email = "sebcrozet@dimforge.com" }]
+keywords = ["physics", "dynamics", "rigid-body", "simulation", "rapier", "3d", "f64"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+    "Topic :: Games/Entertainment :: Simulation",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.9"
+
+[project.urls]
+Homepage = "https://rapier.rs"
+Documentation = "https://rapier.rs/docs/"
+Repository = "https://github.com/dimforge/rapier"
+Issues = "https://github.com/dimforge/rapier/issues"
+
+[project.optional-dependencies]
+numpy = ["numpy>=1.21"]
+dev = ["pytest>=7", "hypothesis>=6", "numpy>=1.21", "ruff>=0.5", "mypy>=1.10"]
+
+[tool.maturin]
+manifest-path = "Cargo.toml"
+module-name = "rapier3d_f64._rapier3d_f64"
+python-source = "python"
+features = ["pyo3/extension-module"]

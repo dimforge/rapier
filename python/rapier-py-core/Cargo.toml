@@ -1,0 +1,37 @@
+[package]
+name = "rapier-py-core"
+version.workspace = true
+authors.workspace = true
+description = "Shared PyO3 conversion shims and error tree for the Rapier Python bindings."
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+name = "rapier_py_core"
+path = "src/lib.rs"
+
+[lints]
+# pyo3 0.22's `create_exception!` macro still references `cfg(feature = "gil-refs")`
+# which our crate doesn't have. Mute the check rather than poison every build.
+rust.unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("gil-refs"))'] }
+
+# Intentionally no Cargo features. The dim/scalar split lives in each cdylib
+# crate, which expands the `define_conv_types!` macro with concrete types.
+# That keeps Cargo feature unification (which would otherwise mash dim2 and
+# dim3 into the same build) from corrupting the workspace.
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multiple-pymethods"] }
+numpy = "0.22"
+nalgebra.workspace = true
+thiserror.workspace = true
+# Phase 11 — Serialization. We use bincode 1.x (stable; rapier upstream uses
+# it in its own tests) for the on-disk format and serde_json for the JSON
+# debug mode. The `define_serde_types!` macro relies on these being in scope.
+serde = { workspace = true, features = ["derive", "std"] }
+bincode = { workspace = true }
+serde_json = { workspace = true }

@@ -22,6 +22,13 @@ iit_softfoot = "iit_softfoot"
 FoV = "FoV"
 # Shepperd's method: named after S. W. Shepperd (quaternion extraction).
 Shepperd = "Shepperd"
+# Short local identifiers in the Python bindings/tests: `ba` (body a, paired
+# with `bb`) and `typ` (a "type" value — `type` is reserved in Rust/Python).
+ba = "ba"
+typ = "typ"
+# Template mesh data in the testbed instancer: `tpos`/`tnrm`/`tidx`
+# (template positions/normals/indices). Only `tpos` collides with a word.
+tpos = "tpos"
 
 # Case insensitive, matches inside word.
 [default.extend-words]

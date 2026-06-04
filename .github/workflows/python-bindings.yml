@@ -1,0 +1,81 @@
+name: Python bindings
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+# The four engine packages live under python/rapier-py-{2,3}d{,-f64}; the
+# pure-Python testbed under python/rapier-testbed; the shared parity test
+# suite under python/tests (imports all four engine packages at once).
+jobs:
+  lint-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-lint-
+            ${{ runner.os }}-cargo-
+      - name: Cargo fmt
+        run: cargo fmt --check
+      - name: Cargo clippy (Python bindings)
+        run: |
+          cargo clippy --no-deps \
+            -p rapier-py-core \
+            -p rapier-py-2d -p rapier-py-2d-f64 \
+            -p rapier-py-3d -p rapier-py-3d-f64 \
+            -- -D warnings
+
+  test:
+    needs: lint-rust
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-py-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-py-
+            ${{ runner.os }}-cargo-
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install maturin pytest pytest-timeout hypothesis numpy matplotlib
+      # Build + install all four engine packages into the runner's environment
+      # so the cross-flavor parity suite can import every variant.
+      - name: Build & install engine packages
+        shell: bash
+        run: |
+          for crate in rapier-py-2d rapier-py-2d-f64 rapier-py-3d rapier-py-3d-f64; do
+            python -m pip install --no-build-isolation "./python/$crate"
+          done
+      - name: Install testbed (no deps; engine packages already present)
+        shell: bash
+        run: python -m pip install --no-deps ./python/rapier-testbed
+      - name: Smoke (import surface)
+        run: python -m pytest python/tests/test_smoke.py python/tests/test_math.py python/tests/test_math_2d.py -v
+      - name: Full parity test suite
+        run: python -m pytest python/tests/ -q --timeout=120

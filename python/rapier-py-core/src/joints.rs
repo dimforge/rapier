@@ -1,0 +1,4249 @@
+//! Macro emitting the user-facing joint `#[pyclass]`-es per cdylib.
+//!
+//! Joints.
+//!
+//! Like the other modules, this macro is invoked once per cdylib *after*
+//! `define_conv_types!`, `define_math_types!` and `define_geometry_types!` and
+//! *before* `define_dynamics_types!`. It depends on:
+//!   - The `Real`/`DIM` aliases and `Py{Vector,Point,Rotation,Isometry,AngVector}`
+//!     adapter types (from `define_conv_types!`).
+//!   - The user-facing math `#[pyclass]`-es (`Vec*`, `Point*`, `Rotation*`,
+//!     `Isometry*`) (from `define_math_types!`).
+//!   - `use rapier{2,3}d{,_f64} as rapier;`.
+//!
+//! Note: `RigidBodyHandle` is *not* in scope when this macro is invoked
+//! (dynamics is defined later), so this module receives `RigidBodyHandle`
+//! pieces via the engine type `rapier::dynamics::RigidBodyHandle` and only
+//! references the wrapper at *register* time (Python-level resolution).
+//!
+//! `define_joints_types!` produces `register_joints(py, m)` for the
+//! `#[pymodule]` entry point.
+
+/// Materialize the joint `#[pyclass]` types for a given `(Real, DIM)` pair.
+#[macro_export]
+macro_rules! define_joints_types {
+    (DIM = 2) => {
+        $crate::__define_joints_shared!(2, Vec2, Point2, Rotation2, Isometry2);
+        $crate::__define_joints_2d!(Vec2, Point2, Rotation2, Isometry2);
+        $crate::__define_joints_register!(2);
+    };
+    (DIM = 3) => {
+        $crate::__define_joints_shared!(3, Vec3, Point3, Rotation3, Isometry3);
+        $crate::__define_joints_3d!(Vec3, Point3, Rotation3, Isometry3);
+        $crate::__define_joints_register!(3);
+    };
+}
+
+// ====================================================================
+// Shared dim-agnostic joint types
+// ====================================================================
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_joints_shared {
+    ($dim:tt, $Vec:ident, $Point:ident, $Rot:ident, $Iso:ident) => {
+        // -----------------------------------------------------------------
+        // Note on cross-macro references
+        // -----------------------------------------------------------------
+        // The `ImpulseJointSet` and `MultibodyJointSet` types emitted by
+        // this macro reference `RigidBodyHandle` and `RigidBodySet`, which
+        // are defined later by `define_dynamics_types!`. Rust resolves
+        // those names at item-resolution time (after *all* macros have
+        // expanded into the same module), so referring to them here is
+        // valid even though the dynamics macro is invoked after this one.
+
+        // -----------------------------------------------------------------
+        // JointEnabled enum
+        // -----------------------------------------------------------------
+        /// Tri-state enable flag carried by every joint.
+        ///
+        /// ``ENABLED`` joints take part in constraint resolution.
+        /// ``DISABLED`` joints are kept in the set but ignored by the solver
+        /// (use this to temporarily turn a joint off without removing it).
+        /// ``DISABLED_BY_ATTACHED_BODY`` is set automatically by the engine
+        /// when one of the bodies the joint is attached to becomes disabled;
+        /// the joint re-enables itself once the body is re-enabled.
+        #[pyclass(name = "JointEnabled", module = "rapier", eq, eq_int)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum JointEnabled {
+            /// Joint participates normally in the constraint solver.
+            ENABLED,
+            /// Joint is implicitly disabled because one of its attached
+            /// rigid bodies is itself disabled. Set automatically by the
+            /// engine and cleared once the body is re-enabled.
+            DISABLED_BY_ATTACHED_BODY,
+            /// Joint is explicitly disabled by the user and ignored by the
+            /// solver until re-enabled.
+            DISABLED,
+        }
+
+        impl JointEnabled {
+            #[inline]
+            fn from_rapier(e: rapier::dynamics::JointEnabled) -> Self {
+                match e {
+                    rapier::dynamics::JointEnabled::Enabled => Self::ENABLED,
+                    rapier::dynamics::JointEnabled::DisabledByAttachedBody => {
+                        Self::DISABLED_BY_ATTACHED_BODY
+                    }
+                    rapier::dynamics::JointEnabled::Disabled => Self::DISABLED,
+                }
+            }
+            #[allow(dead_code)]
+            #[inline]
+            fn to_rapier(self) -> rapier::dynamics::JointEnabled {
+                match self {
+                    Self::ENABLED => rapier::dynamics::JointEnabled::Enabled,
+                    Self::DISABLED_BY_ATTACHED_BODY => {
+                        rapier::dynamics::JointEnabled::DisabledByAttachedBody
+                    }
+                    Self::DISABLED => rapier::dynamics::JointEnabled::Disabled,
+                }
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // MotorModel enum
+        // -----------------------------------------------------------------
+        /// Motor model used to convert PID error into a drive force.
+        ///
+        /// Both variants implement an internal PD controller around the
+        /// motor's ``(target_pos, target_vel, stiffness, damping)`` set
+        /// point. They differ in how that controller output is applied to
+        /// the bodies:
+        ///
+        /// * ``ACCELERATION_BASED`` interprets the controller output as a
+        ///   desired acceleration and scales it by the effective mass of
+        ///   the constrained axis. This gives motor behaviour that is
+        ///   largely independent of the masses of the bodies and is the
+        ///   recommended default.
+        /// * ``FORCE_BASED`` applies the controller output directly as a
+        ///   generalized force; the resulting acceleration depends on the
+        ///   effective mass.
+        ///
+        /// Note: a third ``VelocityBased`` variant existed in earlier
+        /// versions but was removed. To drive a pure velocity target,
+        /// configure a motor with ``stiffness=0`` and the desired
+        /// ``target_vel`` (see :py:meth:`set_motor_velocity`).
+        #[pyclass(name = "MotorModel", module = "rapier", eq, eq_int)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum MotorModel {
+            /// PID output is interpreted as a desired acceleration; the
+            /// engine scales by effective mass before applying. Behaviour
+            /// is largely mass-independent.
+            ACCELERATION_BASED,
+            /// PID output is applied directly as a generalized force; the
+            /// resulting motion depends on the bodies' masses and inertia.
+            FORCE_BASED,
+        }
+
+        impl MotorModel {
+            #[inline]
+            fn from_rapier(m: rapier::dynamics::MotorModel) -> Self {
+                match m {
+                    rapier::dynamics::MotorModel::AccelerationBased => Self::ACCELERATION_BASED,
+                    rapier::dynamics::MotorModel::ForceBased => Self::FORCE_BASED,
+                }
+            }
+            #[inline]
+            fn to_rapier(self) -> rapier::dynamics::MotorModel {
+                match self {
+                    Self::ACCELERATION_BASED => rapier::dynamics::MotorModel::AccelerationBased,
+                    Self::FORCE_BASED => rapier::dynamics::MotorModel::ForceBased,
+                }
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // JointLimits — plain struct
+        // -----------------------------------------------------------------
+        /// Inclusive ``[min, max]`` range that a joint axis is constrained to.
+        ///
+        /// Units are axis-dependent: world-length units for linear axes
+        /// (``LIN_X``/``LIN_Y``/``LIN_Z``) and radians for angular axes
+        /// (``ANG_X``/``ANG_Y``/``ANG_Z``). ``impulse`` is the last
+        /// constraint impulse applied by the solver to enforce the limit
+        /// and is set by the engine, not the user.
+        #[pyclass(name = "JointLimits", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct JointLimits {
+            #[pyo3(get, set)] pub min: Real,
+            #[pyo3(get, set)] pub max: Real,
+            #[pyo3(get, set)] pub impulse: Real,
+        }
+
+        #[pymethods]
+        impl JointLimits {
+            /// Construct a new limit range.
+            ///
+            /// :param min: Lower bound (radians for angular axes, world
+            ///     units for linear axes).
+            /// :param max: Upper bound, same units as ``min``.
+            /// :param impulse: Initial impulse value, generally left at 0.
+            #[new]
+            #[pyo3(signature = (min=0.0 as Real, max=0.0 as Real, impulse=0.0 as Real))]
+            fn new(min: Real, max: Real, impulse: Real) -> Self {
+                Self { min, max, impulse }
+            }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                format!("JointLimits(min={}, max={}, impulse={})",
+                    self.min, self.max, self.impulse)
+            }
+        }
+
+        impl JointLimits {
+            #[inline]
+            fn from_rapier(l: &rapier::dynamics::JointLimits<Real>) -> Self {
+                Self { min: l.min, max: l.max, impulse: l.impulse }
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // JointMotor — plain struct
+        // -----------------------------------------------------------------
+        /// Motor configuration driving a single joint axis.
+        ///
+        /// The motor implements a PD controller of the form
+        /// ``force = stiffness * (target_pos - pos) + damping * (target_vel - vel)``,
+        /// optionally clamped by ``max_force``. The ``model`` field selects
+        /// how that force is converted into joint motion (see
+        /// :class:`MotorModel`). ``impulse`` is the impulse applied on the
+        /// last solver step and is written by the engine.
+        ///
+        /// Convenience helpers on each concrete joint type (e.g.
+        /// ``set_motor_velocity``, ``set_motor_position``, ``set_motor``)
+        /// build the right combination of fields without constructing this
+        /// struct directly.
+        #[pyclass(name = "JointMotor", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct JointMotor {
+            #[pyo3(get, set)] pub target_vel: Real,
+            #[pyo3(get, set)] pub target_pos: Real,
+            #[pyo3(get, set)] pub stiffness: Real,
+            #[pyo3(get, set)] pub damping: Real,
+            #[pyo3(get, set)] pub max_force: Real,
+            #[pyo3(get, set)] pub impulse: Real,
+            #[pyo3(get, set)] pub model: MotorModel,
+        }
+
+        #[pymethods]
+        impl JointMotor {
+            /// Construct a new motor specification.
+            ///
+            /// :param target_vel: Velocity setpoint of the PD controller.
+            /// :param target_pos: Position setpoint of the PD controller.
+            /// :param stiffness: Position-error gain (spring term).
+            /// :param damping: Velocity-error gain (damper term).
+            /// :param max_force: Hard clamp on the generalized force the
+            ///     motor may apply.
+            /// :param impulse: Last-step impulse, generally left at 0 on
+            ///     construction.
+            /// :param model: Motor model (see :class:`MotorModel`).
+            #[new]
+            #[pyo3(signature = (
+                target_vel=0.0 as Real, target_pos=0.0 as Real,
+                stiffness=0.0 as Real, damping=0.0 as Real,
+                max_force=Real::MAX, impulse=0.0 as Real,
+                model=MotorModel::ACCELERATION_BASED,
+            ))]
+            fn new(
+                target_vel: Real, target_pos: Real,
+                stiffness: Real, damping: Real,
+                max_force: Real, impulse: Real,
+                model: MotorModel,
+            ) -> Self {
+                Self { target_vel, target_pos, stiffness, damping, max_force, impulse, model }
+            }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                format!(
+                    "JointMotor(target_pos={}, target_vel={}, stiffness={}, damping={}, max_force={}, model={:?})",
+                    self.target_pos, self.target_vel, self.stiffness, self.damping,
+                    self.max_force, self.model,
+                )
+            }
+        }
+
+        impl JointMotor {
+            #[inline]
+            fn from_rapier(m: &rapier::dynamics::JointMotor) -> Self {
+                Self {
+                    target_vel: m.target_vel,
+                    target_pos: m.target_pos,
+                    stiffness: m.stiffness,
+                    damping: m.damping,
+                    max_force: m.max_force,
+                    impulse: m.impulse,
+                    model: MotorModel::from_rapier(m.model),
+                }
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // JointAxesMask bitflags
+        // -----------------------------------------------------------------
+        /// Bitflag set selecting a subset of joint axes.
+        ///
+        /// In 3D the available bits are ``LIN_X``, ``LIN_Y``, ``LIN_Z``,
+        /// ``ANG_X``, ``ANG_Y``, ``ANG_Z`` plus convenience aggregates
+        /// (``LIN_AXES``, ``ANG_AXES``, ``LOCKED_REVOLUTE_AXES``,
+        /// ``LOCKED_PRISMATIC_AXES``, ``LOCKED_FIXED_AXES``,
+        /// ``LOCKED_SPHERICAL_AXES``, and their ``FREE_*`` complements).
+        /// In 2D only ``LIN_X``, ``LIN_Y`` and ``ANG_X`` exist, along with
+        /// ``LOCKED_PIN_SLOT_AXES``.
+        ///
+        /// The class supports the usual bitwise operators (``|``, ``&``,
+        /// ``^``, ``~``, ``-``), ``in``, truthiness, and equality. Used
+        /// throughout :class:`GenericJoint` to describe locked / coupled
+        /// axes, and by :class:`InverseKinematicsOption` to restrict the
+        /// IK solver to a subset of axes.
+        #[pyclass(name = "JointAxesMask", module = "rapier", frozen)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct JointAxesMask(pub rapier::dynamics::JointAxesMask);
+
+        #[pymethods]
+        impl JointAxesMask {
+            /// Construct a mask from a raw bit pattern.
+            ///
+            /// :param bits: Raw byte; unknown bits are truncated.
+            #[new]
+            #[pyo3(signature = (bits = 0))]
+            fn new(bits: u8) -> Self {
+                Self(rapier::dynamics::JointAxesMask::from_bits_truncate(bits))
+            }
+            /// Return the empty mask (no axes selected).
+            #[staticmethod]
+            fn empty() -> Self { Self(rapier::dynamics::JointAxesMask::empty()) }
+            /// Return the full mask (every axis selected).
+            #[staticmethod]
+            fn all_axes() -> Self { Self(rapier::dynamics::JointAxesMask::all()) }
+
+            // Per-axis classattrs come from the dim-specific helper to keep
+            // dim2 / dim3 distinct.
+            #[classattr]
+            const LIN_X: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::LIN_X);
+            #[classattr]
+            const LIN_Y: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::LIN_Y);
+            #[classattr]
+            const ANG_X: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::ANG_X);
+            #[classattr]
+            const LIN_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::LIN_AXES);
+            #[classattr]
+            const ANG_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::ANG_AXES);
+            #[classattr]
+            const LOCKED_REVOLUTE_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::LOCKED_REVOLUTE_AXES);
+            #[classattr]
+            const LOCKED_PRISMATIC_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::LOCKED_PRISMATIC_AXES);
+            #[classattr]
+            const LOCKED_FIXED_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::LOCKED_FIXED_AXES);
+            #[classattr]
+            const FREE_REVOLUTE_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::FREE_REVOLUTE_AXES);
+            #[classattr]
+            const FREE_PRISMATIC_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::FREE_PRISMATIC_AXES);
+            #[classattr]
+            const FREE_FIXED_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::FREE_FIXED_AXES);
+
+            /// Raw bit value backing this mask.
+            #[getter] fn bits(&self) -> u8 { self.0.bits() }
+            /// Return ``True`` if every axis in ``other`` is also set here.
+            fn contains(&self, other: &Self) -> bool { self.0.contains(other.0) }
+            /// Return ``True`` if no axes are selected.
+            fn is_empty(&self) -> bool { self.0.is_empty() }
+            /// ``other in self`` — same as :py:meth:`contains`.
+            fn __contains__(&self, other: &Self) -> bool { self.0.contains(other.0) }
+            /// Bitwise OR (set union).
+            fn __or__(&self, other: &Self) -> Self { Self(self.0 | other.0) }
+            /// Bitwise AND (set intersection).
+            fn __and__(&self, other: &Self) -> Self { Self(self.0 & other.0) }
+            /// Bitwise XOR (set symmetric difference).
+            fn __xor__(&self, other: &Self) -> Self { Self(self.0 ^ other.0) }
+            /// Bitwise NOT (complement within the known axes).
+            fn __invert__(&self) -> Self { Self(!self.0) }
+            /// Set difference (``self - other``).
+            fn __sub__(&self, other: &Self) -> Self { Self(self.0 - other.0) }
+            /// Truthiness: ``True`` iff at least one axis is selected.
+            fn __bool__(&self) -> bool { !self.0.is_empty() }
+            /// Equality and inequality comparisons; other operators raise.
+            fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+                match op {
+                    CompareOp::Eq => Ok(self.0 == other.0),
+                    CompareOp::Ne => Ok(self.0 != other.0),
+                    _ => Err(PyTypeError::new_err("JointAxesMask supports only == and !=")),
+                }
+            }
+            /// Hash matching equality semantics.
+            fn __hash__(&self) -> u64 { self.0.bits() as u64 }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                format!("JointAxesMask(bits={:#010b})", self.0.bits())
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // JointAxis enum (dim-specific variants)
+        // -----------------------------------------------------------------
+        $crate::__define_joint_axis!($dim);
+
+        impl JointAxis {
+            #[inline]
+            fn to_rapier(self) -> rapier::dynamics::JointAxis {
+                $crate::__joint_axis_to_rapier!($dim, self)
+            }
+        }
+
+        // 3D-only JointAxesMask classattrs (LIN_Z, ANG_Y, ANG_Z, plus
+        // LOCKED_SPHERICAL_AXES & FREE_SPHERICAL_AXES). 2D doesn't define
+        // those bits in the rapier::dynamics::JointAxesMask bitflags, so
+        // referencing them is gated by `$dim`.
+        $crate::__extra_joint_axes_mask_classattrs!($dim);
+
+        // =================================================================
+        // ImpulseJointHandle
+        // =================================================================
+        /// Opaque handle identifying a joint inside an :class:`ImpulseJointSet`.
+        ///
+        /// Hashable and equality-comparable, so it can be used as a dict
+        /// key or stored in sets. Handles remain valid until the joint is
+        /// removed; a removed slot may be reused with a new ``generation``.
+        #[pyclass(name = "ImpulseJointHandle", module = "rapier", frozen)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub struct ImpulseJointHandle(pub rapier::dynamics::ImpulseJointHandle);
+
+        #[pymethods]
+        impl ImpulseJointHandle {
+            /// Build a handle from raw ``(index, generation)`` parts.
+            ///
+            /// Mostly useful for round-tripping a handle through
+            /// serialization; in normal use, handles are returned by
+            /// :py:meth:`ImpulseJointSet.insert`.
+            #[new]
+            #[pyo3(signature = (index=0, generation=0))]
+            fn new(index: u32, generation: u32) -> Self {
+                Self(rapier::dynamics::ImpulseJointHandle::from_raw_parts(index, generation))
+            }
+            /// Reconstruct a handle from raw ``(index, generation)`` parts.
+            #[staticmethod]
+            fn from_raw_parts(index: u32, generation: u32) -> Self {
+                Self(rapier::dynamics::ImpulseJointHandle::from_raw_parts(index, generation))
+            }
+            /// Return the sentinel "invalid" handle that points to nothing.
+            #[staticmethod]
+            fn invalid() -> Self {
+                Self(rapier::dynamics::ImpulseJointHandle::invalid())
+            }
+            /// Slot index of this handle.
+            #[getter]
+            fn index(&self) -> u32 { self.0.into_raw_parts().0 }
+            /// Generation counter, incremented when a slot is reused.
+            #[getter]
+            fn generation(&self) -> u32 { self.0.into_raw_parts().1 }
+            /// Hash matching equality semantics.
+            fn __hash__(&self) -> u64 {
+                let (i, g) = self.0.into_raw_parts();
+                ((i as u64) << 32) | (g as u64)
+            }
+            /// Equality and inequality comparisons; other operators raise.
+            fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+                match op {
+                    CompareOp::Eq => Ok(self.0 == other.0),
+                    CompareOp::Ne => Ok(self.0 != other.0),
+                    _ => Err(PyTypeError::new_err("ImpulseJointHandle supports only == and !=")),
+                }
+            }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                let (i, g) = self.0.into_raw_parts();
+                format!("ImpulseJointHandle(index={}, generation={})", i, g)
+            }
+        }
+
+        // =================================================================
+        // MultibodyJointHandle
+        // =================================================================
+        /// Opaque handle identifying a joint inside a :class:`MultibodyJointSet`.
+        ///
+        /// Hashable and equality-comparable. A multibody joint handle
+        /// references the joint between a multibody link and its parent
+        /// inside one reduced-coordinate articulation.
+        #[pyclass(name = "MultibodyJointHandle", module = "rapier", frozen)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub struct MultibodyJointHandle(pub rapier::dynamics::MultibodyJointHandle);
+
+        #[pymethods]
+        impl MultibodyJointHandle {
+            /// Build a handle from raw ``(index, generation)`` parts.
+            #[new]
+            #[pyo3(signature = (index=0, generation=0))]
+            fn new(index: u32, generation: u32) -> Self {
+                Self(rapier::dynamics::MultibodyJointHandle::from_raw_parts(index, generation))
+            }
+            /// Reconstruct a handle from raw ``(index, generation)`` parts.
+            #[staticmethod]
+            fn from_raw_parts(index: u32, generation: u32) -> Self {
+                Self(rapier::dynamics::MultibodyJointHandle::from_raw_parts(index, generation))
+            }
+            /// Return the sentinel "invalid" handle that points to nothing.
+            #[staticmethod]
+            fn invalid() -> Self {
+                Self(rapier::dynamics::MultibodyJointHandle::invalid())
+            }
+            /// Slot index of this handle.
+            #[getter]
+            fn index(&self) -> u32 { self.0.into_raw_parts().0 }
+            /// Generation counter, incremented when a slot is reused.
+            #[getter]
+            fn generation(&self) -> u32 { self.0.into_raw_parts().1 }
+            /// Hash matching equality semantics.
+            fn __hash__(&self) -> u64 {
+                let (i, g) = self.0.into_raw_parts();
+                ((i as u64) << 32) | (g as u64)
+            }
+            /// Equality and inequality comparisons; other operators raise.
+            fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+                match op {
+                    CompareOp::Eq => Ok(self.0 == other.0),
+                    CompareOp::Ne => Ok(self.0 != other.0),
+                    _ => Err(PyTypeError::new_err("MultibodyJointHandle supports only == and !=")),
+                }
+            }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                let (i, g) = self.0.into_raw_parts();
+                format!("MultibodyJointHandle(index={}, generation={})", i, g)
+            }
+        }
+
+        // =================================================================
+        // MultibodyIndex (opaque)
+        // =================================================================
+        /// Opaque handle identifying a single :class:`Multibody` articulation.
+        ///
+        /// Hashable and equality-comparable. Multiple
+        /// :class:`MultibodyJointHandle` instances can resolve to the same
+        /// ``MultibodyIndex`` when they belong to the same articulation.
+        #[pyclass(name = "MultibodyIndex", module = "rapier", frozen)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub struct MultibodyIndex(pub rapier::dynamics::MultibodyIndex);
+
+        #[pymethods]
+        impl MultibodyIndex {
+            /// Slot index of this multibody.
+            #[getter]
+            fn index(&self) -> u32 { self.0.0.into_raw_parts().0 }
+            /// Generation counter, incremented when a slot is reused.
+            #[getter]
+            fn generation(&self) -> u32 { self.0.0.into_raw_parts().1 }
+            /// Hash matching equality semantics.
+            fn __hash__(&self) -> u64 {
+                let (i, g) = self.0.0.into_raw_parts();
+                ((i as u64) << 32) | (g as u64)
+            }
+            /// Equality and inequality comparisons; other operators raise.
+            fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+                match op {
+                    CompareOp::Eq => Ok(self.0 == other.0),
+                    CompareOp::Ne => Ok(self.0 != other.0),
+                    _ => Err(PyTypeError::new_err("MultibodyIndex supports only == and !=")),
+                }
+            }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                let (i, g) = self.0.0.into_raw_parts();
+                format!("MultibodyIndex(index={}, generation={})", i, g)
+            }
+        }
+
+        // =================================================================
+        // MultibodyLinkId — opaque struct with `multibody`, `id`
+        // =================================================================
+        /// Address of a single link within a multibody articulation.
+        ///
+        /// Combines a :class:`MultibodyIndex` (which articulation) with an
+        /// integer ``id`` (which link inside it). Hashable and
+        /// equality-comparable.
+        #[pyclass(name = "MultibodyLinkId", module = "rapier", frozen)]
+        #[derive(Debug, Clone, Copy)]
+        pub struct MultibodyLinkId(pub rapier::dynamics::MultibodyLinkId);
+
+        #[pymethods]
+        impl MultibodyLinkId {
+            /// Articulation containing this link.
+            #[getter]
+            fn multibody(&self) -> MultibodyIndex { MultibodyIndex(self.0.multibody) }
+            /// Zero-based link index inside the articulation (0 == root).
+            #[getter]
+            fn id(&self) -> usize { self.0.id }
+            /// Equality and inequality comparisons; other operators raise.
+            fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+                match op {
+                    CompareOp::Eq => Ok(self.0 == other.0),
+                    CompareOp::Ne => Ok(self.0 != other.0),
+                    _ => Err(PyTypeError::new_err("MultibodyLinkId supports only == and !=")),
+                }
+            }
+            /// Hash matching equality semantics.
+            fn __hash__(&self) -> u64 {
+                let (i, g) = self.0.multibody.0.into_raw_parts();
+                (((i as u64) << 32) | (g as u64)) ^ (self.0.id as u64)
+            }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                let (i, g) = self.0.multibody.0.into_raw_parts();
+                format!(
+                    "MultibodyLinkId(multibody=MultibodyIndex(index={}, generation={}), id={})",
+                    i, g, self.0.id
+                )
+            }
+        }
+
+        // =================================================================
+        // InverseKinematicsOption — dataclass-style
+        // =================================================================
+        /// Tuning parameters for the multibody inverse-kinematics solver.
+        ///
+        /// IK is performed by damped least-squares: at each iteration the
+        /// solver builds the Jacobian of the link's pose w.r.t. the joint
+        /// coordinates and solves a damped linear system for the
+        /// per-iteration displacement, applying it in a loop until either
+        /// the residual is below the linear/angular epsilons or
+        /// ``max_iters`` is reached.
+        ///
+        /// :ivar damping: Levenberg-Marquardt damping term added to the
+        ///     normal equations; larger values give a slower but more
+        ///     stable solve near singular postures.
+        /// :ivar max_iters: Upper bound on the iteration count.
+        /// :ivar constrained_axes: Subset of axes the IK target should
+        ///     match. By default all axes are constrained.
+        /// :ivar epsilon_linear: Linear residual tolerance (world units).
+        /// :ivar epsilon_angular: Angular residual tolerance (radians).
+        #[pyclass(name = "InverseKinematicsOption", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct InverseKinematicsOption {
+            #[pyo3(get, set)] pub damping: Real,
+            #[pyo3(get, set)] pub max_iters: usize,
+            #[pyo3(get, set)] pub constrained_axes: JointAxesMask,
+            #[pyo3(get, set)] pub epsilon_linear: Real,
+            #[pyo3(get, set)] pub epsilon_angular: Real,
+        }
+
+        #[pymethods]
+        impl InverseKinematicsOption {
+            /// Build a new IK option block.
+            ///
+            /// :param damping: Damping factor for the damped least-squares
+            ///     solve. Defaults to 1.0.
+            /// :param max_iters: Maximum number of iterations. Defaults to 10.
+            /// :param constrained_axes: Axes to match against the target.
+            ///     Defaults to all axes.
+            /// :param epsilon_linear: Convergence tolerance for the
+            ///     translational residual (world units). Defaults to 1e-3.
+            /// :param epsilon_angular: Convergence tolerance for the
+            ///     rotational residual (radians). Defaults to 1e-3.
+            #[new]
+            #[pyo3(signature = (
+                damping=1.0 as Real, max_iters=10usize,
+                constrained_axes=None,
+                epsilon_linear=1.0e-3 as Real, epsilon_angular=1.0e-3 as Real,
+            ))]
+            fn new(
+                damping: Real, max_iters: usize,
+                constrained_axes: Option<JointAxesMask>,
+                epsilon_linear: Real, epsilon_angular: Real,
+            ) -> Self {
+                let ca = constrained_axes
+                    .unwrap_or_else(|| JointAxesMask(rapier::dynamics::JointAxesMask::all()));
+                Self {
+                    damping, max_iters, constrained_axes: ca,
+                    epsilon_linear, epsilon_angular,
+                }
+            }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                format!(
+                    "InverseKinematicsOption(damping={}, max_iters={}, epsilon_linear={}, epsilon_angular={})",
+                    self.damping, self.max_iters, self.epsilon_linear, self.epsilon_angular
+                )
+            }
+        }
+
+        impl InverseKinematicsOption {
+            #[inline]
+            fn to_rapier(&self) -> rapier::dynamics::InverseKinematicsOption {
+                rapier::dynamics::InverseKinematicsOption {
+                    damping: self.damping,
+                    max_iters: self.max_iters,
+                    constrained_axes: self.constrained_axes.0,
+                    epsilon_linear: self.epsilon_linear,
+                    epsilon_angular: self.epsilon_angular,
+                }
+            }
+        }
+    };
+}
+
+// ====================================================================
+// JointAxis enum (dim-specific because 2D has fewer variants)
+// ====================================================================
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_joint_axis {
+    (2) => {
+        /// Enumeration of the degrees of freedom of a 2D joint.
+        ///
+        /// In 2D there are three axes: two linear (``LIN_X``, ``LIN_Y``)
+        /// and one angular (``ANG_X``, the rotation around the implicit
+        /// out-of-plane axis). Pair with :class:`JointAxesMask` for set
+        /// operations.
+        #[pyclass(name = "JointAxis", module = "rapier", eq, eq_int)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum JointAxis {
+            /// Translation along the body-local X axis.
+            LIN_X,
+            /// Translation along the body-local Y axis.
+            LIN_Y,
+            /// Rotation around the implicit out-of-plane axis.
+            ANG_X,
+        }
+    };
+    (3) => {
+        /// Enumeration of the degrees of freedom of a 3D joint.
+        ///
+        /// In 3D there are six axes: three linear
+        /// (``LIN_X``/``LIN_Y``/``LIN_Z``) and three angular
+        /// (``ANG_X``/``ANG_Y``/``ANG_Z``) expressed in the joint's local
+        /// frame. Pair with :class:`JointAxesMask` for set operations.
+        #[pyclass(name = "JointAxis", module = "rapier", eq, eq_int)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum JointAxis {
+            /// Translation along the body-local X axis.
+            LIN_X,
+            /// Translation along the body-local Y axis.
+            LIN_Y,
+            /// Translation along the body-local Z axis.
+            LIN_Z,
+            /// Rotation around the body-local X axis.
+            ANG_X,
+            /// Rotation around the body-local Y axis.
+            ANG_Y,
+            /// Rotation around the body-local Z axis.
+            ANG_Z,
+        }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __extra_joint_axes_mask_classattrs {
+    (2) => {
+        #[pymethods]
+        impl JointAxesMask {
+            #[classattr]
+            const LOCKED_PIN_SLOT_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::LOCKED_PIN_SLOT_AXES);
+        }
+    };
+    (3) => {
+        #[pymethods]
+        impl JointAxesMask {
+            #[classattr]
+            const LIN_Z: JointAxesMask = JointAxesMask(rapier::dynamics::JointAxesMask::LIN_Z);
+            #[classattr]
+            const ANG_Y: JointAxesMask = JointAxesMask(rapier::dynamics::JointAxesMask::ANG_Y);
+            #[classattr]
+            const ANG_Z: JointAxesMask = JointAxesMask(rapier::dynamics::JointAxesMask::ANG_Z);
+            #[classattr]
+            const LOCKED_SPHERICAL_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::LOCKED_SPHERICAL_AXES);
+            #[classattr]
+            const FREE_SPHERICAL_AXES: JointAxesMask =
+                JointAxesMask(rapier::dynamics::JointAxesMask::FREE_SPHERICAL_AXES);
+        }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __joint_axis_to_rapier {
+    (2, $val:expr) => {
+        match $val {
+            JointAxis::LIN_X => rapier::dynamics::JointAxis::LinX,
+            JointAxis::LIN_Y => rapier::dynamics::JointAxis::LinY,
+            JointAxis::ANG_X => rapier::dynamics::JointAxis::AngX,
+        }
+    };
+    (3, $val:expr) => {
+        match $val {
+            JointAxis::LIN_X => rapier::dynamics::JointAxis::LinX,
+            JointAxis::LIN_Y => rapier::dynamics::JointAxis::LinY,
+            JointAxis::LIN_Z => rapier::dynamics::JointAxis::LinZ,
+            JointAxis::ANG_X => rapier::dynamics::JointAxis::AngX,
+            JointAxis::ANG_Y => rapier::dynamics::JointAxis::AngY,
+            JointAxis::ANG_Z => rapier::dynamics::JointAxis::AngZ,
+        }
+    };
+}
+
+// ====================================================================
+// 3D-specific joint types: Revolute axis arg, SphericalJoint, etc.
+// ====================================================================
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_joints_3d {
+    ($Vec:ident, $Point:ident, $Rot:ident, $Iso:ident) => {
+        $crate::__define_joints_common!(3, $Vec, $Point, $Rot, $Iso);
+
+        /// Dim-specific generic-joint extractor invoked by the shared
+        /// `__extract_generic_joint!` macro when none of the dim-agnostic
+        /// variants match. In 3D this handles `SphericalJoint`.
+        fn try_extract_dim_specific_joint(
+            obj: &Bound<'_, PyAny>,
+        ) -> PyResult<Option<rapier::dynamics::GenericJoint>> {
+            if let Ok(j) = obj.extract::<PyRef<'_, SphericalJoint>>() {
+                return Ok(Some(j.0.into()));
+            }
+            if let Ok(b) = obj.extract::<PyRef<'_, SphericalJointBuilder>>() {
+                return Ok(Some(b.0.build().into()));
+            }
+            Ok(None)
+        }
+
+        // -----------------------------------------------------------------
+        // SphericalJoint + SphericalJointBuilder (3D only)
+        // -----------------------------------------------------------------
+        /// Ball-and-socket joint pinning two bodies at a shared point.
+        ///
+        /// All three translational DOFs are locked while all three
+        /// rotational DOFs remain free, so the two bodies coincide at the
+        /// anchor point but may rotate freely relative to each other.
+        /// Available only in 3D.
+        #[pyclass(name = "SphericalJoint", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct SphericalJoint(pub rapier::dynamics::SphericalJoint);
+
+        #[pymethods]
+        impl SphericalJoint {
+            /// Build a new spherical joint with default anchors and frames.
+            #[new]
+            fn new() -> Self {
+                Self(rapier::dynamics::SphericalJoint::new())
+            }
+
+            /// Build a :class:`SphericalJointBuilder`.
+            ///
+            /// :param body_a: Ignored (kept for API symmetry with other
+            ///     joint builders).
+            /// :param body_b: Ignored (kept for API symmetry).
+            /// :param kwargs: Optional keyword args forwarded to the
+            ///     builder; accepted keys are ``local_anchor1``,
+            ///     ``local_anchor2``, ``local_frame1``, ``local_frame2``,
+            ///     ``contacts_enabled``.
+            #[staticmethod]
+            #[pyo3(signature = (body_a=None, body_b=None, **kwargs))]
+            fn builder(
+                py: Python<'_>,
+                body_a: Option<&Bound<'_, PyAny>>,
+                body_b: Option<&Bound<'_, PyAny>>,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<SphericalJointBuilder> {
+                let _ = (py, body_a, body_b);
+                SphericalJointBuilder::from_kwargs(
+                    rapier::dynamics::SphericalJointBuilder::new(),
+                    kwargs,
+                )
+            }
+
+            /// Whether collision detection is enabled between the
+            /// attached bodies.
+            #[getter]
+            fn contacts_enabled(&self) -> bool {
+                self.0.data.contacts_enabled
+            }
+            /// Enable or disable collision detection between the attached
+            /// bodies.
+            #[setter]
+            fn set_contacts_enabled(&mut self, v: bool) {
+                self.0.data.set_contacts_enabled(v);
+            }
+
+            /// Body-local point on body 1 where the joint is attached.
+            #[getter]
+            fn local_anchor1(&self) -> $Point {
+                let v: $crate::na::Vector3<Real> = self.0.local_anchor1().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 1.
+            #[setter]
+            fn set_local_anchor1(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor1(g);
+            }
+            /// Body-local point on body 2 where the joint is attached.
+            #[getter]
+            fn local_anchor2(&self) -> $Point {
+                let v: $crate::na::Vector3<Real> = self.0.local_anchor2().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 2.
+            #[setter]
+            fn set_local_anchor2(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor2(g);
+            }
+
+            /// Body-local frame on body 1 (position + orientation).
+            #[getter]
+            fn local_frame1(&self) -> $Iso {
+                let pose: $crate::na::Isometry<Real, _, 3> = (*self.0.local_frame1()).into();
+                $Iso(pose)
+            }
+            /// Set the body-local frame on body 1.
+            #[setter]
+            fn set_local_frame1(&mut self, iso: PyIsometry) {
+                let p: rapier::math::Pose = iso.0.into();
+                self.0.set_local_frame1(p);
+            }
+            /// Body-local frame on body 2.
+            #[getter]
+            fn local_frame2(&self) -> $Iso {
+                let pose: $crate::na::Isometry<Real, _, 3> = (*self.0.local_frame2()).into();
+                $Iso(pose)
+            }
+            /// Set the body-local frame on body 2.
+            #[setter]
+            fn set_local_frame2(&mut self, iso: PyIsometry) {
+                let p: rapier::math::Pose = iso.0.into();
+                self.0.set_local_frame2(p);
+            }
+
+            /// Return the motor configured on ``axis``, if any.
+            fn motor(&self, axis: JointAxis) -> Option<JointMotor> {
+                self.0.motor(axis.to_rapier()).map(JointMotor::from_rapier)
+            }
+            /// Return the limits configured on ``axis``, if any.
+            fn limits(&self, axis: JointAxis) -> Option<JointLimits> {
+                self.0
+                    .limits(axis.to_rapier())
+                    .map(JointLimits::from_rapier)
+            }
+            /// Set angular limits on ``axis`` (radians; only angular
+            /// axes are meaningful on a spherical joint).
+            fn set_limits(&mut self, axis: JointAxis, min: Real, max: Real) {
+                self.0.set_limits(axis.to_rapier(), [min, max]);
+            }
+            /// Configure ``axis`` as a velocity-target motor with damping.
+            ///
+            /// :param target_vel: Desired velocity (rad/s for angular axes).
+            /// :param factor: Damping coefficient.
+            fn set_motor_velocity(&mut self, axis: JointAxis, target_vel: Real, factor: Real) {
+                self.0
+                    .set_motor_velocity(axis.to_rapier(), target_vel, factor);
+            }
+            /// Configure ``axis`` as a position-target spring-damper motor.
+            ///
+            /// :param target_pos: Desired position (radians).
+            /// :param stiffness: Spring gain.
+            /// :param damping: Damper gain.
+            fn set_motor_position(
+                &mut self,
+                axis: JointAxis,
+                target_pos: Real,
+                stiffness: Real,
+                damping: Real,
+            ) {
+                self.0
+                    .set_motor_position(axis.to_rapier(), target_pos, stiffness, damping);
+            }
+            /// Fully configure the motor on ``axis``.
+            ///
+            /// :param target_pos: Position setpoint (radians).
+            /// :param target_vel: Velocity setpoint (rad/s).
+            /// :param stiffness: Spring gain.
+            /// :param damping: Damper gain.
+            fn set_motor(
+                &mut self,
+                axis: JointAxis,
+                target_pos: Real,
+                target_vel: Real,
+                stiffness: Real,
+                damping: Real,
+            ) {
+                self.0
+                    .set_motor(axis.to_rapier(), target_pos, target_vel, stiffness, damping);
+            }
+            /// Clamp the maximum force the motor on ``axis`` can apply.
+            fn set_motor_max_force(&mut self, axis: JointAxis, max_force: Real) {
+                self.0.set_motor_max_force(axis.to_rapier(), max_force);
+            }
+            /// Select the motor model on ``axis`` (see :class:`MotorModel`).
+            fn set_motor_model(&mut self, axis: JointAxis, model: MotorModel) {
+                self.0.set_motor_model(axis.to_rapier(), model.to_rapier());
+            }
+
+            /// Access the underlying :class:`GenericJoint` description.
+            #[getter]
+            fn data(&self) -> GenericJoint {
+                GenericJoint::new_owned(self.0.data)
+            }
+            /// Spring coefficients controlling this joint's softness
+            /// (see :class:`SpringCoefficients`).
+            #[getter]
+            fn softness(&self) -> SpringCoefficients {
+                SpringCoefficients(self.0.softness())
+            }
+            /// Set the spring coefficients controlling this joint's softness.
+            #[setter]
+            fn set_softness(&mut self, v: SpringCoefficients) {
+                let _ = self.0.set_softness(v.0);
+            }
+        }
+
+        /// Fluent builder for :class:`SphericalJoint`.
+        ///
+        /// Modifier methods return a new builder, mirroring the Rust API.
+        /// Call :py:meth:`build` to produce a :class:`SphericalJoint`.
+        #[pyclass(name = "SphericalJointBuilder", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct SphericalJointBuilder(pub rapier::dynamics::SphericalJointBuilder);
+
+        impl SphericalJointBuilder {
+            fn from_kwargs(
+                base: rapier::dynamics::SphericalJointBuilder,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<Self> {
+                let mut me = Self(base);
+                if let Some(kw) = kwargs {
+                    for (k, v) in kw.iter() {
+                        let key: String = k.extract()?;
+                        match key.as_str() {
+                            "local_anchor1" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor1(g);
+                            }
+                            "local_anchor2" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor2(g);
+                            }
+                            "local_frame1" => {
+                                let iso: PyIsometry = v.extract()?;
+                                let p: rapier::math::Pose = iso.0.into();
+                                me.0 = me.0.local_frame1(p);
+                            }
+                            "local_frame2" => {
+                                let iso: PyIsometry = v.extract()?;
+                                let p: rapier::math::Pose = iso.0.into();
+                                me.0 = me.0.local_frame2(p);
+                            }
+                            "contacts_enabled" => {
+                                let b: bool = v.extract()?;
+                                me.0 = me.0.contacts_enabled(b);
+                            }
+                            _ => {
+                                return Err(PyTypeError::new_err(format!(
+                                    "unknown SphericalJointBuilder kwarg: '{}'",
+                                    key
+                                )));
+                            }
+                        }
+                    }
+                }
+                Ok(me)
+            }
+        }
+
+        #[pymethods]
+        impl SphericalJointBuilder {
+            /// Construct an empty :class:`SphericalJointBuilder`.
+            #[new]
+            fn new() -> Self {
+                Self(rapier::dynamics::SphericalJointBuilder::new())
+            }
+
+            /// Set the body-local anchor on body 1.
+            fn local_anchor1(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor1(g))
+            }
+            /// Set the body-local anchor on body 2.
+            fn local_anchor2(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor2(g))
+            }
+            /// Set the body-local frame (position + orientation) on body 1.
+            fn local_frame1(&self, iso: PyIsometry) -> Self {
+                let p: rapier::math::Pose = iso.0.into();
+                Self(self.0.local_frame1(p))
+            }
+            /// Set the body-local frame on body 2.
+            fn local_frame2(&self, iso: PyIsometry) -> Self {
+                let p: rapier::math::Pose = iso.0.into();
+                Self(self.0.local_frame2(p))
+            }
+            /// Enable or disable contacts between the bodies attached by
+            /// the joint.
+            fn contacts_enabled(&self, b: bool) -> Self {
+                Self(self.0.contacts_enabled(b))
+            }
+            /// Configure a velocity-target motor with damping on ``axis``.
+            ///
+            /// :param target_vel: Velocity setpoint (rad/s for angular axes).
+            /// :param factor: Damping coefficient.
+            fn motor_velocity(&self, axis: JointAxis, target_vel: Real, factor: Real) -> Self {
+                Self(self.0.motor_velocity(axis.to_rapier(), target_vel, factor))
+            }
+            /// Configure a spring-damper motor toward ``target_pos`` on
+            /// ``axis``.
+            ///
+            /// :param target_pos: Position setpoint (radians).
+            /// :param stiffness: Spring gain.
+            /// :param damping: Damper gain.
+            fn motor_position(
+                &self,
+                axis: JointAxis,
+                target_pos: Real,
+                stiffness: Real,
+                damping: Real,
+            ) -> Self {
+                Self(
+                    self.0
+                        .motor_position(axis.to_rapier(), target_pos, stiffness, damping),
+                )
+            }
+            /// Fully configure the motor on ``axis`` with both position and
+            /// velocity setpoints.
+            fn motor(
+                &self,
+                axis: JointAxis,
+                target_pos: Real,
+                target_vel: Real,
+                stiffness: Real,
+                damping: Real,
+            ) -> Self {
+                Self(
+                    self.0
+                        .motor(axis.to_rapier(), target_pos, target_vel, stiffness, damping),
+                )
+            }
+            /// Clamp the maximum force the motor on ``axis`` can apply.
+            fn motor_max_force(&self, axis: JointAxis, max_force: Real) -> Self {
+                Self(self.0.motor_max_force(axis.to_rapier(), max_force))
+            }
+            /// Select the motor model on ``axis`` (see :class:`MotorModel`).
+            fn motor_model(&self, axis: JointAxis, model: MotorModel) -> Self {
+                Self(self.0.motor_model(axis.to_rapier(), model.to_rapier()))
+            }
+            /// Apply ``[min, max]`` limits on ``axis`` (radians).
+            fn limits(&self, axis: JointAxis, min: Real, max: Real) -> Self {
+                Self(self.0.limits(axis.to_rapier(), [min, max]))
+            }
+            /// Materialize the builder into a :class:`SphericalJoint`.
+            /// Set the spring softness coefficients (see
+            /// :class:`SpringCoefficients`). Returns a new builder.
+            fn softness(&self, v: SpringCoefficients) -> Self {
+                Self(self.0.softness(v.0))
+            }
+            /// Materialize the builder into a :class:`SphericalJoint`.
+            fn build(&self) -> SphericalJoint {
+                SphericalJoint(self.0.build())
+            }
+        }
+
+        // 3D RevoluteJoint constructor / builder need axis argument.
+        // The shared common macro emits the wrapper bodies; here we just
+        // expose the 3D constructors as additional impls.
+        #[pymethods]
+        impl RevoluteJoint {
+            /// Construct a 3D revolute joint with an explicit axis.
+            ///
+            /// :param axis: Rotation axis expressed in each body's local
+            ///     frame.
+            #[staticmethod]
+            #[pyo3(name = "new_with_axis")]
+            fn new_with_axis(axis: PyVector) -> Self {
+                let g: rapier::math::Vector = axis.0.into();
+                Self(rapier::dynamics::RevoluteJoint::new(g))
+            }
+
+            /// Body-local rotation axis on body 1.
+            #[getter]
+            fn local_axis1(&self) -> $Vec {
+                let v: $crate::na::Vector3<Real> = self.0.data.local_axis1().into();
+                $Vec(v)
+            }
+            /// Body-local rotation axis on body 2.
+            #[getter]
+            fn local_axis2(&self) -> $Vec {
+                let v: $crate::na::Vector3<Real> = self.0.data.local_axis2().into();
+                $Vec(v)
+            }
+        }
+
+        #[pymethods]
+        impl RevoluteJointBuilder {
+            /// Set the body-local rotation axis on body 1.
+            fn local_axis1(&self, v: PyVector) -> Self {
+                // The Rust API has no `local_axis1` builder method on
+                // RevoluteJointBuilder; we round-trip via the underlying
+                // joint to set the axis.
+                let mut j = self.0.build();
+                let g: rapier::math::Vector = v.0.into();
+                j.data.set_local_axis1(g);
+                Self(rapier::dynamics::RevoluteJointBuilder(j))
+            }
+            /// Set the body-local rotation axis on body 2.
+            fn local_axis2(&self, v: PyVector) -> Self {
+                let mut j = self.0.build();
+                let g: rapier::math::Vector = v.0.into();
+                j.data.set_local_axis2(g);
+                Self(rapier::dynamics::RevoluteJointBuilder(j))
+            }
+        }
+    };
+}
+
+// ====================================================================
+// 2D-specific joint types: RevoluteJoint without axis, PinSlotJoint
+// ====================================================================
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_joints_2d {
+    ($Vec:ident, $Point:ident, $Rot:ident, $Iso:ident) => {
+        $crate::__define_joints_common!(2, $Vec, $Point, $Rot, $Iso);
+
+        /// Dim-specific generic-joint extractor invoked by the shared
+        /// `__extract_generic_joint!` macro. In 2D this handles `PinSlotJoint`.
+        fn try_extract_dim_specific_joint(
+            obj: &Bound<'_, PyAny>,
+        ) -> PyResult<Option<rapier::dynamics::GenericJoint>> {
+            if let Ok(j) = obj.extract::<PyRef<'_, PinSlotJoint>>() {
+                return Ok(Some(j.0.into()));
+            }
+            if let Ok(b) = obj.extract::<PyRef<'_, PinSlotJointBuilder>>() {
+                return Ok(Some(b.0.build().into()));
+            }
+            Ok(None)
+        }
+
+        // -----------------------------------------------------------------
+        // PinSlotJoint + PinSlotJointBuilder (2D only)
+        // -----------------------------------------------------------------
+        /// 2D pin-in-slot joint: one body slides along an axis of the
+        /// other while remaining co-planar.
+        ///
+        /// Two rotational and one translational DOF are removed, leaving
+        /// the bodies free to translate along ``local_axis1``/``local_axis2``
+        /// while their orientations stay locked together. Available only
+        /// in 2D.
+        #[pyclass(name = "PinSlotJoint", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct PinSlotJoint(pub rapier::dynamics::PinSlotJoint);
+
+        #[pymethods]
+        impl PinSlotJoint {
+            /// Construct a pin-slot joint with the given sliding axis.
+            ///
+            /// :param axis: Slot direction in each body's local frame.
+            #[new]
+            fn new(axis: PyVector) -> Self {
+                let g: rapier::math::Vector = axis.0.into();
+                Self(rapier::dynamics::PinSlotJoint::new(g))
+            }
+            /// Build a :class:`PinSlotJointBuilder`.
+            ///
+            /// :param axis: Slot direction in each body's local frame.
+            /// :param kwargs: Optional keyword args forwarded to the
+            ///     builder; accepted keys are ``local_anchor1``,
+            ///     ``local_anchor2``, ``local_axis1``, ``local_axis2``,
+            ///     ``contacts_enabled``, ``limits``.
+            #[staticmethod]
+            #[pyo3(signature = (axis, **kwargs))]
+            fn builder(
+                axis: PyVector,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<PinSlotJointBuilder> {
+                let g: rapier::math::Vector = axis.0.into();
+                PinSlotJointBuilder::from_kwargs(
+                    rapier::dynamics::PinSlotJointBuilder::new(g),
+                    kwargs,
+                )
+            }
+
+            /// Whether collision detection is enabled between the
+            /// attached bodies.
+            #[getter]
+            fn contacts_enabled(&self) -> bool {
+                self.0.contacts_enabled()
+            }
+            /// Enable or disable contacts between the attached bodies.
+            #[setter]
+            fn set_contacts_enabled(&mut self, v: bool) {
+                self.0.set_contacts_enabled(v);
+            }
+
+            /// Body-local point on body 1 where the joint is attached.
+            #[getter]
+            fn local_anchor1(&self) -> $Point {
+                let v: $crate::na::Vector2<Real> = self.0.local_anchor1().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 1.
+            #[setter]
+            fn set_local_anchor1(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor1(g);
+            }
+            /// Body-local point on body 2 where the joint is attached.
+            #[getter]
+            fn local_anchor2(&self) -> $Point {
+                let v: $crate::na::Vector2<Real> = self.0.local_anchor2().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 2.
+            #[setter]
+            fn set_local_anchor2(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor2(g);
+            }
+
+            /// Body-local slot direction on body 1.
+            #[getter]
+            fn local_axis1(&self) -> $Vec {
+                let v: $crate::na::Vector2<Real> = self.0.local_axis1().into();
+                $Vec(v)
+            }
+            /// Set the body-local slot direction on body 1.
+            #[setter]
+            fn set_local_axis1(&mut self, v: PyVector) {
+                let g: rapier::math::Vector = v.0.into();
+                self.0.set_local_axis1(g);
+            }
+            /// Body-local slot direction on body 2.
+            #[getter]
+            fn local_axis2(&self) -> $Vec {
+                let v: $crate::na::Vector2<Real> = self.0.local_axis2().into();
+                $Vec(v)
+            }
+            /// Set the body-local slot direction on body 2.
+            #[setter]
+            fn set_local_axis2(&mut self, v: PyVector) {
+                let g: rapier::math::Vector = v.0.into();
+                self.0.set_local_axis2(g);
+            }
+
+            /// Return the linear-axis motor, if configured.
+            fn motor(&self) -> Option<JointMotor> {
+                self.0.motor().map(JointMotor::from_rapier)
+            }
+            /// Return the linear-axis limits, if configured.
+            fn limits(&self) -> Option<JointLimits> {
+                self.0.limits().map(JointLimits::from_rapier)
+            }
+            /// Apply linear ``[min, max]`` translation limits along the slot
+            /// (world units).
+            fn set_limits(&mut self, min: Real, max: Real) {
+                self.0.set_limits([min, max]);
+            }
+            /// Configure the slot as a velocity-target motor with damping.
+            fn set_motor_velocity(&mut self, target_vel: Real, factor: Real) {
+                self.0.set_motor_velocity(target_vel, factor);
+            }
+            /// Configure the slot as a spring-damper motor toward
+            /// ``target_pos`` (world units).
+            fn set_motor_position(&mut self, target_pos: Real, stiffness: Real, damping: Real) {
+                self.0.set_motor_position(target_pos, stiffness, damping);
+            }
+            /// Fully configure the slot motor with position and velocity
+            /// setpoints.
+            fn set_motor(
+                &mut self,
+                target_pos: Real,
+                target_vel: Real,
+                stiffness: Real,
+                damping: Real,
+            ) {
+                self.0.set_motor(target_pos, target_vel, stiffness, damping);
+            }
+            /// Clamp the maximum force the slot motor can apply.
+            fn set_motor_max_force(&mut self, max_force: Real) {
+                self.0.set_motor_max_force(max_force);
+            }
+            /// Select the motor model (see :class:`MotorModel`).
+            fn set_motor_model(&mut self, model: MotorModel) {
+                self.0.set_motor_model(model.to_rapier());
+            }
+
+            /// Access the underlying :class:`GenericJoint` description.
+            #[getter]
+            fn data(&self) -> GenericJoint {
+                GenericJoint::new_owned(self.0.data)
+            }
+            /// Spring coefficients controlling this joint's softness
+            /// (see :class:`SpringCoefficients`).
+            #[getter]
+            fn softness(&self) -> SpringCoefficients {
+                SpringCoefficients(self.0.softness())
+            }
+            /// Set the spring coefficients controlling this joint's softness.
+            #[setter]
+            fn set_softness(&mut self, v: SpringCoefficients) {
+                let _ = self.0.set_softness(v.0);
+            }
+        }
+
+        /// Fluent builder for :class:`PinSlotJoint`.
+        ///
+        /// Modifier methods return a new builder; call :py:meth:`build` to
+        /// produce a :class:`PinSlotJoint`.
+        #[pyclass(name = "PinSlotJointBuilder", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct PinSlotJointBuilder(pub rapier::dynamics::PinSlotJointBuilder);
+
+        impl PinSlotJointBuilder {
+            fn from_kwargs(
+                base: rapier::dynamics::PinSlotJointBuilder,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<Self> {
+                let mut me = Self(base);
+                if let Some(kw) = kwargs {
+                    for (k, v) in kw.iter() {
+                        let key: String = k.extract()?;
+                        match key.as_str() {
+                            "local_anchor1" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor1(g);
+                            }
+                            "local_anchor2" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor2(g);
+                            }
+                            "local_axis1" => {
+                                let pv: PyVector = v.extract()?;
+                                let g: rapier::math::Vector = pv.0.into();
+                                me.0 = me.0.local_axis1(g);
+                            }
+                            "local_axis2" => {
+                                let pv: PyVector = v.extract()?;
+                                let g: rapier::math::Vector = pv.0.into();
+                                me.0 = me.0.local_axis2(g);
+                            }
+                            "contacts_enabled" => {
+                                let b: bool = v.extract()?;
+                                me.0 = me.0.contacts_enabled(b);
+                            }
+                            "limits" => {
+                                let (min, max): (Real, Real) = v.extract()?;
+                                me.0 = me.0.limits([min, max]);
+                            }
+                            _ => {
+                                return Err(PyTypeError::new_err(format!(
+                                    "unknown PinSlotJointBuilder kwarg: '{}'",
+                                    key
+                                )));
+                            }
+                        }
+                    }
+                }
+                Ok(me)
+            }
+        }
+
+        #[pymethods]
+        impl PinSlotJointBuilder {
+            /// Construct a new pin-slot builder with the given sliding axis.
+            #[new]
+            fn new(axis: PyVector) -> Self {
+                let g: rapier::math::Vector = axis.0.into();
+                Self(rapier::dynamics::PinSlotJointBuilder::new(g))
+            }
+
+            /// Set the body-local anchor on body 1.
+            fn local_anchor1(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor1(g))
+            }
+            /// Set the body-local anchor on body 2.
+            fn local_anchor2(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor2(g))
+            }
+            /// Set the body-local slot direction on body 1.
+            fn local_axis1(&self, v: PyVector) -> Self {
+                let g: rapier::math::Vector = v.0.into();
+                Self(self.0.local_axis1(g))
+            }
+            /// Set the body-local slot direction on body 2.
+            fn local_axis2(&self, v: PyVector) -> Self {
+                let g: rapier::math::Vector = v.0.into();
+                Self(self.0.local_axis2(g))
+            }
+            /// Enable or disable contacts between the attached bodies.
+            fn contacts_enabled(&self, b: bool) -> Self {
+                Self(self.0.contacts_enabled(b))
+            }
+            /// Apply linear ``[min, max]`` translation limits along the slot
+            /// (world units).
+            fn limits(&self, min: Real, max: Real) -> Self {
+                Self(self.0.limits([min, max]))
+            }
+            /// Configure a velocity-target motor with damping along the slot.
+            fn motor_velocity(&self, target_vel: Real, factor: Real) -> Self {
+                Self(self.0.motor_velocity(target_vel, factor))
+            }
+            /// Configure a spring-damper motor toward ``target_pos`` along
+            /// the slot.
+            fn motor_position(&self, target_pos: Real, stiffness: Real, damping: Real) -> Self {
+                Self(self.0.motor_position(target_pos, stiffness, damping))
+            }
+            /// Clamp the maximum force the slot motor can apply.
+            fn motor_max_force(&self, max_force: Real) -> Self {
+                Self(self.0.motor_max_force(max_force))
+            }
+            /// Select the motor model (see :class:`MotorModel`).
+            fn motor_model(&self, model: MotorModel) -> Self {
+                Self(self.0.motor_model(model.to_rapier()))
+            }
+            /// Set the spring softness coefficients (see
+            /// :class:`SpringCoefficients`). Returns a new builder.
+            fn softness(&self, v: SpringCoefficients) -> Self {
+                Self(self.0.softness(v.0))
+            }
+            /// Materialize the builder into a :class:`PinSlotJoint`.
+            fn build(&self) -> PinSlotJoint {
+                PinSlotJoint(self.0.build())
+            }
+        }
+    };
+}
+
+// ====================================================================
+// Shared joint types: Fixed/Revolute/Prismatic/Rope/Spring/Generic
+// ====================================================================
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_joints_common {
+    ($dim:tt, $Vec:ident, $Point:ident, $Rot:ident, $Iso:ident) => {
+        // =================================================================
+        // FixedJoint + FixedJointBuilder
+        // =================================================================
+        /// Rigidly weld two bodies together: no relative motion at all.
+        ///
+        /// All translational and rotational DOFs are locked, so the two
+        /// bodies behave as a single rigid object connected by their
+        /// local frames. Useful for composing bodies that should never
+        /// move relative to each other but still need to be separable
+        /// (unlike a true compound shape).
+        #[pyclass(name = "FixedJoint", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct FixedJoint(pub rapier::dynamics::FixedJoint);
+
+        #[pymethods]
+        impl FixedJoint {
+            /// Construct a fixed joint with identity local frames.
+            #[new]
+            fn new() -> Self { Self(rapier::dynamics::FixedJoint::new()) }
+
+            /// Build a :class:`FixedJointBuilder`.
+            ///
+            /// :param body_a: Ignored (kept for API symmetry).
+            /// :param body_b: Ignored (kept for API symmetry).
+            /// :param kwargs: Optional keyword args forwarded to the
+            ///     builder; accepted keys are ``local_anchor1``,
+            ///     ``local_anchor2``, ``local_frame1``, ``local_frame2``,
+            ///     ``contacts_enabled``.
+            #[staticmethod]
+            #[pyo3(signature = (body_a=None, body_b=None, **kwargs))]
+            fn builder(
+                body_a: Option<&Bound<'_, PyAny>>,
+                body_b: Option<&Bound<'_, PyAny>>,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<FixedJointBuilder> {
+                let _ = (body_a, body_b);
+                FixedJointBuilder::from_kwargs(
+                    rapier::dynamics::FixedJointBuilder::new(),
+                    kwargs,
+                )
+            }
+
+            /// Whether collision detection is enabled between the
+            /// attached bodies.
+            #[getter]
+            fn contacts_enabled(&self) -> bool { self.0.contacts_enabled() }
+            /// Enable or disable contacts between the attached bodies.
+            #[setter]
+            fn set_contacts_enabled(&mut self, v: bool) { self.0.set_contacts_enabled(v); }
+
+            /// Body-local frame (position + orientation) on body 1.
+            #[getter]
+            fn local_frame1(&self) -> $Iso {
+                let pose: $crate::na::Isometry<Real, _, $dim> = (*self.0.local_frame1()).into();
+                $Iso(pose)
+            }
+            /// Set the body-local frame on body 1.
+            #[setter]
+            fn set_local_frame1(&mut self, iso: PyIsometry) {
+                let p: rapier::math::Pose = iso.0.into();
+                self.0.set_local_frame1(p);
+            }
+            /// Body-local frame on body 2.
+            #[getter]
+            fn local_frame2(&self) -> $Iso {
+                let pose: $crate::na::Isometry<Real, _, $dim> = (*self.0.local_frame2()).into();
+                $Iso(pose)
+            }
+            /// Set the body-local frame on body 2.
+            #[setter]
+            fn set_local_frame2(&mut self, iso: PyIsometry) {
+                let p: rapier::math::Pose = iso.0.into();
+                self.0.set_local_frame2(p);
+            }
+
+            /// Body-local point on body 1 where the joint is attached.
+            #[getter]
+            fn local_anchor1(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor1().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 1.
+            #[setter]
+            fn set_local_anchor1(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor1(g);
+            }
+            /// Body-local point on body 2 where the joint is attached.
+            #[getter]
+            fn local_anchor2(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor2().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 2.
+            #[setter]
+            fn set_local_anchor2(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor2(g);
+            }
+
+            /// Access the underlying :class:`GenericJoint` description.
+            #[getter]
+            fn data(&self) -> GenericJoint { GenericJoint::new_owned(self.0.data) }
+            /// Spring coefficients controlling this joint's softness
+            /// (see :class:`SpringCoefficients`).
+            #[getter]
+            fn softness(&self) -> SpringCoefficients { SpringCoefficients(self.0.softness()) }
+            /// Set the spring coefficients controlling this joint's softness.
+            #[setter]
+            fn set_softness(&mut self, v: SpringCoefficients) { let _ = self.0.set_softness(v.0); }
+        }
+
+        /// Fluent builder for :class:`FixedJoint`.
+        ///
+        /// Modifier methods return a new builder; call :py:meth:`build` to
+        /// produce a :class:`FixedJoint`.
+        #[pyclass(name = "FixedJointBuilder", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct FixedJointBuilder(pub rapier::dynamics::FixedJointBuilder);
+
+        impl FixedJointBuilder {
+            fn from_kwargs(
+                base: rapier::dynamics::FixedJointBuilder,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<Self> {
+                let mut me = Self(base);
+                if let Some(kw) = kwargs {
+                    for (k, v) in kw.iter() {
+                        let key: String = k.extract()?;
+                        match key.as_str() {
+                            "local_anchor1" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor1(g);
+                            }
+                            "local_anchor2" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor2(g);
+                            }
+                            "local_frame1" => {
+                                let iso: PyIsometry = v.extract()?;
+                                let p: rapier::math::Pose = iso.0.into();
+                                me.0 = me.0.local_frame1(p);
+                            }
+                            "local_frame2" => {
+                                let iso: PyIsometry = v.extract()?;
+                                let p: rapier::math::Pose = iso.0.into();
+                                me.0 = me.0.local_frame2(p);
+                            }
+                            "contacts_enabled" => {
+                                let b: bool = v.extract()?;
+                                me.0 = me.0.contacts_enabled(b);
+                            }
+                            _ => return Err(PyTypeError::new_err(
+                                format!("unknown FixedJointBuilder kwarg: '{}'", key)
+                            )),
+                        }
+                    }
+                }
+                Ok(me)
+            }
+        }
+
+        #[pymethods]
+        impl FixedJointBuilder {
+            /// Construct an empty :class:`FixedJointBuilder`.
+            #[new]
+            fn new() -> Self { Self(rapier::dynamics::FixedJointBuilder::new()) }
+            /// Set the body-local anchor on body 1.
+            fn local_anchor1(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor1(g))
+            }
+            /// Set the body-local anchor on body 2.
+            fn local_anchor2(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor2(g))
+            }
+            /// Set the body-local frame on body 1.
+            fn local_frame1(&self, iso: PyIsometry) -> Self {
+                let p: rapier::math::Pose = iso.0.into();
+                Self(self.0.local_frame1(p))
+            }
+            /// Set the body-local frame on body 2.
+            fn local_frame2(&self, iso: PyIsometry) -> Self {
+                let p: rapier::math::Pose = iso.0.into();
+                Self(self.0.local_frame2(p))
+            }
+            /// Enable or disable contacts between the attached bodies.
+            fn contacts_enabled(&self, b: bool) -> Self {
+                Self(self.0.contacts_enabled(b))
+            }
+            /// Set the spring softness coefficients (see
+            /// :class:`SpringCoefficients`). Returns a new builder.
+            fn softness(&self, v: SpringCoefficients) -> Self { Self(self.0.softness(v.0)) }
+            /// Materialize the builder into a :class:`FixedJoint`.
+            fn build(&self) -> FixedJoint { FixedJoint(self.0.build()) }
+        }
+
+        // =================================================================
+        // RevoluteJoint + RevoluteJointBuilder
+        // =================================================================
+        /// Hinge / pin joint allowing a single rotational DOF.
+        ///
+        /// All three translational DOFs are locked and, in 3D, the two
+        /// rotational DOFs orthogonal to the rotation axis are locked
+        /// as well, leaving a single rotational degree of freedom about
+        /// ``local_axis1``/``local_axis2``. In 2D the axis is implicit
+        /// (the out-of-plane direction), so the constructor takes no
+        /// axis argument; in 3D it is required.
+        #[pyclass(name = "RevoluteJoint", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct RevoluteJoint(pub rapier::dynamics::RevoluteJoint);
+
+        #[pymethods]
+        impl RevoluteJoint {
+            /// Construct a new revolute joint.
+            ///
+            /// :param axis: Rotation axis (required in 3D, ignored in 2D
+            ///     where the axis is implicitly out-of-plane).
+            /// :raises TypeError: If ``axis`` is missing in 3D.
+            // Dim-agnostic constructor: 2D = no arg, 3D = required axis.
+            #[new]
+            #[pyo3(signature = (axis=None))]
+            fn new(axis: Option<PyVector>) -> PyResult<Self> {
+                $crate::__revolute_new!($dim, axis)
+            }
+            /// Build a :class:`RevoluteJointBuilder`.
+            ///
+            /// :param axis: Rotation axis (required in 3D, ignored in 2D).
+            /// :param kwargs: Optional keyword args forwarded to the
+            ///     builder; accepted keys are ``local_anchor1``,
+            ///     ``local_anchor2``, ``limits``, ``contacts_enabled``.
+            #[staticmethod]
+            #[pyo3(signature = (axis=None, **kwargs))]
+            fn builder(
+                axis: Option<PyVector>,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<RevoluteJointBuilder> {
+                let base = $crate::__revolute_builder_new!($dim, axis)?;
+                RevoluteJointBuilder::from_kwargs(base, kwargs)
+            }
+
+            /// Whether collision detection is enabled between the
+            /// attached bodies.
+            #[getter]
+            fn contacts_enabled(&self) -> bool { self.0.contacts_enabled() }
+            /// Enable or disable contacts between the attached bodies.
+            #[setter]
+            fn set_contacts_enabled(&mut self, v: bool) { self.0.set_contacts_enabled(v); }
+
+            /// Body-local point on body 1 where the joint is attached.
+            #[getter]
+            fn local_anchor1(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor1().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 1.
+            #[setter]
+            fn set_local_anchor1(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor1(g);
+            }
+            /// Body-local point on body 2 where the joint is attached.
+            #[getter]
+            fn local_anchor2(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor2().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 2.
+            #[setter]
+            fn set_local_anchor2(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor2(g);
+            }
+
+            /// Return the angular limits, if configured.
+            fn limits(&self) -> Option<JointLimits> {
+                self.0.limits().map(JointLimits::from_rapier)
+            }
+            /// Return the angular motor, if configured.
+            fn motor(&self) -> Option<JointMotor> {
+                self.0.motor().map(JointMotor::from_rapier)
+            }
+            /// Apply angular ``[min, max]`` limits (radians).
+            fn set_limits(&mut self, min: Real, max: Real) { self.0.set_limits([min, max]); }
+            /// Configure the joint as a velocity-target motor with damping.
+            ///
+            /// :param target_vel: Desired angular velocity (rad/s).
+            /// :param factor: Damping coefficient.
+            fn set_motor_velocity(&mut self, target_vel: Real, factor: Real) {
+                self.0.set_motor_velocity(target_vel, factor);
+            }
+            /// Configure the joint as a spring-damper motor toward
+            /// ``target_pos`` (radians).
+            fn set_motor_position(&mut self, target_pos: Real, stiffness: Real, damping: Real) {
+                self.0.set_motor_position(target_pos, stiffness, damping);
+            }
+            /// Fully configure the motor with position and velocity setpoints.
+            fn set_motor(&mut self, target_pos: Real, target_vel: Real, stiffness: Real, damping: Real) {
+                self.0.set_motor(target_pos, target_vel, stiffness, damping);
+            }
+            /// Clamp the maximum torque the motor can apply.
+            fn set_motor_max_force(&mut self, max_force: Real) {
+                self.0.set_motor_max_force(max_force);
+            }
+            /// Select the motor model (see :class:`MotorModel`).
+            fn set_motor_model(&mut self, model: MotorModel) {
+                self.0.set_motor_model(model.to_rapier());
+            }
+
+            /// Access the underlying :class:`GenericJoint` description.
+            #[getter]
+            fn data(&self) -> GenericJoint { GenericJoint::new_owned(self.0.data) }
+            /// Spring coefficients controlling this joint's softness
+            /// (see :class:`SpringCoefficients`).
+            #[getter]
+            fn softness(&self) -> SpringCoefficients { SpringCoefficients(self.0.softness()) }
+            /// Set the spring coefficients controlling this joint's softness.
+            #[setter]
+            fn set_softness(&mut self, v: SpringCoefficients) { let _ = self.0.set_softness(v.0); }
+            /// Current hinge angle, in radians, given the world-space
+            /// rotations of the two attached bodies.
+            ///
+            /// :param body_rotation1: World rotation of body 1
+            ///     (e.g. ``RigidBody.rotation``).
+            /// :param body_rotation2: World rotation of body 2.
+            fn angle(&self, body_rotation1: PyRotation, body_rotation2: PyRotation) -> Real {
+                let i1 = $crate::na::Isometry::from_parts(
+                    $crate::na::Translation::default(),
+                    body_rotation1.0,
+                );
+                let i2 = $crate::na::Isometry::from_parts(
+                    $crate::na::Translation::default(),
+                    body_rotation2.0,
+                );
+                let p1: rapier::math::Pose = i1.into();
+                let p2: rapier::math::Pose = i2.into();
+                self.0.angle(&p1.rotation, &p2.rotation)
+            }
+        }
+
+        /// Fluent builder for :class:`RevoluteJoint`.
+        ///
+        /// Modifier methods return a new builder; call :py:meth:`build` to
+        /// produce a :class:`RevoluteJoint`.
+        #[pyclass(name = "RevoluteJointBuilder", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct RevoluteJointBuilder(pub rapier::dynamics::RevoluteJointBuilder);
+
+        impl RevoluteJointBuilder {
+            fn from_kwargs(
+                base: rapier::dynamics::RevoluteJointBuilder,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<Self> {
+                let mut me = Self(base);
+                if let Some(kw) = kwargs {
+                    for (k, v) in kw.iter() {
+                        let key: String = k.extract()?;
+                        match key.as_str() {
+                            "local_anchor1" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor1(g);
+                            }
+                            "local_anchor2" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor2(g);
+                            }
+                            "limits" => {
+                                let (min, max): (Real, Real) = v.extract()?;
+                                me.0 = me.0.limits([min, max]);
+                            }
+                            "contacts_enabled" => {
+                                let b: bool = v.extract()?;
+                                me.0 = me.0.contacts_enabled(b);
+                            }
+                            _ => return Err(PyTypeError::new_err(
+                                format!("unknown RevoluteJointBuilder kwarg: '{}'", key)
+                            )),
+                        }
+                    }
+                }
+                Ok(me)
+            }
+        }
+
+        #[pymethods]
+        impl RevoluteJointBuilder {
+            /// Construct a new revolute joint builder.
+            ///
+            /// :param axis: Rotation axis (required in 3D, ignored in 2D).
+            #[new]
+            #[pyo3(signature = (axis=None))]
+            fn new(axis: Option<PyVector>) -> PyResult<Self> {
+                let base = $crate::__revolute_builder_new!($dim, axis)?;
+                Ok(Self(base))
+            }
+
+            /// Set the body-local anchor on body 1.
+            fn local_anchor1(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor1(g))
+            }
+            /// Set the body-local anchor on body 2.
+            fn local_anchor2(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor2(g))
+            }
+            /// Apply angular ``[min, max]`` limits (radians).
+            fn limits(&self, min: Real, max: Real) -> Self {
+                Self(self.0.limits([min, max]))
+            }
+            /// Enable or disable contacts between the attached bodies.
+            fn contacts_enabled(&self, b: bool) -> Self {
+                Self(self.0.contacts_enabled(b))
+            }
+            /// Configure a velocity-target motor with damping.
+            fn motor_velocity(&self, target_vel: Real, factor: Real) -> Self {
+                Self(self.0.motor_velocity(target_vel, factor))
+            }
+            /// Configure a spring-damper motor toward ``target_pos`` (radians).
+            fn motor_position(&self, target_pos: Real, stiffness: Real, damping: Real) -> Self {
+                Self(self.0.motor_position(target_pos, stiffness, damping))
+            }
+            /// Fully configure the motor with both position and velocity
+            /// setpoints.
+            fn motor(&self, target_pos: Real, target_vel: Real, stiffness: Real, damping: Real) -> Self {
+                Self(self.0.motor(target_pos, target_vel, stiffness, damping))
+            }
+            /// Clamp the maximum torque the motor can apply.
+            fn motor_max_force(&self, max_force: Real) -> Self {
+                Self(self.0.motor_max_force(max_force))
+            }
+            /// Select the motor model (see :class:`MotorModel`).
+            fn motor_model(&self, model: MotorModel) -> Self {
+                Self(self.0.motor_model(model.to_rapier()))
+            }
+            /// Set the spring softness coefficients (see
+            /// :class:`SpringCoefficients`). Returns a new builder.
+            fn softness(&self, v: SpringCoefficients) -> Self { Self(self.0.softness(v.0)) }
+            /// Materialize the builder into a :class:`RevoluteJoint`.
+            fn build(&self) -> RevoluteJoint { RevoluteJoint(self.0.build()) }
+        }
+
+        // =================================================================
+        // PrismaticJoint + PrismaticJointBuilder
+        // =================================================================
+        /// Slider joint allowing a single translational DOF.
+        ///
+        /// All rotational DOFs and the two translations orthogonal to
+        /// ``local_axis1``/``local_axis2`` are locked, leaving a single
+        /// translational degree of freedom along the configured axis. The
+        /// axis must be supplied at construction time.
+        #[pyclass(name = "PrismaticJoint", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct PrismaticJoint(pub rapier::dynamics::PrismaticJoint);
+
+        #[pymethods]
+        impl PrismaticJoint {
+            /// Construct a new prismatic joint with the given sliding axis.
+            ///
+            /// :param axis: Translation axis in each body's local frame.
+            #[new]
+            fn new(axis: PyVector) -> Self {
+                let g: rapier::math::Vector = axis.0.into();
+                Self(rapier::dynamics::PrismaticJoint::new(g))
+            }
+            /// Build a :class:`PrismaticJointBuilder`.
+            ///
+            /// :param axis: Translation axis in each body's local frame.
+            /// :param kwargs: Optional keyword args forwarded to the
+            ///     builder; accepted keys include ``local_anchor1``,
+            ///     ``local_anchor2``, ``local_axis1``, ``local_axis2``,
+            ///     ``limits``, ``contacts_enabled``.
+            #[staticmethod]
+            #[pyo3(signature = (axis, **kwargs))]
+            fn builder(
+                axis: PyVector,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<PrismaticJointBuilder> {
+                let g: rapier::math::Vector = axis.0.into();
+                PrismaticJointBuilder::from_kwargs(
+                    rapier::dynamics::PrismaticJointBuilder::new(g),
+                    kwargs,
+                )
+            }
+
+            /// Whether collision detection is enabled between the
+            /// attached bodies.
+            #[getter]
+            fn contacts_enabled(&self) -> bool { self.0.contacts_enabled() }
+            /// Enable or disable contacts between the attached bodies.
+            #[setter]
+            fn set_contacts_enabled(&mut self, v: bool) { self.0.set_contacts_enabled(v); }
+
+            /// Body-local point on body 1 where the joint is attached.
+            #[getter]
+            fn local_anchor1(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor1().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 1.
+            #[setter]
+            fn set_local_anchor1(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor1(g);
+            }
+            /// Body-local point on body 2 where the joint is attached.
+            #[getter]
+            fn local_anchor2(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor2().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 2.
+            #[setter]
+            fn set_local_anchor2(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor2(g);
+            }
+
+            /// Body-local translation axis on body 1.
+            #[getter]
+            fn local_axis1(&self) -> $Vec {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_axis1().into();
+                $Vec(v)
+            }
+            /// Set the body-local translation axis on body 1.
+            #[setter]
+            fn set_local_axis1(&mut self, v: PyVector) {
+                let g: rapier::math::Vector = v.0.into();
+                self.0.set_local_axis1(g);
+            }
+            /// Body-local translation axis on body 2.
+            #[getter]
+            fn local_axis2(&self) -> $Vec {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_axis2().into();
+                $Vec(v)
+            }
+            /// Set the body-local translation axis on body 2.
+            #[setter]
+            fn set_local_axis2(&mut self, v: PyVector) {
+                let g: rapier::math::Vector = v.0.into();
+                self.0.set_local_axis2(g);
+            }
+
+            /// Return the linear motor, if configured.
+            fn motor(&self) -> Option<JointMotor> {
+                self.0.motor().map(JointMotor::from_rapier)
+            }
+            /// Return the linear limits, if configured.
+            fn limits(&self) -> Option<JointLimits> {
+                self.0.limits().map(JointLimits::from_rapier)
+            }
+            /// Apply linear ``[min, max]`` translation limits (world units).
+            fn set_limits(&mut self, min: Real, max: Real) { self.0.set_limits([min, max]); }
+            /// Configure a velocity-target motor with damping.
+            ///
+            /// :param target_vel: Desired velocity (world units per second).
+            /// :param factor: Damping coefficient.
+            fn set_motor_velocity(&mut self, target_vel: Real, factor: Real) {
+                self.0.set_motor_velocity(target_vel, factor);
+            }
+            /// Configure a spring-damper motor toward ``target_pos``
+            /// (world units).
+            fn set_motor_position(&mut self, target_pos: Real, stiffness: Real, damping: Real) {
+                self.0.set_motor_position(target_pos, stiffness, damping);
+            }
+            /// Fully configure the motor with position and velocity setpoints.
+            fn set_motor(&mut self, target_pos: Real, target_vel: Real, stiffness: Real, damping: Real) {
+                self.0.set_motor(target_pos, target_vel, stiffness, damping);
+            }
+            /// Clamp the maximum force the motor can apply.
+            fn set_motor_max_force(&mut self, max_force: Real) {
+                self.0.set_motor_max_force(max_force);
+            }
+            /// Select the motor model (see :class:`MotorModel`).
+            fn set_motor_model(&mut self, model: MotorModel) {
+                self.0.set_motor_model(model.to_rapier());
+            }
+
+            /// Access the underlying :class:`GenericJoint` description.
+            #[getter]
+            fn data(&self) -> GenericJoint { GenericJoint::new_owned(self.0.data) }
+            /// Spring coefficients controlling this joint's softness
+            /// (see :class:`SpringCoefficients`).
+            #[getter]
+            fn softness(&self) -> SpringCoefficients { SpringCoefficients(self.0.softness()) }
+            /// Set the spring coefficients controlling this joint's softness.
+            #[setter]
+            fn set_softness(&mut self, v: SpringCoefficients) { let _ = self.0.set_softness(v.0); }
+        }
+
+        /// Fluent builder for :class:`PrismaticJoint`.
+        ///
+        /// Modifier methods return a new builder; call :py:meth:`build` to
+        /// produce a :class:`PrismaticJoint`.
+        #[pyclass(name = "PrismaticJointBuilder", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct PrismaticJointBuilder(pub rapier::dynamics::PrismaticJointBuilder);
+
+        impl PrismaticJointBuilder {
+            fn from_kwargs(
+                base: rapier::dynamics::PrismaticJointBuilder,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<Self> {
+                let mut me = Self(base);
+                if let Some(kw) = kwargs {
+                    for (k, v) in kw.iter() {
+                        let key: String = k.extract()?;
+                        match key.as_str() {
+                            "local_anchor1" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor1(g);
+                            }
+                            "local_anchor2" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor2(g);
+                            }
+                            "local_axis1" => {
+                                let pv: PyVector = v.extract()?;
+                                let g: rapier::math::Vector = pv.0.into();
+                                me.0 = me.0.local_axis1(g);
+                            }
+                            "local_axis2" => {
+                                let pv: PyVector = v.extract()?;
+                                let g: rapier::math::Vector = pv.0.into();
+                                me.0 = me.0.local_axis2(g);
+                            }
+                            "limits" => {
+                                let (min, max): (Real, Real) = v.extract()?;
+                                me.0 = me.0.limits([min, max]);
+                            }
+                            "contacts_enabled" => {
+                                let b: bool = v.extract()?;
+                                me.0 = me.0.contacts_enabled(b);
+                            }
+                            _ => return Err(PyTypeError::new_err(
+                                format!("unknown PrismaticJointBuilder kwarg: '{}'", key)
+                            )),
+                        }
+                    }
+                }
+                Ok(me)
+            }
+        }
+
+        #[pymethods]
+        impl PrismaticJointBuilder {
+            /// Construct a new prismatic joint builder with the given
+            /// sliding axis.
+            #[new]
+            fn new(axis: PyVector) -> Self {
+                let g: rapier::math::Vector = axis.0.into();
+                Self(rapier::dynamics::PrismaticJointBuilder::new(g))
+            }
+            /// Set the body-local anchor on body 1.
+            fn local_anchor1(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor1(g))
+            }
+            /// Set the body-local anchor on body 2.
+            fn local_anchor2(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor2(g))
+            }
+            /// Set the body-local translation axis on body 1.
+            fn local_axis1(&self, v: PyVector) -> Self {
+                let g: rapier::math::Vector = v.0.into();
+                Self(self.0.local_axis1(g))
+            }
+            /// Set the body-local translation axis on body 2.
+            fn local_axis2(&self, v: PyVector) -> Self {
+                let g: rapier::math::Vector = v.0.into();
+                Self(self.0.local_axis2(g))
+            }
+            /// Apply linear ``[min, max]`` translation limits (world units).
+            fn limits(&self, min: Real, max: Real) -> Self {
+                Self(self.0.limits([min, max]))
+            }
+            /// Enable or disable contacts between the attached bodies.
+            fn contacts_enabled(&self, b: bool) -> Self {
+                Self(self.0.contacts_enabled(b))
+            }
+            /// Configure a velocity-target motor with damping.
+            fn motor_velocity(&self, target_vel: Real, factor: Real) -> Self {
+                Self(self.0.motor_velocity(target_vel, factor))
+            }
+            /// Configure a spring-damper motor toward ``target_pos``
+            /// (world units).
+            fn motor_position(&self, target_pos: Real, stiffness: Real, damping: Real) -> Self {
+                Self(self.0.motor_position(target_pos, stiffness, damping))
+            }
+            /// Clamp the maximum force the motor can apply.
+            fn motor_max_force(&self, max_force: Real) -> Self {
+                Self(self.0.motor_max_force(max_force))
+            }
+            /// Select the motor model (see :class:`MotorModel`).
+            fn motor_model(&self, model: MotorModel) -> Self {
+                Self(self.0.motor_model(model.to_rapier()))
+            }
+            /// Set the spring softness coefficients (see
+            /// :class:`SpringCoefficients`). Returns a new builder.
+            fn softness(&self, v: SpringCoefficients) -> Self { Self(self.0.softness(v.0)) }
+            /// Materialize the builder into a :class:`PrismaticJoint`.
+            fn build(&self) -> PrismaticJoint { PrismaticJoint(self.0.build()) }
+        }
+
+        // =================================================================
+        // RopeJoint + RopeJointBuilder
+        // =================================================================
+        /// Distance constraint: anchor points stay within ``max_distance``.
+        ///
+        /// The two anchor points may move freely as long as the world
+        /// distance between them stays at or below ``max_distance``.
+        /// Conceptually models a slack rope of that length: there is no
+        /// force when the bodies are close, and a hard pull when the rope
+        /// becomes taut.
+        #[pyclass(name = "RopeJoint", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct RopeJoint(pub rapier::dynamics::RopeJoint);
+
+        #[pymethods]
+        impl RopeJoint {
+            /// Construct a rope joint with the given maximum length.
+            ///
+            /// :param max_distance: Maximum allowed distance between
+            ///     the anchor points, in world units.
+            #[new]
+            #[pyo3(signature = (max_distance=1.0 as Real))]
+            fn new(max_distance: Real) -> Self {
+                Self(rapier::dynamics::RopeJoint::new(max_distance))
+            }
+            /// Build a :class:`RopeJointBuilder`.
+            ///
+            /// :param max_distance: Maximum rope length (world units).
+            /// :param kwargs: Optional keyword args; accepted keys are
+            ///     ``local_anchor1``, ``local_anchor2``, ``max_distance``,
+            ///     ``contacts_enabled``.
+            #[staticmethod]
+            #[pyo3(signature = (max_distance, **kwargs))]
+            fn builder(
+                max_distance: Real,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<RopeJointBuilder> {
+                RopeJointBuilder::from_kwargs(
+                    rapier::dynamics::RopeJointBuilder::new(max_distance),
+                    kwargs,
+                )
+            }
+
+            /// Whether collision detection is enabled between the
+            /// attached bodies.
+            #[getter]
+            fn contacts_enabled(&self) -> bool { self.0.contacts_enabled() }
+            /// Enable or disable contacts between the attached bodies.
+            #[setter]
+            fn set_contacts_enabled(&mut self, v: bool) { self.0.set_contacts_enabled(v); }
+
+            /// Body-local point on body 1 where the rope is attached.
+            #[getter]
+            fn local_anchor1(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor1().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 1.
+            #[setter]
+            fn set_local_anchor1(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor1(g);
+            }
+            /// Body-local point on body 2 where the rope is attached.
+            #[getter]
+            fn local_anchor2(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor2().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 2.
+            #[setter]
+            fn set_local_anchor2(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor2(g);
+            }
+
+            /// Maximum distance the rope can stretch (world units).
+            #[getter]
+            fn max_distance(&self) -> Real { self.0.max_distance() }
+            /// Set the maximum rope length.
+            #[setter]
+            fn set_max_distance(&mut self, v: Real) { self.0.set_max_distance(v); }
+
+            /// Minimum distance enforced between the anchors.
+            ///
+            /// Exposed for API parity with :py:attr:`max_distance`; under
+            /// the hood it is stored as the lower limit of the joint's
+            /// ``LIN_X`` axis and is always ``0`` on a rope joint.
+            // Minimum length is not exposed as a field on RopeJoint; the
+            // engine encodes it as the lower limit of LinX which is always
+            // 0.0 here. Surface it as a read-only property for API parity.
+            #[getter]
+            fn min_distance(&self) -> Real {
+                self.0
+                    .data
+                    .limits(rapier::dynamics::JointAxis::LinX)
+                    .map(|l| l.min)
+                    .unwrap_or(0.0)
+            }
+
+            /// Access the underlying :class:`GenericJoint` description.
+            #[getter]
+            fn data(&self) -> GenericJoint { GenericJoint::new_owned(self.0.data) }
+            /// Spring coefficients controlling this joint's softness
+            /// (see :class:`SpringCoefficients`).
+            #[getter]
+            fn softness(&self) -> SpringCoefficients { SpringCoefficients(self.0.softness()) }
+            /// Set the spring coefficients controlling this joint's softness.
+            #[setter]
+            fn set_softness(&mut self, v: SpringCoefficients) { let _ = self.0.set_softness(v.0); }
+        }
+
+        /// Fluent builder for :class:`RopeJoint`.
+        ///
+        /// Modifier methods return a new builder; call :py:meth:`build` to
+        /// produce a :class:`RopeJoint`.
+        #[pyclass(name = "RopeJointBuilder", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct RopeJointBuilder(pub rapier::dynamics::RopeJointBuilder);
+
+        impl RopeJointBuilder {
+            fn from_kwargs(
+                base: rapier::dynamics::RopeJointBuilder,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<Self> {
+                let mut me = Self(base);
+                if let Some(kw) = kwargs {
+                    for (k, v) in kw.iter() {
+                        let key: String = k.extract()?;
+                        match key.as_str() {
+                            "local_anchor1" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor1(g);
+                            }
+                            "local_anchor2" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor2(g);
+                            }
+                            "max_distance" => {
+                                let d: Real = v.extract()?;
+                                me.0 = me.0.max_distance(d);
+                            }
+                            "contacts_enabled" => {
+                                let b: bool = v.extract()?;
+                                me.0 = me.0.contacts_enabled(b);
+                            }
+                            _ => return Err(PyTypeError::new_err(
+                                format!("unknown RopeJointBuilder kwarg: '{}'", key)
+                            )),
+                        }
+                    }
+                }
+                Ok(me)
+            }
+        }
+
+        #[pymethods]
+        impl RopeJointBuilder {
+            /// Construct a new rope joint builder.
+            ///
+            /// :param max_distance: Maximum rope length (world units).
+            #[new]
+            #[pyo3(signature = (max_distance=1.0 as Real))]
+            fn new(max_distance: Real) -> Self {
+                Self(rapier::dynamics::RopeJointBuilder::new(max_distance))
+            }
+            /// Set the body-local anchor on body 1.
+            fn local_anchor1(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor1(g))
+            }
+            /// Set the body-local anchor on body 2.
+            fn local_anchor2(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor2(g))
+            }
+            /// Override the maximum rope length.
+            fn max_distance(&self, d: Real) -> Self {
+                Self(self.0.max_distance(d))
+            }
+            /// Enable or disable contacts between the attached bodies.
+            fn contacts_enabled(&self, b: bool) -> Self {
+                Self(self.0.contacts_enabled(b))
+            }
+            /// Set the spring softness coefficients (see
+            /// :class:`SpringCoefficients`). Returns a new builder.
+            fn softness(&self, v: SpringCoefficients) -> Self { Self(self.0.softness(v.0)) }
+            /// Materialize the builder into a :class:`RopeJoint`.
+            fn build(&self) -> RopeJoint { RopeJoint(self.0.build()) }
+        }
+
+        // =================================================================
+        // SpringJoint + SpringJointBuilder
+        // =================================================================
+        /// Distance spring-damper between two anchor points.
+        ///
+        /// Applies a force ``F = stiffness * (rest_length - dist) -
+        /// damping * d_dist/dt`` along the line connecting the two
+        /// anchor points; no DOF is locked, the constraint is purely a
+        /// soft restoring force. Useful for suspensions, soft links, and
+        /// other compliant connections.
+        #[pyclass(name = "SpringJoint", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct SpringJoint(pub rapier::dynamics::SpringJoint);
+
+        #[pymethods]
+        impl SpringJoint {
+            /// Construct a spring joint.
+            ///
+            /// :param rest_length: Distance at which the spring exerts no
+            ///     force (world units).
+            /// :param stiffness: Spring constant.
+            /// :param damping: Velocity damping coefficient.
+            #[new]
+            #[pyo3(signature = (rest_length=0.0 as Real, stiffness=1.0 as Real, damping=0.0 as Real))]
+            fn new(rest_length: Real, stiffness: Real, damping: Real) -> Self {
+                Self(rapier::dynamics::SpringJoint::new(rest_length, stiffness, damping))
+            }
+            /// Build a :class:`SpringJointBuilder`.
+            ///
+            /// :param rest_length: Distance at which the spring exerts no
+            ///     force (world units).
+            /// :param stiffness: Spring constant.
+            /// :param damping: Velocity damping coefficient.
+            /// :param kwargs: Optional keyword args; accepted keys include
+            ///     ``local_anchor1``, ``local_anchor2``,
+            ///     ``contacts_enabled``, ``spring_model``.
+            #[staticmethod]
+            #[pyo3(signature = (rest_length, stiffness, damping, **kwargs))]
+            fn builder(
+                rest_length: Real,
+                stiffness: Real,
+                damping: Real,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<SpringJointBuilder> {
+                SpringJointBuilder::from_kwargs(
+                    rapier::dynamics::SpringJointBuilder::new(rest_length, stiffness, damping),
+                    kwargs,
+                )
+            }
+
+            /// Whether collision detection is enabled between the
+            /// attached bodies.
+            #[getter]
+            fn contacts_enabled(&self) -> bool { self.0.contacts_enabled() }
+            /// Enable or disable contacts between the attached bodies.
+            #[setter]
+            fn set_contacts_enabled(&mut self, v: bool) { self.0.set_contacts_enabled(v); }
+
+            /// Body-local point on body 1 where the spring is attached.
+            #[getter]
+            fn local_anchor1(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor1().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 1.
+            #[setter]
+            fn set_local_anchor1(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor1(g);
+            }
+            /// Body-local point on body 2 where the spring is attached.
+            #[getter]
+            fn local_anchor2(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.0.local_anchor2().into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 2.
+            #[setter]
+            fn set_local_anchor2(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.0.set_local_anchor2(g);
+            }
+
+            /// Select how the spring force is applied (see :class:`MotorModel`).
+            fn set_spring_model(&mut self, model: MotorModel) {
+                self.0.set_spring_model(model.to_rapier());
+            }
+
+            /// Rest length of the spring (world units).
+            ///
+            /// Read back from the underlying ``LIN_X`` motor's
+            /// ``target_pos``; returns ``0`` if no motor is set.
+            // Read-only access to spring parameters via the underlying
+            // generic joint's motor on LinX.
+            #[getter]
+            fn rest_length(&self) -> Real {
+                self.0
+                    .data
+                    .motor(rapier::dynamics::JointAxis::LinX)
+                    .map(|m| m.target_pos)
+                    .unwrap_or(0.0)
+            }
+            /// Spring stiffness (read-back from the underlying motor).
+            #[getter]
+            fn spring_stiffness(&self) -> Real {
+                self.0
+                    .data
+                    .motor(rapier::dynamics::JointAxis::LinX)
+                    .map(|m| m.stiffness)
+                    .unwrap_or(0.0)
+            }
+            /// Spring damping coefficient (read-back from the underlying motor).
+            #[getter]
+            fn spring_damping(&self) -> Real {
+                self.0
+                    .data
+                    .motor(rapier::dynamics::JointAxis::LinX)
+                    .map(|m| m.damping)
+                    .unwrap_or(0.0)
+            }
+            /// Motor model controlling how the spring force is applied
+            /// (see :class:`MotorModel`).
+            #[getter]
+            fn model(&self) -> MotorModel {
+                self.0
+                    .data
+                    .motor(rapier::dynamics::JointAxis::LinX)
+                    .map(|m| MotorModel::from_rapier(m.model))
+                    .unwrap_or(MotorModel::FORCE_BASED)
+            }
+
+            /// Access the underlying :class:`GenericJoint` description.
+            #[getter]
+            fn data(&self) -> GenericJoint { GenericJoint::new_owned(self.0.data) }
+        }
+
+        /// Fluent builder for :class:`SpringJoint`.
+        ///
+        /// Modifier methods return a new builder; call :py:meth:`build` to
+        /// produce a :class:`SpringJoint`.
+        #[pyclass(name = "SpringJointBuilder", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct SpringJointBuilder(pub rapier::dynamics::SpringJointBuilder);
+
+        impl SpringJointBuilder {
+            fn from_kwargs(
+                base: rapier::dynamics::SpringJointBuilder,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<Self> {
+                let mut me = Self(base);
+                if let Some(kw) = kwargs {
+                    for (k, v) in kw.iter() {
+                        let key: String = k.extract()?;
+                        match key.as_str() {
+                            "local_anchor1" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor1(g);
+                            }
+                            "local_anchor2" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor2(g);
+                            }
+                            "contacts_enabled" => {
+                                let b: bool = v.extract()?;
+                                me.0 = me.0.contacts_enabled(b);
+                            }
+                            "spring_model" => {
+                                let m: MotorModel = v.extract()?;
+                                me.0 = me.0.spring_model(m.to_rapier());
+                            }
+                            _ => return Err(PyTypeError::new_err(
+                                format!("unknown SpringJointBuilder kwarg: '{}'", key)
+                            )),
+                        }
+                    }
+                }
+                Ok(me)
+            }
+        }
+
+        #[pymethods]
+        impl SpringJointBuilder {
+            /// Construct a new spring joint builder.
+            ///
+            /// :param rest_length: Distance at which the spring exerts no
+            ///     force (world units).
+            /// :param stiffness: Spring constant.
+            /// :param damping: Velocity damping coefficient.
+            #[new]
+            #[pyo3(signature = (rest_length=0.0 as Real, stiffness=1.0 as Real, damping=0.0 as Real))]
+            fn new(rest_length: Real, stiffness: Real, damping: Real) -> Self {
+                Self(rapier::dynamics::SpringJointBuilder::new(rest_length, stiffness, damping))
+            }
+            /// Set the body-local anchor on body 1.
+            fn local_anchor1(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor1(g))
+            }
+            /// Set the body-local anchor on body 2.
+            fn local_anchor2(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor2(g))
+            }
+            /// Enable or disable contacts between the attached bodies.
+            fn contacts_enabled(&self, b: bool) -> Self {
+                Self(self.0.contacts_enabled(b))
+            }
+            /// Select how the spring force is applied (see :class:`MotorModel`).
+            fn spring_model(&self, m: MotorModel) -> Self {
+                Self(self.0.spring_model(m.to_rapier()))
+            }
+            /// Materialize the builder into a :class:`SpringJoint`.
+            fn build(&self) -> SpringJoint { SpringJoint(self.0.build()) }
+        }
+
+        // =================================================================
+        // GenericJoint + GenericJointBuilder
+        // =================================================================
+        /// Fully parametric joint, the building block of every concrete
+        /// joint type.
+        ///
+        /// A generic joint is described by:
+        ///
+        /// * Two body-local frames (``local_frame1``/``local_frame2``).
+        /// * A ``locked_axes`` mask listing the DOFs that are removed by
+        ///   the constraint. By default no axis is locked (the joint
+        ///   imposes nothing).
+        /// * A ``limit_axes`` / per-axis :class:`JointLimits` pair to bound
+        ///   the motion on selected axes.
+        /// * A ``motor_axes`` / per-axis :class:`JointMotor` pair to drive
+        ///   selected axes with a PD controller.
+        /// * A ``coupled_axes`` mask listing axes that share the same
+        ///   limit / motor (used e.g. by :class:`RopeJoint` to couple all
+        ///   linear axes into a single distance constraint).
+        ///
+        /// The concrete joint types (Fixed/Revolute/Prismatic/etc.) are
+        /// thin wrappers that pre-configure these masks for a given
+        /// mechanism.
+        #[pyclass(name = "GenericJoint", module = "rapier")]
+        #[derive(Debug)]
+        pub struct GenericJoint {
+            pub backing: GenericJointBacking,
+        }
+
+        /// Storage backing a `GenericJoint`: a standalone owned value, or a
+        /// live view into the `data` of a joint stored in an `ImpulseJointSet`
+        /// (so `impulse_joint.data.set_limits(..)` persists in place).
+        #[derive(Debug)]
+        pub enum GenericJointBacking {
+            Owned(Box<rapier::dynamics::GenericJoint>),
+            ImpulseJointData {
+                set: Py<ImpulseJointSet>,
+                handle: rapier::dynamics::ImpulseJointHandle,
+            },
+        }
+
+        impl Clone for GenericJointBacking {
+            fn clone(&self) -> Self {
+                match self {
+                    GenericJointBacking::Owned(g) => GenericJointBacking::Owned(g.clone()),
+                    GenericJointBacking::ImpulseJointData { set, handle } => Python::with_gil(|py| {
+                        GenericJointBacking::ImpulseJointData {
+                            set: set.clone_ref(py),
+                            handle: *handle,
+                        }
+                    }),
+                }
+            }
+        }
+        impl Clone for GenericJoint {
+            fn clone(&self) -> Self {
+                GenericJoint { backing: self.backing.clone() }
+            }
+        }
+
+        impl GenericJoint {
+            fn new_owned(joint: rapier::dynamics::GenericJoint) -> Self {
+                GenericJoint { backing: GenericJointBacking::Owned(Box::new(joint)) }
+            }
+            fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::GenericJoint) -> R) -> R {
+                match &self.backing {
+                    GenericJointBacking::Owned(g) => f(g),
+                    GenericJointBacking::ImpulseJointData { set, handle } => Python::with_gil(|py| {
+                        let set = set.bind(py).borrow();
+                        let joint = set.0.get(*handle).expect(
+                            "GenericJoint refers to a joint that was removed from its set",
+                        );
+                        f(&joint.data)
+                    }),
+                }
+            }
+            fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::GenericJoint) -> R) -> R {
+                match &mut self.backing {
+                    GenericJointBacking::Owned(g) => f(g),
+                    GenericJointBacking::ImpulseJointData { set, handle } => Python::with_gil(|py| {
+                        let mut set = set.bind(py).borrow_mut();
+                        let joint = set.0.get_mut(*handle, true).expect(
+                            "GenericJoint refers to a joint that was removed from its set",
+                        );
+                        f(&mut joint.data)
+                    }),
+                }
+            }
+            /// Copy the underlying joint out (it is `Copy` upstream).
+            pub fn to_owned_generic(&self) -> rapier::dynamics::GenericJoint {
+                self.with_ref(|g| *g)
+            }
+        }
+
+        #[pymethods]
+        impl GenericJoint {
+            /// Construct a generic joint with the given locked axes.
+            ///
+            /// :param locked_axes: Axes to lock; defaults to no axes
+            ///     (a fully free joint).
+            #[new]
+            #[pyo3(signature = (locked_axes=None))]
+            fn new(locked_axes: Option<JointAxesMask>) -> Self {
+                let mask = locked_axes
+                    .map(|m| m.0)
+                    .unwrap_or_else(rapier::dynamics::JointAxesMask::empty);
+                GenericJoint::new_owned(rapier::dynamics::GenericJoint::new(mask))
+            }
+            /// Build a :class:`GenericJointBuilder`.
+            ///
+            /// :param locked_axes: Axes to lock.
+            /// :param kwargs: Optional keyword args; accepted keys include
+            ///     ``local_anchor1``, ``local_anchor2``, ``local_axis1``,
+            ///     ``local_axis2``, ``local_frame1``, ``local_frame2``,
+            ///     ``locked_axes``, ``coupled_axes``, ``contacts_enabled``.
+            #[staticmethod]
+            #[pyo3(signature = (locked_axes=None, **kwargs))]
+            fn builder(
+                locked_axes: Option<JointAxesMask>,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<GenericJointBuilder> {
+                let mask = locked_axes
+                    .map(|m| m.0)
+                    .unwrap_or_else(rapier::dynamics::JointAxesMask::empty);
+                GenericJointBuilder::from_kwargs(
+                    rapier::dynamics::GenericJointBuilder::new(mask),
+                    kwargs,
+                )
+            }
+
+            /// Body-local frame (position + orientation) on body 1.
+            #[getter]
+            fn local_frame1(&self) -> $Iso {
+                let pose: $crate::na::Isometry<Real, _, $dim> = self.with_ref(|g| g.local_frame1).into();
+                $Iso(pose)
+            }
+            /// Set the body-local frame on body 1.
+            #[setter]
+            fn set_local_frame1(&mut self, iso: PyIsometry) {
+                let p: rapier::math::Pose = iso.0.into();
+                self.with_mut(|g| { g.set_local_frame1(p); });
+            }
+            /// Body-local frame on body 2.
+            #[getter]
+            fn local_frame2(&self) -> $Iso {
+                let pose: $crate::na::Isometry<Real, _, $dim> = self.with_ref(|g| g.local_frame2).into();
+                $Iso(pose)
+            }
+            /// Set the body-local frame on body 2.
+            #[setter]
+            fn set_local_frame2(&mut self, iso: PyIsometry) {
+                let p: rapier::math::Pose = iso.0.into();
+                self.with_mut(|g| { g.set_local_frame2(p); });
+            }
+            /// Body-local point on body 1 (origin of ``local_frame1``).
+            #[getter]
+            fn local_anchor1(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.with_ref(|g| g.local_anchor1()).into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 1.
+            #[setter]
+            fn set_local_anchor1(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.with_mut(|gj| { gj.set_local_anchor1(g); });
+            }
+            /// Body-local point on body 2 (origin of ``local_frame2``).
+            #[getter]
+            fn local_anchor2(&self) -> $Point {
+                let v: $crate::na::SVector<Real, $dim> = self.with_ref(|g| g.local_anchor2()).into();
+                $Point($crate::na::Point::from(v))
+            }
+            /// Set the body-local anchor on body 2.
+            #[setter]
+            fn set_local_anchor2(&mut self, p: PyPoint) {
+                let g: rapier::math::Vector = p.0.coords.into();
+                self.with_mut(|gj| { gj.set_local_anchor2(g); });
+            }
+            /// Reference axis on body 1 (X axis of ``local_frame1``).
+            #[getter]
+            fn local_axis1(&self) -> $Vec {
+                let v: $crate::na::SVector<Real, $dim> = self.with_ref(|g| g.local_axis1()).into();
+                $Vec(v)
+            }
+            /// Set the reference axis on body 1.
+            #[setter]
+            fn set_local_axis1(&mut self, v: PyVector) {
+                let g: rapier::math::Vector = v.0.into();
+                self.with_mut(|gj| { gj.set_local_axis1(g); });
+            }
+            /// Reference axis on body 2 (X axis of ``local_frame2``).
+            #[getter]
+            fn local_axis2(&self) -> $Vec {
+                let v: $crate::na::SVector<Real, $dim> = self.with_ref(|g| g.local_axis2()).into();
+                $Vec(v)
+            }
+            /// Set the reference axis on body 2.
+            #[setter]
+            fn set_local_axis2(&mut self, v: PyVector) {
+                let g: rapier::math::Vector = v.0.into();
+                self.with_mut(|gj| { gj.set_local_axis2(g); });
+            }
+
+            /// Mask of axes that are rigidly locked by this joint.
+            #[getter]
+            fn locked_axes(&self) -> JointAxesMask { JointAxesMask(self.with_ref(|g| g.locked_axes)) }
+            /// Replace the set of locked axes.
+            #[setter]
+            fn set_locked_axes(&mut self, v: JointAxesMask) { self.with_mut(|g| g.locked_axes = v.0); }
+
+            /// Mask of axes that carry a :class:`JointLimits` configuration.
+            #[getter]
+            fn limit_axes(&self) -> JointAxesMask { JointAxesMask(self.with_ref(|g| g.limit_axes)) }
+            /// Mask of axes that carry a :class:`JointMotor` configuration.
+            #[getter]
+            fn motor_axes(&self) -> JointAxesMask { JointAxesMask(self.with_ref(|g| g.motor_axes)) }
+            /// Mask of axes that share their limits / motor (e.g. coupled
+            /// linear axes giving a spherical distance constraint).
+            #[getter]
+            fn coupled_axes(&self) -> JointAxesMask { JointAxesMask(self.with_ref(|g| g.coupled_axes)) }
+            /// Replace the set of coupled axes.
+            #[setter]
+            fn set_coupled_axes(&mut self, v: JointAxesMask) { self.with_mut(|g| g.coupled_axes = v.0); }
+            /// Spring coefficients controlling the softness of this joint's
+            /// constraints (see :class:`SpringCoefficients`).
+            #[getter]
+            fn softness(&self) -> SpringCoefficients { SpringCoefficients(self.with_ref(|g| g.softness)) }
+            /// Set the spring coefficients controlling this joint's softness.
+            #[setter]
+            fn set_softness(&mut self, v: SpringCoefficients) { self.with_mut(|g| g.softness = v.0); }
+
+            /// Whether collision detection is enabled between the
+            /// attached bodies.
+            #[getter]
+            fn contacts_enabled(&self) -> bool { self.with_ref(|g| g.contacts_enabled) }
+            /// Enable or disable contacts between the attached bodies.
+            #[setter]
+            fn set_contacts_enabled(&mut self, v: bool) { self.with_mut(|g| { g.set_contacts_enabled(v); }); }
+
+            /// Current :class:`JointEnabled` state.
+            #[getter]
+            fn enabled(&self) -> JointEnabled { JointEnabled::from_rapier(self.with_ref(|g| g.enabled)) }
+            /// Explicitly enable or disable the joint.
+            ///
+            /// Maps to :py:attr:`JointEnabled.ENABLED` /
+            /// :py:attr:`JointEnabled.DISABLED`.
+            fn set_enabled(&mut self, b: bool) { self.with_mut(|g| { g.set_enabled(b); }); }
+            /// Return ``True`` iff ``enabled == ENABLED``.
+            fn is_enabled(&self) -> bool { self.with_ref(|g| g.is_enabled()) }
+
+            /// Opaque user-data integer carried by the joint.
+            #[getter]
+            fn user_data(&self) -> u128 { self.with_ref(|g| g.user_data) }
+            /// Set the user-data integer.
+            #[setter]
+            fn set_user_data(&mut self, v: u128) { self.with_mut(|g| g.user_data = v); }
+
+            /// Return the limits configured on ``axis``, if any.
+            fn limits(&self, axis: JointAxis) -> Option<JointLimits> {
+                self.with_ref(|g| g.limits(axis.to_rapier()).map(JointLimits::from_rapier))
+            }
+            /// Configure ``[min, max]`` limits on ``axis``.
+            ///
+            /// Units are radians for angular axes and world units for
+            /// linear axes.
+            fn set_limits(&mut self, axis: JointAxis, min: Real, max: Real) {
+                self.with_mut(|g| { g.set_limits(axis.to_rapier(), [min, max]); });
+            }
+            /// Return the motor configured on ``axis``, if any.
+            fn motor(&self, axis: JointAxis) -> Option<JointMotor> {
+                self.with_ref(|g| g.motor(axis.to_rapier()).map(JointMotor::from_rapier))
+            }
+            /// Fully configure the motor on ``axis``.
+            fn set_motor(&mut self, axis: JointAxis, target_pos: Real, target_vel: Real,
+                         stiffness: Real, damping: Real) {
+                self.with_mut(|g| {
+                    g.set_motor(axis.to_rapier(), target_pos, target_vel, stiffness, damping);
+                });
+            }
+            /// Configure ``axis`` as a velocity-target motor with damping.
+            fn set_motor_velocity(&mut self, axis: JointAxis, target_vel: Real, factor: Real) {
+                self.with_mut(|g| { g.set_motor_velocity(axis.to_rapier(), target_vel, factor); });
+            }
+            /// Configure ``axis`` as a spring-damper motor toward
+            /// ``target_pos``.
+            fn set_motor_position(&mut self, axis: JointAxis, target_pos: Real,
+                                  stiffness: Real, damping: Real) {
+                self.with_mut(|g| {
+                    g.set_motor_position(axis.to_rapier(), target_pos, stiffness, damping);
+                });
+            }
+            /// Clamp the maximum force the motor on ``axis`` can apply.
+            fn set_motor_max_force(&mut self, axis: JointAxis, max_force: Real) {
+                self.with_mut(|g| { g.set_motor_max_force(axis.to_rapier(), max_force); });
+            }
+            /// Select the motor model on ``axis`` (see :class:`MotorModel`).
+            fn set_motor_model(&mut self, axis: JointAxis, model: MotorModel) {
+                self.with_mut(|g| { g.set_motor_model(axis.to_rapier(), model.to_rapier()); });
+            }
+            /// Return the motor model on ``axis``, if a motor is configured.
+            fn motor_model(&self, axis: JointAxis) -> Option<MotorModel> {
+                self.with_ref(|g| g.motor_model(axis.to_rapier()).map(MotorModel::from_rapier))
+            }
+            /// Add ``axes`` to the set of locked axes.
+            fn lock_axes(&mut self, axes: JointAxesMask) {
+                self.with_mut(|g| { g.lock_axes(axes.0); });
+            }
+
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                format!("GenericJoint(locked_axes={:#010b}, enabled={:?})",
+                    self.with_ref(|g| g.locked_axes).bits(), self.with_ref(|g| g.enabled))
+            }
+        }
+
+        /// Fluent builder for :class:`GenericJoint`.
+        ///
+        /// Modifier methods return a new builder; call :py:meth:`build` to
+        /// produce a :class:`GenericJoint`. The same builder can be
+        /// applied to many bodies to create equivalent joints.
+        #[pyclass(name = "GenericJointBuilder", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct GenericJointBuilder(pub rapier::dynamics::GenericJointBuilder);
+
+        impl GenericJointBuilder {
+            fn from_kwargs(
+                base: rapier::dynamics::GenericJointBuilder,
+                kwargs: Option<&Bound<'_, $crate::pyo3::types::PyDict>>,
+            ) -> PyResult<Self> {
+                let mut me = Self(base);
+                if let Some(kw) = kwargs {
+                    for (k, v) in kw.iter() {
+                        let key: String = k.extract()?;
+                        match key.as_str() {
+                            "local_anchor1" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor1(g);
+                            }
+                            "local_anchor2" => {
+                                let p: PyPoint = v.extract()?;
+                                let g: rapier::math::Vector = p.0.coords.into();
+                                me.0 = me.0.local_anchor2(g);
+                            }
+                            "local_axis1" => {
+                                let pv: PyVector = v.extract()?;
+                                let g: rapier::math::Vector = pv.0.into();
+                                me.0 = me.0.local_axis1(g);
+                            }
+                            "local_axis2" => {
+                                let pv: PyVector = v.extract()?;
+                                let g: rapier::math::Vector = pv.0.into();
+                                me.0 = me.0.local_axis2(g);
+                            }
+                            "local_frame1" => {
+                                let iso: PyIsometry = v.extract()?;
+                                let p: rapier::math::Pose = iso.0.into();
+                                me.0 = me.0.local_frame1(p);
+                            }
+                            "local_frame2" => {
+                                let iso: PyIsometry = v.extract()?;
+                                let p: rapier::math::Pose = iso.0.into();
+                                me.0 = me.0.local_frame2(p);
+                            }
+                            "locked_axes" => {
+                                let m: JointAxesMask = v.extract()?;
+                                me.0 = me.0.locked_axes(m.0);
+                            }
+                            "coupled_axes" => {
+                                let m: JointAxesMask = v.extract()?;
+                                me.0 = me.0.coupled_axes(m.0);
+                            }
+                            "contacts_enabled" => {
+                                let b: bool = v.extract()?;
+                                me.0 = me.0.contacts_enabled(b);
+                            }
+                            _ => return Err(PyTypeError::new_err(
+                                format!("unknown GenericJointBuilder kwarg: '{}'", key)
+                            )),
+                        }
+                    }
+                }
+                Ok(me)
+            }
+        }
+
+        #[pymethods]
+        impl GenericJointBuilder {
+            /// Construct a new generic joint builder.
+            ///
+            /// :param locked_axes: Axes to lock; defaults to no axes.
+            #[new]
+            #[pyo3(signature = (locked_axes=None))]
+            fn new(locked_axes: Option<JointAxesMask>) -> Self {
+                let mask = locked_axes
+                    .map(|m| m.0)
+                    .unwrap_or_else(rapier::dynamics::JointAxesMask::empty);
+                Self(rapier::dynamics::GenericJointBuilder::new(mask))
+            }
+            /// Set the body-local anchor on body 1.
+            fn local_anchor1(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor1(g))
+            }
+            /// Set the body-local anchor on body 2.
+            fn local_anchor2(&self, p: PyPoint) -> Self {
+                let g: rapier::math::Vector = p.0.coords.into();
+                Self(self.0.local_anchor2(g))
+            }
+            /// Set the reference axis on body 1.
+            fn local_axis1(&self, v: PyVector) -> Self {
+                let g: rapier::math::Vector = v.0.into();
+                Self(self.0.local_axis1(g))
+            }
+            /// Set the reference axis on body 2.
+            fn local_axis2(&self, v: PyVector) -> Self {
+                let g: rapier::math::Vector = v.0.into();
+                Self(self.0.local_axis2(g))
+            }
+            /// Set the body-local frame on body 1.
+            fn local_frame1(&self, iso: PyIsometry) -> Self {
+                let p: rapier::math::Pose = iso.0.into();
+                Self(self.0.local_frame1(p))
+            }
+            /// Set the body-local frame on body 2.
+            fn local_frame2(&self, iso: PyIsometry) -> Self {
+                let p: rapier::math::Pose = iso.0.into();
+                Self(self.0.local_frame2(p))
+            }
+            /// Override the set of locked axes.
+            fn locked_axes(&self, m: JointAxesMask) -> Self {
+                Self(self.0.locked_axes(m.0))
+            }
+            /// Override the set of coupled axes.
+            fn coupled_axes(&self, m: JointAxesMask) -> Self {
+                Self(self.0.coupled_axes(m.0))
+            }
+            /// Enable or disable contacts between the attached bodies.
+            fn contacts_enabled(&self, b: bool) -> Self {
+                Self(self.0.contacts_enabled(b))
+            }
+            /// Apply ``[min, max]`` limits on ``axis`` (radians for angular,
+            /// world units for linear axes).
+            fn limits(&self, axis: JointAxis, min: Real, max: Real) -> Self {
+                Self(self.0.limits(axis.to_rapier(), [min, max]))
+            }
+            /// Fully configure the motor on ``axis``.
+            fn motor(&self, axis: JointAxis, target_pos: Real, target_vel: Real,
+                     stiffness: Real, damping: Real) -> Self {
+                Self(self.0.set_motor(axis.to_rapier(), target_pos, target_vel, stiffness, damping))
+            }
+            /// Configure ``axis`` as a velocity-target motor with damping.
+            fn motor_velocity(&self, axis: JointAxis, target_vel: Real, factor: Real) -> Self {
+                Self(self.0.motor_velocity(axis.to_rapier(), target_vel, factor))
+            }
+            /// Configure ``axis`` as a spring-damper motor toward
+            /// ``target_pos``.
+            fn motor_position(&self, axis: JointAxis, target_pos: Real, stiffness: Real, damping: Real) -> Self {
+                Self(self.0.motor_position(axis.to_rapier(), target_pos, stiffness, damping))
+            }
+            /// Clamp the maximum force the motor on ``axis`` can apply.
+            fn motor_max_force(&self, axis: JointAxis, max_force: Real) -> Self {
+                Self(self.0.motor_max_force(axis.to_rapier(), max_force))
+            }
+            /// Select the motor model on ``axis`` (see :class:`MotorModel`).
+            fn motor_model(&self, axis: JointAxis, model: MotorModel) -> Self {
+                Self(self.0.motor_model(axis.to_rapier(), model.to_rapier()))
+            }
+            /// Set the user-data integer carried by the joint.
+            fn user_data(&self, d: u128) -> Self {
+                Self(self.0.user_data(d))
+            }
+            /// Set the spring softness coefficients for this joint's
+            /// constraints (see :class:`SpringCoefficients`).
+            fn softness(&self, v: SpringCoefficients) -> Self { Self(self.0.softness(v.0)) }
+            /// Materialize the builder into a :class:`GenericJoint`.
+            fn build(&self) -> GenericJoint { GenericJoint::new_owned(self.0.build()) }
+        }
+
+        // =================================================================
+        // ImpulseJoint (view)
+        // =================================================================
+        /// Read-only view of a single joint stored in an
+        /// :class:`ImpulseJointSet`.
+        ///
+        /// Combines the two attached rigid-body handles with the
+        /// underlying :class:`GenericJoint` data and the last impulses
+        /// applied by the solver.
+        #[pyclass(name = "ImpulseJoint", module = "rapier")]
+        #[derive(Debug)]
+        pub struct ImpulseJoint {
+            pub backing: ImpulseJointBacking,
+        }
+
+        /// Storage backing an `ImpulseJoint`: a standalone owned joint (e.g.
+        /// from `remove`) or a handle-backed view into an `ImpulseJointSet`.
+        #[derive(Debug)]
+        pub enum ImpulseJointBacking {
+            Owned(Box<rapier::dynamics::ImpulseJoint>),
+            InSet {
+                set: Py<ImpulseJointSet>,
+                handle: rapier::dynamics::ImpulseJointHandle,
+            },
+        }
+
+        impl Clone for ImpulseJointBacking {
+            fn clone(&self) -> Self {
+                match self {
+                    ImpulseJointBacking::Owned(j) => ImpulseJointBacking::Owned(j.clone()),
+                    ImpulseJointBacking::InSet { set, handle } => Python::with_gil(|py| {
+                        ImpulseJointBacking::InSet { set: set.clone_ref(py), handle: *handle }
+                    }),
+                }
+            }
+        }
+        impl Clone for ImpulseJoint {
+            fn clone(&self) -> Self {
+                ImpulseJoint { backing: self.backing.clone() }
+            }
+        }
+
+        impl ImpulseJoint {
+            fn new_owned(joint: rapier::dynamics::ImpulseJoint) -> Self {
+                ImpulseJoint { backing: ImpulseJointBacking::Owned(Box::new(joint)) }
+            }
+            fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::ImpulseJoint) -> R) -> R {
+                match &self.backing {
+                    ImpulseJointBacking::Owned(j) => f(j),
+                    ImpulseJointBacking::InSet { set, handle } => Python::with_gil(|py| {
+                        let set = set.bind(py).borrow();
+                        let j = set.0.get(*handle).expect(
+                            "ImpulseJoint refers to a joint that was removed from its set",
+                        );
+                        f(j)
+                    }),
+                }
+            }
+            fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::ImpulseJoint) -> R) -> R {
+                match &mut self.backing {
+                    ImpulseJointBacking::Owned(j) => f(j),
+                    ImpulseJointBacking::InSet { set, handle } => Python::with_gil(|py| {
+                        let mut set = set.bind(py).borrow_mut();
+                        let j = set.0.get_mut(*handle, true).expect(
+                            "ImpulseJoint refers to a joint that was removed from its set",
+                        );
+                        f(j)
+                    }),
+                }
+            }
+        }
+
+        #[pymethods]
+        impl ImpulseJoint {
+            /// Handle of the first attached body.
+            #[getter]
+            fn body1(&self) -> RigidBodyHandle { self.with_ref(|j| RigidBodyHandle(j.body1())) }
+            /// Handle of the second attached body.
+            #[getter]
+            fn body2(&self) -> RigidBodyHandle { self.with_ref(|j| RigidBodyHandle(j.body2())) }
+            /// Underlying :class:`GenericJoint` description (read+write).
+            ///
+            /// For a joint stored in a set this is a live **view**: mutating it
+            /// in place persists, e.g.
+            /// ``joint.data.set_limits(JointAxis.LIN_X, -1.0, 1.0)``. Assigning
+            /// a whole :class:`GenericJoint` (``joint.data = gj``) also works.
+            #[getter]
+            fn data(&self) -> GenericJoint {
+                match &self.backing {
+                    ImpulseJointBacking::InSet { set, handle } => GenericJoint {
+                        backing: GenericJointBacking::ImpulseJointData {
+                            set: Python::with_gil(|py| set.clone_ref(py)),
+                            handle: *handle,
+                        },
+                    },
+                    ImpulseJointBacking::Owned(j) => GenericJoint::new_owned(j.data),
+                }
+            }
+            /// Replace the joint description (persists for an in-set joint).
+            #[setter]
+            fn set_data(&mut self, data: GenericJoint) {
+                let g = data.to_owned_generic();
+                self.with_mut(|j| j.data = g);
+            }
+            /// Per-axis impulses applied by the solver on the last step.
+            ///
+            /// :returns: Flat list of length 3 in 2D (lin_x, lin_y, ang_x)
+            ///     and 6 in 3D (lin_x, lin_y, lin_z, ang_x, ang_y, ang_z).
+            #[getter]
+            fn impulses(&self) -> Vec<Real> {
+                self.with_ref(|j| $crate::__spatial_vector_to_vec!($dim, j.impulses))
+            }
+            /// Return a developer-readable representation.
+            fn __repr__(&self) -> String {
+                self.with_ref(|j| {
+                    let (i1, g1) = j.body1().0.into_raw_parts();
+                    let (i2, g2) = j.body2().0.into_raw_parts();
+                    format!(
+                        "ImpulseJoint(body1=RigidBodyHandle({}, {}), body2=RigidBodyHandle({}, {}))",
+                        i1, g1, i2, g2
+                    )
+                })
+            }
+        }
+
+        // =================================================================
+        // ImpulseJointSet
+        // =================================================================
+        /// Container of impulse-based joints.
+        ///
+        /// Joints stored here are enforced by the iterative
+        /// velocity-impulse constraint solver alongside contacts. This is
+        /// the right home for general joint constraints between arbitrary
+        /// pairs of rigid bodies that do not form a tree-structured
+        /// articulation; use :class:`MultibodyJointSet` for the latter.
+        ///
+        /// Supports ``len()``, ``in``, ``set[handle]``, and iteration
+        /// (yielding ``(ImpulseJointHandle, ImpulseJoint)`` pairs).
+        #[pyclass(name = "ImpulseJointSet", module = "rapier", unsendable)]
+        pub struct ImpulseJointSet(pub rapier::dynamics::ImpulseJointSet);
+
+        #[pymethods]
+        impl ImpulseJointSet {
+            /// Construct an empty :class:`ImpulseJointSet`.
+            #[new]
+            fn new() -> Self { Self(rapier::dynamics::ImpulseJointSet::new()) }
+
+            /// Insert a new joint between ``body1`` and ``body2``.
+            ///
+            /// :param body1: Handle of the first attached body.
+            /// :param body2: Handle of the second attached body.
+            /// :param joint: A concrete joint or builder; anything that
+            ///     can be converted to a :class:`GenericJoint` is accepted.
+            /// :param wake_up: If ``True``, wake the attached bodies so
+            ///     they participate in the next solver step.
+            /// :returns: A fresh :class:`ImpulseJointHandle`.
+            #[pyo3(signature = (body1, body2, joint, wake_up=true))]
+            fn insert(
+                &mut self,
+                body1: &RigidBodyHandle,
+                body2: &RigidBodyHandle,
+                joint: &Bound<'_, PyAny>,
+                wake_up: bool,
+            ) -> PyResult<ImpulseJointHandle> {
+                let data = $crate::__extract_generic_joint!(joint)?;
+                Ok(ImpulseJointHandle(self.0.insert(body1.0, body2.0, data, wake_up)))
+            }
+
+            /// Rewire an existing joint to a new pair of bodies.
+            ///
+            /// The joint keeps its handle, configuration, and warm-started
+            /// impulses; only its attached bodies change. Use this to e.g.
+            /// transfer a grasp from one body to another without rebuilding
+            /// the constraint.
+            ///
+            /// :param handle: Handle returned by :py:meth:`insert`.
+            /// :param body1: Handle of the new first body.
+            /// :param body2: Handle of the new second body.
+            /// :param wake_up: If ``True``, wake the old and new bodies.
+            /// :returns: ``True`` if the joint existed and was rewired,
+            ///     ``False`` if ``handle`` was stale.
+            #[pyo3(signature = (handle, body1, body2, wake_up=true))]
+            fn set_bodies(
+                &mut self,
+                handle: &ImpulseJointHandle,
+                body1: &RigidBodyHandle,
+                body2: &RigidBodyHandle,
+                wake_up: bool,
+            ) -> bool {
+                self.0.set_bodies(handle.0, body1.0, body2.0, wake_up).is_some()
+            }
+
+            /// Remove the joint identified by ``handle``.
+            ///
+            /// :param handle: Handle returned by :py:meth:`insert`.
+            /// :param wake_up: If ``True``, wake the formerly attached
+            ///     bodies.
+            /// :returns: The removed joint, or ``None`` if the handle was
+            ///     stale.
+            #[pyo3(signature = (handle, wake_up=true))]
+            fn remove(&mut self, handle: &ImpulseJointHandle, wake_up: bool) -> Option<ImpulseJoint> {
+                self.0.remove(handle.0, wake_up).map(ImpulseJoint::new_owned)
+            }
+
+            /// Return a live **view** of the joint pointed at by ``handle``,
+            /// if any. Assigning ``joint.data = gj`` persists in place.
+            fn get(slf: &Bound<'_, Self>, handle: &ImpulseJointHandle) -> Option<ImpulseJoint> {
+                slf.borrow().0.get(handle.0)?;
+                Some(ImpulseJoint {
+                    backing: ImpulseJointBacking::InSet {
+                        set: slf.clone().unbind(),
+                        handle: handle.0,
+                    },
+                })
+            }
+
+            /// Indexed access (``self[handle]``) — returns a live view.
+            ///
+            /// :raises InvalidHandle: If ``handle`` does not point to a
+            ///     joint in this set.
+            fn __getitem__(
+                slf: &Bound<'_, Self>,
+                handle: &ImpulseJointHandle,
+            ) -> PyResult<ImpulseJoint> {
+                if slf.borrow().0.get(handle.0).is_none() {
+                    return Err($crate::errors::InvalidHandle::new_err(format!(
+                        "no impulse joint for {:?}",
+                        handle.0.into_raw_parts()
+                    )));
+                }
+                Ok(ImpulseJoint {
+                    backing: ImpulseJointBacking::InSet {
+                        set: slf.clone().unbind(),
+                        handle: handle.0,
+                    },
+                })
+            }
+
+            /// Return ``True`` iff ``handle`` resolves to a joint in this set.
+            fn __contains__(&self, handle: &ImpulseJointHandle) -> bool {
+                self.0.contains(handle.0)
+            }
+
+            /// Number of joints currently in the set.
+            fn __len__(&self) -> usize { self.0.len() }
+
+            /// Remove every joint from the set.
+            fn clear(&mut self) {
+                self.0 = rapier::dynamics::ImpulseJointSet::new();
+            }
+
+            /// Iterate over ``(handle, joint)`` pairs.
+            fn __iter__(slf: &Bound<'_, Self>) -> PyResult<Py<ImpulseJointSetIter>> {
+                let handles: Vec<rapier::dynamics::ImpulseJointHandle> =
+                    slf.borrow().0.iter().map(|(h, _)| h).collect();
+                Py::new(
+                    slf.py(),
+                    ImpulseJointSetIter { set: slf.clone().unbind(), handles, i: 0 },
+                )
+            }
+
+            /// Iterate over the handles of every joint attached to ``body``.
+            fn attached_joints(
+                slf: PyRef<'_, Self>,
+                body: &RigidBodyHandle,
+            ) -> PyResult<Py<ImpulseJointHandleIter>> {
+                let handles: Vec<ImpulseJointHandle> = slf
+                    .0
+                    .attached_joints(body.0)
+                    .map(|(_, _, h, _)| ImpulseJointHandle(h))
+                    .collect();
+                Py::new(slf.py(), ImpulseJointHandleIter { handles, i: 0 })
+            }
+
+            /// Return the ``(body1, body2)`` pair the joint connects.
+            ///
+            /// :raises InvalidHandle: If ``handle`` is stale.
+            fn bodies_connected_by_joint(
+                &self,
+                handle: &ImpulseJointHandle,
+            ) -> PyResult<(RigidBodyHandle, RigidBodyHandle)> {
+                let j = self.0.get(handle.0).ok_or_else(|| {
+                    $crate::errors::InvalidHandle::new_err(format!(
+                        "no impulse joint for {:?}",
+                        handle.0.into_raw_parts()
+                    ))
+                })?;
+                Ok((RigidBodyHandle(j.body1()), RigidBodyHandle(j.body2())))
+            }
+        }
+
+        /// Iterator yielding ``(ImpulseJointHandle, ImpulseJoint)`` pairs
+        /// for every joint in an :class:`ImpulseJointSet`.
+        #[pyclass]
+        pub struct ImpulseJointSetIter {
+            set: Py<ImpulseJointSet>,
+            handles: Vec<rapier::dynamics::ImpulseJointHandle>,
+            i: usize,
+        }
+
+        #[pymethods]
+        impl ImpulseJointSetIter {
+            /// Return ``self`` (iterator protocol).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> { slf }
+            /// Advance and return the next ``(handle, joint)`` pair (lazy view).
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<(ImpulseJointHandle, ImpulseJoint)> {
+                if slf.i >= slf.handles.len() { return None; }
+                let py = slf.py();
+                let handle = slf.handles[slf.i];
+                slf.i += 1;
+                let set = slf.set.clone_ref(py);
+                Some((
+                    ImpulseJointHandle(handle),
+                    ImpulseJoint { backing: ImpulseJointBacking::InSet { set, handle } },
+                ))
+            }
+        }
+
+        /// Iterator yielding handles of joints attached to a given body.
+        #[pyclass]
+        pub struct ImpulseJointHandleIter {
+            handles: Vec<ImpulseJointHandle>,
+            i: usize,
+        }
+
+        #[pymethods]
+        impl ImpulseJointHandleIter {
+            /// Return ``self`` (iterator protocol).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> { slf }
+            /// Advance and return the next handle.
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<ImpulseJointHandle> {
+                if slf.i >= slf.handles.len() { return None; }
+                let h = slf.handles[slf.i];
+                slf.i += 1;
+                Some(h)
+            }
+        }
+
+        // =================================================================
+        // MultibodyLink (view)
+        // =================================================================
+        /// Read-only view of one link inside a multibody articulation.
+        ///
+        /// Each link wraps a rigid body and tracks its position in the
+        /// articulation tree (its ``link_id`` and its ``parent_id``,
+        /// which is ``None`` for the root).
+        #[pyclass(name = "MultibodyLink", module = "rapier")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct MultibodyLink(pub rapier::dynamics::MultibodyLink);
+
+        #[pymethods]
+        impl MultibodyLink {
+            /// Handle of the rigid body backing this link.
+            #[getter]
+            fn rigid_body(&self) -> RigidBodyHandle {
+                RigidBodyHandle(self.0.rigid_body_handle())
+            }
+            /// Zero-based index of the link inside its articulation
+            /// (``0`` for the root).
+            #[getter]
+            fn link_id(&self) -> usize { self.0.link_id() }
+            /// Link index of the parent, or ``None`` if this is the root.
+            #[getter]
+            fn parent_id(&self) -> Option<usize> { self.0.parent_id() }
+            /// Return ``True`` iff this link is the root of its articulation.
+            fn is_root(&self) -> bool { self.0.is_root() }
+            /// Generalized coordinates of this link's joint.
+            ///
+            /// :returns: Flat list of length 3 in 2D (lin_x, lin_y, ang) and
+            ///     6 in 3D (lin_x, lin_y, lin_z, ang_x, ang_y, ang_z). Only
+            ///     the entries for the joint's unlocked degrees of freedom are
+            ///     meaningful.
+            #[getter]
+            fn coords(&self) -> Vec<Real> {
+                $crate::__spatial_vector_to_vec!($dim, self.0.joint().coords())
+            }
+            /// This link's joint angular coordinates as a rotation.
+            #[getter]
+            fn joint_rot(&self) -> $Rot {
+                $Rot(self.0.joint().joint_rot().into())
+            }
+        }
+
+        // =================================================================
+        // Multibody (view)
+        // =================================================================
+        /// Reduced-coordinate articulation: a tree of links connected by
+        /// joints.
+        ///
+        /// A :class:`Multibody` represents an articulated system (robot,
+        /// character, ragdoll, ...) where each link is a rigid body and
+        /// the configuration is parameterized by the joint coordinates
+        /// (one per joint DOF, summing to :py:attr:`ndofs`). Unlike
+        /// impulse joints, the topology is restricted to a tree but the
+        /// constraints are exact and inertia is propagated analytically
+        /// along the kinematic chain.
+        #[pyclass(name = "Multibody", module = "rapier")]
+        #[derive(Debug)]
+        pub struct Multibody {
+            pub set: Py<MultibodyJointSet>,
+            pub key: MultibodyKey,
+        }
+
+        /// How a `Multibody` view locates its articulation within the
+        /// `MultibodyJointSet`: by stable index, or by one of its joint handles.
+        #[derive(Debug, Clone, Copy)]
+        pub enum MultibodyKey {
+            Index(rapier::dynamics::MultibodyIndex),
+            Joint(rapier::dynamics::MultibodyJointHandle),
+        }
+
+        impl Clone for Multibody {
+            fn clone(&self) -> Self {
+                Python::with_gil(|py| Multibody { set: self.set.clone_ref(py), key: self.key })
+            }
+        }
+
+        impl Multibody {
+            fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::Multibody) -> R) -> R {
+                Python::with_gil(|py| {
+                    let set = self.set.bind(py).borrow();
+                    let mb = match self.key {
+                        MultibodyKey::Index(i) => set.0.get_multibody(i),
+                        MultibodyKey::Joint(h) => set.0.get(h).map(|(mb, _)| mb),
+                    }
+                    .expect("Multibody refers to an articulation no longer in its set");
+                    f(mb)
+                })
+            }
+            fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::Multibody) -> R) -> R {
+                Python::with_gil(|py| {
+                    let mut set = self.set.bind(py).borrow_mut();
+                    let mb = match self.key {
+                        MultibodyKey::Index(i) => set.0.get_multibody_mut(i),
+                        MultibodyKey::Joint(h) => set.0.get_mut(h).map(|(mb, _)| mb),
+                    }
+                    .expect("Multibody refers to an articulation no longer in its set");
+                    f(mb)
+                })
+            }
+        }
+
+        #[pymethods]
+        impl Multibody {
+            /// Handle of the root link's rigid body.
+            #[getter]
+            fn root_handle(&self) -> RigidBodyHandle {
+                self.with_ref(|mb| RigidBodyHandle(mb.root().rigid_body_handle()))
+            }
+            /// Total number of links in the articulation.
+            #[getter]
+            fn num_links(&self) -> usize { self.with_ref(|mb| mb.num_links()) }
+            /// Total number of degrees of freedom across all joints.
+            #[getter]
+            fn ndofs(&self) -> usize { self.with_ref(|mb| mb.ndofs()) }
+            /// Return the link with index ``idx``, or ``None`` if out of
+            /// range.
+            fn get_link(&self, idx: usize) -> Option<MultibodyLink> {
+                self.with_ref(|mb| mb.link(idx).copied().map(MultibodyLink))
+            }
+            /// Iterate over the links in depth-first order from the root.
+            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<MultibodyLinkIter>> {
+                let links: Vec<MultibodyLink> =
+                    slf.with_ref(|mb| mb.links().copied().map(MultibodyLink).collect());
+                Py::new(slf.py(), MultibodyLinkIter { links, i: 0 })
+            }
+            /// Return ``True`` iff contacts between links of this
+            /// articulation are enabled.
+            fn self_contacts_enabled(&self) -> bool {
+                self.with_ref(|mb| mb.self_contacts_enabled())
+            }
+            /// Enable or disable contacts between links of this
+            /// articulation.
+            fn set_self_contacts_enabled(&mut self, v: bool) {
+                self.with_mut(|mb| mb.set_self_contacts_enabled(v));
+            }
+
+            /// Per-degree-of-freedom joint damping coefficients
+            /// (length :attr:`ndofs`).
+            fn damping(&self) -> Vec<Real> {
+                self.with_ref(|mb| mb.damping().iter().copied().collect())
+            }
+            /// Set the per-DOF joint damping coefficients.
+            ///
+            /// :raises ValueError: If ``values`` length differs from `ndofs`.
+            fn set_damping(&mut self, values: Vec<Real>) -> PyResult<()> {
+                self.with_mut(|mb| {
+                    let mut d = mb.damping_mut();
+                    if values.len() != d.len() {
+                        return Err(PyValueError::new_err(format!(
+                            "expected {} damping values (ndofs), got {}",
+                            d.len(),
+                            values.len()
+                        )));
+                    }
+                    for (i, v) in values.iter().enumerate() {
+                        d[i] = *v;
+                    }
+                    Ok(())
+                })
+            }
+            /// Generalized velocity vector (one entry per DOF).
+            fn generalized_velocity(&self) -> Vec<Real> {
+                self.with_ref(|mb| mb.generalized_velocity().iter().copied().collect())
+            }
+            /// Set the generalized velocity vector.
+            ///
+            /// :raises ValueError: If ``values`` length differs from `ndofs`.
+            fn set_generalized_velocity(&mut self, values: Vec<Real>) -> PyResult<()> {
+                self.with_mut(|mb| {
+                    let mut v = mb.generalized_velocity_mut();
+                    if values.len() != v.len() {
+                        return Err(PyValueError::new_err(format!(
+                            "expected {} velocity values (ndofs), got {}",
+                            v.len(),
+                            values.len()
+                        )));
+                    }
+                    for (i, x) in values.iter().enumerate() {
+                        v[i] = *x;
+                    }
+                    Ok(())
+                })
+            }
+            /// Generalized acceleration vector from the last solver step.
+            fn generalized_acceleration(&self) -> Vec<Real> {
+                self.with_ref(|mb| mb.generalized_acceleration().iter().copied().collect())
+            }
+            /// Velocity DOFs belonging to a single ``link``.
+            fn joint_velocity(&self, link: &MultibodyLink) -> Vec<Real> {
+                self.with_ref(|mb| mb.joint_velocity(&link.0).iter().copied().collect())
+            }
+            /// The body Jacobian of link ``link_id`` as a row-major nested
+            /// list with ``2*dim`` rows (linear then angular) and `ndofs`
+            /// columns.
+            fn body_jacobian(&self, link_id: usize) -> Vec<Vec<Real>> {
+                self.with_ref(|mb| {
+                    let j = mb.body_jacobian(link_id);
+                    (0..j.nrows())
+                        .map(|r| (0..j.ncols()).map(|c| j[(r, c)]).collect())
+                        .collect()
+                })
+            }
+            /// Link indices on the path from the root to ``link_id``
+            /// (inclusive).
+            fn kinematic_branch(&self, link_id: usize) -> Vec<usize> {
+                self.with_ref(|mb| mb.kinematic_branch(link_id))
+            }
+            /// Write each link's pose (and optionally mass properties) into
+            /// ``bodies`` from this multibody's current generalized state.
+            fn update_rigid_bodies(&self, bodies: &mut RigidBodySet, update_mass_properties: bool) {
+                self.with_ref(|mb| mb.update_rigid_bodies(&mut bodies.0, update_mass_properties));
+            }
+            /// Recompute link poses from the generalized coordinates
+            /// (forward kinematics).
+            ///
+            /// :param bodies: Rigid-body set (read-only here).
+            /// :param read_root_pose_from_rigid_body: If ``True``, seed the
+            ///     root link's pose from its rigid body first.
+            #[pyo3(signature = (bodies, read_root_pose_from_rigid_body=false))]
+            fn forward_kinematics(
+                &mut self,
+                bodies: &RigidBodySet,
+                read_root_pose_from_rigid_body: bool,
+            ) {
+                self.with_mut(|mb| {
+                    mb.forward_kinematics(&bodies.0, read_root_pose_from_rigid_body)
+                });
+            }
+        }
+
+        /// Iterator yielding the :class:`MultibodyLink`-s of a
+        /// :class:`Multibody`.
+        #[pyclass]
+        pub struct MultibodyLinkIter {
+            links: Vec<MultibodyLink>,
+            i: usize,
+        }
+
+        #[pymethods]
+        impl MultibodyLinkIter {
+            /// Return ``self`` (iterator protocol).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> { slf }
+            /// Advance and return the next link.
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<MultibodyLink> {
+                if slf.i >= slf.links.len() { return None; }
+                let l = slf.links[slf.i];
+                slf.i += 1;
+                Some(l)
+            }
+        }
+
+        // =================================================================
+        // MultibodyJointSet
+        // =================================================================
+        /// Container of reduced-coordinate multibody articulations.
+        ///
+        /// Joints inserted here build tree-structured articulations (one
+        /// :class:`Multibody` per connected component) whose constraints
+        /// are solved in reduced coordinates rather than via impulses.
+        /// Recommended for robots, characters, and any kinematic chain
+        /// where exact joint behaviour is more important than the
+        /// flexibility of arbitrary topologies (use
+        /// :class:`ImpulseJointSet` for those).
+        ///
+        /// Supports ``len()`` and iteration over joint handles.
+        #[pyclass(name = "MultibodyJointSet", module = "rapier", unsendable)]
+        pub struct MultibodyJointSet(pub rapier::dynamics::MultibodyJointSet);
+
+        #[pymethods]
+        impl MultibodyJointSet {
+            /// Construct an empty :class:`MultibodyJointSet`.
+            #[new]
+            fn new() -> Self { Self(rapier::dynamics::MultibodyJointSet::new()) }
+
+            /// Insert a dynamic joint between ``parent`` and ``link_body``.
+            ///
+            /// :param parent: Handle of the body that will become the
+            ///     parent link.
+            /// :param link_body: Handle of the body that will become the
+            ///     child link.
+            /// :param joint: A concrete joint or builder.
+            /// :param wake_up: If ``True``, wake the attached bodies.
+            /// :returns: A new handle, or ``None`` if the bodies cannot be
+            ///     attached (e.g. doing so would create a cycle).
+            #[pyo3(signature = (parent, link_body, joint, wake_up=true))]
+            fn insert(
+                &mut self,
+                parent: &RigidBodyHandle,
+                link_body: &RigidBodyHandle,
+                joint: &Bound<'_, PyAny>,
+                wake_up: bool,
+            ) -> PyResult<Option<MultibodyJointHandle>> {
+                let data = $crate::__extract_generic_joint!(joint)?;
+                Ok(self.0.insert(parent.0, link_body.0, data, wake_up).map(MultibodyJointHandle))
+            }
+
+            /// Insert a kinematic joint between ``parent`` and ``link_body``.
+            ///
+            /// Kinematic joints are user-driven: the solver enforces the
+            /// constraint but the joint coordinates themselves are
+            /// imposed externally rather than evolved by the dynamics.
+            ///
+            /// :param parent: Handle of the parent body.
+            /// :param link_body: Handle of the child body.
+            /// :param joint: A concrete joint or builder.
+            /// :param wake_up: If ``True``, wake the attached bodies.
+            #[pyo3(signature = (parent, link_body, joint, wake_up=true))]
+            fn insert_kinematic(
+                &mut self,
+                parent: &RigidBodyHandle,
+                link_body: &RigidBodyHandle,
+                joint: &Bound<'_, PyAny>,
+                wake_up: bool,
+            ) -> PyResult<Option<MultibodyJointHandle>> {
+                let data = $crate::__extract_generic_joint!(joint)?;
+                Ok(self
+                    .0
+                    .insert_kinematic(parent.0, link_body.0, data, wake_up)
+                    .map(MultibodyJointHandle))
+            }
+
+            /// Remove the joint identified by ``handle``.
+            ///
+            /// :param handle: Handle returned by :py:meth:`insert`.
+            /// :param wake_up: If ``True``, wake the formerly attached
+            ///     bodies.
+            #[pyo3(signature = (handle, wake_up=true))]
+            fn remove(&mut self, handle: &MultibodyJointHandle, wake_up: bool) {
+                self.0.remove(handle.0, wake_up);
+            }
+
+            /// Return the ``(multibody, link_id)`` pair containing the joint.
+            /// The multibody is a live **view** into the set.
+            fn get(slf: &Bound<'_, Self>, handle: &MultibodyJointHandle) -> Option<(Multibody, usize)> {
+                let id = slf.borrow().0.get(handle.0).map(|(_, id)| id)?;
+                Some((
+                    Multibody {
+                        set: slf.clone().unbind(),
+                        key: MultibodyKey::Joint(handle.0),
+                    },
+                    id,
+                ))
+            }
+
+            /// Return the :class:`Multibody` (live view) containing the joint.
+            fn multibody(slf: &Bound<'_, Self>, handle: &MultibodyJointHandle) -> Option<Multibody> {
+                slf.borrow().0.get(handle.0)?;
+                Some(Multibody {
+                    set: slf.clone().unbind(),
+                    key: MultibodyKey::Joint(handle.0),
+                })
+            }
+
+            /// Return the :class:`MultibodyLinkId` of ``body`` if it
+            /// belongs to one of the articulations stored here.
+            fn rigid_body_link(&self, body: &RigidBodyHandle) -> Option<MultibodyLinkId> {
+                self.0.rigid_body_link(body.0).copied().map(MultibodyLinkId)
+            }
+
+            /// Return the articulation (live view) referred to by ``index``.
+            fn get_multibody(slf: &Bound<'_, Self>, index: &MultibodyIndex) -> Option<Multibody> {
+                slf.borrow().0.get_multibody(index.0)?;
+                Some(Multibody {
+                    set: slf.clone().unbind(),
+                    key: MultibodyKey::Index(index.0),
+                })
+            }
+
+            /// Find the multibody joint connecting two bodies, if they are
+            /// directly linked within the same articulation.
+            ///
+            /// :returns: ``(handle, multibody, link)`` for the child link, or
+            ///     ``None`` if the bodies are not joined in one articulation.
+            fn joint_between(
+                slf: &Bound<'_, Self>,
+                body1: &RigidBodyHandle,
+                body2: &RigidBodyHandle,
+            ) -> Option<(MultibodyJointHandle, Multibody, MultibodyLink)> {
+                let (h, link) = slf
+                    .borrow()
+                    .0
+                    .joint_between(body1.0, body2.0)
+                    .map(|(h, _mb, link)| (h, *link))?;
+                Some((
+                    MultibodyJointHandle(h),
+                    Multibody {
+                        set: slf.clone().unbind(),
+                        key: MultibodyKey::Joint(h),
+                    },
+                    MultibodyLink(link),
+                ))
+            }
+
+            /// Number of articulations currently stored.
+            fn __len__(&self) -> usize { self.0.multibodies().count() }
+
+            /// Iterate over every joint handle in the set.
+            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<MultibodyJointSetIter>> {
+                let mut handles: Vec<MultibodyJointHandle> = vec![];
+                for (h, _, _, _) in slf.0.iter() {
+                    handles.push(MultibodyJointHandle(h));
+                }
+                Py::new(slf.py(), MultibodyJointSetIter { handles, i: 0 })
+            }
+
+            /// Iterate over the handles of every joint attached to ``body``.
+            fn attached_joints(
+                slf: PyRef<'_, Self>,
+                body: &RigidBodyHandle,
+            ) -> PyResult<Py<MultibodyJointHandleIter>> {
+                let handles: Vec<MultibodyJointHandle> = slf
+                    .0
+                    .attached_joints(body.0)
+                    .map(|(_, _, h)| MultibodyJointHandle(h))
+                    .collect();
+                Py::new(slf.py(), MultibodyJointHandleIter { handles, i: 0 })
+            }
+
+            /// Solve inverse kinematics for the link identified by
+            /// ``handle``.
+            ///
+            /// Iteratively drives the chain's joint coordinates so that
+            /// the link's pose matches ``target_pose``. The solver
+            /// terminates when the residual is below
+            /// :py:attr:`InverseKinematicsOption.epsilon_linear` and
+            /// :py:attr:`InverseKinematicsOption.epsilon_angular`, or
+            /// after :py:attr:`InverseKinematicsOption.max_iters`
+            /// iterations.
+            ///
+            /// :param bodies: Rigid-body set containing the articulation's
+            ///     bodies.
+            /// :param handle: Handle of the joint whose link is being
+            ///     positioned.
+            /// :param target_pose: Desired world-space pose for the link.
+            /// :param option: Solver tuning; defaults to a sensible
+            ///     starting point if omitted.
+            /// :returns: Flat list of length :py:attr:`Multibody.ndofs`
+            ///     giving the joint-coordinate displacement that achieves
+            ///     the IK target.
+            /// :raises InvalidHandle: If ``handle`` is stale.
+            // Inverse kinematics passthrough for a single link of a multibody.
+            //
+            // This is a thin wrapper around `Multibody::inverse_kinematics`
+            // that returns the resulting displacement vector.
+            #[pyo3(signature = (bodies, handle, target_pose, option=None))]
+            fn inverse_kinematics_for_link(
+                &self,
+                bodies: &RigidBodySet,
+                handle: &MultibodyJointHandle,
+                target_pose: PyIsometry,
+                option: Option<&InverseKinematicsOption>,
+            ) -> PyResult<Vec<Real>> {
+                let (mb, link_id) = self.0.get(handle.0).ok_or_else(|| {
+                    $crate::errors::InvalidHandle::new_err(format!(
+                        "no multibody joint for {:?}",
+                        handle.0.into_raw_parts()
+                    ))
+                })?;
+                let opts = option
+                    .copied()
+                    .unwrap_or_else(|| InverseKinematicsOption {
+                        damping: 1.0,
+                        max_iters: 10,
+                        constrained_axes: JointAxesMask(rapier::dynamics::JointAxesMask::all()),
+                        epsilon_linear: 1.0e-3,
+                        epsilon_angular: 1.0e-3,
+                    });
+                let rapier_opts = opts.to_rapier();
+                let target: rapier::math::Pose = target_pose.0.into();
+                let mut displacements =
+                    $crate::na::DVector::<Real>::zeros(mb.ndofs());
+                mb.inverse_kinematics(
+                    &bodies.0,
+                    link_id,
+                    &rapier_opts,
+                    &target,
+                    |_| true,
+                    &mut displacements,
+                );
+                Ok(displacements.iter().copied().collect())
+            }
+        }
+
+        /// Iterator yielding every :class:`MultibodyJointHandle` in a
+        /// :class:`MultibodyJointSet`.
+        #[pyclass]
+        pub struct MultibodyJointSetIter {
+            handles: Vec<MultibodyJointHandle>,
+            i: usize,
+        }
+
+        #[pymethods]
+        impl MultibodyJointSetIter {
+            /// Return ``self`` (iterator protocol).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> { slf }
+            /// Advance and return the next handle.
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<MultibodyJointHandle> {
+                if slf.i >= slf.handles.len() { return None; }
+                let h = slf.handles[slf.i];
+                slf.i += 1;
+                Some(h)
+            }
+        }
+
+        /// Iterator yielding the handles of every multibody joint
+        /// attached to a given rigid body.
+        #[pyclass]
+        pub struct MultibodyJointHandleIter {
+            handles: Vec<MultibodyJointHandle>,
+            i: usize,
+        }
+
+        #[pymethods]
+        impl MultibodyJointHandleIter {
+            /// Return ``self`` (iterator protocol).
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> { slf }
+            /// Advance and return the next handle.
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<MultibodyJointHandle> {
+                if slf.i >= slf.handles.len() { return None; }
+                let h = slf.handles[slf.i];
+                slf.i += 1;
+                Some(h)
+            }
+        }
+    };
+}
+
+// ====================================================================
+// Helper macros — dim-specific bits the common macro can't express.
+// ====================================================================
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __revolute_new {
+    (2, $axis:expr) => {{
+        let _ = $axis;
+        Ok(Self(rapier::dynamics::RevoluteJoint::new()))
+    }};
+    (3, $axis:expr) => {{
+        let axis: PyVector = $axis.ok_or_else(|| {
+            $crate::pyo3::exceptions::PyTypeError::new_err(
+                "RevoluteJoint.new(axis=Vector) is required in 3D",
+            )
+        })?;
+        let g: rapier::math::Vector = axis.0.into();
+        Ok(Self(rapier::dynamics::RevoluteJoint::new(g)))
+    }};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __revolute_builder_new {
+    (2, $axis:expr) => {{
+        let _ = $axis;
+        Ok::<rapier::dynamics::RevoluteJointBuilder, $crate::pyo3::PyErr>(
+            rapier::dynamics::RevoluteJointBuilder::new(),
+        )
+    }};
+    (3, $axis:expr) => {{
+        let axis: PyVector = $axis.ok_or_else(|| {
+            $crate::pyo3::exceptions::PyTypeError::new_err(
+                "RevoluteJoint.builder(axis=Vector) is required in 3D",
+            )
+        })?;
+        let g: rapier::math::Vector = axis.0.into();
+        Ok::<rapier::dynamics::RevoluteJointBuilder, $crate::pyo3::PyErr>(
+            rapier::dynamics::RevoluteJointBuilder::new(g),
+        )
+    }};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __spatial_vector_to_vec {
+    // 2D: SpatialVector = parry::math::Vec3 (3 lanes: x, y, z).
+    (2, $sv:expr) => {{
+        let v = $sv;
+        vec![v.x, v.y, v.z]
+    }};
+    // 3D: SpatialVector = [Real; 6].
+    (3, $sv:expr) => {{
+        let v = $sv;
+        v.to_vec()
+    }};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __extract_generic_joint {
+    ($obj:expr) => {{
+        // Accept any of the concrete joint wrappers OR a GenericJoint OR a
+        // builder. Return Result<rapier::dynamics::GenericJoint, PyErr>.
+        let obj = $obj;
+        let result: $crate::pyo3::PyResult<rapier::dynamics::GenericJoint> = (|| {
+            if let Ok(j) = obj.extract::<$crate::pyo3::PyRef<'_, GenericJoint>>() {
+                return Ok(j.to_owned_generic());
+            }
+            if let Ok(b) = obj.extract::<$crate::pyo3::PyRef<'_, GenericJointBuilder>>() {
+                return Ok(b.0.build());
+            }
+            if let Ok(j) = obj.extract::<$crate::pyo3::PyRef<'_, FixedJoint>>() {
+                return Ok(j.0.into());
+            }
+            if let Ok(b) = obj.extract::<$crate::pyo3::PyRef<'_, FixedJointBuilder>>() {
+                return Ok(b.0.build().into());
+            }
+            if let Ok(j) = obj.extract::<$crate::pyo3::PyRef<'_, RevoluteJoint>>() {
+                return Ok(j.0.into());
+            }
+            if let Ok(b) = obj.extract::<$crate::pyo3::PyRef<'_, RevoluteJointBuilder>>() {
+                return Ok(b.0.build().into());
+            }
+            if let Ok(j) = obj.extract::<$crate::pyo3::PyRef<'_, PrismaticJoint>>() {
+                return Ok(j.0.into());
+            }
+            if let Ok(b) = obj.extract::<$crate::pyo3::PyRef<'_, PrismaticJointBuilder>>() {
+                return Ok(b.0.build().into());
+            }
+            if let Ok(j) = obj.extract::<$crate::pyo3::PyRef<'_, RopeJoint>>() {
+                return Ok(j.0.into());
+            }
+            if let Ok(b) = obj.extract::<$crate::pyo3::PyRef<'_, RopeJointBuilder>>() {
+                return Ok(b.0.build().into());
+            }
+            if let Ok(j) = obj.extract::<$crate::pyo3::PyRef<'_, SpringJoint>>() {
+                return Ok(j.0.into());
+            }
+            if let Ok(b) = obj.extract::<$crate::pyo3::PyRef<'_, SpringJointBuilder>>() {
+                return Ok(b.0.build().into());
+            }
+            $crate::__extract_generic_joint_dim_specific!(obj)
+        })();
+        result
+    }};
+}
+
+// SphericalJoint is 3D only; PinSlotJoint is 2D only. Each dim macro
+// (`__define_joints_2d!` / `__define_joints_3d!`) emits a free function
+// `try_extract_dim_specific_joint` in the cdylib namespace that handles its
+// dim's specific joint(s). This shared macro just calls into that.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __extract_generic_joint_dim_specific {
+    ($obj:expr) => {{
+        let obj = $obj;
+        $crate::__extract_generic_joint_dim_specific_inner!(obj)
+    }};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __extract_generic_joint_dim_specific_inner {
+    ($obj:expr) => {{
+        let obj = $obj;
+        // The dim-specific macros emit a free function
+        // `try_extract_dim_specific_joint(obj) -> PyResult<Option<GenericJoint>>`
+        // that handles SphericalJoint (3D) or PinSlotJoint (2D).
+        match try_extract_dim_specific_joint(obj)? {
+            Some(gj) => Ok(gj),
+            None => Err($crate::pyo3::exceptions::PyTypeError::new_err(
+                "expected a joint (concrete or generic) or a joint builder",
+            )),
+        }
+    }};
+}
+
+// ====================================================================
+// register_joints — per-dim entry point.
+// ====================================================================
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_joints_register {
+    (3) => {
+        pub fn register_joints(
+            _py: $crate::pyo3::Python<'_>,
+            m: &$crate::pyo3::Bound<'_, $crate::pyo3::types::PyModule>,
+        ) -> $crate::pyo3::PyResult<()> {
+            use $crate::pyo3::prelude::*;
+            // Enums/handles/structs
+            m.add_class::<JointEnabled>()?;
+            m.add_class::<MotorModel>()?;
+            m.add_class::<JointLimits>()?;
+            m.add_class::<JointMotor>()?;
+            m.add_class::<JointAxesMask>()?;
+            m.add_class::<JointAxis>()?;
+            m.add_class::<ImpulseJointHandle>()?;
+            m.add_class::<MultibodyJointHandle>()?;
+            m.add_class::<MultibodyIndex>()?;
+            m.add_class::<MultibodyLinkId>()?;
+            m.add_class::<InverseKinematicsOption>()?;
+            // Concrete joints + builders
+            m.add_class::<FixedJoint>()?;
+            m.add_class::<FixedJointBuilder>()?;
+            m.add_class::<RevoluteJoint>()?;
+            m.add_class::<RevoluteJointBuilder>()?;
+            m.add_class::<PrismaticJoint>()?;
+            m.add_class::<PrismaticJointBuilder>()?;
+            m.add_class::<SphericalJoint>()?;
+            m.add_class::<SphericalJointBuilder>()?;
+            m.add_class::<RopeJoint>()?;
+            m.add_class::<RopeJointBuilder>()?;
+            m.add_class::<SpringJoint>()?;
+            m.add_class::<SpringJointBuilder>()?;
+            m.add_class::<GenericJoint>()?;
+            m.add_class::<GenericJointBuilder>()?;
+            // Sets & views
+            m.add_class::<ImpulseJoint>()?;
+            m.add_class::<ImpulseJointSet>()?;
+            m.add_class::<ImpulseJointSetIter>()?;
+            m.add_class::<ImpulseJointHandleIter>()?;
+            m.add_class::<MultibodyLink>()?;
+            m.add_class::<Multibody>()?;
+            m.add_class::<MultibodyLinkIter>()?;
+            m.add_class::<MultibodyJointSet>()?;
+            m.add_class::<MultibodyJointSetIter>()?;
+            m.add_class::<MultibodyJointHandleIter>()?;
+            Ok(())
+        }
+    };
+    (2) => {
+        pub fn register_joints(
+            _py: $crate::pyo3::Python<'_>,
+            m: &$crate::pyo3::Bound<'_, $crate::pyo3::types::PyModule>,
+        ) -> $crate::pyo3::PyResult<()> {
+            use $crate::pyo3::prelude::*;
+            m.add_class::<JointEnabled>()?;
+            m.add_class::<MotorModel>()?;
+            m.add_class::<JointLimits>()?;
+            m.add_class::<JointMotor>()?;
+            m.add_class::<JointAxesMask>()?;
+            m.add_class::<JointAxis>()?;
+            m.add_class::<ImpulseJointHandle>()?;
+            m.add_class::<MultibodyJointHandle>()?;
+            m.add_class::<MultibodyIndex>()?;
+            m.add_class::<MultibodyLinkId>()?;
+            m.add_class::<InverseKinematicsOption>()?;
+            m.add_class::<FixedJoint>()?;
+            m.add_class::<FixedJointBuilder>()?;
+            m.add_class::<RevoluteJoint>()?;
+            m.add_class::<RevoluteJointBuilder>()?;
+            m.add_class::<PrismaticJoint>()?;
+            m.add_class::<PrismaticJointBuilder>()?;
+            m.add_class::<PinSlotJoint>()?;
+            m.add_class::<PinSlotJointBuilder>()?;
+            m.add_class::<RopeJoint>()?;
+            m.add_class::<RopeJointBuilder>()?;
+            m.add_class::<SpringJoint>()?;
+            m.add_class::<SpringJointBuilder>()?;
+            m.add_class::<GenericJoint>()?;
+            m.add_class::<GenericJointBuilder>()?;
+            m.add_class::<ImpulseJoint>()?;
+            m.add_class::<ImpulseJointSet>()?;
+            m.add_class::<ImpulseJointSetIter>()?;
+            m.add_class::<ImpulseJointHandleIter>()?;
+            m.add_class::<MultibodyLink>()?;
+            m.add_class::<Multibody>()?;
+            m.add_class::<MultibodyLinkIter>()?;
+            m.add_class::<MultibodyJointSet>()?;
+            m.add_class::<MultibodyJointSetIter>()?;
+            m.add_class::<MultibodyJointHandleIter>()?;
+            Ok(())
+        }
+    };
+}

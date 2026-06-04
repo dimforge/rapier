@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rapier-testbed"
+version = "0.32.0"
+description = "Panda3D-based visual testbed and example gallery for the Rapier Python bindings."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Sébastien Crozet", email = "sebcrozet@dimforge.com" }]
+keywords = ["physics", "simulation", "rapier", "testbed", "visualization"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment :: Simulation",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.9"
+# The testbed drives both the 2D and 3D (f32) engines, so it depends on both.
+dependencies = [
+    "rapier2d",
+    "rapier3d",
+    "numpy>=1.21",
+    "panda3d>=1.10",
+]
+
+[project.urls]
+Homepage = "https://rapier.rs"
+Repository = "https://github.com/dimforge/rapier"
+Issues = "https://github.com/dimforge/rapier/issues"
+
+[project.scripts]
+rapier-testbed = "rapier_testbed:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["rapier_testbed"]

@@ -10,3 +10,21 @@ package-lock.json
 .vscode/
 *.autosave.json
 .claude
+
+# Python bindings: compiled extension modules that `maturin develop` stages
+# next to each package's Python sources (e.g. `_rapier3d.abi3.so`) and the
+# Sphinx build output.
+python/rapier-py-*/python/**/_rapier*.so
+python/rapier-py-*/python/**/_rapier*.pyd
+python/rapier-py-*/python/**/_rapier*.dylib
+python/docs/_build/
+**/__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/

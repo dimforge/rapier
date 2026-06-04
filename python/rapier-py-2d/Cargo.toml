@@ -1,0 +1,29 @@
+[package]
+name = "rapier-py-2d"
+version.workspace = true
+authors.workspace = true
+description = "PyO3 extension module wrapping rapier2d (f32)."
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+name = "_rapier2d"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[features]
+# Phase 11 — opt-in determinism build (see `rapier-py-3d` for rationale).
+determinism = ["rapier2d/enhanced-determinism"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multiple-pymethods"] }
+rapier-py-core = { path = "../rapier-py-core" }
+rapier2d = { path = "../../crates/rapier2d", features = ["serde-serialize", "debug-render", "simd-stable"] }
+# Phase 11 — Serialization, snapshots.
+serde = { workspace = true, features = ["derive", "std"] }
+bincode = { workspace = true }
+serde_json = { workspace = true }
