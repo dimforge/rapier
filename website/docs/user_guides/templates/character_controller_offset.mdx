@@ -1,0 +1,35 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+For performance and numerical stability reasons, the character controller will attempt to preserve a small gap between
+the character shape and the environment. This small gap is named `offset` and acts as a small margin around the character
+shape. A good value for this offset is something sufficiently small to make the gap unnoticeable, but sufficiently large
+to avoid numerical issues (if the character seems to get stuck inexplicably, try increasing the offset).
+
+![character offset](/img/cct_character_offset.svg)
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_character_controller2.rs' marker='Offset' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Offset' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/character_controller.ts' marker='Offset' />
+```
+
+</js>
+
+:::warning
+It is **not recommended** to change the offset after the creation of the character controller.
+:::

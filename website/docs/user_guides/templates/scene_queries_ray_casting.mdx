@@ -1,0 +1,118 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+Ray-casting is a geometric query that finds one or several colliders intersecting a half-line. Ray-casting is an
+extremely common operation that covers a wide variety of use-cases: firing bullets, character controllers,
+rendering (for ray-tracing), etc.
+
+A ray is defined by its origin and its direction: it can be interpreted as a single point moving in a straight
+line towards the ray direction.
+
+:::info
+In addition to the ray geometric information, ray-casting method allow additional control over the behavior of the
+ray cast like limiting the length of the ray and ignoring some colliders. See the detailed ray-cast arguments description
+after the next example.
+:::
+
+There are multiple ray-casting methods yielding more or less detailed results (see example bellow). The more results you
+get, the more computationally expensive the ray-cast will be.
+
+<rapier>
+
+<Tabs
+    groupId="dim"
+    defaultValue="2D"
+    values={[
+        {label: 'Example 2D', value: '2D'},
+        {label: 'Example 3D', value: '3D'},
+    ]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_scene_queries2.rs' marker='Raycast' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_scene_queries3.rs' marker='Raycast' />
+```
+
+</TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+    groupId="dim"
+    defaultValue="2D"
+    values={[
+        {label: 'Example 2D', value: '2D'},
+        {label: 'Example 3D', value: '3D'},
+    ]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/scene_queries2.rs' marker='Raycast' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/scene_queries3.rs' marker='Raycast' />
+```
+
+</TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+    groupId="dim"
+    defaultValue="2D"
+    values={[
+        {label: 'Example 2D', value: '2D'},
+        {label: 'Example 3D', value: '3D'},
+    ]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/scene_queries.ts' marker='Raycast' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/scene_queries.ts' marker='Raycast' />
+```
+
+</TabItem>
+</Tabs>
+
+</js>
+
+Aside from the ray being cast, all these ray-casting methods take a few extra parameters for controlling the behavior
+of the ray-cast:
+- <notjs> **`max_toi`** </notjs><js> **`maxToi`** </js>: is the maximum "time-of-impact" that can be reported by the ray-cast. The notion of "time-of-impact" refer
+to the fact that a ray can be seen as a point starting at `ray.origin` moving at a linear velocity equal
+to `ray.dir`. Therefore, `max_toi` limits the ray-cast to the segment: `[ray.origin, ray.origin + ray.dir * max_toi]`.
+- **`solid`**: this argument controls the behavior of the ray-cast if `ray.origin` is inside of a shape: if `solid` is `true`
+then the hit point will be the ray origin itself (`toi = 0.0`) because the interior of the shape will be assumed
+to be filled with material. If `solid` is `false` then the shape will be assumed to have an empty interior and
+the hit point will be the first time the ray hits the shape's boundary. The following 2D example illustrates
+the difference between the two scenarios. The ray is in green and the resulting hit point circled in red:
+
+<div style={{textAlign: 'center'}}>
+
+![solid ray-cast](/img/solid_ray_cast.svg)
+
+</div>
+
+In addition, it is possible to only apply the scene query to a subsets of the colliders using [a query filter](./scene_queries_ray_casting.mdx#query-filters).
+

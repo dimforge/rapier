@@ -1,0 +1,38 @@
+---
+id: serialization
+title: Serialization
+sidebar_label: Serialization
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<notjs>
+
+When the `serde-serialize` feature of Rapier is enabled, most data structures of Rapier become serializable using [serde](http://serde.rs).
+Serialization can be useful to save the complete state of the simulation, e.g., to send it over the network, or to restore
+this state later. In order to fully serialize the simulation state, it is necessary to serialize every structure
+described in the [simulation structures](./simulation_structures.mdx) page, except for the `PhysicsPipeline` and the
+`CollisionPipeline` which don't hold any useful state. The following shows an example of serialization of the
+complete physics state. For convenience, the example defines a `PhysicsState` serializable struct that wraps every
+relevant serializable state. It uses [bincode](https://crates.io/crates/bincode) as the serialization format:
+
+```rust
+<load path='/2d/rust/examples/rs_serialization.rs' marker='Serialization' />
+```
+
+:::info
+If the `enhanced-determinism` feature of Rapier is enabled, and if your platform fulfills the required [determinism
+requirements](./determinism.mdx), then you have the guarantee that running the exact same simulation on two different machine
+will result in the exact same byte vectors if the physics state is serialized on both machines after the same
+number of timesteps.
+:::
+
+</notjs>
+<js>
+
+It is possible to take a snapshot of the whole physics world with `world.takeSnapshot`. This results in a byte array
+of type `Uint8Array` that may be saved on the disk, sent through the network, etc. The snapshot can then be restored
+with `let world = World.restoreSnapshot(snapshot);`.
+
+</js>

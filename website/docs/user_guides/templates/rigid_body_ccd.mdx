@@ -1,0 +1,51 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Continuous Collision Detection (CCD) is used to make sure that fast-moving objects don't miss any contacts (a problem
+usually called **tunneling**). This  is done by using motion-clamping, i.e., each fast-moving rigid-body with CCD enabled
+will be stopped at the time where their first contact happen, taking their continuous motion into account. This will result
+in some "time loss" for that rigid-body. This loss of time can be reduced by increasing the maximum number of CCD
+substeps executed (the default being 1) in the [IntegrationParameters](./simulation_structures.mdx#integration-parameters)
+(by changing the <rapier>`IntegrationParameters::max_ccd_substeps`</rapier><bevy>`RapierContext::integration_parameters::max_ccd_substeps`</bevy><js>`IntegrationParameters.maxCcdSubsteps`</js> field).
+
+Rapier implements nonlinear CCD, meaning that it takes into account both the angular and translational motion of the
+rigid-body.
+
+:::info
+CCD takes action only if the CCD-enabled rigid-body is moving fast relative to another rigid-body. Therefore
+it is useless to enable CCD on fixed rigid-bodies and rigid-bodies that are expected to move slowly.
+:::
+
+By default, CCD is disabled for all the rigid-bodies because it requires additional computations. It can be enabled
+when creating a rigid-body or after its creation:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Ccd1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Ccd2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='Ccd1' />
+```
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='Ccd2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Ccd1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Ccd2' />
+```
+
+</js>

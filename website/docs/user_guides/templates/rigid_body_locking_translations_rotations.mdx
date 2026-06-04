@@ -1,0 +1,107 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+It is sometimes useful to prevent a rigid-body from rotating or translating. One typical use-case for locking rotations
+is to prevent a player modeled as a dynamic rigid-body from tilting. These kind of degree-of-freedom restrictions could
+be achieved by [joints](./rigid_body_locking_translations_rotations.mdx#joints), but locking translations/rotations of a single rigid-body wrt. the cartesian coordinate
+axes can be done  in a much more efficient and numerically stable way. That's why rigid-bodies have
+dedicated <rapier>methods</rapier><bevy>flags</bevy><js>methods</js> for this.
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='LockedAxes1' />
+```
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='LockedAxes2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_rigid_bodies3.rs' marker='LockedAxes1' />
+```
+
+```rust
+<load path='/3d/rust/examples/rs_rigid_bodies3.rs' marker='LockedAxes2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='LockedAxes1' />
+```
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='LockedAxes2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/rigid_bodies_continued3.rs' marker='LockedAxes1' />
+```
+```rust
+<load path='/3d/bevy/examples/rigid_bodies_continued3.rs' marker='LockedAxes2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='LockedAxes1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='LockedAxes2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/rigid_bodies.ts' marker='LockedAxes1' />
+```
+```js
+<load path='/3d/javascript/src/snippets/rigid_bodies.ts' marker='LockedAxes2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>

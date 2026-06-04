@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 815 243" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1,0,0,1,-131,-2520)">
+        <g id="Capsule">
+        </g>
+        <g id="Capsule1" serif:id="Capsule">
+        </g>
+        <g id="Capsule2" serif:id="Capsule">
+        </g>
+        <g id="Capsule3" serif:id="Capsule">
+        </g>
+        <g id="Capsule4" serif:id="Capsule">
+        </g>
+        <g id="Capsule5" serif:id="Capsule">
+        </g>
+        <g id="Capsule6" serif:id="Capsule">
+        </g>
+        <g id="Capsule7" serif:id="Capsule">
+        </g>
+        <g id="Capsule8" serif:id="Capsule">
+        </g>
+        <g id="Capsule9" serif:id="Capsule">
+        </g>
+        <g id="Capsule10" serif:id="Capsule">
+        </g>
+        <g id="Capsule11" serif:id="Capsule">
+        </g>
+        <g id="Capsule12" serif:id="Capsule" transform="matrix(0.969778,0,0,0.91123,301.344,2465.19)">
+            <path d="M200.787,124.016C200.787,101.2 219.311,82.677 242.126,82.677C264.941,82.677 283.465,101.2 283.465,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.64px;stroke-dasharray:2.64,10.54,0,0;stroke-dashoffset:2.64;"/>
+            <g transform="matrix(1,0,0,1,-5.68434e-14,129.921)">
+                <path d="M283.465,121.752C283.465,144.567 264.941,165.354 242.126,165.354C219.311,165.354 200.787,146.831 200.787,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.64px;stroke-dasharray:2.64,10.54,0,0;"/>
+            </g>
+            <path d="M200.787,124.016L200.787,259.843" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.64px;stroke-dasharray:2.64,10.54,0,0;"/>
+            <path d="M283.465,253.74L283.465,124.016" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.64px;stroke-dasharray:2.64,10.54,0,0;"/>
+        </g>
+        <g id="Capsule13" serif:id="Capsule" transform="matrix(0.857143,0,0,0.857143,329.064,2475.25)">
+            <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(76,76,76);"/>
+            <g transform="matrix(1,0,0,1,-5.68434e-14,129.921)">
+                <circle cx="242.126" cy="124.016" r="41.339" style="fill:rgb(76,76,76);"/>
+            </g>
+            <rect x="200.787" y="124.016" width="82.677" height="135.827" style="fill:rgb(76,76,76);"/>
+        </g>
+        <g transform="matrix(1,0,0,1,199.538,614.173)">
+            <path d="M177.165,2125.98L496.063,2125.98" style="fill:none;stroke:rgb(76,76,76);stroke-width:8.15px;"/>
+        </g>
+        <g transform="matrix(1,-0,-0,1,131,2520)">
+            <path d="M362.386,82.57L370.168,85.512L367.852,77.521C367.747,80.15 365.014,82.675 362.386,82.57Z" style="fill:rgb(76,76,76);"/>
+            <path d="M366.129,81.139C359.289,73.735 346.165,59.528 346.165,59.528L281.205,59.528" style="fill:none;stroke:rgb(76,76,76);stroke-width:2.48px;stroke-linecap:butt;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-5.90551,36.6142)">
+            <g transform="matrix(1,-0,-0,1,136.906,2483.39)">
+                <path d="M356.48,119.185L364.262,122.126L361.946,114.135C361.842,116.764 359.109,119.289 356.48,119.185Z" style="fill:rgb(0,96,196);"/>
+                <path d="M360.223,117.753C353.384,110.349 340.26,96.142 340.26,96.142L281.205,96.142" style="fill:none;stroke:rgb(0,96,196);stroke-width:2.48px;stroke-linecap:butt;"/>
+            </g>
+        </g>
+        <g transform="matrix(1,0,0,1,-20.7835,-2.70222)">
+            <text x="363.78px" y="2625.15px" style="font-family:'Arial-BoldMT', 'Arial', sans-serif;font-weight:700;font-size:20.833px;fill:rgb(0,96,196);">Oﬀset</text>
+        </g>
+        <g transform="matrix(1,0,0,1,-20.7835,-40.8375)">
+            <text x="363.78px" y="2625.15px" style="font-family:'Arial-BoldMT', 'Arial', sans-serif;font-weight:700;font-size:20.833px;fill:rgb(76,76,76);">Shape</text>
+        </g>
+    </g>
+</svg>

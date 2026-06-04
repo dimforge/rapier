@@ -1,0 +1,126 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<rapier>
+
+A rigid-body is created by a `RigidBodyBuilder` structure that is based on the builder pattern. Then it needs
+to be inserted into the `RigidBodySet` that will be processed by the physics-pipeline or query-pipeline.
+
+:::info
+The following example shows several setters that can be called to customize the
+rigid-body being built. The input values are just random so using this example
+as-is will not lead to a useful result.
+:::
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_rigid_bodies3.rs' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+
+All the properties are optional. The only calls that are required are `RigidBodyBuilder::new(status)`,
+`RigidBodyBuilder::fixed()`, `RigidBodyBuilder::dynamic()`, `RigidBodyBuilder::kinematic_velocity_based()`,
+or `RigidBodyBuilder::kinematic_position_based()`, to
+initialize the builder, and `.build()` to actually build the rigid-body.
+
+</rapier>
+
+<bevy>
+
+A rigid-body is created by adding the `RigidBody` component to an entity. Other components
+like `Transform`, `Velocity`, `Ccd`, etc. can be added for further customization of the
+rigid-body.
+
+:::info
+The following example shows several initialization of components to customize
+rigid-body being built. The input values are just random so using this example
+as-is will not lead to a useful result.
+:::
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/rigid_bodies2.rs' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/rigid_bodies3.rs' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+
+<js>
+
+A rigid-body is created by a `World.createRigidBody` method. The initial state of
+the rigid-body to create is described by an instance of the `RigidBodyDesc` class.
+
+Each rigid-body create by the physics world is given an integer identifier `rigidBody.handle`. This identifier
+is guaranteed to the different from any identifier of rigid-bodies still existing (or that existed) in the physics
+world.
+
+:::info
+The following example shows several setters that can be called to customize the
+rigid-body being built. The input values are just random so using this example
+as-is will not lead to a useful result.
+:::
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/rigid_bodies.ts' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+
+:::info
+Typically, the inertia and center of mass are automatically set to the inertia and center of mass resulting from the
+shapes of the [colliders](./rigid_body_creation_and_insertion.mdx#colliders) attached to the rigid-body. But they can also be set manually.
+:::

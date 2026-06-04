@@ -1,0 +1,41 @@
+---
+id: multiple_contexts
+title: Multiple physics contexts
+sidebar_label: Multiple physics contexts
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Some projects may require multiple physics contexts. For example, a game with multiple levels may want to have a
+different physics context for each level. An AI-training project may want to simulate multiple physics contexts in parallel.
+
+This page explains how to manage multiple physics contexts in Rapier.
+
+## Components
+
+By default, on `PreStartup`, `bevy_rapier` spawns an entity with components needed for the `RapierContext` **QueryData**, and mark it with the `DefaultRapierContext` component,
+so most users can forget about multiple contexts support and use "low boilerplate" accessors such as `ReadRapierContext`.
+
+If you don't want a default context to be spawned,
+you can disable it using `RapierContextInitialization`:
+
+```rust
+<load path='/2d/bevy/examples/multiple_contexts.rs' marker='MultipleContexts_no_default' />
+```
+
+If you need multiple physics contexts, you can spawn them manually. Here is an example of how to spawn a new
+physics context:
+
+```rust
+<load path='/2d/bevy/examples/multiple_contexts.rs' marker='MultipleContexts_new' />
+```
+
+Any entity managed by a `RapierContext` (colliders, joints, rigidbodies) has a `RapierContextEntityLink` component attached to it. This component
+can be used to retrieve its corresponding physics context.
+
+## Resources
+
+`bevy_rapier` uses a `schedule` to parameterize its execution, this means all physics contexts share the same `TimestepMode` resource:
+
+all physics contexts execute at the same time, at the same rate.

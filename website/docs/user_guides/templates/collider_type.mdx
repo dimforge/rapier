@@ -1,0 +1,44 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+There are two types of colliders:
+- <rapier>`ColliderType::Solid`: **solid colliders**</rapier><bevy>A **solid collider**</bevy><js>A **solid collider**</js> represents a geometric shape
+  that can have contact points with other colliders to generate contact forces to prevent objects from
+  penetrating-each-others.
+- <rapier>`ColliderType::Sensor`: **sensor colliders**</rapier><bevy>**Sensor colliders**</bevy><js>**Sensor colliders**</js> on the other end don't
+  generate contacts: they only generate intersection events when one sensor collider and another collider start/stop
+  touching. Sensor colliders are generally used to detect when something enters an area. Note that, for symmetry with non-sensor colliders, sensors *do* contribute to the mass of a rigid-body they are attached to.
+
+By default a collider is a solid collider. This can be changed to a sensor when constructing the collider, or after its
+construction:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='ColliderType1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='ColliderType2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='ColliderType1' />
+```
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='ColliderType2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='ColliderType1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='ColliderType2' />
+```
+
+</js>

@@ -1,0 +1,97 @@
+---
+id: rigid_bodies
+title: Rigid-bodies
+sidebar_label: Rigid-bodies
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+The real-time simulation of rigid-bodies subjected to forces and contacts is the main feature of a physics engine for
+video-games, robotics, or animation. Rigid-bodies are typically used to simulate the dynamics of non-deformable solids as well
+as to integrate the trajectory of solids which velocities are controlled by the user (e.g. moving platforms). On
+the other hand, rigid-bodies are not enough to simulate, e.g., cars, ragdolls, or robotic systems, as those use-cases
+require adding restrictions on the relative motion between their parts using [joints](./joints.mdx).
+ 
+Note that rigid-bodies are only responsible for the dynamics and kinematics of the solid. [Colliders](./colliders.mdx) can be
+attached to a rigid-body to specify its shape and enable collision-detection. A rigid-body without collider attached to it will
+not be affected by contacts (because there is no shape to compute contact against).
+
+## Creation and insertion
+import CreationAndInsertion from './rigid_body_creation_and_insertion.mdx'
+
+<CreationAndInsertion />
+
+## Rigid-body type
+import RigidBodyType from './rigid_body_type.mdx'
+
+<RigidBodyType />
+
+## Position
+import Position from './rigid_body_position.mdx'
+
+<Position />
+
+## Velocity
+import Velocity from './rigid_body_velocity.mdx'
+
+<Velocity />
+
+## Gravity
+import Gravity from './rigid_body_gravity.mdx'
+
+<Gravity />
+
+## Forces and impulses
+import ForcesAndImpulses from './rigid_body_forces_and_impulses.mdx'
+
+<ForcesAndImpulses />
+
+## Mass properties
+import MassProperties from './rigid_body_mass_properties.mdx'
+
+<MassProperties />
+
+## Locking translations/rotations
+import Locking from './rigid_body_locking_translations_rotations.mdx'
+
+<Locking />
+
+## Damping
+import Damping from './rigid_body_damping.mdx'
+
+<Damping />
+
+## Dominance
+import Dominance from './rigid_body_dominance.mdx'
+
+<Dominance />
+
+## Continuous collision detection
+import CCD from './rigid_body_ccd.mdx'
+
+<CCD />
+
+## Sleeping
+import Sleeping from './rigid_body_sleeping.mdx'
+
+<Sleeping />
+
+
+<rapier>
+
+## User-data
+Each rigid-body can be given a user-defined data of type `u128`. This integer can have any value
+and is never used/modified by the physics-engine. This can for example be useful to add some custom data for
+custom [contact filtering/modification](./advanced_collision_detection.mdx#physics-hooks).
+
+This user-data can be set when the rigid-body is created or after its creation:
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Userdata1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Userdata2' />
+```
+
+</rapier>

@@ -1,0 +1,50 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+[Physics hooks](./advanced_collision_detection.mdx#physics-hooks) are user-defined callbacks used to filter-out some contact
+pairs, or modify contacts, based on arbitrary user code. In order to enable a physics hook for a pair of colliders, at
+least one of the involved colliders must have the corresponding hook set as active. A hook is activated for a collider
+by setting its corresponding active hooks bit to `1`:
+- Setting the <notjs>`ActiveHooks::FILTER_CONTACT_PAIR`</notjs><js>`ActiveHooks.FILTER_CONTACT_PAIR`</js> bit to 1
+  enables the manual [filtering of all the contact pairs](./advanced_collision_detection.mdx#contact-and-intersection-filtering)
+  involving the collider.
+- Setting the <notjs>`ActiveHooks::FILTER_INTERSECTION_PAIR`</notjs><js>`ActiveHooks.FILTER_INTERSECTION_PAIR`</js>bit
+  to 1 enables the manual [filtering of all the contact pairs](./advanced_collision_detection.mdx#contact-and-intersection-filtering)
+  involving the collider.
+<notjs>- Setting the `ActiveHooks::MODIFY_SOLVER_CONTACTS` bit to 1
+  enables the manual [contact modification](./advanced_collision_detection.mdx#contact-modification) for all the contact
+  manifolds involving the collider.</notjs>
+
+The active hooks of a collider can be set when the collider is created or after its creation:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='ActiveHooks1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='ActiveHooks2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='ActiveHooks1' />
+```
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='ActiveHooks2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='ActiveHooks1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='ActiveHooks2' />
+```
+
+</js>

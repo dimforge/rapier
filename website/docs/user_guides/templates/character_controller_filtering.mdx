@@ -1,0 +1,36 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<rapier>
+
+It is possible to let the character controller ignore some obstacles. This is achieved by configuring the
+`filter` argument of the `KinematicCharacterController::move_shape` method. This `QueryFilter` structure is detailed
+in the [scene query filters](./scene_queries.mdx#query-filters) section.
+
+:::warning
+If the character-controller is used to move a collider (and the rigid-body it may be attached to) that is present
+in the physics scene, the filters **must** be used to exclude that collider (and that rigid-body) from the set of
+obstacles (with `QueryFilter::exclude_collider` and `QueryFilter::exclude_rigid_body`) to prevent the character from
+colliding with itself.
+:::
+
+</rapier>
+
+<bevy>
+
+It is possible to let the character controller ignore some obstacles. This is achieved by configuring the
+`KinematicCharacterController::filter_flags` to exclude whole families of obstacles (e.g. all the colliders
+attached to dynamic rigid-bodies), and `KinematicCharacterController::filter_groups` to filter based
+on the colliders [collision groups](./colliders.mdx#collision-groups-and-solver-groups).
+
+</bevy>
+
+<js>
+
+It is possible to let the character controller ignore some obstacles. This can be achieved by setting the
+optional arguments of the `KinematicCharacterController.computeColliderMovement` method:
+- `filterFlags`: to exclude whole families of obstacles (e.g. all the colliders attached to dynamic rigid-bodies).
+- `filterGroups`: filter based on the colliders [collision groups](./colliders.mdx#collision-groups-and-solver-groups).
+- `filterPredicate`: an arbitrary closure to filter-out colliders based on user-defined rules.
+
+</js>

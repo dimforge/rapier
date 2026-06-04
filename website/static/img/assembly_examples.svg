@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="844px" height="331px" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g>
+        <path d="M594.758,243.708L575.977,205.502" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M562.39,197.337C563.039,191.382 568.297,187.064 574.126,187.699C579.954,188.334 584.16,193.684 583.511,199.638C582.862,205.592 577.603,209.911 571.775,209.276C565.947,208.641 561.741,203.291 562.39,197.337Z" style="fill:rgb(0,33,255);stroke:black;stroke-width:1.67px;"/>
+        <path d="M563.532,211.07C559.501,207.822 557.154,202.584 557.765,196.978C558.709,188.315 566.36,182.032 574.84,182.955C581.224,183.651 586.928,189.546 588.629,195.466" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M552.563,154.689L566.008,184.301" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <g>
+        <path d="M727.008,262.158L684.462,263.674" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M671.455,272.735C666.286,269.709 664.495,263.144 667.458,258.084C670.421,253.025 677.022,251.375 682.191,254.402C687.359,257.428 689.15,263.993 686.187,269.052C683.225,274.112 676.623,275.762 671.455,272.735Z" style="fill:rgb(0,184,48);stroke:black;stroke-width:1.67px;"/>
+        <path d="M684.455,277.309C679.842,279.659 674.102,279.659 669.236,276.809C661.716,272.405 659.111,262.854 663.421,255.493C666.667,249.951 674.379,247.157 680.477,248.025" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M628.517,264.265L661.038,264.103" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <g>
+        <path d="M805.031,154.689L789.092,194.166" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M792.071,209.735C787.202,213.223 780.477,212.186 777.063,207.419C773.648,202.653 774.829,195.952 779.698,192.464C784.567,188.976 791.292,190.013 794.707,194.779C798.121,199.545 796.94,206.247 792.071,209.735Z" style="fill:rgb(243,126,0);stroke:black;stroke-width:1.67px;"/>
+        <path d="M801.542,199.724C801.81,204.894 799.473,210.136 794.888,213.42C787.804,218.495 778.02,216.986 773.052,210.051C769.312,204.83 769.9,196.649 773.176,191.433" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M766.851,245.502L779.945,215.734" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <g>
+        <path d="M704.154,57.743L741.202,78.716" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M757.028,77.801C759.848,83.085 757.939,89.616 752.766,92.377C747.594,95.138 741.105,93.09 738.285,87.806C735.464,82.522 737.374,75.99 742.546,73.23C747.718,70.469 754.207,72.517 757.028,77.801Z" style="fill:rgb(222,116,201);stroke:black;stroke-width:1.67px;"/>
+        <path d="M748.343,67.101C753.504,67.512 758.395,70.516 761.05,75.491C765.154,83.179 762.376,92.681 754.85,96.698C749.185,99.722 741.15,98.068 736.408,94.136" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M789.184,107.489L761.387,90.608" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <path d="M246.648,36.657C246.648,32.068 242.923,28.343 238.335,28.343L221.707,28.343C217.119,28.343 213.394,32.068 213.394,36.657L213.394,139.29C213.394,143.878 217.119,147.603 221.707,147.603L238.335,147.603C242.923,147.603 246.648,143.878 246.648,139.29L246.648,36.657Z" style="fill:rgb(0,33,255);stroke:black;stroke-width:1.67px;"/>
+    <path d="M332.978,227.772C332.978,225.753 331.34,224.114 329.321,224.114L322.006,224.114C319.987,224.114 318.348,225.753 318.348,227.772L318.348,256.396C318.348,258.415 319.987,260.054 322.006,260.054L329.321,260.054C331.34,260.054 332.978,258.415 332.978,256.396L332.978,227.772Z" style="fill:rgb(243,126,0);stroke:black;stroke-width:1.67px;"/>
+    <path d="M93.816,96.171C93.816,89.276 88.218,83.678 81.323,83.678L56.337,83.678C49.442,83.678 43.844,89.276 43.844,96.171L43.844,315.22C43.844,322.115 49.442,327.713 56.337,327.713L81.323,327.713C88.218,327.713 93.816,322.115 93.816,315.22L93.816,96.171Z" style="fill:rgb(226,0,0);stroke:black;stroke-width:1.67px;"/>
+    <path d="M350.077,13.071C350.077,6.317 344.594,0.833 337.84,0.833L313.365,0.833C306.61,0.833 301.127,6.317 301.127,13.071L301.127,223.423C301.127,230.177 306.61,235.661 313.365,235.661L337.84,235.661C344.594,235.661 350.077,230.177 350.077,223.423L350.077,13.071Z" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <path d="M350.077,13.071C350.077,6.317 344.594,0.833 337.84,0.833L313.365,0.833C306.61,0.833 301.127,6.317 301.127,13.071L301.127,106.009C301.127,112.764 350.077,112.764 350.077,106.009L350.077,13.071Z" style="fill:rgb(0,184,48);stroke:black;stroke-width:1.67px;"/>
+    <path d="M250.083,90.409C244.364,84.279 227.527,89.875 219.414,89.982L95.851,98.246C80.187,109.517 56.088,110.691 43.805,96.88C35.692,96.987 21.437,95.582 21.544,103.695L21.929,133.095C22.036,141.208 28.709,147.708 36.822,147.602L214.089,141.329C224.483,136.386 237.608,137.494 246.648,141.834C253.354,138.776 253.453,130.418 253.727,126.762C254.371,118.152 255.801,96.54 250.083,90.409Z" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <path d="M379.147,53.886C379.156,47.164 359.095,42.668 352.372,42.659C326.793,55.467 318.939,55.188 300.146,41.598L248.586,41.583C235.822,49.544 224.099,49.486 213.394,41.573C206.671,41.563 199.463,90.18 206.185,90.189L366.916,90.409C373.639,90.419 379.104,84.969 379.113,78.246L379.147,53.886Z" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <path d="M204.18,329.952L204.18,284.657L0.833,284.657L0.833,329.952" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <text x="74.761px" y="313.293px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:16.732px;">Ground</text>
+    <text x="116.775px" y="126.762px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:16.732px;">Link 1</text>
+    <text x="260.431px" y="72.004px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:16.732px;">Link 2</text>
+    <text x="303.13px" y="173.502px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:16.732px;">Link 3</text>
+    <text x="101.191px" y="209.923px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:16.732px;fill:rgb(226,0,0);">Revolute joint</text>
+    <text x="178.734px" y="12.811px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:16.732px;fill:rgb(0,33,255);">Revolute joint</text>
+    <g transform="matrix(0.334645,0,0,0.334645,175.271,-20.1342)">
+        <text x="542.224px" y="757.215px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:50px;fill:rgb(243,126,0);">Revolute</text>
+        <text x="542.224px" y="808.851px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:50px;fill:rgb(243,126,0);">joint</text>
+    </g>
+    <g transform="matrix(0.334645,0,0,0.334645,180.583,-240.588)">
+        <text x="542.224px" y="757.215px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:50px;fill:rgb(0,184,48);">Prismatic</text>
+        <text x="542.224px" y="808.851px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:50px;fill:rgb(0,184,48);">joint</text>
+    </g>
+    <path d="M352.397,247.61C352.397,244.048 349.505,241.156 345.943,241.156L305.142,241.156C301.58,241.156 298.687,244.048 298.687,247.61L298.687,260.52C298.687,264.082 301.58,266.974 305.142,266.974L345.943,266.974C349.505,266.974 352.397,264.082 352.397,260.52L352.397,247.61Z" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <text x="303.452px" y="260.054px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:16.732px;">Link 4</text>
+    <ellipse cx="546.642" cy="135.072" rx="31.741" ry="31.667" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <circle cx="758.696" cy="263.346" r="31.688" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <ellipse cx="605.401" cy="263.325" rx="31.741" ry="31.667" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <ellipse cx="811.342" cy="130.224" rx="31.688" ry="31.615" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <ellipse cx="682.752" cy="47.947" rx="31.688" ry="31.615" style="fill:rgb(235,235,235);stroke:black;stroke-width:1.67px;"/>
+    <text x="550.156px" y="70.897px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(226,0,0);">Ball joint</text>
+    <text x="595.166px" y="190.715px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(0,33,255);">Ball joint</text>
+    <text x="697.526px" y="190.715px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(243,126,0);">Ball joint</text>
+    <text x="642.427px" y="305.359px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(0,184,48);">Ball joint</text>
+    <text x="659.247px" y="54.551px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Perl 1</text>
+    <text x="787.838px" y="136.828px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Perl 5</text>
+    <text x="736.011px" y="270.045px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Perl 4</text>
+    <text x="580.627px" y="269.812px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Perl 3</text>
+    <text x="523.138px" y="141.676px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;">Perl 2</text>
+    <g>
+        <path d="M573.661,117.843L609.608,95.034" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <ellipse cx="616.253" cy="91.265" rx="10.852" ry="10.623" style="fill:rgb(226,0,0);stroke:black;stroke-width:1.67px;"/>
+        <path d="M602.724,83.265C605.517,78.906 610.47,76.006 616.109,76.006C624.824,76.006 631.898,82.931 631.898,91.461C631.898,97.884 626.656,104.193 620.955,106.525" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+        <path d="M657.586,66.254L629.604,82.827" style="fill:none;stroke:black;stroke-width:1.67px;"/>
+    </g>
+    <text x="765.505px" y="64.453px" style="font-family:'ArialMT', 'Arial', sans-serif;font-size:18.376px;fill:rgb(222,116,201);">Ball joint</text>
+</svg>

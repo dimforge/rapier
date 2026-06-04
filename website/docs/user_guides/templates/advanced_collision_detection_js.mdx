@@ -1,0 +1,121 @@
+---
+id: advanced_collision_detection_js
+title: Advanced collision-detection
+sidebar_label: Advanced collision-detection
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Collision-detection is a two-steps process. First the broad-phase detects pairs of colliders
+that are potentially in contact or intersecting. Second, the narrow-phase processes all these pairs in order
+to compute contacts points and generate [collision events](./advanced_collision_detection_js.mdx#collision-and-contact-force-events). Based on these points,
+the constraints solver computes forces that may generate [contact force events](./advanced_collision_detection_js.mdx#collision-and-contact-force-events).
+All the pairs detected by the broad-phase can be accessed from the physics `World` class.
+
+## Collision and contact force events
+Collision events are triggered when two colliders transition between intersecting or not. Transitioning between having
+one contact point to having more than one contact points is not reported an event.
+
+In addition, after forces are computed by the constraints solver, contact force events may be
+generated between two colliders. There events can be collected by optionally passing an instance of `EventQueue` to
+`World.step(eventQueue)`. The colliders involved in each event is identified by its handle.
+
+Events can be collected by passing an instance of `EventQueue` to `World.step(eventQueue)`. The colliders
+involved in each event is identified by its handle.
+
+```js
+<load path='/2d/javascript/src/snippets/advanced_collision_detection.ts' marker='Events' />
+```
+
+:::warning
+Collision events (resp. contact force events) are only generated between two colliders  if at least one of them has the
+`ActiveEvents.COLLISION_EVENTS` flag (resp. `ActiveEvents.CONTACT_FORCE_EVENTS` flag) in its [active events](./colliders.mdx#active-events).
+:::
+
+Generally, the user isn’t interested in contact force events unless the force magnitudes exceed some threshold. In order
+to skip low-force events, the engine will compute the sum of the magnitude of all the contacts between the two colliders
+and only trigger a contact force event if that magnitude is larger than the threshold set with
+`Collider.setContactForceEventThreshold` (defaults to 0) for any of the two colliders with the
+`ActiveEvents.CONTACT_FORCE_EVENTS` flag enabled.
+
+## The contact graph
+The contact graph (encapsulated by the `World` class) can be read in order to determine whether two specific
+non-sensor colliders are in contact, or to determine all the non-sensor colliders in contact with one particular
+non-sensor collider. Contact points and contact normals will also be provided when a contact exists.
+
+The contact geometry (contact points, contact normal, penetration depth, etc.) can be read from the contact
+manifolds stored in a contact pair:
+1. Each contact pair may contain multiple contact manifolds. Each contact manifold represents a set of contacts
+   sharing the same contact normal.
+2. Each contact manifold contains the list of **geometric contacts** detected by the narrow-phase.
+3. Each contact manifold also contains a list of contacts that were processed by the constraints solver for force
+   calculation (aka. the **solver contacts**). These **solver contacts** are a subset of the contacts detected by the narrow-phase,
+   expressed in a way that is more efficient for the constraints solver to process. 
+   
+All the **geometric contact** data are expressed in the local-space of the colliders. The **solver contacts** are
+expressed in world-space.
+
+:::info
+There will always be only up to one contact manifold between two colliders with convex primitive shapes. If one
+collider has a shape composed of several pieces (trimesh, polyline, heightfield, or compound shape) then there
+will be multiple contact manifolds, one for each piece that may result in an actual contact.
+:::
+
+```js
+<load path='/2d/javascript/src/snippets/advanced_collision_detection.ts' marker='ContactGraph' />
+```
+
+## The intersection graph
+The intersection graph can be read in order to determine whether two specific colliders (assuming at least one of them is
+a sensor) are intersecting, or to determine all the colliders intersecting one particular collider (assuming at least one
+collider of each pair is a sensor). The intersection graph contains one graph edge for each pair of colliders such that:
+1. At least one of the collider is a sensor.
+2. And they are close enough so the broad-phase considers they have a chance to be intersecting.
+
+Each such edge contains one boolean indicating if the colliders are actually intersecting or not:
+
+:::warning
+Keep in mind that intersection tests are performed between two colliders only if at least one of the colliders
+is a sensor. If they are both non-sensor colliders then they will be involved in the [contact graph](./advanced_collision_detection_js.mdx#the-contact-graph)
+instead of the intersection graph.
+:::
+
+```js
+<load path='/2d/javascript/src/snippets/advanced_collision_detection.ts' marker='IntersectionGraph' />
+```
+
+## Physics hooks
+Physics hooks are user-defined callbacks used to change the behavior of the physics simulation. In particular,
+they can be used to [filter contacts](./advanced_collision_detection_js.mdx#contact-and-intersection-filtering) (in a more flexible way than
+[collision groups and solver groups](./colliders.mdx#collision-groups-and-solver-groups)).
+
+### Contact and intersection filtering
+Sometimes, [collision groups and solver groups](./colliders.mdx#collision-groups-and-solver-groups) are not flexible enough
+to achieve the desired behavior. In that case, the contact filtering hooks let you apply custom rules to filter contact
+pairs and intersection pairs:
+- For each potential contact pair (between two non-sensor colliders) detected by the broad-phase, if at least one
+  of the colliders involved in the pair has the bit `ActiveHooks.FILTER_CONTACT_PAIRS` enabled in its
+  [active hooks](./colliders.mdx#active-hooks), then `PhysicsHooks.filterContactPair` will be called. If this filter
+  returns `null` then no contact computation will happen for this pair of colliders. If it returns a `SolverFlags` value then the
+  narrow-phase will compute contact points.
+- For each potential intersection pair (between a sensor colliders and another collider) detected by the broad-phase, if
+  at least one of the colliders involved in the pair has the bit `ActiveHooks.FILTER_INTERSECTION_PAIR` enabled
+  in its [active hooks](./colliders.mdx#active-hooks), then `PhysicsHooks.filterIntersectionPair` will be called. If this
+  filter returns `false` then no intersection computation will happen for this pair of colliders. If it returns `true`
+  then the narrow-phase will test whether or not they are intersecting.
+
+When `PhysicsHooks.filterContactPair` returns a not-null value, it
+needs to provide a set of solver flags for this contact pair. These solver flags indicate what happen with the contacts of this contact pair afterwards:
+- If the returned solver flags contains the `SolverFlags.COMPUTE_IMPULSES` bit, then the constraints solver will
+  compute forces for these contacts. If this bit is not included in the returned flags, then no contact force will
+  be computed for this pair of colliders.
+
+:::note
+Right now there is no solver flags other than `SolverFlags.COMPUTE_IMPULSES`.
+Other flags may be added in the future.
+:::
+
+## Continuous Collision Detection
+Continuous Collision Detection (CCD) is used to make sure that fast-moving objects don't miss any contacts (a problem
+usually called _tunneling_). See the [rigid-body CCD section](./rigid_bodies.mdx#continuous-collision-detection) for details.

@@ -1,0 +1,111 @@
+---
+id: joint_constraints
+title: Joint constraints
+sidebar_label: Joint constraints
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+In practice, there are two main ways of modeling joints:
+
+- Reduced-coordinates approach.
+- Constraints-based approach.
+
+## Reduced-coordinates approach
+
+The **reduced-coordinates approach** encodes the reduction of DOF directly into the equations of motion. For example,
+a 3D rigid-body attached to the ground with a revolute joint will have its position encoded by only one variable: the
+rotation angle. Therefore, integrating its motion only changes this one variable and doesn't need additional forces or
+mathematical constraints to be generated. The clear advantage is that there is no way for the physics engine to apply
+any motion other than that single rotation to this body, meaning there is no way the body shifts to a position that is
+not realistic, even if the dynamics solver does not converge completely.
+
+Rapier implements this approach through `MultibodyJointSet`,
+where each joint is attached to its relevant rigid-bodies identified by their handle.
+
+## Constraints-based approach
+
+The **constraints-based approach** (or full-coordinates approach) is the most commonly available approach on other
+physics engines for video-games and animations. Here, a 3D rigid-body attached to the ground with a revolute joint will
+still have its position encoded by 6 variables (3 for translations and 3 for rotations) just like any rigid-body without
+a joint. Then the integrator will add mathematical constraints to the dynamic system to ensure forces are applied to
+simulate the reduction of the number of DOF as imposed by the joints. In practice, this means that the rigid-body will
+break the joint constraint if the constraint solver does not converge completely.
+
+Rapier implements this approach through `ImpulseJointSet`,
+where each joint is attached to two distinct rigid-bodies identified by their rigid-body handles.
+
+-------
+
+More generally, the reduced-coordinates approach favors accuracy while the constraints-based approach favors versatility.
+
+The following table compares the advantages and limitations of both approaches:
+
+| Reduced-coordinates approach | Constraints-based approach |
+|------------------------------|----------------------------|
+| <font color="green">Joints cannot be violated at all.</font>                 | <font color="IndianRed">Joints can be violated if the solver does not converge.</font> |
+| <font color="green">Moderately large time-steps are possible.</font>   | <font color="IndianRed">Moderately large time-steps may make the simulation explode.</font> |
+| <font color="green">Large assemblies are stable.</font>               | <font color="IndianRed">Large assemblies easily break without a large number of solver iterations.</font> |
+| <font color="IndianRed">Adding/removing a joint is slow.</font>     | <font color="green">Adding/removing a joint is fast.</font> |
+| <font color="IndianRed">Joint forces are never computed explicitly, thus cannot be retrieved.</font> | <font color="green">Joint forces are always computed and can be retrieved.</font> |
+| <font color="IndianRed">Topological restriction: bodies must be linked following a tree structure.</font> | <font color="green">The link between bodies can form any graph.</font> |
+
+The following schematics illustrate a configuration that can be simulated by a multibody (left assembly with a tree structure),
+and one that cannot (right assembly with a graph structure). The assembly on the left models a SCARA robotic arm with 3
+rotational DOF (due to three revolute joints) and 1 translational DOF (due to one prismatic joint). The assembly on the
+right models a necklace with five pearls. It has a total of 15 rotational DOF (due to five ball joints):
+
+<center>
+<br/>
+![Tree-like assembly](/img/assembly_examples.svg)
+<br/>
+</center>
+
+:::note "Which approach should I use?"
+The choice of approach **depends on the application**. For **robotics**, the **reduced-coordinates** approach is
+generally preferred because of its accuracy and ease of use, e.g., for control, inverse kinematics, etc.
+
+---------
+
+**Video games** traditionally favor the **constraints-based** approach since most existing physics libraries implement
+only this. Moreover if joint assemblies are small, and joints are frequently added and removed, the constraints-based
+approach will be more efficient. Some other physics libraries implement the reduced-coordinates approach as well but often
+using the Featherstone algorithm which is extremely unstable in practice.
+
+---------
+
+Simulating **closed loops** like for a necklace cannot be achieved with the reduced-coordinates approach only. However,
+it is possible to combine both approaches by using joint constraints only to close the loops. Refer to the [last section](./advanced_collision_detection.mdx#combining-both)
+for details.
+:::
+
+## Multibodies
+
+Multibodies implement the reduced-coordinates approach. A multibody is a set of **multibody links** attached together by
+a **multibody joint**.
+
+### Creating a multibody
+
+The API to create a Multibody joint is similar to creating an Impulse Joint, refer to [Joints](./joints.mdx),
+but insert those into a `MultibodyJointSet`.
+
+See [Rapier's example](https://github.com/dimforge/rapier/blob/v017.1/examples3d/joints3.rs) for a demonstration of both approaches.
+
+## Combining both
+
+A joint constraint geometry is completely configured at its creation, and added to the joint set by the
+`joint_set.insert(&mut bodies, body1, body2, joint, true)` method by specifying the handles of the bodies the joint is
+attached to.
+
+Combining multibodies and joint constraints is a useful way of combining the stability of multibodies with the flexibility of joint constraints. Indeed, one of the most appealing features of a multibody is its stability and ease of use (especially for robotics). However its greatest weakness is its inability to represent assemblies that do not match a tree structure, i.e., an articulated body composed of graph-like assembly of solids (each graph node being a solid and each graph edge being an articulation) cannot be simulated by a multibody. A common approach is thus to:
+
+1. Define a multibody from a spanning-tree of the graph.
+2. Create joint constraints for each articulation missing from this multibody to complete the graph. Those joint constraints are therefore attached to two multibody links. They are often called "loop-closing constraints" since they close the loops of the assembly's graph structure.
+
+The following shows an example of combination of multibodies and joint constraints for the simulation of a necklace. It is composed of 5 pearls forming a single loop attached together by 5 ball joints. Since such a loop cannot be simulated by a multibody, we first start to create 5 multibody links attached together with 4 `BallJoint`. Only 4 joints can be added here since a 5th would close the loop.
+The 5th joint that closes the loop must be modeled as a joint constraint, here a `BallConstraint` between the first and the last link:
+
+<center>
+![Loop-closing constraint](/img/loop_closing_joint.svg)
+</center>

@@ -1,0 +1,132 @@
+---
+id: getting_started_js
+title: Getting started
+sidebar_label: Getting started
+---
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+## Installing Rapier from NPM
+Rapier is available as the [@dimforge/rapier2d](https://www.npmjs.com/package/@dimforge/rapier2d) and
+[@dimforge/rapier3d](https://www.npmjs.com/package/@dimforge/rapier3d) NPM packages. You may add the following to
+your `package.json`:
+
+<Tabs
+  groupId="dim"
+  defaultValue="2D"
+  values={[
+    {label: 'Example 2D', value: '2D'},
+    {label: 'Example 3D', value: '3D'},
+  ]}>
+  <TabItem value="2D">
+
+```json
+  "dependencies": {
+    "@dimforge/rapier2d": "*", // Replace the * by the latest version number.
+  }
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```json
+  "dependencies": {
+    "@dimforge/rapier3d": "*", // Replace the * by the latest version number.
+  }
+```
+
+  </TabItem>
+</Tabs>
+
+Because Rapier is actually a WebAssembly module, it has to be loaded asynchronously. The following shows a basic
+example with a dynamic rigid-body falling on the ground.
+
+<Tabs
+  groupId="dim"
+  defaultValue="2D"
+  values={[
+    {label: 'Example 2D', value: '2D'},
+    {label: 'Example 3D', value: '3D'},
+  ]}>
+  <TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/getting_started.ts' marker='basic_sim' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/getting_started.ts' marker='basic_sim' />
+```
+
+  </TabItem>
+</Tabs>
+
+See the `testbed3d/src/demos` and `testbed2d/src/demos` folders for examples on how to initialize a Rapier physics
+world using these bindings.
+
+## Using Rapier without a bundler
+
+If you are attempting to use Rapier without a bundler, or if you are using a bundler that doesn't support WASM
+files properly, the previous solution will be difficult to get working. The alternative is to use our compatibility
+UMD packages `@dimforge/rapier2d-compat` or `@dimforge/rapier3d-compat`. These packages embed the WASM file (encoded
+in base64) into the main `JS` file. This results in a slightly different initialization process:
+
+<Tabs
+  groupId="dim"
+  defaultValue="2D"
+  values={[
+    {label: 'Example 2D', value: '2D'},
+    {label: 'Example 3D', value: '3D'},
+  ]}>
+  <TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/standalone.js' marker='NoBundler' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/standalone.js' marker='NoBundler' />
+```
+
+  </TabItem>
+</Tabs>
+
+A complete example can be found [on flems.io][flemsio_link].
+
+[flemsio_link]: https://flems.io/#0=N4IgtglgJlA2CmIBcAWAnAOgIxYDQgDMIEBnZAbVADsBDMRJEDACwBcxYR8BjAeytbwByEAB4oEAG4ACaAF4AOiABGvAB5KAfKID0EyZoVVxU2VEUgA5gCdeAVypQtu-ZpABfXNToMmAKzIefkFhRggwAAdea1ZpACUAQQAFAEkAUTjpAlswaSU2VgiSJB0dbigqDBIAawBPCJpuaowoeEkdAAEJMAJoy3gdaxoIiHhrACYoAFo+SJpWJQBuIyMaAHcaCFjE1IyMCCotgAoASmWqIz4qElibe0c4+G5YuWkoXm47egEMftY0hDfVgAIVqKSgRwABncHFBISdfvAQfcJFRLABhWCjASPZ6nc6Xfg3aQINGsZgAfQcW2krxhDyerBY8AgljY0h00hQGAADOcrsSbDRJFtarTpMBpGokNIebhpLUZZgABxYaQAKhJQks5Kph1Y7n5RNia2isCg4qo8DW8WS6TiGAA6maIUKRaxamcVlRTdZzRhSTrKdSXlqycH9QSqKVpOjrPB5vBpOSk-SnBcqALbrZYejeLAsa1rAAReAkbjinb2jB5gvQMal8sYT6qaBHIzSaRp3FMtbQckc6TjXAdrs5hnPZms9mc8ZGBEkJEAFSG11g8wg-HbVE73cZGDU0gA1GOUT2MH2oAPZyOd6fYeexSe95PmCy2bFZ-Oo77-dx44mtaFmMRxpkB9YlmW3BehmMZxgmgjSDQby1LQkAVtYrLQFMqhQLUGDelm0iqGoALwEC4rvJ8QKIv8gJCCCYIQpCJHwka1yxCRPbiiRZE0X8wIogcGJYgxPb4t6MYAKqLnkIA3Bu3BKFk0RIdICmsBAGFYdMuFigcNwJlABGZsa0iYZY0CCXhjYVq8VZ7HEOnWbUtktKhdBaaco5VEicS8KwG5bgAsvMzAYKkg4oCcPmLqwK40GuQVUNunadlx+6HieGWTpe15DreaXEeoj7HsVajnm+06fkOo4wYSHHmc5vB4eKv7Gf+CHwE5llQC5RwWVZLWuVB9XRpy8GJmpLa8NA0h8HWRZIawgXcG+FqsLwTW9S5JkNcSC3AZB5aVnaezgUWbkzW2o45b2-bMIOw63SV+5VR+T3ft67XNgBggXSBh0QbZ8qDX1w1jTGjxxeVfEMQA5CQ0hRCQWybjuJBbeS8yyKwiPzbwcyacoCDSH2A4EHYrB2PGyariQvTWGAJAmbx9E-DctQIAG8AEKGkIACTADhr25Q9T3uBEaiQucbPkQxVQetzm0ROKgvC3dU4fbOkvS1GMYAOJIkhjjSHYERQFNKbbdhen4yjaP8CZRGJeEU2vKctKaBKo5EZKajymK7jimDu2sPT66aVuMGdkRtiBVHO6vKHw0YPHyUSXecs0Zzyv04zuSvJC4eJSQkfwEcQtqLr8pC7UusnOZAWJpXwDp4n7hDFAJwy0YhqSZyBs+CSvC8BEGDxPAETrtwSbKGKtT2NY0i8GsO6WMPsCj6rJC1IZYDO2Zhmqx7jdyN7wCjj9x+Z528YAI52GWrAJIcYDJQAYkM9BHK77+CDBfuGY4opAEGMSQNBYBHGPvKH6ml6DHw1NILAPJUEwS4PJeACBnjozIIwcYABmJAPIPBeBAGhXwzYSCBBAFcEIrARB6R9lnRo1Q0wzHzNEGUABicYaA+F8POO4b03CSLMPSqw9hC0uHSG4VgKAAB2GgypuDnE7O9NgMpxg8gAKRqK1HzGUKBlR6NHA7ROMoaDKExrAKm8B9F5WYEY0xVBhEZm4WmcRxFJHjmmNI6wPCCAEKgGgZQWB9GqBWoTGUuj9EaNYDKFBLjOwIEMdIAArLEsxvBUYWKQtY-Mdj9ElySoIGUUxMnJLJg9GUyosmuKMBgxc2DE54JAFgJA4xlQeAALruCAA
+
+## Rendering Debug Shapes
+
+Rapier does not come with any built-in rendering capabilities, so you must do the rendering yourself. However, the debug shape data
+can be accessed directly from the physics world instance by calling `debugRender()`.
+
+```js
+<load path='/2d/javascript/src/snippets/graphics/Graphics.ts' marker='Debug0' />
+```
+
+These are each flat arrays filled with shape and color data for every body and collider in the physics world.
+
+The `vertices` array contains point data of where to draw lines while the `colors` array contains the RGBA values to associate
+with each line.
+
+:::info
+The colors of each body are not configurable in the current version of Rapier. The colors given will
+be based on the type of the given rigid body or collider and the current kinematic state of it.
+:::
+
+Below is an example of rendering this data using Pixi.js and Pixi Viewport.
+
+```js
+<load path='/2d/javascript/src/snippets/graphics/Graphics.ts' marker='Debug1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/graphics/Graphics.ts' marker='Debug2' />
+```
+
+An example of this in action can be see in the [Rapier.js testbed code](https://github.com/dimforge/rapier.js/blob/master/testbed2d/src/Graphics.ts).

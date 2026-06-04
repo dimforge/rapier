@@ -1,0 +1,115 @@
+---
+id: getting_started
+title: Getting started
+sidebar_label: Getting started
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+## Setting up Rapier with Cargo
+**rapier** relies on the official Rust package manager
+[Cargo](https://crates.io) for dependency resolution and compilation. Therefore,
+making **rapier** ready to use in your project is simply a matter of
+adding a new dependency to your `Cargo.toml` file. You can either use the [**rapier2d**
+crate](https://crates.io/crates/rapier2d) for 2D physics simulation or the [**rapier3d** crate](https://crates.io/crates/rapier3d)
+for 3D physics simulation. For high-precision simulation using 64-bits floats, use the [**rapier2d-f64**
+crate](https://crates.io/crates/rapier2d-f64) or the [**rapier3d-f64** crate](https://crates.io/crates/rapier3d-f64).
+
+Until **rapier** reaches 1.0, it is strongly recommended to always use its
+latest published version, though you may encounter breaking changes from time to time.
+
+To get the best of **rapier** multiple features can be enabled optionally:
+- `simd-stable`: enables explicit SIMD optimizations using the [`wide` crate](https://crates.io/crates/wide).
+Has limited cross-platform support but can be used with a stable version of the Rust compiler.
+- `simd-nightly`: enables explicit SIMD optimizations using the [`packed_simd` crate](https://crates.io/crates/packed_simd).
+Has a great cross-platform support but requires a nightly version of the Rust compiler.
+- `parallel`: enables parallelism of the physics pipeline with the [`rayon` crate](https://crates.io/crates/rayon).
+- `serde-serialize`: enables serialization of the physics components with [`serde`](https://github.com/serde-rs/serde).
+- `enhanced-determinism`: enables cross-platform determinism (assuming the rest of your code is also deterministic) across
+  all 32-bit and 64-bit platforms that implements the
+ IEEE 754-2008 standard strictly. This includes most modern processors as well as WASM targets.
+- `wasm-bindgen`: enables usage of `rapier` as a dependency of a WASM crate that is compiled with `wasm-bindgen`.
+
+:::warning
+Enabling parallelism is only useful if the scene being simulated has a high number of moving rigid-bodies, colliders,
+and/or joints. If the simulation isn't sufficiently complex, the parallelism may actually make the simulation slower
+because of the parallelism overhead.
+:::
+
+Currently, the `enhanced-determinism` feature cannot be enabled at the same time as the `parallel` or
+`simd-{stable,nightly}` features.
+
+## Cargo example
+<Tabs
+  groupId="dim"
+  defaultValue="2D"
+  values={[
+    {label: 'Example 2D', value: '2D'},
+    {label: 'Example 3D', value: '3D'},
+  ]}>
+  <TabItem value="2D">
+
+```toml
+[package]
+name    = "example-using-rapier"
+version = "0.0.0"
+authors = [ "You" ]
+
+[dependencies]
+# TODO: Replace the * by the latest version number.
+rapier2d = { version = "*", features = [ "simd-stable" ] }
+
+[[bin]]
+name = "example"
+path = "./example.rs"
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```toml
+[package]
+name    = "example-using-rapier"
+version = "0.0.0"
+authors = [ "You" ]
+
+[dependencies]
+# TODO: Replace the * by the latest version number.
+rapier3d = { version = "*", features = [ "simd-stable" ] }
+
+[[bin]]
+name = "example"
+path = "./example.rs"
+```
+
+  </TabItem>
+</Tabs>
+
+## Basic simulation example
+
+Here is a basic example of `main.rs` file. This creates a ball bouncing on a fixed ground. Details about the
+elements used in this examples are given in subsequent pages of this guide.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_basic_sim2.rs' marker='basic_sim' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_basic_sim3.rs' marker='basic_sim' />
+```
+
+  </TabItem>
+</Tabs>

@@ -1,0 +1,69 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
+Restitution controls how **elastic** (aka. __bouncy__) a contact is. The elasticity of a contact is controlled
+by the **restitution coefficient**. A restitution coefficient set to 1 (fully elastic contact) implies that the
+exit velocity at a contact has the same magnitude as the entry velocity along the contact normal: it is as if you drop a
+bouncing ball and it gets back to the same height after the bounce. A restitution coefficient set to 0 implies that the
+exit velocity at a contact will be zero along the contact normal: it's as if you drop a ball but it doesn't bounce at all.
+
+:::note
+The friction and restitution coefficients are both managed in very similar ways: with the `CoefficientCombineRule`
+or with [contact modification](./advanced_collision_detection.mdx#contact-modification). The paragraph bellow is almost identical to the paragraph about [friction](./collider_restitution.mdx#friction).
+:::
+
+Each collider has its own restitution coefficient. This means that when two colliders are in contact, we need to apply a
+rule that combines the restitution  coefficients of these two colliders into a single coefficient that will be used for
+the contact. This rule is described by the `CoefficientCombineRule` enum:
+- <notjs>`CoefficientCombineRule::Average`</notjs><js>`CoefficientCombineRule.Average`</js>: the average of the two coefficients is used for the contact.
+- <notjs>`CoefficientCombineRule::Min`</notjs><js>`CoefficientCombineRule.Min`</js>: the minimum among the two coefficients is used for the contact.
+- <notjs>`CoefficientCombineRule::Multiply`</notjs><js>`CoefficientCombineRule.Multiply`</js>: the product of the two coefficients is used for the contact.
+- <notjs>`CoefficientCombineRule::Max`</notjs><js>`CoefficientCombineRule.Max`</js>: the maximum among the two coefficients is used for the contact.
+
+By default, the `Average` rule is used. Each collider can be given its own restitution combine rule. When two colliders are in
+contact, we need to select one of their combine rule. The following precedence is used: `Max > Multiply > Min > Average`.
+
+For example if one collider with the `Multiply` restitution combine rule is in contact with a collider with the `Average` restitution
+combine rule, then the `Multiply` rule will be applied for the restitution coefficient of this contact (i.e. the coefficients
+of both colliders will be multiplied to obtain the coefficient used by the contact).
+
+:::info
+The `CoefficientCombineRule` system exists to cover a wide variety of use-cases efficiently. If this is not flexible
+enough, it is possible to get  full control over the selection of restitution coefficients for each contact point using
+[contact modification](./advanced_collision_detection.mdx#contact-modification). For example, contact modification allows the
+simulation of colliders with non-uniform restitution coefficients.
+:::
+
+The restitution coefficient and restitution combine rule can both be set when the collider is created or after its creation:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Restitution1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='Restitution2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Restitution1' />
+```
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='Restitution2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Restitution1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='Restitution2' />
+```
+
+</js>

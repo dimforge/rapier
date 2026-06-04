@@ -1,0 +1,67 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+As the character moves along its path, it will hit grounds and obstacles before sliding or stepping on them. Knowing what
+collider was hit on this path, and where the hit took place, can be valuable to apply various logic (custom forces,
+sound effects, etc.) This is why a set of character collision events are collected during the calculation of its
+trajectory.
+
+:::info
+The character collision events are given in chronological order. For example, if, during the resolution of the character
+motion, the character hits an obstacle A, then slides against it, and then hits another obstacle B. The collision
+with A will be reported first, and the collision with B will be reported second.
+:::
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_character_controller2.rs' marker='Collisions1' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Collisions1' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/character_controller.ts' marker='Collisions1' />
+```
+
+</js>
+
+Unless dynamic bodies are filtered-out by the character controller’s filters, they may be hit during the resolution
+of the character movement. If that happens, these dynamic bodies will generally not react to (i.e. not be pushed by) the
+character because the character controller’s offset prevents actual contacts from happening.
+
+In these situations forces need to be applied manually to this rigid-bodies. The character controller can apply these
+forces for you if needed:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_character_controller2.rs' marker='Collisions2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Collisions2' />
+```
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Collisions3' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/character_controller.ts' marker='Collisions2' />
+```
+
+</js>

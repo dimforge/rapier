@@ -1,0 +1,108 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+In addition to [gravity](./rigid_body_forces_and_impulses.mdx#gravity), it is possible to add custom forces (or torques) or apply impulses (or torque impulses)
+to dynamic rigid-bodies in order to make  them move in specific ways. Forces affect the rigid-body's acceleration
+whereas impulses affect the rigid-body's velocity. They are both based on the familiar equations:
+- **Forces:** the acceleration change is equal to the force divided by the mass: $\Delta{}a = m^{-1}f$
+- **Impulses:** the velocity change is equal to the impulse divided by the mass: $\Delta{}v = m^{-1}i$
+
+Forces can be added, and impulses can be applied, to a rigid-body <rapier>after it has been created</rapier><bevy>when it is created or after
+its creation</bevy><js>after it has been created</js>. Added forces are persistent across simulation steps, and can be
+cleared manually.
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Forces' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_rigid_bodies3.rs' marker='Forces' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/rigid_bodies2.rs' marker='Forces1' />
+```
+```rust
+<load path='/2d/bevy/examples/rigid_bodies2.rs' marker='Forces2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/rigid_bodies3.rs' marker='Forces1' />
+```
+```rust
+<load path='/3d/bevy/examples/rigid_bodies3.rs' marker='Forces2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Forces' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/rigid_bodies.ts' marker='Forces' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+
+:::info
+Keep in mind that a dynamic rigid-body with a zero mass won't be affected by a linear force/impulse, and a rigid-body with a zero
+angular inertia won't be affected by torques/torque impulses. So if your force doesn't appear to do anything, make sure that:
+1. The rigid-body is dynamic.
+2. It is strong enough to make the rigid-body move (try a very large value and see if it does something).
+3. The rigid-body has a non-zero mass or angular inertia either because they were set explicitly, or because they
+   were computed automatically from colliders with non-zero densities.
+
+<rapier>4. The rigid-body is awake (by waking it up manually or setting the last `wake_up` parameter to `true`).</rapier>
+:::

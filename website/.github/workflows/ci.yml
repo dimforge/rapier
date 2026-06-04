@@ -1,0 +1,45 @@
+name: Rapier CI build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: User guides generation
+        run: ./generate_user_guides.sh
+      - name: yarn install
+        run: corepack enable && yarn
+      - name: yarn build
+        run: PUBLISH_MODE=1 yarn build
+
+  test-code-snippets-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux dependencies
+        uses: ./.github/actions/install-linux-deps
+      - name: Tests injection + code snippets
+        run: cd docs-examples && cargo test
+  check-code-snippets-javascript:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dimension: [2d, 3d]
+    defaults:
+      run:
+        working-directory: ./docs-examples/${{ matrix.dimension }}/javascript
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: npm i
+      - name: Builds javascript snippets.
+        run: npm run build

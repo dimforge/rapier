@@ -1,0 +1,137 @@
+---
+id: getting_started_bevy
+title: Getting started
+sidebar_label: Getting started
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+[**Bevy**](https://bevyengine.org) is an efficient, simple-to-use, and fast-to-compile data-driven game engine written
+in Rust. It is based on the ECS (Entity-Component-System) paradigm and allows the definition of _plugins_, i.e., sets
+of components, systems, and resources that share a common objective.
+
+The [**bevy_rapier2d**](https://crates.io/crates/bevy_rapier2d) and [**bevy_rapier3d**](https://crates.io/crates/bevy_rapier3d)
+crates which integrate **Rapier** to **Bevy** using their plugin system.
+To get the best of **bevy-rapier** multiple features can be enabled optionally:
+- `debug-render-2d`/`debug-render-3d`: enables the debug-renderer plugin.
+- `simd-stable`: enables explicit SIMD optimizations using the [`wide` crate](https://crates.io/crates/wide).
+  Has limited cross-platform support but can be used with a stable version of the Rust compiler.
+- `simd-nightly`: enables explicit SIMD optimizations using the [`packed_simd` crate](https://crates.io/crates/packed_simd).
+  Has a great cross-platform support but requires a nightly version of the Rust compiler.
+- `parallel`: enables parallelism of the physics pipeline with the [`rayon` crate](https://crates.io/crates/rayon).
+- `serde-serialize`: enables serialization of the physics components with [`serde`](https://github.com/serde-rs/serde).
+- `enhanced-determinism`: enables cross-platform determinism (assuming the rest of your code is also deterministic)
+  across all 32-bit and 64-bit platforms that implements the IEEE 754-2008 standard strictly. This includes most modern
+  processors as well as WASM targets.
+- `wasm-bindgen`: enables usage of `rapier` as a dependency of a WASM crate that is compiled with `wasm-bindgen`.
+
+
+## Cargo example
+To use these crates, the first step is to add a dependency to your `Cargo.toml`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```toml
+[dependencies]
+# TODO: Replace the * by the latest version numbers.
+bevy = "*"
+bevy_rapier2d = "*"
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```toml
+[dependencies]
+# TODO: Replace the * by the latest version numbers.
+bevy = "*"
+bevy_rapier3d = "*"
+```
+
+  </TabItem>
+</Tabs>
+
+If you need to enable some Rapier features like SIMD, parallelism, serialization, or determinism, you can enable them on
+**bevy_rapier** directly.
+
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```toml
+[dependencies]
+# TODO: Replace the * by the latest version numbers.
+bevy = "*"
+bevy_rapier2d = { version = "*", features = [ "simd-stable", "debug-render-2d" ] }
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```toml
+[dependencies]
+# TODO: Replace the * by the latest version numbers.
+bevy = "*"
+bevy_rapier3d = { version = "*", features = [ "simd-stable", "debug-render-3d" ] }
+```
+
+  </TabItem>
+</Tabs>
+
+
+## Basic simulation example
+
+Here is a basic example of `main.rs` file. This creates a ball bouncing on a fixed ground. Details about the
+elements used in this examples are given in subsequent pages of this guide.
+
+:::info
+The `use bevy_rapier2d::prelude::*` or `use bevy_rapier3d::prelude::*` will import all the most common types
+needed to work with `bevy_rapier`.
+:::
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/basic_sim2.rs' marker='basic_sim' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/basic_sim3.rs' marker='basic_sim' />
+```
+
+  </TabItem>
+</Tabs>
+
+
+## The debug renderer
+The `bevy_rapier` plugin comes with a debug-render (either `debug-render-2d` or `debug-render-3d`) to help visualize exactly what the physics-engine sees. This
+can help fixing some bugs like colliders not being properly aligned with your graphics representation.
+The debug-renderer is be enabled by:
+1. Enabling the `debug-render-2d` or `debug-render-3d` cargo feature of bevy-rapier.
+2. Adding the plugin `RapierDebugRenderPlugin` to the Bevy app.
+
+![debug-render](/img/rapier_debug_render.png)

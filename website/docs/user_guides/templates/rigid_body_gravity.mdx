@@ -1,0 +1,57 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Gravity is such a common force that it is implemented as a special case (even if it could easily be implemented
+by the user using [force application](./rigid_body_gravity.mdx#forces-and-impulses)). <rapier>The gravity is given as an argument to the
+`PhysicsPipeline::step` method and can be modified at will by simply modifying that argument.</rapier><bevy>The gravity
+is given by the field `RapierConfiguration::gravity` of the component `RapierConfiguration` and can be modified at
+will.</bevy><js>The gravity is given to the constructor of the physics `World`. It can be modified by modifying the
+field `World.gravity`.</js> Note however that a change of gravity won't automatically wake-up the
+[sleeping bodies](./rigid_body_gravity.mdx#sleeping) so keep in mind that you may want to wake them up manually before a gravity change.
+
+:::note
+Because fixed and kinematic bodies are immune to forces, they are not affected by gravity.
+:::
+:::info
+A rigid-body with no mass will not be affected by gravity either. So if your rigid-body
+doesn't fall when you expected it to, make sure it has a mass set explicitly, or has at least one collider with
+non-zero density attached to it.
+:::
+
+It is possible to change the way gravity affects a specific rigid-body by setting the rigid-body's **gravity scale**
+to a value other than `1.0`. The magnitude of the gravity applied to this body will be multiplied by this scaling
+factor. Therefore, a gravity scale set to `0.0` will disable gravity for the rigid-body whereas a gravity scale set to
+`2.0` will make it twice as strong. A negative value will flip the direction of the gravity for this rigid-body.
+
+This gravity scale factor can be set when the rigid-body is created or after its creation:
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Gravity1' />
+```
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='Gravity2' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/rigid_bodies3.rs' marker='Gravity1' />
+```
+```rust
+<load path='/3d/bevy/examples/rigid_bodies3.rs' marker='Gravity2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Gravity1' />
+```
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='Gravity2' />
+```
+
+</js>

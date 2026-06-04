@@ -1,0 +1,88 @@
+---
+id: character_controller
+title: Character controller
+sidebar_label: Character controller
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Most games involve bodies behaving in ways that defy the laws of physics: floating platforms, elevators,
+playable characters, etc. This is why **kinematic bodies** exist: they offer a total control over the body’s trajectory
+since they are completely immune to forces or impulses (like gravity, contacts, joints).
+
+But this control comes at a price: it is up to the user to take any obstacle into account by running custom
+collision-detection operations manually and update the trajectory accordingly. This can be very difficult. Detecting
+obstacles usually rely on [ray-casting](./scene_queries.mdx#ray-casting) or [shape-casting](./scene_queries.mdx#shape-casting), used
+to adjust the trajectory based on the potential contact normals. Often, multiple ray or shape-casts are needed, and the
+trajectory adjustment code isn’t straightforward.
+
+The **Kinematic Character Controller** (which we will abbreviate to **_character controller_**) is a higher-level tool
+that will emit the proper ray-casts and shape-casts to adjust the user-defined trajectory based on obstacles. The
+well-known _move-and-slide_ operation is the main feature of a character controller.
+
+:::note
+Despite its name, a character controller can also be used for moving objects that are not characters. For example, a
+character controller may be used to move a platform. In the rest of this guide, we will use the word _character_
+to designate _whatever you would like to move using the character controller_.
+:::
+
+Rapier provides a built-in general-purpose character controller implementation. It allows you to easily:
+- Stop at obstacles.
+- Slide on slopes that are not to steep.
+- Climb stairs automatically.
+- Walk over small obstacles.
+- Interact with moving platforms.
+
+Despite the fact that this built-in character controller is designed to be generic enough to serve as a good starting
+point for many common use-cases, character-control (especially for the player’s character itself) is often very
+game-specific. Therefore the builtin character controller may not work perfectly out-of-the-box for all game
+types.<notjs> Don’t hesitate to copy and customize it to fit your particular needs.</notjs>
+
+## Setup and usage
+import SetupAndUsage from './character_controller_setup.mdx'
+
+<SetupAndUsage />
+
+## Character offset
+import CharacterOffset from './character_controller_offset.mdx'
+
+<CharacterOffset />
+
+## Up vector
+import UpVector from './character_controller_up_vector.mdx'
+
+<UpVector />
+
+
+## Slopes
+import Slopes from './character_controller_slopes.mdx'
+
+<Slopes />
+
+
+## Stairs and small obstacles
+import Stairs from './character_controller_stairs.mdx'
+
+<Stairs />
+
+
+## Snap-to-ground
+import SnapToGround from './character_controller_snap_to_ground.mdx'
+
+<SnapToGround />
+
+## Filtering
+import Filtering from './character_controller_filtering.mdx'
+
+<Filtering />
+
+
+## Collisions
+import Collisions from './character_controller_collisions.mdx'
+
+<Collisions />
+
+## Gravity
+Since you are responsible for providing the movement vector to the character controller at each frame, it is up to
+you to emulate gravity by adding a downward component to that movement vector.

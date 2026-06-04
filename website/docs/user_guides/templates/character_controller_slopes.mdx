@@ -1,0 +1,39 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+If sliding is enabled, the character can automatically climb slopes if they are not too steep, or slide down slopes if
+they are too steep. Sliding is configured by the following parameters:
+- The **max slope climb angle**: if the angle between the slope to climb and the horizontal floor is larger than this
+value, then the character won’t be able to slide up this slope.
+- The **min slope slide angle**: if the angle between the slope and the horizontal floor is smaller than this value,
+then the vertical component of the character’s movement won’t result in any sliding.
+
+:::info
+As always in Rapier, angles are specified in radians.
+:::
+
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_character_controller2.rs' marker='Slopes' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Slopes1' />
+```
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Slopes2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/character_controller.ts' marker='Slopes' />
+```
+
+</js>

@@ -1,0 +1,76 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+The **up** vector instructs the character controller of what direction should be considered _vertical_. The horizontal
+plane is the plane orthogonal to this up vector. There are two equivalent ways to evaluate the slope of the floor: by
+taking the angle between the floor and the horizontal plane (in 2D), or by taking the angle between the up-vector and
+the normal of the floor (in 2D and 3D). By default, the up vector is the positive **y** axis, but it can be modified to
+be any (unit) vector that suits the application.
+
+![up vector and slope angles](/img/cct_up_vector.svg)
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_character_controller2.rs' marker='UpVector' />
+```
+
+</rapier>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='UpVector1' />
+```
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='UpVector2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/character_controller3.rs' marker='UpVector1' />
+```
+```rust
+<load path='/3d/bevy/examples/character_controller3.rs' marker='UpVector2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/character_controller.ts' marker='UpVector' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/character_controller.ts' marker='UpVector' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>

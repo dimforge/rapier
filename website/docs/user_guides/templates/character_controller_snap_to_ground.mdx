@@ -1,0 +1,39 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+If enabled, **snap-to-ground** will force the character to stick to the ground if the following conditions are met
+simultaneously:
+- At the start of the movement, the character touches the ground.
+- The movement has a slight downward component.
+- At the end of the desired movement, the character would be separated from the ground by a distance smaller than the
+distance provided by the **snap-to-ground** parameter.
+
+If these conditions are met, the character is automatically teleported down to the ground at the end of its motion.
+Typical usages of snap-to-ground include going downstairs or remaining in contact with the floor when moving downhill.
+
+![snap-to-ground](/img/cct_snap_to_ground.svg)
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_character_controller2.rs' marker='Snap' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Snap1' />
+```
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Snap2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/character_controller.ts' marker='Snap' />
+```
+
+</js>

@@ -1,0 +1,49 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+If enabled, the **autostep** setting allows the character to climb stairs automatically and walk over small obstacles.
+Autostepping requires the following parameters:
+- The **maximum height** the character can step over. If the vertical movement needed to step over this obstacle is larger
+than this value, then the character will be stopped by the obstacle.
+- The **minimum (horizontal) width** available on top of the obstacle. If, after the character is teleported on top of the obstacle, it
+cannot move forward by a distance larger than this minimum width, then the character will just be stopped by the obstacle
+(without being moved to the top of the obstacle).
+- Whether or not autostepping is **enabled for dynamic bodies**. If it is not enabled for dynamic bodies, the character
+won’t attempt to automatically step over small dynamic bodies. Disabling this can be useful if we want the character to
+push these small objects (see [collisions](./character_controller_stairs.mdx#collisions)) instead of just stepping over them.
+
+The following depicts (top) one configuration where all the autostepping conditions are satisfied, and, (bottom) two
+configurations where these conditions are not all satisfied (left: because the width of the step is too small, right:
+because the height of the step is too large):
+
+![autostepping](/img/cct_autostep.svg)
+
+:::info
+Autostepping will only activate if the character is touching the floor right before the obstacle.
+This prevents the player from being teleported on to of a platform while it is in the air.
+:::
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_character_controller2.rs' marker='Stairs' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Stairs1' />
+```
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Stairs2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/character_controller.ts' marker='Stairs' />
+```
+
+</js>
