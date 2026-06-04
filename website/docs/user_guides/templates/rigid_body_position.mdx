@@ -12,7 +12,7 @@ its creation as illustrated below.
 Directly changing the position of a rigid-body is equivalent to teleporting it: this is a not a
 physically realistic action! Teleporting a dynamic or kinematic bodies may result in odd behaviors
 especially if it teleports into a space occupied by other objects. For dynamic bodies, [forces,
-impulses](./rigid_body_position.mdx#forces-and-impulses), or [velocity modification](./rigid_body_position.mdx#velocity) should be preferred.
+impulses](./rigid_bodies.mdx#forces-and-impulses), or [velocity modification](./rigid_bodies.mdx#velocity) should be preferred.
 For kinematic bodies, see the discussion after the examples below.
 :::
 
@@ -115,7 +115,7 @@ values={[
 
 In order to move a dynamic rigid-body it is strongly discouraged to set its position directly as it
 may results in weird behaviors: it's as if the rigid-body teleports itself, which is a non-physical behavior. For dynamic
-bodies, it is recommended to either set its [velocity](./rigid_body_position.mdx#velocity) or to apply [forces or impulses](./rigid_body_position.mdx#forces-and-impulses).
+bodies, it is recommended to either set its [velocity](./rigid_bodies.mdx#velocity) or to apply [forces or impulses](./rigid_bodies.mdx#forces-and-impulses).
 
 <rapier>
 

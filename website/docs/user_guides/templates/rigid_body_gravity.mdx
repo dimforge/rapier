@@ -2,12 +2,12 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 Gravity is such a common force that it is implemented as a special case (even if it could easily be implemented
-by the user using [force application](./rigid_body_gravity.mdx#forces-and-impulses)). <rapier>The gravity is given as an argument to the
+by the user using [force application](./rigid_bodies.mdx#forces-and-impulses)). <rapier>The gravity is given as an argument to the
 `PhysicsPipeline::step` method and can be modified at will by simply modifying that argument.</rapier><bevy>The gravity
 is given by the field `RapierConfiguration::gravity` of the component `RapierConfiguration` and can be modified at
 will.</bevy><js>The gravity is given to the constructor of the physics `World`. It can be modified by modifying the
 field `World.gravity`.</js> Note however that a change of gravity won't automatically wake-up the
-[sleeping bodies](./rigid_body_gravity.mdx#sleeping) so keep in mind that you may want to wake them up manually before a gravity change.
+[sleeping bodies](./rigid_bodies.mdx#sleeping) so keep in mind that you may want to wake them up manually before a gravity change.
 
 :::note
 Because fixed and kinematic bodies are immune to forces, they are not affected by gravity.
