@@ -1,11 +1,11 @@
 [package]
 name = "rapier3d-urdf"
-version = "0.13.0"
+version.workspace = true
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "URDF file loader for the 3D rapier physics engine."
 documentation = "https://docs.rs/rapier3d-urdf"
-homepage = "https://rapier.rs"
-repository = "https://github.com/dimforge/rapier"
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 categories = [
     "science",
@@ -15,8 +15,8 @@ categories = [
     "wasm",
 ]
 keywords = ["physics", "joints", "multibody", "robotics", "urdf"]
-license = "Apache-2.0"
-edition = "2024"
+license.workspace = true
+edition.workspace = true
 
 [features]
 stl = ["dep:rapier3d-meshloader", "rapier3d-meshloader/stl", "__meshloader_is_enabled"]
@@ -31,5 +31,5 @@ anyhow = "1"
 bitflags = "2"
 urdf-rs = "0.9"
 
-rapier3d = { version = "0.32.0", path = "../rapier3d" }
-rapier3d-meshloader = { version = "0.13.0", path = "../rapier3d-meshloader", default-features = false, optional = true }
+rapier3d = { version = "0.33.0", path = "../rapier3d" }
+rapier3d-meshloader = { version = "0.33.0", path = "../rapier3d-meshloader", default-features = false, optional = true }
