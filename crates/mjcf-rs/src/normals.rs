@@ -11,9 +11,9 @@
 use std::collections::HashMap;
 
 /// Dot threshold below which two adjacent faces form a crease and are *not*
-/// blended into a shared normal: `cos(45°)`. Matches the crease angle
+/// blended into a shared normal: `cos(45°) = 1/√2`. Matches the crease angle
 /// MuJoCo uses when it generates mesh normals.
-const CREASE_COS: f64 = 0.707_106_781_186;
+const CREASE_COS: f64 = std::f64::consts::FRAC_1_SQRT_2;
 /// Position quantization grid (1 µm) used to weld coincident vertices. STL
 /// duplicates shared corners with bit-identical coordinates, so this is
 /// exact in practice while also collapsing any near-coincident vertices.
@@ -23,7 +23,7 @@ const INV_EPS: f64 = 1.0e6;
 /// weld coincident vertices to recover the shared-edge topology a faceted
 /// source (STL) throws away, then blend each corner's normal from the
 /// area-weighted normals of the incident faces. Adjacent faces whose
-/// normals differ by more than the crease angle ([`CREASE_COS`]) are *not*
+/// normals differ by more than the crease angle (45°) are *not*
 /// blended, so box edges stay crisp while curved surfaces read as smooth.
 /// When `smooth` is set (MJCF `smoothnormal="true"`) the crease threshold
 /// is disabled and every shared face is blended.
