@@ -209,48 +209,68 @@ impl GraphicsManager {
         local_pose: rapier::math::Pose,
         color: Color,
         uvs: Option<&[[f32; 2]]>,
+        normals: Option<&[[f32; 3]]>,
         texture: Option<&Path>,
     ) {
         // Plumbing per-vertex UVs into a custom kiss3d mesh is only
         // supported in 3D; 2D always uses the standard node path.
         #[cfg(feature = "dim3")]
         let mut node = {
-            let textured = uvs.is_some() && texture.is_some();
-            if textured && matches!(shape.shape_type(), ShapeType::TriMesh) {
-                // Build the kiss3d mesh ourselves so we can plumb UVs in;
-                // the standard `create_individual_node` path doesn't carry
-                // them through.
-                //
-                // OBJ stores UV `v=0` at the *bottom* of the image while
-                // wgpu samples textures from the top — flip `v` so the
-                // texture lands the right way up.
+            if matches!(shape.shape_type(), ShapeType::TriMesh) {
+                // Build the kiss3d mesh ourselves so we can plumb the
+                // authored UVs *and* normals straight through. The standard
+                // `create_individual_node` path carries neither and always
+                // recomputes flat per-face normals — for a visual mesh
+                // that replaces the default collider render we instead want
+                // to match the source asset exactly.
                 let trimesh = shape.as_trimesh().unwrap();
-                let uvs_vec: Vec<Vec2> = uvs
-                    .unwrap()
-                    .iter()
-                    .map(|uv| Vec2::new(uv[0], 1.0 - uv[1]))
-                    .collect();
-                // If the UV count doesn't match the vertex count we drop
-                // the UVs — `replicate_vertices` would otherwise panic.
-                let uvs_opt = if uvs_vec.len() == trimesh.vertices().len() {
-                    Some(uvs_vec)
-                } else {
-                    None
-                };
                 let vtx: Vec<Vec3> = trimesh
                     .vertices()
                     .iter()
                     .map(|pt| Vec3::new(pt.x as f32, pt.y as f32, pt.z as f32))
                     .collect();
                 let idx = trimesh.indices().to_vec();
+
+                // UVs are only meaningful with a texture. OBJ stores UV
+                // `v=0` at the *bottom* of the image while wgpu samples
+                // textures from the top — flip `v` so the texture lands
+                // the right way up. A UV count that doesn't match the
+                // vertex buffer is dropped (`replicate_vertices` would
+                // otherwise panic).
+                let uvs_opt = if texture.is_some() {
+                    uvs.filter(|uvs| uvs.len() == trimesh.vertices().len())
+                        .map(|uvs| uvs.iter().map(|uv| Vec2::new(uv[0], 1.0 - uv[1])).collect())
+                } else {
+                    None
+                };
+
+                // Use the authored normals verbatim when they line up with
+                // the vertex buffer — this preserves smooth shading where
+                // the artist made it smooth instead of faceting everything.
+                let normals_opt: Option<Vec<Vec3>> = normals
+                    .filter(|n| n.len() == trimesh.vertices().len())
+                    .map(|n| {
+                        n.iter()
+                            .map(|nrm| Vec3::new(nrm[0], nrm[1], nrm[2]))
+                            .collect()
+                    });
+
+                let have_normals = normals_opt.is_some();
                 let mut mesh = kiss3d::procedural::RenderMesh::new(
                     vtx,
-                    None,
+                    normals_opt,
                     uvs_opt,
                     Some(kiss3d::procedural::IndexBuffer::Unified(idx)),
                 );
-                mesh.replicate_vertices();
-                mesh.recompute_normals();
+                if !have_normals {
+                    // No usable authored normals (e.g. an STL/OBJ that
+                    // carried none): fall back to flat shading so the mesh
+                    // still lights. This splits shared vertices, so it must
+                    // run *only* when we didn't supply normals above —
+                    // never on the smooth path.
+                    mesh.replicate_vertices();
+                    mesh.recompute_normals();
+                }
                 Some(self.scene.add_render_mesh(mesh, Vec3::ONE))
             } else {
                 Self::create_individual_node(&mut self.scene, &**shape, color, false)
@@ -258,13 +278,19 @@ impl GraphicsManager {
         };
         #[cfg(feature = "dim2")]
         let mut node = {
-            // Custom UV plumbing is unsupported in 2D; ignore `uvs`.
-            let _ = uvs;
+            // Custom UV/normal plumbing is unsupported in 2D; ignore them.
+            let _ = (uvs, normals);
             Self::create_individual_node(&mut self.scene, &**shape, color, false)
         };
 
         if let Some(n) = node.as_mut() {
             n.set_color(color);
+            // The custom trimesh path above builds the node directly rather
+            // than through `create_individual_node`, so disable backface
+            // culling here too — visual meshes are routinely viewed from
+            // both sides and authored winding isn't guaranteed.
+            #[cfg(feature = "dim3")]
+            n.enable_backface_culling_recursive(false);
             if let Some(tex_path) = texture {
                 // The cache key uses the absolute path string so the
                 // same texture file is uploaded only once across the

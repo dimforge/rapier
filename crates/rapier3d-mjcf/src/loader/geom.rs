@@ -245,11 +245,39 @@ impl<'a> Conversion<'a> {
             } else {
                 None
             };
+            // Recompute smooth, crease-aware vertex normals from the
+            // geometry the way MuJoCo does, rather than trusting the file's.
+            // Most menagerie robots (e.g. unitree_g1) ship STL, a faceted
+            // format: it stores one normal per *triangle* with fully
+            // unshared vertices, so neither the raw file normals nor a
+            // naive per-face recompute can ever produce anything but flat
+            // shading. Welding coincident vertices to recover shared edges
+            // and blending the adjacent face normals (honoring the asset's
+            // `smoothnormal` crease threshold) yields the smooth look the
+            // source models intend. Visual path only — the collision/mass
+            // paths have no use for normals.
+            let normals = if force_trimesh {
+                m.shape.as_trimesh().map(|tm| {
+                    let verts: Vec<[f64; 3]> = tm
+                        .vertices()
+                        .iter()
+                        .map(|p| [p.x as f64, p.y as f64, p.z as f64])
+                        .collect();
+                    mjcf_rs::normals::smooth_vertex_normals(
+                        &verts,
+                        tm.indices(),
+                        mesh.smoothnormal > 0.5,
+                    )
+                })
+            } else {
+                None
+            };
             let diffuse_texture = m.material.texture.diffuse.clone();
             return Some(LoadedMesh {
                 shape: m.shape,
                 pose: m.pose,
                 uvs,
+                normals,
                 diffuse_texture,
             });
         }
@@ -471,30 +499,32 @@ impl<'a> Conversion<'a> {
         // Mesh assets get the specialized path that also harvests UVs
         // and the MTL diffuse texture. Primitives go through the
         // standard analytic shape path (no UVs, no MTL).
-        let (shape, local_pose, uvs, mtl_texture) = if matches!(g.type_, mb::GeomType::Mesh) {
-            let loaded = self.load_visual_mesh_asset(g)?;
-            // `loaded.pose` is the asset-level intrinsic offset (the
-            // converter's adjustment — identity for trimeshes). The
-            // geom's own `pos`/`quat` haven't been applied yet; multiply
-            // by the body-frame pose so the mesh lands where the MJCF
-            // places it within its parent body. Without this every
-            // mesh visual sits at the body's origin and only the
-            // collider path (which composes via `build_geom_shape`)
-            // looks correct.
-            let body_frame_pose = self.geom_body_frame_pose(g);
-            (
-                loaded.shape,
-                body_frame_pose * loaded.pose,
-                loaded.uvs,
-                loaded.diffuse_texture,
-            )
-        } else {
-            // `build_geom_shape_with` already composes `body_frame_pose * extra`,
-            // so the returned `local_pose` is fully placed in the body's frame.
-            let (shape, local_pose) =
-                self.build_geom_shape_with(g, /*force_trimesh=*/ true)?;
-            (shape, local_pose, None, None)
-        };
+        let (shape, local_pose, uvs, normals, mtl_texture) =
+            if matches!(g.type_, mb::GeomType::Mesh) {
+                let loaded = self.load_visual_mesh_asset(g)?;
+                // `loaded.pose` is the asset-level intrinsic offset (the
+                // converter's adjustment — identity for trimeshes). The
+                // geom's own `pos`/`quat` haven't been applied yet; multiply
+                // by the body-frame pose so the mesh lands where the MJCF
+                // places it within its parent body. Without this every
+                // mesh visual sits at the body's origin and only the
+                // collider path (which composes via `build_geom_shape`)
+                // looks correct.
+                let body_frame_pose = self.geom_body_frame_pose(g);
+                (
+                    loaded.shape,
+                    body_frame_pose * loaded.pose,
+                    loaded.uvs,
+                    loaded.normals,
+                    loaded.diffuse_texture,
+                )
+            } else {
+                // `build_geom_shape_with` already composes `body_frame_pose * extra`,
+                // so the returned `local_pose` is fully placed in the body's frame.
+                let (shape, local_pose) =
+                    self.build_geom_shape_with(g, /*force_trimesh=*/ true)?;
+                (shape, local_pose, None, None, None)
+            };
 
         let (material_rgba, material_texture) = self.resolve_geom_material(g);
         let rgba = g
@@ -508,6 +538,7 @@ impl<'a> Conversion<'a> {
             local_pose,
             rgba,
             uvs,
+            normals,
             texture,
         })
     }
@@ -559,6 +590,7 @@ pub(super) struct LoadedMesh {
     pub(super) shape: SharedShape,
     pub(super) pose: Pose,
     pub(super) uvs: Option<Vec<[f32; 2]>>,
+    pub(super) normals: Option<Vec<[f32; 3]>>,
     pub(super) diffuse_texture: Option<std::path::PathBuf>,
 }
 

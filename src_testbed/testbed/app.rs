@@ -210,6 +210,7 @@ impl TestbedApp {
 
         let mut window = Window::new_with_size(title, 1280, 720).await;
         window.set_background_color(Color::new(245.0 / 255.0, 245.0 / 255.0, 236.0 / 255.0, 1.0));
+        window.set_ambient(0.1);
 
         let mut debug_render = DebugRenderPipelineResource::default();
         let mut camera = Camera::default();
