@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 edition = "2024"
 default-run = "all_examples2"
+publish = false
 
 [features]
 parallel = ["rapier2d/parallel", "rapier_testbed2d/parallel"]

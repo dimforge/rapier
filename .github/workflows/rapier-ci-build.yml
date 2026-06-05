@@ -146,8 +146,11 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get install -y cmake libxcb-composite0-dev
+      # Builds and verifies each crate the same way `cargo publish` does,
+      # catching bugs hidden by workspace feature unification.
       - name: publish dry-run
-        run: ./publish-all.sh
+        run: ./publish.sh --dry-run
   # Builds the docusaurus website (user guides + docs site).
   website-build:
     runs-on: ubuntu-latest
