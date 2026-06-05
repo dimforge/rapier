@@ -46,7 +46,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.32.0"
+version = "0.33.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"

@@ -63,15 +63,15 @@ AI coding is extensively used for the implementation and maintenance of the foll
 `rapier3d-mjcf`, as well as the Python bindings (`python/rapier-py*`), including their tests, examples, and docs.
 
 We actively use AI assistance (with human reviews) for the following tasks:
-    - Documentation generation.
-    - Changelogs generation.
-    - Tests generation.
-    - CI configuration and scripts.
+- Documentation generation.
+- Changelogs generation.
+- Tests generation.
+- CI configuration and scripts.
 
 We accept contributions involving AI coding as long as:
-    - They are verified to work properly by a human.
-    - The code quality is up to human-written code standards.
-    - Include non-regression tests whenever applicable (which itself can be AI-generated).
+- They are verified to work properly by a human.
+- The code quality is up to human-written code standards.
+- Include non-regression tests whenever applicable (which itself can be AI-generated).
 
 ## Resources and discussions
 

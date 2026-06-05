@@ -1,6 +1,6 @@
 [package]
 name = "rapier_testbed2d-f64"
-version = "0.32.0"
+version = "0.33.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 description = "Testbed for the Rapier 2-dimensional physics engine in Rust."
 homepage = "http://rapier.rs"
@@ -67,5 +67,5 @@ env_logger = "0.11"
 [dependencies.rapier]
 package = "rapier2d-f64"
 path = "../rapier2d-f64"
-version = "0.32.0"
+version = "0.33.0"
 features = ["serde-serialize", "debug-render", "profiler"]

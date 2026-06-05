@@ -1,7 +1,15 @@
-## Unreleased
+## v0.33.0 (05 June 2026)
 
 ### Added
 
+- New `mjcf-rs` and `rapier3d-mjcf` crates: a pure-Rust (no `libmujoco`/FFI) loader for the MuJoCo
+  MJCF XML format. `mjcf-rs` parses MJCF into a typed AST — resolving `<include>`, `<default>`
+  class inheritance, angle units, and the several rotation specs (`quat`, `axisangle`, `euler`,
+  `xyaxes`, `zaxis`) — and `rapier3d-mjcf` converts a model into rigid-bodies, colliders, and
+  joints via `MjcfRobot`. Meshes load behind the `stl`/`wavefront`/`msh` features, and visual
+  meshes support per-vertex normals with optional smoothing ([#936](https://github.com/dimforge/rapier/pull/936), [#943](https://github.com/dimforge/rapier/pull/943)).
+- Python bindings for Rapier 2D/3D (`rapier-py-*` crates under `python/`), generated and published
+  as installable wheels ([#938](https://github.com/dimforge/rapier/pull/938)).
 - New `PhysicsWorld` convenience wrapper bundling `RigidBodySet`, `ColliderSet`, the broad/narrow
   phases, islands, joints, the CCD solver, gravity, and integration parameters in a single struct,
   for simpler setup of basic simulations. It also exposes helpers for waking bodies (`wake_up`,
@@ -42,6 +50,8 @@
 
 ### Modified
 
+- Unify version numbers for `rapier3d-urdf`, `rapier3d-meshloader`, and `rapier3d-mjcf` so they
+  follow the same versioning as the other libraries in the workspace.
 - **Breaking (CCD solver direct callers only):** `CCDSolver::find_first_impact` and
   `CCDSolver::predict_impacts_at_next_positions` now take an extra `hooks: &dyn PhysicsHooks`
   argument. `PhysicsPipeline::step` callers are unaffected.
