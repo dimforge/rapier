@@ -25,7 +25,7 @@ pub trait IndexMut2<I>: IndexMut<I> {
 impl<T> IndexMut2<usize> for Vec<T> {
     #[inline]
     fn index_mut2(&mut self, i: usize, j: usize) -> (&mut T, &mut T) {
-        <[T]>::index_mut2(self, i,j)
+        <[T]>::index_mut2(self, i, j)
     }
 }
 
@@ -36,7 +36,7 @@ impl<T> IndexMut2<usize> for [T] {
         assert!(i < self.len() && j < self.len(), "Index out of bounds.");
 
         // cannot panic, per the above checks
-        let [a,b] = self.get_disjoint_mut([i,j]).unwrap();
-        (a,b)
+        let [a, b] = self.get_disjoint_mut([i, j]).unwrap();
+        (a, b)
     }
 }

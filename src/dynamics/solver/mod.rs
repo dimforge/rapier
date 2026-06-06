@@ -34,7 +34,7 @@ mod velocity_solver;
 
 // TODO: SAFETY: restrict with bytemuck::Zeroable to make this safe.
 pub unsafe fn reset_buffer<T>(buffer: &mut Vec<T>, len: usize) {
-    buffer.clear();   
+    buffer.clear();
 
-    buffer.resize_with(len, || unsafe { core::mem::zeroed()})
+    buffer.resize_with(len, || unsafe { core::mem::zeroed() })
 }
