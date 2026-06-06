@@ -504,6 +504,7 @@ impl RigidBodyMassProps {
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Copy, PartialEq)]
+#[repr(C)]
 /// The velocities of this rigid-body.
 pub struct RigidBodyVelocity<T: ScalarType> {
     /// The linear velocity of the rigid-body.
@@ -593,6 +594,11 @@ impl RigidBodyVelocity<Real> {
     #[inline]
     #[cfg(feature = "dim2")]
     pub fn as_vector(&self) -> &na::Vector3<Real> {
+        // SAFETY : this is safe because :
+        // - RigidBodyVelocity is repr(C)
+        // - the vector types used are repr(C)
+        // - the only non vector type is Real
+        // - total size in Reals is 3
         unsafe { core::mem::transmute(self) }
     }
 
@@ -602,6 +608,11 @@ impl RigidBodyVelocity<Real> {
     #[inline]
     #[cfg(feature = "dim2")]
     pub fn as_vector_mut(&mut self) -> &mut na::Vector3<Real> {
+        // SAFETY : this is safe because :
+        // - RigidBodyVelocity is repr(C)
+        // - the vector types used are repr(C)
+        // - the only non vector type is Real
+        // - total size in Reals is 3
         unsafe { core::mem::transmute(self) }
     }
 
@@ -611,6 +622,11 @@ impl RigidBodyVelocity<Real> {
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn as_vector(&self) -> &na::Vector6<Real> {
+        // SAFETY : this is safe because :
+        // - RigidBodyVelocity is repr(C)
+        // - the vector types used are repr(C)
+        // - the only non vector type is Real
+        // - total size in Reals is 6
         unsafe { core::mem::transmute(self) }
     }
 
@@ -620,6 +636,11 @@ impl RigidBodyVelocity<Real> {
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn as_vector_mut(&mut self) -> &mut na::Vector6<Real> {
+        // SAFETY : this is safe because :
+        // - RigidBodyVelocity is repr(C)
+        // - the vector types used are repr(C)
+        // - the only non vector type is Real
+        // - total size in Reals is 6
         unsafe { core::mem::transmute(self) }
     }
 

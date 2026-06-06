@@ -30,6 +30,11 @@ impl Force {
     }
 
     fn as_vector(&self) -> &SVector<Real, SPATIAL_DIM> {
+        // SAFETY : this is safe because :
+        // - Force is repr(C)
+        // - Vector is repr(C)
+        // - AngVector is repr(C) or Real
+        // - total size in Reals is SPATIAL_DIM
         unsafe { core::mem::transmute(self) }
     }
 }

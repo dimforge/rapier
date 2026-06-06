@@ -35,11 +35,6 @@ mod velocity_solver;
 // TODO: SAFETY: restrict with bytemuck::Zeroable to make this safe.
 pub unsafe fn reset_buffer<T>(buffer: &mut Vec<T>, len: usize) {
     buffer.clear();
-    buffer.reserve(len);
 
-    unsafe {
-        // NOTE: writing zeros is faster than u8::MAX.
-        buffer.as_mut_ptr().write_bytes(0, len);
-        buffer.set_len(len);
-    }
+    buffer.resize_with(len, || unsafe { core::mem::zeroed() })
 }
