@@ -465,10 +465,11 @@ impl DynamicRayCastVehicleController {
             let vel = chassis.velocity_at_point(wheel.raycast_info.hard_point_ws);
 
             if wheel.raycast_info.is_in_contact {
-                let mut fwd =
-                    chassis.position().rotation * Vector::ith(self.index_forward_axis, 1.0);
-                let proj = fwd.dot(wheel.raycast_info.contact_normal_ws);
-                fwd -= wheel.raycast_info.contact_normal_ws * proj;
+                let fwd = wheel
+                    .raycast_info
+                    .contact_normal_ws
+                    .cross(wheel.wheel_axle_ws)
+                    .normalize_or_zero();
 
                 let proj2 = fwd.dot(vel);
 
