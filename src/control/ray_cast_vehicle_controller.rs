@@ -659,7 +659,7 @@ impl DynamicRayCastVehicleController {
 
         if sliding {
             for wheel in &mut self.wheels {
-                if wheel.side_impulse != 0.0 && wheel.skid_info < 1.0 {
+                if wheel.skid_info < 1.0 {
                     wheel.forward_impulse *= wheel.skid_info;
                     wheel.side_impulse *= wheel.skid_info;
                 }

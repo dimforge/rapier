@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- `DynamicRayCastVehicleController` no longer has unlimited braking friction when a
+  wheel's side impulse is exactly zero (e.g. braking in a straight line): the skid
+  clamp now applies to the forward impulse as well, so braking strength is bounded by
+  `friction_slip` (PR #947 by @tomo0613).
 - Angular joint limits are no longer restricted to `(-π, π)`: the limit rows now measure the
   wrapped joint angle from the middle of the allowed range (with the joint axis as the row's
   jacobian, like the angular motor rows), so a range may sit anywhere on the circle
