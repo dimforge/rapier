@@ -129,7 +129,21 @@ impl JointGenericExternalConstraintBuilder {
         }
 
         let mut joint_data = joint.data;
-        joint_data.transform_to_solver_body_space(rb1, rb2);
+        // NOTE: multibody links are positioned by `link.local_to_world` which is
+        //       the body-frame (origin-centered) pose, unlike regular dynamic
+        //       bodies whose solver pose is com-centered. So the com shift from
+        //       `transform_to_solver_body_space` must NOT be applied to sides
+        //       attached to a multibody link.
+        if rb1.is_fixed() {
+            joint_data.local_frame1 = rb1.pos.position * joint_data.local_frame1;
+        } else if matches!(link1, LinkOrBody::Body(_)) {
+            joint_data.local_frame1.translation -= rb1.mprops.local_mprops.local_com;
+        }
+        if rb2.is_fixed() {
+            joint_data.local_frame2 = rb2.pos.position * joint_data.local_frame2;
+        } else if matches!(link2, LinkOrBody::Body(_)) {
+            joint_data.local_frame2.translation -= rb2.mprops.local_mprops.local_com;
+        }
         *out_builder = GenericJointConstraintBuilder::External(Self {
             link1,
             link2,
@@ -165,18 +179,27 @@ impl JointGenericExternalConstraintBuilder {
         let mb1;
         let mb2;
 
+        let world_com1;
+        let world_com2;
+
         match self.link1 {
             LinkOrBody::Link(link) => {
                 let mb = &multibodies[link.multibody];
                 pos1 = mb.link(link.id).unwrap().local_to_world;
+                // The link pose is origin-centered; the link’s body jacobian
+                // measures linear velocities at its center-of-mass, so the
+                // lever arms must be taken relative to the world com.
+                world_com1 = pos1 * self.local_body1.world_com;
                 mb1 = LinkOrBodyRef::Link(mb, link.id);
             }
             LinkOrBody::Body(body1) => {
                 pos1 = bodies.get_pose(body1).pose();
+                world_com1 = pos1.translation; // the solver body pose is at the center of mass.
                 mb1 = LinkOrBodyRef::Body(body1);
             }
             LinkOrBody::Fixed => {
                 pos1 = Pose::IDENTITY;
+                world_com1 = pos1.translation;
                 mb1 = LinkOrBodyRef::Fixed;
             }
         };
@@ -184,14 +207,17 @@ impl JointGenericExternalConstraintBuilder {
             LinkOrBody::Link(link) => {
                 let mb = &multibodies[link.multibody];
                 pos2 = mb.link(link.id).unwrap().local_to_world;
+                world_com2 = pos2 * self.local_body2.world_com;
                 mb2 = LinkOrBodyRef::Link(mb, link.id);
             }
             LinkOrBody::Body(body2) => {
                 pos2 = bodies.get_pose(body2).pose();
+                world_com2 = pos2.translation; // the solver body pose is at the center of mass.
                 mb2 = LinkOrBodyRef::Body(body2);
             }
             LinkOrBody::Fixed => {
                 pos2 = Pose::IDENTITY;
+                world_com2 = pos2.translation;
                 mb2 = LinkOrBodyRef::Fixed;
             }
         };
@@ -200,11 +226,11 @@ impl JointGenericExternalConstraintBuilder {
         let frame2 = pos2 * self.joint.local_frame2;
 
         let joint_body1 = JointSolverBody {
-            world_com: pos1.translation, // the solver body pose is at the center of mass.
+            world_com: world_com1,
             ..self.local_body1
         };
         let joint_body2 = JointSolverBody {
-            world_com: pos2.translation, // the solver body pose is at the center of mass.
+            world_com: world_com2,
             ..self.local_body2
         };
 
