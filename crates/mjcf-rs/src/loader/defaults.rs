@@ -304,6 +304,8 @@ impl ParseState {
                 "forcelimited" => p.force_limited = Some(parse_tristate(attr.value())?),
                 "gainprm" => p.gainprm = Some(parse_f64_list(attr.value())?),
                 "biasprm" => p.biasprm = Some(parse_f64_list(attr.value())?),
+                "gaintype" => p.gain_type = Some(attr.value().to_string()),
+                "biastype" => p.bias_type = Some(attr.value().to_string()),
                 "dyntype" => p.dyn_type = Some(attr.value().to_string()),
                 "dynprm" => p.dynprm = Some(parse_f64_list(attr.value())?),
                 "kp" => p.kp = Some(parse_f64(attr.value())?),

@@ -102,7 +102,7 @@ oorandom = { version = "11", default-features = false }
 #xurdf = { path = "../xurdf/xurdf" }
 
 #simba = { path = "../simba" }
-#kiss3d = { path = "../kiss3d" }
+kiss3d = { path = "../kiss3d" }
 #parry2d = { path = "../parry/crates/parry2d" }
 #parry3d = { path = "../parry/crates/parry3d" }
 #parry2d-f64 = { path = "../parry/crates/parry2d-f64" }

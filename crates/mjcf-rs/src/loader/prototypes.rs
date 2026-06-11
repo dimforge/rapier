@@ -106,6 +106,8 @@ pub(super) struct ActuatorPrototype {
     pub(super) force_limited: Option<Tristate>,
     pub(super) gainprm: Option<Vec<f64>>,
     pub(super) biasprm: Option<Vec<f64>>,
+    pub(super) gain_type: Option<String>,
+    pub(super) bias_type: Option<String>,
     pub(super) dyn_type: Option<String>,
     pub(super) dynprm: Option<Vec<f64>>,
     pub(super) kp: Option<f64>,
@@ -287,6 +289,12 @@ pub(super) fn merge_actuator_proto(
     }
     if top.biasprm.is_some() {
         acc.biasprm = top.biasprm;
+    }
+    if top.gain_type.is_some() {
+        acc.gain_type = top.gain_type;
+    }
+    if top.bias_type.is_some() {
+        acc.bias_type = top.bias_type;
     }
     if top.dyn_type.is_some() {
         acc.dyn_type = top.dyn_type;

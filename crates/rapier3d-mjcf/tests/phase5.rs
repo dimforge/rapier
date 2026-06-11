@@ -102,6 +102,129 @@ fn motor_actuator_drives_slider() {
     assert!(cart.linvel().x > 0.5, "cart vx = {}", cart.linvel().x);
 }
 
+// An affine `<general>` actuator is a position servo:
+//   force = gainprm0·ctrl + biasprm0 + biasprm1·q + biasprm2·q̇.
+// With gainprm=[k], biasprm=[0,-k,0] it holds the joint at `ctrl`. This is
+// the actuator type the flybody legs use. `base` is welded to the world (no
+// joint ⇒ fixed) so the `arm` hinge actually rotates in the world frame.
+const AFFINE_SERVO_XML: &str = r#"
+<mujoco>
+  <option gravity="0 0 0"/>
+  <worldbody>
+    <body name="base">
+      <geom type="box" size="0.1 0.1 0.1"/>
+      <body name="arm" pos="0 0 0.15">
+        <joint name="hinge" type="hinge" axis="0 0 1"/>
+        <inertial mass="1" diaginertia="0.1 0.1 0.1"/>
+        <geom type="box" size="0.2 0.05 0.05"/>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <!-- gainprm0=10, biasprm=[0,-10,-2]: a servo with stiffness 10, velocity
+         damping 2, holding the hinge at `ctrl`. -->
+    <general name="servo" joint="hinge" biastype="affine" gainprm="10" biasprm="0 -10 -2"/>
+  </actuator>
+</mujoco>
+"#;
+
+/// The rapier handle of the `arm` body in the model above.
+fn arm_handle<H: Copy>(robot: &MjcfRobot, handles: &rapier3d_mjcf::MjcfRobotHandles<H>) -> RigidBodyHandle {
+    for (i, bh) in handles.bodies.iter().enumerate() {
+        if robot.bodies[i].name.as_deref() == Some("arm") {
+            return bh.as_ref().unwrap().body;
+        }
+    }
+    panic!("arm body not found");
+}
+
+#[test]
+fn affine_general_actuator_parses_as_servo() {
+    let (robot, _) = MjcfRobot::from_str(AFFINE_SERVO_XML, MjcfLoaderOptions::default(), ".").unwrap();
+    let a = &robot.actuators[0].actuator;
+    assert_eq!(a.bias_type.as_deref(), Some("affine"));
+    assert_eq!(a.gainprm.first().copied(), Some(10.0));
+    assert_eq!(a.biasprm.get(1).copied(), Some(-10.0));
+    assert_eq!(a.biasprm.get(2).copied(), Some(-2.0));
+}
+
+/// Drive the AFFINE_SERVO_XML model to a target angle and return the arm's
+/// final rotation about Z. `multibody` selects the insertion + control path.
+/// Re-applies the control every frame against a persistent solver state (so
+/// it also exercises the per-frame wake path), and uses one `IslandManager`
+/// across the whole run.
+fn drive_servo_to(target: Real, multibody: bool) -> Real {
+    use rapier3d_mjcf::MjcfMultibodyOptions;
+    let (robot, _) = MjcfRobot::from_str(AFFINE_SERVO_XML, MjcfLoaderOptions::default(), ".").unwrap();
+    let mut bodies = RigidBodySet::new();
+    let mut colliders = ColliderSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let mut multibody_joints = MultibodyJointSet::new();
+
+    enum Ctl {
+        Impulse(rapier3d_mjcf::MjcfRobotHandles<ImpulseJointHandle>),
+        Multibody(rapier3d_mjcf::MjcfRobotHandles<Option<MultibodyJointHandle>>),
+    }
+    let (ctl, arm) = if multibody {
+        let handles = robot.clone().insert_using_multibody_joints(
+            &mut bodies,
+            &mut colliders,
+            &mut multibody_joints,
+            &mut impulse_joints,
+            MjcfMultibodyOptions::empty(),
+        );
+        let arm = arm_handle(&robot, &handles);
+        (Ctl::Multibody(handles), arm)
+    } else {
+        let handles =
+            robot.clone().insert_using_impulse_joints(&mut bodies, &mut colliders, &mut impulse_joints);
+        let arm = arm_handle(&robot, &handles);
+        (Ctl::Impulse(handles), arm)
+    };
+
+    let mut ccd = CCDSolver::new();
+    let mut pipeline = PhysicsPipeline::new();
+    let ip = IntegrationParameters::default();
+    let mut islands = IslandManager::new();
+    let mut broad_phase = DefaultBroadPhase::new();
+    let mut narrow_phase = NarrowPhase::new();
+    for _ in 0..40 {
+        match &ctl {
+            Ctl::Impulse(h) => h.apply_controls(&mut impulse_joints, &[target]),
+            Ctl::Multibody(h) => {
+                h.apply_controls_multibody(&mut bodies, &mut multibody_joints, &[target])
+            }
+        }
+        pipeline.step(
+            Vector::new(0.0, 0.0, 0.0),
+            &ip,
+            &mut islands,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut ccd,
+            &(),
+            &(),
+        );
+    }
+    bodies[arm].rotation().to_scaled_axis().z
+}
+
+#[test]
+fn affine_general_actuator_drives_hinge_impulse_path() {
+    let angle = drive_servo_to(0.5, false);
+    assert!((angle - 0.5).abs() < 0.1, "servo didn't reach target: angle = {angle}");
+}
+
+#[test]
+fn affine_general_actuator_drives_hinge_multibody_path() {
+    let angle = drive_servo_to(0.5, true);
+    assert!((angle - 0.5).abs() < 0.1, "multibody servo didn't reach target: angle = {angle}");
+}
+
 #[test]
 fn keyframe_mocap_application() {
     let xml = r#"

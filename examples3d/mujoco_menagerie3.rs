@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use kiss3d::color::Color;
 use rapier_testbed3d::{Testbed, settings::StringDisplayMode};
 use rapier3d::prelude::*;
-use rapier3d_mjcf::{MjcfLoaderOptions, MjcfMultibodyOptions, MjcfRobot};
+use rapier3d_mjcf::{MjcfLoaderOptions, MjcfMultibodyOptions, MjcfRobot, MjcfRobotHandles};
 
 /// Roots the scene-picker walks. Each entry is expected to contain `<robot>/scene*.xml` one level
 /// deep. We recommend simply cloning `https://github.com/google-deepmind/mujoco_menagerie` into
@@ -48,6 +48,14 @@ pub fn init_world(testbed: &mut Testbed) {
     let disable_collisions = testbed
         .example_settings_mut()
         .get_or_set_bool("Disable collisions", true);
+    // Drives every actuator each frame with a zero control input — MuJoCo's
+    // "actuation" flag. For affine `<general>`/`<position>` actuators (a
+    // position servo) this holds each joint at its neutral pose, e.g. keeping
+    // the flybody legs spread instead of letting them retract. Only effective
+    // on the multibody path (controls are applied to multibody joints).
+    let enable_controls = testbed
+        .example_settings_mut()
+        .get_or_set_bool("Enable joint controls", false);
     let selected = testbed.example_settings_mut().get_or_set_string_with(
         "Scene",
         default_idx,
@@ -61,14 +69,33 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let mut world = PhysicsWorld::new();
     let mut loaded = None;
+    let mut mb_handles = None;
     if let Some((path, _)) = scenes.get(selected) {
         match load_into_world(path, &mut world, use_multibody, disable_collisions) {
-            Ok(handles) => loaded = Some(handles),
+            Ok((robot, body_handles, mb)) => {
+                loaded = Some((robot, body_handles));
+                mb_handles = mb;
+            }
             Err(e) => eprintln!("Failed to load `{}`: {e}", path.display()),
         }
         add_floor(&mut world);
     }
     testbed.set_physics_world(world);
+
+    // "Enable joint controls" → drive the model's actuators every frame with a
+    // zero control vector (hold the neutral pose). Re-registered on each
+    // `init_world` (the testbed clears callbacks when a setting toggles), so
+    // ticking the checkbox turns actuation on/off. Multibody path only.
+    if enable_controls && let Some(handles) = mb_handles {
+        let ctrl = vec![0.0 as Real; handles.actuators.len()];
+        testbed.add_callback(move |_, physics, _, _| {
+            handles.apply_controls_multibody(
+                &mut physics.bodies,
+                &mut physics.multibody_joints,
+                &ctrl,
+            );
+        });
+    }
     // MJCF is Z-up by default — keep the camera convention consistent
     // with the model so orbit controls feel right.
     testbed.set_up_axis(Vec3::Z);
@@ -142,13 +169,19 @@ fn add_floor(world: &mut PhysicsWorld) {
 /// the impulse-joint insertion path, and returns the source robot
 /// together with the rapier body handle of each `MjcfBody` (`None` for
 /// bodies that weren't inserted — typically the implicit world body when
-/// no joint references it).
+/// no joint references it). The third element is the full multibody handle
+/// set (`Some` only on the multibody path), kept so the caller can drive the
+/// model's actuators via `apply_controls_multibody`.
+type MultibodyHandles = MjcfRobotHandles<Option<MultibodyJointHandle>>;
 fn load_into_world(
     path: &Path,
     world: &mut PhysicsWorld,
     use_multibody: bool,
     disable_collisions: bool,
-) -> Result<(MjcfRobot, Vec<Option<RigidBodyHandle>>), Box<dyn std::error::Error>> {
+) -> Result<
+    (MjcfRobot, Vec<Option<RigidBodyHandle>>, Option<MultibodyHandles>),
+    Box<dyn std::error::Error>,
+> {
     let (mut robot, model) = MjcfRobot::from_file(path, loader_options())?;
 
     if disable_collisions {
@@ -179,9 +212,9 @@ fn load_into_world(
         MjcfMultibodyOptions::DISABLE_SELF_CONTACTS
     } else {
         MjcfMultibodyOptions::default()
-    } | MjcfMultibodyOptions::SKIP_LOOP_CLOSURES;
+    }; // | MjcfMultibodyOptions::SKIP_LOOP_CLOSURES;
 
-    let body_handles = if use_multibody {
+    let (body_handles, mb_handles) = if use_multibody {
         let handles = robot.clone().insert_using_multibody_joints(
             &mut world.bodies,
             &mut world.colliders,
@@ -189,25 +222,27 @@ fn load_into_world(
             &mut world.impulse_joints,
             mb_options,
         );
-        handles
+        let body_handles = handles
             .bodies
-            .into_iter()
-            .map(|b| b.map(|h| h.body))
-            .collect()
+            .iter()
+            .map(|b| b.as_ref().map(|h| h.body))
+            .collect();
+        (body_handles, Some(handles))
     } else {
         let handles = robot.clone().insert_using_impulse_joints(
             &mut world.bodies,
             &mut world.colliders,
             &mut world.impulse_joints,
         );
-        handles
+        let body_handles = handles
             .bodies
             .into_iter()
             .map(|b| b.map(|h| h.body))
-            .collect()
+            .collect();
+        (body_handles, None)
     };
 
-    Ok((robot, body_handles))
+    Ok((robot, body_handles, mb_handles))
 }
 
 /// For each MJCF body that has visual meshes, register them against the
