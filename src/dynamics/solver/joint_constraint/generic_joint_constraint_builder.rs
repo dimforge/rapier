@@ -376,6 +376,44 @@ impl JointConstraintHelper<Real> {
         ang_jac1: AngVector,
         ang_jac2: AngVector,
     ) -> GenericJointConstraint {
+        // When both attachment points are links of the same multibody (e.g. a
+        // loop closure), the two jacobian blocks act on the same generalized
+        // velocities and must be combined into a single relative jacobian
+        // `J2 − J1`. Keeping one block per link would lose the `J1ᵀ·W·J2`
+        // coupling in the constraint’s effective mass, yielding wildly wrong
+        // impulses (and divisions by noise when the blocks nearly cancel).
+        // The block is stored on the "2" side so that the solver’s
+        // `vel2 - vel1` measurement reads `(J2 − J1)·v` as expected.
+        if let (LinkOrBodyRef::Link(mb_a, link_id1), LinkOrBodyRef::Link(mb_b, link_id2)) =
+            (mb1, mb2)
+            && core::ptr::eq(mb_a, mb_b)
+        {
+            let block_j_id = *j_id;
+            mb_a.fill_relative_jacobians(
+                link_id1, lin_jac, ang_jac1, link_id2, lin_jac, ang_jac2, j_id, jacobians,
+            );
+
+            return GenericJointConstraint {
+                is_rigid_body1: true,
+                is_rigid_body2: false,
+                solver_vel1: u32::MAX,
+                solver_vel2: mb_a.solver_id,
+                ndofs1: 0,
+                j_id1: block_j_id,
+                ndofs2: mb_a.ndofs(),
+                j_id2: block_j_id,
+                joint_id,
+                impulse: 0.0,
+                impulse_bounds: [-Real::MAX, Real::MAX],
+                inv_lhs: 0.0,
+                rhs: 0.0,
+                rhs_wo_bias: 0.0,
+                cfm_coeff: 0.0,
+                cfm_gain: 0.0,
+                writeback_id,
+            };
+        }
+
         let j_id1 = *j_id;
         let (ndofs1, solver_vel1, is_rigid_body1) = match mb1 {
             LinkOrBodyRef::Link(mb1, link_id1) => {

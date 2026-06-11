@@ -1228,6 +1228,89 @@ impl Multibody {
         (j.dot(&invm_j), j.dot(&self.generalized_velocity()))
     }
 
+    /// Fills `jacobians` with the relative jacobian `J = J2ᵀ·f2 − J1ᵀ·f1` of two
+    /// links of `self` (followed by its product with the inverse augmented mass),
+    /// where `fk = (unit_forcek, unit_torquek)`.
+    ///
+    /// This is the jacobian of a velocity constraint between two links of the
+    /// same multibody (e.g. a loop closure). The difference must be computed
+    /// explicitly — keeping one block per link loses the `J1ᵀ·W·J2` coupling in
+    /// the constraint’s effective mass since both blocks act on the same
+    /// generalized velocities.
+    ///
+    /// Rows that vanish by cancellation (the constrained direction is not
+    /// expressible in the multibody’s reduced coordinates, e.g. a loop-closure
+    /// anchor coinciding with the joint pivot it closes over) are zeroed so the
+    /// solver skips them instead of dividing by floating-point noise.
+    pub(crate) fn fill_relative_jacobians(
+        &self,
+        link_id1: usize,
+        unit_force1: Vector,
+        unit_torque1: AngVector,
+        link_id2: usize,
+        unit_force2: Vector,
+        unit_torque2: AngVector,
+        j_id: &mut usize,
+        jacobians: &mut DVector,
+    ) {
+        if self.ndofs == 0 {
+            return;
+        }
+
+        let wj_id = *j_id + self.ndofs;
+        let force1 = Force {
+            linear: unit_force1,
+            angular: unit_torque1,
+        };
+        let force2 = Force {
+            linear: unit_force2,
+            angular: unit_torque2,
+        };
+
+        let link1 = &self.links[link_id1];
+        let link2 = &self.links[link_id2];
+
+        {
+            let jb1 = &self.body_jacobians[link1.internal_id];
+            let jb2 = &self.body_jacobians[link2.internal_id];
+
+            // Use the (overwritten below) W·J slot as scratch for J1ᵀ·f1.
+            let (mut out_j, mut scratch) = jacobians
+                .rows_range_pair_mut(*j_id..*j_id + self.ndofs, wj_id..wj_id + self.ndofs);
+            jb2.tr_mul_to(force2.as_vector(), &mut out_j);
+            jb1.tr_mul_to(force1.as_vector(), &mut scratch);
+            out_j.axpy(-1.0, &scratch, 1.0);
+
+            // Cancellation guard. The reference scale is the magnitude of the
+            // dot-product operands (not of their results, which may themselves
+            // be pure cancellation noise when the constrained direction isn’t
+            // expressible by the multibody’s dofs at all). A row this small
+            // compared to ~1000× the machine epsilon times that scale is
+            // numerical noise, not an actual constraint direction.
+            let scale_sq = jb1.norm_squared() * force1.as_vector().norm_squared()
+                + jb2.norm_squared() * force2.as_vector().norm_squared();
+            let eps = Real::EPSILON * 1.0e3;
+            if out_j.norm_squared() <= eps * eps * scale_sq {
+                out_j.fill(0.0);
+            }
+        }
+
+        // TODO: Optimize with a copy_nonoverlapping?
+        for i in 0..self.ndofs {
+            jacobians[wj_id + i] = jacobians[*j_id + i];
+        }
+
+        {
+            let mut out_invm_j = jacobians.rows_mut(wj_id, self.ndofs);
+            self.augmented_mass_indices
+                .with_rearranged_rows_mut(&mut out_invm_j, |out_invm_j| {
+                    self.inv_augmented_mass.solve_mut(out_invm_j);
+                });
+        }
+
+        *j_id += self.ndofs * 2;
+    }
+
     // #[cfg(feature = "parallel")]
     // #[inline]
     // pub(crate) fn has_active_internal_constraints(&self) -> bool {
