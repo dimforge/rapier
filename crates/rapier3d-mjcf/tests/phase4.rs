@@ -70,6 +70,74 @@ fn springref_is_baked_in_radians() {
 }
 
 #[test]
+fn springdamper_stiffness_uses_assembled_joint_inertia() {
+    // `springdamper="T ζ"` is resolved post-assembly against the joint-space
+    // inertia: stiffness = I / (T²·ζ²). For a fixed-base single hinge about Z,
+    // I is just the link's inertia about Z. With T=0.5, ζ=1 → k = I / 0.25 = 4I.
+    let xml = |izz: f64| {
+        format!(
+            r#"<mujoco><worldbody>
+              <body name="a"><joint name="j" type="hinge" axis="0 0 1" springdamper="0.5 1"/>
+                <inertial mass="1" diaginertia="0.1 0.2 {izz}"/>
+              </body></worldbody></mujoco>"#
+        )
+    };
+    let resolved_stiffness = |izz: f64| -> Real {
+        let opts = MjcfLoaderOptions {
+            make_roots_fixed: true,
+            ..Default::default()
+        };
+        let (robot, _) = MjcfRobot::from_str(&xml(izz), opts, ".").unwrap();
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let handles = robot.insert_using_multibody_joints(
+            &mut bodies,
+            &mut colliders,
+            &mut multibody_joints,
+            &mut impulse_joints,
+            rapier3d_mjcf::MjcfMultibodyOptions::empty(),
+        );
+        let h = handles.joints[0].joint.expect("multibody joint");
+        let (mb, link_id) = multibody_joints.get_mut(h).unwrap();
+        // The revolute's free DoF is the angular X axis (index 3).
+        mb.links().nth(link_id).unwrap().joint().spring(3).0
+    };
+
+    let k = resolved_stiffness(0.3);
+    let expected = (0.3 / 0.25) as Real; // I / (T²ζ²)
+    assert!(
+        (k - expected).abs() < expected * 0.02,
+        "springdamper stiffness = {k}, expected ≈ {expected} (= I / (T²·ζ²))"
+    );
+    // Doubling the joint inertia doubles the resolved stiffness.
+    let ratio = resolved_stiffness(0.6) / k;
+    assert!(
+        (ratio - 2.0).abs() < 0.02,
+        "stiffness should scale with the assembled joint inertia; ratio = {ratio}"
+    );
+}
+
+#[test]
+fn invalid_springdamper_is_ignored_and_falls_through() {
+    // A `springdamper` that isn't two positive values is an error in MuJoCo;
+    // the loader warns and ignores it, falling through to the explicit
+    // `stiffness` (it does NOT reinterpret the second value as a stiffness).
+    let xml = r#"
+    <mujoco><worldbody>
+      <body name="a"><joint name="j" type="hinge" axis="0 0 1" springdamper="0 1" stiffness="7"/>
+        <inertial mass="1" diaginertia="0.1 0.1 0.1"/>
+      </body></worldbody></mujoco>
+    "#;
+    let (robot, _) = MjcfRobot::from_str(xml, MjcfLoaderOptions::default(), ".").unwrap();
+    assert_eq!(
+        robot.joints[0].spring_stiffness_per_dof, 7.0,
+        "invalid springdamper should fall through to the explicit stiffness"
+    );
+}
+
+#[test]
 fn armature_routes_through_per_dof_armature_not_spatial_inertia() {
     // MuJoCo's `armature` is a reflected rotor inertia that belongs on the
     // diagonal of the joint-space mass matrix, NOT in the link's spatial

@@ -10,7 +10,9 @@ use mjcf_rs::body as mb;
 use mjcf_rs::compiler::InertiaFromGeom;
 use mjcf_rs::model::BodyEntry;
 
-use rapier3d::dynamics::{MassProperties, MultibodyJointHandle, MultibodyJointSet};
+use rapier3d::dynamics::{
+    MassProperties, MultibodyJointHandle, MultibodyJointSet, RigidBodySet,
+};
 use rapier3d::math::{Matrix, Pose, Real, Vector};
 
 use super::conversion::Conversion;
@@ -249,6 +251,136 @@ pub(super) fn add_armature_to_multibody(
                 armature_vec[idx] = armature;
             }
             local_dof += 1;
+        }
+    }
+}
+
+/// After a joint has been inserted into a multibody, install a passive
+/// `<joint stiffness springref>` spring as an *implicit* spring on the
+/// multibody link (force `-k·(q − rest)`, integrated implicitly in the
+/// generalized dynamics) and remove the explicit position-motor spring that
+/// the serial-joint builder created for the impulse path. The spring is
+/// applied to every free DoF of the joint, matching MuJoCo's per-joint
+/// `stiffness`.
+///
+/// Implicit integration keeps stiff springs stable on low-inertia links,
+/// where the explicit motor injects energy (e.g. robotiq's `spring_link`
+/// driving the near-massless follower, or flybody's leg springs).
+pub(super) fn add_spring_to_multibody(
+    multibody_joints: &mut MultibodyJointSet,
+    handle: MultibodyJointHandle,
+    stiffness: Real,
+    rest: Real,
+) {
+    use rapier3d::dynamics::JointAxesMask;
+    use rapier3d::math::SPATIAL_DIM;
+    let Some((multibody, link_id)) = multibody_joints.get_mut(handle) else {
+        return;
+    };
+    let Some(link) = multibody.links_mut().nth(link_id) else {
+        return;
+    };
+    let locked_bits = link.joint.data.locked_axes.bits();
+    for axis in 0..SPATIAL_DIM {
+        if (locked_bits & (1 << axis)) == 0 {
+            link.joint.set_spring(axis, stiffness, rest);
+            // Drop the explicit motor spring on this axis so the implicit
+            // spring isn't double-applied. Actuators (applied later via
+            // `apply_controls`) re-enable the motor on the axes they drive.
+            if let Some(flag) = JointAxesMask::from_bits(1u8 << axis) {
+                link.joint.data.motor_axes.remove(flag);
+            }
+        }
+    }
+}
+
+/// Install a MJCF `<joint springdamper="timeconst dampratio">` spring,
+/// resolved against the *assembled* multibody so it realizes the requested
+/// time constant and damping ratio — MuJoCo's `AutoSpringDamper`. Must run
+/// after the whole multibody is built and its bodies' mass properties are up
+/// to date (`dof_inverse_inertia` reads `diag(M⁻¹)`).
+///
+/// With effective inertia `I = ndof / Σ dof_invweight0` over the joint's DoFs:
+/// `stiffness = I / (T²·ζ²)` and `damping = 2·I / T`. The stiffness becomes an
+/// implicit spring (like [`add_spring_to_multibody`]) and the damping goes to
+/// the per-DoF damping vector; the explicit motor on those axes is cleared.
+pub(super) fn add_springdamper_to_multibody(
+    multibody_joints: &mut MultibodyJointSet,
+    bodies: &RigidBodySet,
+    handle: MultibodyJointHandle,
+    timeconst: Real,
+    dampratio: Real,
+    rest: Real,
+) {
+    use rapier3d::dynamics::JointAxesMask;
+    use rapier3d::math::SPATIAL_DIM;
+
+    let Some((multibody, link_id)) = multibody_joints.get_mut(handle) else {
+        return;
+    };
+
+    // Per-DoF inverse joint-space inertia (also finalizes the root type).
+    let invweight = multibody.dof_inverse_inertia(bodies);
+
+    // This link's DoF offset and count in the generalized vectors.
+    let mut offset = 0;
+    let mut ndofs = 0;
+    for (i, link) in multibody.links().enumerate() {
+        let nd = link.joint().ndofs();
+        if i == link_id {
+            ndofs = nd;
+            break;
+        }
+        offset += nd;
+    }
+    if ndofs == 0 {
+        return;
+    }
+
+    // MuJoCo `AutoSpringDamper`: inertia = ndof / Σ invweight0, then
+    // stiffness = inertia / (T²·ζ²), damping = 2·inertia / T.
+    //
+    // NOTE: the effective inertia is evaluated once here, at the load-time
+    // configuration (MuJoCo does the same at `qpos0`), and `stiffness`/`damping`
+    // are then *constant* — that's what makes this a physical spring. The
+    // requested time constant / damping ratio hold exactly only at this pose;
+    // as the articulated inertia changes with configuration the effective ω/ζ
+    // drift, which is correct spring behavior. Re-deriving the coefficients from
+    // the current inertia every frame would instead hold ω/ζ constant by making
+    // the *stiffness* configuration-dependent — a normalized impedance, not a
+    // spring, and a divergence from MuJoCo. (The integration itself already uses
+    // the current per-frame mass matrix; only this calibration is fixed.)
+    let eps = 1.0e-9;
+    let sum_inv: Real = (0..ndofs)
+        .map(|d| invweight.get(offset + d).copied().unwrap_or(0.0))
+        .sum();
+    let inertia = if sum_inv > eps {
+        ndofs as Real / sum_inv
+    } else {
+        0.0
+    };
+    let stiffness = inertia / (timeconst * timeconst * dampratio * dampratio).max(eps);
+    let damping = 2.0 * inertia / timeconst.max(eps);
+
+    // Stiffness → implicit spring; clear the explicit motor on those axes.
+    if let Some(link) = multibody.links_mut().nth(link_id) {
+        let locked_bits = link.joint.data.locked_axes.bits();
+        for axis in 0..SPATIAL_DIM {
+            if (locked_bits & (1 << axis)) == 0 {
+                link.joint.set_spring(axis, stiffness, rest);
+                if let Some(flag) = JointAxesMask::from_bits(1u8 << axis) {
+                    link.joint.data.motor_axes.remove(flag);
+                }
+            }
+        }
+    }
+
+    // Damping → per-DoF damping vector (the joint's DoFs are offset..+ndofs).
+    let damping_vec = multibody.damping_mut();
+    for d in 0..ndofs {
+        let idx = offset + d;
+        if idx < damping_vec.len() {
+            damping_vec[idx] = damping;
         }
     }
 }

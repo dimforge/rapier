@@ -29,6 +29,13 @@ pub struct MultibodyJoint {
     pub kinematic: bool,
     pub(crate) coords: SpatialVector,
     pub(crate) joint_rot: Rotation,
+    /// Per-DoF spring stiffness (a passive joint spring integrated implicitly
+    /// in the generalized dynamics). Zero on axes with no spring.
+    pub(crate) spring_stiffness: SpatialVector,
+    /// Per-DoF spring rest position, in the joint's generalized coordinate
+    /// (same convention as [`Self::coords`]). Only meaningful where
+    /// `spring_stiffness` is non-zero.
+    pub(crate) spring_ref: SpatialVector,
 }
 
 impl MultibodyJoint {
@@ -39,7 +46,23 @@ impl MultibodyJoint {
             kinematic,
             coords: Default::default(),
             joint_rot: Rotation::IDENTITY,
+            spring_stiffness: Default::default(),
+            spring_ref: Default::default(),
         }
+    }
+
+    /// Sets a passive joint spring on `axis` (an index into the 6-DoF spatial
+    /// layout: `0..DIM` linear, `DIM..SPATIAL_DIM` angular). The spring applies
+    /// a generalized force `-stiffness · (q − rest)` integrated implicitly.
+    pub fn set_spring(&mut self, axis: usize, stiffness: Real, rest: Real) {
+        self.spring_stiffness[axis] = stiffness;
+        self.spring_ref[axis] = rest;
+    }
+
+    /// The passive joint spring on `axis` as `(stiffness, rest)`, as set by
+    /// [`Self::set_spring`]. `(0, 0)` if no spring is set on that axis.
+    pub fn spring(&self, axis: usize) -> (Real, Real) {
+        (self.spring_stiffness[axis], self.spring_ref[axis])
     }
 
     pub(crate) fn free(pos: Pose) -> Self {

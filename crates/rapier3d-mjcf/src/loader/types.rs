@@ -116,6 +116,25 @@ pub struct MjcfJoint {
     /// (huge along the joint axis, ~0 across it) and the multibody mass
     /// matrix ill-conditioned.
     pub armature_per_dof: Real,
+    /// MJCF `<joint stiffness>` (passive spring). On the multibody path this
+    /// can be integrated implicitly in the generalized dynamics (added to the
+    /// mass-matrix diagonal as `dt²·k` with a force `-k·(q − ref)`), which is
+    /// numerically stable for stiff springs on low-inertia links — unlike the
+    /// explicit position motor used otherwise. `0` if the joint has no spring.
+    pub spring_stiffness_per_dof: Real,
+    /// Rest position of the spring (`springref − ref`, in rapier's joint
+    /// coordinate convention). Used for both the explicit-stiffness spring and
+    /// the `springdamper` spring below.
+    pub spring_ref: Real,
+    /// MJCF `<joint springdamper="timeconst dampratio">` (both positive). Unlike
+    /// `spring_stiffness_per_dof`/`damping_per_dof` — which are physical
+    /// coefficients known up front — a `springdamper` requests a spring with a
+    /// given *time constant and damping ratio*, so its stiffness and damping
+    /// must be computed from the assembled joint-space inertia (MuJoCo's
+    /// `dof_invweight0`). The multibody insertion path resolves it in a
+    /// post-assembly pass; a valid `springdamper` overrides the explicit
+    /// stiffness/damping (which are then left at 0 here).
+    pub springdamper: Option<(Real, Real)>,
 }
 
 /// One `<equality>` constraint materialized as an extra rapier joint.

@@ -97,6 +97,11 @@ fn cassie_multibody_loads_without_nan() {
 /// `J1ᵀ·W·J2` coupling for constraints between links of the same
 /// multibody). With those fixed, the dangling legs just swing and the
 /// closures hold; this regression keeps that configuration NaN-free.
+///
+/// Note: `disable_joint_motors` disables actuator/friction-loss motors only —
+/// the passive `<joint stiffness>` springs are not motors and stay active
+/// (integrated implicitly), so this also exercises the loop closures together
+/// with cassie's stiff shin/heel springs.
 #[test]
 #[ignore = "requires the cassie assets"]
 fn cassie_stable_without_motors_and_with_loop_closures() {

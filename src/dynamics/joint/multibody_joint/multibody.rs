@@ -511,6 +511,25 @@ impl Multibody {
         self.accelerations
             .cmpy(-1.0, &self.damping, &self.velocities, 1.0);
 
+        // Implicit joint springs: generalized force `-k·(q − rest)` evaluated at
+        // the current position (the implicit `dt²·k` correction lives on the
+        // mass-matrix diagonal, see `update_mass_matrix`).
+        for li in 0..self.links.len() {
+            let mut idx = self.links[li].assembly_id;
+            let locked = self.links[li].joint.data.locked_axes.bits();
+            for a in 0..SPATIAL_DIM {
+                if (locked >> a) & 1 == 0 {
+                    let k = self.links[li].joint.spring_stiffness[a];
+                    if k != 0.0 {
+                        let q = self.links[li].joint.coords[a];
+                        let rest = self.links[li].joint.spring_ref[a];
+                        self.accelerations[idx] += -k * (q - rest);
+                    }
+                    idx += 1;
+                }
+            }
+        }
+
         self.augmented_mass_indices
             .with_rearranged_rows_mut(&mut self.accelerations, |accs| {
                 self.acc_inv_augmented_mass.solve_mut(accs);
@@ -822,6 +841,31 @@ impl Multibody {
             self.augmented_mass[(i, i)] += diag;
         }
 
+        // Implicit joint springs. A passive spring contributes a generalized
+        // force `-k·(q − rest)`; integrating it implicitly (evaluating it at the
+        // end-of-step position `q + dt·v⁺`) adds `dt²·k` to the mass-matrix
+        // diagonal here, with the `-k·(q − rest)` term added in
+        // `update_acceleration`. This is what keeps a stiff spring on a
+        // low-inertia link stable where an explicit position motor injects
+        // energy. The spring lives on the link's `MultibodyJoint` so it travels
+        // with the link through topology changes.
+        let dt2 = dt * dt;
+        for li in 0..self.links.len() {
+            let mut idx = self.links[li].assembly_id;
+            let locked = self.links[li].joint.data.locked_axes.bits();
+            for a in 0..SPATIAL_DIM {
+                if (locked >> a) & 1 == 0 {
+                    let k = self.links[li].joint.spring_stiffness[a];
+                    if k != 0.0 {
+                        let d = k * dt2;
+                        self.acc_augmented_mass[(idx, idx)] += d;
+                        self.augmented_mass[(idx, idx)] += d;
+                    }
+                    idx += 1;
+                }
+            }
+        }
+
         let effective_dim = self
             .augmented_mass_indices
             .dim_after_removal(self.acc_augmented_mass.nrows());
@@ -849,6 +893,45 @@ impl Multibody {
                 .view((0, 0), (effective_dim, effective_dim))
                 .into_owned(),
         );
+    }
+
+    /// Per-DoF inverse joint-space inertia `diag(M⁻¹)` at the current
+    /// configuration, where `M` is the generalized mass matrix *including
+    /// armature* but excluding joint damping and springs. This is MuJoCo's
+    /// `dof_invweight0`: the apparent inverse inertia seen at each DoF when all
+    /// other DoFs are free, accounting for the full articulated coupling.
+    ///
+    /// It (re)runs forward kinematics and reassembles the mass matrix, so it is
+    /// intended for occasional use (e.g. sizing `<joint springdamper>` springs
+    /// at load time), not for every simulation step.
+    pub fn dof_inverse_inertia(&mut self, bodies: &RigidBodySet) -> DVector {
+        // Resolve the root joint type (a fixed base may still be a 6-DoF free
+        // root pre-collapse) so `ndofs` is final, then assemble `M`. Using
+        // `dt = 0` drops the `dt·damping` and `dt²·stiffness` diagonal terms,
+        // leaving exactly `M + armature`.
+        self.forward_kinematics(bodies, false);
+        self.update_mass_matrix(0.0, bodies);
+
+        let n = self.ndofs;
+        let mut out = DVector::zeros(n);
+        if n == 0 {
+            return out;
+        }
+        // `(M⁻¹)[i, i]` for each DoF: solve `M x = e_i` and read `x[i]`. The
+        // factorization in `inv_augmented_mass` lives in the kinematic-reduced
+        // ordering, so route the unit vector through the same rearrangement the
+        // solver uses.
+        let mut e = DVector::zeros(n);
+        for i in 0..n {
+            e.fill(0.0);
+            e[i] = 1.0;
+            self.augmented_mass_indices
+                .with_rearranged_rows_mut(&mut e, |b| {
+                    self.inv_augmented_mass.solve_mut(b);
+                });
+            out[i] = e[i];
+        }
+        out
     }
 
     /// The generalized velocity at the multibody_joint of the given link.

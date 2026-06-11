@@ -239,6 +239,9 @@ impl<'a> Conversion<'a> {
                     joint,
                     damping_per_dof: 0.0,
                     armature_per_dof: 0.0,
+                    spring_stiffness_per_dof: 0.0,
+                    spring_ref: 0.0,
+                    springdamper: None,
                 });
             }
             return;
@@ -266,19 +269,34 @@ impl<'a> Conversion<'a> {
             // joint's pos/axis encodes the geometric DoF.
             let cur_world_pose = body_world_pose;
             let joint = self.build_serial_joint(j, prev_world_pose, cur_world_pose);
-            // Per-DoF damping: applied uniformly across the joint's free
-            // DoFs. The `disable_joint_motors` option intentionally does
-            // NOT affect this — per-DoF damping is not a motor, it's a
-            // friction-like term on the dynamics equations.
-            let damping_per_dof = if let Some(sd) = j.springdamper {
-                let timeconst = sd[0];
-                let dampratio = sd[1];
-                if timeconst > 0.0 {
-                    let omega = std::f64::consts::TAU / timeconst;
-                    (2.0 * dampratio * omega) as Real
-                } else {
-                    0.0
+
+            // MuJoCo's `<joint springdamper="timeconst dampratio">` requests a
+            // spring with that time constant and damping ratio; the actual
+            // stiffness/damping depend on the assembled joint-space inertia, so
+            // they're resolved post-assembly (see `add_springdamper_to_multibody`).
+            // MuJoCo requires both values strictly positive (it errors
+            // otherwise); we warn-and-ignore an out-of-spec pair. A valid
+            // springdamper overrides the explicit stiffness/damping.
+            let springdamper = match j.springdamper {
+                Some(sd) if sd[0] > 0.0 && sd[1] > 0.0 => Some((sd[0] as Real, sd[1] as Real)),
+                Some(_) => {
+                    log::warn!(
+                        "<joint name={:?}>: springdamper needs two positive values \
+                         (timeconst dampratio); ignoring it (MuJoCo rejects this)",
+                        j.name
+                    );
+                    None
                 }
+                None => None,
+            };
+
+            // Per-DoF damping: applied uniformly across the joint's free DoFs.
+            // The `disable_joint_motors` option intentionally does NOT affect
+            // this — per-DoF damping is not a motor, it's a friction-like term
+            // on the dynamics equations. A valid `springdamper` supplies its own
+            // damping post-assembly, so it overrides `<joint damping>` here.
+            let damping_per_dof = if springdamper.is_some() {
+                0.0
             } else {
                 j.damping as Real
             };
@@ -286,6 +304,18 @@ impl<'a> Conversion<'a> {
             // generalized mass matrix at insertion time rather than baked into
             // the link's spatial inertia — see `MjcfJoint::armature_per_dof`.
             let armature_per_dof = j.armature.max(0.0) as Real;
+            // Passive spring carried so the multibody path can integrate it
+            // implicitly (a valid `springdamper` overrides `<joint stiffness>`,
+            // leaving this 0 and supplying the stiffness post-assembly). A
+            // spring is *not* a motor, so it is deliberately independent of
+            // `disable_joint_motors` / `SKIP_JOINT_MOTORS`; use
+            // `SKIP_JOINT_SPRINGS` to drop it.
+            let spring_ref = (j.springref - j.ref_) as Real;
+            let spring_stiffness_per_dof = if springdamper.is_none() && j.stiffness > 0.0 {
+                j.stiffness as Real
+            } else {
+                0.0
+            };
             self.robot.joints.push(MjcfJoint {
                 name: j.name.clone(),
                 link1: prev_rapier,
@@ -293,6 +323,9 @@ impl<'a> Conversion<'a> {
                 joint,
                 damping_per_dof,
                 armature_per_dof,
+                spring_stiffness_per_dof,
+                spring_ref,
+                springdamper,
             });
             prev_rapier = cur_rapier;
             prev_world_pose = cur_world_pose;

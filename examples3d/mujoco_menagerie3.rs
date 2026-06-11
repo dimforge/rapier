@@ -56,6 +56,12 @@ pub fn init_world(testbed: &mut Testbed) {
     let enable_controls = testbed
         .example_settings_mut()
         .get_or_set_bool("Enable joint controls", false);
+    // MJCF `<joint stiffness>` passive springs (integrated implicitly on the
+    // multibody path). Unchecking removes them — useful to see a model without
+    // its return springs (e.g. robotiq's gripper preload, cassie's leg springs).
+    let enable_springs = testbed
+        .example_settings_mut()
+        .get_or_set_bool("Enable joint springs", true);
     let selected = testbed.example_settings_mut().get_or_set_string_with(
         "Scene",
         default_idx,
@@ -71,7 +77,13 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut loaded = None;
     let mut mb_handles = None;
     if let Some((path, _)) = scenes.get(selected) {
-        match load_into_world(path, &mut world, use_multibody, disable_collisions) {
+        match load_into_world(
+            path,
+            &mut world,
+            use_multibody,
+            disable_collisions,
+            enable_springs,
+        ) {
             Ok((robot, body_handles, mb)) => {
                 loaded = Some((robot, body_handles));
                 mb_handles = mb;
@@ -103,6 +115,8 @@ pub fn init_world(testbed: &mut Testbed) {
     if !use_multibody {
         testbed.integration_parameters_mut().dt = 1.0 / 240.0;
         testbed.integration_parameters_mut().num_solver_iterations = 12;
+    } else {
+        testbed.integration_parameters_mut().num_internal_pgs_iterations = 4;
     }
 
     // Refit the camera only on actual scene changes, otherwise a
@@ -178,6 +192,7 @@ fn load_into_world(
     world: &mut PhysicsWorld,
     use_multibody: bool,
     disable_collisions: bool,
+    enable_springs: bool,
 ) -> Result<
     (MjcfRobot, Vec<Option<RigidBodyHandle>>, Option<MultibodyHandles>),
     Box<dyn std::error::Error>,
@@ -208,11 +223,17 @@ fn load_into_world(
     let gravity_mag = (gx * gx + gy * gy + gz * gz).sqrt();
     world.gravity = Vector::new(0.0, 0.0, -gravity_mag);
 
-    let mb_options = if disable_collisions {
+    let mut mb_options = if disable_collisions {
         MjcfMultibodyOptions::DISABLE_SELF_CONTACTS
     } else {
         MjcfMultibodyOptions::default()
-    }; // | MjcfMultibodyOptions::SKIP_LOOP_CLOSURES;
+    };
+    // `<joint stiffness>` springs are integrated implicitly by default;
+    // unchecking the toggle strips them so you can see the model without its
+    // passive return springs (and contrast against the implicit-spring fix).
+    if !enable_springs {
+        mb_options |= MjcfMultibodyOptions::SKIP_JOINT_SPRINGS;
+    }
 
     let (body_handles, mb_handles) = if use_multibody {
         let handles = robot.clone().insert_using_multibody_joints(
