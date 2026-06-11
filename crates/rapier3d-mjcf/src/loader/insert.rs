@@ -14,7 +14,7 @@ use rapier3d::math::Pose;
 use super::handles::{
     MjcfActuatorHandle, MjcfBodyHandle, MjcfColliderHandle, MjcfJointHandle, MjcfRobotHandles,
 };
-use super::mass::move_motor_damping_to_multibody;
+use super::mass::{add_armature_to_multibody, move_motor_damping_to_multibody};
 use super::options::MjcfMultibodyOptions;
 use super::types::MjcfRobot;
 
@@ -152,6 +152,7 @@ impl MjcfRobot {
                 continue;
             };
             let damping_per_dof = j.damping_per_dof;
+            let armature_per_dof = j.armature_per_dof;
             let joint_name = j.name.clone();
             // `limit_axes` / `motor_axes` are bitmasks over the joint's
             // DoFs; clearing them is equivalent to "joint built without
@@ -192,6 +193,12 @@ impl MjcfRobot {
                 // don't double-damp.
                 if damping_per_dof > 0.0 {
                     move_motor_damping_to_multibody(multibody_joints, h, damping_per_dof);
+                }
+                // Route MJCF `<joint armature>` into the multibody's per-DoF
+                // mass-matrix diagonal (joint-space rotor inertia), instead of
+                // baking it into the link's spatial inertia tensor.
+                if armature_per_dof > 0.0 {
+                    add_armature_to_multibody(multibody_joints, h, armature_per_dof);
                 }
             }
             joint_handles.push(MjcfJointHandle {

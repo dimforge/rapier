@@ -108,6 +108,14 @@ pub struct MjcfJoint {
     /// loads, and naturally covers all 3 DoFs of a ball joint instead of
     /// only the motorised AngX).
     pub damping_per_dof: Real,
+    /// MJCF `<joint armature>` value (reflected rotor inertia). On the
+    /// multibody insertion path this is added to the generalized mass-matrix
+    /// diagonal of each of the joint's DoFs, matching MuJoCo's joint-space
+    /// semantics. It is deliberately **not** baked into the link's spatial
+    /// inertia tensor: doing so makes the inertia extremely anisotropic
+    /// (huge along the joint axis, ~0 across it) and the multibody mass
+    /// matrix ill-conditioned.
+    pub armature_per_dof: Real,
 }
 
 /// One `<equality>` constraint materialized as an extra rapier joint.

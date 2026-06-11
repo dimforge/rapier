@@ -66,6 +66,8 @@ pub struct Multibody {
     pub(crate) links: MultibodyLinkVec,
     pub(crate) velocities: DVector,
     pub(crate) damping: DVector,
+    /// Per-DoF reflected rotor inertia (matches MuJoCo’s concept of `armature`).
+    pub(crate) armature: DVector,
     pub(crate) accelerations: DVector,
 
     body_jacobians: Vec<Jacobian<Real>>,
@@ -112,6 +114,7 @@ impl Multibody {
             links: MultibodyLinkVec(Vec::new()),
             velocities: DVector::zeros(0),
             damping: DVector::zeros(0),
+            armature: DVector::zeros(0),
             accelerations: DVector::zeros(0),
             body_jacobians: Vec::new(),
             augmented_mass: DMatrix::zeros(0, 0),
@@ -188,6 +191,9 @@ impl Multibody {
                 mb.damping
                     .rows_mut(assembly_id, link_ndofs)
                     .copy_from(&self.damping.rows(link.assembly_id, link_ndofs));
+                mb.armature
+                    .rows_mut(assembly_id, link_ndofs)
+                    .copy_from(&self.armature.rows(link.assembly_id, link_ndofs));
                 mb.accelerations
                     .rows_mut(assembly_id, link_ndofs)
                     .copy_from(&self.accelerations.rows(link.assembly_id, link_ndofs));
@@ -246,6 +252,9 @@ impl Multibody {
             self.damping
                 .rows_mut(rhs_copy_shift, rhs_copy_ndofs)
                 .copy_from(&rhs.damping.rows(rhs_root_ndofs, rhs_copy_ndofs));
+            self.armature
+                .rows_mut(rhs_copy_shift, rhs_copy_ndofs)
+                .copy_from(&rhs.armature.rows(rhs_root_ndofs, rhs_copy_ndofs));
             self.accelerations
                 .rows_mut(rhs_copy_shift, rhs_copy_ndofs)
                 .copy_from(&rhs.accelerations.rows(rhs_root_ndofs, rhs_copy_ndofs));
@@ -341,6 +350,24 @@ impl Multibody {
         &mut self.damping
     }
 
+    /// The vector of per-DoF armature (reflected rotor inertia) of this
+    /// multibody.
+    ///
+    /// This acts as additional inertia added directly to the mass matrix.
+    /// Use this to simulate the intrinsic weight distribution of the joint
+    /// itself.
+    #[inline]
+    pub fn armature(&self) -> &DVector {
+        &self.armature
+    }
+
+    /// Mutable vector of per-DoF armature (reflected rotor inertia) of this
+    /// multibody.
+    #[inline]
+    pub fn armature_mut(&mut self) -> &mut DVector {
+        &mut self.armature
+    }
+
     pub(crate) fn add_link(
         &mut self,
         parent: Option<usize>, // TODO: should be a RigidBodyHandle?
@@ -406,6 +433,7 @@ impl Multibody {
         let len = self.velocities.len();
         self.velocities.resize_vertically_mut(len + ndofs, 0.0);
         self.damping.resize_vertically_mut(len + ndofs, 0.0);
+        self.armature.resize_vertically_mut(len + ndofs, 0.0);
         self.accelerations.resize_vertically_mut(len + ndofs, 0.0);
         self.body_jacobians
             .extend((0..num_jacobians).map(|_| Jacobian::zeros(0)));
@@ -781,11 +809,17 @@ impl Multibody {
         }
 
         /*
-         * Damping.
+         * Damping and armature.
+         *
+         * Damping is a velocity-proportional force made implicit, so it adds
+         * `dt · d` to the mass-matrix diagonal. Armature is a "reflected
+         * rotor inertia" (additional inertia to account for the joint’s
+         * mass and geometry itself): it adds to the diagonal directly.
          */
         for i in 0..self.ndofs {
-            self.acc_augmented_mass[(i, i)] += self.damping[i] * dt;
-            self.augmented_mass[(i, i)] += self.damping[i] * dt;
+            let diag = self.damping[i] * dt + self.armature[i];
+            self.acc_augmented_mass[(i, i)] += diag;
+            self.augmented_mass[(i, i)] += diag;
         }
 
         let effective_dim = self
@@ -887,6 +921,7 @@ impl Multibody {
 
                     self.velocities = self.velocities.clone().insert_rows(0, SPATIAL_DIM, 0.0);
                     self.damping = self.damping.clone().insert_rows(0, SPATIAL_DIM, 0.0);
+                    self.armature = self.armature.clone().insert_rows(0, SPATIAL_DIM, 0.0);
                     self.accelerations =
                         self.accelerations.clone().insert_rows(0, SPATIAL_DIM, 0.0);
 
@@ -896,6 +931,7 @@ impl Multibody {
                 } else {
                     assert!(self.velocities.len() >= SPATIAL_DIM);
                     assert!(self.damping.len() >= SPATIAL_DIM);
+                    assert!(self.armature.len() >= SPATIAL_DIM);
                     assert!(self.accelerations.len() >= SPATIAL_DIM);
 
                     let fixed_joint = MultibodyJoint::fixed(root_pose);
@@ -907,11 +943,13 @@ impl Multibody {
                     if self.ndofs == 0 {
                         self.velocities = DVector::zeros(0);
                         self.damping = DVector::zeros(0);
+                        self.armature = DVector::zeros(0);
                         self.accelerations = DVector::zeros(0);
                     } else {
                         self.velocities =
                             self.velocities.index((prev_root_ndofs.., 0)).into_owned();
                         self.damping = self.damping.index((prev_root_ndofs.., 0)).into_owned();
+                        self.armature = self.armature.index((prev_root_ndofs.., 0)).into_owned();
                         self.accelerations = self
                             .accelerations
                             .index((prev_root_ndofs.., 0))

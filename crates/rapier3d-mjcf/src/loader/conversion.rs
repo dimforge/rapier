@@ -238,6 +238,7 @@ impl<'a> Conversion<'a> {
                     link2: rb_idx,
                     joint,
                     damping_per_dof: 0.0,
+                    armature_per_dof: 0.0,
                 });
             }
             return;
@@ -281,12 +282,17 @@ impl<'a> Conversion<'a> {
             } else {
                 j.damping as Real
             };
+            // Armature (reflected rotor inertia) is routed into the multibody's
+            // generalized mass matrix at insertion time rather than baked into
+            // the link's spatial inertia — see `MjcfJoint::armature_per_dof`.
+            let armature_per_dof = j.armature.max(0.0) as Real;
             self.robot.joints.push(MjcfJoint {
                 name: j.name.clone(),
                 link1: prev_rapier,
                 link2: cur_rapier,
                 joint,
                 damping_per_dof,
+                armature_per_dof,
             });
             prev_rapier = cur_rapier;
             prev_world_pose = cur_world_pose;

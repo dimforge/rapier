@@ -17,7 +17,15 @@ use super::conversion::Conversion;
 
 impl<'a> Conversion<'a> {
     /// Compute mass properties from `<inertial>` (or derive from geoms when
-    /// the compiler asks for it). Adds `<joint armature>` contributions.
+    /// the compiler asks for it).
+    ///
+    /// Note: `<joint armature>` is intentionally **not** folded into the
+    /// returned inertia tensor. MuJoCo's armature is a reflected rotor inertia
+    /// that belongs on the diagonal of the joint-space mass matrix, not on the
+    /// link's spatial inertia — baking it into the tensor produces extreme
+    /// anisotropy (huge along the joint axis, ~0 across it) and an
+    /// ill-conditioned multibody mass matrix. It is routed through
+    /// [`add_armature_to_multibody`] at insertion time instead.
     pub(super) fn derive_mass_properties(&self, entry: &BodyEntry) -> Option<MassProperties> {
         let s = self.options.scale;
         let from_inertial = entry
@@ -28,53 +36,11 @@ impl<'a> Conversion<'a> {
         let force_geom = self.model.compiler.inertia_from_geom == InertiaFromGeom::True;
         let auto_geom = self.model.compiler.inertia_from_geom == InertiaFromGeom::Auto
             && entry.body.inertial.is_none();
-        let mut mp = if force_geom || auto_geom {
+        let mp = if force_geom || auto_geom {
             self.geoms_to_mass_props(entry).or(from_inertial)
         } else {
             from_inertial
         };
-        // Add armature contributions along each joint axis. For an axis
-        // `a`, the rotor inertia is `armature * outer(a, a)`, applied to
-        // the link's inertia tensor in the body frame.
-        for j in &entry.body.joints {
-            if j.armature <= 0.0 {
-                continue;
-            }
-            let axis = match j.type_ {
-                mb::JointType::Hinge | mb::JointType::Slide => Some(Vector::new(
-                    j.axis[0] as Real,
-                    j.axis[1] as Real,
-                    j.axis[2] as Real,
-                )),
-                _ => None,
-            };
-            let Some(axis) = axis else { continue };
-            let n = axis.length();
-            if n < 1e-30 {
-                continue;
-            }
-            let a = axis / n;
-            let arm = j.armature as Real;
-            let extra = Matrix::from_cols_array(&[
-                arm * a.x * a.x,
-                arm * a.x * a.y,
-                arm * a.x * a.z,
-                arm * a.x * a.y,
-                arm * a.y * a.y,
-                arm * a.y * a.z,
-                arm * a.x * a.z,
-                arm * a.y * a.z,
-                arm * a.z * a.z,
-            ]);
-            let cur = mp.unwrap_or_default();
-            let cur_inertia = cur.reconstruct_inertia_matrix();
-            let new_inertia = cur_inertia + extra;
-            mp = Some(MassProperties::with_inertia_matrix(
-                cur.local_com,
-                cur.mass(),
-                new_inertia,
-            ));
-        }
         mp.map(|mp_| clamp_mass_properties(mp_, &self.model.compiler))
     }
 
@@ -237,6 +203,50 @@ pub(super) fn move_motor_damping_to_multibody(
             let idx = offset + local_dof;
             if idx < damping_vec.len() {
                 damping_vec[idx] = damping;
+            }
+            local_dof += 1;
+        }
+    }
+}
+
+/// After a joint has been inserted into a multibody, add the MJCF
+/// `<joint armature>` (reflected rotor inertia) to the multibody's per-DoF
+/// armature vector. Each entry lands on the diagonal of the generalized mass
+/// matrix — the joint-space placement MuJoCo uses — rather than in the link's
+/// spatial inertia tensor.
+///
+/// The armature is applied uniformly to every free DoF of the joint, so a ball
+/// joint with MJCF armature=a gets `a` on each of its three angular DoFs,
+/// matching MJCF semantics.
+pub(super) fn add_armature_to_multibody(
+    multibody_joints: &mut MultibodyJointSet,
+    handle: MultibodyJointHandle,
+    armature: Real,
+) {
+    use rapier3d::math::SPATIAL_DIM;
+    let Some((multibody, link_id)) = multibody_joints.get_mut(handle) else {
+        return;
+    };
+    // Reconstruct this link's DoF offset in the multibody's flat armature
+    // vector (assembly_id isn't public), same as the damping helper above.
+    let mut offset = 0;
+    for (i, link) in multibody.links().enumerate() {
+        if i == link_id {
+            break;
+        }
+        offset += link.joint().ndofs();
+    }
+    let Some(link) = multibody.links().nth(link_id) else {
+        return;
+    };
+    let locked_bits = link.joint.data.locked_axes.bits();
+    let armature_vec = multibody.armature_mut();
+    let mut local_dof = 0;
+    for i in 0..SPATIAL_DIM {
+        if (locked_bits & (1 << i)) == 0 {
+            let idx = offset + local_dof;
+            if idx < armature_vec.len() {
+                armature_vec[idx] = armature;
             }
             local_dof += 1;
         }
