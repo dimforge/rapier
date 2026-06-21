@@ -427,6 +427,29 @@ export class DynamicRayCastVehicleController {
         this.raw.set_wheel_side_friction_stiffness(i, value);
     }
 
+    /**
+     * The rotational speed (in radians per second) applied to the wheel's
+     * visual rotation while it is airborne or fully sliding and engine
+     * force is applied.
+     *
+     * A value of 0 disables this behavior. The sign determines the spin
+     * direction and depends on the wheel's axle orientation.
+     */
+    public wheelFreeSpinSpeed(i: number): number | null {
+        return this.raw.wheel_free_spin_speed(i);
+    }
+    /**
+     * The rotational speed (in radians per second) applied to the wheel's
+     * visual rotation while it is airborne or fully sliding and engine
+     * force is applied.
+     *
+     * A value of 0 disables this behavior. The sign determines the spin
+     * direction and depends on the wheel's axle orientation.
+     */
+    public setWheelFreeSpinSpeed(i: number, value: number) {
+        this.raw.set_wheel_free_spin_speed(i, value);
+    }
+
     /*
      * Getters only.
      */

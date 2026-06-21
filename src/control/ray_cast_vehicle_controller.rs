@@ -324,6 +324,18 @@ impl RawDynamicRayCastVehicleController {
         }
     }
 
+    pub fn wheel_free_spin_speed(&self, i: usize) -> Option<f32> {
+        self.controller
+            .wheels()
+            .get(i)
+            .map(|w| w.free_spin_speed)
+    }
+    pub fn set_wheel_free_spin_speed(&mut self, i: usize, value: f32) {
+        if let Some(wheel) = self.controller.wheels_mut().get_mut(i) {
+            wheel.free_spin_speed = value;
+        }
+    }
+
     /*
      * Getters only.
      */
