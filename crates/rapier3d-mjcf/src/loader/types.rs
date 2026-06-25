@@ -88,6 +88,28 @@ pub struct MjcfVisualMesh {
     /// MJCF `<material texture=…>` when set, otherwise from the OBJ
     /// MTL's `map_Kd`. `None` for geoms that aren't textured.
     pub texture: Option<PathBuf>,
+    /// PBR shading parameters resolved from the geom's `<material>`. `None`
+    /// when the geom references no material — the renderer then keeps its own
+    /// default shading rather than being forced to a metallic-roughness look.
+    pub material: Option<MjcfRenderMaterial>,
+}
+
+/// PBR shading parameters resolved from an MJCF `<material>`, expressed in the
+/// metallic-roughness model a modern renderer consumes. MuJoCo's legacy Phong
+/// `specular`/`shininess` are folded in here too: `reflectance` carries the
+/// specular intensity, and `roughness` falls back to `1 − shininess` when the
+/// material doesn't set `roughness` explicitly.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct MjcfRenderMaterial {
+    /// Metallic factor in `[0, 1]` (MuJoCo `metallic`; 0 = dielectric).
+    pub metallic: f32,
+    /// Surface roughness in `[0, 1]` (MuJoCo `roughness`, or `1 − shininess`).
+    pub roughness: f32,
+    /// Dielectric specular reflectance in `[0, 1]` (MuJoCo `specular`), which a
+    /// renderer maps to the F0 Fresnel term.
+    pub reflectance: f32,
+    /// Emissive color `material.rgb × emission`; `[0, 0, 0]` for non-emissive.
+    pub emissive: [f32; 3],
 }
 
 /// One joint from the MJCF model materialized as a rapier `GenericJoint`.
@@ -152,6 +174,24 @@ pub struct MjcfEqualityJoint {
     pub joint: GenericJoint,
 }
 
+/// One `<equality><joint>` coupling, resolved to a *linear* relation between
+/// two of [`MjcfRobot::joints`]: `q2 = coeff·q1 + offset` (rapier joint
+/// coordinates). Higher-order `polycoef` terms are unsupported. Applied as a
+/// multibody DoF coupling at insertion time.
+#[derive(Copy, Clone, Debug)]
+pub struct MjcfJointCoupling {
+    /// Index of the first (independent) joint in [`MjcfRobot::joints`].
+    pub joint1: usize,
+    /// Index of the second (dependent) joint in [`MjcfRobot::joints`].
+    pub joint2: usize,
+    /// Linear coupling coefficient (`polycoef[1]`).
+    pub coeff: Real,
+    /// Constant offset (`polycoef[0]`).
+    pub offset: Real,
+    /// Whether the constraint is active.
+    pub active: bool,
+}
+
 /// `<actuator>` ready to drive a rapier joint motor.
 #[derive(Clone, Debug)]
 pub struct MjcfActuatorBinding {
@@ -207,6 +247,8 @@ pub struct MjcfRobot {
     pub joints: Vec<MjcfJoint>,
     /// Extra joints created from `<equality>` constraints.
     pub equality_joints: Vec<MjcfEqualityJoint>,
+    /// `<equality><joint>` couplings between two joints' coordinates.
+    pub joint_couplings: Vec<MjcfJointCoupling>,
     /// Actuator bindings.
     pub actuators: Vec<MjcfActuatorBinding>,
     /// Sensor bindings.

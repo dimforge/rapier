@@ -526,7 +526,7 @@ impl<'a> Conversion<'a> {
                 (shape, local_pose, None, None, None)
             };
 
-        let (material_rgba, material_texture) = self.resolve_geom_material(g);
+        let (material_rgba, material_texture, material) = self.resolve_geom_material(g);
         let rgba = g
             .rgba
             .map(|c| [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32])
@@ -540,6 +540,7 @@ impl<'a> Conversion<'a> {
             uvs,
             normals,
             texture,
+            material,
         })
     }
 
@@ -563,12 +564,16 @@ impl<'a> Conversion<'a> {
     fn resolve_geom_material(
         &self,
         g: &mb::Geom,
-    ) -> (Option<[f32; 4]>, Option<std::path::PathBuf>) {
+    ) -> (
+        Option<[f32; 4]>,
+        Option<std::path::PathBuf>,
+        Option<super::types::MjcfRenderMaterial>,
+    ) {
         let Some(name) = g.material.as_deref() else {
-            return (None, None);
+            return (None, None, None);
         };
         let Some(material) = self.model.assets.material(name) else {
-            return (None, None);
+            return (None, None, None);
         };
         let rgba = material
             .rgba
@@ -579,7 +584,34 @@ impl<'a> Conversion<'a> {
             .and_then(|tname| self.model.assets.texture(tname))
             .filter(|t| t.file.is_some())
             .and_then(|t| self.model.resolve_texture_file(t, self.base_dir));
-        (rgba, texture_path)
+
+        // Map MuJoCo's material model onto metallic-roughness PBR. `metallic`
+        // and `roughness` carry the -1 "unset" sentinel (set at parse time);
+        // when unset, fall back to the legacy Phong — dielectric (metallic 0)
+        // with roughness derived from `shininess`. `specular` becomes the
+        // dielectric reflectance, and `emission` scales the material color into
+        // an emissive term.
+        let metallic = if material.metallic >= 0.0 {
+            material.metallic as f32
+        } else {
+            0.0
+        };
+        let roughness = if material.roughness >= 0.0 {
+            material.roughness as f32
+        } else {
+            1.0 - material.shininess as f32
+        };
+        let e = material.emission as f32;
+        let base = material.rgba.unwrap_or([1.0, 1.0, 1.0, 1.0]);
+        let pbr = super::types::MjcfRenderMaterial {
+            metallic: metallic.clamp(0.0, 1.0),
+            // A literal 0 roughness is a perfect mirror that reads as a shading
+            // bug; clamp to a small floor like real renderers do.
+            roughness: roughness.clamp(0.04, 1.0),
+            reflectance: (material.specular as f32).clamp(0.0, 1.0),
+            emissive: [base[0] as f32 * e, base[1] as f32 * e, base[2] as f32 * e],
+        };
+        (rgba, texture_path, Some(pbr))
     }
 }
 
