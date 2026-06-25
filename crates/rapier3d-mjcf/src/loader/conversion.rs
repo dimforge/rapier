@@ -10,6 +10,7 @@ use std::path::Path;
 use mjcf_rs::Pose as MPose;
 use mjcf_rs::body as mb;
 use mjcf_rs::equality::{Equality as MjcfEquality, EqualityConnect, EqualityWeld};
+use mjcf_rs::equality::EqualityJoint as MjcfEqualityJointDef;
 use mjcf_rs::extras::Sensor as MjcfSensor;
 use mjcf_rs::glam::DVec3;
 use mjcf_rs::model::{BodyEntry, BodyId, Model};
@@ -23,8 +24,8 @@ use rapier3d::math::{Pose, Real, Vector};
 use super::mass::scale_mass_properties;
 use super::options::MjcfLoaderOptions;
 use super::types::{
-    MjcfActuatorBinding, MjcfBody, MjcfEqualityJoint, MjcfJoint, MjcfRobot, MjcfSensorBinding,
-    MjcfVisualMesh, SensorObjectRef,
+    MjcfActuatorBinding, MjcfBody, MjcfEqualityJoint, MjcfJoint, MjcfJointCoupling, MjcfRobot,
+    MjcfSensorBinding, MjcfVisualMesh, SensorObjectRef,
 };
 
 pub(super) struct Conversion<'a> {
@@ -563,8 +564,51 @@ impl<'a> Conversion<'a> {
                         });
                     }
                 }
+                MjcfEquality::Joint(j) => self.materialize_joint_equality(j),
             }
         }
+    }
+
+    /// `<equality><joint>`: resolve the linear (first-order) coupling
+    /// `q2 = polycoef[1]·q1 + polycoef[0]` between two joints and record it for
+    /// the multibody insertion pass. The MJCF polynomial is in `(q − ref)`, but
+    /// rapier joint coordinates already subtract `ref`, so the reference terms
+    /// cancel and the relation is exactly `q2 = polycoef[1]·q1 + polycoef[0]`.
+    fn materialize_joint_equality(&mut self, j: &MjcfEqualityJointDef) {
+        if j.polycoef[2] != 0.0 || j.polycoef[3] != 0.0 || j.polycoef[4] != 0.0 {
+            log::warn!(
+                "<equality><joint name={:?}>: only a linear polycoef is supported; \
+                 higher-order terms are ignored",
+                j.common.name
+            );
+        }
+        let Some(joint2_name) = j.joint2.as_deref() else {
+            log::warn!(
+                "<equality><joint name={:?}>: the single-joint form (joint2 omitted) is \
+                 unsupported; skipping",
+                j.common.name
+            );
+            return;
+        };
+        let (Some(joint1), Some(joint2)) = (
+            self.robot.joint_name_to_idx.get(&j.joint1).copied(),
+            self.robot.joint_name_to_idx.get(joint2_name).copied(),
+        ) else {
+            log::warn!(
+                "<equality><joint name={:?}>: unknown joint1 {:?} or joint2 {:?}; skipping",
+                j.common.name,
+                j.joint1,
+                joint2_name,
+            );
+            return;
+        };
+        self.robot.joint_couplings.push(MjcfJointCoupling {
+            joint1,
+            joint2,
+            coeff: j.polycoef[1] as Real,
+            offset: j.polycoef[0] as Real,
+            active: j.common.active,
+        });
     }
 
     fn resolve_connect_frames(&self, c: &EqualityConnect) -> Option<(usize, usize, Pose, Pose)> {

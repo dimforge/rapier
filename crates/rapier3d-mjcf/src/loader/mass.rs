@@ -11,7 +11,8 @@ use mjcf_rs::compiler::InertiaFromGeom;
 use mjcf_rs::model::BodyEntry;
 
 use rapier3d::dynamics::{
-    MassProperties, MultibodyJointHandle, MultibodyJointSet, RigidBodySet,
+    MassProperties, Multibody, MultibodyDofCoupling, MultibodyJointHandle, MultibodyJointSet,
+    RigidBodyHandle, RigidBodySet,
 };
 use rapier3d::math::{Matrix, Pose, Real, Vector};
 
@@ -383,4 +384,69 @@ pub(super) fn add_springdamper_to_multibody(
             damping_vec[idx] = damping;
         }
     }
+}
+
+/// The local DoF index and spatial axis of a single-DoF multibody joint's free
+/// axis (the first non-locked axis). Returns `None` if the link or a free axis
+/// can't be found.
+fn single_free_axis(multibody: &Multibody, link_id: usize) -> Option<(usize, usize)> {
+    use rapier3d::math::SPATIAL_DIM;
+    let link = multibody.links().nth(link_id)?;
+    let locked = link.joint.data.locked_axes.bits();
+    for axis in 0..SPATIAL_DIM {
+        if (locked & (1 << axis)) == 0 {
+            // First free axis ⇒ local DoF index 0 within the link's slice.
+            return Some((0, axis));
+        }
+    }
+    None
+}
+
+/// Install a `<equality><joint>` coupling `q2 = coeff·q1 + offset` as a DoF
+/// coupling on the multibody shared by the two joints (`child1`/`child2` are
+/// the child bodies of joint1/joint2; `handle1` is joint1's multibody handle).
+/// Both joints must live in the same multibody and be single-DoF (hinge/slide).
+pub(super) fn add_joint_coupling_to_multibody(
+    multibody_joints: &mut MultibodyJointSet,
+    handle1: MultibodyJointHandle,
+    child1: RigidBodyHandle,
+    child2: RigidBodyHandle,
+    coeff: Real,
+    offset: Real,
+) {
+    let (Some(l1), Some(l2)) = (
+        multibody_joints.rigid_body_link(child1).copied(),
+        multibody_joints.rigid_body_link(child2).copied(),
+    ) else {
+        return;
+    };
+    if l1.multibody != l2.multibody {
+        log::warn!(
+            "<equality><joint>: joint1 and joint2 are in different multibodies; \
+             cross-multibody coupling is unsupported, skipping"
+        );
+        return;
+    }
+    let link2_id = l2.id;
+
+    let Some((multibody, link1_id)) = multibody_joints.get_mut(handle1) else {
+        return;
+    };
+    let (Some((dof1, axis1)), Some((dof2, axis2))) = (
+        single_free_axis(multibody, link1_id),
+        single_free_axis(multibody, link2_id),
+    ) else {
+        log::warn!("<equality><joint>: a coupled joint has no free DoF; skipping");
+        return;
+    };
+    multibody.add_dof_coupling(MultibodyDofCoupling {
+        link1: link1_id,
+        dof1,
+        axis1,
+        link2: link2_id,
+        dof2,
+        axis2,
+        coeff,
+        offset,
+    });
 }

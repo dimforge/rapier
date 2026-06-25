@@ -15,8 +15,8 @@ use super::handles::{
     MjcfActuatorHandle, MjcfBodyHandle, MjcfColliderHandle, MjcfJointHandle, MjcfRobotHandles,
 };
 use super::mass::{
-    add_armature_to_multibody, add_spring_to_multibody, add_springdamper_to_multibody,
-    move_motor_damping_to_multibody,
+    add_armature_to_multibody, add_joint_coupling_to_multibody, add_spring_to_multibody,
+    add_springdamper_to_multibody, move_motor_damping_to_multibody,
 };
 use super::options::MjcfMultibodyOptions;
 use super::types::MjcfRobot;
@@ -266,6 +266,32 @@ impl MjcfRobot {
                     timeconst,
                     dampratio,
                     rest,
+                );
+            }
+        }
+
+        // `<equality><joint>` couplings: install each as a multibody DoF
+        // coupling between the two joints' free DoFs (resolved from the joint
+        // handles built above). Loop closures and couplings are both off when
+        // `skip_loop_closures` is set.
+        if !skip_loop_closures {
+            for c in &self.joint_couplings {
+                if !c.active {
+                    continue;
+                }
+                let (Some(jh1), Some(jh2)) =
+                    (joint_handles.get(c.joint1), joint_handles.get(c.joint2))
+                else {
+                    continue;
+                };
+                let Some(h1) = jh1.joint else { continue };
+                add_joint_coupling_to_multibody(
+                    multibody_joints,
+                    h1,
+                    jh1.link2,
+                    jh2.link2,
+                    c.coeff,
+                    c.offset,
                 );
             }
         }
