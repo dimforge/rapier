@@ -319,15 +319,28 @@ fn configure_actuator_motor(
         ActuatorKind::Position => {
             data.set_motor_position(ax, u, kp, kv);
             data.set_motor_position(lin_ax, u, kp, kv);
+            // Apply the actuator's `forcerange` as the motor's max force.
+            // `set_motor_position` leaves `max_force` untouched, so without this
+            // the servo inherits whatever joint construction left it at (e.g. the
+            // `frictionloss` passed to `motor_max_force` when building the joint),
+            // which starves position servos — the joint can't deliver enough
+            // torque to hold against gravity. `force_max` is `INFINITY` when no
+            // `forcerange` is given, which leaves the motor unbounded (a no-op).
+            data.set_motor_max_force(ax, force_max);
+            data.set_motor_max_force(lin_ax, force_max);
         }
         ActuatorKind::Velocity => {
             data.set_motor_velocity(ax, u, kv);
             data.set_motor_velocity(lin_ax, u, kv);
+            data.set_motor_max_force(ax, force_max);
+            data.set_motor_max_force(lin_ax, force_max);
         }
         ActuatorKind::Damper => {
             let damp = actuator.gainprm.first().copied().unwrap_or(0.0) as Real * u.abs();
             data.set_motor_velocity(ax, 0.0, damp);
             data.set_motor_velocity(lin_ax, 0.0, damp);
+            data.set_motor_max_force(ax, force_max);
+            data.set_motor_max_force(lin_ax, force_max);
         }
         ActuatorKind::General => {
             let g0 = actuator.gainprm.first().copied().unwrap_or(0.0) as Real;
@@ -344,6 +357,8 @@ fn configure_actuator_motor(
                 let target = (g0 * u + b0) / stiffness;
                 data.set_motor_position(ax, target, stiffness, damping);
                 data.set_motor_position(lin_ax, target, stiffness, damping);
+                data.set_motor_max_force(ax, force_max);
+                data.set_motor_max_force(lin_ax, force_max);
             } else {
                 // `gaintype="fixed"`, non-restoring bias: constant force
                 // `gainprm0·u` through the transmission.
