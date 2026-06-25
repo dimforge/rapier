@@ -121,6 +121,31 @@ const GROUND_COLOR: Color = Color {
     a: 1.0,
 };
 
+/// PBR shading parameters for a body render mesh, applied on top of its base
+/// color/texture.
+#[derive(Copy, Clone, Debug)]
+pub struct RenderMaterial {
+    /// Metallic factor in `[0, 1]`.
+    pub metallic: f32,
+    /// Surface roughness in `[0, 1]`.
+    pub roughness: f32,
+    /// Dielectric specular reflectance in `[0, 1]` (mapped to the F0 term).
+    pub reflectance: f32,
+    /// Emissive color (added on top of lit shading); `[0, 0, 0]` for none.
+    pub emissive: [f32; 3],
+}
+
+impl Default for RenderMaterial {
+    fn default() -> Self {
+        Self {
+            metallic: 0.0,
+            roughness: 0.7,
+            reflectance: 0.5,
+            emissive: [0.0; 3],
+        }
+    }
+}
+
 impl GraphicsManager {
     pub fn new() -> GraphicsManager {
         GraphicsManager {
@@ -211,6 +236,7 @@ impl GraphicsManager {
         uvs: Option<&[[f32; 2]]>,
         normals: Option<&[[f32; 3]]>,
         texture: Option<&Path>,
+        material: Option<RenderMaterial>,
     ) {
         // Plumbing per-vertex UVs into a custom kiss3d mesh is only
         // supported in 3D; 2D always uses the standard node path.
@@ -278,8 +304,8 @@ impl GraphicsManager {
         };
         #[cfg(feature = "dim2")]
         let mut node = {
-            // Custom UV/normal plumbing is unsupported in 2D; ignore them.
-            let _ = (uvs, normals);
+            // Custom UV/normal plumbing and PBR materials are unsupported in 2D.
+            let _ = (uvs, normals, material);
             Self::create_individual_node(&mut self.scene, &**shape, color, false)
         };
 
@@ -290,7 +316,25 @@ impl GraphicsManager {
             // culling here too — visual meshes are routinely viewed from
             // both sides and authored winding isn't guaranteed.
             #[cfg(feature = "dim3")]
-            n.enable_backface_culling_recursive(false);
+            {
+                n.enable_backface_culling_recursive(false);
+                if let Some(mat) = material {
+                    n.set_metallic_recursive(mat.metallic);
+                    n.set_roughness_recursive(mat.roughness);
+                    n.set_reflectance(mat.reflectance);
+                    n.set_emissive_recursive(Color::new(
+                        mat.emissive[0],
+                        mat.emissive[1],
+                        mat.emissive[2],
+                        1.0,
+                    ));
+                }
+                // A translucent base color needs the blend pass; opaque meshes
+                // keep the default opaque path.
+                if color.a < 1.0 {
+                    n.set_alpha_mode(kiss3d::scene::AlphaMode::Blend);
+                }
+            }
             if let Some(tex_path) = texture {
                 // The cache key uses the absolute path string so the
                 // same texture file is uploaded only once across the

@@ -68,6 +68,7 @@ impl<'a> TestbedGraphics<'a> {
         uvs: Option<&[[f32; 2]]>,
         normals: Option<&[[f32; 3]]>,
         texture: Option<&std::path::Path>,
+        material: Option<crate::graphics::RenderMaterial>,
     ) {
         self.graphics.add_body_render_mesh(
             self.window,
@@ -78,6 +79,7 @@ impl<'a> TestbedGraphics<'a> {
             uvs,
             normals,
             texture,
+            material,
         );
     }
 
