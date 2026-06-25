@@ -232,6 +232,79 @@ pub enum SensorObjectRef {
     },
 }
 
+/// The MJCF joint kind backing one keyframe `qpos`/`qvel` slot. Decides how
+/// many `qpos` / `qvel` scalars the slot consumes and how they are written to
+/// the rapier model.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum MjcfDofKind {
+    /// 6-DoF free / floating base. Consumes 7 `qpos` (xyz position + wxyz
+    /// quaternion, world frame) and 6 `qvel` (linear + angular). Maps to a
+    /// free rapier body — there is no rapier joint, so the world pose is
+    /// written directly (see [`MjcfQposDof::body`]).
+    Free,
+    /// 3-DoF ball. Consumes 4 `qpos` (wxyz quaternion) and 3 `qvel`.
+    Ball,
+    /// 1-DoF revolute. Consumes 1 `qpos` (angle) and 1 `qvel`.
+    Hinge,
+    /// 1-DoF prismatic. Consumes 1 `qpos` (length) and 1 `qvel`.
+    Slide,
+}
+
+impl MjcfDofKind {
+    /// Number of `qpos` scalars this DoF consumes.
+    pub fn qpos_width(self) -> usize {
+        match self {
+            MjcfDofKind::Free => 7,
+            MjcfDofKind::Ball => 4,
+            MjcfDofKind::Hinge | MjcfDofKind::Slide => 1,
+        }
+    }
+
+    /// Number of `qvel` scalars this DoF consumes.
+    pub fn qvel_width(self) -> usize {
+        match self {
+            MjcfDofKind::Free => 6,
+            MjcfDofKind::Ball => 3,
+            MjcfDofKind::Hinge | MjcfDofKind::Slide => 1,
+        }
+    }
+}
+
+/// One MJCF joint's slot in a keyframe's `qpos` / `qvel` arrays, resolved to
+/// where it must be written in the rapier model.
+///
+/// The entries in [`MjcfRobot::qpos_dofs`] are ordered exactly as MuJoCo lays
+/// out `qpos` (and `qvel`): joints in kinematic-tree order — bodies in
+/// declaration order, and within a body its joints in declaration order.
+/// Welds and other 0-DoF couplings contribute nothing, matching MuJoCo. So
+/// reading a keyframe is a single left-to-right walk of this list, advancing a
+/// `qpos` cursor by [`MjcfDofKind::qpos_width`] (and a `qvel` cursor by
+/// [`MjcfDofKind::qvel_width`]) per entry.
+#[derive(Clone, Debug)]
+pub struct MjcfQposDof {
+    /// The joint kind — decides the `qpos`/`qvel` width and how the slot maps
+    /// onto rapier.
+    pub kind: MjcfDofKind,
+    /// Index into [`MjcfRobot::joints`] of the rapier joint this slot drives.
+    /// `None` for [`MjcfDofKind::Free`], which has no rapier joint — its pose
+    /// is written to [`Self::body`] directly.
+    pub joint: Option<usize>,
+    /// Index into [`MjcfRobot::bodies`] of the child body this slot moves. For
+    /// [`MjcfDofKind::Free`] this is the floating body whose world pose `qpos`
+    /// sets.
+    pub body: usize,
+    /// MJCF `<joint ref>` (the joint's zero offset). Subtracted from `qpos`
+    /// to convert MuJoCo's absolute joint coordinate to rapier's
+    /// frame-relative one, matching the limit convention in the serial-joint
+    /// builder. A length (pre-scale) for [`MjcfDofKind::Slide`]; unused for
+    /// `Free`/`Ball`.
+    pub reference: Real,
+    /// Length scale (`MjcfLoaderOptions::scale`) applied to `Slide` coordinates
+    /// and to the `Free` base translation, matching the scaling the loader
+    /// applied to the model geometry.
+    pub scale: Real,
+}
+
 /// A robot loaded from an MJCF file: a flat list of bodies, joints, and
 /// extras.
 #[derive(Clone, Debug, Default)]
@@ -255,6 +328,14 @@ pub struct MjcfRobot {
     pub sensors: Vec<MjcfSensorBinding>,
     /// Keyframes preserved from the model.
     pub keyframes: Vec<Keyframe>,
+    /// Layout that maps a keyframe's `qpos` / `qvel` arrays onto
+    /// [`Self::joints`] / [`Self::bodies`], in MuJoCo's generalized-coordinate
+    /// order. Drives [`MjcfRobotHandles::apply_keyframe`](super::MjcfRobotHandles::apply_keyframe).
+    pub qpos_dofs: Vec<MjcfQposDof>,
+    /// The `MjcfLoaderOptions::shift` the loader applied to every body pose.
+    /// Re-applied when a keyframe writes a free body's absolute world pose so
+    /// the floating base lands in the same frame as the rest of the model.
+    pub base_shift: Pose,
     /// Resolved gravity vector (`<option gravity>`).
     pub gravity: Vector,
     /// Map from MJCF body name to index in [`Self::bodies`].

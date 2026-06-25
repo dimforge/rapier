@@ -80,6 +80,18 @@ impl MultibodyLink {
         self.internal_id
     }
 
+    /// The offset of this link's degrees of freedom in the multibody's
+    /// generalized coordinate / velocity vectors.
+    ///
+    /// The link's `ndofs` generalized velocities occupy
+    /// `assembly_id..assembly_id + ndofs` in [`Multibody::generalized_velocity`]
+    /// (and the matching slice of any displacement passed to
+    /// [`Multibody::apply_displacements`]).
+    #[inline]
+    pub fn assembly_id(&self) -> usize {
+        self.assembly_id
+    }
+
     /// The handle of the parent link.
     #[inline]
     pub fn parent_id(&self) -> Option<usize> {

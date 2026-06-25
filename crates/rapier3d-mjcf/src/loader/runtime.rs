@@ -5,15 +5,15 @@
 use mjcf_rs::extras::Keyframe;
 
 use rapier3d::dynamics::{
-    GenericJoint, ImpulseJointHandle, ImpulseJointSet, JointAxis, MultibodyJointHandle,
-    MultibodyJointSet, RigidBody, RigidBodySet, RigidBodyType,
+    GenericJoint, ImpulseJointHandle, ImpulseJointSet, JointAxis, MultibodyIndex,
+    MultibodyJointHandle, MultibodyJointSet, RigidBody, RigidBodySet, RigidBodyType,
 };
 use rapier3d::math::{Pose, Real, Rotation, Vector};
 
 use crate::hooks::{MjcfContactHooks, PairOverride};
 
 use super::handles::MjcfRobotHandles;
-use super::types::{MjcfRobot, SensorObjectRef};
+use super::types::{MjcfDofKind, MjcfQposDof, MjcfRobot, SensorObjectRef};
 
 impl<H> MjcfRobotHandles<H> {
     /// Apply per-body gravity compensation as an explicit per-step force.
@@ -189,6 +189,241 @@ impl<H> MjcfRobotHandles<H> {
     }
 }
 
+/// The world pose encoded by a free joint's 7 `qpos` (`x y z` + `w x y z`
+/// quaternion, MuJoCo's wxyz order), with the loader's length `scale` applied
+/// to the translation and the loader's `shift` pre-multiplied so the floating
+/// base lands in the same frame as the rest of the model.
+fn free_pose(qp: &[f64], scale: Real, shift: Pose) -> Pose {
+    let translation = Vector::new(qp[0] as Real, qp[1] as Real, qp[2] as Real) * scale;
+    let rotation = Rotation::from_xyzw(qp[4] as Real, qp[5] as Real, qp[6] as Real, qp[3] as Real);
+    shift * Pose::from_parts(translation, rotation)
+}
+
+/// A hinge/slide DoF's target rapier joint coordinate from its single `qpos`
+/// scalar. MuJoCo stores the absolute coordinate, so we subtract `<joint ref>`
+/// (and scale lengths) to reach rapier's frame-relative convention — the same
+/// transform the serial-joint builder applies to the joint limits.
+fn scalar_coord(dof: &MjcfQposDof, qp: &[f64]) -> Real {
+    match dof.kind {
+        MjcfDofKind::Hinge => qp[0] as Real - dof.reference,
+        MjcfDofKind::Slide => (qp[0] as Real - dof.reference) * dof.scale,
+        _ => 0.0,
+    }
+}
+
+/// The target relative rotation of a ball DoF from its 4 `qpos` (wxyz).
+fn ball_rotation(qp: &[f64]) -> Rotation {
+    Rotation::from_xyzw(qp[1] as Real, qp[2] as Real, qp[3] as Real, qp[0] as Real)
+}
+
+impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
+    /// Apply a keyframe's full state (`qpos`, `qvel`, and `mpos`/`mquat`) to a
+    /// robot inserted through [`insert_using_multibody_joints`](MjcfRobot::insert_using_multibody_joints).
+    ///
+    /// Joint coordinates are written to the multibody's generalized
+    /// coordinates (then propagated through forward-kinematics so the rapier
+    /// rigid-bodies match), and a floating base's `qpos` sets its root body's
+    /// world pose. Call this once after insertion to start the model in a
+    /// declared keyframe (e.g. MuJoCo's `home`).
+    ///
+    /// `qvel` is written to the generalized velocities of articulated joints
+    /// and as the world-frame linear/angular velocity of a floating base.
+    /// Mocap bodies are handled exactly as [`apply_mocap_keyframe`](Self::apply_mocap_keyframe).
+    pub fn apply_keyframe(
+        &self,
+        bodies: &mut RigidBodySet,
+        multibody_joints: &mut MultibodyJointSet,
+        robot: &MjcfRobot,
+        key: &Keyframe,
+    ) {
+        self.apply_mocap_keyframe(bodies, robot, key);
+
+        // Multibodies whose root pose / joint coordinates changed: re-run
+        // forward-kinematics on each once at the end.
+        let mut touched: Vec<MultibodyIndex> = Vec::new();
+        let touch = |touched: &mut Vec<MultibodyIndex>, idx: MultibodyIndex| {
+            if !touched.contains(&idx) {
+                touched.push(idx);
+            }
+        };
+
+        let mut qpos_i = 0;
+        let mut qvel_i = 0;
+        for dof in &robot.qpos_dofs {
+            let qpos = key.qpos.get(qpos_i..qpos_i + dof.kind.qpos_width());
+            let qvel = key.qvel.get(qvel_i..qvel_i + dof.kind.qvel_width());
+            qpos_i += dof.kind.qpos_width();
+            qvel_i += dof.kind.qvel_width();
+
+            if dof.kind == MjcfDofKind::Free {
+                let Some(handle) = self.bodies.get(dof.body).and_then(|b| b.as_ref()) else {
+                    continue;
+                };
+                if let Some(rb) = bodies.get_mut(handle.body) {
+                    if let Some(qp) = qpos {
+                        rb.set_position(free_pose(qp, dof.scale, robot.base_shift), true);
+                    }
+                    if let Some(qv) = qvel {
+                        let lin = Vector::new(qv[0] as Real, qv[1] as Real, qv[2] as Real) * dof.scale;
+                        let ang = Vector::new(qv[3] as Real, qv[4] as Real, qv[5] as Real);
+                        rb.set_linvel(lin, true);
+                        rb.set_angvel(ang, true);
+                    }
+                }
+                if let Some(link) = multibody_joints.rigid_body_link(handle.body) {
+                    touch(&mut touched, link.multibody);
+                }
+                continue;
+            }
+
+            // Articulated DoF (hinge / slide / ball): write to the multibody's
+            // generalized coordinates.
+            let Some(jidx) = dof.joint else { continue };
+            let Some(jh) = self.joints.get(jidx) else { continue };
+            // `joint` is `None` for a joint that was dropped as a loop closure.
+            let Some(handle) = jh.joint else { continue };
+            if let Some(link) = multibody_joints.rigid_body_link(jh.link2) {
+                touch(&mut touched, link.multibody);
+            }
+            let Some((mb, link_id)) = multibody_joints.get_mut(handle) else {
+                continue;
+            };
+
+            // Compute the displacement (target − current) under an immutable
+            // borrow, then apply it under a mutable one.
+            let (assembly_id, ndofs, disp) = {
+                let Some(link) = mb.link(link_id) else { continue };
+                let joint = link.joint();
+                let coords = joint.coords();
+                let disp = qpos.map(|qp| match dof.kind {
+                    MjcfDofKind::Hinge => vec![scalar_coord(dof, qp) - coords[3]],
+                    MjcfDofKind::Slide => vec![scalar_coord(dof, qp) - coords[0]],
+                    MjcfDofKind::Ball => {
+                        // Reach the target relative rotation from the current
+                        // one: `from_scaled_axis(disp) * joint_rot == target`.
+                        let delta = ball_rotation(qp) * joint.joint_rot().inverse();
+                        let sa = delta.to_scaled_axis();
+                        vec![sa.x, sa.y, sa.z]
+                    }
+                    MjcfDofKind::Free => vec![],
+                });
+                (link.assembly_id(), joint.ndofs(), disp)
+            };
+            if let Some(disp) = disp
+                && let Some(link) = mb.link_mut(link_id)
+            {
+                link.joint.apply_displacement(&disp);
+            }
+            if let Some(qv) = qvel {
+                let scale = if dof.kind == MjcfDofKind::Slide {
+                    dof.scale
+                } else {
+                    1.0
+                };
+                let mut vels = mb.generalized_velocity_mut();
+                for k in 0..ndofs.min(qv.len()) {
+                    vels[assembly_id + k] = qv[k] as Real * scale;
+                }
+            }
+        }
+
+        for idx in touched {
+            if let Some(mb) = multibody_joints.get_multibody_mut(idx) {
+                mb.forward_kinematics(bodies, true);
+                mb.update_rigid_bodies(bodies, false);
+            }
+        }
+    }
+}
+
+impl MjcfRobotHandles<ImpulseJointHandle> {
+    /// Apply a keyframe's `qpos` (and a floating base's `qvel`) to a robot
+    /// inserted through [`insert_using_impulse_joints`](MjcfRobot::insert_using_impulse_joints).
+    ///
+    /// In the impulse-joint path every body carries a global pose, so the
+    /// keyframe is realized by running forward-kinematics over the joint tree
+    /// (anchored at the unchanged fixed/welded roots, or at a floating base set
+    /// from its `qpos`) and writing each body's resulting world pose. The joint
+    /// constraints are already satisfied by those poses.
+    ///
+    /// Only a floating base's `qvel` is applied (as world-frame body velocity);
+    /// per-joint `qvel` has no generalized-coordinate home in this path and is
+    /// ignored. Mocap bodies are handled as [`apply_mocap_keyframe`](Self::apply_mocap_keyframe).
+    pub fn apply_keyframe(&self, bodies: &mut RigidBodySet, robot: &MjcfRobot, key: &Keyframe) {
+        self.apply_mocap_keyframe(bodies, robot, key);
+
+        // Per-joint relative transform from the keyframe; identity where a
+        // joint carries no qpos (synthesized welds keep the bodies at rest).
+        let mut joint_tf: Vec<Pose> = vec![Pose::default(); robot.joints.len()];
+        // Forward-kinematics world poses, seeded with the load-time poses so
+        // fixed/welded roots and the world body keep their place.
+        let mut world: Vec<Pose> = robot.bodies.iter().map(|b| *b.body.position()).collect();
+        // Floating-base velocities, applied after the pose write-back.
+        let mut free_vels: Vec<(usize, Vector, Vector)> = Vec::new();
+
+        let mut qpos_i = 0;
+        let mut qvel_i = 0;
+        for dof in &robot.qpos_dofs {
+            let qpos = key.qpos.get(qpos_i..qpos_i + dof.kind.qpos_width());
+            let qvel = key.qvel.get(qvel_i..qvel_i + dof.kind.qvel_width());
+            qpos_i += dof.kind.qpos_width();
+            qvel_i += dof.kind.qvel_width();
+
+            match dof.kind {
+                MjcfDofKind::Free => {
+                    if let Some(qp) = qpos {
+                        world[dof.body] = free_pose(qp, dof.scale, robot.base_shift);
+                    }
+                    if let Some(qv) = qvel {
+                        let lin = Vector::new(qv[0] as Real, qv[1] as Real, qv[2] as Real) * dof.scale;
+                        let ang = Vector::new(qv[3] as Real, qv[4] as Real, qv[5] as Real);
+                        free_vels.push((dof.body, lin, ang));
+                    }
+                }
+                MjcfDofKind::Hinge | MjcfDofKind::Slide => {
+                    if let (Some(jidx), Some(qp)) = (dof.joint, qpos) {
+                        let q = scalar_coord(dof, qp);
+                        joint_tf[jidx] = if dof.kind == MjcfDofKind::Hinge {
+                            Pose::from_rotation(Rotation::from_axis_angle(Vector::X, q))
+                        } else {
+                            Pose::from_translation(Vector::X * q)
+                        };
+                    }
+                }
+                MjcfDofKind::Ball => {
+                    if let (Some(jidx), Some(qp)) = (dof.joint, qpos) {
+                        joint_tf[jidx] = Pose::from_rotation(ball_rotation(qp));
+                    }
+                }
+            }
+        }
+
+        // Forward-kinematics: `robot.joints` is in topological order, so each
+        // joint's parent body is already positioned. This mirrors rapier's
+        // multibody `body_to_parent`: world₂ = world₁ · frame1 · q · frame2⁻¹.
+        for (jidx, j) in robot.joints.iter().enumerate() {
+            world[j.link2] =
+                world[j.link1] * j.joint.local_frame1 * joint_tf[jidx] * j.joint.local_frame2.inverse();
+        }
+
+        for (i, handle) in self.bodies.iter().enumerate() {
+            if let Some(handle) = handle
+                && let Some(rb) = bodies.get_mut(handle.body)
+            {
+                rb.set_position(world[i], true);
+            }
+        }
+        for (body, lin, ang) in free_vels {
+            if let Some(handle) = self.bodies.get(body).and_then(|b| b.as_ref())
+                && let Some(rb) = bodies.get_mut(handle.body)
+            {
+                rb.set_linvel(lin, true);
+                rb.set_angvel(ang, true);
+            }
+        }
+    }
+}
+
 impl MjcfRobotHandles<ImpulseJointHandle> {
     /// Apply per-actuator control values to the impulse joints they drive.
     ///
@@ -205,13 +440,26 @@ impl MjcfRobotHandles<ImpulseJointHandle> {
     /// - everything else (`general`, `intvelocity`, …) is left to the user
     ///   — the metadata is preserved on `Self::actuators`.
     pub fn apply_controls(&self, joints: &mut ImpulseJointSet, ctrl: &[Real]) {
+        self.apply_controls_scaled(joints, ctrl, 1.0);
+    }
+
+    /// Like [`apply_controls`](Self::apply_controls) but uniformly scales every
+    /// actuator's strength by `gain_scale` (gains and force limits; see
+    /// [`configure_actuator_motor`]). `gain_scale < 1` softens the actuation —
+    /// e.g. to ease servo-driven moves that would otherwise saturate and snap.
+    pub fn apply_controls_scaled(
+        &self,
+        joints: &mut ImpulseJointSet,
+        ctrl: &[Real],
+        gain_scale: Real,
+    ) {
         for (i, ah) in self.actuators.iter().enumerate() {
             let Some(handle) = ah.joint else { continue };
             let Some(joint) = joints.get_mut(handle, true) else {
                 continue;
             };
             let u = ctrl.get(i).copied().unwrap_or(0.0);
-            configure_actuator_motor(&mut joint.data, &ah.actuator, u);
+            configure_actuator_motor(&mut joint.data, &ah.actuator, u, gain_scale);
         }
     }
 }
@@ -240,6 +488,21 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
         multibody_joints: &mut MultibodyJointSet,
         ctrl: &[Real],
     ) {
+        self.apply_controls_multibody_scaled(bodies, multibody_joints, ctrl, 1.0);
+    }
+
+    /// Like [`apply_controls_multibody`](Self::apply_controls_multibody) but
+    /// uniformly scales every actuator's strength by `gain_scale` (gains and
+    /// force limits; see [`configure_actuator_motor`]). `gain_scale < 1` softens
+    /// the actuation, so a servo-driven move (e.g. easing between keyframes)
+    /// ramps in instead of saturating to its force limit and arriving instantly.
+    pub fn apply_controls_multibody_scaled(
+        &self,
+        bodies: &mut RigidBodySet,
+        multibody_joints: &mut MultibodyJointSet,
+        ctrl: &[Real],
+        gain_scale: Real,
+    ) {
         for (i, ah) in self.actuators.iter().enumerate() {
             // `H` is `Option<MultibodyJointHandle>` here, so `ah.joint` is
             // `Option<Option<_>>`: the outer `None` means "no actuator joint",
@@ -252,7 +515,7 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
                 continue;
             };
             let u = ctrl.get(i).copied().unwrap_or(0.0);
-            configure_actuator_motor(&mut link.joint.data, &ah.actuator, u);
+            configure_actuator_motor(&mut link.joint.data, &ah.actuator, u, gain_scale);
             let rb = link.rigid_body_handle();
             if let Some(body) = bodies.get_mut(rb) {
                 body.wake_up(true);
@@ -287,18 +550,38 @@ fn configure_actuator_motor(
     data: &mut GenericJoint,
     actuator: &mjcf_rs::extras::Actuator,
     u: Real,
+    gain_scale: Real,
 ) {
     use mjcf_rs::extras::ActuatorKind;
 
     let ax = JointAxis::AngX;
     let lin_ax = JointAxis::LinX;
-    let kp = actuator.kp.unwrap_or_default() as Real;
-    let kv = actuator.kv.unwrap_or_default() as Real;
+    // MuJoCo's `<position>` defaults `kp` to 1 when it isn't set (directly or
+    // through a `<default>` class), not 0. Defaulting to 0 here would give a
+    // zero-gain — i.e. completely limp — servo, which is what made e.g. the
+    // shadow hand's many `kp`-less finger actuators unable to hold/move their
+    // joints. `kv` (velocity gain) does default to 0 in MuJoCo.
+    //
+    // `gain_scale` uniformly scales the actuator's strength: the servo gains
+    // (`kp`/`kv`, or an affine `<general>`'s stiffness/damping — target pose
+    // unchanged) and the force cap (`forcerange`) and constant forces. Below 1
+    // the actuator pushes more softly, so a servo-driven move (e.g. snapping
+    // between keyframes) eases in instead of saturating to its force limit and
+    // arriving almost instantly. `1.0` reproduces the model as authored.
+    let kp = actuator.kp.unwrap_or(1.0) as Real * gain_scale;
+    let kv = actuator.kv.unwrap_or_default() as Real * gain_scale;
     let gear = actuator.gear[0] as Real;
-    let force_max = actuator
+    let base_force_max = actuator
         .force_range
         .map(|r| r[1].abs() as Real)
         .unwrap_or(Real::INFINITY);
+    // Scale the force cap too (an unbounded `INFINITY` cap stays unbounded —
+    // and avoids `INFINITY * 0` = `NaN` for a zero scale).
+    let force_max = if base_force_max.is_finite() {
+        base_force_max * gain_scale
+    } else {
+        base_force_max
+    };
 
     // Emulate a constant generalized force: aim the motor at a far-away
     // velocity in the force's direction and cap the impulse at the force
@@ -315,7 +598,7 @@ fn configure_actuator_motor(
     };
 
     match actuator.kind {
-        ActuatorKind::Motor => apply_constant_force(data, u * gear),
+        ActuatorKind::Motor => apply_constant_force(data, u * gear * gain_scale),
         ActuatorKind::Position => {
             data.set_motor_position(ax, u, kp, kv);
             data.set_motor_position(lin_ax, u, kp, kv);
@@ -336,7 +619,8 @@ fn configure_actuator_motor(
             data.set_motor_max_force(lin_ax, force_max);
         }
         ActuatorKind::Damper => {
-            let damp = actuator.gainprm.first().copied().unwrap_or(0.0) as Real * u.abs();
+            let damp =
+                actuator.gainprm.first().copied().unwrap_or(0.0) as Real * u.abs() * gain_scale;
             data.set_motor_velocity(ax, 0.0, damp);
             data.set_motor_velocity(lin_ax, 0.0, damp);
             data.set_motor_max_force(ax, force_max);
@@ -354,15 +638,22 @@ fn configure_actuator_motor(
             if affine && -b1 > 0.0 {
                 let stiffness = -b1;
                 let damping = -b2;
+                // Target uses the unscaled stiffness so the commanded pose is
+                // unchanged; only the gains (force) scale.
                 let target = (g0 * u + b0) / stiffness;
-                data.set_motor_position(ax, target, stiffness, damping);
-                data.set_motor_position(lin_ax, target, stiffness, damping);
+                data.set_motor_position(ax, target, stiffness * gain_scale, damping * gain_scale);
+                data.set_motor_position(
+                    lin_ax,
+                    target,
+                    stiffness * gain_scale,
+                    damping * gain_scale,
+                );
                 data.set_motor_max_force(ax, force_max);
                 data.set_motor_max_force(lin_ax, force_max);
             } else {
                 // `gaintype="fixed"`, non-restoring bias: constant force
                 // `gainprm0·u` through the transmission.
-                apply_constant_force(data, g0 * u * gear);
+                apply_constant_force(data, g0 * u * gear * gain_scale);
             }
         }
         ActuatorKind::IntVelocity | ActuatorKind::Other => {
@@ -383,6 +674,67 @@ pub enum MjcfSensorValue {
 }
 
 impl MjcfRobot {
+    /// Look up a keyframe by its `<key name="…">`. Returns `None` if no
+    /// keyframe with that name exists.
+    pub fn keyframe_by_name(&self, name: &str) -> Option<&Keyframe> {
+        self.keyframes
+            .iter()
+            .find(|k| k.name.as_deref() == Some(name))
+    }
+
+    /// Build a per-actuator control vector that commands the given keyframe's
+    /// pose, in the order of [`Self::actuators`].
+    ///
+    /// This is what lets a keyframe *hold* under actuation instead of being
+    /// dragged back to the zero configuration: driving the actuators with a
+    /// plain zero vector (the obvious default) makes every position servo pull
+    /// its joint to 0, undoing the keyframe. Each entry is resolved as:
+    ///
+    /// - the keyframe's explicit `ctrl[i]` when it provides one (MuJoCo's own
+    ///   commanded input for the pose), otherwise
+    /// - for an actuator driving a 1-DoF (hinge/slide) joint, that joint's
+    ///   keyframe `qpos` in rapier coordinates (the natural position-servo
+    ///   target), otherwise
+    /// - `0`.
+    ///
+    /// Pass the result to [`apply_controls`](MjcfRobotHandles::<rapier3d::dynamics::ImpulseJointHandle>::apply_controls)
+    /// / [`apply_controls_multibody`](MjcfRobotHandles::<Option<MultibodyJointHandle>>::apply_controls_multibody).
+    pub fn keyframe_controls(&self, key: &Keyframe) -> Vec<Real> {
+        // Per-joint position target (rapier coordinates) derived from `qpos`.
+        let mut joint_target: Vec<Option<Real>> = vec![None; self.joints.len()];
+        let mut qpos_i = 0;
+        for dof in &self.qpos_dofs {
+            if let Some(jidx) = dof.joint
+                && let Some(&q) = key.qpos.get(qpos_i)
+            {
+                let target = match dof.kind {
+                    MjcfDofKind::Hinge => Some(q as Real - dof.reference),
+                    MjcfDofKind::Slide => Some((q as Real - dof.reference) * dof.scale),
+                    // Ball/free are multi-DoF; no single scalar servo target.
+                    _ => None,
+                };
+                if let Some(t) = target {
+                    joint_target[jidx] = Some(t);
+                }
+            }
+            qpos_i += dof.kind.qpos_width();
+        }
+
+        self.actuators
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                if let Some(&c) = key.ctrl.get(i) {
+                    c as Real
+                } else {
+                    a.joint_index
+                        .and_then(|j| joint_target.get(j).copied().flatten())
+                        .unwrap_or(0.0)
+                }
+            })
+            .collect()
+    }
+
     /// Read a sensor's current value from the rapier state. Returns `None`
     /// for sensors the loader doesn't know how to evaluate.
     pub fn read_sensor(

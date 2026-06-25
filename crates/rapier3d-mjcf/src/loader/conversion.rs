@@ -24,8 +24,8 @@ use rapier3d::math::{Pose, Real, Vector};
 use super::mass::scale_mass_properties;
 use super::options::MjcfLoaderOptions;
 use super::types::{
-    MjcfActuatorBinding, MjcfBody, MjcfEqualityJoint, MjcfJoint, MjcfJointCoupling, MjcfRobot,
-    MjcfSensorBinding, MjcfVisualMesh, SensorObjectRef,
+    MjcfActuatorBinding, MjcfBody, MjcfDofKind, MjcfEqualityJoint, MjcfJoint, MjcfJointCoupling,
+    MjcfQposDof, MjcfRobot, MjcfSensorBinding, MjcfVisualMesh, SensorObjectRef,
 };
 
 pub(super) struct Conversion<'a> {
@@ -145,11 +145,19 @@ impl<'a> Conversion<'a> {
         // body indices.
         self.materialize_equality();
 
+        // Fixed tendons: co-actuation couplings between their joints. After
+        // `materialize_equality` so we can skip pairs already coupled by an
+        // explicit `<equality><joint>`.
+        self.materialize_tendons();
+
         // Bindings for actuators / sensors.
         self.bind_extras();
 
-        // Keyframes pass-through.
+        // Keyframes pass-through. The qpos/qvel layout was filled in lock-step
+        // with body/joint creation (`materialize_body`), so it already follows
+        // MuJoCo's generalized-coordinate order.
         self.robot.keyframes = self.model.keyframes.clone();
+        self.robot.base_shift = self.options.shift;
 
         // Contact data pass-through (resolved into hooks at insert time).
         self.robot.contact_excludes = self.model.contact.excludes.clone();
@@ -211,7 +219,16 @@ impl<'a> Conversion<'a> {
                 );
             }
             // Free body — no rapier joint, body is dynamic and not constrained.
-            let _ = self.push_body_for_mjcf(mjcf_id, entry, body_world_pose, false);
+            let body_idx = self.push_body_for_mjcf(mjcf_id, entry, body_world_pose, false);
+            // A `<freejoint>` contributes a 6-DoF slot to the keyframe layout:
+            // its 7 qpos give the floating base's absolute world pose.
+            self.robot.qpos_dofs.push(MjcfQposDof {
+                kind: MjcfDofKind::Free,
+                joint: None,
+                body: body_idx,
+                reference: 0.0,
+                scale: self.options.scale,
+            });
             return;
         }
 
@@ -328,6 +345,24 @@ impl<'a> Conversion<'a> {
                 spring_ref,
                 springdamper,
             });
+            // Record this joint's slot in the keyframe `qpos`/`qvel` layout
+            // (Free is filtered out above; the synthesized fixed joints created
+            // for jointless bodies are 0-DoF and likewise contribute nothing).
+            let dof_kind = match j.type_ {
+                mb::JointType::Hinge => Some(MjcfDofKind::Hinge),
+                mb::JointType::Slide => Some(MjcfDofKind::Slide),
+                mb::JointType::Ball => Some(MjcfDofKind::Ball),
+                mb::JointType::Free => None,
+            };
+            if let Some(kind) = dof_kind {
+                self.robot.qpos_dofs.push(MjcfQposDof {
+                    kind,
+                    joint: Some(self.robot.joints.len() - 1),
+                    body: cur_rapier,
+                    reference: j.ref_ as Real,
+                    scale: self.options.scale,
+                });
+            }
             prev_rapier = cur_rapier;
             prev_world_pose = cur_world_pose;
         }
@@ -565,6 +600,17 @@ impl<'a> Conversion<'a> {
                     }
                 }
                 MjcfEquality::Joint(j) => self.materialize_joint_equality(j),
+                MjcfEquality::Tendon(t) => {
+                    // `<equality><tendon>` pins a tendon length (or couples two
+                    // tendons). No menagerie model uses it — fixed-tendon joint
+                    // coupling there is expressed with `<equality><joint>`
+                    // instead — so it's not yet materialized.
+                    log::warn!(
+                        "<equality><tendon name={:?}>: tendon length equality is not yet \
+                         supported; skipping",
+                        t.common.name
+                    );
+                }
             }
         }
     }
@@ -609,6 +655,78 @@ impl<'a> Conversion<'a> {
             offset: j.polycoef[0] as Real,
             active: j.common.active,
         });
+    }
+
+    /// Resolve a fixed tendon's `(joint, coef)` terms to `(rapier-joint-index,
+    /// coef)`, dropping (with a warning) joints rapier doesn't have a 1-DoF
+    /// joint for.
+    fn resolve_tendon_joints(&self, t: &mjcf_rs::tendon::FixedTendon) -> Vec<(usize, Real)> {
+        t.joints
+            .iter()
+            .filter_map(|term| {
+                match self.robot.joint_name_to_idx.get(&term.joint).copied() {
+                    Some(idx) => Some((idx, term.coef as Real)),
+                    None => {
+                        log::warn!(
+                            "<tendon name={:?}>: unknown joint \"{}\"; ignoring this term",
+                            t.name,
+                            term.joint,
+                        );
+                        None
+                    }
+                }
+            })
+            .collect()
+    }
+
+    /// The rapier-joint index a `tendon=` actuator should drive: the first
+    /// resolvable joint of the named fixed tendon (its other joints are dragged
+    /// along by the co-actuation couplings from [`Self::materialize_tendons`]).
+    fn tendon_primary_joint(&self, tendon_name: &str) -> Option<usize> {
+        let t = self
+            .model
+            .tendons
+            .iter()
+            .find(|t| t.name.as_deref() == Some(tendon_name))?;
+        self.resolve_tendon_joints(t).first().map(|&(idx, _)| idx)
+    }
+
+    /// A fixed tendon couples its joints only through being actuated/loaded as
+    /// one unit (MuJoCo applies the actuator/passive force `coefᵢ·f` to each
+    /// joint). Rapier has no tendon transmission, so we approximate this by
+    /// coupling each joint `k ≥ 1` to the first joint: `q_k = (coef_k/coef_0)·q_0`.
+    /// That is exact when the joints have equal inertia (the case for every
+    /// menagerie fixed tendon, whose coefficients are equal), and makes e.g.
+    /// the shadow hand's middle+distal finger segments curl together.
+    ///
+    /// Pairs already coupled by an explicit `<equality><joint>` (franka,
+    /// robotiq) are left alone, and single-joint tendons need no coupling.
+    fn materialize_tendons(&mut self) {
+        for t in &self.model.tendons {
+            let joints = self.resolve_tendon_joints(t);
+            let Some(&(idx0, c0)) = joints.first() else {
+                continue;
+            };
+            if c0 == 0.0 {
+                continue;
+            }
+            for &(idxk, ck) in &joints[1..] {
+                let already_coupled = self.robot.joint_couplings.iter().any(|c| {
+                    (c.joint1 == idx0 && c.joint2 == idxk)
+                        || (c.joint1 == idxk && c.joint2 == idx0)
+                });
+                if already_coupled {
+                    continue;
+                }
+                self.robot.joint_couplings.push(MjcfJointCoupling {
+                    joint1: idx0,
+                    joint2: idxk,
+                    coeff: ck / c0,
+                    offset: 0.0,
+                    active: true,
+                });
+            }
+        }
     }
 
     fn resolve_connect_frames(&self, c: &EqualityConnect) -> Option<(usize, usize, Pose, Pose)> {
@@ -721,16 +839,32 @@ impl<'a> Conversion<'a> {
                     }
                 },
                 None => {
-                    if a.tendon.is_some() {
-                        // Tendons are out of scope; not actionable. No warning.
-                    } else if a.body.is_none() && a.site.is_none() {
-                        log::warn!(
-                            "<actuator name={:?}>: no `joint=`, `tendon=`, `body=`, or `site=` \
-                             reference; actuator will be recorded but apply_controls() will skip it",
-                            a.name,
-                        );
+                    if let Some(tendon_name) = a.tendon.as_deref() {
+                        // Drive the fixed tendon through its primary joint; the
+                        // other joints follow via the co-actuation couplings
+                        // installed by `materialize_tendons`. (Spatial tendons
+                        // resolve to no joint and stay unbound.)
+                        match self.tendon_primary_joint(tendon_name) {
+                            Some(idx) => Some(idx),
+                            None => {
+                                log::warn!(
+                                    "<actuator name={:?} tendon=\"{tendon_name}\">: unknown or \
+                                     spatial tendon (no usable joint); apply_controls() will skip it",
+                                    a.name,
+                                );
+                                None
+                            }
+                        }
+                    } else {
+                        if a.body.is_none() && a.site.is_none() {
+                            log::warn!(
+                                "<actuator name={:?}>: no `joint=`, `tendon=`, `body=`, or `site=` \
+                                 reference; actuator will be recorded but apply_controls() will skip it",
+                                a.name,
+                            );
+                        }
+                        None
                     }
-                    None
                 }
             };
             self.robot.actuators.push(MjcfActuatorBinding {

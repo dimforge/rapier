@@ -6,9 +6,12 @@ use roxmltree::Node;
 
 use crate::Pose;
 use crate::contact::{ContactExclude, ContactPair};
-use crate::equality::{Equality, EqualityCommon, EqualityConnect, EqualityJoint, EqualityWeld};
+use crate::equality::{
+    Equality, EqualityCommon, EqualityConnect, EqualityJoint, EqualityTendon, EqualityWeld,
+};
 use crate::error::ParseError;
 use crate::extras::{Actuator, ActuatorKind, Keyframe, Sensor};
+use crate::tendon::{FixedTendon, TendonJoint};
 use crate::types::Tristate;
 use glamx::glam::{DQuat, DVec3};
 
@@ -154,7 +157,30 @@ impl ParseState {
                     }
                     self.model.equality.push(Equality::Joint(ej));
                 }
-                "tendon" | "flex" | "flexvert" | "flexstrain" => {
+                "tendon" => {
+                    let mut et = EqualityTendon {
+                        common,
+                        polycoef: [0.0, 1.0, 0.0, 0.0, 0.0],
+                        ..Default::default()
+                    };
+                    for attr in child.attributes() {
+                        match attr.name() {
+                            "tendon1" => et.tendon1 = attr.value().to_string(),
+                            "tendon2" => et.tendon2 = Some(attr.value().to_string()),
+                            "polycoef" => {
+                                let v = parse_f64_list(attr.value())?;
+                                for (i, slot) in et.polycoef.iter_mut().enumerate() {
+                                    if let Some(c) = v.get(i) {
+                                        *slot = *c;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    self.model.equality.push(Equality::Tendon(et));
+                }
+                "flex" | "flexvert" | "flexstrain" => {
                     log::debug!("equality `{tag}` is out of scope; skipped");
                 }
                 "include" => self.parse_include(child, true)?,
@@ -300,6 +326,45 @@ impl ParseState {
                 }
             }
             self.model.keyframes.push(k);
+        }
+        Ok(())
+    }
+
+    /// Parse a top-level `<tendon>` block. Only `<fixed>` tendons are kept;
+    /// `<spatial>` tendons (site-routed cables) are out of scope and skipped.
+    pub(super) fn parse_tendon(&mut self, node: Node) -> Result<(), ParseError> {
+        for child in node.children().filter(|n| n.is_element()) {
+            match child.tag_name().name() {
+                "include" => self.parse_include(child, true)?,
+                "spatial" => {
+                    log::debug!("<tendon><spatial> is out of scope; skipped");
+                }
+                "fixed" => {
+                    let mut t = FixedTendon {
+                        name: child.attribute("name").map(|s| s.to_string()),
+                        class: child.attribute("class").map(|s| s.to_string()),
+                        joints: Vec::new(),
+                    };
+                    for term in child.children().filter(|n| n.is_element()) {
+                        if term.tag_name().name() != "joint" {
+                            continue;
+                        }
+                        let Some(joint) = term.attribute("joint") else {
+                            continue;
+                        };
+                        let coef = match term.attribute("coef") {
+                            Some(c) => parse_f64(c)?,
+                            None => 1.0,
+                        };
+                        t.joints.push(TendonJoint {
+                            joint: joint.to_string(),
+                            coef,
+                        });
+                    }
+                    self.model.tendons.push(t);
+                }
+                _ => {}
+            }
         }
         Ok(())
     }

@@ -40,6 +40,8 @@ pub struct Model {
     pub sensors: Vec<Sensor>,
     /// `<keyframe><key>` entries.
     pub keyframes: Vec<Keyframe>,
+    /// `<tendon><fixed>` elements (spatial tendons are not represented).
+    pub tendons: Vec<crate::tendon::FixedTendon>,
 }
 
 /// One entry in the flat body list.

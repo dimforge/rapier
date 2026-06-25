@@ -9,6 +9,9 @@ pub enum Equality {
     Weld(EqualityWeld),
     /// `<equality><joint>` — polynomial coupling between two joints' positions.
     Joint(EqualityJoint),
+    /// `<equality><tendon>` — polynomial coupling between two tendon lengths,
+    /// or (with `tendon2` omitted) a fixed tendon pinned to a constant length.
+    Tendon(EqualityTendon),
 }
 
 /// Common metadata shared by all equality variants.
@@ -66,6 +69,22 @@ pub struct EqualityJoint {
     pub joint1: String,
     /// Second (dependent) joint. `None` constrains `joint1` to `polycoef[0]`.
     pub joint2: Option<String>,
+    /// Polynomial coefficients `[p0, p1, p2, p3, p4]` (default `[0,1,0,0,0]`).
+    pub polycoef: [f64; 5],
+}
+
+/// `<equality><tendon>` element: couples the length of `tendon2` to that of
+/// `tendon1` through the same quartic polynomial form as [`EqualityJoint`].
+/// `tendon2` may be omitted, in which case `tendon1`'s length is constrained to
+/// the constant `polycoef[0]`.
+#[derive(Clone, Debug, Default)]
+pub struct EqualityTendon {
+    /// Common metadata.
+    pub common: EqualityCommon,
+    /// First (independent) tendon name.
+    pub tendon1: String,
+    /// Second (dependent) tendon name. `None` constrains `tendon1` to `polycoef[0]`.
+    pub tendon2: Option<String>,
     /// Polynomial coefficients `[p0, p1, p2, p3, p4]` (default `[0,1,0,0,0]`).
     pub polycoef: [f64; 5],
 }

@@ -184,6 +184,19 @@ impl ParseState {
                         .equality
                         .push(crate::equality::Equality::Joint(new_j));
                 }
+                crate::equality::Equality::Tendon(t) => {
+                    let mut new_t = t.clone();
+                    if let Some(n) = new_t.common.name.take() {
+                        new_t.common.name = Some(prefixed(prefix, &n));
+                    }
+                    new_t.tendon1 = prefixed(prefix, &new_t.tendon1);
+                    if let Some(t2) = new_t.tendon2.take() {
+                        new_t.tendon2 = Some(prefixed(prefix, &t2));
+                    }
+                    self.model
+                        .equality
+                        .push(crate::equality::Equality::Tendon(new_t));
+                }
             }
         }
     }

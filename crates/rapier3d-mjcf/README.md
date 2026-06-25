@@ -146,24 +146,46 @@ convention. (Tracked for a future polish pass.)
   `MjcfRobotHandles::apply_controls(impulse_joints, ctrl)` drives the
   rapier joint motors for `<motor>`, `<position>`, `<velocity>`, and
   `<damper>` actuator types. `<general>` and `<intvelocity>` are
-  recorded but left to the user to wire up.
-- ✅ `<keyframe>` mocap state — `apply_mocap_keyframe` writes
-  `mpos`/`mquat` into `KinematicPositionBased` rapier bodies.
-  Per-joint `qpos` / `qvel` keyframe state is preserved on the AST but
-  not auto-applied (qpos ordering across multibody chains needs more
-  bookkeeping; tracked for a future polish pass).
+  recorded but left to the user to wire up. The `*_scaled` variants
+  (`apply_controls_scaled` / `apply_controls_multibody_scaled`) take a
+  `gain_scale` that uniformly softens (`< 1`) or stiffens (`> 1`) every
+  actuator's gains and force limits — handy to ease a servo-driven move
+  that would otherwise saturate and snap.
+- ✅ `<keyframe>` state — `MjcfRobotHandles::apply_keyframe` applies a
+  keyframe's full state: `qpos` / `qvel` joint coordinates (using
+  `MjcfRobot::qpos_dofs`, a precomputed map from MuJoCo's
+  generalized-coordinate order onto the rapier joints/bodies), a
+  floating base's world pose, and `mpos` / `mquat` mocap state. It works
+  on both insertion paths — the multibody path writes the multibody's
+  generalized coordinates (then runs forward-kinematics), the
+  impulse-joint path runs forward-kinematics over the joint tree and
+  writes each body's world pose. `apply_mocap_keyframe` (mocap only) and
+  `MjcfRobot::keyframe_by_name` remain available. (Per-joint `qvel` is
+  applied on the multibody path; the impulse path applies only a floating
+  base's `qvel`.)
 - ✅ `<sensor>` reading via `MjcfRobot::read_sensor` for the
   state-derivable subset: `framepos`, `framequat`, `framelinvel`,
   `frameangvel`, `velocimeter`, `gyro`, `subtreemass`, `subtreecom`,
   `clock`. Sensors that need contact-area integration (`touch`,
   `rangefinder`, `geomdist`, `camprojection`) are out of scope.
+- ✅ `<tendon><fixed>` (linear joint-coordinate tendons). An actuator with
+  `tendon="…"` is bound to the tendon's first joint, and the tendon's other
+  joints are coupled to it (`q_k = (coef_k/coef_0)·q_0`, a multibody DoF
+  coupling — exact for equal-inertia joints, which covers every menagerie
+  fixed tendon) so they move as one. This is what makes e.g. the shadow hand's
+  tendon-driven middle+distal finger segments curl together. Pairs already
+  coupled by an explicit `<equality><joint>` (franka, robotiq) are left alone.
+  `<tendon><spatial>` (site-routed cables with wrapping) and `<equality><tendon>`
+  length constraints remain out of scope.
 
 ### Out of scope ❌
 
 - `<extension>` / MuJoCo plugins.
 - `<flexcomp>` / `<flex>` / `<skin>` (deformables).
 - `<composite>` (procedural body clusters).
-- `<tendon>` (any kind) and `<equality>` of tendons / joints / flex.
+- `<tendon><spatial>` and `<equality>` of tendons / flex (fixed-tendon joint
+  coupling and actuation *are* supported — see above).
+- Fixed-tendon passive `stiffness`/`damping`/`range`/`frictionloss`.
 - `<actuator>` types: `cylinder`, `muscle`, `adhesion`.
 - `<sensor>` types that need contact-area integration: `touch`, `rangefinder`,
   `geomdist`, `camprojection`.

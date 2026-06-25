@@ -110,9 +110,7 @@ impl ParseState {
                 "worldbody" => deferred_bodies.push(child),
                 "contact" => self.parse_contact(child)?,
                 "equality" => self.parse_equality(child)?,
-                "tendon" => {
-                    // Out of scope; record nothing.
-                }
+                "tendon" => self.parse_tendon(child)?,
                 "actuator" => deferred_actuators.push(child),
                 "sensor" => deferred_sensors.push(child),
                 "keyframe" => deferred_keyframes.push(child),

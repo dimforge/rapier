@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use kiss3d::color::Color;
 use rapier_testbed3d::{RenderMaterial, Testbed, settings::StringDisplayMode};
 use rapier3d::prelude::*;
+use rapier3d_mjcf::mjcf_rs::extras::Keyframe;
 use rapier3d_mjcf::{MjcfLoaderOptions, MjcfMultibodyOptions, MjcfRobot, MjcfRobotHandles};
 
 /// Roots the scene-picker walks. Each entry is expected to contain `<robot>/scene*.xml` one level
@@ -56,18 +57,52 @@ pub fn init_world(testbed: &mut Testbed) {
     let enable_controls = testbed
         .example_settings_mut()
         .get_or_set_bool("Enable joint controls", false);
+    // Uniformly scales actuator strength (gains + force limits) when driving the
+    // model. Read live by the controls callback, so it's a non-restart setting
+    // (below). Turn it down to make a servo-driven move between keyframes ease in
+    // instead of snapping for models whose actuators are otherwise strong enough
+    // to arrive almost instantly.
+    testbed
+        .example_settings_mut()
+        .get_or_set_f32("Actuator strength", 1.0, 0.02..=2.0);
     // MJCF `<joint stiffness>` passive springs (integrated implicitly on the
     // multibody path). Unchecking removes them — useful to see a model without
     // its return springs (e.g. robotiq's gripper preload, cassie's leg springs).
     let enable_springs = testbed
         .example_settings_mut()
         .get_or_set_bool("Enable joint springs", true);
+    // The keyframe to apply right after loading, so the robot starts in a
+    // declared pose (e.g. a quadruped standing instead of collapsed at the
+    // all-zeros configuration). The real option list is filled once the model
+    // is loaded (it depends on which keyframes the model declares); reserve the
+    // slot here so it renders above the taller scene list.
+    testbed
+        .example_settings_mut()
+        .get_or_set_string("Keyframe", 0, vec!["(none)".to_string()]);
+    // When the actuators drive toward the keyframe (multibody + controls on),
+    // changing the keyframe is a *live* retarget — the per-step callback reads
+    // the new selection and the joints move there. So don't restart the sim on
+    // a keyframe change in that mode. Without controls there's nothing to track
+    // the target, so the keyframe is applied by reloading (a restart) instead.
+    let keyframe_is_live = use_multibody && enable_controls;
+    testbed
+        .example_settings_mut()
+        .set_restart_on_change("Keyframe", !keyframe_is_live);
+    // The controls callback reads "Actuator strength" live each step, so don't
+    // restart the sim when the slider moves.
+    testbed
+        .example_settings_mut()
+        .set_restart_on_change("Actuator strength", false);
     let selected = testbed.example_settings_mut().get_or_set_string_with(
         "Scene",
         default_idx,
         labels,
         StringDisplayMode::List,
     );
+    // `init_world` re-runs on every settings change, not just scene changes.
+    // Detect an actual scene change so the keyframe picker resets to the new
+    // model's default (and the camera reframes) only then.
+    let scene_changed = LAST_FRAMED_SCENE.swap(selected, Ordering::Relaxed) != selected;
 
     if scenes.is_empty() {
         testbed.example_settings_mut().set_label("NO MODEL FOUND", "Consider cloning `google-deepmind/mujoco_menagerie`\ninto the same parent directory as the rapier repo.")
@@ -83,6 +118,8 @@ pub fn init_world(testbed: &mut Testbed) {
             use_multibody,
             disable_collisions,
             enable_springs,
+            testbed,
+            scene_changed,
         ) {
             Ok((robot, body_handles, mb)) => {
                 loaded = Some((robot, body_handles));
@@ -94,17 +131,67 @@ pub fn init_world(testbed: &mut Testbed) {
     }
     testbed.set_physics_world(world);
 
-    // "Enable joint controls" → drive the model's actuators every frame with a
-    // zero control vector (hold the neutral pose). Re-registered on each
-    // `init_world` (the testbed clears callbacks when a setting toggles), so
-    // ticking the checkbox turns actuation on/off. Multibody path only.
-    if enable_controls && let Some(handles) = mb_handles {
-        let ctrl = vec![0.0 as Real; handles.actuators.len()];
-        testbed.add_callback(move |_, physics, _, _| {
-            handles.apply_controls_multibody(
+    // "Enable joint controls" → keep the model at the *currently selected*
+    // keyframe every step. Re-registered on each `init_world` (the testbed
+    // clears callbacks when a setting toggles). Multibody only.
+    //
+    // The callback reads the live "Keyframe" selection from the settings each
+    // step. Because that setting is marked non-restart (above), switching it
+    // doesn't rebuild the world — instead, on a change the callback applies the
+    // new keyframe directly (an instant, full-pose update of every joint, no
+    // sim reset) and then the actuators hold it. Applying the pose rather than
+    // only retargeting the servos matters because some models' actuators are
+    // too weak to drag their joints across (e.g. the shadow hand's fingers
+    // barely move under servo force alone). Each keyframe's hold control is its
+    // `ctrl` (or a target derived from its `qpos`), precomputed here; "(none)"
+    // falls back to zeros (hold the neutral pose).
+    if enable_controls
+        && let Some(handles) = mb_handles
+        && let Some(robot) = loaded.as_ref().map(|(robot, _)| robot.clone())
+    {
+        let per_keyframe_ctrl: Vec<Vec<Real>> = robot
+            .keyframes
+            .iter()
+            .map(|k| robot.keyframe_controls(k))
+            .collect();
+        let neutral = vec![0.0 as Real; handles.actuators.len()];
+        // Seed with the keyframe already applied at load so we don't re-apply
+        // it on the first step.
+        let mut last_selected = testbed
+            .example_settings_mut()
+            .get_string_id("Keyframe")
+            .unwrap_or(0);
+        testbed.add_callback(move |graphics, physics, _, _| {
+            let settings = graphics.and_then(|g| g.settings.as_deref());
+            // Selection index 0 is "(none)"; index `i + 1` is keyframe `i`.
+            let selected = settings
+                .and_then(|s| s.get_string_id("Keyframe"))
+                .unwrap_or(last_selected);
+            // Live actuator-strength scale (1.0 = as authored; lower = softer).
+            let gain: Real = settings
+                .and_then(|s| s.get_f32("Actuator strength"))
+                .unwrap_or(1.0);
+            let keyframe = selected.checked_sub(1).and_then(|i| robot.keyframes.get(i));
+            if selected != last_selected {
+                // if let Some(key) = keyframe {
+                //     handles.apply_keyframe(
+                //         &mut physics.bodies,
+                //         &mut physics.multibody_joints,
+                //         &robot,
+                //         key,
+                //     );
+                // }
+                last_selected = selected;
+            }
+            let ctrl = selected
+                .checked_sub(1)
+                .and_then(|i| per_keyframe_ctrl.get(i))
+                .unwrap_or(&neutral);
+            handles.apply_controls_multibody_scaled(
                 &mut physics.bodies,
                 &mut physics.multibody_joints,
-                &ctrl,
+                ctrl,
+                gain,
             );
         });
     }
@@ -122,7 +209,7 @@ pub fn init_world(testbed: &mut Testbed) {
     // Refit the camera only on actual scene changes, otherwise a
     // checkbox toggle in the Example Settings panel would snap the
     // camera out from under the user every time.
-    if LAST_FRAMED_SCENE.swap(selected, Ordering::Relaxed) != selected {
+    if scene_changed {
         testbed.request_frame_all();
     }
 
@@ -188,17 +275,100 @@ fn add_floor(world: &mut PhysicsWorld) {
 /// set (`Some` only on the multibody path), kept so the caller can drive the
 /// model's actuators via `apply_controls_multibody`.
 type MultibodyHandles = MjcfRobotHandles<Option<MultibodyJointHandle>>;
+
+/// Merge the keyframes from a sibling `keyframes.xml` (next to the scene file)
+/// into `robot`, skipping any whose name is already present.
+///
+/// This follows the menagerie convention where a model's keyframes live in a
+/// separate `keyframes.xml` meant to be `<include>`d by the user. Their `qpos`
+/// are authored against the bare model, so they line up as long as the scene
+/// only *appends* extra free bodies (props to manipulate) after the robot —
+/// those land at the tail of `qpos` and are simply left unset by the keyframe.
+fn merge_sibling_keyframes(robot: &mut MjcfRobot, scene_path: &Path) {
+    let Some(kf_path) = scene_path.parent().map(|d| d.join("keyframes.xml")) else {
+        return;
+    };
+    if !kf_path.exists() {
+        return;
+    }
+    match MjcfRobot::from_file(&kf_path, loader_options()) {
+        Ok((kf_robot, _)) => {
+            let existing: std::collections::HashSet<String> =
+                robot.keyframes.iter().filter_map(|k| k.name.clone()).collect();
+            for k in kf_robot.keyframes {
+                if k.name.as_ref().is_none_or(|n| !existing.contains(n)) {
+                    robot.keyframes.push(k);
+                }
+            }
+        }
+        Err(e) => eprintln!("Failed to load sibling keyframes `{}`: {e}", kf_path.display()),
+    }
+}
+
+/// Fill the "Keyframe" picker with this model's keyframes (prefixed with a
+/// "(none)" entry) and return the keyframe the user selected, if any.
+///
+/// The option list depends on the loaded model, so it is rewritten on every
+/// load. On an actual scene change the selection resets to the model's default
+/// (its `home` keyframe, else its first); otherwise the user's pick is
+/// preserved by name across re-inits (toggling another setting re-runs
+/// `init_world`, and a stale index could point at a different keyframe).
+fn configure_keyframe_setting(
+    testbed: &mut Testbed,
+    robot: &MjcfRobot,
+    scene_changed: bool,
+) -> Option<Keyframe> {
+    // Index 0 is "(none)"; entry `i + 1` is `robot.keyframes[i]`.
+    let mut names = vec!["(none)".to_string()];
+    for (i, k) in robot.keyframes.iter().enumerate() {
+        names.push(k.name.clone().unwrap_or_else(|| format!("key {i}")));
+    }
+
+    // Default: `home` if present, else the first keyframe, else "(none)".
+    let default_idx = names
+        .iter()
+        .position(|n| n == "home")
+        .unwrap_or(if robot.keyframes.is_empty() { 0 } else { 1 });
+
+    let selected_idx = if scene_changed {
+        default_idx
+    } else {
+        // Preserve the prior selection by name (the index may have shifted).
+        testbed
+            .example_settings_mut()
+            .get_string("Keyframe")
+            .and_then(|prev| names.iter().position(|n| n == prev))
+            .unwrap_or(default_idx)
+    };
+
+    testbed
+        .example_settings_mut()
+        .set_string("Keyframe", selected_idx, names);
+
+    selected_idx
+        .checked_sub(1)
+        .and_then(|i| robot.keyframes.get(i))
+        .cloned()
+}
+
 fn load_into_world(
     path: &Path,
     world: &mut PhysicsWorld,
     use_multibody: bool,
     disable_collisions: bool,
     enable_springs: bool,
+    testbed: &mut Testbed,
+    scene_changed: bool,
 ) -> Result<
     (MjcfRobot, Vec<Option<RigidBodyHandle>>, Option<MultibodyHandles>),
     Box<dyn std::error::Error>,
 > {
     let (mut robot, model) = MjcfRobot::from_file(path, loader_options())?;
+    // Some menagerie models (e.g. shadow_hand) ship their keyframes in a
+    // standalone `keyframes.xml` that the scene file doesn't `<include>`, so
+    // they'd otherwise never reach the picker. Pull in a sibling `keyframes.xml`
+    // when present.
+    merge_sibling_keyframes(&mut robot, path);
 
     if disable_collisions {
         for link in &mut robot.bodies {
@@ -236,6 +406,10 @@ fn load_into_world(
         mb_options |= MjcfMultibodyOptions::SKIP_JOINT_SPRINGS;
     }
 
+    // Now that the model's keyframes are known, populate the "Keyframe" picker
+    // and resolve the user's selection (`None` ⇒ "(none)" ⇒ don't apply one).
+    let keyframe = configure_keyframe_setting(testbed, &robot, scene_changed);
+
     let (body_handles, mb_handles) = if use_multibody {
         let handles = robot.clone().insert_using_multibody_joints(
             &mut world.bodies,
@@ -244,6 +418,14 @@ fn load_into_world(
             &mut world.impulse_joints,
             mb_options,
         );
+        if let Some(key) = &keyframe {
+            handles.apply_keyframe(
+                &mut world.bodies,
+                &mut world.multibody_joints,
+                &robot,
+                key,
+            );
+        }
         let body_handles = handles
             .bodies
             .iter()
@@ -256,6 +438,9 @@ fn load_into_world(
             &mut world.colliders,
             &mut world.impulse_joints,
         );
+        if let Some(key) = &keyframe {
+            handles.apply_keyframe(&mut world.bodies, &robot, key);
+        }
         let body_handles = handles
             .bodies
             .into_iter()
