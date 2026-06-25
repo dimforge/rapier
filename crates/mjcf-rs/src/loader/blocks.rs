@@ -6,7 +6,7 @@ use roxmltree::Node;
 
 use crate::Pose;
 use crate::contact::{ContactExclude, ContactPair};
-use crate::equality::{Equality, EqualityCommon, EqualityConnect, EqualityWeld};
+use crate::equality::{Equality, EqualityCommon, EqualityConnect, EqualityJoint, EqualityWeld};
 use crate::error::ParseError;
 use crate::extras::{Actuator, ActuatorKind, Keyframe, Sensor};
 use crate::types::Tristate;
@@ -131,7 +131,30 @@ impl ParseState {
                     }
                     self.model.equality.push(Equality::Weld(w));
                 }
-                "joint" | "tendon" | "flex" | "flexvert" | "flexstrain" => {
+                "joint" => {
+                    let mut ej = EqualityJoint {
+                        common,
+                        polycoef: [0.0, 1.0, 0.0, 0.0, 0.0],
+                        ..Default::default()
+                    };
+                    for attr in child.attributes() {
+                        match attr.name() {
+                            "joint1" => ej.joint1 = attr.value().to_string(),
+                            "joint2" => ej.joint2 = Some(attr.value().to_string()),
+                            "polycoef" => {
+                                let v = parse_f64_list(attr.value())?;
+                                for (i, slot) in ej.polycoef.iter_mut().enumerate() {
+                                    if let Some(c) = v.get(i) {
+                                        *slot = *c;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    self.model.equality.push(Equality::Joint(ej));
+                }
+                "tendon" | "flex" | "flexvert" | "flexstrain" => {
                     log::debug!("equality `{tag}` is out of scope; skipped");
                 }
                 "include" => self.parse_include(child, true)?,

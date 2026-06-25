@@ -19,8 +19,9 @@ use super::parse_utils::{
 };
 use super::prototypes::{
     ActuatorPrototype, DefaultsClass, EqualityPrototype, GeomPrototype, JointPrototype,
-    MeshPrototype, PairPrototype, SitePrototype, merge_actuator_proto, merge_equality_proto,
-    merge_geom_proto, merge_joint_proto, merge_mesh_proto, merge_pair_proto, merge_site_proto,
+    MaterialPrototype, MeshPrototype, PairPrototype, SitePrototype, merge_actuator_proto,
+    merge_equality_proto, merge_geom_proto, merge_joint_proto, merge_material_proto,
+    merge_mesh_proto, merge_pair_proto, merge_site_proto,
 };
 use super::state::ParseState;
 
@@ -57,6 +58,10 @@ impl ParseState {
                 "site" => {
                     let p = self.parse_site_prototype(child)?;
                     class.site = Some(merge_site_proto(class.site.clone(), p));
+                }
+                "material" => {
+                    let p = self.parse_material_prototype(child)?;
+                    class.material = Some(merge_material_proto(class.material.clone(), p));
                 }
                 "mesh" => {
                     let p = self.parse_mesh_prototype(child)?;
@@ -220,6 +225,26 @@ impl ParseState {
         Ok(p)
     }
 
+    pub(super) fn parse_material_prototype(
+        &self,
+        node: Node,
+    ) -> Result<MaterialPrototype, ParseError> {
+        let mut p = MaterialPrototype::default();
+        for attr in node.attributes() {
+            match attr.name() {
+                "texture" => p.texture = Some(attr.value().to_string()),
+                "rgba" => p.rgba = Some(parse_vec4(attr.value(), "material", "rgba")?),
+                "emission" => p.emission = Some(parse_f64(attr.value())?),
+                "specular" => p.specular = Some(parse_f64(attr.value())?),
+                "shininess" => p.shininess = Some(parse_f64(attr.value())?),
+                "roughness" => p.roughness = Some(parse_f64(attr.value())?),
+                "metallic" => p.metallic = Some(parse_f64(attr.value())?),
+                _ => {}
+            }
+        }
+        Ok(p)
+    }
+
     pub(super) fn parse_mesh_prototype(&self, node: Node) -> Result<MeshPrototype, ParseError> {
         let mut p = MeshPrototype::default();
         let mut pose_pos = None;
@@ -370,6 +395,18 @@ impl ParseState {
                 && let Some(p) = &d.site
             {
                 acc = merge_site_proto(Some(acc), p.clone());
+            }
+        }
+        acc
+    }
+
+    pub(super) fn merged_material_proto(&self, class: Option<&str>) -> MaterialPrototype {
+        let mut acc = MaterialPrototype::default();
+        for c in self.class_chain(class).into_iter().rev() {
+            if let Some(d) = self.defaults.get(&c)
+                && let Some(p) = &d.material
+            {
+                acc = merge_material_proto(Some(acc), p.clone());
             }
         }
         acc

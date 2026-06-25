@@ -7,6 +7,8 @@ pub enum Equality {
     Connect(EqualityConnect),
     /// `<equality><weld>` — rigid attachment between two bodies.
     Weld(EqualityWeld),
+    /// `<equality><joint>` — polynomial coupling between two joints' positions.
+    Joint(EqualityJoint),
 }
 
 /// Common metadata shared by all equality variants.
@@ -48,4 +50,22 @@ pub struct EqualityWeld {
     pub anchor: Option<[f64; 3]>,
     /// `torquescale` attribute.
     pub torque_scale: f64,
+}
+
+/// `<equality><joint>` element: couples the position of `joint2` to that of
+/// `joint1` through a quartic polynomial of the offset from their reference
+/// positions:
+/// `q2 − ref2 = p0 + p1·(q1 − ref1) + p2·(q1 − ref1)² + p3·(q1 − ref1)³ + p4·(q1 − ref1)⁴`.
+/// `joint2` may be omitted, in which case `joint1` is constrained to the
+/// constant `p0`.
+#[derive(Clone, Debug, Default)]
+pub struct EqualityJoint {
+    /// Common metadata.
+    pub common: EqualityCommon,
+    /// First (independent) joint.
+    pub joint1: String,
+    /// Second (dependent) joint. `None` constrains `joint1` to `polycoef[0]`.
+    pub joint2: Option<String>,
+    /// Polynomial coefficients `[p0, p1, p2, p3, p4]` (default `[0,1,0,0,0]`).
+    pub polycoef: [f64; 5],
 }

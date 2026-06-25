@@ -26,6 +26,21 @@ pub(super) struct DefaultsClass {
     pub(super) velocity: Option<ActuatorPrototype>,
     pub(super) intvelocity: Option<ActuatorPrototype>,
     pub(super) damper: Option<ActuatorPrototype>,
+    pub(super) material: Option<MaterialPrototype>,
+}
+
+/// Per-class default `<material>` attributes. Mirrors the numeric fields of
+/// [`crate::assets::Material`] as `Option`s so a class default only fills the
+/// attributes the material itself didn't set.
+#[derive(Default, Clone)]
+pub(super) struct MaterialPrototype {
+    pub(super) texture: Option<String>,
+    pub(super) rgba: Option<[f64; 4]>,
+    pub(super) emission: Option<f64>,
+    pub(super) specular: Option<f64>,
+    pub(super) shininess: Option<f64>,
+    pub(super) roughness: Option<f64>,
+    pub(super) metallic: Option<f64>,
 }
 
 #[derive(Default, Clone)]
@@ -193,6 +208,28 @@ pub(super) fn merge_geom_proto(base: Option<GeomPrototype>, top: GeomPrototype) 
     if top.hfield.is_some() {
         acc.hfield = top.hfield;
     }
+    acc
+}
+
+pub(super) fn merge_material_proto(
+    base: Option<MaterialPrototype>,
+    top: MaterialPrototype,
+) -> MaterialPrototype {
+    let mut acc = base.unwrap_or_default();
+    macro_rules! over {
+        ($f:ident) => {
+            if top.$f.is_some() {
+                acc.$f = top.$f;
+            }
+        };
+    }
+    over!(texture);
+    over!(rgba);
+    over!(emission);
+    over!(specular);
+    over!(shininess);
+    over!(roughness);
+    over!(metallic);
     acc
 }
 
