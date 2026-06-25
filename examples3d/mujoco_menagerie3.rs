@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use kiss3d::color::Color;
-use rapier_testbed3d::{Testbed, settings::StringDisplayMode};
+use rapier_testbed3d::{RenderMaterial, Testbed, settings::StringDisplayMode};
 use rapier3d::prelude::*;
 use rapier3d_mjcf::{MjcfLoaderOptions, MjcfMultibodyOptions, MjcfRobot, MjcfRobotHandles};
 
@@ -169,10 +169,11 @@ fn add_floor(world: &mut PhysicsWorld) {
 
     let mut floor_hext = total_aabb.half_extents();
     let mut floor_center = total_aabb.center();
-    floor_center.z -= floor_hext.z * 2.0;
     floor_hext.x *= 10.0;
     floor_hext.y *= 10.0;
-    // floor_hext.z = 1.0;
+    floor_center.z -= floor_hext.z;
+    floor_hext.z = 0.2;
+    floor_center.z -= 0.2;
     world.insert_collider(
         ColliderBuilder::cuboid(floor_hext.x, floor_hext.y, floor_hext.z).translation(floor_center),
         None,
@@ -309,6 +310,12 @@ fn register_visual_meshes(
                 } else {
                     untextured_fallback
                 });
+            let material = vm.material.map(|m| RenderMaterial {
+                metallic: m.metallic,
+                roughness: m.roughness,
+                reflectance: m.reflectance,
+                emissive: m.emissive,
+            });
             testbed.add_body_render_mesh(
                 *handle,
                 &vm.shape,
@@ -317,6 +324,7 @@ fn register_visual_meshes(
                 vm.uvs.as_deref(),
                 vm.normals.as_deref(),
                 vm.texture.as_deref(),
+                material,
             );
         }
     }

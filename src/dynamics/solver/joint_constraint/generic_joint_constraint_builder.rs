@@ -264,7 +264,9 @@ impl JointGenericInternalConstraintBuilder {
     pub fn num_constraints(multibodies: &MultibodyJointSet, link_id: &MultibodyLinkId) -> usize {
         let multibody = &multibodies[link_id.multibody];
         let link = multibody.link(link_id.id).unwrap();
-        link.joint().num_velocity_constraints()
+        // This link's own motor/limit constraints, plus the DoF couplings it
+        // owns (a coupling is owned by its first joint's link).
+        link.joint().num_velocity_constraints() + multibody.num_couplings_owned_by(link_id.id)
     }
 
     pub fn generate(
@@ -277,7 +279,8 @@ impl JointGenericInternalConstraintBuilder {
     ) {
         let multibody = &multibodies[link_id.multibody];
         let link = multibody.link(link_id.id).unwrap();
-        let num_constraints = link.joint().num_velocity_constraints();
+        let num_constraints = link.joint().num_velocity_constraints()
+            + multibody.num_couplings_owned_by(link_id.id);
 
         if num_constraints == 0 {
             return;
@@ -306,7 +309,7 @@ impl JointGenericInternalConstraintBuilder {
     ) {
         let mb = &multibodies[self.link.multibody];
         let link = mb.link(self.link.id).unwrap();
-        link.joint().velocity_constraints(
+        let n_own = link.joint().velocity_constraints(
             params,
             mb,
             link,
@@ -314,6 +317,19 @@ impl JointGenericInternalConstraintBuilder {
             jacobians,
             &mut out[self.constraint_id..],
         );
+        // DoF couplings owned by this link follow its own constraints, both in
+        // the jacobian buffer (each constraint reserves `2·ndofs`) and in the
+        // output slice.
+        if mb.num_couplings_owned_by(self.link.id) > 0 {
+            let coupling_j_id = self.j_id + n_own * mb.ndofs() * 2;
+            mb.coupling_velocity_constraints(
+                self.link.id,
+                params,
+                coupling_j_id,
+                jacobians,
+                &mut out[self.constraint_id + n_own..],
+            );
+        }
     }
 }
 

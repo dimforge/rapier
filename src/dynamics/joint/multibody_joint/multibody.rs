@@ -1,7 +1,11 @@
 use super::multibody_link::{MultibodyLink, MultibodyLinkVec};
 use super::multibody_workspace::MultibodyWorkspace;
 use crate::alloc_prelude::*;
-use crate::dynamics::{RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity};
+use crate::dynamics::integration_parameters::SpringCoefficients;
+use crate::dynamics::solver::{GenericJointConstraint, WritebackId};
+use crate::dynamics::{
+    IntegrationParameters, RigidBodyHandle, RigidBodySet, RigidBodyType, RigidBodyVelocity,
+};
 use crate::math::{
     ANG_DIM, AngDim, AngVector, DIM, DVector, Dim, Jacobian, Pose, Real, SPATIAL_DIM,
     SimdAngVector, Vector,
@@ -58,6 +62,34 @@ fn concat_rb_mass_matrix(
     result
 }
 
+/// A holonomic coupling between two generalized coordinates of a single
+/// [`Multibody`], `q2 = coeff · q1 + offset`, enforced as a velocity-level
+/// equality constraint. This is how MuJoCo's `<equality><joint>` (a polynomial
+/// joint-to-joint coupling) is represented for the linear (first-order) case —
+/// e.g. the robotiq gripper's two driver joints moving together.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Copy, Clone, Debug)]
+pub struct MultibodyDofCoupling {
+    /// Internal id of the link carrying the first joint.
+    pub link1: usize,
+    /// Local free-DoF index of the coupled DoF within `link1` (its position in
+    /// that link's slice of the generalized vectors).
+    pub dof1: usize,
+    /// Spatial-coordinate axis (`0..6`) of `link1`'s coupled DoF, used to read
+    /// its generalized position from the joint coords.
+    pub axis1: usize,
+    /// Internal id of the link carrying the second joint.
+    pub link2: usize,
+    /// Local free-DoF index of the coupled DoF within `link2`.
+    pub dof2: usize,
+    /// Spatial-coordinate axis (`0..6`) of `link2`'s coupled DoF.
+    pub axis2: usize,
+    /// Linear coupling coefficient: the constraint is `q2 − coeff·q1 − offset = 0`.
+    pub coeff: Real,
+    /// Constant offset of the coupling.
+    pub offset: Real,
+}
+
 /// An articulated body simulated using the reduced-coordinates approach.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
@@ -88,6 +120,10 @@ pub struct Multibody {
     pub(crate) root_is_dynamic: bool,
     pub(crate) solver_id: u32,
     self_contacts_enabled: bool,
+    /// Holonomic couplings between two of this multibody's generalized
+    /// coordinates (`q2 = coeff·q1 + offset`), e.g. MuJoCo's
+    /// `<equality><joint>`. Resolved as velocity constraints each step.
+    couplings: Vec<MultibodyDofCoupling>,
 
     /*
      * Workspaces.
@@ -130,6 +166,7 @@ impl Multibody {
             i_coriolis_dt: Jacobian::zeros(0),
             root_is_dynamic: false,
             self_contacts_enabled,
+            couplings: Vec::new(),
             // solver_workspace: Some(SolverWorkspace::new()),
         }
     }
@@ -439,7 +476,7 @@ impl Multibody {
             .extend((0..num_jacobians).map(|_| Jacobian::zeros(0)));
     }
 
-    pub(crate) fn update_acceleration(&mut self, bodies: &RigidBodySet) {
+    pub(crate) fn update_acceleration(&mut self, dt: Real, bodies: &RigidBodySet) {
         if self.ndofs == 0 {
             return; // Nothing to do.
         }
@@ -511,9 +548,14 @@ impl Multibody {
         self.accelerations
             .cmpy(-1.0, &self.damping, &self.velocities, 1.0);
 
-        // Implicit joint springs: generalized force `-k·(q − rest)` evaluated at
-        // the current position (the implicit `dt²·k` correction lives on the
-        // mass-matrix diagonal, see `update_mass_matrix`).
+        // Implicit joint springs. The backward-Euler spring force evaluated at
+        // the end-of-step position `q⁺ = q + dt·v⁺` is `-k·(q − rest) − k·dt·v⁺`.
+        // The `−k·dt·v⁺` part is made implicit by the `dt²·k` term on the
+        // mass-matrix diagonal (see `update_mass_matrix`); for that to be
+        // consistent the generalized force here must include both the position
+        // term `-k·(q − rest)` *and* the velocity-coupling term `-k·dt·v`
+        // (at the current `v`). Omitting the latter leaves the spring only
+        // semi-implicit.
         for li in 0..self.links.len() {
             let mut idx = self.links[li].assembly_id;
             let locked = self.links[li].joint.data.locked_axes.bits();
@@ -523,7 +565,8 @@ impl Multibody {
                     if k != 0.0 {
                         let q = self.links[li].joint.coords[a];
                         let rest = self.links[li].joint.spring_ref[a];
-                        self.accelerations[idx] += -k * (q - rest);
+                        self.accelerations[idx] +=
+                            -k * (q - rest) - k * dt * self.velocities[idx];
                     }
                     idx += 1;
                 }
@@ -932,6 +975,91 @@ impl Multibody {
             out[i] = e[i];
         }
         out
+    }
+
+    /// Adds a holonomic coupling between two of this multibody's generalized
+    /// coordinates (`q2 = coeff·q1 + offset`), enforced as a velocity-level
+    /// equality constraint each step. See [`MultibodyDofCoupling`].
+    pub fn add_dof_coupling(&mut self, coupling: MultibodyDofCoupling) {
+        self.couplings.push(coupling);
+    }
+
+    /// The DoF couplings declared on this multibody.
+    pub fn couplings(&self) -> &[MultibodyDofCoupling] {
+        &self.couplings
+    }
+
+    /// Number of coupling constraints "owned" by `owner_link` — i.e. couplings
+    /// whose first joint (`link1`) is that link. Each coupling is generated once,
+    /// by `link1` (which always has a free DoF and so is an active link in the
+    /// solver island, unlike a possibly-fixed root).
+    pub(crate) fn num_couplings_owned_by(&self, owner_link: usize) -> usize {
+        self.couplings.iter().filter(|c| c.link1 == owner_link).count()
+    }
+
+    /// Generates the velocity constraints for the DoF couplings owned by
+    /// `owner_link`, writing them into `out[..]`. Each coupling
+    /// `q2 = coeff·q1 + offset` becomes a single bilateral constraint with the
+    /// generalized jacobian `J = e_{q2} − coeff·e_{q1}` and a right-hand side
+    /// that pulls the position drift `q2 − coeff·q1 − offset` back to zero.
+    pub(crate) fn coupling_velocity_constraints(
+        &self,
+        owner_link: usize,
+        params: &IntegrationParameters,
+        mut j_id: usize,
+        jacobians: &mut DVector,
+        out: &mut [GenericJointConstraint],
+    ) -> usize {
+        let ndofs = self.ndofs;
+        let erp_inv_dt = SpringCoefficients::<Real>::joint_defaults().erp_inv_dt(params.dt);
+
+        let mut i = 0;
+        for c in self.couplings.iter().filter(|c| c.link1 == owner_link) {
+            let g1 = self.links[c.link1].assembly_id + c.dof1;
+            let g2 = self.links[c.link2].assembly_id + c.dof2;
+            let q1 = self.links[c.link1].joint().coords()[c.axis1];
+            let q2 = self.links[c.link2].joint().coords()[c.axis2];
+
+            // Jacobian J = e_{g2} − coeff·e_{g1}, then WJ = M⁻¹ J.
+            jacobians.rows_mut(j_id, ndofs * 2).fill(0.0);
+            jacobians[j_id + g2] += 1.0;
+            jacobians[j_id + g1] -= c.coeff;
+            for k in 0..ndofs {
+                jacobians[j_id + ndofs + k] = jacobians[j_id + k];
+            }
+            self.inv_augmented_mass
+                .solve_mut(&mut jacobians.rows_mut(j_id + ndofs, ndofs));
+
+            // lhs = Jᵀ M⁻¹ J = Σ J[k]·WJ[k]; only g1/g2 entries of J are nonzero.
+            let lhs = jacobians[j_id + ndofs + g2] - c.coeff * jacobians[j_id + ndofs + g1];
+
+            let drift = q2 - c.coeff * q1 - c.offset;
+
+            out[i] = GenericJointConstraint {
+                is_rigid_body1: false,
+                solver_vel1: u32::MAX,
+                ndofs1: 0,
+                j_id1: 0,
+                is_rigid_body2: false,
+                solver_vel2: self.solver_id,
+                ndofs2: ndofs,
+                j_id2: j_id,
+                joint_id: usize::MAX, // internal: no impulse writeback.
+                impulse: 0.0,
+                impulse_bounds: [-Real::MAX, Real::MAX],
+                inv_lhs: crate::utils::inv(lhs),
+                rhs: drift * erp_inv_dt,
+                rhs_wo_bias: 0.0,
+                cfm_coeff: 0.0,
+                cfm_gain: 0.0,
+                writeback_id: WritebackId::Dof(0),
+            };
+
+            j_id += 2 * ndofs;
+            i += 1;
+        }
+
+        i
     }
 
     /// The generalized velocity at the multibody_joint of the given link.
