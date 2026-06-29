@@ -21,8 +21,8 @@ serde = "1"
 bincode = "1"
 serde_json = "1"
 dot_vox = "5"
-glam = { version = "0.30.9", features = ["fast-math"] }
-kiss3d = { version = "0.40.0", features = ["egui", "parry", "serde"] }
+glam = { version = "0.32.1", features = ["fast-math"] }
+kiss3d = { version = "0.41.0", features = ["egui", "serde"] }
 
 [dependencies.rapier_testbed3d]
 path = "../crates/rapier_testbed3d"
