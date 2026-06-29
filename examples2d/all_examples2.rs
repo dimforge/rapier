@@ -33,7 +33,7 @@ mod inverse_kinematics2;
 mod joint_motor_position2;
 mod joints2;
 mod locked_rotations2;
-mod multi_pendulum;
+mod multi_pendulum2;
 mod one_way_platforms2;
 mod pin_slot_joint2;
 mod platform2;
