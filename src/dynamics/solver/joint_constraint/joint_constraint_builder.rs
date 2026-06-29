@@ -216,13 +216,21 @@ impl JointConstraintBuilderSimd {
         let body2 = array![|ii| joint[ii].solver_body_ids[1]];
 
         let local_frame1 = array![|ii| if body1[ii] != u32::MAX {
-            (joint[ii].data.local_frame1).into()
+            (joint[ii]
+                .data
+                .local_frame1
+                .append_translation(-rb1[ii].mprops.local_mprops.local_com))
+            .into()
         } else {
             (rb1[ii].pos.position * joint[ii].data.local_frame1).into()
         }]
         .into();
         let local_frame2 = array![|ii| if body2[ii] != u32::MAX {
-            (joint[ii].data.local_frame2).into()
+            (joint[ii]
+                .data
+                .local_frame2
+                .append_translation(-rb2[ii].mprops.local_mprops.local_com))
+            .into()
         } else {
             (rb2[ii].pos.position * joint[ii].data.local_frame2).into()
         }]
