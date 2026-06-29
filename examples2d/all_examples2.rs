@@ -21,6 +21,7 @@ mod inverse_kinematics2;
 mod joint_motor_position2;
 mod joints2;
 mod locked_rotations2;
+mod multi_pendulum;
 mod one_way_platforms2;
 mod pin_slot_joint2;
 mod platform2;
@@ -100,6 +101,7 @@ pub async fn main() {
             "Inverse kinematics",
             inverse_kinematics2::init_world,
         ),
+        Example::new(JOINTS, "Double pendulum", multi_pendulum::init_world),
         // ── Characters ─────────────────────────────────────────────────────
         Example::new(
             CONTROLS,
