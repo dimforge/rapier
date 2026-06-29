@@ -101,7 +101,7 @@ pub async fn main() {
             "Inverse kinematics",
             inverse_kinematics2::init_world,
         ),
-        Example::new(JOINTS, "Double pendulum", multi_pendulum::init_world),
+        Example::new(JOINTS, "Multi-pendulum", multi_pendulum::init_world),
         // ── Characters ─────────────────────────────────────────────────────
         Example::new(
             CONTROLS,
