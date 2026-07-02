@@ -1,16 +1,13 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::glamx::{DVec3, Vec3};
 use rapier3d::na::ComplexField;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
-    let impulse_joints = ImpulseJointSet::new();
-    let multibody_joints = MultibodyJointSet::new();
+    let mut world = PhysicsWorld::new();
 
     /*
      * Ground
@@ -38,9 +35,11 @@ pub fn init_world(testbed: &mut Testbed) {
     let (vertices, indices) = heightfield.to_trimesh();
 
     let rigid_body = RigidBodyBuilder::fixed();
-    let handle = bodies.insert(rigid_body);
+    let handle = world.bodies.insert(rigid_body);
     let collider = ColliderBuilder::trimesh(vertices, indices).unwrap();
-    colliders.insert_with_parent(collider, handle, &mut bodies);
+    world
+        .colliders
+        .insert_with_parent(collider, handle, &mut world.bodies);
 
     /*
      * Create the cubes
@@ -62,22 +61,34 @@ pub fn init_world(testbed: &mut Testbed) {
 
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::dynamic().translation(DVec3::new(x, y, z));
-                let handle = bodies.insert(rigid_body);
+                let handle = world.bodies.insert(rigid_body);
 
                 if j % 2 == 0 {
                     let collider = ColliderBuilder::cuboid(rad, rad, rad);
-                    colliders.insert_with_parent(collider, handle, &mut bodies);
+                    world
+                        .colliders
+                        .insert_with_parent(collider, handle, &mut world.bodies);
                 } else {
                     let collider = ColliderBuilder::ball(rad);
-                    colliders.insert_with_parent(collider, handle, &mut bodies);
+                    world
+                        .colliders
+                        .insert_with_parent(collider, handle, &mut world.bodies);
                 }
             }
         }
     }
 
     /*
-     * Set up the testbed.
+     * Set up the viewer.
      */
-    testbed.set_world(bodies, colliders, impulse_joints, multibody_joints);
-    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+
+    Ok(())
 }

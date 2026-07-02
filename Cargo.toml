@@ -98,7 +98,6 @@ serde_json = "1"
 oorandom = { version = "11", default-features = false }
 
 [patch.crates-io]
-#wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
 #xurdf = { path = "../xurdf/xurdf" }
 
 #simba = { path = "../simba" }

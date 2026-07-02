@@ -76,7 +76,11 @@ fn material_inherits_class_defaults() {
     // `shiny` default class: metallic 1, reflectance 0.9, roughness 1 − 0.8.
     let m = material_named(MODEL, "g_class");
     assert!((m.metallic - 1.0).abs() < 1e-6, "metallic = {}", m.metallic);
-    assert!((m.reflectance - 0.9).abs() < 1e-6, "reflectance = {}", m.reflectance);
+    assert!(
+        (m.reflectance - 0.9).abs() < 1e-6,
+        "reflectance = {}",
+        m.reflectance
+    );
     assert!(
         (m.roughness - 0.2).abs() < 1e-6,
         "roughness = {} (expected 1 − shininess(0.8))",
@@ -102,7 +106,11 @@ fn material_without_class_uses_mujoco_defaults() {
     // `plain` has no class: MuJoCo defaults specular/shininess 0.5, dielectric.
     let m = material_named(MODEL, "g_plain");
     assert!((m.metallic - 0.0).abs() < 1e-6, "metallic = {}", m.metallic);
-    assert!((m.reflectance - 0.5).abs() < 1e-6, "reflectance = {}", m.reflectance);
+    assert!(
+        (m.reflectance - 0.5).abs() < 1e-6,
+        "reflectance = {}",
+        m.reflectance
+    );
     assert!(
         (m.roughness - 0.5).abs() < 1e-6,
         "default shininess(0.5) → roughness = {}",

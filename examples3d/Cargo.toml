@@ -10,10 +10,10 @@ publish = false
 parallel = ["rapier3d/parallel", "rapier_testbed3d/parallel"]
 simd-stable = ["rapier3d/simd-stable"]
 simd-nightly = ["rapier3d/simd-nightly"]
-other-backends = ["rapier_testbed3d/other-backends"]
 enhanced-determinism = ["rapier3d/enhanced-determinism"]
 
 [dependencies]
+anyhow = "1"
 rand = "0.10"
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2"

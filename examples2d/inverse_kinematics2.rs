@@ -1,7 +1,7 @@
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -50,43 +50,47 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let mut displacements = DVector::zeros(0);
 
-    testbed.add_callback(move |graphics, physics, _, _| {
-        let Some(graphics) = graphics else { return };
-        if let Some((multibody, link_id)) = physics.multibody_joints.get_mut(last_link) {
-            // Ensure our displacement vector has the right number of elements.
-            if displacements.nrows() < multibody.ndofs() {
-                displacements = DVector::zeros(multibody.ndofs());
-            } else {
-                displacements.fill(0.0);
-            }
-
-            let Some(mouse_point) = graphics.mouse().point else {
-                return;
-            };
-
-            // We will have the endpoint track the mouse position.
-            let target_point = Vector::new(mouse_point.x, mouse_point.y);
-
-            let options = InverseKinematicsOption {
-                constrained_axes: JointAxesMask::LIN_AXES,
-                ..Default::default()
-            };
-
-            multibody.inverse_kinematics(
-                &physics.bodies,
-                link_id,
-                &options,
-                &Pose::from_translation(target_point),
-                |_| true,
-                &mut displacements,
-            );
-            multibody.apply_displacements(displacements.as_slice());
-        }
-    });
-
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::ZERO, 300.0);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::ZERO, 300.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
+            if let Some((multibody, link_id)) = world.multibody_joints.get_mut(last_link) {
+                // Ensure our displacement vector has the right number of elements.
+                if displacements.nrows() < multibody.ndofs() {
+                    displacements = DVector::zeros(multibody.ndofs());
+                } else {
+                    displacements.fill(0.0);
+                }
+
+                let Some(mouse_point) = viewer.mouse().point else {
+                    continue;
+                };
+
+                // We will have the endpoint track the mouse position.
+                let target_point = Vector::new(mouse_point.x, mouse_point.y);
+
+                let options = InverseKinematicsOption {
+                    constrained_axes: JointAxesMask::LIN_AXES,
+                    ..Default::default()
+                };
+
+                multibody.inverse_kinematics(
+                    &world.bodies,
+                    link_id,
+                    &options,
+                    &Pose::from_translation(target_point),
+                    |_| true,
+                    &mut displacements,
+                );
+                multibody.apply_displacements(displacements.as_slice());
+            }
+        }
+    }
+    Ok(())
 }

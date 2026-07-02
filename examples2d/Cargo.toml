@@ -10,10 +10,10 @@ publish = false
 parallel = ["rapier2d/parallel", "rapier_testbed2d/parallel"]
 simd-stable = ["rapier2d/simd-stable"]
 simd-nightly = ["rapier2d/simd-nightly"]
-other-backends = ["rapier_testbed2d/other-backends"]
 enhanced-determinism = ["rapier2d/enhanced-determinism"]
 
 [dependencies]
+anyhow = "1"
 rand = "0.10"
 lyon = "0.17"
 dot_vox = "5"

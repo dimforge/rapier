@@ -17,12 +17,18 @@ fn run_coupling(coeff: Real, offset: Real, target: Real) -> (Real, Real) {
     let inertia = Vector::new(0.1, 0.1, 0.1);
     let base = bodies.insert(RigidBodyBuilder::fixed());
     let link1 = bodies.insert(
-        RigidBodyBuilder::dynamic()
-            .additional_mass_properties(MassProperties::new(Vector::ZERO, 1.0, inertia)),
+        RigidBodyBuilder::dynamic().additional_mass_properties(MassProperties::new(
+            Vector::ZERO,
+            1.0,
+            inertia,
+        )),
     );
     let link2 = bodies.insert(
-        RigidBodyBuilder::dynamic()
-            .additional_mass_properties(MassProperties::new(Vector::ZERO, 1.0, inertia)),
+        RigidBodyBuilder::dynamic().additional_mass_properties(MassProperties::new(
+            Vector::ZERO,
+            1.0,
+            inertia,
+        )),
     );
 
     let h1 = multibody_joints
@@ -85,8 +91,14 @@ fn run_coupling(coeff: Real, offset: Real, target: Real) -> (Real, Real) {
 fn one_to_one_coupling_makes_joints_track() {
     // q2 = q1: the robotiq case. Drive q1 to 0.5; q2 must follow.
     let (q1, q2) = run_coupling(1.0, 0.0, 0.5);
-    assert!((q1 - 0.5).abs() < 0.05, "driven joint didn't reach target: q1 = {q1}");
-    assert!((q2 - q1).abs() < 0.02, "coupling not enforced: q1 = {q1}, q2 = {q2}");
+    assert!(
+        (q1 - 0.5).abs() < 0.05,
+        "driven joint didn't reach target: q1 = {q1}"
+    );
+    assert!(
+        (q2 - q1).abs() < 0.02,
+        "coupling not enforced: q1 = {q1}, q2 = {q2}"
+    );
 }
 
 #[test]
@@ -94,7 +106,10 @@ fn scaled_and_offset_coupling() {
     // q2 = -0.5·q1 + 0.2: a gear ratio with an offset.
     let (q1, q2) = run_coupling(-0.5, 0.2, 0.6);
     let expected = -0.5 * q1 + 0.2;
-    assert!((q1 - 0.6).abs() < 0.05, "driven joint didn't reach target: q1 = {q1}");
+    assert!(
+        (q1 - 0.6).abs() < 0.05,
+        "driven joint didn't reach target: q1 = {q1}"
+    );
     assert!(
         (q2 - expected).abs() < 0.02,
         "coupling q2 = -0.5·q1 + 0.2 not enforced: q1 = {q1}, q2 = {q2}, expected {expected}"

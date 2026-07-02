@@ -1,5 +1,5 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 
-pub fn init_world(testbed: &mut Testbed) {
-    crate::dynamic_trimesh3::do_init_world(testbed, true);
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
+    crate::dynamic_trimesh3::run_impl(viewer, true).await
 }

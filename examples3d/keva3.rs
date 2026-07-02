@@ -1,9 +1,9 @@
 use kiss3d::color::Color;
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
 pub fn build_block(
-    testbed: &mut Testbed,
+    viewer: &mut TestbedViewer,
     world: &mut PhysicsWorld,
     half_extents: Vector,
     shift: Vector,
@@ -47,7 +47,7 @@ pub fn build_block(
                 let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
                 let (handle, _) = world.insert(rigid_body, collider);
 
-                testbed.set_initial_body_color(handle, color0);
+                viewer.set_initial_body_color(handle, color0);
                 std::mem::swap(&mut color0, &mut color1);
             }
         }
@@ -66,13 +66,13 @@ pub fn build_block(
             ));
             let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
             let (handle, _) = world.insert(rigid_body, collider);
-            testbed.set_initial_body_color(handle, color0);
+            viewer.set_initial_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
         }
     }
 }
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -104,7 +104,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let numz = numx * 3 + 1;
         let block_width = numx as f32 * half_extents.z * 2.0;
         build_block(
-            testbed,
+            viewer,
             &mut world,
             half_extents,
             Vector::new(-block_width / 2.0, block_height, -block_width / 2.0),
@@ -117,8 +117,15 @@ pub fn init_world(testbed: &mut Testbed) {
     println!("Num keva blocks: {num_blocks_built}");
 
     /*
-     * Set up the testbed.
+     * Set up the viewer.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

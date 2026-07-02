@@ -1,7 +1,7 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -58,6 +58,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

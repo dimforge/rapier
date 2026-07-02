@@ -1,4 +1,4 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
 struct OneWayPlatformHook {
@@ -53,7 +53,7 @@ impl PhysicsHooks for OneWayPlatformHook {
     }
 }
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -81,37 +81,40 @@ pub fn init_world(testbed: &mut Testbed) {
     };
 
     /*
-     * Spawn cubes at regular intervals and apply a custom gravity
-     * depending on their position.
-     */
-    testbed.add_callback(move |graphics, physics, _, run_state| {
-        if run_state.timestep_id % 200 == 0 && physics.bodies.len() <= 7 {
-            // Spawn a new cube.
-            let collider = ColliderBuilder::cuboid(1.0, 2.0, 1.5);
-            let body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 6.0, 20.0));
-            let handle = physics.bodies.insert(body);
-            physics
-                .colliders
-                .insert_with_parent(collider, handle, &mut physics.bodies);
-
-            if let Some(graphics) = graphics {
-                graphics.add_body(handle, &physics.bodies, &physics.colliders);
-            }
-        }
-
-        for handle in physics.islands.active_bodies() {
-            let body = physics.bodies.get_mut(handle).unwrap();
-            if body.position().translation.y > 1.0 {
-                body.set_gravity_scale(1.0, false);
-            } else if body.position().translation.y < -1.0 {
-                body.set_gravity_scale(-1.0, false);
-            }
-        }
-    });
-
-    /*
      * Set up the testbed.
      */
-    testbed.set_physics_world_with_hooks(world, physics_hooks);
-    testbed.look_at(Vec3::new(100.0, 0.0, 0.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(100.0, 0.0, 0.0), Vec3::ZERO);
+
+    let mut step_id = 0usize;
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step_with_events(&physics_hooks, &());
+            step_id += 1;
+
+            // Spawn cubes at regular intervals and apply a custom gravity
+            // depending on their position.
+            if step_id % 200 == 0 && world.bodies.len() <= 7 {
+                // Spawn a new cube.
+                let collider = ColliderBuilder::cuboid(1.0, 2.0, 1.5);
+                let body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 6.0, 20.0));
+                let handle = world.bodies.insert(body);
+                world
+                    .colliders
+                    .insert_with_parent(collider, handle, &mut world.bodies);
+
+                viewer.add_body(handle, &world);
+            }
+
+            for handle in world.islands.active_bodies() {
+                let body = world.bodies.get_mut(handle).unwrap();
+                if body.position().translation.y > 1.0 {
+                    body.set_gravity_scale(1.0, false);
+                } else if body.position().translation.y < -1.0 {
+                    body.set_gravity_scale(-1.0, false);
+                }
+            }
+        }
+    }
+    Ok(())
 }

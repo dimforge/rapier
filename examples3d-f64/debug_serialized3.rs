@@ -1,4 +1,4 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
 #[derive(serde::Deserialize)]
@@ -13,27 +13,36 @@ struct State {
     pub ccd_solver: CCDSolver,
 }
 
-pub fn init_world(testbed: &mut Testbed) {
-    /*
-     * Set up the testbed.
-     */
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let Ok(bytes) = std::fs::read("state.bin") else {
         println!("Failed to load serialized world state.");
-        return;
+        return Ok(());
     };
     let state: State = bincode::deserialize(&bytes).unwrap();
 
-    testbed.set_world(
-        state.bodies,
-        state.colliders,
-        state.impulse_joints,
-        state.multibody_joints,
-    );
-    testbed.harness_mut().physics.islands = state.islands;
-    testbed.harness_mut().physics.broad_phase = state.broad_phase;
-    testbed.harness_mut().physics.narrow_phase = state.narrow_phase;
-    testbed.harness_mut().physics.ccd_solver = state.ccd_solver;
+    let mut world = PhysicsWorld::new();
+    world.bodies = state.bodies;
+    world.colliders = state.colliders;
+    world.impulse_joints = state.impulse_joints;
+    world.multibody_joints = state.multibody_joints;
 
-    testbed.set_graphics_shift([-541.0, -6377257.0, -61.0].into());
-    testbed.look_at([10.0, 10.0, 10.0].into(), [0.0, 0.0, 0.0].into());
+    viewer.set_world(&mut world);
+
+    // Preserve the deserialized acceleration structures (set_world resets the
+    // broad-phase to the UI-selected default).
+    world.islands = state.islands;
+    world.broad_phase = state.broad_phase;
+    world.narrow_phase = state.narrow_phase;
+    world.ccd_solver = state.ccd_solver;
+
+    viewer.set_graphics_shift([-541.0, -6377257.0, -61.0].into());
+    viewer.look_at([10.0, 10.0, 10.0].into(), [0.0, 0.0, 0.0].into());
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+
+    Ok(())
 }

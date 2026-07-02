@@ -34,13 +34,12 @@ clippy = { needless_lifetimes = "allow" }
 default = ["dim3"]
 dim3 = []
 parallel = ["rapier/parallel", "num_cpus"]
-other-backends = ["physx", "physx-sys", "glam"]
 profiler_ui = ["dep:puffin_egui", "profiling/profile-with-puffin"]
 # See https://github.com/dimforge/rapier/issues/760.
 unstable-puffin-pr-235 = []
 
 [package.metadata.docs.rs]
-features = ["parallel", "other-backends", "profiler_ui"]
+features = ["parallel", "profiler_ui"]
 
 [dependencies]
 nalgebra = { version = "0.35", features = ["rand"] }
@@ -49,10 +48,7 @@ rand = "0.10"
 rand_pcg = "0.10"
 web-time = { version = "1.1" }
 bitflags = "2"
-glam = { version = "0.33", optional = true } # For Physx
 num_cpus = { version = "1", optional = true }
-physx = { version = "0.19", features = ["glam"], optional = true }
-physx-sys = { version = "0.11", optional = true }
 bincode = "1"
 md5 = "0.8"
 Inflector = "0.11"

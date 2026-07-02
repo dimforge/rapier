@@ -1,15 +1,13 @@
 use rapier::math::Real;
+use rapier::pipeline::PhysicsWorld;
 
 use crate::debug_render::DebugRenderPipelineResource;
-use crate::harness::{Harness, RapierBroadPhaseType};
-use crate::testbed::{
-    PHYSX_BACKEND_PATCH_FRICTION, PHYSX_BACKEND_TWO_FRICTION_DIR, RunMode, TestbedActionFlags,
-    TestbedState, TestbedStateFlags, UiTab,
-};
+use crate::physics::RapierBroadPhaseType;
+use crate::testbed::state::Transition;
+use crate::testbed::{RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags, UiTab};
 
 pub use egui;
 
-use crate::PhysicsState;
 use crate::settings::SettingValue;
 use egui::{ComboBox, RichText, Slider, Ui, Window};
 use web_time::Instant;
@@ -107,7 +105,7 @@ fn setup_custom_theme(ctx: &egui::Context) {
 pub(crate) fn update_ui(
     ui_context: &egui::Context,
     state: &mut TestbedState,
-    harness: &mut Harness,
+    world: &mut PhysicsWorld,
     debug_render: &mut DebugRenderPipelineResource,
 ) {
     setup_custom_theme(ui_context);
@@ -143,10 +141,10 @@ pub(crate) fn update_ui(
                         examples_tab(ui, state);
                     }
                     UiTab::Settings => {
-                        settings_tab(ui, state, harness, debug_render);
+                        settings_tab(ui, state, world, debug_render);
                     }
                     UiTab::Performance => {
-                        performance_tab(ui, harness);
+                        performance_tab(ui, world);
                     }
                 });
 
@@ -182,7 +180,8 @@ pub(crate) fn update_ui(
                     .on_hover_text("Restart example (R)")
                     .clicked()
                 {
-                    state.action_flags.set(TestbedActionFlags::RESTART, true);
+                    state.preserve_settings_on_switch = true;
+                    state.transition = Some(Transition::Switch);
                 }
 
                 ui.separator();
@@ -220,32 +219,7 @@ pub(crate) fn update_ui(
 }
 
 fn examples_tab(ui: &mut Ui, state: &mut TestbedState) {
-    // Backend selector (if multiple backends available)
-    if state.backend_names.len() > 1 {
-        ui.horizontal(|ui| {
-            ui.label("Backend:");
-            let mut backend_changed = false;
-            ComboBox::from_id_salt("backend_combo")
-                .width(150.0)
-                .selected_text(state.backend_names[state.selected_backend])
-                .show_ui(ui, |ui| {
-                    for (id, name) in state.backend_names.iter().enumerate() {
-                        backend_changed = ui
-                            .selectable_value(&mut state.selected_backend, id, *name)
-                            .changed()
-                            || backend_changed;
-                    }
-                });
-
-            if backend_changed {
-                state
-                    .action_flags
-                    .set(TestbedActionFlags::BACKEND_CHANGED, true);
-            }
-        });
-    }
-
-    // Navigation and backend selector row
+    // Navigation row
     ui.horizontal(|ui| {
         // Previous/Next buttons (navigate in display order)
         if ui
@@ -254,9 +228,7 @@ fn examples_tab(ui: &mut Ui, state: &mut TestbedState) {
             .clicked()
         {
             state.selected_display_index -= 1;
-            state
-                .action_flags
-                .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
+            state.transition = Some(Transition::Switch);
         }
 
         if ui
@@ -268,9 +240,7 @@ fn examples_tab(ui: &mut Ui, state: &mut TestbedState) {
             .clicked()
         {
             state.selected_display_index += 1;
-            state
-                .action_flags
-                .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
+            state.transition = Some(Transition::Switch);
         }
 
         // Current example name
@@ -320,9 +290,7 @@ fn examples_tab(ui: &mut Ui, state: &mut TestbedState) {
                         && !is_selected
                     {
                         state.selected_display_index = display_idx;
-                        state
-                            .action_flags
-                            .set(TestbedActionFlags::EXAMPLE_CHANGED, true);
+                        state.transition = Some(Transition::Switch);
                     }
                 }
             });
@@ -332,12 +300,10 @@ fn examples_tab(ui: &mut Ui, state: &mut TestbedState) {
 fn settings_tab(
     ui: &mut Ui,
     state: &mut TestbedState,
-    harness: &mut Harness,
+    world: &mut PhysicsWorld,
     debug_render: &mut DebugRenderPipelineResource,
 ) {
-    let integration_parameters = &mut harness.physics.integration_parameters;
-    let is_physx = state.selected_backend == PHYSX_BACKEND_PATCH_FRICTION
-        || state.selected_backend == PHYSX_BACKEND_TWO_FRICTION_DIR;
+    let integration_parameters = &mut world.integration_parameters;
 
     // ─────────────────────────────────────────────────────────────────
     // RENDERING
@@ -379,24 +345,20 @@ fn settings_tab(
         integration_parameters.set_inv_dt(frequency as Real);
     }
 
-    // Steps per frame
-    ui.add(Slider::new(&mut state.nsteps, 1..=100).text("Steps/frame"))
-        .on_hover_text("Physics steps per rendered frame.");
-
     // Gravity slider — operates along the current up-axis so the
     // slider's "down" matches the camera's "down". Scenes that switch
     // to Z-up (e.g. the MJCF demo) get gravity along -Z instead of the
     // hard-coded -Y. Any orthogonal components of gravity are
     // preserved when the slider moves.
     let up = state.up_axis;
-    let mut gravity_along_up = harness.physics.gravity.dot(up);
+    let mut gravity_along_up = world.gravity.dot(up);
     if ui
         .add(Slider::new(&mut gravity_along_up, 0.0..=-200.0).text("Gravity"))
         .on_hover_text("Gravity (m/s^2) along the up-axis. Default: -9.81")
         .changed()
     {
-        let current = harness.physics.gravity.dot(up);
-        harness.physics.gravity += up * (gravity_along_up - current);
+        let current = world.gravity.dot(up);
+        world.gravity += up * (gravity_along_up - current);
     }
 
     // Sleep
@@ -420,7 +382,7 @@ fn settings_tab(
     ui.add(Slider::new(&mut integration_parameters.num_solver_iterations, 1..=10).text("Substeps"))
         .on_hover_text("Main solver iterations. Higher = more stable stacking.");
 
-    if !is_physx {
+    {
         ui.add(
             Slider::new(
                 &mut integration_parameters.num_internal_pgs_iterations,
@@ -451,7 +413,7 @@ fn settings_tab(
     // ─────────────────────────────────────────────────────────────────
     // CONTACTS (Rapier only)
     // ─────────────────────────────────────────────────────────────────
-    if !is_physx {
+    {
         ui.label(RichText::new("Contacts").strong());
         ui.add_space(2.0);
 
@@ -513,7 +475,7 @@ fn settings_tab(
     // ─────────────────────────────────────────────────────────────────
     // ADVANCED (Rapier only)
     // ─────────────────────────────────────────────────────────────────
-    if !is_physx {
+    {
         ui.label(RichText::new("Advanced").strong());
         ui.add_space(2.0);
 
@@ -540,8 +502,9 @@ fn settings_tab(
                 });
 
             if bp_changed {
-                harness.physics.broad_phase = state.broad_phase_type.init_broad_phase();
-                state.action_flags.set(TestbedActionFlags::RESTART, true);
+                world.broad_phase = state.broad_phase_type.init_broad_phase();
+                state.preserve_settings_on_switch = true;
+                state.transition = Some(Transition::Switch);
             }
         });
 
@@ -556,23 +519,11 @@ fn settings_tab(
         )
         .on_hover_text("Minimum bodies per simulation island.");
 
-        #[cfg(feature = "parallel")]
-        {
-            let mut num_threads = harness.state.num_threads();
-            if ui
-                .add(Slider::new(&mut num_threads, 1..=num_cpus::get_physical()).text("Threads"))
-                .on_hover_text("Parallel solver threads.")
-                .changed()
-            {
-                harness.state.set_num_threads(num_threads);
-            }
-        }
-
         ui.add_space(8.0);
     }
 }
 
-fn performance_tab(ui: &mut Ui, harness: &Harness) {
+fn performance_tab(ui: &mut Ui, world: &PhysicsWorld) {
     // ─────────────────────────────────────────────────────────────────
     // SCENE INFO
     // ─────────────────────────────────────────────────────────────────
@@ -584,15 +535,15 @@ fn performance_tab(ui: &mut Ui, harness: &Harness) {
         .spacing([20.0, 2.0])
         .show(ui, |ui| {
             ui.label("Bodies:");
-            ui.label(format!("{}", harness.physics.bodies.len()));
+            ui.label(format!("{}", world.bodies.len()));
             ui.end_row();
 
             ui.label("Colliders:");
-            ui.label(format!("{}", harness.physics.colliders.len()));
+            ui.label(format!("{}", world.colliders.len()));
             ui.end_row();
 
             ui.label("Joints:");
-            ui.label(format!("{}", harness.physics.impulse_joints.len()));
+            ui.label(format!("{}", world.impulse_joints.len()));
             ui.end_row();
         });
 
@@ -603,7 +554,7 @@ fn performance_tab(ui: &mut Ui, harness: &Harness) {
     // ─────────────────────────────────────────────────────────────────
     // TIMING - Full details
     // ─────────────────────────────────────────────────────────────────
-    let counters = &harness.physics.pipeline.counters;
+    let counters = &world.physics_pipeline.counters;
     let total_ms = counters.step_time_ms();
     let fps = if total_ms > 0.0 {
         (1000.0 / total_ms).round()
@@ -728,23 +679,20 @@ fn performance_tab(ui: &mut Ui, harness: &Harness) {
         .default_open(false)
         .show(ui, |ui| {
             ui.label(
-                egui::RichText::new(serialization_string(
-                    harness.state.timestep_id,
-                    &harness.physics,
-                ))
-                .small()
-                .monospace(),
+                egui::RichText::new(serialization_string(world))
+                    .small()
+                    .monospace(),
             );
         });
 }
 
-fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
+fn serialization_string(world: &PhysicsWorld) -> String {
     let t = Instant::now();
-    let bf = bincode::serialize(&physics.broad_phase).unwrap();
-    let nf = bincode::serialize(&physics.narrow_phase).unwrap();
-    let bs = bincode::serialize(&physics.bodies).unwrap();
-    let cs = bincode::serialize(&physics.colliders).unwrap();
-    let js = bincode::serialize(&physics.impulse_joints).unwrap();
+    let bf = bincode::serialize(&world.broad_phase).unwrap();
+    let nf = bincode::serialize(&world.narrow_phase).unwrap();
+    let bs = bincode::serialize(&world.bodies).unwrap();
+    let cs = bincode::serialize(&world.colliders).unwrap();
+    let js = bincode::serialize(&world.impulse_joints).unwrap();
     let serialization_time = Instant::now() - t;
     let hash_bf = md5::compute(&bf);
     let hash_nf = md5::compute(&nf);
@@ -752,13 +700,12 @@ fn serialization_string(timestep_id: usize, physics: &PhysicsState) -> String {
     let hash_colliders = md5::compute(&cs);
     let hash_joints = md5::compute(&js);
     format!(
-        "Frame: {} ({:.1}ms)\n\
+        "Serialized ({:.1}ms)\n\
          Broad:     {:.1}KB {}\n\
          Narrow:    {:.1}KB {}\n\
          Bodies:    {:.1}KB {}\n\
          Colliders: {:.1}KB {}\n\
          Joints:    {:.1}KB {}",
-        timestep_id,
         serialization_time.as_secs_f64() * 1000.0,
         bf.len() as f32 / 1000.0,
         format!("{hash_bf:?}").split_at(8).0,
@@ -852,13 +799,14 @@ fn example_settings_ui(ui_context: &egui::Context, state: &mut TestbedState) {
                                         // the screen edge (which otherwise hides all
                                         // but the first couple of entries when the
                                         // settings window sits low on screen).
-                                        egui::ScrollArea::vertical()
-                                            .max_height(1600.0)
-                                            .show(ui, |ui| {
+                                        egui::ScrollArea::vertical().max_height(1600.0).show(
+                                            ui,
+                                            |ui| {
                                                 for (id, option) in range.iter().enumerate() {
                                                     ui.selectable_value(value, id, option);
                                                 }
-                                            });
+                                            },
+                                        );
                                     });
                             });
                         }
@@ -921,7 +869,10 @@ fn example_settings_ui(ui_context: &egui::Context, state: &mut TestbedState) {
             }
 
             if any_changed {
-                state.action_flags.set(TestbedActionFlags::RESTART, true);
+                // A restart-triggering setting changed: re-run the example,
+                // preserving the user's setting edits.
+                state.preserve_settings_on_switch = true;
+                state.transition = Some(Transition::Switch);
             }
         });
 }

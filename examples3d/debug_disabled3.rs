@@ -1,7 +1,7 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
 
     let rad = 0.5;
@@ -23,32 +23,37 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(5.0, 1.0, 5.0);
     let (_handle, handle_to_disable) = world.insert(rigid_body, collider);
 
-    // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |mut graphics, physics, _, run_state| {
-        if run_state.timestep_id % 250 == 0 {
-            let co = &mut physics.colliders[handle_to_disable];
-            let enabled = co.is_enabled();
-            co.set_enabled(!enabled);
-            println!("Platform is now enabled: {}", co.is_enabled());
-        }
-
-        if run_state.timestep_id % 25 == 0 {
-            let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 20.0, 0.0));
-            let handle = physics.bodies.insert(rigid_body);
-            let collider = ColliderBuilder::cuboid(rad, rad, rad);
-            physics
-                .colliders
-                .insert_with_parent(collider, handle, &mut physics.bodies);
-
-            if let Some(graphics) = &mut graphics {
-                graphics.add_body(handle, &physics.bodies, &physics.colliders);
-            }
-        }
-    });
-
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(30.0, 4.0, 30.0), Vec3::new(0.0, 1.0, 0.0));
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(30.0, 4.0, 30.0), Vec3::new(0.0, 1.0, 0.0));
+
+    let mut step_id = 0usize;
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+            step_id += 1;
+
+            if step_id % 250 == 0 {
+                let co = &mut world.colliders[handle_to_disable];
+                let enabled = co.is_enabled();
+                co.set_enabled(!enabled);
+                println!("Platform is now enabled: {}", co.is_enabled());
+            }
+
+            if step_id % 25 == 0 {
+                let rigid_body =
+                    RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 20.0, 0.0));
+                let handle = world.bodies.insert(rigid_body);
+                let collider = ColliderBuilder::cuboid(rad, rad, rad);
+                world
+                    .colliders
+                    .insert_with_parent(collider, handle, &mut world.bodies);
+
+                viewer.add_body(handle, &world);
+            }
+        }
+    }
+    Ok(())
 }

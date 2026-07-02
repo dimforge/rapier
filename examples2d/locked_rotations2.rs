@@ -1,10 +1,10 @@
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
 
 // This shows a bug when a cylinder is in contact with a very large
 // but very thin cuboid. In this case the EPA returns an incorrect
 // contact normal, resulting in the cylinder falling through the floor.
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -42,6 +42,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::ZERO, 40.0);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::ZERO, 40.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

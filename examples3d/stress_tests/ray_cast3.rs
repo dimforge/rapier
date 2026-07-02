@@ -1,21 +1,57 @@
-use crate::{Example, stress_tests};
-use kiss3d::prelude::*;
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
-    let settings = testbed.example_settings_mut();
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
+    /*
+     * World
+     */
+    let mut world = PhysicsWorld::new();
 
-    // NOTE: this demo is a bit special. It takes as a setting the builder of another demo,
-    //       builds it, and add a ton of rays into it. This gives us an easy way to check
-    //       ray-casting in a wide variety of situations.
-    let demos: Vec<Example> = stress_tests::builders()
-        .into_iter()
-        .filter(|demo| !std::ptr::fn_addr_eq(demo.builder, self::init_world as fn(&mut Testbed)))
-        .collect();
-    let demo_names: Vec<_> = demos.iter().map(|demo| demo.name.to_string()).collect();
-    let selected = settings.get_or_set_string("Scene", 0, demo_names);
-    (demos[selected].builder)(testbed);
+    /*
+     * Ground
+     */
+    let ground_size = 200.1;
+    let ground_height = 0.1;
+
+    let rigid_body = RigidBodyBuilder::fixed().translation(Vec3::new(0.0, -ground_height, 0.0));
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
+    world.insert(rigid_body, collider);
+
+    /*
+     * Create the cubes
+     */
+    let num = 10;
+    let rad = 1.0;
+
+    let shift = rad * 2.0;
+    let centerx = shift * (num / 2) as f32;
+    let centery = shift / 2.0;
+    let centerz = shift * (num / 2) as f32;
+
+    let mut offset = -(num as f32) * (rad * 2.0) * 0.5;
+
+    for j in 0usize..num {
+        for i in 0..num {
+            for k in 0usize..num {
+                let x = i as f32 * shift - centerx + offset;
+                let y = j as f32 * shift + centery;
+                let z = k as f32 * shift - centerz + offset;
+
+                // Build the rigid body.
+                let rigid_body = RigidBodyBuilder::dynamic().translation(Vec3::new(x, y, z));
+                let collider = ColliderBuilder::cuboid(rad, rad, rad);
+                world.insert(rigid_body, collider);
+            }
+        }
+
+        offset -= 0.05 * rad * (num as f32 - 1.0);
+    }
+
+    /*
+     * Set up the testbed.
+     */
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 
     /*
      * Cast rays at each frame.
@@ -29,54 +65,53 @@ pub fn init_world(testbed: &mut Testbed) {
         .collect();
     let mut centered_rays = rays.clone();
 
-    testbed.add_callback(move |graphics, physics, _, _| {
-        let Some(graphics) = graphics else {
-            return;
-        };
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
 
-        // Re-center the ray relative to the current position of all objects.
-        // This ensures demos with falling objects don’t end up with a boring situation
-        // where all the rays point into the void.
-        let mut center = Vec3::ZERO;
-        for (_, b) in physics.bodies.iter() {
-            center += b.translation();
-        }
-        center /= physics.bodies.len() as Real;
-
-        for (centered, ray) in centered_rays.iter_mut().zip(rays.iter()) {
-            centered.origin = center + ray.origin;
-        }
-
-        // Cast the rays.
-        let t1 = std::time::Instant::now();
-        let max_toi = ray_ball_radius - 1.0;
-
-        let query_pipeline = physics.broad_phase.as_query_pipeline(
-            physics.narrow_phase.query_dispatcher(),
-            &physics.bodies,
-            &physics.colliders,
-            Default::default(),
-        );
-
-        for ray in &centered_rays {
-            if let Some((_, toi)) = query_pipeline.cast_ray(ray, max_toi, true) {
-                let a = ray.origin;
-                let b = ray.point_at(toi);
-                graphics.window.draw_line(a, b, GREEN, 100.0, true);
-            } else {
-                let a = ray.origin;
-                let b = ray.point_at(max_toi);
-                graphics.window.draw_line(a, b, RED, 100.0, true);
+            // Re-center the ray relative to the current position of all objects.
+            // This ensures demos with falling objects don’t end up with a boring situation
+            // where all the rays point into the void.
+            let mut center = Vec3::ZERO;
+            for (_, b) in world.bodies.iter() {
+                center += b.translation();
             }
-        }
-        let main_check_time = t1.elapsed().as_secs_f32();
+            center /= world.bodies.len() as Real;
 
-        if let Some(settings) = &mut graphics.settings {
-            settings.set_label("Ray count:", format!("{}", rays.len()));
-            settings.set_label(
+            for (centered, ray) in centered_rays.iter_mut().zip(rays.iter()) {
+                centered.origin = center + ray.origin;
+            }
+
+            // Cast the rays.
+            let t1 = std::time::Instant::now();
+            let max_toi = ray_ball_radius - 1.0;
+
+            let query_pipeline = world.broad_phase.as_query_pipeline(
+                world.narrow_phase.query_dispatcher(),
+                &world.bodies,
+                &world.colliders,
+                Default::default(),
+            );
+
+            let mut hits = 0;
+            for ray in &centered_rays {
+                if query_pipeline.cast_ray(ray, max_toi, true).is_some() {
+                    hits += 1;
+                }
+            }
+            let main_check_time = t1.elapsed().as_secs_f32();
+
+            viewer
+                .example_settings_mut()
+                .set_label("Ray count:", format!("{}", rays.len()));
+            viewer
+                .example_settings_mut()
+                .set_label("Ray hits:", format!("{}", hits));
+            viewer.example_settings_mut().set_label(
                 "Ray-cast time",
                 format!("{:.2}ms", main_check_time * 1000.0,),
             );
         }
-    });
+    }
+    Ok(())
 }

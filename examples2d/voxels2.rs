@@ -1,16 +1,16 @@
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::parry::transformation::voxelization::FillMode;
 use rapier2d::prelude::*;
 
 const VOXEL_SIZE: Real = 0.1; // 0.25;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * Voxel geometry type selection.
      */
     // TODO: make the testbed support custom enums (or at least a list of option from strings and
     //       associated constants).
-    let settings = testbed.example_settings_mut();
+    let settings = viewer.example_settings_mut();
     let falling_objects = settings.get_or_set_string(
         "Falling objects",
         3, // Defaults to Mixed.
@@ -100,6 +100,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::new(0.0, 20.0), 17.0);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::new(0.0, 20.0), 17.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

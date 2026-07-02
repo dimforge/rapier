@@ -113,11 +113,20 @@ fn armature_does_not_change_spatial_inertia() {
     let rev = RevoluteJointBuilder::new(Vector::Z).local_anchor2(Vector::new(-1.0, 0.0, 0.0));
     let handle = multibody_joints.insert(base, link, rev, true).unwrap();
 
-    let before = bodies[link].mass_properties().local_mprops.principal_inertia();
+    let before = bodies[link]
+        .mass_properties()
+        .local_mprops
+        .principal_inertia();
 
     let (mb, _) = multibody_joints.get_mut(handle).unwrap();
     mb.armature_mut()[0] = 5.0;
 
-    let after = bodies[link].mass_properties().local_mprops.principal_inertia();
-    assert_eq!(before, after, "armature must not alter the spatial inertia tensor");
+    let after = bodies[link]
+        .mass_properties()
+        .local_mprops
+        .principal_inertia();
+    assert_eq!(
+        before, after,
+        "armature must not alter the spatial inertia tensor"
+    );
 }

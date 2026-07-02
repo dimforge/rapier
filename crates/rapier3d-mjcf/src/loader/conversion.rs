@@ -9,8 +9,8 @@ use std::path::Path;
 
 use mjcf_rs::Pose as MPose;
 use mjcf_rs::body as mb;
-use mjcf_rs::equality::{Equality as MjcfEquality, EqualityConnect, EqualityWeld};
 use mjcf_rs::equality::EqualityJoint as MjcfEqualityJointDef;
+use mjcf_rs::equality::{Equality as MjcfEquality, EqualityConnect, EqualityWeld};
 use mjcf_rs::extras::Sensor as MjcfSensor;
 use mjcf_rs::glam::DVec3;
 use mjcf_rs::model::{BodyEntry, BodyId, Model};
@@ -663,8 +663,8 @@ impl<'a> Conversion<'a> {
     fn resolve_tendon_joints(&self, t: &mjcf_rs::tendon::FixedTendon) -> Vec<(usize, Real)> {
         t.joints
             .iter()
-            .filter_map(|term| {
-                match self.robot.joint_name_to_idx.get(&term.joint).copied() {
+            .filter_map(
+                |term| match self.robot.joint_name_to_idx.get(&term.joint).copied() {
                     Some(idx) => Some((idx, term.coef as Real)),
                     None => {
                         log::warn!(
@@ -674,8 +674,8 @@ impl<'a> Conversion<'a> {
                         );
                         None
                     }
-                }
-            })
+                },
+            )
             .collect()
     }
 
@@ -712,8 +712,7 @@ impl<'a> Conversion<'a> {
             }
             for &(idxk, ck) in &joints[1..] {
                 let already_coupled = self.robot.joint_couplings.iter().any(|c| {
-                    (c.joint1 == idx0 && c.joint2 == idxk)
-                        || (c.joint1 == idxk && c.joint2 == idx0)
+                    (c.joint1 == idx0 && c.joint2 == idxk) || (c.joint1 == idxk && c.joint2 == idx0)
                 });
                 if already_coupled {
                     continue;

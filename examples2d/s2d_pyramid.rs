@@ -1,7 +1,7 @@
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -18,7 +18,7 @@ pub fn init_world(testbed: &mut Testbed) {
      * Create the cubes
      */
     const BASE_COUNT_SETTING: &str = "# of basis cubes";
-    let settings = testbed.example_settings_mut();
+    let settings = viewer.example_settings_mut();
     let base_count = settings.get_or_set_u32(BASE_COUNT_SETTING, 100, 2..=200);
 
     let h = 0.5;
@@ -39,6 +39,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::new(0.0, 2.5), 20.0);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::new(0.0, 2.5), 20.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

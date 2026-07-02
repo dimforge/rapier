@@ -1,7 +1,7 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -25,27 +25,32 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::ball(ball_rad).density(100.0);
     let (_ball_handle, _) = world.insert(rb, collider);
 
-    testbed.add_callback(move |_, physics, _, _| {
-        // Remove then re-add the ground collider.
-        let removed_collider_handle = ground_collider_handle;
-        let coll = physics
-            .colliders
-            .remove(
-                removed_collider_handle,
-                &mut physics.islands,
-                &mut physics.bodies,
-                true,
-            )
-            .unwrap();
-        ground_collider_handle =
-            physics
-                .colliders
-                .insert_with_parent(coll, ground_handle, &mut physics.bodies);
-    });
-
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
+            // Remove then re-add the ground collider.
+            let removed_collider_handle = ground_collider_handle;
+            let coll = world
+                .colliders
+                .remove(
+                    removed_collider_handle,
+                    &mut world.islands,
+                    &mut world.bodies,
+                    true,
+                )
+                .unwrap();
+            ground_collider_handle =
+                world
+                    .colliders
+                    .insert_with_parent(coll, ground_handle, &mut world.bodies);
+        }
+    }
+    Ok(())
 }

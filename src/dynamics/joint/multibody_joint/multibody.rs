@@ -565,8 +565,7 @@ impl Multibody {
                     if k != 0.0 {
                         let q = self.links[li].joint.coords[a];
                         let rest = self.links[li].joint.spring_ref[a];
-                        self.accelerations[idx] +=
-                            -k * (q - rest) - k * dt * self.velocities[idx];
+                        self.accelerations[idx] += -k * (q - rest) - k * dt * self.velocities[idx];
                     }
                     idx += 1;
                 }
@@ -994,7 +993,10 @@ impl Multibody {
     /// by `link1` (which always has a free DoF and so is an active link in the
     /// solver island, unlike a possibly-fixed root).
     pub(crate) fn num_couplings_owned_by(&self, owner_link: usize) -> usize {
-        self.couplings.iter().filter(|c| c.link1 == owner_link).count()
+        self.couplings
+            .iter()
+            .filter(|c| c.link1 == owner_link)
+            .count()
     }
 
     /// Generates the velocity constraints for the DoF couplings owned by
@@ -1524,8 +1526,8 @@ impl Multibody {
             let jb2 = &self.body_jacobians[link2.internal_id];
 
             // Use the (overwritten below) W·J slot as scratch for J1ᵀ·f1.
-            let (mut out_j, mut scratch) = jacobians
-                .rows_range_pair_mut(*j_id..*j_id + self.ndofs, wj_id..wj_id + self.ndofs);
+            let (mut out_j, mut scratch) =
+                jacobians.rows_range_pair_mut(*j_id..*j_id + self.ndofs, wj_id..wj_id + self.ndofs);
             jb2.tr_mul_to(force2.as_vector(), &mut out_j);
             jb1.tr_mul_to(force1.as_vector(), &mut scratch);
             out_j.axpy(-1.0, &scratch, 1.0);

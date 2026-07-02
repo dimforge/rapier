@@ -1,8 +1,8 @@
 use kiss3d::color::LIGHT_GRAY;
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -46,11 +46,18 @@ pub fn init_world(testbed: &mut Testbed) {
     let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, 0.0, 0.0));
     let collider = ColliderBuilder::trimesh(vtx, idx).expect("Could not create trimesh collider.");
     let (handle, _) = world.insert(rigid_body, collider);
-    testbed.set_initial_body_color(handle, LIGHT_GRAY);
+    viewer.set_initial_body_color(handle, LIGHT_GRAY);
 
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

@@ -1,9 +1,9 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
 // Simulate the the Dzhanibekov effect:
 // https://en.wikipedia.org/wiki/Tennis_racket_theorem
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
 
     let shapes = vec![
@@ -21,6 +21,13 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::compound(shapes);
     let (_body_handle, _) = world.insert(body, collider);
 
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(8.0, 0.0, 8.0), Vec3::new(0.0, 0.0, 0.0));
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(8.0, 0.0, 8.0), Vec3::new(0.0, 0.0, 0.0));
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

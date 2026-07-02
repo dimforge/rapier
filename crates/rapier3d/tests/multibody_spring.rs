@@ -19,13 +19,9 @@ fn settle_angle(stiffness: Real, rest: Real, damping: Real, inertia: Real, steps
     let base = bodies.insert(RigidBodyBuilder::fixed());
     // Link rotates in place about the shared origin (COM on the hinge axis), so
     // the effective joint inertia is exactly `inertia` — no lever-arm term.
-    let link = bodies.insert(
-        RigidBodyBuilder::dynamic().additional_mass_properties(MassProperties::new(
-            Vector::ZERO,
-            1.0,
-            Vector::new(inertia, inertia, inertia),
-        )),
-    );
+    let link = bodies.insert(RigidBodyBuilder::dynamic().additional_mass_properties(
+        MassProperties::new(Vector::ZERO, 1.0, Vector::new(inertia, inertia, inertia)),
+    ));
     let rev = RevoluteJointBuilder::new(Vector::Z);
     let handle = multibody_joints.insert(base, link, rev, true).unwrap();
 

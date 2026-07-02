@@ -8,9 +8,7 @@ pub struct SerializableTestbedState {
     pub running: RunMode,
     pub flags: TestbedStateFlags,
     pub selected_example: usize,
-    pub selected_backend: usize,
     pub example_settings: ExampleSettings,
-    pub physx_use_two_friction_directions: bool,
     pub camera: Camera,
 }
 
@@ -20,9 +18,7 @@ impl TestbedState {
             running: self.running,
             flags: self.flags,
             selected_example: self.selected_display_index,
-            selected_backend: self.selected_backend,
             example_settings: self.example_settings.clone(),
-            physx_use_two_friction_directions: self.physx_use_two_friction_directions,
             camera,
         }
     }
@@ -32,9 +28,7 @@ impl TestbedState {
         self.running = state.running;
         self.flags = state.flags;
         self.selected_display_index = state.selected_example;
-        self.selected_backend = state.selected_backend;
         self.example_settings = state.example_settings;
-        self.physx_use_two_friction_directions = state.physx_use_two_friction_directions;
         *camera = state.camera;
     }
 }

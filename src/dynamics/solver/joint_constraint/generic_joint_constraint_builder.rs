@@ -279,8 +279,8 @@ impl JointGenericInternalConstraintBuilder {
     ) {
         let multibody = &multibodies[link_id.multibody];
         let link = multibody.link(link_id.id).unwrap();
-        let num_constraints = link.joint().num_velocity_constraints()
-            + multibody.num_couplings_owned_by(link_id.id);
+        let num_constraints =
+            link.joint().num_velocity_constraints() + multibody.num_couplings_owned_by(link_id.id);
 
         if num_constraints == 0 {
             return;

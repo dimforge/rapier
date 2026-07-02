@@ -1,7 +1,7 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -57,24 +57,30 @@ pub fn init_world(testbed: &mut Testbed) {
         target_angles.push(max_angle_limit);
     }
 
-    testbed.add_callback(move |_, physics, _, state| {
-        for ((_, joint), target) in physics.impulse_joints.iter().zip(target_angles.iter()) {
-            let rb1 = &physics.bodies[joint.body1()];
-            let rb2 = &physics.bodies[joint.body2()];
-            let revolute = joint.data.as_revolute().unwrap();
-            println!(
-                "[Step {}] rev angle: {} (target = {})",
-                state.timestep_id,
-                revolute.angle(rb1.rotation(), rb2.rotation()),
-                target
-            );
-        }
-    });
-
     /*
      * Set up the testbed.
      */
     world.gravity = Vector::new(0.0, 0.0, 0.0);
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(15.0, 5.0, 42.0), Vec3::new(13.0, 1.0, 1.0));
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(15.0, 5.0, 42.0), Vec3::new(13.0, 1.0, 1.0));
+
+    let mut step_id = 0usize;
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+            step_id += 1;
+            for ((_, joint), target) in world.impulse_joints.iter().zip(target_angles.iter()) {
+                let rb1 = &world.bodies[joint.body1()];
+                let rb2 = &world.bodies[joint.body2()];
+                let revolute = joint.data.as_revolute().unwrap();
+                println!(
+                    "[Step {}] rev angle: {} (target = {})",
+                    step_id,
+                    revolute.angle(rb1.rotation(), rb2.rotation()),
+                    target
+                );
+            }
+        }
+    }
+    Ok(())
 }

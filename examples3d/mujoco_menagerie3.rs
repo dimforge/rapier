@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use kiss3d::color::Color;
-use rapier_testbed3d::{RenderMaterial, Testbed, settings::StringDisplayMode};
+use rapier_testbed3d::{RenderMaterial, TestbedViewer, settings::StringDisplayMode};
 use rapier3d::prelude::*;
 use rapier3d_mjcf::mjcf_rs::extras::Keyframe;
 use rapier3d_mjcf::{MjcfLoaderOptions, MjcfMultibodyOptions, MjcfRobot, MjcfRobotHandles};
@@ -14,7 +14,7 @@ use rapier3d_mjcf::{MjcfLoaderOptions, MjcfMultibodyOptions, MjcfRobot, MjcfRobo
 const SCENE_ROOTS: &[&str] = &["../mujoco_menagerie"];
 static LAST_FRAMED_SCENE: AtomicUsize = AtomicUsize::new(usize::MAX);
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let scenes = discover_scenes(SCENE_ROOTS);
     let labels: Vec<String> = scenes
         .iter()
@@ -30,23 +30,23 @@ pub fn init_world(testbed: &mut Testbed) {
     // Insert the checkboxes FIRST so they appear above the (taller) scene
     // list in the Example Settings panel — IndexMap preserves insertion
     // order on the first init_world call after the panel is fresh.
-    let use_multibody = testbed
+    let use_multibody = viewer
         .example_settings_mut()
         .get_or_set_bool("Use multibody joints", true);
-    let render_colliders = testbed
+    let render_colliders = viewer
         .example_settings_mut()
         .get_or_set_bool("Render colliders", false);
-    let render_visual_meshes = testbed
+    let render_visual_meshes = viewer
         .example_settings_mut()
         .get_or_set_bool("Render visual meshes", true);
     // Some MJCF files (apptronik_apollo for example) declare every geom
     // with `contype=conaffinity=0`, so even their "collision class"
     // capsules end up in the visual channel. This toggle lets you hide
     // those non-mesh visual geoms while keeping the .obj-derived ones.
-    let render_visual_primitives = testbed
+    let render_visual_primitives = viewer
         .example_settings_mut()
         .get_or_set_bool("Render visual primitives", false);
-    let disable_collisions = testbed
+    let disable_collisions = viewer
         .example_settings_mut()
         .get_or_set_bool("Disable collisions", true);
     // Drives every actuator each frame with a zero control input — MuJoCo's
@@ -54,7 +54,7 @@ pub fn init_world(testbed: &mut Testbed) {
     // position servo) this holds each joint at its neutral pose, e.g. keeping
     // the flybody legs spread instead of letting them retract. Only effective
     // on the multibody path (controls are applied to multibody joints).
-    let enable_controls = testbed
+    let enable_controls = viewer
         .example_settings_mut()
         .get_or_set_bool("Enable joint controls", true);
     // Uniformly scales actuator strength (gains + force limits) when driving the
@@ -62,13 +62,13 @@ pub fn init_world(testbed: &mut Testbed) {
     // (below). Turn it down to make a servo-driven move between keyframes ease in
     // instead of snapping for models whose actuators are otherwise strong enough
     // to arrive almost instantly.
-    testbed
+    viewer
         .example_settings_mut()
         .get_or_set_f32("Actuator strength", 1.0, 0.02..=2.0);
     // MJCF `<joint stiffness>` passive springs (integrated implicitly on the
     // multibody path). Unchecking removes them — useful to see a model without
     // its return springs (e.g. robotiq's gripper preload, cassie's leg springs).
-    let enable_springs = testbed
+    let enable_springs = viewer
         .example_settings_mut()
         .get_or_set_bool("Enable joint springs", true);
     // The keyframe to apply right after loading, so the robot starts in a
@@ -76,7 +76,7 @@ pub fn init_world(testbed: &mut Testbed) {
     // all-zeros configuration). The real option list is filled once the model
     // is loaded (it depends on which keyframes the model declares); reserve the
     // slot here so it renders above the taller scene list.
-    testbed
+    viewer
         .example_settings_mut()
         .get_or_set_string("Keyframe", 0, vec!["(none)".to_string()]);
     // When the actuators drive toward the keyframe (multibody + controls on),
@@ -85,15 +85,15 @@ pub fn init_world(testbed: &mut Testbed) {
     // a keyframe change in that mode. Without controls there's nothing to track
     // the target, so the keyframe is applied by reloading (a restart) instead.
     let keyframe_is_live = use_multibody && enable_controls;
-    testbed
+    viewer
         .example_settings_mut()
         .set_restart_on_change("Keyframe", !keyframe_is_live);
     // The controls callback reads "Actuator strength" live each step, so don't
     // restart the sim when the slider moves.
-    testbed
+    viewer
         .example_settings_mut()
         .set_restart_on_change("Actuator strength", false);
-    let selected = testbed.example_settings_mut().get_or_set_string_with(
+    let selected = viewer.example_settings_mut().get_or_set_string_with(
         "Scene",
         default_idx,
         labels,
@@ -105,7 +105,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let scene_changed = LAST_FRAMED_SCENE.swap(selected, Ordering::Relaxed) != selected;
 
     if scenes.is_empty() {
-        testbed.example_settings_mut().set_label("NO MODEL FOUND", "Consider cloning `google-deepmind/mujoco_menagerie`\ninto the same parent directory as the rapier repo.")
+        viewer.example_settings_mut().set_label("NO MODEL FOUND", "Consider cloning `google-deepmind/mujoco_menagerie`\ninto the same parent directory as the rapier repo.")
     }
 
     let mut world = PhysicsWorld::new();
@@ -118,7 +118,7 @@ pub fn init_world(testbed: &mut Testbed) {
             use_multibody,
             disable_collisions,
             enable_springs,
-            testbed,
+            viewer,
             scene_changed,
         ) {
             Ok((robot, body_handles, mb)) => {
@@ -129,7 +129,7 @@ pub fn init_world(testbed: &mut Testbed) {
         }
         add_floor(&mut world);
     }
-    testbed.set_physics_world(world);
+    viewer.set_world(&mut world);
 
     // "Enable joint controls" → keep the model at the *currently selected*
     // keyframe every step. Re-registered on each `init_world` (the testbed
@@ -145,7 +145,7 @@ pub fn init_world(testbed: &mut Testbed) {
     // barely move under servo force alone). Each keyframe's hold control is its
     // `ctrl` (or a target derived from its `qpos`), precomputed here; "(none)"
     // falls back to zeros (hold the neutral pose).
-    if enable_controls
+    let mut controls_state = if enable_controls
         && let Some(handles) = mb_handles
         && let Some(robot) = loaded.as_ref().map(|(robot, _)| robot.clone())
     {
@@ -157,70 +157,81 @@ pub fn init_world(testbed: &mut Testbed) {
         let neutral = vec![0.0 as Real; handles.actuators.len()];
         // Seed with the keyframe already applied at load so we don't re-apply
         // it on the first step.
-        let mut last_selected = testbed
+        let last_selected = viewer
             .example_settings_mut()
             .get_string_id("Keyframe")
             .unwrap_or(0);
-        testbed.add_callback(move |graphics, physics, _, _| {
-            let settings = graphics.and_then(|g| g.settings.as_deref());
-            // Selection index 0 is "(none)"; index `i + 1` is keyframe `i`.
-            let selected = settings
-                .and_then(|s| s.get_string_id("Keyframe"))
-                .unwrap_or(last_selected);
-            // Live actuator-strength scale (1.0 = as authored; lower = softer).
-            let gain: Real = settings
-                .and_then(|s| s.get_f32("Actuator strength"))
-                .unwrap_or(1.0);
-            let keyframe = selected.checked_sub(1).and_then(|i| robot.keyframes.get(i));
-            if selected != last_selected {
-                // if let Some(key) = keyframe {
-                //     handles.apply_keyframe(
-                //         &mut physics.bodies,
-                //         &mut physics.multibody_joints,
-                //         &robot,
-                //         key,
-                //     );
-                // }
-                last_selected = selected;
-            }
-            let ctrl = selected
-                .checked_sub(1)
-                .and_then(|i| per_keyframe_ctrl.get(i))
-                .unwrap_or(&neutral);
-            handles.apply_controls_multibody_scaled(
-                &mut physics.bodies,
-                &mut physics.multibody_joints,
-                ctrl,
-                gain,
-            );
-        });
-    }
+        Some((handles, robot, per_keyframe_ctrl, neutral, last_selected))
+    } else {
+        None
+    };
     // MJCF is Z-up by default — keep the camera convention consistent
     // with the model so orbit controls feel right.
-    testbed.set_up_axis(Vec3::Z);
+    viewer.set_up_axis(Vec3::Z);
 
     if !use_multibody {
-        testbed.integration_parameters_mut().dt = 1.0 / 240.0;
-        testbed.integration_parameters_mut().num_solver_iterations = 12;
+        world.integration_parameters.dt = 1.0 / 240.0;
+        world.integration_parameters.num_solver_iterations = 12;
     } else {
-        testbed.integration_parameters_mut().num_internal_pgs_iterations = 4;
+        world.integration_parameters.num_internal_pgs_iterations = 4;
     }
 
     // Refit the camera only on actual scene changes, otherwise a
     // checkbox toggle in the Example Settings panel would snap the
     // camera out from under the user every time.
     if scene_changed {
-        testbed.request_frame_all();
+        viewer.request_frame_all();
     }
 
     if let Some((robot, body_handles)) = loaded
         && render_visual_meshes
     {
-        register_visual_meshes(testbed, &robot, &body_handles, render_visual_primitives);
+        register_visual_meshes(viewer, &robot, &body_handles, render_visual_primitives);
     }
 
-    testbed.set_colliders_visible(render_colliders);
-    testbed.set_body_render_meshes_visible(render_visual_meshes);
+    viewer.set_colliders_visible(render_colliders);
+    viewer.set_body_render_meshes_visible(render_visual_meshes);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
+            if let Some((handles, robot, per_keyframe_ctrl, neutral, last_selected)) =
+                controls_state.as_mut()
+            {
+                let settings = viewer.example_settings();
+                // Selection index 0 is "(none)"; index `i + 1` is keyframe `i`.
+                let selected = settings.get_string_id("Keyframe").unwrap_or(*last_selected);
+                // Live actuator-strength scale (1.0 = as authored; lower = softer).
+                let gain: Real = settings.get_f32("Actuator strength").unwrap_or(1.0);
+                let keyframe = selected.checked_sub(1).and_then(|i| robot.keyframes.get(i));
+                let _ = keyframe;
+                if selected != *last_selected {
+                    // if let Some(key) = keyframe {
+                    //     handles.apply_keyframe(
+                    //         &mut world.bodies,
+                    //         &mut world.multibody_joints,
+                    //         &robot,
+                    //         key,
+                    //     );
+                    // }
+                    *last_selected = selected;
+                }
+                let ctrl = selected
+                    .checked_sub(1)
+                    .and_then(|i| per_keyframe_ctrl.get(i))
+                    .map(|v| v.as_slice())
+                    .unwrap_or(neutral.as_slice());
+                handles.apply_controls_multibody_scaled(
+                    &mut world.bodies,
+                    &mut world.multibody_joints,
+                    ctrl,
+                    gain,
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn loader_options() -> MjcfLoaderOptions {
@@ -293,15 +304,21 @@ fn merge_sibling_keyframes(robot: &mut MjcfRobot, scene_path: &Path) {
     }
     match MjcfRobot::from_file(&kf_path, loader_options()) {
         Ok((kf_robot, _)) => {
-            let existing: std::collections::HashSet<String> =
-                robot.keyframes.iter().filter_map(|k| k.name.clone()).collect();
+            let existing: std::collections::HashSet<String> = robot
+                .keyframes
+                .iter()
+                .filter_map(|k| k.name.clone())
+                .collect();
             for k in kf_robot.keyframes {
                 if k.name.as_ref().is_none_or(|n| !existing.contains(n)) {
                     robot.keyframes.push(k);
                 }
             }
         }
-        Err(e) => eprintln!("Failed to load sibling keyframes `{}`: {e}", kf_path.display()),
+        Err(e) => eprintln!(
+            "Failed to load sibling keyframes `{}`: {e}",
+            kf_path.display()
+        ),
     }
 }
 
@@ -314,7 +331,7 @@ fn merge_sibling_keyframes(robot: &mut MjcfRobot, scene_path: &Path) {
 /// preserved by name across re-inits (toggling another setting re-runs
 /// `init_world`, and a stale index could point at a different keyframe).
 fn configure_keyframe_setting(
-    testbed: &mut Testbed,
+    viewer: &mut TestbedViewer,
     robot: &MjcfRobot,
     scene_changed: bool,
 ) -> Option<Keyframe> {
@@ -334,14 +351,14 @@ fn configure_keyframe_setting(
         default_idx
     } else {
         // Preserve the prior selection by name (the index may have shifted).
-        testbed
+        viewer
             .example_settings_mut()
             .get_string("Keyframe")
             .and_then(|prev| names.iter().position(|n| n == prev))
             .unwrap_or(default_idx)
     };
 
-    testbed
+    viewer
         .example_settings_mut()
         .set_string("Keyframe", selected_idx, names);
 
@@ -357,10 +374,14 @@ fn load_into_world(
     use_multibody: bool,
     disable_collisions: bool,
     enable_springs: bool,
-    testbed: &mut Testbed,
+    viewer: &mut TestbedViewer,
     scene_changed: bool,
 ) -> Result<
-    (MjcfRobot, Vec<Option<RigidBodyHandle>>, Option<MultibodyHandles>),
+    (
+        MjcfRobot,
+        Vec<Option<RigidBodyHandle>>,
+        Option<MultibodyHandles>,
+    ),
     Box<dyn std::error::Error>,
 > {
     let (mut robot, model) = MjcfRobot::from_file(path, loader_options())?;
@@ -408,7 +429,7 @@ fn load_into_world(
 
     // Now that the model's keyframes are known, populate the "Keyframe" picker
     // and resolve the user's selection (`None` ⇒ "(none)" ⇒ don't apply one).
-    let keyframe = configure_keyframe_setting(testbed, &robot, scene_changed);
+    let keyframe = configure_keyframe_setting(viewer, &robot, scene_changed);
 
     let (body_handles, mb_handles) = if use_multibody {
         let handles = robot.clone().insert_using_multibody_joints(
@@ -419,12 +440,7 @@ fn load_into_world(
             mb_options,
         );
         if let Some(key) = &keyframe {
-            handles.apply_keyframe(
-                &mut world.bodies,
-                &mut world.multibody_joints,
-                &robot,
-                key,
-            );
+            handles.apply_keyframe(&mut world.bodies, &mut world.multibody_joints, &robot, key);
         }
         let body_handles = handles
             .bodies
@@ -460,7 +476,7 @@ fn load_into_world(
 /// texture file path flow through to the testbed when both are
 /// available.
 fn register_visual_meshes(
-    testbed: &mut Testbed,
+    viewer: &mut TestbedViewer,
     robot: &MjcfRobot,
     body_handles: &[Option<RigidBodyHandle>],
     include_primitives: bool,
@@ -501,7 +517,7 @@ fn register_visual_meshes(
                 reflectance: m.reflectance,
                 emissive: m.emissive,
             });
-            testbed.add_body_render_mesh(
+            viewer.add_body_render_mesh(
                 *handle,
                 &vm.shape,
                 vm.local_pose,

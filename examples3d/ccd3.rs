@@ -1,9 +1,9 @@
 use kiss3d::color::Color;
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
 fn create_wall(
-    testbed: &mut Testbed,
+    viewer: &mut TestbedViewer,
     world: &mut PhysicsWorld,
     offset: Vector,
     stack_height: usize,
@@ -26,17 +26,17 @@ fn create_wall(
             let (handle, _) = world.insert(rigid_body, collider);
             k += 1;
             if k % 2 == 0 {
-                testbed
+                viewer
                     .set_initial_body_color(handle, Color::new(1., 131. / 255., 244.0 / 255., 1.0));
             } else {
-                testbed
+                viewer
                     .set_initial_body_color(handle, Color::new(131. / 255., 1., 244.0 / 255., 1.0));
             }
         }
     }
 }
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -63,7 +63,7 @@ pub fn init_world(testbed: &mut Testbed) {
     for i in 0..num_x {
         let x = i as f32 * 6.0;
         create_wall(
-            testbed,
+            viewer,
             &mut world,
             Vector::new(x, shift_y, 0.0),
             num_z,
@@ -71,7 +71,7 @@ pub fn init_world(testbed: &mut Testbed) {
         );
 
         create_wall(
-            testbed,
+            viewer,
             &mut world,
             Vector::new(x, shift_y, shift_z),
             num_z,
@@ -101,44 +101,50 @@ pub fn init_world(testbed: &mut Testbed) {
         .translation(Vector::new(-20.0, shift_y + 2.0, shift_z))
         .ccd_enabled(true);
     let (handle, _) = world.insert(rigid_body, collider.clone());
-    testbed.set_initial_body_color(handle, Color::new(0.2, 0.2, 1.0, 1.0));
-
-    // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |mut graphics, physics, events, _| {
-        while let Ok(prox) = events.collision_events.try_recv() {
-            let color = if prox.started() {
-                Color::new(1.0, 1.0, 0.0, 1.0)
-            } else {
-                Color::new(0.5, 0.5, 1.0, 1.0)
-            };
-
-            let parent_handle1 = physics
-                .colliders
-                .get(prox.collider1())
-                .unwrap()
-                .parent()
-                .unwrap();
-            let parent_handle2 = physics
-                .colliders
-                .get(prox.collider2())
-                .unwrap()
-                .parent()
-                .unwrap();
-
-            if let Some(graphics) = &mut graphics {
-                if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
-                    graphics.set_body_color(parent_handle1, color, false);
-                }
-                if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
-                    graphics.set_body_color(parent_handle2, color, false);
-                }
-            }
-        }
-    });
+    viewer.set_initial_body_color(handle, Color::new(0.2, 0.2, 1.0, 1.0));
 
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    let (collision_send, collision_recv) = std::sync::mpsc::channel();
+    let (contact_force_send, _contact_force_recv) = std::sync::mpsc::channel();
+    let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step_with_events(&(), &event_handler);
+
+            // Callback that will be executed on the main loop to handle proximities.
+            while let Ok(prox) = collision_recv.try_recv() {
+                let color = if prox.started() {
+                    Color::new(1.0, 1.0, 0.0, 1.0)
+                } else {
+                    Color::new(0.5, 0.5, 1.0, 1.0)
+                };
+
+                let parent_handle1 = world
+                    .colliders
+                    .get(prox.collider1())
+                    .unwrap()
+                    .parent()
+                    .unwrap();
+                let parent_handle2 = world
+                    .colliders
+                    .get(prox.collider2())
+                    .unwrap()
+                    .parent()
+                    .unwrap();
+
+                if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
+                    viewer.set_body_color(parent_handle1, color, false);
+                }
+                if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
+                    viewer.set_body_color(parent_handle2, color, false);
+                }
+            }
+        }
+    }
+    Ok(())
 }

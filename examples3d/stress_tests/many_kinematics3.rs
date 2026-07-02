@@ -1,7 +1,7 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -40,25 +40,31 @@ pub fn init_world(testbed: &mut Testbed) {
         }
     }
 
-    testbed.add_callback(move |_, physics, _, _| {
-        for (_, rb) in physics.bodies.iter_mut() {
-            let mut linvel = rb.linvel();
-
-            for dim in 0..3 {
-                if (linvel[dim] > 0.0 && rb.translation()[dim] > (shift * num as f32) / 2.0)
-                    || (linvel[dim] < 0.0 && rb.translation()[dim] < -(shift * num as f32) / 2.0)
-                {
-                    linvel[dim] = -linvel[dim];
-                }
-            }
-
-            rb.set_linvel(linvel, false);
-        }
-    });
-
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
+            for (_, rb) in world.bodies.iter_mut() {
+                let mut linvel = rb.linvel();
+
+                for dim in 0..3 {
+                    if (linvel[dim] > 0.0 && rb.translation()[dim] > (shift * num as f32) / 2.0)
+                        || (linvel[dim] < 0.0
+                            && rb.translation()[dim] < -(shift * num as f32) / 2.0)
+                    {
+                        linvel[dim] = -linvel[dim];
+                    }
+                }
+
+                rb.set_linvel(linvel, false);
+            }
+        }
+    }
+    Ok(())
 }
