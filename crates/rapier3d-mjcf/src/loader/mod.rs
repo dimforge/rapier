@@ -22,6 +22,6 @@ pub use handles::{
 pub use options::{ContactFilterMode, MjcfLoaderOptions, MjcfMultibodyOptions};
 pub use runtime::MjcfSensorValue;
 pub use types::{
-    MjcfActuatorBinding, MjcfBody, MjcfEqualityJoint, MjcfJoint, MjcfRobot, MjcfSensorBinding,
-    MjcfVisualMesh, SensorObjectRef,
+    MjcfActuatorBinding, MjcfBody, MjcfDofKind, MjcfEqualityJoint, MjcfJoint, MjcfQposDof,
+    MjcfRenderMaterial, MjcfRobot, MjcfSensorBinding, MjcfVisualMesh, SensorObjectRef,
 };

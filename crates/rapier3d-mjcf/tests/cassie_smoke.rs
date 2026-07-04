@@ -89,26 +89,22 @@ fn cassie_multibody_loads_without_nan() {
 }
 
 /// Cassie has 4 `<equality><connect>` loop closures (achilles-rod and
-/// plantar-rod tie the foot/heel-spring back into the chain). Those loops
-/// rely on the `<joint damping>` values declared on the leg joints to stay
-/// numerically stable — without that damping, the impulse-joint solver
-/// can drift under default-timestep multibody simulation and blow up
-/// within a second of sim time.
+/// plantar-rod tie the foot/heel-spring back into the chain). This
+/// configuration — loop closures active, joint motors disabled — used to
+/// NaN within ~40 steps because of two bugs in the generic impulse-joint
+/// solver path (com-shifted anchors composed with origin-centered link
+/// poses, and a per-link two-block effective mass that dropped the
+/// `J1ᵀ·W·J2` coupling for constraints between links of the same
+/// multibody). With those fixed, the dangling legs just swing and the
+/// closures hold; this regression keeps that configuration NaN-free.
 ///
-/// This regression captures that mode: keep equality constraints active
-/// but disable the motors and verify the failure mode is reproducible
-/// (we don't claim it should work — but the test documents the trade-off).
-/// `disable_joint_motors=true` skips the motors used for springs and
-/// friction-loss but does NOT skip the per-DoF damping path (per-DoF
-/// damping is dynamics-level, not a motor). Cassie still blows up under
-/// this configuration however: its `<joint stiffness>` springs on the
-/// shin and heel-spring joints are structural to keeping the loop
-/// closures balanced, and removing the springs (motors) destabilizes the
-/// loops faster than the surviving damping can compensate.
+/// Note: `disable_joint_motors` disables actuator/friction-loss motors only —
+/// the passive `<joint stiffness>` springs are not motors and stay active
+/// (integrated implicitly), so this also exercises the loop closures together
+/// with cassie's stiff shin/heel springs.
 #[test]
-#[ignore = "requires the cassie assets — documents an unstable configuration"]
-#[should_panic(expected = "NaN")]
-fn cassie_unstable_without_motors_and_with_loop_closures() {
+#[ignore = "requires the cassie assets"]
+fn cassie_stable_without_motors_and_with_loop_closures() {
     let options = MjcfLoaderOptions {
         scale: 10.0,
         skip_plane_geoms: true,
@@ -137,14 +133,13 @@ fn cassie_unstable_without_motors_and_with_loop_closures() {
         MjcfMultibodyOptions::DISABLE_SELF_CONTACTS,
     );
 
-    // 50 steps is enough — without damping the loops typically NaN by
-    // step ~40 under default integration parameters.
+    // The broken solver used to NaN by step ~40; run well past that.
     step(
         &mut bodies,
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
-        50,
+        500,
         gravity,
     );
 }

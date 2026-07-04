@@ -78,11 +78,17 @@ impl ParseState {
     }
 
     pub(super) fn process_root_children(&mut self, root: Node) -> Result<(), ParseError> {
-        // Process top-level elements in two passes:
-        // 1. compiler / option / size / default / asset / contact / equality / tendon
-        //    — anything that doesn't depend on the body tree
+        // Process top-level elements in phases:
+        // 1. compiler / option / size / default / contact / equality / tendon
+        // 1b. asset — deferred past this file's `<default>` blocks. `<asset>`
+        //     can legally appear *before* `<default>` in the document (e.g.
+        //     robotiq_2f85's mesh assets precede the defaults that set their
+        //     `scale`), and a mesh resolves its `scale`/`inertia` against its
+        //     default class. Parsing assets after all same-file defaults are
+        //     registered keeps that resolution correct.
         // 2. worldbody / actuator / sensor / keyframe
         // <include> can appear anywhere; we resolve recursively in place.
+        let mut deferred_assets: Vec<Node> = Vec::new();
         let mut deferred_bodies: Vec<Node> = Vec::new();
         let mut deferred_actuators: Vec<Node> = Vec::new();
         let mut deferred_sensors: Vec<Node> = Vec::new();
@@ -99,14 +105,12 @@ impl ParseState {
                     // Pass-through / ignored for now.
                 }
                 "default" => self.parse_default(child, None)?,
-                "asset" => self.parse_asset(child)?,
+                "asset" => deferred_assets.push(child),
                 "include" => self.parse_include(child, /*nested=*/ false)?,
                 "worldbody" => deferred_bodies.push(child),
                 "contact" => self.parse_contact(child)?,
                 "equality" => self.parse_equality(child)?,
-                "tendon" => {
-                    // Out of scope; record nothing.
-                }
+                "tendon" => self.parse_tendon(child)?,
                 "actuator" => deferred_actuators.push(child),
                 "sensor" => deferred_sensors.push(child),
                 "keyframe" => deferred_keyframes.push(child),
@@ -114,6 +118,10 @@ impl ParseState {
                     log::warn!("unhandled top-level element <{name}>");
                 }
             }
+        }
+        // Phase 1b — assets, now that every same-file `<default>` is registered.
+        for n in deferred_assets {
+            self.parse_asset(n)?;
         }
         // Pass 2 — needs the full <default>/<asset> table.
         for n in deferred_bodies {

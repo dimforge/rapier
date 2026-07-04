@@ -99,25 +99,29 @@ impl<'a> Conversion<'a> {
 
         if !self.options.disable_joint_motors {
             // Spring / damping / armature / etc.
-            let stiffness = if let Some(sd) = joint.springdamper {
-                let timeconst = sd[0];
-                let dampratio = sd[1];
-                // MuJoCo uses an under-damped spring with: stiffness = (2π/T)² * m_eff
-                // and damping = 2 ξ √(stiffness * m_eff). We don't know m_eff
-                // here — fall back to interpreting the pair as (stiffness, damping)
-                // when timeconst is zero (the explicit form).
-                if timeconst > 0.0 {
-                    // Treat (2π/T)² as the stiffness coefficient assuming m_eff=1.
-                    let omega = std::f64::consts::TAU / timeconst;
-                    Some((omega * omega, 2.0 * dampratio * omega))
-                } else {
-                    Some((dampratio, 0.0))
+            //
+            // This is the *impulse-joint* path's spring motor. It uses the
+            // AccelerationBased motor model (below), which already decouples
+            // the effective stiffness from the link inertia — so `springdamper`
+            // maps to `(ω², 2·ζ·ω)` with no inertia term (the multibody path's
+            // implicit spring, built in `conversion.rs`, does fold the inertia
+            // in because it applies a physical force). MuJoCo requires both
+            // springdamper values positive; an out-of-spec pair is ignored here
+            // and falls through to the explicit `stiffness`/`damping`.
+            let springdamper = match joint.springdamper {
+                Some(sd) if sd[0] > 0.0 && sd[1] > 0.0 => {
+                    let omega = std::f64::consts::TAU / sd[0];
+                    Some((omega * omega, 2.0 * sd[1] * omega))
                 }
-            } else if joint.stiffness > 0.0 || joint.damping > 0.0 {
-                Some((joint.stiffness, joint.damping))
-            } else {
-                None
+                _ => None,
             };
+            let stiffness = springdamper.or({
+                if joint.stiffness > 0.0 || joint.damping > 0.0 {
+                    Some((joint.stiffness, joint.damping))
+                } else {
+                    None
+                }
+            });
             let target_pos = joint.springref - joint.ref_;
             if let Some((k, d)) = stiffness {
                 let axis = match joint.type_ {
@@ -126,12 +130,14 @@ impl<'a> Conversion<'a> {
                     _ => None,
                 };
                 if let Some(ax) = axis {
-                    // AccelerationBased decouples the motor's effective
-                    // stiffness from the link's inertia, which makes the
-                    // timestep-stability margin uniform across the chain. For
-                    // stiff MJCF springs (e.g. cassie's shin/heel springs at
-                    // k=1250–1500) ForceBased was numerically unstable on the
-                    // multibody path and produced NaN within a few steps.
+                    // Build the spring as a position motor. This is what the
+                    // *impulse-joint* path uses. The multibody path replaces it
+                    // with an implicit spring at insertion time (see
+                    // `add_spring_to_multibody`), which is stable for stiff
+                    // springs on low-inertia links where this motor injects
+                    // energy. AccelerationBased decouples the motor's effective
+                    // stiffness from the link's inertia, giving a uniform
+                    // timestep-stability margin along the chain.
                     builder = builder.motor_model(ax, MotorModel::AccelerationBased);
                     builder = builder.motor_position(ax, target_pos as Real, k as Real, d as Real);
                 }

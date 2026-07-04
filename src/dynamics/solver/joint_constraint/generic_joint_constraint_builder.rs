@@ -124,12 +124,26 @@ impl JointGenericExternalConstraintBuilder {
         // TODO: use a more precise increment.
         *j_id += multibodies_ndof * 2 * SPATIAL_DIM;
 
-        if jacobians.nrows() < required_jacobian_len && !cfg!(feature = "parallel") {
+        if jacobians.nrows() < required_jacobian_len {
             jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
         }
 
         let mut joint_data = joint.data;
-        joint_data.transform_to_solver_body_space(rb1, rb2);
+        // NOTE: multibody links are positioned by `link.local_to_world` which is
+        //       the body-frame (origin-centered) pose, unlike regular dynamic
+        //       bodies whose solver pose is com-centered. So the com shift from
+        //       `transform_to_solver_body_space` must NOT be applied to sides
+        //       attached to a multibody link.
+        if rb1.is_fixed() {
+            joint_data.local_frame1 = rb1.pos.position * joint_data.local_frame1;
+        } else if matches!(link1, LinkOrBody::Body(_)) {
+            joint_data.local_frame1.translation -= rb1.mprops.local_mprops.local_com;
+        }
+        if rb2.is_fixed() {
+            joint_data.local_frame2 = rb2.pos.position * joint_data.local_frame2;
+        } else if matches!(link2, LinkOrBody::Body(_)) {
+            joint_data.local_frame2.translation -= rb2.mprops.local_mprops.local_com;
+        }
         *out_builder = GenericJointConstraintBuilder::External(Self {
             link1,
             link2,
@@ -165,18 +179,27 @@ impl JointGenericExternalConstraintBuilder {
         let mb1;
         let mb2;
 
+        let world_com1;
+        let world_com2;
+
         match self.link1 {
             LinkOrBody::Link(link) => {
                 let mb = &multibodies[link.multibody];
                 pos1 = mb.link(link.id).unwrap().local_to_world;
+                // The link pose is origin-centered; the link’s body jacobian
+                // measures linear velocities at its center-of-mass, so the
+                // lever arms must be taken relative to the world com.
+                world_com1 = pos1 * self.local_body1.world_com;
                 mb1 = LinkOrBodyRef::Link(mb, link.id);
             }
             LinkOrBody::Body(body1) => {
                 pos1 = bodies.get_pose(body1).pose();
+                world_com1 = pos1.translation; // the solver body pose is at the center of mass.
                 mb1 = LinkOrBodyRef::Body(body1);
             }
             LinkOrBody::Fixed => {
                 pos1 = Pose::IDENTITY;
+                world_com1 = pos1.translation;
                 mb1 = LinkOrBodyRef::Fixed;
             }
         };
@@ -184,14 +207,17 @@ impl JointGenericExternalConstraintBuilder {
             LinkOrBody::Link(link) => {
                 let mb = &multibodies[link.multibody];
                 pos2 = mb.link(link.id).unwrap().local_to_world;
+                world_com2 = pos2 * self.local_body2.world_com;
                 mb2 = LinkOrBodyRef::Link(mb, link.id);
             }
             LinkOrBody::Body(body2) => {
                 pos2 = bodies.get_pose(body2).pose();
+                world_com2 = pos2.translation; // the solver body pose is at the center of mass.
                 mb2 = LinkOrBodyRef::Body(body2);
             }
             LinkOrBody::Fixed => {
                 pos2 = Pose::IDENTITY;
+                world_com2 = pos2.translation;
                 mb2 = LinkOrBodyRef::Fixed;
             }
         };
@@ -200,11 +226,11 @@ impl JointGenericExternalConstraintBuilder {
         let frame2 = pos2 * self.joint.local_frame2;
 
         let joint_body1 = JointSolverBody {
-            world_com: pos1.translation, // the solver body pose is at the center of mass.
+            world_com: world_com1,
             ..self.local_body1
         };
         let joint_body2 = JointSolverBody {
-            world_com: pos2.translation, // the solver body pose is at the center of mass.
+            world_com: world_com2,
             ..self.local_body2
         };
 
@@ -238,7 +264,9 @@ impl JointGenericInternalConstraintBuilder {
     pub fn num_constraints(multibodies: &MultibodyJointSet, link_id: &MultibodyLinkId) -> usize {
         let multibody = &multibodies[link_id.multibody];
         let link = multibody.link(link_id.id).unwrap();
-        link.joint().num_velocity_constraints()
+        // This link's own motor/limit constraints, plus the DoF couplings it
+        // owns (a coupling is owned by its first joint's link).
+        link.joint().num_velocity_constraints() + multibody.num_couplings_owned_by(link_id.id)
     }
 
     pub fn generate(
@@ -251,7 +279,8 @@ impl JointGenericInternalConstraintBuilder {
     ) {
         let multibody = &multibodies[link_id.multibody];
         let link = multibody.link(link_id.id).unwrap();
-        let num_constraints = link.joint().num_velocity_constraints();
+        let num_constraints = link.joint().num_velocity_constraints()
+            + multibody.num_couplings_owned_by(link_id.id);
 
         if num_constraints == 0 {
             return;
@@ -280,7 +309,7 @@ impl JointGenericInternalConstraintBuilder {
     ) {
         let mb = &multibodies[self.link.multibody];
         let link = mb.link(self.link.id).unwrap();
-        link.joint().velocity_constraints(
+        let n_own = link.joint().velocity_constraints(
             params,
             mb,
             link,
@@ -288,6 +317,19 @@ impl JointGenericInternalConstraintBuilder {
             jacobians,
             &mut out[self.constraint_id..],
         );
+        // DoF couplings owned by this link follow its own constraints, both in
+        // the jacobian buffer (each constraint reserves `2·ndofs`) and in the
+        // output slice.
+        if mb.num_couplings_owned_by(self.link.id) > 0 {
+            let coupling_j_id = self.j_id + n_own * mb.ndofs() * 2;
+            mb.coupling_velocity_constraints(
+                self.link.id,
+                params,
+                coupling_j_id,
+                jacobians,
+                &mut out[self.constraint_id + n_own..],
+            );
+        }
     }
 }
 
@@ -350,6 +392,44 @@ impl JointConstraintHelper<Real> {
         ang_jac1: AngVector,
         ang_jac2: AngVector,
     ) -> GenericJointConstraint {
+        // When both attachment points are links of the same multibody (e.g. a
+        // loop closure), the two jacobian blocks act on the same generalized
+        // velocities and must be combined into a single relative jacobian
+        // `J2 − J1`. Keeping one block per link would lose the `J1ᵀ·W·J2`
+        // coupling in the constraint’s effective mass, yielding wildly wrong
+        // impulses (and divisions by noise when the blocks nearly cancel).
+        // The block is stored on the "2" side so that the solver’s
+        // `vel2 - vel1` measurement reads `(J2 − J1)·v` as expected.
+        if let (LinkOrBodyRef::Link(mb_a, link_id1), LinkOrBodyRef::Link(mb_b, link_id2)) =
+            (mb1, mb2)
+            && core::ptr::eq(mb_a, mb_b)
+        {
+            let block_j_id = *j_id;
+            mb_a.fill_relative_jacobians(
+                link_id1, lin_jac, ang_jac1, link_id2, lin_jac, ang_jac2, j_id, jacobians,
+            );
+
+            return GenericJointConstraint {
+                is_rigid_body1: true,
+                is_rigid_body2: false,
+                solver_vel1: u32::MAX,
+                solver_vel2: mb_a.solver_id,
+                ndofs1: 0,
+                j_id1: block_j_id,
+                ndofs2: mb_a.ndofs(),
+                j_id2: block_j_id,
+                joint_id,
+                impulse: 0.0,
+                impulse_bounds: [-Real::MAX, Real::MAX],
+                inv_lhs: 0.0,
+                rhs: 0.0,
+                rhs_wo_bias: 0.0,
+                cfm_coeff: 0.0,
+                cfm_gain: 0.0,
+                writeback_id,
+            };
+        }
+
         let j_id1 = *j_id;
         let (ndofs1, solver_vel1, is_rigid_body1) = match mb1 {
             LinkOrBodyRef::Link(mb1, link_id1) => {

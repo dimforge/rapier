@@ -9,12 +9,15 @@ use rapier3d::dynamics::{
     RigidBodySet,
 };
 use rapier3d::geometry::ColliderSet;
-use rapier3d::math::Pose;
+use rapier3d::math::{Pose, Real};
 
 use super::handles::{
     MjcfActuatorHandle, MjcfBodyHandle, MjcfColliderHandle, MjcfJointHandle, MjcfRobotHandles,
 };
-use super::mass::move_motor_damping_to_multibody;
+use super::mass::{
+    add_armature_to_multibody, add_joint_coupling_to_multibody, add_spring_to_multibody,
+    add_springdamper_to_multibody, move_motor_damping_to_multibody,
+};
 use super::options::MjcfMultibodyOptions;
 use super::types::MjcfRobot;
 
@@ -116,6 +119,7 @@ impl MjcfRobot {
         let skip_loop_closures = options.contains(MjcfMultibodyOptions::SKIP_LOOP_CLOSURES);
         let skip_motors = options.contains(MjcfMultibodyOptions::SKIP_JOINT_MOTORS);
         let skip_limits = options.contains(MjcfMultibodyOptions::SKIP_JOINT_LIMITS);
+        let skip_springs = options.contains(MjcfMultibodyOptions::SKIP_JOINT_SPRINGS);
         let world_referenced = self.joints.iter().any(|j| j.link1 == 0 || j.link2 == 0)
             || (!skip_loop_closures
                 && self
@@ -140,6 +144,10 @@ impl MjcfRobot {
             });
         }
         let mut joint_handles = Vec::with_capacity(self.joints.len());
+        // `<joint springdamper>` springs need the assembled joint-space inertia,
+        // so they're resolved after the whole multibody is built. Collect
+        // (handle, timeconst, dampratio, rest) here and apply them below.
+        let mut springdamper_joints: Vec<(MultibodyJointHandle, Real, Real, Real)> = Vec::new();
         for j in self.joints {
             let l1 = body_handles[j.link1].as_ref().map(|b| b.body);
             let l2 = body_handles[j.link2].as_ref().map(|b| b.body);
@@ -152,6 +160,10 @@ impl MjcfRobot {
                 continue;
             };
             let damping_per_dof = j.damping_per_dof;
+            let armature_per_dof = j.armature_per_dof;
+            let spring_stiffness_per_dof = j.spring_stiffness_per_dof;
+            let spring_ref = j.spring_ref;
+            let springdamper = j.springdamper;
             let joint_name = j.name.clone();
             // `limit_axes` / `motor_axes` are bitmasks over the joint's
             // DoFs; clearing them is equivalent to "joint built without
@@ -193,6 +205,39 @@ impl MjcfRobot {
                 if damping_per_dof > 0.0 {
                     move_motor_damping_to_multibody(multibody_joints, h, damping_per_dof);
                 }
+                // Route MJCF `<joint armature>` into the multibody's per-DoF
+                // mass-matrix diagonal (joint-space rotor inertia), instead of
+                // baking it into the link's spatial inertia tensor.
+                if armature_per_dof > 0.0 {
+                    add_armature_to_multibody(multibody_joints, h, armature_per_dof);
+                }
+                // Integrate MJCF `<joint stiffness>` springs implicitly on the
+                // multibody (stable for stiff springs on low-inertia links),
+                // replacing the explicit position motor that the serial-joint
+                // builder set up. `add_spring_to_multibody` always clears that
+                // explicit motor (so the unstable explicit spring never applies
+                // on the multibody path); passing stiffness 0 when springs are
+                // disabled leaves the joint with no spring force at all. A
+                // spring is not a motor, so only `SKIP_JOINT_SPRINGS` disables
+                // it — `SKIP_JOINT_MOTORS` leaves passive springs in place.
+                if spring_stiffness_per_dof > 0.0 {
+                    let stiffness = if skip_springs {
+                        0.0
+                    } else {
+                        spring_stiffness_per_dof
+                    };
+                    add_spring_to_multibody(multibody_joints, h, stiffness, spring_ref);
+                }
+                // `<joint springdamper>`: stiffness/damping depend on the
+                // assembled inertia, so defer to the post-assembly pass below.
+                // When springs are disabled, still clear the explicit motor now.
+                if let Some((timeconst, dampratio)) = springdamper {
+                    if skip_springs {
+                        add_spring_to_multibody(multibody_joints, h, 0.0, spring_ref);
+                    } else {
+                        springdamper_joints.push((h, timeconst, dampratio, spring_ref));
+                    }
+                }
             }
             joint_handles.push(MjcfJointHandle {
                 joint: h,
@@ -200,6 +245,57 @@ impl MjcfRobot {
                 link2: l2,
             });
         }
+
+        // Post-assembly pass for `<joint springdamper>`: now that the whole
+        // multibody is built, resolve each springdamper against the assembled
+        // joint-space inertia (MuJoCo's `dof_invweight0`). The bodies' mass
+        // properties must be finalized first — `additional_mass_properties`
+        // only reaches `local_mprops` after a mass recompute, which otherwise
+        // wouldn't happen until the first step.
+        if !springdamper_joints.is_empty() {
+            for bh in body_handles.iter().flatten() {
+                if let Some(body) = bodies.get_mut(bh.body) {
+                    body.recompute_mass_properties_from_colliders(colliders);
+                }
+            }
+            for (h, timeconst, dampratio, rest) in springdamper_joints {
+                add_springdamper_to_multibody(
+                    multibody_joints,
+                    bodies,
+                    h,
+                    timeconst,
+                    dampratio,
+                    rest,
+                );
+            }
+        }
+
+        // `<equality><joint>` couplings: install each as a multibody DoF
+        // coupling between the two joints' free DoFs (resolved from the joint
+        // handles built above). Loop closures and couplings are both off when
+        // `skip_loop_closures` is set.
+        if !skip_loop_closures {
+            for c in &self.joint_couplings {
+                if !c.active {
+                    continue;
+                }
+                let (Some(jh1), Some(jh2)) =
+                    (joint_handles.get(c.joint1), joint_handles.get(c.joint2))
+                else {
+                    continue;
+                };
+                let Some(h1) = jh1.joint else { continue };
+                add_joint_coupling_to_multibody(
+                    multibody_joints,
+                    h1,
+                    jh1.link2,
+                    jh2.link2,
+                    c.coeff,
+                    c.offset,
+                );
+            }
+        }
+
         let mut eq_handles = Vec::with_capacity(self.equality_joints.len());
         if !skip_loop_closures {
             for eq in self.equality_joints {

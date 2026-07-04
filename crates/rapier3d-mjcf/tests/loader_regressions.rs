@@ -548,3 +548,37 @@ mod mesh_synthesis {
         );
     }
 }
+
+/// `<asset>` may legally appear *before* `<default>` in an MJCF document, and a
+/// `<mesh>` resolves its `scale` against its default class. The loader must
+/// register all `<default>` blocks before parsing `<asset>` so the scale is
+/// applied regardless of document order.
+///
+/// Regression: robotiq_2f85 declares its mesh assets before the `<default>`
+/// that sets `scale="0.001"`. With document-order parsing the meshes kept
+/// `scale=[1,1,1]`, so mesh-derived masses (base_mount/silicone_pad, which
+/// have no `<inertial>`) came out ~1e9x too large, producing an
+/// ill-conditioned multibody mass matrix that exploded to NaN.
+#[test]
+fn mesh_scale_inherits_default_when_asset_precedes_default() {
+    let xml = r#"
+    <mujoco>
+      <asset>
+        <mesh class="robot" name="part" file="part.stl"/>
+      </asset>
+      <default>
+        <default class="robot">
+          <mesh scale="0.001 0.001 0.001"/>
+        </default>
+      </default>
+      <worldbody/>
+    </mujoco>
+    "#;
+    let (_, model) = MjcfRobot::from_str(xml, MjcfLoaderOptions::default(), ".").unwrap();
+    let mesh = model.assets.mesh("part").expect("mesh `part` should be parsed");
+    assert_eq!(
+        mesh.scale,
+        [0.001, 0.001, 0.001],
+        "mesh did not inherit scale from its default class when <asset> preceded <default>"
+    );
+}

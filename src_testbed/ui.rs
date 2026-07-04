@@ -782,6 +782,9 @@ fn example_settings_ui(ui_context: &egui::Context, state: &mut TestbedState) {
         .default_width(250.0)
         .show(ui_context, |ui| {
             let mut any_changed = false;
+            // Settings the example reads live (e.g. via a callback): changing
+            // them updates the value but must not restart the simulation.
+            let non_restart = state.example_settings.non_restart_keys().clone();
 
             for (name, value) in state.example_settings.iter_mut() {
                 let prev_value = value.clone();
@@ -819,14 +822,45 @@ fn example_settings_ui(ui_context: &egui::Context, state: &mut TestbedState) {
                         display_mode,
                     } => match display_mode {
                         crate::settings::StringDisplayMode::ComboBox => {
-                            ComboBox::from_label(name)
-                                .width(150.0)
-                                .selected_text(&range[*value])
-                                .show_ui(ui, |ui| {
-                                    for (id, option) in range.iter().enumerate() {
-                                        ui.selectable_value(value, id, option);
-                                    }
-                                });
+                            let n = range.len();
+                            ui.horizontal(|ui| {
+                                // `<` / `>` step to the previous / next option
+                                // without opening the dropdown (mirrors the `List`
+                                // mode steppers and the `U32` `-` / `+` pair).
+                                let can_prev = *value > 0;
+                                let can_next = *value + 1 < n;
+                                if ui
+                                    .add_enabled(can_prev, egui::Button::new("<"))
+                                    .on_hover_text("Previous")
+                                    .clicked()
+                                {
+                                    *value -= 1;
+                                }
+                                if ui
+                                    .add_enabled(can_next, egui::Button::new(">"))
+                                    .on_hover_text("Next")
+                                    .clicked()
+                                {
+                                    *value += 1;
+                                }
+                                ComboBox::from_label(name)
+                                    .width(150.0)
+                                    .selected_text(&range[*value])
+                                    .show_ui(ui, |ui| {
+                                        // Bound the popup height so a long option
+                                        // list scrolls instead of being clipped by
+                                        // the screen edge (which otherwise hides all
+                                        // but the first couple of entries when the
+                                        // settings window sits low on screen).
+                                        egui::ScrollArea::vertical()
+                                            .max_height(1600.0)
+                                            .show(ui, |ui| {
+                                                for (id, option) in range.iter().enumerate() {
+                                                    ui.selectable_value(value, id, option);
+                                                }
+                                            });
+                                    });
+                            });
                         }
                         crate::settings::StringDisplayMode::List => {
                             let current = range.get(*value).cloned().unwrap_or_default();
@@ -879,7 +913,11 @@ fn example_settings_ui(ui_context: &egui::Context, state: &mut TestbedState) {
                     },
                 }
 
-                any_changed = any_changed || *value != prev_value;
+                // A change to a non-restart setting still updates the value
+                // (the widget mutated it above) but doesn't restart the sim.
+                if *value != prev_value && !non_restart.contains(name.as_str()) {
+                    any_changed = true;
+                }
             }
 
             if any_changed {

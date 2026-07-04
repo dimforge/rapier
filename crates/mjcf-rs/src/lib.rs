@@ -46,6 +46,7 @@ pub mod extras;
 mod loader;
 pub mod model;
 pub mod normals;
+pub mod tendon;
 pub mod types;
 
 #[cfg(feature = "msh")]

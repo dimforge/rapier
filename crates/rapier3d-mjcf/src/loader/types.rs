@@ -88,6 +88,28 @@ pub struct MjcfVisualMesh {
     /// MJCF `<material texture=…>` when set, otherwise from the OBJ
     /// MTL's `map_Kd`. `None` for geoms that aren't textured.
     pub texture: Option<PathBuf>,
+    /// PBR shading parameters resolved from the geom's `<material>`. `None`
+    /// when the geom references no material — the renderer then keeps its own
+    /// default shading rather than being forced to a metallic-roughness look.
+    pub material: Option<MjcfRenderMaterial>,
+}
+
+/// PBR shading parameters resolved from an MJCF `<material>`, expressed in the
+/// metallic-roughness model a modern renderer consumes. MuJoCo's legacy Phong
+/// `specular`/`shininess` are folded in here too: `reflectance` carries the
+/// specular intensity, and `roughness` falls back to `1 − shininess` when the
+/// material doesn't set `roughness` explicitly.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct MjcfRenderMaterial {
+    /// Metallic factor in `[0, 1]` (MuJoCo `metallic`; 0 = dielectric).
+    pub metallic: f32,
+    /// Surface roughness in `[0, 1]` (MuJoCo `roughness`, or `1 − shininess`).
+    pub roughness: f32,
+    /// Dielectric specular reflectance in `[0, 1]` (MuJoCo `specular`), which a
+    /// renderer maps to the F0 Fresnel term.
+    pub reflectance: f32,
+    /// Emissive color `material.rgb × emission`; `[0, 0, 0]` for non-emissive.
+    pub emissive: [f32; 3],
 }
 
 /// One joint from the MJCF model materialized as a rapier `GenericJoint`.
@@ -108,6 +130,33 @@ pub struct MjcfJoint {
     /// loads, and naturally covers all 3 DoFs of a ball joint instead of
     /// only the motorised AngX).
     pub damping_per_dof: Real,
+    /// MJCF `<joint armature>` value (reflected rotor inertia). On the
+    /// multibody insertion path this is added to the generalized mass-matrix
+    /// diagonal of each of the joint's DoFs, matching MuJoCo's joint-space
+    /// semantics. It is deliberately **not** baked into the link's spatial
+    /// inertia tensor: doing so makes the inertia extremely anisotropic
+    /// (huge along the joint axis, ~0 across it) and the multibody mass
+    /// matrix ill-conditioned.
+    pub armature_per_dof: Real,
+    /// MJCF `<joint stiffness>` (passive spring). On the multibody path this
+    /// can be integrated implicitly in the generalized dynamics (added to the
+    /// mass-matrix diagonal as `dt²·k` with a force `-k·(q − ref)`), which is
+    /// numerically stable for stiff springs on low-inertia links — unlike the
+    /// explicit position motor used otherwise. `0` if the joint has no spring.
+    pub spring_stiffness_per_dof: Real,
+    /// Rest position of the spring (`springref − ref`, in rapier's joint
+    /// coordinate convention). Used for both the explicit-stiffness spring and
+    /// the `springdamper` spring below.
+    pub spring_ref: Real,
+    /// MJCF `<joint springdamper="timeconst dampratio">` (both positive). Unlike
+    /// `spring_stiffness_per_dof`/`damping_per_dof` — which are physical
+    /// coefficients known up front — a `springdamper` requests a spring with a
+    /// given *time constant and damping ratio*, so its stiffness and damping
+    /// must be computed from the assembled joint-space inertia (MuJoCo's
+    /// `dof_invweight0`). The multibody insertion path resolves it in a
+    /// post-assembly pass; a valid `springdamper` overrides the explicit
+    /// stiffness/damping (which are then left at 0 here).
+    pub springdamper: Option<(Real, Real)>,
 }
 
 /// One `<equality>` constraint materialized as an extra rapier joint.
@@ -123,6 +172,24 @@ pub struct MjcfEqualityJoint {
     pub active: bool,
     /// The joint description.
     pub joint: GenericJoint,
+}
+
+/// One `<equality><joint>` coupling, resolved to a *linear* relation between
+/// two of [`MjcfRobot::joints`]: `q2 = coeff·q1 + offset` (rapier joint
+/// coordinates). Higher-order `polycoef` terms are unsupported. Applied as a
+/// multibody DoF coupling at insertion time.
+#[derive(Copy, Clone, Debug)]
+pub struct MjcfJointCoupling {
+    /// Index of the first (independent) joint in [`MjcfRobot::joints`].
+    pub joint1: usize,
+    /// Index of the second (dependent) joint in [`MjcfRobot::joints`].
+    pub joint2: usize,
+    /// Linear coupling coefficient (`polycoef[1]`).
+    pub coeff: Real,
+    /// Constant offset (`polycoef[0]`).
+    pub offset: Real,
+    /// Whether the constraint is active.
+    pub active: bool,
 }
 
 /// `<actuator>` ready to drive a rapier joint motor.
@@ -165,6 +232,79 @@ pub enum SensorObjectRef {
     },
 }
 
+/// The MJCF joint kind backing one keyframe `qpos`/`qvel` slot. Decides how
+/// many `qpos` / `qvel` scalars the slot consumes and how they are written to
+/// the rapier model.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum MjcfDofKind {
+    /// 6-DoF free / floating base. Consumes 7 `qpos` (xyz position + wxyz
+    /// quaternion, world frame) and 6 `qvel` (linear + angular). Maps to a
+    /// free rapier body — there is no rapier joint, so the world pose is
+    /// written directly (see [`MjcfQposDof::body`]).
+    Free,
+    /// 3-DoF ball. Consumes 4 `qpos` (wxyz quaternion) and 3 `qvel`.
+    Ball,
+    /// 1-DoF revolute. Consumes 1 `qpos` (angle) and 1 `qvel`.
+    Hinge,
+    /// 1-DoF prismatic. Consumes 1 `qpos` (length) and 1 `qvel`.
+    Slide,
+}
+
+impl MjcfDofKind {
+    /// Number of `qpos` scalars this DoF consumes.
+    pub fn qpos_width(self) -> usize {
+        match self {
+            MjcfDofKind::Free => 7,
+            MjcfDofKind::Ball => 4,
+            MjcfDofKind::Hinge | MjcfDofKind::Slide => 1,
+        }
+    }
+
+    /// Number of `qvel` scalars this DoF consumes.
+    pub fn qvel_width(self) -> usize {
+        match self {
+            MjcfDofKind::Free => 6,
+            MjcfDofKind::Ball => 3,
+            MjcfDofKind::Hinge | MjcfDofKind::Slide => 1,
+        }
+    }
+}
+
+/// One MJCF joint's slot in a keyframe's `qpos` / `qvel` arrays, resolved to
+/// where it must be written in the rapier model.
+///
+/// The entries in [`MjcfRobot::qpos_dofs`] are ordered exactly as MuJoCo lays
+/// out `qpos` (and `qvel`): joints in kinematic-tree order — bodies in
+/// declaration order, and within a body its joints in declaration order.
+/// Welds and other 0-DoF couplings contribute nothing, matching MuJoCo. So
+/// reading a keyframe is a single left-to-right walk of this list, advancing a
+/// `qpos` cursor by [`MjcfDofKind::qpos_width`] (and a `qvel` cursor by
+/// [`MjcfDofKind::qvel_width`]) per entry.
+#[derive(Clone, Debug)]
+pub struct MjcfQposDof {
+    /// The joint kind — decides the `qpos`/`qvel` width and how the slot maps
+    /// onto rapier.
+    pub kind: MjcfDofKind,
+    /// Index into [`MjcfRobot::joints`] of the rapier joint this slot drives.
+    /// `None` for [`MjcfDofKind::Free`], which has no rapier joint — its pose
+    /// is written to [`Self::body`] directly.
+    pub joint: Option<usize>,
+    /// Index into [`MjcfRobot::bodies`] of the child body this slot moves. For
+    /// [`MjcfDofKind::Free`] this is the floating body whose world pose `qpos`
+    /// sets.
+    pub body: usize,
+    /// MJCF `<joint ref>` (the joint's zero offset). Subtracted from `qpos`
+    /// to convert MuJoCo's absolute joint coordinate to rapier's
+    /// frame-relative one, matching the limit convention in the serial-joint
+    /// builder. A length (pre-scale) for [`MjcfDofKind::Slide`]; unused for
+    /// `Free`/`Ball`.
+    pub reference: Real,
+    /// Length scale (`MjcfLoaderOptions::scale`) applied to `Slide` coordinates
+    /// and to the `Free` base translation, matching the scaling the loader
+    /// applied to the model geometry.
+    pub scale: Real,
+}
+
 /// A robot loaded from an MJCF file: a flat list of bodies, joints, and
 /// extras.
 #[derive(Clone, Debug, Default)]
@@ -180,12 +320,22 @@ pub struct MjcfRobot {
     pub joints: Vec<MjcfJoint>,
     /// Extra joints created from `<equality>` constraints.
     pub equality_joints: Vec<MjcfEqualityJoint>,
+    /// `<equality><joint>` couplings between two joints' coordinates.
+    pub joint_couplings: Vec<MjcfJointCoupling>,
     /// Actuator bindings.
     pub actuators: Vec<MjcfActuatorBinding>,
     /// Sensor bindings.
     pub sensors: Vec<MjcfSensorBinding>,
     /// Keyframes preserved from the model.
     pub keyframes: Vec<Keyframe>,
+    /// Layout that maps a keyframe's `qpos` / `qvel` arrays onto
+    /// [`Self::joints`] / [`Self::bodies`], in MuJoCo's generalized-coordinate
+    /// order. Drives [`MjcfRobotHandles::apply_keyframe`](super::MjcfRobotHandles::apply_keyframe).
+    pub qpos_dofs: Vec<MjcfQposDof>,
+    /// The `MjcfLoaderOptions::shift` the loader applied to every body pose.
+    /// Re-applied when a keyframe writes a free body's absolute world pose so
+    /// the floating base lands in the same frame as the rest of the model.
+    pub base_shift: Pose,
     /// Resolved gravity vector (`<option gravity>`).
     pub gravity: Vector,
     /// Map from MJCF body name to index in [`Self::bodies`].

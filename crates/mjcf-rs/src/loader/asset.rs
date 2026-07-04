@@ -16,6 +16,7 @@ use super::parse_utils::{
     absolutize_model_assets, asset_default_name, parse_f64, parse_f64_list, parse_quat, parse_u32,
     parse_vec3, parse_vec4,
 };
+use super::prototypes::merge_material_proto;
 use super::state::ParseState;
 
 impl ParseState {
@@ -125,21 +126,36 @@ impl ParseState {
                     self.model.assets.textures.push(t);
                 }
                 "material" => {
-                    let mut m = Material::default();
+                    // Resolve the material against its `<default class=…>`
+                    // chain: the material's own attributes win, then the class
+                    // defaults fill the rest, then MuJoCo's built-in defaults
+                    // (specular/shininess 0.5; metallic/roughness -1, a sentinel
+                    // meaning "unset — fall back to the legacy Phong shininess").
+                    let inst = self.parse_material_prototype(child)?;
+                    let mut name = None;
+                    let mut class = None;
                     for attr in child.attributes() {
                         match attr.name() {
-                            "name" => m.name = Some(attr.value().to_string()),
-                            "class" => m.class = Some(attr.value().to_string()),
-                            "texture" => m.texture = Some(attr.value().to_string()),
-                            "rgba" => m.rgba = Some(parse_vec4(attr.value(), "material", "rgba")?),
-                            "emission" => m.emission = parse_f64(attr.value())?,
-                            "specular" => m.specular = parse_f64(attr.value())?,
-                            "shininess" => m.shininess = parse_f64(attr.value())?,
-                            "roughness" => m.roughness = parse_f64(attr.value())?,
-                            "metallic" => m.metallic = parse_f64(attr.value())?,
+                            "name" => name = Some(attr.value().to_string()),
+                            "class" => class = Some(attr.value().to_string()),
                             _ => {}
                         }
                     }
+                    let p = merge_material_proto(
+                        Some(self.merged_material_proto(class.as_deref())),
+                        inst,
+                    );
+                    let m = Material {
+                        name,
+                        class,
+                        texture: p.texture,
+                        rgba: p.rgba,
+                        emission: p.emission.unwrap_or(0.0),
+                        specular: p.specular.unwrap_or(0.5),
+                        shininess: p.shininess.unwrap_or(0.5),
+                        roughness: p.roughness.unwrap_or(-1.0),
+                        metallic: p.metallic.unwrap_or(-1.0),
+                    };
                     self.model.assets.materials.push(m);
                 }
                 "include" => {

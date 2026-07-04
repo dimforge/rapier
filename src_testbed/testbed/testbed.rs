@@ -308,6 +308,7 @@ impl Testbed<'_> {
         uvs: Option<&[[f32; 2]]>,
         normals: Option<&[[f32; 3]]>,
         texture: Option<&std::path::Path>,
+        material: Option<crate::graphics::RenderMaterial>,
     ) {
         if let Some(graphics) = &mut self.graphics {
             graphics.graphics.add_body_render_mesh(
@@ -319,6 +320,7 @@ impl Testbed<'_> {
                 uvs,
                 normals,
                 texture,
+                material,
             );
         }
     }

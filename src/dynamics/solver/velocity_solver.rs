@@ -133,7 +133,7 @@ impl VelocitySolver {
                 .unwrap();
             multibody.update_velocities(bodies);
             multibody.update_mass_matrix(params.dt, bodies);
-            multibody.update_acceleration(bodies);
+            multibody.update_acceleration(params.dt, bodies);
 
             let mut solver_vels_incr = self
                 .generic_solver_vels_increment
@@ -278,7 +278,7 @@ impl VelocitySolver {
                 // have to run another step.
                 multibody.update_velocities(bodies);
                 multibody.update_mass_matrix(params.dt, bodies);
-                multibody.update_acceleration(bodies);
+                multibody.update_acceleration(params.dt, bodies);
 
                 let mut solver_vels_incr = self
                     .generic_solver_vels_increment

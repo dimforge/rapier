@@ -32,6 +32,13 @@ pub struct Actuator {
     pub gainprm: Vec<f64>,
     /// `biasprm` (up to 10 entries).
     pub biasprm: Vec<f64>,
+    /// `gaintype` (`fixed`, `affine`, `muscle`, …). `None` ⇒ MJCF default
+    /// (`fixed`). Used to interpret `<general>` actuators.
+    pub gain_type: Option<String>,
+    /// `biastype` (`none`, `affine`, `muscle`, …). `None` ⇒ MJCF default
+    /// (`none`). An `affine` bias turns a `<general>` actuator into a
+    /// position/velocity servo: `bias = biasprm0 + biasprm1·q + biasprm2·q̇`.
+    pub bias_type: Option<String>,
     /// `dyntype`.
     pub dyn_type: Option<String>,
     /// `dynprm`.

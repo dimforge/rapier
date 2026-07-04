@@ -28,12 +28,12 @@ bitflags::bitflags! {
         /// debugging a chain that otherwise drifts under loop closure.
         const SKIP_LOOP_CLOSURES = 0b0100;
         /// If set, the motor entries baked into each joint by the loader
-        /// (`<joint stiffness>`, `<joint springdamper>`, `<joint
-        /// frictionloss>`) are stripped before the joint is handed to
-        /// the multibody. Only the multibody path is affected — the
-        /// impulse-joint path still sees motors. Useful when motor
-        /// stiffness destabilizes the articulated solver and you want
-        /// to compare against a pure kinematic chain.
+        /// (`<joint frictionloss>`, and the actuator motors set at runtime)
+        /// are stripped before the joint is handed to the multibody. Only the
+        /// multibody path is affected — the impulse-joint path still sees
+        /// motors. Passive `<joint stiffness>` springs are **not** motors and
+        /// are unaffected; use [`SKIP_JOINT_SPRINGS`](Self::SKIP_JOINT_SPRINGS)
+        /// for those. Useful when comparing against a pure kinematic chain.
         const SKIP_JOINT_MOTORS = 0b1000;
         /// If set, the joint limits baked into each joint by the loader
         /// (`<joint range>`) are stripped before the joint is handed to
@@ -43,6 +43,13 @@ bitflags::bitflags! {
         /// rest pose (the limit then fights the joint immediately at
         /// t=0).
         const SKIP_JOINT_LIMITS = 0b1_0000;
+        /// If set, MJCF `<joint stiffness>` passive springs are **not**
+        /// installed as implicit springs on the multibody. Only the multibody
+        /// path is affected. The springs are integrated implicitly by default
+        /// (stable for stiff springs on low-inertia links); set this to compare
+        /// against a spring-free chain or to debug a model whose declared
+        /// `springref`/`stiffness` is unexpected.
+        const SKIP_JOINT_SPRINGS = 0b10_0000;
     }
 }
 

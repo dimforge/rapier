@@ -70,37 +70,112 @@ fn springref_is_baked_in_radians() {
 }
 
 #[test]
-fn armature_changes_local_mprops_inertia() {
-    // Direct check that armature is reflected in the body's
-    // additional_local_mprops (before insertion). The local inertia about
-    // the joint axis should be larger with armature than without.
-    let xml_arm = r#"<mujoco><worldbody>
-      <body><joint type="hinge" axis="1 0 0" armature="0.5"/>
-        <inertial mass="1" diaginertia="0.001 0.001 0.001" pos="0 1 0"/>
-      </body></worldbody></mujoco>"#;
-    let xml_no = r#"<mujoco><worldbody>
-      <body><joint type="hinge" axis="1 0 0"/>
-        <inertial mass="1" diaginertia="0.001 0.001 0.001" pos="0 1 0"/>
-      </body></worldbody></mujoco>"#;
-    let (rob_arm, _) = MjcfRobot::from_str(xml_arm, MjcfLoaderOptions::default(), ".").unwrap();
-    let (rob_no, _) = MjcfRobot::from_str(xml_no, MjcfLoaderOptions::default(), ".").unwrap();
-    // Insert into a rapier set so update_mass_properties runs.
-    fn principal_xx(robot: MjcfRobot) -> Real {
+fn springdamper_stiffness_uses_assembled_joint_inertia() {
+    // `springdamper="T ζ"` is resolved post-assembly against the joint-space
+    // inertia: stiffness = I / (T²·ζ²). For a fixed-base single hinge about Z,
+    // I is just the link's inertia about Z. With T=0.5, ζ=1 → k = I / 0.25 = 4I.
+    let xml = |izz: f64| {
+        format!(
+            r#"<mujoco><worldbody>
+              <body name="a"><joint name="j" type="hinge" axis="0 0 1" springdamper="0.5 1"/>
+                <inertial mass="1" diaginertia="0.1 0.2 {izz}"/>
+              </body></worldbody></mujoco>"#
+        )
+    };
+    let resolved_stiffness = |izz: f64| -> Real {
+        let opts = MjcfLoaderOptions {
+            make_roots_fixed: true,
+            ..Default::default()
+        };
+        let (robot, _) = MjcfRobot::from_str(&xml(izz), opts, ".").unwrap();
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut impulse_joints = ImpulseJointSet::new();
-        let handles =
-            robot.insert_using_impulse_joints(&mut bodies, &mut colliders, &mut impulse_joints);
-        // Trigger a step so update_mass_properties fires.
         let mut multibody_joints = MultibodyJointSet::new();
-        let gravity = Vector::new(0.0, 0.0, 0.0);
+        let handles = robot.insert_using_multibody_joints(
+            &mut bodies,
+            &mut colliders,
+            &mut multibody_joints,
+            &mut impulse_joints,
+            rapier3d_mjcf::MjcfMultibodyOptions::empty(),
+        );
+        let h = handles.joints[0].joint.expect("multibody joint");
+        let (mb, link_id) = multibody_joints.get_mut(h).unwrap();
+        // The revolute's free DoF is the angular X axis (index 3).
+        mb.links().nth(link_id).unwrap().joint().spring(3).0
+    };
+
+    let k = resolved_stiffness(0.3);
+    let expected = (0.3 / 0.25) as Real; // I / (T²ζ²)
+    assert!(
+        (k - expected).abs() < expected * 0.02,
+        "springdamper stiffness = {k}, expected ≈ {expected} (= I / (T²·ζ²))"
+    );
+    // Doubling the joint inertia doubles the resolved stiffness.
+    let ratio = resolved_stiffness(0.6) / k;
+    assert!(
+        (ratio - 2.0).abs() < 0.02,
+        "stiffness should scale with the assembled joint inertia; ratio = {ratio}"
+    );
+}
+
+#[test]
+fn invalid_springdamper_is_ignored_and_falls_through() {
+    // A `springdamper` that isn't two positive values is an error in MuJoCo;
+    // the loader warns and ignores it, falling through to the explicit
+    // `stiffness` (it does NOT reinterpret the second value as a stiffness).
+    let xml = r#"
+    <mujoco><worldbody>
+      <body name="a"><joint name="j" type="hinge" axis="0 0 1" springdamper="0 1" stiffness="7"/>
+        <inertial mass="1" diaginertia="0.1 0.1 0.1"/>
+      </body></worldbody></mujoco>
+    "#;
+    let (robot, _) = MjcfRobot::from_str(xml, MjcfLoaderOptions::default(), ".").unwrap();
+    assert_eq!(
+        robot.joints[0].spring_stiffness_per_dof, 7.0,
+        "invalid springdamper should fall through to the explicit stiffness"
+    );
+}
+
+#[test]
+fn armature_routes_through_per_dof_armature_not_spatial_inertia() {
+    // MuJoCo's `armature` is a reflected rotor inertia that belongs on the
+    // diagonal of the joint-space mass matrix, NOT in the link's spatial
+    // inertia tensor. On the multibody path it must land in the multibody's
+    // per-DoF armature vector and leave the body's spatial inertia untouched
+    // (baking it into the tensor produces extreme anisotropy and an
+    // ill-conditioned mass matrix — see the low_cost_robot_arm regression).
+    let xml_arm = r#"<mujoco><worldbody>
+      <body name="a"><joint name="j" type="hinge" axis="1 0 0" armature="0.5"/>
+        <inertial mass="1" diaginertia="0.001 0.001 0.001" pos="0 1 0"/>
+      </body></worldbody></mujoco>"#;
+    let xml_no = r#"<mujoco><worldbody>
+      <body name="a"><joint name="j" type="hinge" axis="1 0 0"/>
+        <inertial mass="1" diaginertia="0.001 0.001 0.001" pos="0 1 0"/>
+      </body></worldbody></mujoco>"#;
+
+    // Returns (spatial inertia trace after a step, armature on the joint DoF).
+    fn inspect(xml: &str) -> (Real, Real) {
+        let (robot, _) = MjcfRobot::from_str(xml, MjcfLoaderOptions::default(), ".").unwrap();
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let handles = robot.insert_using_multibody_joints(
+            &mut bodies,
+            &mut colliders,
+            &mut multibody_joints,
+            &mut impulse_joints,
+            rapier3d_mjcf::MjcfMultibodyOptions::empty(),
+        );
+        // Step so update_mass_properties / update_mass_matrix fire.
         step_n(
             &mut bodies,
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
             1,
-            gravity,
+            Vector::new(0.0, 0.0, 0.0),
         );
         let h = handles.bodies[1].as_ref().unwrap().body;
         let p = bodies
@@ -109,12 +184,29 @@ fn armature_changes_local_mprops_inertia() {
             .mass_properties()
             .local_mprops
             .principal_inertia();
-        // Sum to be insensitive to eigenvalue ordering.
-        p.x + p.y + p.z
+        let trace = p.x + p.y + p.z;
+        let mb_handle = handles.joints[0].joint.expect("multibody joint inserted");
+        let (mb, _) = multibody_joints.get_mut(mb_handle).unwrap();
+        // The hinge's free DoF lives at the end of the generalized vectors
+        // (after the fixed root's zero DoFs).
+        let last = mb.armature().len() - 1;
+        (trace, mb.armature()[last])
     }
-    let arm = principal_xx(rob_arm);
-    let no = principal_xx(rob_no);
-    assert!(arm > no + 0.4, "arm trace = {arm}, no trace = {no}");
+
+    let (arm_trace, arm_value) = inspect(xml_arm);
+    let (no_trace, no_value) = inspect(xml_no);
+
+    // Armature shows up in the per-DoF armature vector...
+    assert!(
+        (arm_value - 0.5).abs() < 1e-6,
+        "armature on DoF = {arm_value}, expected 0.5"
+    );
+    assert!(no_value.abs() < 1e-6, "no-armature DoF = {no_value}");
+    // ...and does NOT inflate the spatial inertia tensor.
+    assert!(
+        (arm_trace - no_trace).abs() < 1e-6,
+        "spatial inertia changed by armature: arm = {arm_trace}, no = {no_trace}"
+    );
 }
 
 #[test]

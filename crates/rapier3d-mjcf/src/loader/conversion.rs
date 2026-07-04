@@ -10,6 +10,7 @@ use std::path::Path;
 use mjcf_rs::Pose as MPose;
 use mjcf_rs::body as mb;
 use mjcf_rs::equality::{Equality as MjcfEquality, EqualityConnect, EqualityWeld};
+use mjcf_rs::equality::EqualityJoint as MjcfEqualityJointDef;
 use mjcf_rs::extras::Sensor as MjcfSensor;
 use mjcf_rs::glam::DVec3;
 use mjcf_rs::model::{BodyEntry, BodyId, Model};
@@ -23,8 +24,8 @@ use rapier3d::math::{Pose, Real, Vector};
 use super::mass::scale_mass_properties;
 use super::options::MjcfLoaderOptions;
 use super::types::{
-    MjcfActuatorBinding, MjcfBody, MjcfEqualityJoint, MjcfJoint, MjcfRobot, MjcfSensorBinding,
-    MjcfVisualMesh, SensorObjectRef,
+    MjcfActuatorBinding, MjcfBody, MjcfDofKind, MjcfEqualityJoint, MjcfJoint, MjcfJointCoupling,
+    MjcfQposDof, MjcfRobot, MjcfSensorBinding, MjcfVisualMesh, SensorObjectRef,
 };
 
 pub(super) struct Conversion<'a> {
@@ -144,11 +145,19 @@ impl<'a> Conversion<'a> {
         // body indices.
         self.materialize_equality();
 
+        // Fixed tendons: co-actuation couplings between their joints. After
+        // `materialize_equality` so we can skip pairs already coupled by an
+        // explicit `<equality><joint>`.
+        self.materialize_tendons();
+
         // Bindings for actuators / sensors.
         self.bind_extras();
 
-        // Keyframes pass-through.
+        // Keyframes pass-through. The qpos/qvel layout was filled in lock-step
+        // with body/joint creation (`materialize_body`), so it already follows
+        // MuJoCo's generalized-coordinate order.
         self.robot.keyframes = self.model.keyframes.clone();
+        self.robot.base_shift = self.options.shift;
 
         // Contact data pass-through (resolved into hooks at insert time).
         self.robot.contact_excludes = self.model.contact.excludes.clone();
@@ -210,7 +219,16 @@ impl<'a> Conversion<'a> {
                 );
             }
             // Free body — no rapier joint, body is dynamic and not constrained.
-            let _ = self.push_body_for_mjcf(mjcf_id, entry, body_world_pose, false);
+            let body_idx = self.push_body_for_mjcf(mjcf_id, entry, body_world_pose, false);
+            // A `<freejoint>` contributes a 6-DoF slot to the keyframe layout:
+            // its 7 qpos give the floating base's absolute world pose.
+            self.robot.qpos_dofs.push(MjcfQposDof {
+                kind: MjcfDofKind::Free,
+                joint: None,
+                body: body_idx,
+                reference: 0.0,
+                scale: self.options.scale,
+            });
             return;
         }
 
@@ -238,6 +256,10 @@ impl<'a> Conversion<'a> {
                     link2: rb_idx,
                     joint,
                     damping_per_dof: 0.0,
+                    armature_per_dof: 0.0,
+                    spring_stiffness_per_dof: 0.0,
+                    spring_ref: 0.0,
+                    springdamper: None,
                 });
             }
             return;
@@ -265,21 +287,52 @@ impl<'a> Conversion<'a> {
             // joint's pos/axis encodes the geometric DoF.
             let cur_world_pose = body_world_pose;
             let joint = self.build_serial_joint(j, prev_world_pose, cur_world_pose);
-            // Per-DoF damping: applied uniformly across the joint's free
-            // DoFs. The `disable_joint_motors` option intentionally does
-            // NOT affect this — per-DoF damping is not a motor, it's a
-            // friction-like term on the dynamics equations.
-            let damping_per_dof = if let Some(sd) = j.springdamper {
-                let timeconst = sd[0];
-                let dampratio = sd[1];
-                if timeconst > 0.0 {
-                    let omega = std::f64::consts::TAU / timeconst;
-                    (2.0 * dampratio * omega) as Real
-                } else {
-                    0.0
+
+            // MuJoCo's `<joint springdamper="timeconst dampratio">` requests a
+            // spring with that time constant and damping ratio; the actual
+            // stiffness/damping depend on the assembled joint-space inertia, so
+            // they're resolved post-assembly (see `add_springdamper_to_multibody`).
+            // MuJoCo requires both values strictly positive (it errors
+            // otherwise); we warn-and-ignore an out-of-spec pair. A valid
+            // springdamper overrides the explicit stiffness/damping.
+            let springdamper = match j.springdamper {
+                Some(sd) if sd[0] > 0.0 && sd[1] > 0.0 => Some((sd[0] as Real, sd[1] as Real)),
+                Some(_) => {
+                    log::warn!(
+                        "<joint name={:?}>: springdamper needs two positive values \
+                         (timeconst dampratio); ignoring it (MuJoCo rejects this)",
+                        j.name
+                    );
+                    None
                 }
+                None => None,
+            };
+
+            // Per-DoF damping: applied uniformly across the joint's free DoFs.
+            // The `disable_joint_motors` option intentionally does NOT affect
+            // this — per-DoF damping is not a motor, it's a friction-like term
+            // on the dynamics equations. A valid `springdamper` supplies its own
+            // damping post-assembly, so it overrides `<joint damping>` here.
+            let damping_per_dof = if springdamper.is_some() {
+                0.0
             } else {
                 j.damping as Real
+            };
+            // Armature (reflected rotor inertia) is routed into the multibody's
+            // generalized mass matrix at insertion time rather than baked into
+            // the link's spatial inertia — see `MjcfJoint::armature_per_dof`.
+            let armature_per_dof = j.armature.max(0.0) as Real;
+            // Passive spring carried so the multibody path can integrate it
+            // implicitly (a valid `springdamper` overrides `<joint stiffness>`,
+            // leaving this 0 and supplying the stiffness post-assembly). A
+            // spring is *not* a motor, so it is deliberately independent of
+            // `disable_joint_motors` / `SKIP_JOINT_MOTORS`; use
+            // `SKIP_JOINT_SPRINGS` to drop it.
+            let spring_ref = (j.springref - j.ref_) as Real;
+            let spring_stiffness_per_dof = if springdamper.is_none() && j.stiffness > 0.0 {
+                j.stiffness as Real
+            } else {
+                0.0
             };
             self.robot.joints.push(MjcfJoint {
                 name: j.name.clone(),
@@ -287,7 +340,29 @@ impl<'a> Conversion<'a> {
                 link2: cur_rapier,
                 joint,
                 damping_per_dof,
+                armature_per_dof,
+                spring_stiffness_per_dof,
+                spring_ref,
+                springdamper,
             });
+            // Record this joint's slot in the keyframe `qpos`/`qvel` layout
+            // (Free is filtered out above; the synthesized fixed joints created
+            // for jointless bodies are 0-DoF and likewise contribute nothing).
+            let dof_kind = match j.type_ {
+                mb::JointType::Hinge => Some(MjcfDofKind::Hinge),
+                mb::JointType::Slide => Some(MjcfDofKind::Slide),
+                mb::JointType::Ball => Some(MjcfDofKind::Ball),
+                mb::JointType::Free => None,
+            };
+            if let Some(kind) = dof_kind {
+                self.robot.qpos_dofs.push(MjcfQposDof {
+                    kind,
+                    joint: Some(self.robot.joints.len() - 1),
+                    body: cur_rapier,
+                    reference: j.ref_ as Real,
+                    scale: self.options.scale,
+                });
+            }
             prev_rapier = cur_rapier;
             prev_world_pose = cur_world_pose;
         }
@@ -524,6 +599,132 @@ impl<'a> Conversion<'a> {
                         });
                     }
                 }
+                MjcfEquality::Joint(j) => self.materialize_joint_equality(j),
+                MjcfEquality::Tendon(t) => {
+                    // `<equality><tendon>` pins a tendon length (or couples two
+                    // tendons). No menagerie model uses it — fixed-tendon joint
+                    // coupling there is expressed with `<equality><joint>`
+                    // instead — so it's not yet materialized.
+                    log::warn!(
+                        "<equality><tendon name={:?}>: tendon length equality is not yet \
+                         supported; skipping",
+                        t.common.name
+                    );
+                }
+            }
+        }
+    }
+
+    /// `<equality><joint>`: resolve the linear (first-order) coupling
+    /// `q2 = polycoef[1]·q1 + polycoef[0]` between two joints and record it for
+    /// the multibody insertion pass. The MJCF polynomial is in `(q − ref)`, but
+    /// rapier joint coordinates already subtract `ref`, so the reference terms
+    /// cancel and the relation is exactly `q2 = polycoef[1]·q1 + polycoef[0]`.
+    fn materialize_joint_equality(&mut self, j: &MjcfEqualityJointDef) {
+        if j.polycoef[2] != 0.0 || j.polycoef[3] != 0.0 || j.polycoef[4] != 0.0 {
+            log::warn!(
+                "<equality><joint name={:?}>: only a linear polycoef is supported; \
+                 higher-order terms are ignored",
+                j.common.name
+            );
+        }
+        let Some(joint2_name) = j.joint2.as_deref() else {
+            log::warn!(
+                "<equality><joint name={:?}>: the single-joint form (joint2 omitted) is \
+                 unsupported; skipping",
+                j.common.name
+            );
+            return;
+        };
+        let (Some(joint1), Some(joint2)) = (
+            self.robot.joint_name_to_idx.get(&j.joint1).copied(),
+            self.robot.joint_name_to_idx.get(joint2_name).copied(),
+        ) else {
+            log::warn!(
+                "<equality><joint name={:?}>: unknown joint1 {:?} or joint2 {:?}; skipping",
+                j.common.name,
+                j.joint1,
+                joint2_name,
+            );
+            return;
+        };
+        self.robot.joint_couplings.push(MjcfJointCoupling {
+            joint1,
+            joint2,
+            coeff: j.polycoef[1] as Real,
+            offset: j.polycoef[0] as Real,
+            active: j.common.active,
+        });
+    }
+
+    /// Resolve a fixed tendon's `(joint, coef)` terms to `(rapier-joint-index,
+    /// coef)`, dropping (with a warning) joints rapier doesn't have a 1-DoF
+    /// joint for.
+    fn resolve_tendon_joints(&self, t: &mjcf_rs::tendon::FixedTendon) -> Vec<(usize, Real)> {
+        t.joints
+            .iter()
+            .filter_map(|term| {
+                match self.robot.joint_name_to_idx.get(&term.joint).copied() {
+                    Some(idx) => Some((idx, term.coef as Real)),
+                    None => {
+                        log::warn!(
+                            "<tendon name={:?}>: unknown joint \"{}\"; ignoring this term",
+                            t.name,
+                            term.joint,
+                        );
+                        None
+                    }
+                }
+            })
+            .collect()
+    }
+
+    /// The rapier-joint index a `tendon=` actuator should drive: the first
+    /// resolvable joint of the named fixed tendon (its other joints are dragged
+    /// along by the co-actuation couplings from [`Self::materialize_tendons`]).
+    fn tendon_primary_joint(&self, tendon_name: &str) -> Option<usize> {
+        let t = self
+            .model
+            .tendons
+            .iter()
+            .find(|t| t.name.as_deref() == Some(tendon_name))?;
+        self.resolve_tendon_joints(t).first().map(|&(idx, _)| idx)
+    }
+
+    /// A fixed tendon couples its joints only through being actuated/loaded as
+    /// one unit (MuJoCo applies the actuator/passive force `coefᵢ·f` to each
+    /// joint). Rapier has no tendon transmission, so we approximate this by
+    /// coupling each joint `k ≥ 1` to the first joint: `q_k = (coef_k/coef_0)·q_0`.
+    /// That is exact when the joints have equal inertia (the case for every
+    /// menagerie fixed tendon, whose coefficients are equal), and makes e.g.
+    /// the shadow hand's middle+distal finger segments curl together.
+    ///
+    /// Pairs already coupled by an explicit `<equality><joint>` (franka,
+    /// robotiq) are left alone, and single-joint tendons need no coupling.
+    fn materialize_tendons(&mut self) {
+        for t in &self.model.tendons {
+            let joints = self.resolve_tendon_joints(t);
+            let Some(&(idx0, c0)) = joints.first() else {
+                continue;
+            };
+            if c0 == 0.0 {
+                continue;
+            }
+            for &(idxk, ck) in &joints[1..] {
+                let already_coupled = self.robot.joint_couplings.iter().any(|c| {
+                    (c.joint1 == idx0 && c.joint2 == idxk)
+                        || (c.joint1 == idxk && c.joint2 == idx0)
+                });
+                if already_coupled {
+                    continue;
+                }
+                self.robot.joint_couplings.push(MjcfJointCoupling {
+                    joint1: idx0,
+                    joint2: idxk,
+                    coeff: ck / c0,
+                    offset: 0.0,
+                    active: true,
+                });
             }
         }
     }
@@ -638,16 +839,32 @@ impl<'a> Conversion<'a> {
                     }
                 },
                 None => {
-                    if a.tendon.is_some() {
-                        // Tendons are out of scope; not actionable. No warning.
-                    } else if a.body.is_none() && a.site.is_none() {
-                        log::warn!(
-                            "<actuator name={:?}>: no `joint=`, `tendon=`, `body=`, or `site=` \
-                             reference; actuator will be recorded but apply_controls() will skip it",
-                            a.name,
-                        );
+                    if let Some(tendon_name) = a.tendon.as_deref() {
+                        // Drive the fixed tendon through its primary joint; the
+                        // other joints follow via the co-actuation couplings
+                        // installed by `materialize_tendons`. (Spatial tendons
+                        // resolve to no joint and stay unbound.)
+                        match self.tendon_primary_joint(tendon_name) {
+                            Some(idx) => Some(idx),
+                            None => {
+                                log::warn!(
+                                    "<actuator name={:?} tendon=\"{tendon_name}\">: unknown or \
+                                     spatial tendon (no usable joint); apply_controls() will skip it",
+                                    a.name,
+                                );
+                                None
+                            }
+                        }
+                    } else {
+                        if a.body.is_none() && a.site.is_none() {
+                            log::warn!(
+                                "<actuator name={:?}>: no `joint=`, `tendon=`, `body=`, or `site=` \
+                                 reference; actuator will be recorded but apply_controls() will skip it",
+                                a.name,
+                            );
+                        }
+                        None
                     }
-                    None
                 }
             };
             self.robot.actuators.push(MjcfActuatorBinding {
