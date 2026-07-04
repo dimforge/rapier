@@ -4,13 +4,9 @@ Getting started
 Install
 -------
 
-Each ``(dim, scalar)`` flavor is its own PyPI package. Install the one you
-need::
+Install the ``rapier3d`` package (3D, f32) from PyPI::
 
-    pip install rapier3d        # 3D, f32 (the common case)
-    pip install rapier2d        # 2D, f32
-    pip install rapier3d-f64    # 3D, f64
-    pip install rapier2d-f64    # 2D, f64
+    pip install rapier3d
 
 Wheels are ``abi3`` (Python ≥ 3.9) and are published for Linux
 (manylinux + musllinux, x86_64 + aarch64), macOS (arm64), and
@@ -69,7 +65,6 @@ flow is also available and matches the Rust API.
 What to read next
 -----------------
 
-* :doc:`dim_scalar` — how to pick a ``(dim, scalar)`` flavor.
 * :doc:`api/dynamics` — rigid bodies, mass, integration.
 * :doc:`api/pipeline` — stepping a world manually & query pipelines.
 * :doc:`api/joints` — impulse + multibody joints, motors, limits.

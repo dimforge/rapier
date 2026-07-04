@@ -1,10 +1,8 @@
 Loaders
 =======
 
-Loaders for external scene formats. All three are **3D-only / f32**:
-the upstream ``rapier3d-urdf``, ``rapier3d-meshloader``, and
-``rapier3d-mjcf`` crates are 3D-only and have no ``-f64`` variant, so
-the loaders are registered solely by the f32-3D ``rapier3d`` cdylib.
+Loaders for external scene formats, backed by the upstream
+``rapier3d-urdf``, ``rapier3d-meshloader``, and ``rapier3d-mjcf`` crates.
 
 URDF
 ----

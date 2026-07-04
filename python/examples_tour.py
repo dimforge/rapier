@@ -9,9 +9,7 @@ Requires the testbed to be installed (``python/dev.sh testbed``, or
 ``pip install --no-deps -e ./python/rapier-testbed``).
 
 Usage:
-    python python/examples_tour.py            # all examples (2D, then 3D)
-    python python/examples_tour.py 2d         # only 2D examples
-    python python/examples_tour.py 3d         # only 3D examples
+    python python/examples_tour.py            # all (3D) examples
     python python/examples_tour.py --list     # print the example modules and exit
     python python/examples_tour.py --start NAME   # begin at the first module
                                                   # whose name contains NAME
@@ -24,35 +22,25 @@ import subprocess
 import sys
 
 
-def example_modules(which: str) -> list[str]:
+def example_modules() -> list[str]:
     """Fully-qualified module names for every runnable testbed example."""
-    subs = {
-        "2d": ["examples2"],
-        "3d": ["examples3"],
-        "all": ["examples2", "examples3"],
-    }[which]
     mods: list[str] = []
-    for sub in subs:
-        pkg = __import__(f"rapier_testbed.{sub}", fromlist=["_"])
-        for info in pkgutil.walk_packages(pkg.__path__, prefix=f"rapier_testbed.{sub}."):
-            leaf = info.name.rsplit(".", 1)[-1]
-            if info.ispkg or leaf == "utils" or ".utils." in info.name:
-                continue
-            mods.append(info.name)
-    # "examples2" sorts before "examples3", so this keeps 2D ahead of 3D.
+    pkg = __import__("rapier_testbed.examples3", fromlist=["_"])
+    for info in pkgutil.walk_packages(pkg.__path__, prefix="rapier_testbed.examples3."):
+        leaf = info.name.rsplit(".", 1)[-1]
+        if info.ispkg or leaf == "utils" or ".utils." in info.name:
+            continue
+        mods.append(info.name)
     return sorted(mods)
 
 
 def main(argv: list[str]) -> int:
-    which = "all"
     list_only = False
     start_at: str | None = None
     i = 0
     while i < len(argv):
         a = argv[i]
-        if a in ("2d", "3d", "all"):
-            which = a
-        elif a in ("-l", "--list"):
+        if a in ("-l", "--list"):
             list_only = True
         elif a == "--start":
             i += 1
@@ -69,7 +57,7 @@ def main(argv: list[str]) -> int:
         i += 1
 
     try:
-        mods = example_modules(which)
+        mods = example_modules()
     except ModuleNotFoundError:
         print(
             "rapier_testbed is not installed.\n"
@@ -99,7 +87,7 @@ def main(argv: list[str]) -> int:
 
     total = len(mods)
     print(
-        f"Touring {total} example(s) [{which}]. "
+        f"Touring {total} example(s). "
         "Close each window (Esc) to advance; Ctrl-C here to stop.\n",
         flush=True,
     )

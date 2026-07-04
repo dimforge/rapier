@@ -1,8 +1,4 @@
-"""3D serialization, snapshots, pickle.
-
-Parametrized across the f32 (`rapier.dim3`) and f64 (`rapier.dim3.f64`)
-flavors.
-"""
+"""3D serialization, snapshots, pickle (f32)."""
 
 from __future__ import annotations
 
@@ -11,10 +7,9 @@ import pickle
 import pytest
 
 import rapier3d as dim3
-import rapier3d_f64 as dim3_f64
 
 
-@pytest.fixture(params=[dim3, dim3_f64], ids=["f32", "f64"])
+@pytest.fixture(params=[dim3], ids=["f32"])
 def ns(request):
     return request.param
 

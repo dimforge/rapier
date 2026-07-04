@@ -1,58 +1,75 @@
 //! `_rapier3d` — PyO3 extension module for rapier3d (3D, f32).
+//!
+//! This crate is a single, concrete 3D/f32 binding. (It was previously split
+//! into a `rapier-py-core` macro layer plus per-dimension cdylibs; with only
+//! the 3D f32 flavor remaining, everything lives here as ordinary modules.)
+
+// pyo3 0.22's `#[pymethods]` macro emits `unsafe fn` wrappers whose bodies call
+// pyo3-internal unsafe functions without an inner `unsafe {}` block. Under the
+// 2024 edition that trips `unsafe_op_in_unsafe_fn`. The calls are pyo3-internal
+// and correct; the previous macro-based layout hid them via macro hygiene.
+#![allow(unsafe_op_in_unsafe_fn)]
+// These modules are a faithful, mechanical de-macroization of the former
+// `rapier-py-core` macro layer. Clippy never lint-checked the macro-expanded
+// code (it skips external-macro output), so the same code now surfaces
+// warnings it did not before. The flagged patterns are all intentional:
+//   - SCREAMING_CASE enum variants and methods map 1:1 to Python enum members
+//     and factory names — renaming them would break the public Python API.
+//   - `new`-returning-a-builder, `to_/from_rapier` conventions, and boxed-fn
+//     signature types are pyo3 idioms.
+//   - the leftover identity `.into()`s come from the f64→f32 flavor collapse.
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::wrong_self_convention)]
+#![allow(clippy::new_ret_no_self)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::field_reassign_with_default)]
+#![allow(clippy::redundant_closure_call)]
+#![allow(clippy::redundant_locals)]
+
+// Re-export the crate dependencies so the modules can refer to them via stable
+// `crate::…` paths (a holdover from the former macro layer, kept intentional).
+pub use bincode;
+pub use nalgebra as na;
+pub use numpy;
+pub use pyo3;
+pub use serde_json;
+
+pub mod conv;
+pub mod errors;
+pub mod serde_io;
+
+pub mod controllers;
+pub mod debug_render;
+pub mod dynamics;
+pub mod events_hooks;
+pub mod geometry;
+pub mod joints;
+pub mod loaders;
+pub mod math;
+pub mod pipeline;
+pub mod serde_glue;
+
+pub use controllers::*;
+pub use conv::*;
+pub use debug_render::*;
+pub use dynamics::*;
+pub use errors::*;
+pub use events_hooks::*;
+pub use geometry::*;
+pub use joints::*;
+pub use loaders::*;
+pub use math::*;
+pub use pipeline::*;
 
 use pyo3::prelude::*;
-
-// Bring the rapier engine into the cdylib's namespace under the alias
-// `rapier` so the dynamics macro (which uses `rapier::...` paths) compiles.
-use rapier3d as rapier;
-
-// Materialize the dim-/scalar-specific conversion adapter newtypes
-// (`PyVector`, `PyPoint`, `PyRotation`, `PyIsometry`, `PyAngVector`) plus the
-// `Real`/`DIM` aliases in this crate's namespace.
-rapier_py_core::define_conv_types!(Real = f32, DIM = 3);
-
-// Materialize the user-facing math `#[pyclass]` types and the
-// `register_math` function used below.
-rapier_py_core::define_math_types!(DIM = 3);
-
-// Materialize the geometry `#[pyclass]` types (must come BEFORE
-// `define_dynamics_types!` because dynamics references
-// `ColliderHandle`/`ColliderSet`).
-rapier_py_core::define_geometry_types!(DIM = 3);
-
-// Materialize the joint `#[pyclass]` types. Must come BEFORE
-// `define_dynamics_types!` because the dynamics macro references
-// `ImpulseJointSet` / `MultibodyJointSet` in `RigidBodySet::remove`.
-rapier_py_core::define_joints_types!(DIM = 3);
-
-// Materialize the dynamics `#[pyclass]` types and `register_dynamics`.
-rapier_py_core::define_dynamics_types!(DIM = 3);
-
-// Materialize the pipeline / query `#[pyclass]` types.
-rapier_py_core::define_pipeline_types!(DIM = 3);
-
-// Materialize the event-handler / physics-hooks `#[pyclass]` types.
-rapier_py_core::define_events_hooks_types!(DIM = 3);
-
-// Materialize the loader `#[pyclass]` types. 3D-only.
-rapier_py_core::define_loaders_types!(DIM = 3);
-
-// Materialize the controller `#[pyclass]` types.
-rapier_py_core::define_controllers_types!(DIM = 3);
-
-// Materialize the debug-render `#[pyclass]` types.
-rapier_py_core::define_debug_render_types!(DIM = 3);
-
-// Serialization, snapshots. Must run AFTER every other
-// `define_*_types!` because it adds additional `#[pymethods]` blocks on the
-// existing pyclasses (relies on pyo3's `multiple-pymethods` feature).
-rapier_py_core::define_serde_types!(DIM = 3);
 
 const RAPIER_PY_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[pymodule]
 fn _rapier3d(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    rapier_py_core::errors::register_errors(py, m)?;
+    errors::register_errors(py, m)?;
     register_math(py, m)?;
     register_geometry(py, m)?;
     register_joints(py, m)?;

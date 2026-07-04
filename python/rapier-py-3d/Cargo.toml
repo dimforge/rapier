@@ -16,7 +16,12 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [lints]
-rust.unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rapier_py_determinism)'] }
+# pyo3 0.22's `create_exception!` macro still references `cfg(feature = "gil-refs")`
+# which this crate doesn't have; mute that check alongside our own determinism cfg.
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(rapier_py_determinism)',
+    'cfg(feature, values("gil-refs"))',
+] }
 
 [features]
 # Phase 11 — opt-in build flag. When enabled, rapier is compiled with
@@ -28,7 +33,9 @@ determinism = ["rapier3d/enhanced-determinism"]
 
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multiple-pymethods"] }
-rapier-py-core = { path = "../rapier-py-core" }
+numpy = "0.22"
+nalgebra.workspace = true
+thiserror.workspace = true
 rapier3d = { path = "../../crates/rapier3d", features = ["serde-serialize", "debug-render", "simd-stable"] }
 # Phase 09 — Loaders. URDF + MJCF + mesh. Mesh-loader features are
 # explicitly enabled so .stl / .obj / .dae meshes referenced from URDF /

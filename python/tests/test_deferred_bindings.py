@@ -2,10 +2,9 @@
 
 Covers the items deferred from the first coverage pass:
 
-* ``RevoluteJoint.angle`` (2D + 3D).
+* ``RevoluteJoint.angle`` (3D).
 * extra shape constructors: ``round_triangle``, ``round_convex_hull``,
   ``voxels`` / ``voxels_from_points``, ``convex_mesh`` (3D),
-  ``convex_polyline`` / ``round_convex_polyline`` (2D),
   ``converted_trimesh``, and ``MeshConverter.CONVEX_DECOMPOSITION``.
 * URDF / MJCF ``collider_blueprint`` / ``rigid_body_blueprint`` and the
   MJCF ``contact_filter_mode`` (``ContactFilterMode``).
@@ -21,21 +20,13 @@ import math
 
 import pytest
 
-import rapier2d as dim2
 import rapier3d as dim3
-import rapier2d_f64 as dim2_f64
-import rapier3d_f64 as dim3_f64
 from rapier3d.loaders import mjcf as mjcf_loader
 from rapier3d.loaders import urdf as urdf_loader
 
 
-@pytest.fixture(params=[dim3, dim3_f64], ids=["f32", "f64"])
+@pytest.fixture(params=[dim3], ids=["f32"])
 def ns(request):
-    return request.param
-
-
-@pytest.fixture(params=[dim2, dim2_f64], ids=["2d-f32", "2d-f64"])
-def ns2(request):
     return request.param
 
 
@@ -51,20 +42,12 @@ def test_revolute_angle_3d(ns):
     assert j.angle(rot1, rot2) == pytest.approx(math.radians(30), abs=1e-4)
 
 
-def test_revolute_angle_2d(ns2):
-    j = ns2.RevoluteJoint.builder().build()
-    rot1 = ns2.Rotation2.identity()
-    rot2 = ns2.Rotation2.from_angle(math.radians(20))
-    assert j.angle(rot1, rot2) == pytest.approx(math.radians(20), abs=1e-4)
-
-
 # --------------------------------------------------------------------------
 # shape constructors
 # --------------------------------------------------------------------------
 
 _TET = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
 _TET_IDX = [[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]
-_QUAD = [(0, 0), (1, 0), (1, 1), (0, 1)]
 
 
 def test_round_triangle(ns):
@@ -91,18 +74,6 @@ def test_voxels_3d(ns):
     assert s2.shape_type == ns.ShapeType.VOXELS
 
 
-def test_convex_polyline_2d(ns2):
-    s = ns2.SharedShape.convex_polyline(_QUAD)
-    assert s.shape_type == ns2.ShapeType.CONVEX_POLYGON
-    s2 = ns2.SharedShape.round_convex_polyline(_QUAD, 0.05)
-    assert s2.shape_type == ns2.ShapeType.ROUND_CONVEX_POLYGON
-
-
-def test_voxels_2d(ns2):
-    s = ns2.SharedShape.voxels((0.5, 0.5), [(0, 0), (1, 0), (0, 1)])
-    assert s.shape_type == ns2.ShapeType.VOXELS
-
-
 def test_collider_shape_ctors_3d(ns):
     ns.Collider.round_triangle((0, 0, 0), (1, 0, 0), (0, 1, 0), 0.1).build()
     ns.Collider.round_convex_hull(_TET, 0.05).build()
@@ -110,12 +81,6 @@ def test_collider_shape_ctors_3d(ns):
     ns.Collider.round_convex_mesh(_TET, _TET_IDX, 0.05).build()
     ns.Collider.voxels((0.5, 0.5, 0.5), [(0, 0, 0), (1, 0, 0)]).build()
     ns.Collider.voxels_from_points((0.5, 0.5, 0.5), [(0, 0, 0), (0.9, 0, 0)]).build()
-
-
-def test_collider_shape_ctors_2d(ns2):
-    ns2.Collider.convex_polyline(_QUAD).build()
-    ns2.Collider.round_convex_polyline(_QUAD, 0.05).build()
-    ns2.Collider.voxels((0.5, 0.5), [(0, 0), (1, 0)]).build()
 
 
 def test_converted_trimesh(ns):
@@ -130,8 +95,6 @@ def test_converted_trimesh(ns):
 
 def test_mesh_converter_convex_decomposition_is_3d_only():
     assert hasattr(dim3.MeshConverter, "CONVEX_DECOMPOSITION")
-    assert hasattr(dim3_f64.MeshConverter, "CONVEX_DECOMPOSITION")
-    assert not hasattr(dim2.MeshConverter, "CONVEX_DECOMPOSITION")
 
 
 # --------------------------------------------------------------------------
@@ -208,7 +171,7 @@ def test_multibody_body_jacobian_shape(ns):
     w.step()  # populate jacobians
     mb = w.multibody_joints.multibody(handle)
     jac = mb.body_jacobian(1)
-    rows = 6 if ns in (dim3, dim3_f64) else 3
+    rows = 6
     assert len(jac) == rows
     assert all(len(r) == mb.ndofs for r in jac)
 

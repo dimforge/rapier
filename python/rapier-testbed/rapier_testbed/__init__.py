@@ -56,8 +56,7 @@ def _autoload_bundled_examples() -> None:
     """
     import importlib
 
-    # New examples ported from ``examples3d/`` / ``examples2d/`` should
-    # extend this list.
+    # New examples ported from ``examples3d/`` should extend this list.
     _bundled = (
         "rapier_testbed.examples3.primitives3",
         # ── 3D examples (first half) ────────────────────────────────
@@ -114,51 +113,6 @@ def _autoload_bundled_examples() -> None:
         "rapier_testbed.examples3.stress_tests.ray_cast3",
         "rapier_testbed.examples3.stress_tests.stacks3",
         "rapier_testbed.examples3.stress_tests.trimesh3",
-        # ── 2D examples ─────────────────────────────────────────────
-        "rapier_testbed.examples2.add_remove2",
-        "rapier_testbed.examples2.drum2",
-        "rapier_testbed.examples2.inv_pyramid2",
-        "rapier_testbed.examples2.platform2",
-        "rapier_testbed.examples2.pyramid2",
-        "rapier_testbed.examples2.sensor2",
-        "rapier_testbed.examples2.convex_polygons2",
-        "rapier_testbed.examples2.heightfield2",
-        "rapier_testbed.examples2.polyline2",
-        "rapier_testbed.examples2.trimesh2",
-        "rapier_testbed.examples2.voxels2",
-        "rapier_testbed.examples2.collision_groups2",
-        "rapier_testbed.examples2.one_way_platforms2",
-        "rapier_testbed.examples2.locked_rotations2",
-        "rapier_testbed.examples2.restitution2",
-        "rapier_testbed.examples2.damping2",
-        "rapier_testbed.examples2.ccd2",
-        "rapier_testbed.examples2.joints2",
-        "rapier_testbed.examples2.rope_joints2",
-        "rapier_testbed.examples2.pin_slot_joint2",
-        "rapier_testbed.examples2.joint_motor_position2",
-        "rapier_testbed.examples2.inverse_kinematics2",
-        "rapier_testbed.examples2.character_controller2",
-        "rapier_testbed.examples2.s2d_high_mass_ratio_1",
-        "rapier_testbed.examples2.s2d_high_mass_ratio_2",
-        "rapier_testbed.examples2.s2d_high_mass_ratio_3",
-        "rapier_testbed.examples2.s2d_confined",
-        "rapier_testbed.examples2.s2d_pyramid",
-        "rapier_testbed.examples2.s2d_card_house",
-        "rapier_testbed.examples2.s2d_arch",
-        "rapier_testbed.examples2.s2d_bridge",
-        "rapier_testbed.examples2.s2d_ball_and_chain",
-        "rapier_testbed.examples2.s2d_joint_grid",
-        "rapier_testbed.examples2.s2d_far_pyramid",
-        "rapier_testbed.examples2.stress_tests.balls2",
-        "rapier_testbed.examples2.stress_tests.boxes2",
-        "rapier_testbed.examples2.stress_tests.capsules2",
-        "rapier_testbed.examples2.stress_tests.convex_polygons2",
-        "rapier_testbed.examples2.stress_tests.heightfield2",
-        "rapier_testbed.examples2.stress_tests.pyramid2",
-        "rapier_testbed.examples2.stress_tests.vertical_stacks2",
-        "rapier_testbed.examples2.stress_tests.joint_ball2",
-        "rapier_testbed.examples2.stress_tests.joint_fixed2",
-        "rapier_testbed.examples2.stress_tests.joint_prismatic2",
     )
     for mod in _bundled:
         importlib.import_module(mod)

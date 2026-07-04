@@ -1,23 +1,16 @@
-"""Make pyo3 pyclasses picklable from the correct dim/scalar namespace.
+"""Make pyo3 pyclasses picklable from the correct module namespace.
 
-The PyO3 macros that emit all `rapier` pyclasses set `module = "rapier"` on
-every class declaration. Since the four cdylibs (`_rapier2d`, `_rapier2d_f64`,
-`_rapier3d`, `_rapier3d_f64`) each define their own copy of (e.g.)
-`MassProperties` but all four share `__module__ == "rapier"`, Python's
-default pickling cannot disambiguate which flavor to restore: pickle would
-fetch `rapier.MassProperties` (== the default 3D-f32 flavor) and reject
-non-matching pyclass instances with `PicklingError: it's not the same object
+The PyO3 macros that emit the `rapier` pyclasses set `module = "rapier"` on
+every class declaration, but the extension is imported as `rapier3d`. Left
+unpatched, Python's pickling would look classes up under the wrong module
+path and reject the instances with `PicklingError: it's not the same object
 as rapier.MassProperties`.
 
 To fix this without rewriting the macros, we patch `__module__` on every
-exported class at import time so that each flavor's classes declare the
-right module path:
-  - `rapier.dim2.MassProperties.__module__ = "rapier.dim2"`
-  - `rapier.dim2.f64.MassProperties.__module__ = "rapier.dim2.f64"`
-  - `rapier.dim3.MassProperties.__module__ = "rapier.dim3"`
-  - `rapier.dim3.f64.MassProperties.__module__ = "rapier.dim3.f64"`
+exported class at import time so it declares the real module path:
+  - `rapier3d.MassProperties.__module__ = "rapier3d"`
 
-Pickle then resolves each instance to its actual flavor.
+Pickle then resolves each instance correctly.
 """
 
 from __future__ import annotations

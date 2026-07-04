@@ -9,9 +9,9 @@ implements ``init_world(testbed: Testbed) -> None`` which builds a
 parameters, physics pipeline) and steps it each frame.
 
 Visualization uses :class:`DebugRenderPipeline` + :class:`DebugLineCollector`
-to extract a ``(N, 2, D)`` array of line segments and an ``(N, 4)`` array of
+to extract a ``(N, 2, 3)`` array of line segments and an ``(N, 4)`` array of
 RGBA colors each frame; these are uploaded into a Panda3D :class:`LineSegs`
-geometry attached to the scene root (``render`` in 3D, ``aspect2d`` in 2D).
+geometry attached to the scene root (``render``).
 
 Headless mode is selected by setting ``PANDA_NO_WINDOW=1`` in the
 environment — the testbed then runs ``N`` (default 60) physics steps
@@ -21,7 +21,6 @@ without opening a window, then returns. This is the mode used by the
 
 from __future__ import annotations
 
-import math
 import os
 import time
 from collections import deque
@@ -30,7 +29,6 @@ from typing import Any, Callable, Deque, List, Optional, Tuple, TYPE_CHECKING, U
 import numpy as np
 
 import rapier3d as _rp3
-import rapier2d as _rp2
 
 if TYPE_CHECKING:  # pragma: no cover
     # Imported lazily inside __init__; this is for type-checkers only.
@@ -38,14 +36,12 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 _DEFAULT_GRAVITY_3D: Tuple[float, float, float] = (0.0, -9.81, 0.0)
-_DEFAULT_GRAVITY_2D: Tuple[float, float] = (0.0, -9.81)
 _HEADLESS_ENV_VAR: str = "PANDA_NO_WINDOW"
 _HEADLESS_STEPS_DEFAULT: int = 60
 
 
 CallbackFn = Callable[["Testbed"], None]
 Vec3Like = Union[Tuple[float, float, float], Any]
-Vec2Like = Union[Tuple[float, float], Any]
 
 
 class _Arcball:
@@ -219,9 +215,6 @@ class Testbed:
 
     Parameters
     ----------
-    dim:
-        ``2`` for a 2D scene (orthographic camera, XY plane) or ``3`` for a
-        3D scene (perspective camera + arcball mouse). Defaults to 3.
     headless:
         Force headless mode. When ``None`` (the default), the
         ``PANDA_NO_WINDOW`` environment variable is consulted.
@@ -239,7 +232,6 @@ class Testbed:
 
     def __init__(
         self,
-        dim: int = 3,
         *,
         headless: Optional[bool] = None,
         headless_steps: int = _HEADLESS_STEPS_DEFAULT,
@@ -248,7 +240,6 @@ class Testbed:
     ) -> None:
         """Construct a testbed.
 
-        :param dim: 2 or 3.
         :param headless: skip window creation if True.
         :param headless_steps: number of frames to run in headless mode.
         :param base: existing Panda3D ``ShowBase`` to reuse. **Required
@@ -259,10 +250,7 @@ class Testbed:
             for ``python -m rapier_testbed.examples3.<name>`` direct
             launches and headless runs).
         """
-        if dim not in (2, 3):
-            raise ValueError(f"Testbed dim must be 2 or 3, got {dim!r}")
-        self.dim: int = dim
-        self._ns = _rp2 if dim == 2 else _rp3
+        self._ns = _rp3
         self._headless: bool = _is_headless() if headless is None else bool(headless)
         self._headless_steps: int = int(headless_steps)
 
@@ -275,7 +263,7 @@ class Testbed:
         self.colliders = ns.ColliderSet()
         self.impulse_joints = ns.ImpulseJointSet()
         self.multibody_joints = ns.MultibodyJointSet()
-        self.gravity = _DEFAULT_GRAVITY_3D if dim == 3 else _DEFAULT_GRAVITY_2D
+        self.gravity = _DEFAULT_GRAVITY_3D
         self._hooks: Optional[Any] = None
         self._event_handler: Optional[Any] = None
 
@@ -308,8 +296,6 @@ class Testbed:
         self._label_text: Any = None
         self._initial_camera_eye: Optional[Tuple[float, float, float]] = None
         self._initial_camera_at: Optional[Tuple[float, float, float]] = None
-        self._initial_2d_center: Tuple[float, float] = (0.0, 0.0)
-        self._initial_2d_zoom: float = 15.0
 
         # ---- mesh-rendering state ----------------------------------------
         # One NodePath per collider, parented to ``_mesh_root``. Each
@@ -363,7 +349,7 @@ class Testbed:
 
         Mirrors :meth:`rapier_testbed::Testbed::set_world`. Uses the
         testbed's current :attr:`gravity` (defaulting to ``(0, -9.81, 0)``
-        / ``(0, -9.81)`` if the example doesn't override it).
+        if the example doesn't override it).
         """
         self.set_world_with_params(
             bodies, colliders, impulse_joints, multibody_joints, self.gravity
@@ -431,28 +417,12 @@ class Testbed:
 
     def look_at(self, eye: Vec3Like, at: Vec3Like) -> None:
         """Position the 3D camera at ``eye`` looking at ``at``."""
-        if self.dim != 3:
-            raise RuntimeError("look_at requires a 3D testbed")
         e = _as_tuple3(eye)
         a = _as_tuple3(at)
         self._initial_camera_eye = e
         self._initial_camera_at = a
         if self._base is not None:
             self._apply_camera_3d(e, a)
-
-    def set_camera_2d(self, center: Vec2Like = (0.0, 0.0), zoom: float = 15.0) -> None:
-        """Position the 2D orthographic camera.
-
-        ``zoom`` is pixels per world unit (matching the Rust testbed's
-        ``look_at(at, zoom)``); the visible world height is ``600 / zoom``.
-        """
-        if self.dim != 2:
-            raise RuntimeError("set_camera_2d requires a 2D testbed")
-        c = _as_tuple2(center)
-        self._initial_2d_center = c
-        self._initial_2d_zoom = float(zoom)
-        if self._base is not None:
-            self._apply_camera_2d(c, float(zoom))
 
     # =====================================================================
     # Example lifecycle
@@ -469,7 +439,7 @@ class Testbed:
         self.colliders = ns.ColliderSet()
         self.impulse_joints = ns.ImpulseJointSet()
         self.multibody_joints = ns.MultibodyJointSet()
-        self.gravity = _DEFAULT_GRAVITY_3D if self.dim == 3 else _DEFAULT_GRAVITY_2D
+        self.gravity = _DEFAULT_GRAVITY_3D
         self._callbacks = []
         self._step_count = 0
         self._paused = False
@@ -586,7 +556,7 @@ class Testbed:
                 continue
             color = self._color_for_collider(col)
             try:
-                geoms = _meshes.shape_to_geoms(col.shape, dim=self.dim, color_rgba=color)
+                geoms = _meshes.shape_to_geoms(col.shape, color_rgba=color)
             except Exception as exc:
                 # Unsupported shape: skip but emit a one-off warning so
                 # silent fallbacks are at least visible in the console.
@@ -633,35 +603,19 @@ class Testbed:
             # directly so we can use it unconditionally).
             iso = col.position
             t = iso.translation
-            if self.dim == 3:
-                np_group.setPos(float(t.x), float(t.y), float(t.z))
-                r = iso.rotation
-                # Panda3D LQuaternion takes (w, x, y, z) — matches Rapier.
-                np_group.setQuat(LQuaternion(float(r.w), float(r.i), float(r.j), float(r.k)))
-            else:
-                # Embed 2D world (x, y) into 3D as (x, y, 0). The 2D
-                # rotation is around the Z axis (out of the screen, with
-                # gravity pointing down on screen).
-                np_group.setPos(float(t.x), float(t.y), 0.0)
-                angle = float(iso.rotation.angle)
-                half = angle * 0.5
-                np_group.setQuat(LQuaternion(math.cos(half), 0.0, 0.0, math.sin(half)))
+            np_group.setPos(float(t.x), float(t.y), float(t.z))
+            r = iso.rotation
+            # Panda3D LQuaternion takes (w, x, y, z) — matches Rapier.
+            np_group.setQuat(LQuaternion(float(r.w), float(r.i), float(r.j), float(r.k)))
 
     def _apply_local_pose(self, np_node: Any, iso: Any) -> None:
         """Apply a sub-shape's local pose to a Compound-child NodePath."""
         from panda3d.core import LQuaternion
 
         t = iso.translation
-        if self.dim == 3:
-            np_node.setPos(float(t.x), float(t.y), float(t.z))
-            r = iso.rotation
-            np_node.setQuat(LQuaternion(float(r.w), float(r.i), float(r.j), float(r.k)))
-        else:
-            # 2D world (x, y) → 3D (x, y, 0); rotation around +Z.
-            np_node.setPos(float(t.x), float(t.y), 0.0)
-            angle = float(iso.rotation.angle)
-            half = angle * 0.5
-            np_node.setQuat(LQuaternion(math.cos(half), 0.0, 0.0, math.sin(half)))
+        np_node.setPos(float(t.x), float(t.y), float(t.z))
+        r = iso.rotation
+        np_node.setQuat(LQuaternion(float(r.w), float(r.i), float(r.j), float(r.k)))
 
     def _color_for_collider(self, col: Any) -> Tuple[float, float, float, float]:
         """Pick a per-collider color: parent-body palette when attached,
@@ -732,11 +686,10 @@ class Testbed:
         from direct.task import Task
 
         # Track tasks so ``_cleanup_scene`` removes them. Task names that
-        # weren't actually installed (no arcball / no 2D cam) just fail
-        # silently when removed.
+        # weren't actually installed (no arcball) just fail silently when
+        # removed.
         self._tracked_tasks.append("rapier-testbed-step")
         self._tracked_tasks.append("rapier-arcball-tick")
-        self._tracked_tasks.append("rapier-cam2d-tick")
 
         def _task(task: Any) -> Any:
             now = time.perf_counter()
@@ -818,9 +771,8 @@ class Testbed:
         self._mesh_nodes.clear()
         self._known_colliders.clear()
         self._mesh_root = None
-        # Reset arcball / 2D-camera bindings.
+        # Reset arcball bindings.
         self._arcball = None
-        setattr(self, "_cam2d_bound", False)
         # Status / label text already destroyed via _tracked_widgets.
         self._label_text = None
         self._status_text = None
@@ -837,7 +789,6 @@ class Testbed:
             AmbientLight,
             DirectionalLight,
             LVector3,
-            OrthographicLens,
             TextNode,
             WindowProperties,
         )
@@ -862,8 +813,6 @@ class Testbed:
         self._base.setBackgroundColor(245.0 / 255.0, 245.0 / 255.0, 236.0 / 255.0, 1.0)
 
         # ---- lighting: ambient + one directional key light ----
-        # Both 2D and 3D scenes live in `render`. 2D is embedded in the
-        # z=0 plane and viewed with an orthographic camera (set up later).
         scene_root = self._base.render
         ambient = AmbientLight("rapier-ambient")
         ambient.setColor((0.50, 0.50, 0.50, 1.0))
@@ -873,13 +822,8 @@ class Testbed:
         directional = DirectionalLight("rapier-key")
         directional.setColor((0.85, 0.85, 0.85, 1.0))
         dir_np = scene_root.attachNewNode(directional)
-        if self.dim == 3:
-            # Aim the light down-and-forward (Y-up world).
-            dir_np.setHpr(-20, -45, 0)
-        else:
-            # 2D shapes all face +Z; aim the directional straight along -Z
-            # so face-normals get fully lit.
-            dir_np.setHpr(0, 0, 0)
+        # Aim the light down-and-forward (Y-up world).
+        dir_np.setHpr(-20, -45, 0)
         scene_root.setLight(dir_np)
         self._tracked_lights.append(dir_np)
 
@@ -894,23 +838,18 @@ class Testbed:
         except Exception:  # pragma: no cover - cosmetic only
             pass
 
-        # 2D uses an orthographic main camera looking along -Z at the
-        # z=0 plane, with screen-up = +Y. Mouse-driven pan + wheel-zoom
-        # controls are wired in `_apply_camera_2d`. Lens + camera placement
-        # happen below, after the lens is fully configured.
-
         # Empty placeholder; replaced on the first `_upload_lines` call.
         self._line_node = None
         self._line_segs = None
 
-        # On-screen text overlays. ``aspect2d``'s X range is
+        # On-screen text overlays. The HUD overlay layer's X range is
         # ``[-aspect_ratio, +aspect_ratio]`` and its Y range is
         # ``[-1, +1]`` (top = +1). We pin the text just inside the
         # top-left corner by re-computing X from the current aspect
         # ratio whenever the window resizes (see
-        # ``_layout_overlay_text``). ``base.a2dTopLeft`` doesn't work
-        # for us — its position is hard-coded for Z-up and ends up at
-        # the middle-left under our Y-up coord system.
+        # ``_layout_overlay_text``). Panda's built-in top-left anchor
+        # doesn't work for us — its position is hard-coded for Z-up and
+        # ends up at the middle-left under our Y-up coord system.
         self._label_text = OnscreenText(
             text=self._example_label,
             pos=(0, 0.92),
@@ -940,18 +879,15 @@ class Testbed:
         self._tracked_widgets.extend([self._label_text, self._status_text])
 
         # Camera positioning.
-        if self.dim == 3:
-            if self._initial_camera_eye is None:
-                # Default 3D view (Y-up convention): elevated, slightly
-                # off-axis, looking down at the origin.
-                self._initial_camera_eye = (20.0, 25.0, 40.0)
-                self._initial_camera_at = (0.0, 0.0, 0.0)
-            self._apply_camera_3d(
-                self._initial_camera_eye,
-                self._initial_camera_at or (0.0, 0.0, 0.0),
-            )
-        else:
-            self._apply_camera_2d(self._initial_2d_center, self._initial_2d_zoom)
+        if self._initial_camera_eye is None:
+            # Default 3D view (Y-up convention): elevated, slightly
+            # off-axis, looking down at the origin.
+            self._initial_camera_eye = (20.0, 25.0, 40.0)
+            self._initial_camera_at = (0.0, 0.0, 0.0)
+        self._apply_camera_3d(
+            self._initial_camera_eye,
+            self._initial_camera_at or (0.0, 0.0, 0.0),
+        )
 
         # Keyboard handlers. Each digit binds three events:
         # - ``"1"`` (character event) — works on QWERTY / AZERTY-shifted etc.
@@ -988,133 +924,6 @@ class Testbed:
         else:
             self._arcball.look_at(eye, at)
 
-    def _apply_camera_2d(self, center: Tuple[float, float], zoom: float) -> None:
-        """Place the main camera so 2D worlds render in the z=0 plane.
-
-        Uses an orthographic projection: the world-X axis maps to screen-X,
-        world-Y maps to screen-Y, world-Z is the depth axis. The camera
-        sits at ``(cx, cy, +D)`` and looks toward ``(cx, cy, 0)`` with
-        screen-up = +Y. Wires up mouse pan / wheel zoom controls.
-        """
-        if self._base is None:
-            return
-        from panda3d.core import LPoint3, LVector3, OrthographicLens
-
-        cx, cy = float(center[0]), float(center[1])
-        z = float(zoom) if zoom > 1e-6 else 1.0
-
-        try:
-            self._base.disableMouse()
-        except Exception:
-            pass
-
-        # Orthographic lens. `zoom` matches the Rust testbed convention
-        # (`look_at(at, zoom)`): zoom is *pixels per world unit* against a
-        # 600px reference, so the visible world height is `600 / zoom`. (The
-        # examples pass the same zoom values as their Rust counterparts.)
-        lens = OrthographicLens()
-        film = 600.0 / z
-        try:
-            aspect = self._base.getAspectRatio()
-        except Exception:
-            aspect = 16.0 / 9.0
-        # Film width tracks the window aspect so world units stay square (no
-        # stretching). Recomputed on resize in `_cam2d_tick`.
-        lens.setFilmSize(film * aspect, film)
-        lens.setNearFar(-1000, 1000)
-        try:
-            self._base.cam.node().setLens(lens)
-        except Exception:  # pragma: no cover - fallback
-            return
-
-        # Position the camera in front of the z=0 plane, looking along -Z.
-        # The explicit `up=+Y` form requires an LPoint3 target — passing
-        # three floats doesn't accept a 4th up-vector arg.
-        cam = self._base.camera
-        cam.setPos(cx, cy, 100.0)
-        cam.lookAt(LPoint3(cx, cy, 0.0), LVector3(0, 1, 0))
-
-        # Stash for the mouse pan/zoom handlers.
-        self._cam2d_center = [cx, cy]
-        self._cam2d_zoom = z
-        self._cam2d_lens = lens
-        self._cam2d_film_height = film
-        self._cam2d_aspect = aspect
-
-        # Bind mouse pan + wheel zoom once.
-        if not getattr(self, "_cam2d_bound", False):
-            self._base.accept("mouse1", self._cam2d_press)
-            self._base.accept("mouse1-up", self._cam2d_release)
-            self._base.accept("mouse3", self._cam2d_press)
-            self._base.accept("mouse3-up", self._cam2d_release)
-            self._base.accept("wheel_up", self._cam2d_zoom_step, [-1.0])
-            self._base.accept("wheel_down", self._cam2d_zoom_step, [1.0])
-            self._base.taskMgr.add(self._cam2d_tick, "rapier-cam2d-tick")
-            self._cam2d_bound = True
-            self._cam2d_last_mouse: Optional[Tuple[float, float]] = None
-            self._cam2d_dragging: bool = False
-
-    def _cam2d_press(self) -> None:
-        if self._base is None or not self._base.mouseWatcherNode.hasMouse():
-            return
-        m = self._base.mouseWatcherNode.getMouse()
-        self._cam2d_last_mouse = (m.getX(), m.getY())
-        self._cam2d_dragging = True
-
-    def _cam2d_release(self) -> None:
-        self._cam2d_dragging = False
-        self._cam2d_last_mouse = None
-
-    def _cam2d_zoom_step(self, sign: float) -> None:
-        self._cam2d_zoom = max(0.05, self._cam2d_zoom * (1.15 ** -sign))
-        self._apply_camera_2d(tuple(self._cam2d_center), self._cam2d_zoom)
-
-    def _cam2d_tick(self, task: Any) -> Any:
-        from direct.task import Task
-        from panda3d.core import LPoint3, LVector3
-
-        if self._base is None:
-            return Task.cont
-
-        # Keep the orthographic projection square when the window is resized:
-        # the film width must follow the live window aspect, else the scene
-        # stretches. (Done here rather than via an "aspectRatioChanged" accept
-        # so we don't clobber the overlay-text resize handler on the same
-        # event.)
-        if hasattr(self, "_cam2d_lens"):
-            try:
-                aspect = self._base.getAspectRatio()
-            except Exception:
-                aspect = self._cam2d_aspect
-            if aspect > 1e-6 and abs(aspect - self._cam2d_aspect) > 1e-6:
-                self._cam2d_lens.setFilmSize(
-                    self._cam2d_film_height * aspect, self._cam2d_film_height
-                )
-                self._cam2d_aspect = aspect
-
-        if not self._cam2d_dragging or self._cam2d_last_mouse is None:
-            return Task.cont
-        if self._base is None or not self._base.mouseWatcherNode.hasMouse():
-            return Task.cont
-        m = self._base.mouseWatcherNode.getMouse()
-        cur = (m.getX(), m.getY())
-        dx = cur[0] - self._cam2d_last_mouse[0]
-        dy = cur[1] - self._cam2d_last_mouse[1]
-        self._cam2d_last_mouse = cur
-        # Convert mouse-NDC delta into world units. Mouse coords run [-1, 1]
-        # so half the film size in world units per unit NDC.
-        film_h = self._cam2d_film_height
-        film_w = film_h * self._cam2d_aspect
-        self._cam2d_center[0] -= dx * 0.5 * film_w
-        self._cam2d_center[1] -= dy * 0.5 * film_h
-        cx, cy = self._cam2d_center
-        try:
-            self._base.camera.setPos(cx, cy, 100.0)
-            self._base.camera.lookAt(LPoint3(cx, cy, 0.0), LVector3(0, 1, 0))
-        except Exception:
-            pass
-        return Task.cont
-
     # ---- keyboard handlers ----------------------------------------------
 
     def _toggle_pause(self) -> None:
@@ -1148,8 +957,9 @@ class Testbed:
     def _layout_overlay_text(self) -> None:
         """Re-pin the on-screen label + status to the window's top-left.
 
-        ``aspect2d``'s X coords run from ``-aspect`` to ``+aspect``, so
-        the left edge of the window is at ``X = -aspect`` and depends
+        The HUD overlay layer's X coords run from ``-aspect`` to
+        ``+aspect``, so the left edge of the window is at ``X = -aspect``
+        and depends
         on the current window dimensions. We re-compute that on each
         ``aspectRatioChanged`` event (fired by ShowBase's
         ``windowEvent`` when the user resizes the window) so the text
@@ -1214,16 +1024,9 @@ class Testbed:
 
         n = int(lines.shape[0]) if lines.size else 0
 
-        # Project (N, 2, D) → (2N, 3) float32 vertex positions.
+        # Project (N, 2, 3) → (2N, 3) float32 vertex positions.
         if n == 0:
             verts = np.empty((0, 3), dtype=np.float32)
-        elif lines.shape[2] == 2:
-            # 2D world embedded in (x, y, 0); flatten endpoints AB,AB,AB,…
-            flat = np.asarray(lines, dtype=np.float32).reshape(2 * n, 2)
-            verts = np.empty((2 * n, 3), dtype=np.float32)
-            verts[:, 0] = flat[:, 0]
-            verts[:, 1] = flat[:, 1]
-            verts[:, 2] = 0.0
         else:
             verts = np.ascontiguousarray(
                 np.asarray(lines, dtype=np.float32).reshape(2 * n, 3)
@@ -1269,8 +1072,6 @@ class Testbed:
 
         if self._line_node is not None:
             self._line_node.removeNode()
-        # Both 2D and 3D scenes live under `render`; 2D just uses an
-        # orthographic camera looking along -Z at the z=0 plane.
         self._line_node = self._base.render.attachNewNode(node)
         # Line thickness via RenderModeAttrib (LineSegs equivalent of setThickness).
         self._line_node.setRenderModeThickness(1.5)
@@ -1294,15 +1095,6 @@ def _as_tuple3(v: Any) -> Tuple[float, float, float]:
     if len(seq) != 3:
         raise ValueError(f"expected a 3-vector, got {v!r}")
     return (float(seq[0]), float(seq[1]), float(seq[2]))
-
-
-def _as_tuple2(v: Any) -> Tuple[float, float]:
-    if hasattr(v, "x") and hasattr(v, "y") and not hasattr(v, "z"):
-        return (float(v.x), float(v.y))
-    seq = tuple(v)  # type: ignore[arg-type]
-    if len(seq) != 2:
-        raise ValueError(f"expected a 2-vector, got {v!r}")
-    return (float(seq[0]), float(seq[1]))
 
 
 __all__ = ["Testbed", "CallbackFn"]

@@ -8,13 +8,11 @@ rapier — Python bindings for the Rapier physics engine
    high-level plan and the final outputs, but did not hand-write the
    bulk of the code. Bug reports and PRs welcome.
 
-`Rapier <https://rapier.rs>`_ is a fast, deterministic 2D/3D physics
+`Rapier <https://rapier.rs>`_ is a fast, deterministic 3D physics
 engine written in Rust. It is exposed to Python via
 `PyO3 <https://pyo3.rs/>`_ and `maturin <https://www.maturin.rs/>`_,
-targeting Python ≥ 3.9 via the stable ``abi3`` ABI, as **four packages** —
-``rapier2d``, ``rapier3d``, ``rapier2d-f64``, ``rapier3d-f64`` — one per
-``(dim, scalar)`` flavor. These docs are written against ``rapier3d``
-(3D / f32); see :doc:`dim_scalar` for the others.
+targeting Python ≥ 3.9 via the stable ``abi3`` ABI, as the ``rapier3d``
+package (3D / f32).
 
 The Python surface mirrors the Rust crates 1:1 (same type names, same
 method names, builder kwargs added on top), so anything you can read in
@@ -50,10 +48,6 @@ A ball dropped onto a plane::
     pos = world.rigid_bodies[ball].translation
     print(f"ball came to rest at y = {pos.y:.3f}")
 
-``rapier3d`` provides the **3D / f32** flavor. The other ``(dim, scalar)``
-combinations live in the ``rapier2d``, ``rapier3d-f64``, and ``rapier2d-f64``
-packages — see :doc:`dim_scalar` for the full table.
-
 Contents
 --------
 
@@ -62,7 +56,6 @@ Contents
    :caption: Guide
 
    getting_started
-   dim_scalar
    changelog
 
 .. toctree::

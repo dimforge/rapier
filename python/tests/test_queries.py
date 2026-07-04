@@ -6,10 +6,9 @@ import math
 import pytest
 
 import rapier3d as dim3
-import rapier3d_f64 as dim3_f64
 
 
-@pytest.fixture(params=[dim3, dim3_f64], ids=["f32", "f64"])
+@pytest.fixture(params=[dim3], ids=["f32"])
 def ns(request):
     return request.param
 

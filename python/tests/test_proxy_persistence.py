@@ -11,19 +11,11 @@ from __future__ import annotations
 
 import pytest
 
-import rapier2d
-import rapier2d_f64
 import rapier3d
-import rapier3d_f64
 
 
-@pytest.fixture(params=[rapier3d, rapier3d_f64], ids=["3d-f32", "3d-f64"])
+@pytest.fixture(params=[rapier3d], ids=["3d-f32"])
 def ns3(request):
-    return request.param
-
-
-@pytest.fixture(params=[rapier2d, rapier2d_f64], ids=["2d-f32", "2d-f64"])
-def ns2(request):
     return request.param
 
 
@@ -35,13 +27,6 @@ def test_rigid_body_mutation_persists(ns3):
     assert abs(w.rigid_bodies[h].linvel.x - 5.0) < 1e-5
     w.step()
     assert abs(w.rigid_bodies[h].linvel.x - 5.0) < 1e-3  # persisted through a step
-
-
-def test_rigid_body_mutation_persists_2d(ns2):
-    w = ns2.PhysicsWorld(gravity=(0, -9.81))
-    h = w.add_body(ns2.RigidBody.dynamic(translation=(0, 5)))
-    w.rigid_bodies[h].linvel = ns2.Vec2(3.0, 0.0)
-    assert abs(w.rigid_bodies[h].linvel.x - 3.0) < 1e-5
 
 
 def test_collider_mutation_persists(ns3):

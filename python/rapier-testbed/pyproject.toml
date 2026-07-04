@@ -18,9 +18,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 requires-python = ">=3.9"
-# The testbed drives both the 2D and 3D (f32) engines, so it depends on both.
+# The testbed drives the 3D (f32) engine.
 dependencies = [
-    "rapier2d",
     "rapier3d",
     "numpy>=1.21",
     "panda3d>=1.10",

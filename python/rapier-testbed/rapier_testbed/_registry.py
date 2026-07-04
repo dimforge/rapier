@@ -36,7 +36,7 @@ class Example:
     :param name: Human-readable example name (e.g. ``"Primitives"``).
     :param init_fn: Callable that receives a fresh :class:`Testbed` and
         populates it via :meth:`Testbed.set_world` and friends.
-    :param dim: ``2`` or ``3`` — selects 2D vs. 3D testbed mode.
+    :param dim: spatial dimension of the scene (always ``3``).
     """
 
     category: str

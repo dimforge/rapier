@@ -1,9 +1,9 @@
 # rapier-testbed
 
 A [Panda3D](https://www.panda3d.org/)-based visual testbed and example gallery
-for the [Rapier](https://rapier.rs) Python bindings — ~127 examples ported from
-the Rust `examples2d/` and `examples3d/`. It drives both the 2D and 3D (f32)
-engines, so it depends on `rapier2d` and `rapier3d`.
+for the [Rapier](https://rapier.rs) Python bindings — examples ported from
+the Rust `examples3d/`. It drives the 3D (f32) engine, so it depends on
+`rapier3d`.
 
 ## Install
 
@@ -31,9 +31,8 @@ invoke the installed `rapier_testbed` module rather than a path:
 rapier-testbed
 python -m rapier_testbed                     # equivalent
 
-# Jump straight into one example (3D under `examples3`, 2D under `examples2`):
+# Jump straight into one example (under `examples3`):
 python -m rapier_testbed.examples3.domino3
-python -m rapier_testbed.examples2.pyramid2
 
 # Headless — run a fixed number of steps with no window (no display needed;
 # used by the regression tests):

@@ -90,7 +90,7 @@ def run(initial: Optional[str] = None) -> None:
 
 def _launch_single(example: Example) -> None:
     if _is_headless():
-        tb = Testbed(dim=example.dim, headless=True)
+        tb = Testbed(headless=True)
         tb.load_example(example.init_fn, f"{example.category} / {example.name}")
         tb.run()
         return
@@ -102,7 +102,7 @@ def _launch_single(example: Example) -> None:
     base = ShowBase()
     base.userExit = lambda: base.taskMgr.stop()  # type: ignore[union-attr]
     base.finalizeExit = lambda: None  # type: ignore[union-attr]
-    tb = Testbed(dim=example.dim, base=base)
+    tb = Testbed(base=base)
     tb.load_example(example.init_fn, f"{example.category} / {example.name}")
     tb.run()
 
@@ -210,7 +210,7 @@ def _cli_loop() -> None:
             except Exception as e:
                 print(f"  (couldn't open window: {e!r})", file=sys.stderr)
                 return
-        tb = Testbed(dim=example.dim, base=base, on_escape=_on_testbed_escape)
+        tb = Testbed(base=base, on_escape=_on_testbed_escape)
         tb.load_example(example.init_fn, f"{example.category} / {example.name}")
         tb.install_step_task()
         # Testbed.__init__ calls ``base.ignoreAll()`` so we re-wire the X
@@ -309,7 +309,7 @@ def _cli_input_loop(
 
         ex = examples[idx - 1]
         last = idx
-        print(f"  → {idx:>3}.  {ex.category} / {ex.dim}D {ex.name}")
+        print(f"  → {idx:>3}.  {ex.category} / {ex.name}")
         print("     (Esc in the window = back to CLI; close window = quit)")
         cmd_queue.put(("launch", ex))
 
@@ -328,8 +328,8 @@ def _print_menu(examples: List[Example]) -> None:
 
     idx_width = max(2, len(str(n_total)))
     name_width = max(len(ex.name) for ex in examples)
-    # Cell layout: "  NN.  XD <name padded to name_width>" + trailing pad.
-    cell_width = idx_width + 2 + 3 + name_width + 4
+    # Cell layout: "  NN.  <name padded to name_width>" + trailing pad.
+    cell_width = idx_width + 2 + name_width + 4
 
     try:
         term_w = shutil.get_terminal_size((100, 24)).columns
@@ -343,7 +343,7 @@ def _print_menu(examples: List[Example]) -> None:
         print(f"  [ {cat} ]")
         row: List[str] = []
         for ex in group:
-            cell = f"  {cur_idx:>{idx_width}}.  {ex.dim}D {ex.name:<{name_width}}"
+            cell = f"  {cur_idx:>{idx_width}}.  {ex.name:<{name_width}}"
             row.append(cell)
             cur_idx += 1
             if len(row) == cols:
