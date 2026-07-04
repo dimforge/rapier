@@ -35,14 +35,14 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             world.step();
             step_id += 1;
 
-            if step_id % 250 == 0 {
+            if step_id.is_multiple_of(250) {
                 let co = &mut world.colliders[handle_to_disable];
                 let enabled = co.is_enabled();
                 co.set_enabled(!enabled);
                 println!("Platform is now enabled: {}", co.is_enabled());
             }
 
-            if step_id % 25 == 0 {
+            if step_id.is_multiple_of(25) {
                 let rigid_body =
                     RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 20.0, 0.0));
                 let handle = world.bodies.insert(rigid_body);

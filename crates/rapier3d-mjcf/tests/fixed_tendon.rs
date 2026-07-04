@@ -82,7 +82,7 @@ fn fixed_tendon_actuator_drives_both_joints() {
     let b2 = robot.body_name_to_idx["b2"];
 
     // Drive the single tendon actuator toward 0.5.
-    let ctrl = [0.5 as Real];
+    let ctrl = [0.5_f32];
     let mut pipeline = PhysicsPipeline::new();
     let ip = IntegrationParameters::default();
     let (mut isl, mut bp, mut np, mut ccd) = (

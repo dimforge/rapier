@@ -1,6 +1,8 @@
 use crate::alloc_prelude::*;
 use core::ops::{Deref, DerefMut};
 
+#[cfg(doc)]
+use crate::dynamics::Multibody;
 use crate::dynamics::{MultibodyJoint, RigidBodyHandle};
 use crate::math::{Pose, Real, Vector};
 use crate::prelude::RigidBodyVelocity;

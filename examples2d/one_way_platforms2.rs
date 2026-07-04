@@ -96,7 +96,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
              * Spawn cubes at regular intervals and apply a custom gravity
              * depending on their position.
              */
-            if step_id % 200 == 0 && world.bodies.len() <= 7 {
+            if step_id.is_multiple_of(200) && world.bodies.len() <= 7 {
                 // Spawn a new cube.
                 let collider = ColliderBuilder::cuboid(1.5, 2.0);
                 let body = RigidBodyBuilder::dynamic().translation(Vector::new(20.0, 10.0));

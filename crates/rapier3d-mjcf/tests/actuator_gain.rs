@@ -50,7 +50,7 @@ fn drive_to(steps: usize, gain_scale: Real) -> f32 {
         CCDSolver::new(),
     );
     for _ in 0..steps {
-        handles.apply_controls_multibody_scaled(&mut bodies, &mut mbj, &[1.0 as Real], gain_scale);
+        handles.apply_controls_multibody_scaled(&mut bodies, &mut mbj, &[1.0_f32], gain_scale);
         pipeline.step(
             Vector::new(0.0, 0.0, 0.0), // no gravity: isolate the servo dynamics
             &ip,

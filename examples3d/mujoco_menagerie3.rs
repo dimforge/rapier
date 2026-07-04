@@ -154,7 +154,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             .iter()
             .map(|k| robot.keyframe_controls(k))
             .collect();
-        let neutral = vec![0.0 as Real; handles.actuators.len()];
+        let neutral = vec![0.0_f32; handles.actuators.len()];
         // Seed with the keyframe already applied at load so we don't re-apply
         // it on the first step.
         let last_selected = viewer

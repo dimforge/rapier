@@ -186,8 +186,8 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
              * Move the platform.
              */
             let linvel = Vector::new(
-                ((step_id as f32 * world.integration_parameters.dt as f32) * 2.0).sin() * 2.0,
-                ((step_id as f32 * world.integration_parameters.dt as f32) * 5.0).sin() * 1.5,
+                ((step_id as f32 * world.integration_parameters.dt) * 2.0).sin() * 2.0,
+                ((step_id as f32 * world.integration_parameters.dt) * 5.0).sin() * 1.5,
                 0.0,
             ) * scale;
             // let angvel = (step_id as f32 * world.integration_parameters.dt as f32).sin() * 0.5;

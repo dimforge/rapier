@@ -30,13 +30,13 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             world.step();
             step_id += 1;
 
-            let rot = -(step_id as f32 * world.integration_parameters.dt as f32);
+            let rot = -(step_id as f32 * world.integration_parameters.dt);
             for rb_handle in &platform_handles {
                 let rb = world.bodies.get_mut(*rb_handle).unwrap();
                 rb.set_next_kinematic_rotation(Rotation::new(rot));
             }
 
-            if step_id % 10 == 0 {
+            if step_id.is_multiple_of(10) {
                 let x = rand::random::<f32>() * 10.0 - 5.0;
                 let y = rand::random::<f32>() * 10.0 + 10.0;
                 let rigid_body = RigidBodyBuilder::dynamic().translation(Vector::new(x, y));

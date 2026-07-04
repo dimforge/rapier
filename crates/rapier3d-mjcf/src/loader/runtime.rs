@@ -453,7 +453,7 @@ impl MjcfRobotHandles<ImpulseJointHandle> {
 
     /// Like [`apply_controls`](Self::apply_controls) but uniformly scales every
     /// actuator's strength by `gain_scale` (gains and force limits; see
-    /// [`configure_actuator_motor`]). `gain_scale < 1` softens the actuation —
+    /// `configure_actuator_motor`). `gain_scale < 1` softens the actuation —
     /// e.g. to ease servo-driven moves that would otherwise saturate and snap.
     pub fn apply_controls_scaled(
         &self,
@@ -479,7 +479,7 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
     /// [`apply_controls`](MjcfRobotHandles::<ImpulseJointHandle>::apply_controls):
     /// it reproduces MuJoCo's "actuation" by writing each actuator's motor
     /// onto the multibody link it drives. The per-actuator interpretation is
-    /// identical (see [`configure_actuator_motor`]); call it once per frame
+    /// identical (see `configure_actuator_motor`); call it once per frame
     /// before `pipeline.step`.
     ///
     /// `ctrl` is a flat array of one scalar per actuator, in the order of
@@ -501,7 +501,7 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
 
     /// Like [`apply_controls_multibody`](Self::apply_controls_multibody) but
     /// uniformly scales every actuator's strength by `gain_scale` (gains and
-    /// force limits; see [`configure_actuator_motor`]). `gain_scale < 1` softens
+    /// force limits; see `configure_actuator_motor`). `gain_scale < 1` softens
     /// the actuation, so a servo-driven move (e.g. easing between keyframes)
     /// ramps in instead of saturating to its force limit and arriving instantly.
     pub fn apply_controls_multibody_scaled(

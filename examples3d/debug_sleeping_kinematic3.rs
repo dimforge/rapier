@@ -40,7 +40,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             step_id += 1;
 
             let timestep_id = step_id;
-            let time = step_id as f32 * world.integration_parameters.dt as f32;
+            let time = step_id as f32 * world.integration_parameters.dt;
 
             if timestep_id == stop_tick {
                 println!("Both platforms should stop moving now and eventually fall asleep.");

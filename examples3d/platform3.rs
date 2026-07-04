@@ -76,8 +76,8 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
 
             let velocity = Vector::new(
                 0.0,
-                ((step_id as f32 * world.integration_parameters.dt as f32) * 2.0).cos(),
-                (step_id as f32 * world.integration_parameters.dt as f32).sin() * 2.0,
+                ((step_id as f32 * world.integration_parameters.dt) * 2.0).cos(),
+                (step_id as f32 * world.integration_parameters.dt).sin() * 2.0,
             );
 
             // Update the velocity-based kinematic body by setting its velocity.
