@@ -1,13 +1,13 @@
 name: Python wheels
 
-# Build abi3 wheels for the four engine packages across every supported
-# platform and (on a `python-v*` tag) publish them to PyPI via trusted
-# publishing.
+# Build abi3 wheels for the rapier3d (f32) engine package across every
+# supported platform and (on a `python-v*` tag) publish them to PyPI via
+# trusted publishing.
 #
 # abi3-py39 means ONE wheel per (package, platform, arch) covers Python 3.9+,
 # so there is deliberately no Python-version axis.
 #
-# NOTE: no sdist is published. The rapier2d/3d engine crates share their
+# NOTE: no sdist is published. The rapier3d engine crate shares its
 # source via the repo-root `src/` tree (`[lib] path = "../../src/lib.rs"`),
 # which lives outside any vendored crate directory, and maturin's sdist
 # packer cannot reach parent paths (`..` is rejected in `include`). A source
@@ -38,9 +38,6 @@ jobs:
       matrix:
         package:
           - { dir: rapier-py-3d,     name: rapier3d }
-          - { dir: rapier-py-3d-f64, name: rapier3d-f64 }
-          - { dir: rapier-py-2d,     name: rapier2d }
-          - { dir: rapier-py-2d-f64, name: rapier2d-f64 }
         platform:
           - { runner: ubuntu-latest,  target: x86_64-unknown-linux-gnu,  manylinux: auto }
           - { runner: ubuntu-latest,  target: aarch64-unknown-linux-gnu, manylinux: auto }
@@ -77,7 +74,7 @@ jobs:
           path: dist
           pattern: "wheels-*"
           merge-multiple: true
-      - name: Publish all four packages
+      - name: Publish the rapier3d package
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist

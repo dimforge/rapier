@@ -1,8 +1,6 @@
 """3D math layer tests.
 
-These run against the default `rapier.dim3` (f32) namespace. The `f64`
-variant runs the same assertions via parametrization (so we catch any
-codepath that quietly only got applied to one scalar).
+These run against the default `rapier.dim3` (f32) namespace.
 """
 
 from __future__ import annotations
@@ -13,10 +11,9 @@ import pytest
 
 import rapier3d as rapier
 import rapier3d as dim3
-import rapier3d_f64 as dim3_f64
 
 
-@pytest.fixture(params=[dim3, dim3_f64], ids=["f32", "f64"])
+@pytest.fixture(params=[dim3], ids=["f32"])
 def ns(request):
     return request.param
 
@@ -92,21 +89,13 @@ def test_vec3_bitwise_equal(ns):
     a = ns.Vec3(1, 2, 3)
     b = ns.Vec3(1, 2, 3)
     assert a.bitwise_equal(b)
-    if ns is dim3:
-        # f32: pick a perturbation that approx_eq (tol 1e-7) tolerates but
-        # bitwise check rejects.
-        c = ns.Vec3(1.0 + 1e-8, 2, 3)
-    else:
-        # f64: tighter tolerance (1e-14), need a smaller perturbation.
-        c = ns.Vec3(1.0 + 1e-15, 2, 3)
+    # f32: pick a perturbation that approx_eq (tol 1e-7) tolerates but
+    # bitwise check rejects.
+    c = ns.Vec3(1.0 + 1e-8, 2, 3)
     # approx __eq__ tolerates the perturbation
     assert a == c
-    # In both cases, exact bitwise equality should NOT hold for c vs a if the
-    # perturbation actually changed the underlying scalar. For f32, 1+1e-8
-    # rounds to exactly 1.0 (below f32 epsilon ~1.19e-7), so c == a bitwise.
-    # We therefore only assert the negative bitwise case for f64 here.
-    if ns is dim3_f64:
-        assert not c.bitwise_equal(a)
+    # For f32, 1+1e-8 rounds to exactly 1.0 (below f32 epsilon ~1.19e-7), so
+    # c == a bitwise, hence we don't assert the negative bitwise case here.
 
 
 def test_vec3_lerp(ns):

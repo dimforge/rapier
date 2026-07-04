@@ -35,9 +35,8 @@ _CAPSULE_LON: int = 18
 _CYLINDER_SEGMENTS: int = 22
 _CONE_SEGMENTS: int = 22
 
-# Numeric ShapeType codes (must match parry's ``ShapeType`` enum). The 2D
-# and 3D bindings expose separate ``ShapeType`` enum classes that share
-# these values; we compare via ``int(...)`` to stay dim-agnostic.
+# Numeric ShapeType codes (must match parry's ``ShapeType`` enum). We
+# compare via ``int(...)`` against these values.
 _ST_BALL: int = 0
 _ST_CUBOID: int = 1
 _ST_CAPSULE: int = 2
@@ -451,35 +450,6 @@ def _heightfield_mesh_3d(heights: np.ndarray, scale: Tuple[float, float, float])
     return _trimesh_mesh(pts, idx)
 
 
-def _heightfield_mesh_2d(heights: np.ndarray, scale: Tuple[float, float]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """2D heightfield = polyline; render as a strip of vertical quads from
-    ``y=h`` down to ``y=-large`` (we use ``y=0`` instead — just a polyline).
-    """
-    h = np.asarray(heights, dtype=np.float32).reshape(-1)
-    if h.size < 2:
-        return (np.empty((0, 3), dtype=np.float32),
-                np.empty((0, 3), dtype=np.float32),
-                np.empty((0, 3), dtype=np.uint32))
-    sx, sy = float(scale[0]), float(scale[1])
-    n = h.size
-    xs = (np.arange(n, dtype=np.float32) / (n - 1) - 0.5) * sx
-    ys = h * sy
-    # Render as a thin filled strip from y=ys down to y=0.
-    top = np.stack([xs, ys, np.zeros_like(xs)], axis=-1)
-    bot = np.stack([xs, np.zeros_like(xs), np.zeros_like(xs)], axis=-1)
-    pts = np.concatenate([top, bot], axis=0).astype(np.float32)
-    quad_i = np.arange(n - 1, dtype=np.uint32)
-    v_top = quad_i
-    v_top_next = quad_i + 1
-    v_bot = quad_i + n
-    v_bot_next = quad_i + n + 1
-    idx = np.stack([
-        np.stack([v_top, v_bot, v_bot_next], axis=-1),
-        np.stack([v_top, v_bot_next, v_top_next], axis=-1),
-    ], axis=1).reshape(-1, 3).astype(np.uint32)
-    return _trimesh_mesh(pts, idx)
-
-
 def _convex_polyhedron_mesh(
     points: np.ndarray, indices: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -529,152 +499,44 @@ def _voxels_mesh(
     return pos, nrm, idx
 
 
-def _disk_mesh_2d(radius: float, segments: int = 36) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """2D ball → filled disk in the z=0 plane, normal +Z."""
-    n = max(6, int(segments))
-    r = float(radius)
-    phi = np.arange(n, dtype=np.float32) * (2 * math.pi / n)
-    cx = (np.cos(phi) * r).astype(np.float32)
-    cy = (np.sin(phi) * r).astype(np.float32)
-    center = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)
-    ring = np.stack([cx, cy, np.zeros_like(cx)], axis=-1)
-    pos = np.concatenate([center, ring], axis=0).astype(np.float32)
-    nrm = np.tile(np.array([[0.0, 0.0, 1.0]], dtype=np.float32), (pos.shape[0], 1))
-    i_arr = np.arange(n, dtype=np.uint32)
-    idx = np.stack([
-        np.zeros(n, dtype=np.uint32),
-        1 + i_arr,
-        1 + (i_arr + 1) % n,
-    ], axis=-1).astype(np.uint32)
-    return pos, nrm, idx
-
-
-def _convex_polygon_mesh_2d(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """2D convex polygon → fan triangulation in the z=0 plane.
-
-    Normals point along +Z (out of the screen) so the shape lights up
-    correctly under the default front-facing directional light.
-    """
-    pts = np.asarray(points, dtype=np.float32).reshape(-1, 2)
-    n = pts.shape[0]
-    if n < 3:
-        return (np.empty((0, 3), dtype=np.float32),
-                np.empty((0, 3), dtype=np.float32),
-                np.empty((0, 3), dtype=np.uint32))
-    pos3 = np.stack([pts[:, 0], pts[:, 1], np.zeros(n, dtype=np.float32)], axis=-1)
-    nrm = np.tile(np.array([[0.0, 0.0, 1.0]], dtype=np.float32), (n, 1))
-    i = np.arange(1, n - 1, dtype=np.uint32)
-    idx = np.stack([np.zeros_like(i), i, i + 1], axis=-1)
-    return pos3, nrm, idx
-
-
-def _polyline_mesh_2d(vertices: np.ndarray, indices: np.ndarray | None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """2D polyline → thin extruded strip in the z=0 plane.
-
-    We render the polyline as a flat strip 0.02 units wide (in world
-    units) so it's at least visible. For something fancier (per-segment
-    normals etc.) we'd need offset polygons; this is the simplest
-    approach.
-    """
-    v = np.asarray(vertices, dtype=np.float32).reshape(-1, 2)
-    if v.shape[0] < 2:
-        return (np.empty((0, 3), dtype=np.float32),
-                np.empty((0, 3), dtype=np.float32),
-                np.empty((0, 3), dtype=np.uint32))
-    if indices is None:
-        idx = np.stack([np.arange(v.shape[0] - 1, dtype=np.uint32),
-                        np.arange(1, v.shape[0], dtype=np.uint32)], axis=-1)
-    else:
-        idx = np.asarray(indices, dtype=np.uint32).reshape(-1, 2)
-
-    # Render each segment as a thin quad in the z=0 plane.
-    half_w = 0.02
-    verts_out: List[np.ndarray] = []
-    tris_out: List[np.ndarray] = []
-    cur_base = 0
-    for seg_a, seg_b in idx:
-        a = v[seg_a]
-        b = v[seg_b]
-        d = b - a
-        L = float(np.linalg.norm(d))
-        if L < 1e-9:
-            continue
-        d /= L
-        perp = np.array([-d[1], d[0]], dtype=np.float32) * half_w
-        p0 = np.array([a[0] - perp[0], a[1] - perp[1], 0.0], dtype=np.float32)
-        p1 = np.array([a[0] + perp[0], a[1] + perp[1], 0.0], dtype=np.float32)
-        p2 = np.array([b[0] + perp[0], b[1] + perp[1], 0.0], dtype=np.float32)
-        p3 = np.array([b[0] - perp[0], b[1] - perp[1], 0.0], dtype=np.float32)
-        verts_out.append(np.stack([p0, p1, p2, p3], axis=0))
-        tris_out.append(np.array([[cur_base, cur_base + 1, cur_base + 2],
-                                  [cur_base, cur_base + 2, cur_base + 3]], dtype=np.uint32))
-        cur_base += 4
-    if not verts_out:
-        return (np.empty((0, 3), dtype=np.float32),
-                np.empty((0, 3), dtype=np.float32),
-                np.empty((0, 3), dtype=np.uint32))
-    positions = np.concatenate(verts_out, axis=0).astype(np.float32, copy=False)
-    indices_out = np.concatenate(tris_out, axis=0).astype(np.uint32, copy=False)
-    normals = np.tile(np.array([[0.0, 0.0, 1.0]], dtype=np.float32), (positions.shape[0], 1))
-    return positions, normals, indices_out
-
-
 # ---------------------------------------------------------------------------
 # Dispatch + Geom assembly
 # ---------------------------------------------------------------------------
 
 
-def _identity_iso(dim: int) -> Any:
-    """Return a fresh identity isometry for the requested dimension."""
-    if dim == 2:
-        import rapier2d as rp2
-        return rp2.Isometry2.identity()
+def _identity_iso() -> Any:
+    """Return a fresh identity isometry."""
     import rapier3d as rp3
     return rp3.Isometry3.identity()
 
 
-def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.ndarray, np.ndarray]]:
+def _shape_to_arrays(shape: Any) -> List[Tuple[Any, np.ndarray, np.ndarray, np.ndarray]]:
     """Lower a SharedShape into a flat list of ``(local_pose, pos, nrm, idx)``.
 
     Compound shapes recurse and prepend their sub-shape poses; everything
     else returns a single entry whose pose is identity.
     """
     out: List[Tuple[Any, np.ndarray, np.ndarray, np.ndarray]] = []
-    # Use the integer code: the 2D and 3D ShapeType enums are different
-    # Python objects but share the same numeric values.
     stype = int(shape.shape_type)
-    iso_identity = _identity_iso(dim)
+    iso_identity = _identity_iso()
 
     if stype == _ST_BALL:
         ball = shape.as_ball()
-        if dim == 2:
-            # 2D ball = filled disk in the (x, 0, y) plane.
-            p, n, i = _disk_mesh_2d(ball.radius)
-        else:
-            p, n, i = _sphere_mesh(ball.radius)
+        p, n, i = _sphere_mesh(ball.radius)
         out.append((iso_identity, p, n, i))
         return out
 
     if stype == _ST_CUBOID:
         cub = shape.as_cuboid()
         he = cub.half_extents
-        if dim == 2:
-            # 2D world lives in the z=0 plane; cuboid is a thin slab.
-            p, n, i = _cuboid_mesh(he.x, he.y, 0.01)
-        else:
-            p, n, i = _cuboid_mesh(he.x, he.y, he.z)
+        p, n, i = _cuboid_mesh(he.x, he.y, he.z)
         out.append((iso_identity, p, n, i))
         return out
 
     if stype == _ST_CAPSULE:
         cap = shape.as_capsule()
-        if dim == 2:
-            # 2D world (x, y) → 3D (x, y, 0).
-            ax = (float(cap.a.x), float(cap.a.y), 0.0)
-            bx = (float(cap.b.x), float(cap.b.y), 0.0)
-        else:
-            ax = (float(cap.a.x), float(cap.a.y), float(cap.a.z))
-            bx = (float(cap.b.x), float(cap.b.y), float(cap.b.z))
+        ax = (float(cap.a.x), float(cap.a.y), float(cap.a.z))
+        bx = (float(cap.b.x), float(cap.b.y), float(cap.b.z))
         p, n, i = _capsule_mesh(ax, bx, cap.radius)
         out.append((iso_identity, p, n, i))
         return out
@@ -693,40 +555,16 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
 
     if stype == _ST_TRIANGLE:
         tri = shape.as_triangle()
-        if dim == 2:
-            # 2D world (x, y) → 3D (x, y, 0).
-            a = (float(tri.a.x), float(tri.a.y), 0.0)
-            b = (float(tri.b.x), float(tri.b.y), 0.0)
-            c = (float(tri.c.x), float(tri.c.y), 0.0)
-        else:
-            a = (float(tri.a.x), float(tri.a.y), float(tri.a.z))
-            b = (float(tri.b.x), float(tri.b.y), float(tri.b.z))
-            c = (float(tri.c.x), float(tri.c.y), float(tri.c.z))
+        a = (float(tri.a.x), float(tri.a.y), float(tri.a.z))
+        b = (float(tri.b.x), float(tri.b.y), float(tri.b.z))
+        c = (float(tri.c.x), float(tri.c.y), float(tri.c.z))
         p, n, i = _triangle_mesh(a, b, c)
         out.append((iso_identity, p, n, i))
         return out
 
-    if stype == _ST_SEGMENT:
-        # 2D-only; render as a tiny polyline strip.
-        if dim == 2:
-            import rapier2d as rp2
-            shape_seg = shape.as_segment()
-            v = np.array([[shape_seg.a.x, shape_seg.a.y], [shape_seg.b.x, shape_seg.b.y]], dtype=np.float32)
-            p, n, i = _polyline_mesh_2d(v, None)
-            out.append((iso_identity, p, n, i))
-            return out
-        # 3D segment isn't exposed via SharedShape constructors; fall through to AABB.
-
     if stype == _ST_TRIMESH:
         tm = shape.as_trimesh()
         v = np.asarray(tm.vertices, dtype=np.float32)
-        if v.ndim == 2 and v.shape[1] == 2:
-            # 2D trimesh: lift into z=0 plane (x, y, 0).
-            v3 = np.empty((v.shape[0], 3), dtype=np.float32)
-            v3[:, 0] = v[:, 0]
-            v3[:, 1] = v[:, 1]
-            v3[:, 2] = 0.0
-            v = v3
         p, n, i = _trimesh_mesh(v, tm.indices)
         out.append((iso_identity, p, n, i))
         return out
@@ -735,14 +573,7 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
         vx = shape.as_voxels()
         centers = np.asarray(vx.centers, dtype=np.float32)
         vs = np.asarray(vx.voxel_size, dtype=np.float32)
-        if dim == 2:
-            # 2D world (x, y) → 3D (x, y, 0); give a thin slab in z.
-            c3 = np.zeros((centers.shape[0], 3), dtype=np.float32)
-            c3[:, :2] = centers.reshape(-1, 2)
-            centers = c3
-            half = (float(vs[0]) * 0.5, float(vs[1]) * 0.5, 0.01)
-        else:
-            half = (float(vs[0]) * 0.5, float(vs[1]) * 0.5, float(vs[2]) * 0.5)
+        half = (float(vs[0]) * 0.5, float(vs[1]) * 0.5, float(vs[2]) * 0.5)
         p, n, i = _voxels_mesh(centers, half)
         out.append((iso_identity, p, n, i))
         return out
@@ -750,14 +581,10 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
     if stype == _ST_HEIGHTFIELD:
         hf = shape.as_heightfield()
         sc = hf.scale
-        if dim == 2:
-            heights = np.asarray(hf.heights, dtype=np.float32)
-            p, n, i = _heightfield_mesh_2d(heights, (float(sc.x), float(sc.y)))
-        else:
-            heights = np.asarray(hf.heights, dtype=np.float32)
-            p, n, i = _heightfield_mesh_3d(
-                heights, (float(sc.x), float(sc.y), float(sc.z))
-            )
+        heights = np.asarray(hf.heights, dtype=np.float32)
+        p, n, i = _heightfield_mesh_3d(
+            heights, (float(sc.x), float(sc.y), float(sc.z))
+        )
         out.append((iso_identity, p, n, i))
         return out
 
@@ -767,28 +594,12 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
         out.append((iso_identity, p, n, i))
         return out
 
-    if stype == _ST_CONVEX_POLYGON:
-        # 2D convex polygon.
-        cp = shape.as_convex_polygon()
-        p, n, i = _convex_polygon_mesh_2d(cp.points)
-        out.append((iso_identity, p, n, i))
-        return out
-
-    if stype == _ST_POLYLINE:
-        po = shape.as_polyline()
-        p, n, i = _polyline_mesh_2d(po.vertices, po.indices)
-        out.append((iso_identity, p, n, i))
-        return out
-
     if stype == _ST_COMPOUND:
         comp = shape.as_compound()
         for sub_iso, sub_shape in comp.shapes():
-            for inner_iso, p, n, i in _shape_to_arrays(sub_shape, dim):
+            for inner_iso, p, n, i in _shape_to_arrays(sub_shape):
                 # Compose sub_iso ∘ inner_iso.
-                if dim == 2:
-                    pose = _compose_iso_2d(sub_iso, inner_iso)
-                else:
-                    pose = _compose_iso_3d(sub_iso, inner_iso)
+                pose = _compose_iso_3d(sub_iso, inner_iso)
                 out.append((pose, p, n, i))
         return out
 
@@ -796,22 +607,14 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
     if stype == _ST_ROUND_CUBOID:
         cub = shape.as_round_cuboid()
         he = cub.half_extents
-        if dim == 2:
-            p, n, i = _cuboid_mesh(he.x, he.y, 0.01)
-        else:
-            p, n, i = _cuboid_mesh(he.x, he.y, he.z)
+        p, n, i = _cuboid_mesh(he.x, he.y, he.z)
         out.append((iso_identity, p, n, i))
         return out
     if stype == _ST_ROUND_TRIANGLE:
         tri = shape.as_round_triangle()
-        if dim == 2:
-            a = (float(tri.a.x), float(tri.a.y), 0.0)
-            b = (float(tri.b.x), float(tri.b.y), 0.0)
-            c = (float(tri.c.x), float(tri.c.y), 0.0)
-        else:
-            a = (float(tri.a.x), float(tri.a.y), float(tri.a.z))
-            b = (float(tri.b.x), float(tri.b.y), float(tri.b.z))
-            c = (float(tri.c.x), float(tri.c.y), float(tri.c.z))
+        a = (float(tri.a.x), float(tri.a.y), float(tri.a.z))
+        b = (float(tri.b.x), float(tri.b.y), float(tri.b.z))
+        c = (float(tri.c.x), float(tri.c.y), float(tri.c.z))
         p, n, i = _triangle_mesh(a, b, c)
         out.append((iso_identity, p, n, i))
         return out
@@ -830,38 +633,24 @@ def _shape_to_arrays(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.nda
         p, n, i = _convex_polyhedron_mesh(ch.points, ch.indices)
         out.append((iso_identity, p, n, i))
         return out
-    if stype == _ST_ROUND_CONVEX_POLYGON:
-        cp = shape.as_round_convex_polygon()
-        p, n, i = _convex_polygon_mesh_2d(cp.points)
-        out.append((iso_identity, p, n, i))
-        return out
 
-    # HALFSPACE, VOXELS, CUSTOM — no triangulation available, draw the AABB.
-    return _aabb_fallback(shape, dim)
+    # HALFSPACE, SEGMENT, POLYLINE, CUSTOM — no triangulation available,
+    # draw the AABB.
+    return _aabb_fallback(shape)
 
 
-def _aabb_fallback(shape: Any, dim: int) -> List[Tuple[Any, np.ndarray, np.ndarray, np.ndarray]]:
+def _aabb_fallback(shape: Any) -> List[Tuple[Any, np.ndarray, np.ndarray, np.ndarray]]:
     """Approximate a shape with its AABB, baking offset into the geometry."""
-    iso = _identity_iso(dim)
+    iso = _identity_iso()
     a = shape.compute_aabb(iso)
-    if dim == 2:
-        # 2D AABB has 2-component points; render as a flat slab in the z=0
-        # plane (thin Z extent).
-        hx = float(a.half_extents.x)
-        hy = float(a.half_extents.y)
-        cx = float(a.center.x)
-        cy = float(a.center.y)
-        p, n, i = _cuboid_mesh(hx, hy, 0.01)
-        p = p + np.array([cx, cy, 0.0], dtype=np.float32)
-    else:
-        hx = float(a.half_extents.x)
-        hy = float(a.half_extents.y)
-        hz = float(a.half_extents.z)
-        cx = float(a.center.x)
-        cy = float(a.center.y)
-        cz = float(a.center.z)
-        p, n, i = _cuboid_mesh(hx, hy, hz)
-        p = p + np.array([cx, cy, cz], dtype=np.float32)
+    hx = float(a.half_extents.x)
+    hy = float(a.half_extents.y)
+    hz = float(a.half_extents.z)
+    cx = float(a.center.x)
+    cy = float(a.center.y)
+    cz = float(a.center.z)
+    p, n, i = _cuboid_mesh(hx, hy, hz)
+    p = p + np.array([cx, cy, cz], dtype=np.float32)
     return [(iso, p, n, i)]
 
 
@@ -882,22 +671,6 @@ def _compose_iso_3d(outer: Any, inner: Any) -> Any:
     qw, qx, qy, qz = _mat3_to_quat(rot_m)
     rot = rp3.Rotation3.from_quaternion(qw, qx, qy, qz)
     return rp3.Isometry3((float(trans[0]), float(trans[1]), float(trans[2])), rot)
-
-
-def _compose_iso_2d(outer: Any, inner: Any) -> Any:
-    """Return ``outer * inner`` as a fresh Isometry2."""
-    import rapier2d as rp2
-
-    a_o = float(outer.rotation.angle)
-    a_i = float(inner.rotation.angle)
-    t_i_x = float(inner.translation.x)
-    t_i_y = float(inner.translation.y)
-    # Outer rotation applied to inner translation, then plus outer translation.
-    c, s = math.cos(a_o), math.sin(a_o)
-    tx = float(outer.translation.x) + c * t_i_x - s * t_i_y
-    ty = float(outer.translation.y) + s * t_i_x + c * t_i_y
-    rot = rp2.Rotation2.from_angle(a_o + a_i)
-    return rp2.Isometry2((tx, ty), rot)
 
 
 def _mat3_to_quat(m: np.ndarray) -> Tuple[float, float, float, float]:
@@ -979,7 +752,7 @@ def _flatten_shading(
 
 
 def shape_to_meshes(
-    shape: Any, *, dim: int
+    shape: Any,
 ) -> List[Tuple[Any, np.ndarray, np.ndarray, np.ndarray]]:
     """Decompose a :class:`SharedShape` into raw flat-shaded NumPy mesh data.
 
@@ -992,12 +765,12 @@ def shape_to_meshes(
     single face normal computed from its winding, with vertices
     duplicated so the normal isn't interpolated across the face.
     """
-    raw = _shape_to_arrays(shape, dim)
+    raw = _shape_to_arrays(shape)
     return [(pose, *_flatten_shading(p, n, i)) for pose, p, n, i in raw]
 
 
 def shape_to_geoms(
-    shape: Any, *, dim: int, color_rgba: Tuple[float, float, float, float]
+    shape: Any, *, color_rgba: Tuple[float, float, float, float]
 ) -> List[Tuple[Any, Any]]:
     """Convert a Rapier ``SharedShape`` into a list of ``(local_pose, Geom)`` pairs.
 
@@ -1012,7 +785,7 @@ def shape_to_geoms(
         GeomVertexFormat,
     )
 
-    raw_smooth = _shape_to_arrays(shape, dim)
+    raw_smooth = _shape_to_arrays(shape)
     # Convert every shape to flat shading: compute per-face normals from
     # the actual triangle winding and explode vertices so the normal
     # isn't interpolated. This also fixes any winding/stored-normal
@@ -1103,8 +876,7 @@ def color_for_body(body_handle_index: int, body_type: Any) -> Tuple[float, float
     dynamic bodies hash their handle index into a hue in the warm pastel
     palette.
     """
-    # ``RigidBodyType`` is an ``IntEnum``; comparing as integer keeps
-    # this dim-agnostic (2D and 3D enums are distinct objects).
+    # ``RigidBodyType`` is an ``IntEnum``; compare as integer.
     bt = int(body_type) if body_type is not None else -1
     # See ``rapier::dynamics::RigidBodyType``:
     # 0 = Dynamic, 1 = Fixed, 2 = KinematicPositionBased, 3 = KinematicVelocityBased.

@@ -38,22 +38,6 @@ Shapes
 .. autoclass:: Cone
 .. autoclass:: ConvexPolyhedron
 
-``Cylinder``, ``Cone``, and ``ConvexPolyhedron`` are 3D-only. The 2D
-packages instead expose the flat shapes below.
-
-2D-only shapes
-~~~~~~~~~~~~~~
-
-The same surface in 2D lives under :mod:`rapier2d`:
-
-.. currentmodule:: rapier2d
-
-.. autoclass:: Segment
-.. autoclass:: Polyline
-.. autoclass:: ConvexPolygon
-
-.. currentmodule:: rapier3d
-
 Bounding volumes
 ----------------
 

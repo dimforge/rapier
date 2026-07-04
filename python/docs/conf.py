@@ -1,13 +1,10 @@
 """Sphinx configuration for the Rapier Python bindings.
 
-These docs cover the four engine packages — ``rapier2d``, ``rapier3d``,
-``rapier2d-f64``, ``rapier3d-f64`` — which share an identical API differing
-only in dimension and scalar type. The pages are authored against the 3D/f32
-package (``rapier3d``) as the canonical reference.
+These docs cover the ``rapier3d`` engine package (3D / f32).
 
-Build from the ``python/docs/`` directory after the engine packages are
-installed (``pip install ./python/rapier-py-3d`` etc., or ``maturin develop``
-in each crate)::
+Build from the ``python/docs/`` directory after the engine package is
+installed (``pip install ./python/rapier-py-3d``, or ``maturin develop``
+in the crate)::
 
     sphinx-build -b html . _build/html
 """
@@ -20,15 +17,15 @@ import warnings
 
 # -- Path bootstrap ---------------------------------------------------------
 #
-# We need to ``import rapier3d`` (and siblings) so autodoc can read the real
-# pyclass docstrings populated by PyO3 (``///`` Rust doc comments → Python
-# ``__doc__``). The packages are normally installed editable (``maturin
-# develop`` per crate). As a fallback — to support running ``sphinx-build``
-# from a stand-alone checkout where nothing has been installed yet — we also
-# prepend each package's ``python/`` source dir to ``sys.path``.
+# We need to ``import rapier3d`` so autodoc can read the real pyclass
+# docstrings populated by PyO3 (``///`` Rust doc comments → Python
+# ``__doc__``). The package is normally installed editable (``maturin
+# develop``). As a fallback — to support running ``sphinx-build`` from a
+# stand-alone checkout where nothing has been installed yet — we also
+# prepend the package's ``python/`` source dir to ``sys.path``.
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-for _crate in ("rapier-py-3d", "rapier-py-3d-f64", "rapier-py-2d", "rapier-py-2d-f64"):
+for _crate in ("rapier-py-3d",):
     _src = os.path.abspath(os.path.join(_HERE, "..", _crate, "python"))
     if _src not in sys.path:
         sys.path.insert(0, _src)

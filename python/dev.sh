@@ -5,13 +5,13 @@
 #
 # Usage (run from anywhere; paths are resolved relative to the repo):
 #   python/dev.sh                 # all: build + test + docs + testbed (headless smoke)
-#   python/dev.sh build           # build all four engine packages (editable)
+#   python/dev.sh build           # build the rapier3d engine package (editable)
 #   python/dev.sh test            # build, then run the full test suite
 #   python/dev.sh docs            # build, then build the HTML docs
 #   python/dev.sh testbed         # build + install testbed, open the picker
 #   python/dev.sh testbed examples3.domino3   # build + install testbed, run one example
 #   python/dev.sh tour            # build + install testbed, run every example in turn
-#                                 #   (close a window to advance; accepts 2d|3d|--start NAME)
+#                                 #   (close a window to advance; accepts --start NAME)
 #   python/dev.sh clean           # remove build artifacts + the managed venv
 #
 # Environment:
@@ -26,7 +26,7 @@ cd "$REPO_ROOT"
 
 PROFILE="${PROFILE:-release}"
 VENV="${RAPIER_PY_VENV:-$REPO_ROOT/.venv}"
-CRATES=(rapier-py-2d rapier-py-2d-f64 rapier-py-3d rapier-py-3d-f64)
+CRATES=(rapier-py-3d)
 
 log()  { printf '\n\033[1;34m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
@@ -65,8 +65,7 @@ build_all() {
         log "Building $c ($PROFILE)"
         maturin_develop "python/$c/Cargo.toml"
     done
-    python -c "import rapier2d, rapier2d_f64, rapier3d, rapier3d_f64 as _; \
-print('built all four flavors, version', rapier3d.__version__)"
+    python -c "import rapier3d as _; print('built rapier3d, version', _.__version__)"
 }
 
 run_tests() {
@@ -86,7 +85,7 @@ install_testbed() {
     pip_install panda3d numpy
     # Editable (-e) so edits to examples / camera / the testbed itself are
     # picked up by `python -m rapier_testbed` without reinstalling. --no-deps
-    # because its rapier2d/rapier3d deps are the local builds from build_all.
+    # because its rapier3d dep is the local build from build_all.
     # Note: --no-deps must precede -e, else pip reads it as the -e target.
     pip_install --no-deps -e "$REPO_ROOT/python/rapier-testbed"
 }
@@ -111,7 +110,7 @@ cmd_testbed() {
 
 cmd_tour() {
     # Launch every example one after another (close a window to advance).
-    # Extra args (2d|3d|--start NAME) pass through to examples_tour.py.
+    # Extra args (--start NAME) pass through to examples_tour.py.
     ensure_venv; build_all; install_testbed
     log "Touring all examples (close each window to advance; Ctrl-C to stop)"
     python "$REPO_ROOT/python/examples_tour.py" "$@"

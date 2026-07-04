@@ -10,9 +10,9 @@ release cadence. The authoritative changelog is the Cargo
 Unreleased
 ----------
 
-**Breaking — repackaged into four PyPI packages.** The single ``rapier``
-umbrella package (with ``rapier.dim2`` / ``rapier.dim3.f64`` submodules) has
-been replaced by four independent packages, one per ``(dim, scalar)`` flavor:
+**Breaking — repackaged as ``rapier3d``.** The single ``rapier`` umbrella
+package (with ``rapier.dim3`` submodules) has been replaced by the
+``rapier3d`` package (3D / f32):
 
 .. list-table::
    :header-rows: 1
@@ -21,15 +21,8 @@ been replaced by four independent packages, one per ``(dim, scalar)`` flavor:
      - After
    * - ``import rapier`` (3D f32 default)
      - ``import rapier3d``
-   * - ``from rapier import dim2``
-     - ``import rapier2d``
-   * - ``from rapier.dim3 import f64``
-     - ``import rapier3d_f64``
-   * - ``from rapier.dim2 import f64``
-     - ``import rapier2d_f64``
 
-There is no longer a cross-flavor ``rapier.RapierError`` base; each package
-exposes its own error tree. Each package is a standard ``abi3`` maturin
-wheel, so installs and platform support (manylinux/musllinux, macOS, Windows)
-now go through the normal wheel pipeline. The Panda3D testbed moved to a
-separate ``rapier-testbed`` package.
+The package is a standard ``abi3`` maturin wheel, so installs and platform
+support (manylinux/musllinux, macOS, Windows) now go through the normal
+wheel pipeline. The Panda3D testbed moved to a separate ``rapier-testbed``
+package.

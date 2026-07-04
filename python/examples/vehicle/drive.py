@@ -4,8 +4,6 @@ Builds a small box-chassis with four wheels (parameters mirror
 `examples3d/vehicle_controller3.rs`), lets it settle, then applies engine
 force on the rear wheels and reports the chassis velocity.
 
-3D / f32 only — the ray-cast vehicle controller has no f64 mirror.
-
 Run::
 
     python python/examples/vehicle/drive.py

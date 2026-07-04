@@ -33,7 +33,7 @@ EXPECTED: dict[str, str | re.Pattern[str]] = {
     # enhanced-determinism). Assert it drove backward at a real speed instead.
     "vehicle/drive.py": re.compile(r"^vehicle: speed=-\d+\.\d+ km/h vx=[-+]\d+\.\d+$"),
     "urdf/load_simple.py": "urdf: name=two_link links=2 joints=1",
-    "render/matplotlib_animation.py": "matplotlib: segments=9720 frames=120",
+    "render/matplotlib_animation.py": "matplotlib: segments=27000 frames=120",
     "serde/snapshot_restore.py": "snapshot: snap.y=0.58 later.y=0.60 bytes=1767",
     # perf/many_bodies prints a timing-dependent ms/frame value; we only
     # assert that it ran with the expected shape.

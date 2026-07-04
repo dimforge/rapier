@@ -31,12 +31,3 @@ Errors
 :class:`~rapier3d.SerializationError` (a subclass of
 :class:`~rapier3d.RapierError`) on malformed or truncated input. See
 :doc:`errors`.
-
-Flavor-tagging caveat
----------------------
-
-Snapshots are **not** tagged with the ``(dim, scalar)`` flavor that
-produced them. Restoring an f32 snapshot through
-``rapier3d_f64.PhysicsWorld.restore(...)`` will silently misinterpret
-the floats. Always restore a snapshot through the same flavor that
-produced it.

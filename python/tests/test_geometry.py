@@ -1,7 +1,4 @@
-"""3D geometry tests.
-
-Parametrized across f32 (`rapier.dim3`) and f64 (`rapier.dim3.f64`).
-"""
+"""3D geometry tests (f32)."""
 
 from __future__ import annotations
 
@@ -12,10 +9,9 @@ import pytest
 
 import rapier3d as rapier
 import rapier3d as dim3
-import rapier3d_f64 as dim3_f64
 
 
-@pytest.fixture(params=[dim3, dim3_f64], ids=["f32", "f64"])
+@pytest.fixture(params=[dim3], ids=["f32"])
 def ns(request):
     return request.param
 

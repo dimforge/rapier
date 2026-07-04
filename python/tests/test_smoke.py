@@ -9,10 +9,7 @@ from __future__ import annotations
 
 import rapier3d as rapier
 from rapier3d import RapierError
-import rapier2d as dim2
 import rapier3d as dim3
-import rapier3d_f64 as dim3_f64
-import rapier2d_f64 as dim2_f64
 
 
 def test_version() -> None:
@@ -37,18 +34,9 @@ def test_error_is_exception() -> None:
 
 
 def test_dim_namespaces() -> None:
-    assert dim2 is not dim3
-    assert dim3_f64 is not dim3
-    assert dim2_f64 is not dim2
-    # The exception type is *defined per-extension*; reachable from each.
-    assert hasattr(dim2, "RapierError")
+    # The exception type is *defined per-extension*; reachable from the module.
     assert hasattr(dim3, "RapierError")
-    assert hasattr(dim3_f64, "RapierError")
-    assert hasattr(dim2_f64, "RapierError")
 
 
 def test_dim_versions() -> None:
-    assert isinstance(dim2.__version__, str)
     assert isinstance(dim3.__version__, str)
-    assert isinstance(dim3_f64.__version__, str)
-    assert isinstance(dim2_f64.__version__, str)

@@ -1,7 +1,7 @@
 """Loader tests.
 
 These exercise the URDF, MJCF, and mesh loader bindings. The loaders are
-3D-only / f32-only — there are no f64 equivalents.
+3D-only / f32-only.
 """
 
 from __future__ import annotations
