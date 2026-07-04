@@ -1,11 +1,11 @@
 [package]
 name = "mjcf-rs"
-version = "0.1.0"
-authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+version.workspace = true
+authors.workspace = true
 description = "Pure-Rust parser for the MuJoCo MJCF XML format."
 documentation = "https://docs.rs/mjcf-rs"
-homepage = "https://rapier.rs"
-repository = "https://github.com/dimforge/rapier"
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 categories = [
     "parser-implementations",
@@ -13,8 +13,9 @@ categories = [
     "simulation",
 ]
 keywords = ["mjcf", "mujoco", "robotics", "parser", "xml"]
-license = "Apache-2.0"
-edition = "2024"
+license.workspace = true
+rust-version.workspace = true
+edition.workspace = true
 
 [features]
 default = []
@@ -22,11 +23,11 @@ default = []
 msh = ["dep:byteorder"]
 
 [dependencies]
-roxmltree = "0.20"
-thiserror = "2"
-log = "0.4"
+roxmltree.workspace = true
+thiserror = { workspace = true, features = ["std"] }
+log.workspace = true
 byteorder = { version = "1", optional = true }
 glamx = { workspace = true, features = ["std", "f64"] }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile.workspace = true

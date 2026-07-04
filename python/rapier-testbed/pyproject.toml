@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rapier-testbed"
-version = "0.33.0"
+version = "0.34.0"
 description = "Panda3D-based visual testbed and example gallery for the Rapier Python bindings."
 readme = "README.md"
 license = { text = "Apache-2.0" }
