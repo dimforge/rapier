@@ -327,12 +327,12 @@ pub(super) fn add_springdamper_to_multibody(
     let mut offset = 0;
     let mut ndofs = 0;
     for (i, link) in multibody.links().enumerate() {
-        let nd = link.joint().ndofs();
+        let link_ndofs = link.joint().ndofs();
         if i == link_id {
-            ndofs = nd;
+            ndofs = link_ndofs;
             break;
         }
-        offset += nd;
+        offset += link_ndofs;
     }
     if ndofs == 0 {
         return;

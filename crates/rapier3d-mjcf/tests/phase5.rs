@@ -129,7 +129,10 @@ const AFFINE_SERVO_XML: &str = r#"
 "#;
 
 /// The rapier handle of the `arm` body in the model above.
-fn arm_handle<H: Copy>(robot: &MjcfRobot, handles: &rapier3d_mjcf::MjcfRobotHandles<H>) -> RigidBodyHandle {
+fn arm_handle<H: Copy>(
+    robot: &MjcfRobot,
+    handles: &rapier3d_mjcf::MjcfRobotHandles<H>,
+) -> RigidBodyHandle {
     for (i, bh) in handles.bodies.iter().enumerate() {
         if robot.bodies[i].name.as_deref() == Some("arm") {
             return bh.as_ref().unwrap().body;
@@ -140,7 +143,8 @@ fn arm_handle<H: Copy>(robot: &MjcfRobot, handles: &rapier3d_mjcf::MjcfRobotHand
 
 #[test]
 fn affine_general_actuator_parses_as_servo() {
-    let (robot, _) = MjcfRobot::from_str(AFFINE_SERVO_XML, MjcfLoaderOptions::default(), ".").unwrap();
+    let (robot, _) =
+        MjcfRobot::from_str(AFFINE_SERVO_XML, MjcfLoaderOptions::default(), ".").unwrap();
     let a = &robot.actuators[0].actuator;
     assert_eq!(a.bias_type.as_deref(), Some("affine"));
     assert_eq!(a.gainprm.first().copied(), Some(10.0));
@@ -155,7 +159,8 @@ fn affine_general_actuator_parses_as_servo() {
 /// across the whole run.
 fn drive_servo_to(target: Real, multibody: bool) -> Real {
     use rapier3d_mjcf::MjcfMultibodyOptions;
-    let (robot, _) = MjcfRobot::from_str(AFFINE_SERVO_XML, MjcfLoaderOptions::default(), ".").unwrap();
+    let (robot, _) =
+        MjcfRobot::from_str(AFFINE_SERVO_XML, MjcfLoaderOptions::default(), ".").unwrap();
     let mut bodies = RigidBodySet::new();
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
@@ -176,8 +181,11 @@ fn drive_servo_to(target: Real, multibody: bool) -> Real {
         let arm = arm_handle(&robot, &handles);
         (Ctl::Multibody(handles), arm)
     } else {
-        let handles =
-            robot.clone().insert_using_impulse_joints(&mut bodies, &mut colliders, &mut impulse_joints);
+        let handles = robot.clone().insert_using_impulse_joints(
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+        );
         let arm = arm_handle(&robot, &handles);
         (Ctl::Impulse(handles), arm)
     };
@@ -216,13 +224,19 @@ fn drive_servo_to(target: Real, multibody: bool) -> Real {
 #[test]
 fn affine_general_actuator_drives_hinge_impulse_path() {
     let angle = drive_servo_to(0.5, false);
-    assert!((angle - 0.5).abs() < 0.1, "servo didn't reach target: angle = {angle}");
+    assert!(
+        (angle - 0.5).abs() < 0.1,
+        "servo didn't reach target: angle = {angle}"
+    );
 }
 
 #[test]
 fn affine_general_actuator_drives_hinge_multibody_path() {
     let angle = drive_servo_to(0.5, true);
-    assert!((angle - 0.5).abs() < 0.1, "multibody servo didn't reach target: angle = {angle}");
+    assert!(
+        (angle - 0.5).abs() < 0.1,
+        "multibody servo didn't reach target: angle = {angle}"
+    );
 }
 
 #[test]

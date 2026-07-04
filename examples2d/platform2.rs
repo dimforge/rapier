@@ -1,7 +1,7 @@
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -56,27 +56,34 @@ pub fn init_world(testbed: &mut Testbed) {
     let (position_based_platform_handle, _) = world.insert(platform_body, collider);
 
     /*
-     * Setup a callback to control the platform.
-     */
-    testbed.add_callback(move |_, physics, _, run_state| {
-        let velocity = Vector::new(run_state.time.sin() * 5.0, (run_state.time * 5.0).sin());
-
-        // Update the velocity-based kinematic body by setting its velocity.
-        if let Some(platform) = physics.bodies.get_mut(velocity_based_platform_handle) {
-            platform.set_linvel(velocity, true);
-        }
-
-        // Update the position-based kinematic body by setting its next position.
-        if let Some(platform) = physics.bodies.get_mut(position_based_platform_handle) {
-            let mut next_tra = platform.translation();
-            next_tra += velocity * physics.integration_parameters.dt;
-            platform.set_next_kinematic_translation(next_tra);
-        }
-    });
-
-    /*
      * Run the simulation.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::new(0.0, 1.0), 40.0);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::new(0.0, 1.0), 40.0);
+
+    let mut step_id = 0usize;
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+            step_id += 1;
+
+            let velocity = Vector::new(
+                (step_id as f32 * world.integration_parameters.dt).sin() * 5.0,
+                ((step_id as f32 * world.integration_parameters.dt) * 5.0).sin(),
+            );
+
+            // Update the velocity-based kinematic body by setting its velocity.
+            if let Some(platform) = world.bodies.get_mut(velocity_based_platform_handle) {
+                platform.set_linvel(velocity, true);
+            }
+
+            // Update the position-based kinematic body by setting its next position.
+            if let Some(platform) = world.bodies.get_mut(position_based_platform_handle) {
+                let mut next_tra = platform.translation();
+                next_tra += velocity * world.integration_parameters.dt;
+                platform.set_next_kinematic_translation(next_tra);
+            }
+        }
+    }
+    Ok(())
 }

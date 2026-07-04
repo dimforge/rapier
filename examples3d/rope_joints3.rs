@@ -1,10 +1,10 @@
 use crate::utils::character::{self, CharacterControlMode};
 use kiss3d::color::Color;
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::control::{KinematicCharacterController, PidController};
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -61,7 +61,7 @@ pub fn init_world(testbed: &mut Testbed) {
     let collider = ColliderBuilder::cuboid(0.15, 0.3, 0.15);
     let (character_handle, _) = world.insert(rigid_body, collider);
 
-    testbed.set_initial_body_color(
+    viewer.set_initial_body_color(
         character_handle,
         Color::new(1., 131. / 255., 244.0 / 255., 1.0),
     );
@@ -80,28 +80,31 @@ pub fn init_world(testbed: &mut Testbed) {
     world.insert_impulse_joint(character_handle, child_handle, joint);
 
     /*
-     * Callback to update the character based on user inputs.
+     * State to update the character based on user inputs.
      */
     let mut control_mode = CharacterControlMode::Kinematic(0.1);
     let mut controller = KinematicCharacterController::default();
     let mut pid = PidController::default();
 
-    testbed.add_callback(move |graphics, physics, _, _| {
-        if let Some(graphics) = graphics {
+    /*
+     * Set up the testbed.
+     */
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::new(0.0, 0.0, 0.0));
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
             character::update_character(
-                graphics,
-                physics,
+                viewer,
+                &mut world,
                 &mut control_mode,
                 &mut controller,
                 &mut pid,
                 character_handle,
             );
         }
-    });
-
-    /*
-     * Set up the testbed.
-     */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::new(0.0, 0.0, 0.0));
+    }
+    Ok(())
 }

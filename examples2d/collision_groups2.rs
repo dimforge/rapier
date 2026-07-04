@@ -1,8 +1,8 @@
 use kiss3d::color::{BLUE, GREEN};
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -34,7 +34,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .collision_groups(GREEN_GROUP);
     let green_collider_handle = world.insert_collider(green_floor, Some(floor_handle));
 
-    testbed.set_initial_collider_color(green_collider_handle, GREEN);
+    viewer.set_initial_collider_color(green_collider_handle, GREEN);
 
     /*
      * A blue floor that will collide with the BLUE group only.
@@ -44,7 +44,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .collision_groups(BLUE_GROUP);
     let blue_collider_handle = world.insert_collider(blue_floor, Some(floor_handle));
 
-    testbed.set_initial_collider_color(blue_collider_handle, BLUE);
+    viewer.set_initial_collider_color(blue_collider_handle, BLUE);
 
     /*
      * Create the cubes
@@ -72,13 +72,20 @@ pub fn init_world(testbed: &mut Testbed) {
             let collider = ColliderBuilder::cuboid(rad, rad).collision_groups(group);
             let (handle, _) = world.insert(rigid_body, collider);
 
-            testbed.set_initial_body_color(handle, color);
+            viewer.set_initial_body_color(handle, color);
         }
     }
 
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::new(0.0, 1.0), 100.0);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::new(0.0, 1.0), 100.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

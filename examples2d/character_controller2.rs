@@ -1,12 +1,12 @@
 use crate::utils::character;
 use crate::utils::character::CharacterControlMode;
 use kiss3d::color::Color;
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::control::{KinematicCharacterController, PidController};
 use rapier2d::prelude::*;
 use std::f32::consts::PI;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -33,7 +33,7 @@ pub fn init_world(testbed: &mut Testbed) {
         .soft_ccd_prediction(10.0);
     let collider = ColliderBuilder::capsule_y(0.3, 0.15);
     let (character_handle, _) = world.insert(rigid_body, collider);
-    testbed.set_initial_body_color(character_handle, Color::new(0.8, 0.1, 0.1, 1.0));
+    viewer.set_initial_body_color(character_handle, Color::new(0.8, 0.1, 0.1, 1.0));
 
     /*
      * Create the cubes
@@ -144,24 +144,6 @@ pub fn init_world(testbed: &mut Testbed) {
     world.insert_impulse_joint(ground_handle, handle, joint);
 
     /*
-     * Setup a callback to move the platform.
-     */
-    testbed.add_callback(move |_, physics, _, run_state| {
-        let linvel = Vector::new(
-            (run_state.time * 2.0).sin() * 2.0,
-            (run_state.time * 5.0).sin() * 1.5,
-        );
-        // let angvel = run_state.time.sin() * 0.5;
-
-        // Update the velocity-based kinematic body by setting its velocity.
-        if let Some(platform) = physics.bodies.get_mut(platform_handle) {
-            platform.set_linvel(linvel, true);
-            // NOTE: interaction with rotating platforms isn't handled very well yet.
-            // platform.set_angvel(angvel, true);
-        }
-    });
-
-    /*
      * Callback to update the character based on user inputs.
      */
     let mut control_mode = CharacterControlMode::Kinematic(0.1);
@@ -173,22 +155,43 @@ pub fn init_world(testbed: &mut Testbed) {
     };
     let mut pid = PidController::default();
 
-    testbed.add_callback(move |graphics, physics, _, _| {
-        if let Some(graphics) = graphics {
+    /*
+     * Set up the testbed.
+     */
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::new(0.0, 1.0), 100.0);
+
+    let mut step_id = 0usize;
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+            step_id += 1;
+
+            // Move the platform.
+            let linvel = Vector::new(
+                ((step_id as f32 * world.integration_parameters.dt) * 2.0).sin() * 2.0,
+                ((step_id as f32 * world.integration_parameters.dt) * 5.0).sin() * 1.5,
+            );
+            // let angvel = (step_id as f32 * world.integration_parameters.dt as f32).sin() * 0.5;
+
+            // Update the velocity-based kinematic body by setting its velocity.
+            if let Some(platform) = world.bodies.get_mut(platform_handle) {
+                platform.set_linvel(linvel, true);
+                // NOTE: interaction with rotating platforms isn't handled very well yet.
+                // platform.set_angvel(angvel, true);
+            }
+
+            // Update the character based on user inputs.
             character::update_character(
-                graphics,
-                physics,
+                viewer,
+                &mut world,
                 &mut control_mode,
                 &mut controller,
                 &mut pid,
                 character_handle,
             );
         }
-    });
+    }
 
-    /*
-     * Set up the testbed.
-     */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::new(0.0, 1.0), 100.0);
+    Ok(())
 }

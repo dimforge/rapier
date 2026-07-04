@@ -34,13 +34,12 @@ clippy = { needless_lifetimes = "allow" }
 default = ["dim2"]
 dim2 = []
 parallel = ["rapier/parallel", "num_cpus"]
-other-backends = ["wrapped2d"]
 profiler_ui = ["dep:puffin_egui", "profiling/profile-with-puffin"]
 # See https://github.com/dimforge/rapier/issues/760.
 unstable-puffin-pr-235 = []
 
 [package.metadata.docs.rs]
-features = ["parallel", "other-backends", "profiler_ui"]
+features = ["parallel", "profiler_ui"]
 
 [dependencies]
 nalgebra = { version = "0.35", features = ["rand"] }
@@ -50,7 +49,6 @@ rand_pcg = "0.10"
 web-time = { version = "1.1" }
 bitflags = "2"
 num_cpus = { version = "1", optional = true }
-wrapped2d = { version = "0.4", optional = true }
 bincode = "1"
 Inflector = "0.11"
 md5 = "0.8"

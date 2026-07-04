@@ -575,7 +575,10 @@ fn mesh_scale_inherits_default_when_asset_precedes_default() {
     </mujoco>
     "#;
     let (_, model) = MjcfRobot::from_str(xml, MjcfLoaderOptions::default(), ".").unwrap();
-    let mesh = model.assets.mesh("part").expect("mesh `part` should be parsed");
+    let mesh = model
+        .assets
+        .mesh("part")
+        .expect("mesh `part` should be parsed");
     assert_eq!(
         mesh.scale,
         [0.001, 0.001, 0.001],

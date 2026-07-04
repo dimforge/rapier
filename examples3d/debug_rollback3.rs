@@ -1,7 +1,7 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -36,29 +36,34 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut step = 0;
     let snapped_frame = 51;
 
-    testbed.add_callback(move |_, physics, _, _| {
-        step += 1;
-
-        // Snap the ball velocity or restore it.
-        let ball = physics.bodies.get_mut(ball_handle).unwrap();
-
-        if step == snapped_frame {
-            linvel = ball.linvel();
-            angvel = ball.angvel();
-            pos = *ball.position();
-        }
-
-        if step == 100 {
-            ball.set_linvel(linvel, true);
-            ball.set_angvel(angvel, true);
-            ball.set_position(pos, true);
-            step = snapped_frame;
-        }
-    });
-
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
+            step += 1;
+
+            // Snap the ball velocity or restore it.
+            let ball = world.bodies.get_mut(ball_handle).unwrap();
+
+            if step == snapped_frame {
+                linvel = ball.linvel();
+                angvel = ball.angvel();
+                pos = *ball.position();
+            }
+
+            if step == 100 {
+                ball.set_linvel(linvel, true);
+                ball.set_angvel(angvel, true);
+                ball.set_position(pos, true);
+                step = snapped_frame;
+            }
+        }
+    }
+    Ok(())
 }

@@ -1,4 +1,4 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
 fn create_coupled_joints(world: &mut PhysicsWorld, origin: Vector, use_articulations: bool) {
@@ -530,64 +530,59 @@ fn create_actuated_spherical_joints(
     }
 }
 
-fn do_init_world(testbed: &mut Testbed, use_articulations: bool) {
+fn build_scene(world: &mut PhysicsWorld, use_articulations: bool) {
+    create_prismatic_joints(world, Vector::new(20.0, 5.0, 0.0), 4, use_articulations);
+    create_actuated_prismatic_joints(world, Vector::new(25.0, 5.0, 0.0), 4, use_articulations);
+    create_revolute_joints(world, Vector::new(20.0, 0.0, 0.0), 3, use_articulations);
+    create_revolute_joints_with_limits(world, Vector::new(34.0, 0.0, 0.0), use_articulations);
+    create_fixed_joints(world, Vector::new(0.0, 10.0, 0.0), 10, use_articulations);
+    create_actuated_revolute_joints(world, Vector::new(20.0, 10.0, 0.0), 6, use_articulations);
+    create_actuated_spherical_joints(world, Vector::new(13.0, 10.0, 0.0), 3, use_articulations);
+    create_spherical_joints(world, 15, use_articulations);
+    create_spherical_joints_with_limits(world, Vector::new(-5.0, 0.0, 0.0), use_articulations);
+    create_coupled_joints(world, Vector::new(0.0, 20.0, 0.0), use_articulations);
+}
+
+pub async fn run_impulse_joints(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
     let mut world = PhysicsWorld::new();
 
-    create_prismatic_joints(
-        &mut world,
-        Vector::new(20.0, 5.0, 0.0),
-        4,
-        use_articulations,
-    );
-    create_actuated_prismatic_joints(
-        &mut world,
-        Vector::new(25.0, 5.0, 0.0),
-        4,
-        use_articulations,
-    );
-    create_revolute_joints(
-        &mut world,
-        Vector::new(20.0, 0.0, 0.0),
-        3,
-        use_articulations,
-    );
-    create_revolute_joints_with_limits(&mut world, Vector::new(34.0, 0.0, 0.0), use_articulations);
-    create_fixed_joints(
-        &mut world,
-        Vector::new(0.0, 10.0, 0.0),
-        10,
-        use_articulations,
-    );
-    create_actuated_revolute_joints(
-        &mut world,
-        Vector::new(20.0, 10.0, 0.0),
-        6,
-        use_articulations,
-    );
-    create_actuated_spherical_joints(
-        &mut world,
-        Vector::new(13.0, 10.0, 0.0),
-        3,
-        use_articulations,
-    );
-    create_spherical_joints(&mut world, 15, use_articulations);
-    create_spherical_joints_with_limits(&mut world, Vector::new(-5.0, 0.0, 0.0), use_articulations);
-    create_coupled_joints(&mut world, Vector::new(0.0, 20.0, 0.0), use_articulations);
+    build_scene(&mut world, false);
 
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(15.0, 5.0, 42.0), Vec3::new(13.0, 1.0, 1.0));
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(15.0, 5.0, 42.0), Vec3::new(13.0, 1.0, 1.0));
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }
 
-pub fn init_world_with_joints(testbed: &mut Testbed) {
-    do_init_world(testbed, false)
-}
+pub async fn run_multibody_joints(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
+    /*
+     * World
+     */
+    let mut world = PhysicsWorld::new();
 
-pub fn init_world_with_articulations(testbed: &mut Testbed) {
-    do_init_world(testbed, true)
+    build_scene(&mut world, true);
+
+    /*
+     * Set up the testbed.
+     */
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(15.0, 5.0, 42.0), Vec3::new(13.0, 1.0, 1.0));
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

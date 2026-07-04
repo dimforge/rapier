@@ -1,8 +1,8 @@
 use kiss3d::color::Color;
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -57,7 +57,7 @@ pub fn init_world(testbed: &mut Testbed) {
             let rigid_body = RigidBodyBuilder::dynamic().pose(position);
             let collider = ColliderBuilder::cuboid(thickness, width * 2.0, width);
             let (handle, _) = world.insert(rigid_body, collider);
-            testbed.set_initial_body_color(handle, colors[i % 2]);
+            viewer.set_initial_body_color(handle, colors[i % 2]);
         } else {
             skip -= 1;
         }
@@ -72,6 +72,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

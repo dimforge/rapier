@@ -1,7 +1,7 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -37,74 +37,74 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut extra_colliders = Vec::new();
     let snapped_frame = 51;
 
-    testbed.add_callback(move |mut graphics, physics, _, _| {
-        step += 1;
-
-        // Add a bigger ball collider
-        let collider = ColliderBuilder::ball(ball_rad + 0.01 * (step as f32)).density(100.0);
-        let new_ball_collider_handle =
-            physics
-                .colliders
-                .insert_with_parent(collider, ball_handle, &mut physics.bodies);
-
-        if let Some(graphics) = &mut graphics {
-            graphics.add_collider(new_ball_collider_handle, &physics.colliders);
-        }
-
-        extra_colliders.push(new_ball_collider_handle);
-
-        // Snap the ball velocity or restore it.
-        let ball = physics.bodies.get_mut(ball_handle).unwrap();
-
-        if step == snapped_frame {
-            linvel = ball.linvel();
-            angvel = ball.angvel();
-            pos = *ball.position();
-        }
-
-        if step == 100 {
-            ball.set_linvel(linvel, true);
-            ball.set_angvel(angvel, true);
-            ball.set_position(pos, true);
-            step = snapped_frame;
-
-            for handle in &extra_colliders {
-                if let Some(graphics) = &mut graphics {
-                    graphics.remove_collider(*handle);
-                }
-
-                physics
-                    .colliders
-                    .remove(*handle, &mut physics.islands, &mut physics.bodies, true);
-            }
-
-            extra_colliders.clear();
-        }
-
-        // Remove then re-add the ground collider.
-        // let ground = physics.bodies.get_mut(ground_handle).unwrap();
-        // ground.set_position(Pose::from_translation(Vector::new(0.0, step as f32 * 0.001, 0.0)), false);
-        // let coll = physics
-        //     .colliders
-        //     .remove(ground_collider_handle, &mut physics.bodies, true)
-        //     .unwrap();
-        let coll = ColliderBuilder::cuboid(ground_size, ground_height + step as f32 * 0.01, 0.4)
-            .friction(0.15);
-        let new_ground_collider_handle =
-            physics
-                .colliders
-                .insert_with_parent(coll, ground_handle, &mut physics.bodies);
-
-        if let Some(graphics) = &mut graphics {
-            graphics.add_collider(new_ground_collider_handle, &physics.colliders);
-        }
-
-        extra_colliders.push(new_ground_collider_handle);
-    });
-
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
+            step += 1;
+
+            // Add a bigger ball collider
+            let collider = ColliderBuilder::ball(ball_rad + 0.01 * (step as f32)).density(100.0);
+            let new_ball_collider_handle =
+                world
+                    .colliders
+                    .insert_with_parent(collider, ball_handle, &mut world.bodies);
+
+            viewer.add_collider(new_ball_collider_handle, &world);
+
+            extra_colliders.push(new_ball_collider_handle);
+
+            // Snap the ball velocity or restore it.
+            let ball = world.bodies.get_mut(ball_handle).unwrap();
+
+            if step == snapped_frame {
+                linvel = ball.linvel();
+                angvel = ball.angvel();
+                pos = *ball.position();
+            }
+
+            if step == 100 {
+                ball.set_linvel(linvel, true);
+                ball.set_angvel(angvel, true);
+                ball.set_position(pos, true);
+                step = snapped_frame;
+
+                for handle in &extra_colliders {
+                    viewer.remove_collider(*handle);
+
+                    world
+                        .colliders
+                        .remove(*handle, &mut world.islands, &mut world.bodies, true);
+                }
+
+                extra_colliders.clear();
+            }
+
+            // Remove then re-add the ground collider.
+            // let ground = world.bodies.get_mut(ground_handle).unwrap();
+            // ground.set_position(Pose::from_translation(Vector::new(0.0, step as f32 * 0.001, 0.0)), false);
+            // let coll = world
+            //     .colliders
+            //     .remove(ground_collider_handle, &mut world.bodies, true)
+            //     .unwrap();
+            let coll =
+                ColliderBuilder::cuboid(ground_size, ground_height + step as f32 * 0.01, 0.4)
+                    .friction(0.15);
+            let new_ground_collider_handle =
+                world
+                    .colliders
+                    .insert_with_parent(coll, ground_handle, &mut world.bodies);
+
+            viewer.add_collider(new_ground_collider_handle, &world);
+
+            extra_colliders.push(new_ground_collider_handle);
+        }
+    }
+    Ok(())
 }

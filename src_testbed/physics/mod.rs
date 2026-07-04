@@ -1,12 +1,60 @@
-use rapier::dynamics::{
-    CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodySet,
-};
+use rapier::dynamics::{ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodySet};
 use rapier::geometry::{
-    BroadPhaseBvh, ColliderSet, CollisionEvent, ContactForceEvent, DefaultBroadPhase, NarrowPhase,
+    BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, CollisionEvent, ContactForceEvent,
+    DefaultBroadPhase, NarrowPhase,
 };
-use rapier::pipeline::{PhysicsHooks, PhysicsPipeline};
+use rapier::pipeline::PhysicsWorld;
 use std::sync::mpsc::Receiver;
+
+/// Which broad-phase acceleration structure the testbed builds for a scene.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum RapierBroadPhaseType {
+    #[default]
+    BvhSubtreeOptimizer,
+    BvhWithoutOptimization,
+}
+
+impl RapierBroadPhaseType {
+    pub fn init_broad_phase(self) -> BroadPhaseBvh {
+        match self {
+            RapierBroadPhaseType::BvhSubtreeOptimizer => {
+                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::SubtreeOptimizer)
+            }
+            RapierBroadPhaseType::BvhWithoutOptimization => {
+                BroadPhaseBvh::with_optimization_strategy(BvhOptimizationStrategy::None)
+            }
+        }
+    }
+}
+
+/// Snapshots the full simulation state of a [`PhysicsWorld`].
+pub fn snapshot_world(world: &PhysicsWorld, timestep_id: usize) -> PhysicsSnapshot {
+    PhysicsSnapshot::new(
+        timestep_id,
+        &world.broad_phase,
+        &world.narrow_phase,
+        &world.islands,
+        &world.bodies,
+        &world.colliders,
+        &world.impulse_joints,
+        &world.multibody_joints,
+    )
+    .expect("Failed to create physics snapshot")
+}
+
+/// Restores a [`PhysicsWorld`] from a snapshot produced by [`snapshot_world`].
+pub fn restore_world(world: &mut PhysicsWorld, snapshot: &PhysicsSnapshot) {
+    let restored = snapshot
+        .restore()
+        .expect("Failed to restore physics snapshot");
+    world.broad_phase = restored.broad_phase;
+    world.narrow_phase = restored.narrow_phase;
+    world.islands = restored.island_manager;
+    world.bodies = restored.bodies;
+    world.colliders = restored.colliders;
+    world.impulse_joints = restored.impulse_joints;
+    world.multibody_joints = restored.multibody_joints;
+}
 
 #[derive(Clone)]
 pub struct PhysicsSnapshot {
@@ -84,75 +132,6 @@ impl PhysicsSnapshot {
         println!("|_ colliders: {}B", self.colliders.len());
         println!("|_ impulse_joints: {}B", self.impulse_joints.len());
         println!("|_ multibody_joints: {}B", self.multibody_joints.len());
-    }
-}
-
-pub struct PhysicsState {
-    pub islands: IslandManager,
-    pub broad_phase: BroadPhaseBvh,
-    pub narrow_phase: NarrowPhase,
-    pub bodies: RigidBodySet,
-    pub colliders: ColliderSet,
-    pub impulse_joints: ImpulseJointSet,
-    pub multibody_joints: MultibodyJointSet,
-    pub ccd_solver: CCDSolver,
-    pub pipeline: PhysicsPipeline,
-    pub integration_parameters: IntegrationParameters,
-    pub gravity: rapier::math::Vector,
-    pub hooks: Box<dyn PhysicsHooks>,
-}
-
-impl Default for PhysicsState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PhysicsState {
-    pub fn new() -> Self {
-        Self {
-            islands: IslandManager::new(),
-            broad_phase: DefaultBroadPhase::default(),
-            narrow_phase: NarrowPhase::new(),
-            bodies: RigidBodySet::new(),
-            colliders: ColliderSet::new(),
-            impulse_joints: ImpulseJointSet::new(),
-            multibody_joints: MultibodyJointSet::new(),
-            ccd_solver: CCDSolver::new(),
-            pipeline: PhysicsPipeline::new(),
-            integration_parameters: IntegrationParameters::default(),
-            gravity: rapier::math::Vector::Y * -9.81,
-            hooks: Box::new(()),
-        }
-    }
-
-    /// Create a snapshot of the current physics state.
-    pub fn snapshot(&self) -> PhysicsSnapshot {
-        PhysicsSnapshot::new(
-            0, // timestep_id - could be tracked if needed
-            &self.broad_phase,
-            &self.narrow_phase,
-            &self.islands,
-            &self.bodies,
-            &self.colliders,
-            &self.impulse_joints,
-            &self.multibody_joints,
-        )
-        .expect("Failed to create physics snapshot")
-    }
-
-    /// Restore physics state from a snapshot.
-    pub fn restore_snapshot(&mut self, snapshot: PhysicsSnapshot) {
-        let restored = snapshot
-            .restore()
-            .expect("Failed to restore physics snapshot");
-        self.broad_phase = restored.broad_phase;
-        self.narrow_phase = restored.narrow_phase;
-        self.islands = restored.island_manager;
-        self.bodies = restored.bodies;
-        self.colliders = restored.colliders;
-        self.impulse_joints = restored.impulse_joints;
-        self.multibody_joints = restored.multibody_joints;
     }
 }
 

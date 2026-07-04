@@ -264,7 +264,8 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
                         rb.set_position(free_pose(qp, dof.scale, robot.base_shift), true);
                     }
                     if let Some(qv) = qvel {
-                        let lin = Vector::new(qv[0] as Real, qv[1] as Real, qv[2] as Real) * dof.scale;
+                        let lin =
+                            Vector::new(qv[0] as Real, qv[1] as Real, qv[2] as Real) * dof.scale;
                         let ang = Vector::new(qv[3] as Real, qv[4] as Real, qv[5] as Real);
                         rb.set_linvel(lin, true);
                         rb.set_angvel(ang, true);
@@ -279,7 +280,9 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
             // Articulated DoF (hinge / slide / ball): write to the multibody's
             // generalized coordinates.
             let Some(jidx) = dof.joint else { continue };
-            let Some(jh) = self.joints.get(jidx) else { continue };
+            let Some(jh) = self.joints.get(jidx) else {
+                continue;
+            };
             // `joint` is `None` for a joint that was dropped as a loop closure.
             let Some(handle) = jh.joint else { continue };
             if let Some(link) = multibody_joints.rigid_body_link(jh.link2) {
@@ -292,7 +295,9 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
             // Compute the displacement (target − current) under an immutable
             // borrow, then apply it under a mutable one.
             let (assembly_id, ndofs, disp) = {
-                let Some(link) = mb.link(link_id) else { continue };
+                let Some(link) = mb.link(link_id) else {
+                    continue;
+                };
                 let joint = link.joint();
                 let coords = joint.coords();
                 let disp = qpos.map(|qp| match dof.kind {
@@ -375,7 +380,8 @@ impl MjcfRobotHandles<ImpulseJointHandle> {
                         world[dof.body] = free_pose(qp, dof.scale, robot.base_shift);
                     }
                     if let Some(qv) = qvel {
-                        let lin = Vector::new(qv[0] as Real, qv[1] as Real, qv[2] as Real) * dof.scale;
+                        let lin =
+                            Vector::new(qv[0] as Real, qv[1] as Real, qv[2] as Real) * dof.scale;
                         let ang = Vector::new(qv[3] as Real, qv[4] as Real, qv[5] as Real);
                         free_vels.push((dof.body, lin, ang));
                     }
@@ -402,8 +408,10 @@ impl MjcfRobotHandles<ImpulseJointHandle> {
         // joint's parent body is already positioned. This mirrors rapier's
         // multibody `body_to_parent`: world₂ = world₁ · frame1 · q · frame2⁻¹.
         for (jidx, j) in robot.joints.iter().enumerate() {
-            world[j.link2] =
-                world[j.link1] * j.joint.local_frame1 * joint_tf[jidx] * j.joint.local_frame2.inverse();
+            world[j.link2] = world[j.link1]
+                * j.joint.local_frame1
+                * joint_tf[jidx]
+                * j.joint.local_frame2.inverse();
         }
 
         for (i, handle) in self.bodies.iter().enumerate() {
@@ -445,7 +453,7 @@ impl MjcfRobotHandles<ImpulseJointHandle> {
 
     /// Like [`apply_controls`](Self::apply_controls) but uniformly scales every
     /// actuator's strength by `gain_scale` (gains and force limits; see
-    /// [`configure_actuator_motor`]). `gain_scale < 1` softens the actuation —
+    /// `configure_actuator_motor`). `gain_scale < 1` softens the actuation —
     /// e.g. to ease servo-driven moves that would otherwise saturate and snap.
     pub fn apply_controls_scaled(
         &self,
@@ -471,7 +479,7 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
     /// [`apply_controls`](MjcfRobotHandles::<ImpulseJointHandle>::apply_controls):
     /// it reproduces MuJoCo's "actuation" by writing each actuator's motor
     /// onto the multibody link it drives. The per-actuator interpretation is
-    /// identical (see [`configure_actuator_motor`]); call it once per frame
+    /// identical (see `configure_actuator_motor`); call it once per frame
     /// before `pipeline.step`.
     ///
     /// `ctrl` is a flat array of one scalar per actuator, in the order of
@@ -493,7 +501,7 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
 
     /// Like [`apply_controls_multibody`](Self::apply_controls_multibody) but
     /// uniformly scales every actuator's strength by `gain_scale` (gains and
-    /// force limits; see [`configure_actuator_motor`]). `gain_scale < 1` softens
+    /// force limits; see `configure_actuator_motor`). `gain_scale < 1` softens
     /// the actuation, so a servo-driven move (e.g. easing between keyframes)
     /// ramps in instead of saturating to its force limit and arriving instantly.
     pub fn apply_controls_multibody_scaled(
@@ -507,7 +515,9 @@ impl MjcfRobotHandles<Option<MultibodyJointHandle>> {
             // `H` is `Option<MultibodyJointHandle>` here, so `ah.joint` is
             // `Option<Option<_>>`: the outer `None` means "no actuator joint",
             // the inner `None` means "joint dropped as a loop closure".
-            let Some(Some(handle)) = ah.joint else { continue };
+            let Some(Some(handle)) = ah.joint else {
+                continue;
+            };
             let Some((mb, link_id)) = multibody_joints.get_mut(handle) else {
                 continue;
             };

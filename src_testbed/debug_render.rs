@@ -1,10 +1,10 @@
 #![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
-use crate::harness::Harness;
 use kiss3d::window::Window;
 use rapier::math::Vector;
 use rapier::pipeline::{
     DebugColor, DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
+    PhysicsWorld,
 };
 
 pub struct DebugRenderPipelineResource {
@@ -60,17 +60,17 @@ impl<'a> DebugRenderBackend for Kiss3dLinesRenderBackend<'a> {
 pub fn debug_render_scene(
     window: &mut Window,
     debug_render: &mut DebugRenderPipelineResource,
-    harness: &Harness,
+    world: &PhysicsWorld,
 ) {
     if debug_render.enabled {
         let mut backend = Kiss3dLinesRenderBackend { window };
         debug_render.pipeline.render(
             &mut backend,
-            &harness.physics.bodies,
-            &harness.physics.colliders,
-            &harness.physics.impulse_joints,
-            &harness.physics.multibody_joints,
-            &harness.physics.narrow_phase,
+            &world.bodies,
+            &world.colliders,
+            &world.impulse_joints,
+            &world.multibody_joints,
+            &world.narrow_phase,
         );
     }
 }

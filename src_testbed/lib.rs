@@ -3,13 +3,11 @@
 extern crate nalgebra as na;
 
 pub use crate::graphics::{GraphicsManager, RenderMaterial};
-pub use crate::harness::plugin::HarnessPlugin;
-pub use crate::physics::PhysicsState;
-pub use crate::plugin::TestbedPlugin;
+pub use crate::physics::RapierBroadPhaseType;
 pub use crate::testbed::{
-    Example, KeysState, RunMode, Testbed, TestbedActionFlags, TestbedApp, TestbedGraphics,
-    TestbedState, TestbedStateFlags,
+    ExampleEntry, KeysState, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags,
 };
+pub use crate::viewer::TestbedViewer;
 
 // Re-export kiss3d types that users might need
 pub use kiss3d::event::{Action, Key, MouseButton, WindowEvent};
@@ -23,16 +21,13 @@ pub use egui;
 
 mod debug_render;
 mod graphics;
-pub mod harness;
 mod mouse;
 pub mod physics;
-#[cfg(all(feature = "dim3", feature = "other-backends"))]
-mod physx_backend;
-mod plugin;
 mod save;
 pub mod settings;
 mod testbed;
 pub mod ui;
+mod viewer;
 
 #[cfg(feature = "dim3")]
 pub use kiss3d::camera::OrbitCamera3d as Camera;

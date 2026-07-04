@@ -1,7 +1,7 @@
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -58,18 +58,19 @@ pub fn init_world(testbed: &mut Testbed) {
     }
 
     /*
-     * Setup a callback to control the platform.
-     */
-    testbed.add_callback(move |_, physics, _, _| {
-        // Update the velocity-based kinematic body by setting its velocity.
-        if let Some(platform) = physics.bodies.get_mut(velocity_based_platform_handle) {
-            platform.set_angvel(-0.15, true);
-        }
-    });
-
-    /*
      * Run the simulation.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::new(0.0, 1.0), 40.0);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::new(0.0, 1.0), 40.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+            // Update the velocity-based kinematic body by setting its velocity.
+            if let Some(platform) = world.bodies.get_mut(velocity_based_platform_handle) {
+                platform.set_angvel(-0.15, true);
+            }
+        }
+    }
+    Ok(())
 }

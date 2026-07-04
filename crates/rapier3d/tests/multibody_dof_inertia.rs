@@ -15,13 +15,9 @@ fn leaf_joint_inverse_inertia_is_link_inertia() {
     let mut multibody_joints = MultibodyJointSet::new();
     let base = bodies.insert(RigidBodyBuilder::fixed());
     let izz = 0.3;
-    let link = bodies.insert(
-        RigidBodyBuilder::dynamic().additional_mass_properties(MassProperties::new(
-            Vector::ZERO,
-            1.0,
-            Vector::new(0.1, 0.2, izz),
-        )),
-    );
+    let link = bodies.insert(RigidBodyBuilder::dynamic().additional_mass_properties(
+        MassProperties::new(Vector::ZERO, 1.0, Vector::new(0.1, 0.2, izz)),
+    ));
     let h = multibody_joints
         .insert(base, link, RevoluteJointBuilder::new(Vector::Z), true)
         .unwrap();
@@ -43,7 +39,12 @@ fn leaf_joint_inverse_inertia_is_link_inertia() {
         let inv = mb.dof_inverse_inertia(&bodies);
         // Before setting armature: 1 / Izz.
         assert_eq!(inv.len(), 1);
-        assert!((inv[0] - 1.0 / izz).abs() < 1e-4, "inv = {}, want {}", inv[0], 1.0 / izz);
+        assert!(
+            (inv[0] - 1.0 / izz).abs() < 1e-4,
+            "inv = {}, want {}",
+            inv[0],
+            1.0 / izz
+        );
         // Now set armature and recheck.
         let n = mb.armature().len();
         mb.armature_mut()[n - 1] = armature;
@@ -71,20 +72,12 @@ fn parent_joint_inverse_inertia_accounts_for_children() {
     let mut multibody_joints = MultibodyJointSet::new();
     let base = bodies.insert(RigidBodyBuilder::fixed());
     let (i1, i2) = (0.4, 0.25);
-    let link1 = bodies.insert(
-        RigidBodyBuilder::dynamic().additional_mass_properties(MassProperties::new(
-            Vector::ZERO,
-            1.0,
-            Vector::new(0.1, 0.1, i1),
-        )),
-    );
-    let link2 = bodies.insert(
-        RigidBodyBuilder::dynamic().additional_mass_properties(MassProperties::new(
-            Vector::ZERO,
-            1.0,
-            Vector::new(0.1, 0.1, i2),
-        )),
-    );
+    let link1 = bodies.insert(RigidBodyBuilder::dynamic().additional_mass_properties(
+        MassProperties::new(Vector::ZERO, 1.0, Vector::new(0.1, 0.1, i1)),
+    ));
+    let link2 = bodies.insert(RigidBodyBuilder::dynamic().additional_mass_properties(
+        MassProperties::new(Vector::ZERO, 1.0, Vector::new(0.1, 0.1, i2)),
+    ));
     multibody_joints
         .insert(base, link1, RevoluteJointBuilder::new(Vector::Z), true)
         .unwrap();

@@ -1,10 +1,10 @@
 use crate::utils::character;
 use crate::utils::character::CharacterControlMode;
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::control::{KinematicCharacterController, PidController};
 use rapier2d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -58,22 +58,26 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut controller = KinematicCharacterController::default();
     let mut pid = PidController::default();
 
-    testbed.add_callback(move |graphics, physics, _, _| {
-        if let Some(graphics) = graphics {
+    /*
+     * Set up the testbed.
+     */
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::new(0.0, 1.0), 100.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
             character::update_character(
-                graphics,
-                physics,
+                viewer,
+                &mut world,
                 &mut control_mode,
                 &mut controller,
                 &mut pid,
                 character_handle,
             );
         }
-    });
+    }
 
-    /*
-     * Set up the testbed.
-     */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::new(0.0, 1.0), 100.0);
+    Ok(())
 }

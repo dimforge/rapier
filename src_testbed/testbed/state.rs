@@ -1,13 +1,8 @@
 //! Testbed state types and flags.
 
 use bitflags::bitflags;
-use na::Point3;
 
-#[cfg(feature = "dim3")]
-use rapier::control::DynamicRayCastVehicleController;
-
-use crate::harness::RapierBroadPhaseType;
-use crate::physics::PhysicsSnapshot;
+use crate::physics::{PhysicsSnapshot, RapierBroadPhaseType};
 use crate::save::SerializableTestbedState;
 use crate::settings::ExampleSettings;
 
@@ -18,6 +13,17 @@ pub enum RunMode {
     #[default]
     Stop,
     Step,
+}
+
+/// A loop transition requested from the UI: stop entirely, or switch to another
+/// example (or re-run the current one). The target is carried in
+/// [`TestbedState::selected_display_index`]; this only signals the
+/// example-owned `while viewer.render_frame()` loop to exit so the outer demo
+/// runner can dispatch the next example.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Transition {
+    Quit,
+    Switch,
 }
 
 bitflags! {
@@ -45,13 +51,14 @@ impl Default for TestbedStateFlags {
 }
 
 bitflags! {
-    /// Flags for testbed actions that need to be processed
+    /// Flags for in-frame testbed actions applied to the borrowed world.
+    ///
+    /// Example switching / restart / backend changes are no longer flags — they
+    /// are handled by [`Transition`], which makes the example's render loop exit
+    /// so the outer demo runner re-dispatches.
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     pub struct TestbedActionFlags: u32 {
         const RESET_WORLD_GRAPHICS = 1 << 0;
-        const EXAMPLE_CHANGED = 1 << 1;
-        const RESTART = 1 << 2;
-        const BACKEND_CHANGED = 1 << 3;
         const TAKE_SNAPSHOT = 1 << 4;
         const RESTORE_SNAPSHOT = 1 << 5;
         const APP_STARTED = 1 << 6;
@@ -60,10 +67,6 @@ bitflags! {
         const FRAME_SCENE = 1 << 7;
     }
 }
-
-pub(crate) const RAPIER_BACKEND: usize = 0;
-pub(crate) const PHYSX_BACKEND_PATCH_FRICTION: usize = 1;
-pub(crate) const PHYSX_BACKEND_TWO_FRICTION_DIR: usize = 2;
 
 /// Which tab is currently selected in the UI
 #[derive(Default, Copy, Clone, PartialEq, Eq, Debug)]
@@ -74,45 +77,46 @@ pub enum UiTab {
     Performance,
 }
 
-/// Information about an example for UI display
+/// Information about an example for UI display.
 #[derive(Clone, Debug)]
 pub struct ExampleEntry {
     pub name: &'static str,
     pub group: &'static str,
-    /// Index in the original builders array
-    pub builder_index: usize,
+}
+
+impl ExampleEntry {
+    pub fn new(group: &'static str, name: &'static str) -> Self {
+        Self { name, group }
+    }
 }
 
 /// State for the testbed application
 pub struct TestbedState {
     pub running: RunMode,
-    pub draw_colls: bool,
-    #[cfg(feature = "dim3")]
-    pub vehicle_controller: Option<DynamicRayCastVehicleController>,
-    pub grabbed_object_plane: (Point3<f32>, na::Vector3<f32>),
     pub can_grab_behind_ground: bool,
-    pub drawing_ray: Option<na::Point2<f32>>,
     pub prev_flags: TestbedStateFlags,
     pub flags: TestbedStateFlags,
     pub action_flags: TestbedActionFlags,
-    pub backend_names: Vec<&'static str>,
+    /// Pending loop transition (example switch / quit) requested from the UI.
+    pub transition: Option<Transition>,
+    /// `true` while a restart / solver-parameter change is the reason for a
+    /// pending [`Transition::Switch`]; such switches preserve the user's
+    /// example-setting edits, whereas selecting a different example clears them.
+    pub preserve_settings_on_switch: bool,
     /// Examples in display order (grouped, then by original order within group)
     pub examples: Vec<ExampleEntry>,
     /// Unique group names in order of first appearance
     pub example_groups: Vec<&'static str>,
     /// Currently selected position in the display order
     pub selected_display_index: usize,
-    pub selected_backend: usize,
     pub example_settings: ExampleSettings,
     pub broad_phase_type: RapierBroadPhaseType,
-    pub physx_use_two_friction_directions: bool,
     pub snapshot: Option<PhysicsSnapshot>,
-    pub nsteps: usize,
     pub camera_locked: bool,
     pub selected_tab: UiTab,
     pub prev_save_data: SerializableTestbedState,
     /// Unit up-vector kept in sync with the camera (see
-    /// [`crate::Testbed::set_up_axis`]). The gravity slider in the
+    /// [`crate::TestbedViewer::set_up_axis`]). The gravity slider in the
     /// testbed UI reads this so it can keep gravity aligned with "down"
     /// (`-up_axis`) instead of the hard-coded Y-axis it used to assume.
     /// Defaults to `Vector::Y`.
@@ -121,35 +125,21 @@ pub struct TestbedState {
 
 impl Default for TestbedState {
     fn default() -> Self {
-        #[allow(unused_mut)]
-        let mut backend_names = vec!["rapier"];
-        #[cfg(all(feature = "dim3", feature = "other-backends"))]
-        backend_names.push("physx (patch friction)");
-        #[cfg(all(feature = "dim3", feature = "other-backends"))]
-        backend_names.push("physx (two friction dir)");
-
         let flags = TestbedStateFlags::default();
         Self {
             running: RunMode::Running,
-            draw_colls: false,
-            #[cfg(feature = "dim3")]
-            vehicle_controller: None,
-            grabbed_object_plane: (Point3::origin(), na::zero()),
             can_grab_behind_ground: false,
-            drawing_ray: None,
             snapshot: None,
             prev_flags: flags,
             flags,
-            action_flags: TestbedActionFlags::APP_STARTED | TestbedActionFlags::EXAMPLE_CHANGED,
-            backend_names,
+            action_flags: TestbedActionFlags::APP_STARTED,
+            transition: None,
+            preserve_settings_on_switch: false,
             examples: Vec::new(),
             example_groups: Vec::new(),
             example_settings: ExampleSettings::default(),
             selected_display_index: 0,
-            selected_backend: RAPIER_BACKEND,
             broad_phase_type: RapierBroadPhaseType::default(),
-            physx_use_two_friction_directions: true,
-            nsteps: 1,
             camera_locked: false,
             selected_tab: UiTab::default(),
             prev_save_data: SerializableTestbedState::default(),
@@ -159,11 +149,25 @@ impl Default for TestbedState {
 }
 
 impl TestbedState {
-    /// Get the builder index for the currently selected example
-    pub fn selected_builder_index(&self) -> usize {
-        self.examples
-            .get(self.selected_display_index)
-            .map(|e| e.builder_index)
-            .unwrap_or(0)
+    /// Builds the grouped display order from a flat list of examples.
+    pub fn set_examples(&mut self, examples: Vec<ExampleEntry>) {
+        use indexmap::IndexSet;
+
+        let mut groups: IndexSet<&'static str> = IndexSet::new();
+        for example in &examples {
+            groups.insert(example.group);
+        }
+
+        let mut ordered = Vec::new();
+        for group in &groups {
+            for example in &examples {
+                if example.group == *group {
+                    ordered.push(example.clone());
+                }
+            }
+        }
+
+        self.example_groups = groups.into_iter().collect();
+        self.examples = ordered;
     }
 }

@@ -1,15 +1,18 @@
 use obj::raw::object::Polygon;
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::parry::bounding_volume;
 use rapier3d::prelude::*;
 use std::fs::File;
 use std::io::BufReader;
 
-pub fn init_world(testbed: &mut Testbed) {
-    do_init_world(testbed, false);
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
+    run_impl(viewer, false).await
 }
 
-pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
+pub async fn run_impl(
+    viewer: &mut TestbedViewer,
+    use_convex_decomposition: bool,
+) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -121,8 +124,15 @@ pub fn do_init_world(testbed: &mut Testbed, use_convex_decomposition: bool) {
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }
 
 fn models() -> Vec<String> {

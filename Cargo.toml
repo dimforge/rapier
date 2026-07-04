@@ -73,10 +73,10 @@ num-traits = { version = "0.2", default-features = false }
 approx = { version = "0.5", default-features = false }
 
 # Parry (each crate picks its own variant)
-parry2d = { version = "0.28", default-features = false, features = ["required-features"] }
-parry3d = { version = "0.28", default-features = false, features = ["required-features"] }
-parry2d-f64 = { version = "0.28", default-features = false, features = ["required-features"] }
-parry3d-f64 = { version = "0.28", default-features = false, features = ["required-features"] }
+parry2d = { version = "0.29", default-features = false, features = ["required-features"] }
+parry3d = { version = "0.29", default-features = false, features = ["required-features"] }
+parry2d-f64 = { version = "0.29", default-features = false, features = ["required-features"] }
+parry3d-f64 = { version = "0.29", default-features = false, features = ["required-features"] }
 
 # Utilities
 bitflags = "2"
@@ -98,7 +98,6 @@ serde_json = "1"
 oorandom = { version = "11", default-features = false }
 
 [patch.crates-io]
-#wrapped2d = { git = "https://github.com/Bastacyclop/rust_box2d.git" }
 #xurdf = { path = "../xurdf/xurdf" }
 
 #simba = { path = "../simba" }

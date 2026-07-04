@@ -1,7 +1,7 @@
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -47,23 +47,28 @@ pub fn init_world(testbed: &mut Testbed) {
 
     let mut force = Vector::new(0.0, 0.0);
 
-    testbed.add_callback(move |_, physics, _, _| {
-        let left_plank = &mut physics.bodies[handles[0]];
-        left_plank.reset_forces(true);
-        left_plank.add_force(force, true);
-
-        let right_plank = &mut physics.bodies[handles[1]];
-        right_plank.reset_forces(true);
-        right_plank.add_force(-force, true);
-
-        force.x += 10000.0;
-
-        println!("force: {}", force.x);
-    });
-
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::ZERO, 50.0);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec2::ZERO, 50.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
+            let left_plank = &mut world.bodies[handles[0]];
+            left_plank.reset_forces(true);
+            left_plank.add_force(force, true);
+
+            let right_plank = &mut world.bodies[handles[1]];
+            right_plank.reset_forces(true);
+            right_plank.add_force(-force, true);
+
+            force.x += 10000.0;
+
+            println!("force: {}", force.x);
+        }
+    }
+    Ok(())
 }

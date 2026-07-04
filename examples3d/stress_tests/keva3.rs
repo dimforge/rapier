@@ -1,10 +1,10 @@
 use kiss3d::color::Color;
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::glamx::Vec3Swizzles;
 use rapier3d::prelude::*;
 
 pub fn build_block(
-    testbed: &mut Testbed,
+    viewer: &mut TestbedViewer,
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
     half_extents: Vec3,
@@ -47,7 +47,7 @@ pub fn build_block(
                 let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
                 colliders.insert_with_parent(collider, handle, bodies);
 
-                testbed.set_initial_body_color(handle, color0);
+                viewer.set_initial_body_color(handle, color0);
                 std::mem::swap(&mut color0, &mut color1);
             }
         }
@@ -67,13 +67,13 @@ pub fn build_block(
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
             colliders.insert_with_parent(collider, handle, bodies);
-            testbed.set_initial_body_color(handle, color0);
+            viewer.set_initial_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
         }
     }
 }
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -104,7 +104,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let numz = numx * 3 + 1;
         let block_width = numx as f32 * half_extents.z * 2.0;
         build_block(
-            testbed,
+            viewer,
             &mut world.bodies,
             &mut world.colliders,
             half_extents,
@@ -117,6 +117,13 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+        }
+    }
+    Ok(())
 }

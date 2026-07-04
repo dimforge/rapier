@@ -1,8 +1,8 @@
 use kiss3d::color::Color;
-use rapier_testbed2d::Testbed;
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -36,7 +36,7 @@ pub fn init_world(testbed: &mut Testbed) {
         let collider = ColliderBuilder::cuboid(rad, rad);
         let (handle, _) = world.insert(rigid_body, collider);
 
-        testbed.set_initial_body_color(handle, Color::new(0.5, 0.5, 1.0, 1.0));
+        viewer.set_initial_body_color(handle, Color::new(0.5, 0.5, 1.0, 1.0));
     }
 
     /*
@@ -59,34 +59,40 @@ pub fn init_world(testbed: &mut Testbed) {
         .active_events(ActiveEvents::COLLISION_EVENTS);
     world.insert_collider(sensor_collider, Some(sensor_handle));
 
-    testbed.set_initial_body_color(sensor_handle, Color::new(0.5, 1.0, 1.0, 1.0));
-
-    // Callback that will be executed on the main loop to handle proximities.
-    testbed.add_callback(move |mut graphics, physics, events, _| {
-        while let Ok(prox) = events.collision_events.try_recv() {
-            let color = if prox.started() {
-                Color::new(1.0, 1.0, 0.0, 1.0)
-            } else {
-                Color::new(0.5, 0.5, 1.0, 1.0)
-            };
-
-            let parent_handle1 = physics.colliders[prox.collider1()].parent().unwrap();
-            let parent_handle2 = physics.colliders[prox.collider2()].parent().unwrap();
-
-            if let Some(graphics) = &mut graphics {
-                if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
-                    graphics.set_body_color(parent_handle1, color, false);
-                }
-                if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
-                    graphics.set_body_color(parent_handle2, color, false);
-                }
-            }
-        }
-    });
+    viewer.set_initial_body_color(sensor_handle, Color::new(0.5, 1.0, 1.0, 1.0));
 
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec2::new(0.0, 1.0), 100.0);
+    viewer.set_world(&mut world);
+    let (collision_send, collision_recv) = std::sync::mpsc::channel();
+    let (contact_force_send, _contact_force_recv) = std::sync::mpsc::channel();
+    let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+    viewer.look_at(Vec2::new(0.0, 1.0), 100.0);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step_with_events(&(), &event_handler);
+
+            // Callback that handles proximities.
+            while let Ok(prox) = collision_recv.try_recv() {
+                let color = if prox.started() {
+                    Color::new(1.0, 1.0, 0.0, 1.0)
+                } else {
+                    Color::new(0.5, 0.5, 1.0, 1.0)
+                };
+
+                let parent_handle1 = world.colliders[prox.collider1()].parent().unwrap();
+                let parent_handle2 = world.colliders[prox.collider2()].parent().unwrap();
+
+                if parent_handle1 != ground_handle && parent_handle1 != sensor_handle {
+                    viewer.set_body_color(parent_handle1, color, false);
+                }
+                if parent_handle2 != ground_handle && parent_handle2 != sensor_handle {
+                    viewer.set_body_color(parent_handle2, color, false);
+                }
+            }
+        }
+    }
+    Ok(())
 }

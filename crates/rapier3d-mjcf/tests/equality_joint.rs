@@ -100,7 +100,10 @@ fn equality_joint_couples_multibody_joints() {
 
     let q1 = read_q(&multibody_joints, h1);
     let q2 = read_q(&multibody_joints, h2);
-    assert!((q1 - 0.3).abs() < 0.05, "driven joint q1 = {q1}, expected ~0.3");
+    assert!(
+        (q1 - 0.3).abs() < 0.05,
+        "driven joint q1 = {q1}, expected ~0.3"
+    );
     assert!(
         (q2 - 2.0 * q1).abs() < 0.02,
         "coupling q2 = 2·q1 not enforced: q1 = {q1}, q2 = {q2}"

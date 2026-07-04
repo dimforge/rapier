@@ -1,8 +1,8 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::{Key, TestbedViewer};
 use rapier3d::control::{DynamicRayCastVehicleController, WheelTuning};
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -112,9 +112,49 @@ pub fn init_world(testbed: &mut Testbed) {
     world.insert_collider(collider, None);
 
     /*
-     * Set up the testbed.
+     * Set up the viewer.
      */
-    testbed.set_physics_world(world);
-    testbed.set_vehicle_controller(vehicle);
-    testbed.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(10.0, 10.0, 10.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            /*
+             * Vehicle controls.
+             */
+            let keys = viewer.keys();
+            let mut engine_force = 0.0;
+            let mut steering_angle = 0.0;
+
+            if keys.pressed(Key::Right) {
+                steering_angle += -0.7;
+            }
+            if keys.pressed(Key::Left) {
+                steering_angle += 0.7;
+            }
+            if keys.pressed(Key::Up) {
+                engine_force += 30.0;
+            }
+            if keys.pressed(Key::Down) {
+                engine_force += -30.0;
+            }
+
+            let wheels = vehicle.wheels_mut();
+            wheels[0].engine_force = engine_force;
+            wheels[0].steering = steering_angle;
+            wheels[1].engine_force = engine_force;
+            wheels[1].steering = steering_angle;
+
+            let q = world.broad_phase.as_query_pipeline_mut(
+                world.narrow_phase.query_dispatcher(),
+                &mut world.bodies,
+                &mut world.colliders,
+                QueryFilter::exclude_dynamic().exclude_rigid_body(vehicle_handle),
+            );
+            vehicle.update_vehicle(world.integration_parameters.dt, q);
+
+            world.step();
+        }
+    }
+    Ok(())
 }

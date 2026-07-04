@@ -1,7 +1,7 @@
-use rapier_testbed3d::Testbed;
+use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-pub fn init_world(testbed: &mut Testbed) {
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * World
      */
@@ -55,43 +55,6 @@ pub fn init_world(testbed: &mut Testbed) {
     let mut step = 0;
     let snapped_frame = 51;
 
-    testbed.add_callback(move |mut gfx, physics, _, _| {
-        step += 1;
-
-        // Snap the ball velocity or restore it.
-        let ball = physics.bodies.get_mut(ball_handle).unwrap();
-
-        if step == snapped_frame {
-            linvel = ball.linvel();
-            angvel = ball.angvel();
-            pos = *ball.position();
-        }
-
-        let shapeshifting_coll = physics
-            .colliders
-            .get_mut(shapeshifting_coll_handle)
-            .unwrap();
-        if step % 50 == 0 {
-            shape_idx = (shape_idx + 1) % 4;
-            shapeshifting_coll.set_shape(shapes[shape_idx].clone())
-        }
-
-        if step == 100 {
-            ball.set_linvel(linvel, true);
-            ball.set_angvel(angvel, true);
-            ball.set_position(pos, true);
-            step = snapped_frame;
-        }
-
-        let ball_coll = physics.colliders.get_mut(ball_coll_handle).unwrap();
-        ball_coll.set_shape(SharedShape::ball(ball_rad * step as f32 * 2.0));
-
-        if let Some(gfx) = &mut gfx {
-            gfx.update_collider(ball_coll_handle, &physics.colliders);
-            gfx.update_collider(shapeshifting_coll_handle, &physics.colliders);
-        }
-    });
-
     /*
      * Create the primitives
      */
@@ -137,6 +100,43 @@ pub fn init_world(testbed: &mut Testbed) {
     /*
      * Set up the testbed.
      */
-    testbed.set_physics_world(world);
-    testbed.look_at(Vec3::new(40.0, 40.0, 40.0), Vec3::ZERO);
+    viewer.set_world(&mut world);
+    viewer.look_at(Vec3::new(40.0, 40.0, 40.0), Vec3::ZERO);
+
+    while viewer.render_frame(&mut world).await {
+        if viewer.simulating() {
+            world.step();
+
+            step += 1;
+
+            // Snap the ball velocity or restore it.
+            let ball = world.bodies.get_mut(ball_handle).unwrap();
+
+            if step == snapped_frame {
+                linvel = ball.linvel();
+                angvel = ball.angvel();
+                pos = *ball.position();
+            }
+
+            let shapeshifting_coll = world.colliders.get_mut(shapeshifting_coll_handle).unwrap();
+            if step % 50 == 0 {
+                shape_idx = (shape_idx + 1) % 4;
+                shapeshifting_coll.set_shape(shapes[shape_idx].clone())
+            }
+
+            if step == 100 {
+                ball.set_linvel(linvel, true);
+                ball.set_angvel(angvel, true);
+                ball.set_position(pos, true);
+                step = snapped_frame;
+            }
+
+            let ball_coll = world.colliders.get_mut(ball_coll_handle).unwrap();
+            ball_coll.set_shape(SharedShape::ball(ball_rad * step as f32 * 2.0));
+
+            viewer.update_collider(ball_coll_handle, &world);
+            viewer.update_collider(shapeshifting_coll_handle, &world);
+        }
+    }
+    Ok(())
 }

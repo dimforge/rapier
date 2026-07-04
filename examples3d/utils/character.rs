@@ -1,6 +1,6 @@
 use kiss3d::color::Color;
 use rapier_testbed3d::{
-    KeyCode, PhysicsState, TestbedGraphics,
+    KeyCode, TestbedViewer,
     egui::{Align2, ComboBox, Slider, Ui, Window},
 };
 use rapier3d::{
@@ -18,8 +18,8 @@ pub enum CharacterControlMode {
 }
 
 pub fn update_character(
-    graphics: &mut TestbedGraphics,
-    physics: &mut PhysicsState,
+    graphics: &mut TestbedViewer,
+    physics: &mut PhysicsWorld,
     control_mode: &mut CharacterControlMode,
     controller: &mut KinematicCharacterController,
     pid: &mut PidController,
@@ -49,7 +49,7 @@ pub fn update_character(
 }
 
 fn character_movement_from_inputs(
-    gfx: &TestbedGraphics,
+    gfx: &TestbedViewer,
     mut speed: Real,
     artificial_gravity: bool,
 ) -> Vector {
@@ -100,8 +100,8 @@ fn character_movement_from_inputs(
 }
 
 fn update_pid_controller(
-    gfx: &mut TestbedGraphics,
-    phx: &mut PhysicsState,
+    gfx: &mut TestbedViewer,
+    phx: &mut PhysicsWorld,
     character_handle: RigidBodyHandle,
     pid: &mut PidController,
     speed: Real,
@@ -139,8 +139,8 @@ fn update_pid_controller(
 }
 
 fn update_kinematic_controller(
-    gfx: &mut TestbedGraphics,
-    phx: &mut PhysicsState,
+    gfx: &mut TestbedViewer,
+    phx: &mut PhysicsWorld,
     character_handle: RigidBodyHandle,
     controller: &KinematicCharacterController,
     speed: Real,
@@ -190,7 +190,7 @@ fn update_kinematic_controller(
 }
 
 fn character_control_ui(
-    gfx: &mut TestbedGraphics,
+    gfx: &mut TestbedViewer,
     character_controller: &mut KinematicCharacterController,
     pid_controller: &mut PidController,
     control_mode: &mut CharacterControlMode,
