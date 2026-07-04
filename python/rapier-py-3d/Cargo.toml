@@ -36,15 +36,15 @@ pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multipl
 numpy = "0.22"
 nalgebra.workspace = true
 thiserror.workspace = true
-rapier3d = { path = "../../crates/rapier3d", features = ["serde-serialize", "debug-render", "simd-stable"] }
+rapier3d = { workspace = true, features = ["serde-serialize", "debug-render", "simd-stable"] }
 # Phase 09 — Loaders. URDF + MJCF + mesh. Mesh-loader features are
 # explicitly enabled so .stl / .obj / .dae meshes referenced from URDF /
 # MJCF files work out of the box.
-rapier3d-urdf = { path = "../../crates/rapier3d-urdf", features = ["stl", "collada", "wavefront"] }
-rapier3d-mjcf = { path = "../../crates/rapier3d-mjcf", features = ["stl", "wavefront", "msh"] }
-rapier3d-meshloader = { path = "../../crates/rapier3d-meshloader", features = ["stl", "collada", "wavefront"] }
-mesh-loader = "0.1.12"
-urdf-rs = "0.9"
+rapier3d-urdf = { workspace = true, features = ["stl", "collada", "wavefront"] }
+rapier3d-mjcf = { workspace = true, features = ["stl", "wavefront", "msh"] }
+rapier3d-meshloader = { workspace = true, features = ["stl", "collada", "wavefront"] }
+mesh-loader.workspace = true
+urdf-rs.workspace = true
 # Phase 11 — Serialization, snapshots.
 serde = { workspace = true, features = ["derive", "std"] }
 bincode = { workspace = true }

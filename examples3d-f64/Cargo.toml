@@ -1,8 +1,8 @@
 [package]
 name = "rapier-examples-3d-f64"
-version = "0.1.0"
-authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 default-run = "all_examples3-f64"
 publish = false
 
@@ -13,20 +13,20 @@ parallel = ["rapier3d-f64/parallel", "rapier_testbed3d-f64/parallel"]
 enhanced-determinism = ["rapier3d-f64/enhanced-determinism"]
 
 [dependencies]
-anyhow = "1"
-rand = "0.10"
-getrandom = { version = "0.2", features = ["js"] }
-wasm-bindgen = "0.2"
-obj-rs = { version = "0.7", default-features = false }
-bincode = "1"
-serde = "1"
-kiss3d = { version = "0.44.0", features = ["egui", "serde"] }
+anyhow.workspace = true
+rand.workspace = true
+getrandom.workspace = true
+wasm-bindgen.workspace = true
+obj-rs.workspace = true
+bincode.workspace = true
+serde = { workspace = true, features = ["std"] }
+kiss3d.workspace = true
 
 [dependencies.rapier_testbed3d-f64]
-path = "../crates/rapier_testbed3d-f64"
+workspace = true
 
 [dependencies.rapier3d-f64]
-path = "../crates/rapier3d-f64"
+workspace = true
 
 [[bin]]
 name = "all_examples3-f64"
@@ -35,4 +35,3 @@ path = "./all_examples3-f64.rs"
 #[lib]
 #crate-type = ["cdylib", "rlib"]
 #path = "./all_examples3_wasm.rs"
-

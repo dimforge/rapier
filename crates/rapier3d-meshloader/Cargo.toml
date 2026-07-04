@@ -1,21 +1,16 @@
 [package]
 name = "rapier3d-meshloader"
 version.workspace = true
-authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+authors.workspace = true
 description = "STL file loader for the 3D rapier physics engine."
 documentation = "https://docs.rs/rapier3d-meshloader"
 homepage.workspace = true
 repository.workspace = true
 readme = "README.md"
-categories = [
-    "science",
-    "game-development",
-    "mathematics",
-    "simulation",
-    "wasm",
-]
+categories.workspace = true
 keywords = ["physics", "joints", "multibody", "robotics", "urdf"]
 license.workspace = true
+rust-version.workspace = true
 edition.workspace = true
 
 [features]
@@ -25,8 +20,8 @@ collada = ["mesh-loader/collada"]
 wavefront = ["mesh-loader/obj"]
 
 [dependencies]
-thiserror = "2"
-profiling = "1.0"
-mesh-loader = "0.1.13"
+thiserror = { workspace = true, features = ["std"] }
+profiling.workspace = true
+mesh-loader.workspace = true
 
-rapier3d = { version = "0.33.0", path = "../rapier3d" }
+rapier3d.workspace = true

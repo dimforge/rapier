@@ -42,7 +42,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.33.0"
+version = "0.34.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
@@ -88,10 +88,52 @@ web-time = "1.1"
 rayon = "1"
 serde = { version = "1", default-features = false, features = ["derive"] }
 
+# Testbed / rendering / tooling
+rand = "0.10"
+rand_pcg = "0.10"
+num_cpus = "1"
+Inflector = "0.11"
+md5 = "0.8"
+egui = "0.34"
+puffin_egui = "0.29"
+indexmap = { version = "2", features = ["serde"] }
+kiss3d = { version = "0.45.0", features = ["egui", "serde"] }
+env_logger = "0.11"
+anyhow = "1"
+
+# Loaders / assets
+urdf-rs = "0.9"
+mesh-loader = "0.1.13"
+roxmltree = "0.20"
+
+# Example-only
+lyon = "0.17"
+dot_vox = "5"
+usvg = "0.14"
+obj-rs = { version = "0.7", default-features = false }
+glam = { version = "0.33", features = ["fast-math"] }
+getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen = "0.2"
+
+# Internal crates (paths are relative to the workspace root)
+rapier2d = { version = "0.34.0", path = "crates/rapier2d" }
+rapier2d-f64 = { version = "0.34.0", path = "crates/rapier2d-f64" }
+rapier3d = { version = "0.34.0", path = "crates/rapier3d" }
+rapier3d-f64 = { version = "0.34.0", path = "crates/rapier3d-f64" }
+rapier_testbed2d = { version = "0.34.0", path = "crates/rapier_testbed2d" }
+rapier_testbed2d-f64 = { version = "0.34.0", path = "crates/rapier_testbed2d-f64" }
+rapier_testbed3d = { version = "0.34.0", path = "crates/rapier_testbed3d" }
+rapier_testbed3d-f64 = { version = "0.34.0", path = "crates/rapier_testbed3d-f64" }
+rapier3d-urdf = { version = "0.34.0", path = "crates/rapier3d-urdf" }
+rapier3d-meshloader = { version = "0.34.0", path = "crates/rapier3d-meshloader", default-features = false }
+mjcf-rs = { version = "0.34.0", path = "crates/mjcf-rs" }
+rapier3d-mjcf = { version = "0.34.0", path = "crates/rapier3d-mjcf" }
+
 # Dev
 bincode = "1"
 serde_json = "1"
 oorandom = { version = "11", default-features = false }
+tempfile = "3"
 
 [patch.crates-io]
 #xurdf = { path = "../xurdf/xurdf" }

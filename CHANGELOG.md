@@ -1,4 +1,4 @@
-## Unreleased
+## v0.34.0 (04 July 2026)
 
 ### Added
 
@@ -21,6 +21,15 @@
 - Added a missing coupling term for loop-closing impulse-joint constraints (bodies with a non-zero
   center-of-mass offset).
 - Fixed a crash occurring with the `parallel` feature enabled.
+
+### Modified
+
+- **Breaking (`rapier_testbed` only):** the testbed was reworked to remove the callback-based API.
+  `Harness::add_callback` / `clear_callbacks` and the `HarnessPlugin` trait were removed, and several
+  testbed/harness types (`RunState`, `PhysicsState`, `RapierBroadPhaseType`,
+  `TestbedApp::from_builders` / `set_builders`, etc.) were changed. Simulation setup now drives the
+  physics world directly instead of registering per-step callbacks. The core `rapier2d`/`rapier3d`
+  physics API is unaffected.
 
 ## v0.33.0 (05 June 2026)
 

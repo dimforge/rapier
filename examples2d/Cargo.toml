@@ -1,8 +1,8 @@
 [package]
 name = "rapier-examples-2d"
-version = "0.1.0"
-authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 default-run = "all_examples2"
 publish = false
 
@@ -13,21 +13,21 @@ simd-nightly = ["rapier2d/simd-nightly"]
 enhanced-determinism = ["rapier2d/enhanced-determinism"]
 
 [dependencies]
-anyhow = "1"
-rand = "0.10"
-lyon = "0.17"
-dot_vox = "5"
-kiss3d = { version = "0.44.0", features = ["egui", "serde"] }
+anyhow.workspace = true
+rand.workspace = true
+lyon.workspace = true
+dot_vox.workspace = true
+kiss3d.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-usvg = "0.14"
+usvg.workspace = true
 
 [dependencies.rapier_testbed2d]
-path = "../crates/rapier_testbed2d"
+workspace = true
 #features = ["profiler_ui"]
 
 [dependencies.rapier2d]
-path = "../crates/rapier2d"
+workspace = true
 
 [[bin]]
 name = "all_examples2"
