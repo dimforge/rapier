@@ -1,3 +1,27 @@
+## Unreleased
+
+### Added
+
+- Multibody joints now support a per-DoF **armature** (reflected rotor inertia, matching MuJoCo's
+  concept), exposed via `Multibody::armature()` / `armature_mut()`. The related
+  `Multibody::dof_inverse_inertia()` returns the articulated DoF inverse inertia including armature.
+- Multibody joints now support passive **per-DoF springs** (MuJoCo-style spring/damper) via
+  `MultibodyJoint::set_spring()` / `spring()`, integrated implicitly.
+- Multibody joints now support **holonomic DoF coupling**: constrain one generalized coordinate to
+  another via `MultibodyDofCoupling` and `Multibody::add_dof_coupling()` / `couplings()`.
+- `MultibodyLink::assembly_id()` exposes the offset of a link's DoFs in the multibody's generalized
+  coordinate/velocity vectors.
+- `rapier3d-mjcf`: support for tendons, equality constraints, materials (including visual-mesh
+  materials), actuator max-force, joint DoF coupling, armature, per-DoF spring/damper, and control.
+- Testbed: the ability to specify a material.
+
+### Fixed
+
+- Corrected the local frame of impulse joints attached to multibodies.
+- Added a missing coupling term for loop-closing impulse-joint constraints (bodies with a non-zero
+  center-of-mass offset).
+- Fixed a crash occurring with the `parallel` feature enabled.
+
 ## v0.33.0 (05 June 2026)
 
 ### Added
