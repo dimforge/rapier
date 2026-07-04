@@ -32,7 +32,6 @@ jobs:
       - name: Cargo clippy (Python bindings)
         run: |
           cargo clippy --no-deps \
-            -p rapier-py-core \
             -p rapier-py-3d \
             -- -D warnings
 

@@ -15,7 +15,6 @@ members = [
     "crates/rapier3d-meshloader",
     "crates/mjcf-rs",
     "crates/rapier3d-mjcf",
-    "python/rapier-py-core",
     "python/rapier-py-3d",
 ]
 # Bare `cargo build` / `cargo test` / `cargo clippy` only touches the

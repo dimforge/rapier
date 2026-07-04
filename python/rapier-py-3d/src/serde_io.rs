@@ -9,11 +9,10 @@
 //!
 //! Mismatched magic or unknown version => `SerializationError`.
 //!
-//! This module deliberately stays free of `rapier::...` paths so that it can
-//! live in the dim/scalar-independent `rapier-py-core`. The dim/scalar-specific
-//! glue (the `Py<T>` round-trip on `RigidBody`, `Collider`, `RigidBodySet`,
-//! etc., plus `PhysicsWorld.snapshot()`/`restore()`) is emitted by the
-//! `define_serde_types!` macro, which is invoked once per cdylib.
+//! This module deliberately stays free of `rapier::...` paths. The
+//! type-specific glue (the `Py<T>` round-trip on `RigidBody`, `Collider`,
+//! `RigidBodySet`, etc., plus `PhysicsWorld.snapshot()`/`restore()`) lives in
+//! the `serde_glue` module.
 
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;

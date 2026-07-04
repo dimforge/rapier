@@ -41,7 +41,7 @@ impl ReprPrecision for f32 {
     }
 }
 
-use crate::numpy::{PyArray1, PyArrayMethods};
+use crate::numpy::PyArray1;
 use crate::pyo3::exceptions::{PyTypeError, PyValueError};
 use crate::pyo3::prelude::*;
 use crate::pyo3::pyclass::CompareOp;

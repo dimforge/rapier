@@ -77,18 +77,3 @@ pub fn register_errors(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add("MeshLoaderError", py.get_type_bound::<MeshLoaderError>())?;
     Ok(())
 }
-
-/// Convenience macro that each cdylib calls from its `#[pymodule]`:
-/// ```ignore
-/// #[pymodule]
-/// fn _rapier3d(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-///     rapier_py_core::register_errors!(py, m);
-///     Ok(())
-/// }
-/// ```
-#[macro_export]
-macro_rules! register_errors {
-    ($py:expr, $m:expr) => {
-        $crate::errors::register_errors($py, $m)?
-    };
-}
