@@ -56,7 +56,7 @@ pub fn init_world(testbed: &mut Testbed) {
     // on the multibody path (controls are applied to multibody joints).
     let enable_controls = testbed
         .example_settings_mut()
-        .get_or_set_bool("Enable joint controls", false);
+        .get_or_set_bool("Enable joint controls", true);
     // Uniformly scales actuator strength (gains + force limits) when driving the
     // model. Read live by the controls callback, so it's a non-restart setting
     // (below). Turn it down to make a servo-driven move between keyframes ease in

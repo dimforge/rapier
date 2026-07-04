@@ -103,7 +103,7 @@ impl GenericContactConstraintBuilder {
         let required_jacobian_len =
             *jacobian_id + manifold.data.solver_contacts.len() * multibodies_ndof * 2 * DIM;
 
-        if jacobians.nrows() < required_jacobian_len && !cfg!(feature = "parallel") {
+        if jacobians.nrows() < required_jacobian_len {
             jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
         }
 
