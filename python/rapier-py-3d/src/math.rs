@@ -10,7 +10,7 @@
 //!
 //! Defaults for `approx_eq` tolerances: `1e-7` for `f32`.
 
-use crate::conv::{PyAngVector, PyIsometry, PyPoint, PyRotation, PyVector, Real};
+use crate::conv::*;
 
 /// Default `approx_eq` epsilon for a given scalar.
 pub trait DefaultEpsilon {
@@ -883,9 +883,7 @@ impl Isometry3 {
     /// :param up: the desired up direction.
     #[staticmethod]
     fn face_toward(eye: PyPoint, target: PyPoint, up: PyVector) -> Self {
-        Self(crate::na::Isometry3::face_towards(
-            &eye.0, &target.0, &up.0,
-        ))
+        Self(crate::na::Isometry3::face_towards(&eye.0, &target.0, &up.0))
     }
 
     /// Left-handed look-at view isometry: maps world space into a
@@ -1008,8 +1006,7 @@ impl Isometry3 {
     fn __richcmp__(&self, other: PyIsometry, op: CompareOp) -> PyResult<bool> {
         use crate::math::DefaultEpsilon;
         let eps: Real = Real::default_epsilon();
-        let t_close =
-            (self.0.translation.vector - other.0.translation.vector).norm() <= eps;
+        let t_close = (self.0.translation.vector - other.0.translation.vector).norm() <= eps;
         let a = self.0.rotation.quaternion();
         let b = other.0.rotation.quaternion();
         let r_close_pos = (a.w - b.w).abs() <= eps

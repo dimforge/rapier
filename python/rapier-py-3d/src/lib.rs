@@ -4,6 +4,12 @@
 //! into a `rapier-py-core` macro layer plus per-dimension cdylibs; with only
 //! the 3D f32 flavor remaining, everything lives here as ordinary modules.)
 
+// pyo3 0.22's `#[pymethods]` macro emits `unsafe fn` wrappers whose bodies call
+// pyo3-internal unsafe functions without an inner `unsafe {}` block. Under the
+// 2024 edition that trips `unsafe_op_in_unsafe_fn`. The calls are pyo3-internal
+// and correct; the previous macro-based layout hid them via macro hygiene.
+#![allow(unsafe_op_in_unsafe_fn)]
+
 // Re-export the crate dependencies so the modules can refer to them via stable
 // `crate::…` paths (a holdover from the former macro layer, kept intentional).
 pub use bincode;
