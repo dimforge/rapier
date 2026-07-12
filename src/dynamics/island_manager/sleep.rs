@@ -94,6 +94,14 @@ impl IslandManager {
                 continue;
             }
 
+            if rb.ids.active_island_id != active_island_id {
+                // A body manually put to sleep may still have contacts with its
+                // former awake island until the next narrow-phase update. Treat
+                // that sleeping island as a traversal boundary.
+                assert!(rb.activation.sleeping);
+                continue;
+            }
+
             if rb.ids.active_set_timestamp == self.traversal_timestamp {
                 // We already visited this body and its neighbors.
                 continue;
