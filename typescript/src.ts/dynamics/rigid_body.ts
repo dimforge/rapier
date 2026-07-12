@@ -439,7 +439,7 @@ export class RigidBody {
     }
 
     /**
-     * Sets the angular velocity fo this rigid-body.
+     * Sets the angular velocity for this rigid-body.
      *
      * @param vel - The angular velocity to set.
      * @param wakeUp - Forces the rigid-body to wake-up if it was asleep.
@@ -465,7 +465,7 @@ export class RigidBody {
     }
 
     /**
-     * Sets the angular velocity fo this rigid-body.
+     * Sets the angular velocity for this rigid-body.
      *
      * @param vel - The angular velocity to set.
      * @param wakeUp - Forces the rigid-body to wake-up if it was asleep.

@@ -155,7 +155,7 @@ impl RawRigidBodySet {
         rb_type: RawRigidBodyType,
         canSleep: bool,
         sleeping: bool,
-        softCcdPrediciton: f32,
+        softCcdPrediction: f32,
         ccdEnabled: bool,
         dominanceGroup: i8,
         additional_solver_iterations: usize,
@@ -175,7 +175,7 @@ impl RawRigidBodySet {
             .ccd_enabled(ccdEnabled)
             .dominance_group(dominanceGroup)
             .additional_solver_iterations(additional_solver_iterations)
-            .soft_ccd_prediction(softCcdPrediciton);
+            .soft_ccd_prediction(softCcdPrediction);
 
         rigid_body = if massOnly {
             rigid_body.additional_mass(mass)

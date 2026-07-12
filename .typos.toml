@@ -30,6 +30,8 @@ Shepperd = "Shepperd"
 # with `bb`) and `typ` (a "type" value — `type` is reserved in Rust/Python).
 ba = "ba"
 typ = "typ"
+# Voxel grid coordinate index in the JS bindings, paired with `ix`/`iz`.
+iy = "iy"
 # Template mesh data in the testbed instancer: `tpos`/`tnrm`/`tidx`
 # (template positions/normals/indices). Only `tpos` collides with a word.
 tpos = "tpos"

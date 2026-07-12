@@ -404,7 +404,7 @@ export class Collider {
      * Sets the collision groups used by this collider.
      *
      * Two colliders will interact iff. their collision groups are compatible.
-     * See the documentation of `InteractionGroups` for details on teh used bit pattern.
+     * See the documentation of `InteractionGroups` for details on the used bit pattern.
      *
      * @param groups - The collision groups used for the collider being built.
      */
@@ -2122,7 +2122,7 @@ export class ColliderDesc {
      * Sets the collision groups used by this collider.
      *
      * Two colliders will interact iff. their collision groups are compatible.
-     * See the documentation of `InteractionGroups` for details on teh used bit pattern.
+     * See the documentation of `InteractionGroups` for details on the used bit pattern.
      *
      * @param groups - The collision groups used for the collider being built.
      */

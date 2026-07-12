@@ -62,7 +62,7 @@
 
 #### Modified
 
-- Update to Rapier 0.27.0-beta.1 which includes a fully reworked broad-phase tha supports scene queries.
+- Update to Rapier 0.27.0-beta.1 which includes a fully reworked broad-phase that supports scene queries.
   This implies a performance gain on large scenes by avoiding the need to re-build the underlying acceleration
   structure at each frame.
 - Un-deprecate methods for reading shape properties (for example `collider.radius()`). It turned out that these

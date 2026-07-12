@@ -11,7 +11,7 @@ import {BroadPhase, Collider, ColliderSet, NarrowPhase} from "../geometry";
 import {QueryFilterFlags} from "./query_pipeline";
 
 /**
- * The vertex and color buffers for debug-redering the physics scene.
+ * The vertex and color buffers for debug-rendering the physics scene.
  */
 export class DebugRenderBuffers {
     /**
