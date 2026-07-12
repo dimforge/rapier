@@ -788,6 +788,9 @@ impl RigidBody {
     /// - Connected via joint to a moving body
     /// - Manually woken with `wake_up()`
     pub fn sleep(&mut self) {
+        if !self.activation.sleeping {
+            self.changes.insert(RigidBodyChanges::SLEEP);
+        }
         self.activation.sleep();
         self.vels = RigidBodyVelocity::zero();
     }

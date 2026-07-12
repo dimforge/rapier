@@ -174,6 +174,8 @@ impl IslandManager {
             return;
         }
 
+        let manually_slept = rb.changes.contains(RigidBodyChanges::SLEEP) && rb.is_sleeping();
+
         // Check if this is the first time we see this rigid-body.
         if rb.ids.active_island_id == usize::MAX {
             // Check if there is room in the last awake island to add this body.
@@ -205,6 +207,22 @@ impl IslandManager {
                 rb.ids.active_island_id = id;
                 rb.ids.active_set_id = 0;
             }
+        }
+
+        if manually_slept {
+            let active_island_id = bodies[handle].ids.active_island_id;
+            if self.islands[active_island_id].bodies.len() == 1 {
+                if let Some(awake_id) = self.islands[active_island_id].id_in_awake_list.take() {
+                    self.awake_islands.swap_remove(awake_id);
+                    if let Some(moved_id) = self.awake_islands.get(awake_id) {
+                        self.islands[*moved_id].id_in_awake_list = Some(awake_id);
+                    }
+                }
+            } else {
+                let sleeping_island = Island::singleton(handle, &bodies[handle]);
+                self.extract_sub_island(bodies, active_island_id, sleeping_island, true);
+            }
+            return;
         }
 
         // Push the body to the active set if it is not inside the active set yet, and
