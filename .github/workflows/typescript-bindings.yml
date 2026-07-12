@@ -1,18 +1,35 @@
-name: main
+name: TypeScript bindings
 
 on:
     push:
         branches: [master]
+        paths:
+            - "typescript/**"
+            - ".github/workflows/typescript-bindings.yml"
     pull_request:
         branches: [master]
+        paths:
+            - "typescript/**"
+            - ".github/workflows/typescript-bindings.yml"
     workflow_dispatch:
 
 env:
     CARGO_TERM_COLOR: always
 
+# The JS/Wasm bindings live under `typescript/`, which is a self-contained Cargo
+# workspace (it pulls `rapier2d`/`rapier3d` from crates.io, not from the crates
+# in this repo). Every step therefore runs inside that directory.
+
+concurrency:
+    group: typescript-bindings-${{ github.ref }}
+    cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
 jobs:
     check-fmt:
         runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: typescript
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
@@ -28,19 +45,24 @@ jobs:
             matrix:
                 os: [ubuntu-latest, macos-latest]
         runs-on: ${{ matrix.os }}
+        defaults:
+            run:
+                working-directory: typescript
         env:
             RUSTFLAGS: -D warnings
         steps:
             - uses: actions/checkout@v4
-            - uses: actions/cache@v3
+            - uses: actions/cache@v4
               with:
                   path: |
                       ~/.cargo/bin/
                       ~/.cargo/registry/index/
                       ~/.cargo/registry/cache/
                       ~/.cargo/git/db/
-                      target/
-                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+                      typescript/target/
+                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('typescript/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-js-
             - run: npm ci;
             - name: Prepare no-compat builds
               run: |
@@ -72,26 +94,31 @@ jobs:
               with:
                   name: pkg no-compat ${{ matrix.os }}
                   path: |
-                      builds/*/pkg
+                      typescript/builds/*/pkg
                   overwrite: true
     build-compat:
         strategy:
             matrix:
                 os: [ubuntu-latest, macos-latest]
         runs-on: ${{ matrix.os }}
+        defaults:
+            run:
+                working-directory: typescript
         env:
             RUSTFLAGS: -D warnings
         steps:
             - uses: actions/checkout@v4
-            - uses: actions/cache@v3
+            - uses: actions/cache@v4
               with:
                   path: |
                       ~/.cargo/bin/
                       ~/.cargo/registry/index/
                       ~/.cargo/registry/cache/
                       ~/.cargo/git/db/
-                      target/
-                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+                      typescript/target/
+                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('typescript/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-js-
             - run: npm ci;
             - name: Prepare compat builds
               run: |
@@ -127,22 +154,25 @@ jobs:
               with:
                   name: pkg compat ${{ matrix.os }}
                   path: |
-                      rapier-compat/builds/*/pkg
+                      typescript/rapier-compat/builds/*/pkg
                   overwrite: true
     publish:
         runs-on: ubuntu-latest
         needs: [build, build-compat]
         if: github.ref == 'refs/heads/master'
+        defaults:
+            run:
+                working-directory: typescript
         steps:
             - uses: actions/checkout@v4
             - uses: actions/download-artifact@v4
               with:
                   name: pkg no-compat ubuntu-latest
-                  path: builds
+                  path: typescript/builds
             - uses: actions/download-artifact@v4
               with:
                   name: pkg compat ubuntu-latest
-                  path: rapier-compat/builds
+                  path: typescript/rapier-compat/builds
             - uses: actions/setup-node@v4
               with:
                   node-version: "22.x"

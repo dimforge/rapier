@@ -39,6 +39,9 @@ default-members = [
     "crates/mjcf-rs",
     "crates/rapier3d-mjcf",
 ]
+# `typescript/` is the JS/Wasm bindings' own Cargo workspace; keep it out of
+# this one so root-level `cargo` commands never try to absorb its crates.
+exclude = ["typescript"]
 resolver = "2"
 
 [workspace.package]
