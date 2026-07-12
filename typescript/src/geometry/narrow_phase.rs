@@ -169,7 +169,7 @@ impl RawContactManifold {
     pub fn contact_local_p1(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
         unsafe {
             (&(*self.0).points).get(i).map_or(false, |c| {
-                let u = c.local_p1.coords;
+                let u = c.local_p1;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 true
@@ -181,7 +181,7 @@ impl RawContactManifold {
     pub fn contact_local_p1(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
         unsafe {
             (&(*self.0).points).get(i).map_or(false, |c| {
-                let u = c.local_p1.coords;
+                let u = c.local_p1;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 scratch_buffer.set_index(2, u.z);
@@ -194,7 +194,7 @@ impl RawContactManifold {
     pub fn contact_local_p2(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
         unsafe {
             (&(*self.0).points).get(i).map_or(false, |c| {
-                let u = c.local_p2.coords;
+                let u = c.local_p2;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 true
@@ -206,7 +206,7 @@ impl RawContactManifold {
     pub fn contact_local_p2(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
         unsafe {
             (&(*self.0).points).get(i).map_or(false, |c| {
-                let u = c.local_p2.coords;
+                let u = c.local_p2;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 scratch_buffer.set_index(2, u.z);
@@ -274,7 +274,7 @@ impl RawContactManifold {
     pub fn solver_contact_point(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
         unsafe {
             (&(*self.0).data).solver_contacts.get(i).map_or(false, |c| {
-                let u = c.point.coords;
+                let u = c.point;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 true
@@ -286,7 +286,7 @@ impl RawContactManifold {
     pub fn solver_contact_point(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
         unsafe {
             (&(*self.0).data).solver_contacts.get(i).map_or(false, |c| {
-                let u = c.point.coords;
+                let u = c.point;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 scratch_buffer.set_index(2, u.z);

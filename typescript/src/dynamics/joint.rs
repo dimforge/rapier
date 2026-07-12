@@ -1,12 +1,11 @@
 use crate::math::{RawRotation, RawVector};
-use na::Unit;
 use rapier::dynamics::{
     FixedJointBuilder, GenericJoint, JointAxesMask, JointAxis, MotorModel, PrismaticJointBuilder,
     RevoluteJointBuilder, RopeJointBuilder, SpringJointBuilder,
 };
 #[cfg(feature = "dim3")]
 use rapier::dynamics::{GenericJointBuilder, SphericalJointBuilder};
-use rapier::math::Isometry;
+use rapier::math::Pose;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -157,7 +156,7 @@ impl RawGenericJoint {
         lockedAxes: u8,
     ) -> Option<RawGenericJoint> {
         let axesMask: JointAxesMask = JointAxesMask::from_bits(lockedAxes)?;
-        let axis = Unit::try_new(axis.0, 0.0)?;
+        let axis = axis.0.try_normalize()?;
         let joint: GenericJoint = GenericJointBuilder::new(axesMask)
             .local_anchor1(anchor1.0.into())
             .local_anchor2(anchor2.0.into())
@@ -221,7 +220,7 @@ impl RawGenericJoint {
         limitsMin: f32,
         limitsMax: f32,
     ) -> Option<RawGenericJoint> {
-        let axis = Unit::try_new(axis.0, 0.0)?;
+        let axis = axis.0.try_normalize()?;
         let mut joint = PrismaticJointBuilder::new(axis)
             .local_anchor1(anchor1.0.into())
             .local_anchor2(anchor2.0.into());
@@ -248,7 +247,7 @@ impl RawGenericJoint {
         limitsMin: f32,
         limitsMax: f32,
     ) -> Option<RawGenericJoint> {
-        let axis = Unit::try_new(axis.0, 0.0)?;
+        let axis = axis.0.try_normalize()?;
         let mut joint = PrismaticJointBuilder::new(axis)
             .local_anchor1(anchor1.0.into())
             .local_anchor2(anchor2.0.into());
@@ -269,8 +268,8 @@ impl RawGenericJoint {
         anchor2: &RawVector,
         axes2: &RawRotation,
     ) -> RawGenericJoint {
-        let pos1 = Isometry::from_parts(anchor1.0.into(), axes1.0);
-        let pos2 = Isometry::from_parts(anchor2.0.into(), axes2.0);
+        let pos1 = Pose::from_parts(anchor1.0, axes1.0);
+        let pos2 = Pose::from_parts(anchor2.0, axes2.0);
         Self(
             FixedJointBuilder::new()
                 .local_frame1(pos1)
@@ -303,7 +302,7 @@ impl RawGenericJoint {
         anchor2: &RawVector,
         axis: &RawVector,
     ) -> Option<RawGenericJoint> {
-        let axis = Unit::try_new(axis.0, 0.0)?;
+        let axis = axis.0.try_normalize()?;
         Some(Self(
             RevoluteJointBuilder::new(axis)
                 .local_anchor1(anchor1.0.into())
@@ -325,8 +324,8 @@ impl RawGenericJoint {
         axis1: &RawVector,
         axis2: &RawVector,
     ) -> Option<RawGenericJoint> {
-        let axis1 = Unit::try_new(axis1.0, 0.0)?;
-        let axis2 = Unit::try_new(axis2.0, 0.0)?;
+        let axis1 = axis1.0.try_normalize()?;
+        let axis2 = axis2.0.try_normalize()?;
         let joint: GenericJoint = GenericJointBuilder::new(JointAxesMask::LOCKED_REVOLUTE_AXES)
             .local_anchor1(anchor1.0.into())
             .local_anchor2(anchor2.0.into())

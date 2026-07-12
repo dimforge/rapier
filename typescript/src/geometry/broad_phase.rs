@@ -7,7 +7,7 @@ use crate::math::{RawRotation, RawVector};
 use crate::utils::{self, FlatHandle};
 use rapier::geometry::DefaultBroadPhase;
 use rapier::geometry::{Aabb, ColliderHandle, Ray};
-use rapier::math::{Isometry, Point};
+use rapier::math::Pose;
 use rapier::parry::query::ShapeCastOptions;
 use rapier::pipeline::{QueryFilter, QueryFilterFlags};
 use rapier::prelude::FeatureId;
@@ -55,7 +55,7 @@ impl RawBroadPhase {
                 query_filter,
             );
 
-            let ray = Ray::new(rayOrig.0.into(), rayDir.0);
+            let ray = Ray::new(rayOrig.0, rayDir.0);
             query_pipeline.cast_ray(&ray, maxToi, solid)
         })?;
 
@@ -97,7 +97,7 @@ impl RawBroadPhase {
                 query_filter,
             );
 
-            let ray = Ray::new(rayOrig.0.into(), rayDir.0);
+            let ray = Ray::new(rayOrig.0, rayDir.0);
             query_pipeline.cast_ray_and_get_normal(&ray, maxToi, solid)
         })?;
 
@@ -131,7 +131,7 @@ impl RawBroadPhase {
                 predicate,
             };
 
-            let ray = Ray::new(rayOrig.0.into(), rayDir.0);
+            let ray = Ray::new(rayOrig.0, rayDir.0);
             let rcallback = |handle, inter| {
                 let result = RawRayColliderIntersection { handle, inter };
                 match callback.call1(&JsValue::null(), &JsValue::from(result)) {
@@ -186,7 +186,7 @@ impl RawBroadPhase {
                 query_filter,
             );
 
-            let pos = Isometry::from_parts(shapePos.0.into(), shapeRot.0);
+            let pos = Pose::from_parts(shapePos.0.into(), shapeRot.0);
 
             // TODO: take a callback as argument so we can yield all the intersecting shapes?
             for (handle, _) in query_pipeline.intersect_shape(pos, &*shape.0) {
@@ -229,7 +229,7 @@ impl RawBroadPhase {
             );
 
             query_pipeline
-                .project_point(&point.0.into(), f32::MAX, solid)
+                .project_point(point.0, f32::MAX, solid)
                 .map(|(handle, proj)| RawPointColliderProjection {
                     handle,
                     proj,
@@ -268,7 +268,7 @@ impl RawBroadPhase {
             );
 
             query_pipeline
-                .project_point_and_get_feature(&point.0.into())
+                .project_point_and_get_feature(point.0, f32::MAX)
                 .map(|(handle, proj, feature)| RawPointColliderProjection {
                     handle,
                     proj,
@@ -316,7 +316,7 @@ impl RawBroadPhase {
                 Ok(val) => val.as_bool().unwrap_or(true),
             };
 
-            for (handle, _) in query_pipeline.intersect_point(point.0.into()) {
+            for (handle, _) in query_pipeline.intersect_point(point.0) {
                 if !rcallback(handle) {
                     break;
                 }
@@ -359,11 +359,11 @@ impl RawBroadPhase {
                 query_filter,
             );
 
-            let pos = Isometry::from_parts(shapePos.0.into(), shapeRot.0);
+            let pos = Pose::from_parts(shapePos.0.into(), shapeRot.0);
             query_pipeline
                 .cast_shape(
                     &pos,
-                    &shapeVel.0,
+                    shapeVel.0,
                     &*shape.0,
                     ShapeCastOptions {
                         max_time_of_impact: maxToi,
@@ -417,7 +417,7 @@ impl RawBroadPhase {
                 Ok(val) => val.as_bool().unwrap_or(true),
             };
 
-            let pos = Isometry::from_parts(shapePos.0.into(), shapeRot.0);
+            let pos = Pose::from_parts(shapePos.0.into(), shapeRot.0);
             for (handle, _) in query_pipeline.intersect_shape(pos, &*shape.0) {
                 if !rcallback(handle) {
                     break;
@@ -450,7 +450,7 @@ impl RawBroadPhase {
             Default::default(),
         );
 
-        let center = Point::from(aabbCenter.0);
+        let center = aabbCenter.0;
         let aabb = Aabb::new(center - aabbHalfExtents.0, center + aabbHalfExtents.0);
 
         for (handle, _) in query_pipeline.intersect_aabb_conservative(aabb) {

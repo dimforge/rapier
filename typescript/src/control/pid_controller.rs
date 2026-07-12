@@ -154,7 +154,7 @@ impl RawPidController {
             target_translation.0.into(),
             target_linvel.0,
         );
-        rb.set_linvel(*rb.linvel() + correction, true);
+        rb.set_linvel(rb.linvel() + correction, true);
     }
 
     #[cfg(feature = "dim2")]
@@ -221,7 +221,7 @@ impl RawPidController {
             return;
         };
 
-        let u: Vector<f32> = self.controller.linear_rigid_body_correction(
+        let u: Vector = self.controller.linear_rigid_body_correction(
             dt,
             rb,
             target_translation.0.into(),
@@ -273,7 +273,7 @@ impl RawPidController {
             return;
         };
 
-        let u: Vector<f32> = self.controller.angular_rigid_body_correction(
+        let u: Vector = self.controller.angular_rigid_body_correction(
             dt,
             rb,
             target_rotation.0,

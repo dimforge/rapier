@@ -9,7 +9,7 @@ use crate::math::{RawRotation, RawVector};
 use crate::utils::{self, FlatHandle};
 use rapier::dynamics::MassProperties;
 use rapier::geometry::{ActiveCollisionTypes, ShapeType};
-use rapier::math::{Isometry, Point, Real, Vector};
+use rapier::math::{IVector, Pose, Real, Rotation, Vector};
 use rapier::parry::query;
 use rapier::parry::query::ShapeCastOptions;
 use rapier::pipeline::{ActiveEvents, ActiveHooks};
@@ -24,7 +24,7 @@ impl RawColliderSet {
     #[cfg(feature = "dim2")]
     pub fn coTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |co| {
-            let u = co.position().translation.vector;
+            let u = co.position().translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
         });
@@ -36,7 +36,7 @@ impl RawColliderSet {
     #[cfg(feature = "dim3")]
     pub fn coTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |co| {
-            let u = co.position().translation.vector;
+            let u = co.position().translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
             scratch_buffer.set_index(2, u.z);
@@ -57,11 +57,10 @@ impl RawColliderSet {
     pub fn coRotation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |co| {
             let u = co.position().rotation;
-            let inner = u.into_inner();
-            scratch_buffer.set_index(0, inner.i);
-            scratch_buffer.set_index(1, inner.j);
-            scratch_buffer.set_index(2, inner.k);
-            scratch_buffer.set_index(3, inner.w);
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            scratch_buffer.set_index(3, u.w);
         });
     }
 
@@ -76,7 +75,7 @@ impl RawColliderSet {
     ) -> bool {
         self.map(handle, |co| {
             co.position_wrt_parent().map_or(false, |pose| {
-                let u = pose.translation.vector;
+                let u = pose.translation;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 true
@@ -98,7 +97,7 @@ impl RawColliderSet {
     ) -> bool {
         self.map(handle, |co| {
             co.position_wrt_parent().map_or(false, |pose| {
-                let u = pose.translation.vector;
+                let u = pose.translation;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 scratch_buffer.set_index(2, u.z);
@@ -133,11 +132,10 @@ impl RawColliderSet {
         self.map(handle, |co| {
             co.position_wrt_parent().map_or(false, |pose| {
                 let u = pose.rotation;
-                let inner = u.into_inner();
-                scratch_buffer.set_index(0, inner.i);
-                scratch_buffer.set_index(1, inner.j);
-                scratch_buffer.set_index(2, inner.k);
-                scratch_buffer.set_index(3, inner.w);
+                scratch_buffer.set_index(0, u.x);
+                scratch_buffer.set_index(1, u.y);
+                scratch_buffer.set_index(2, u.z);
+                scratch_buffer.set_index(3, u.w);
                 true
             })
         })
@@ -154,7 +152,7 @@ impl RawColliderSet {
     #[cfg(feature = "dim3")]
     pub fn coSetTranslation(&mut self, handle: FlatHandle, x: f32, y: f32, z: f32) {
         self.map_mut(handle, |co| {
-            co.set_translation(na::Vector3::new(x, y, z));
+            co.set_translation(Vector::new(x, y, z));
         })
     }
 
@@ -168,21 +166,21 @@ impl RawColliderSet {
     #[cfg(feature = "dim2")]
     pub fn coSetTranslation(&mut self, handle: FlatHandle, x: f32, y: f32) {
         self.map_mut(handle, |co| {
-            co.set_translation(na::Vector2::new(x, y));
+            co.set_translation(Vector::new(x, y));
         })
     }
 
     #[cfg(feature = "dim3")]
     pub fn coSetTranslationWrtParent(&mut self, handle: FlatHandle, x: f32, y: f32, z: f32) {
         self.map_mut(handle, |co| {
-            co.set_translation_wrt_parent(na::Vector3::new(x, y, z));
+            co.set_translation_wrt_parent(Vector::new(x, y, z));
         })
     }
 
     #[cfg(feature = "dim2")]
     pub fn coSetTranslationWrtParent(&mut self, handle: FlatHandle, x: f32, y: f32) {
         self.map_mut(handle, |co| {
-            co.set_translation_wrt_parent(na::Vector2::new(x, y));
+            co.set_translation_wrt_parent(Vector::new(x, y));
         })
     }
 
@@ -199,7 +197,9 @@ impl RawColliderSet {
     /// wasn't moving before modifying its position.
     #[cfg(feature = "dim3")]
     pub fn coSetRotation(&mut self, handle: FlatHandle, x: f32, y: f32, z: f32, w: f32) {
-        if let Some(q) = na::Unit::try_new(na::Quaternion::new(w, x, y, z), 0.0) {
+        let q = Rotation::from_xyzw(x, y, z, w);
+        if q.length_squared() != 0.0 {
+            let q = q.normalize();
             self.map_mut(handle, |co| co.set_rotation(q))
         }
     }
@@ -212,13 +212,15 @@ impl RawColliderSet {
     /// wasn't moving before modifying its position.
     #[cfg(feature = "dim2")]
     pub fn coSetRotation(&mut self, handle: FlatHandle, angle: f32) {
-        self.map_mut(handle, |co| co.set_rotation(na::UnitComplex::new(angle)))
+        self.map_mut(handle, |co| co.set_rotation(Rotation::new(angle)))
     }
 
     #[cfg(feature = "dim3")]
     pub fn coSetRotationWrtParent(&mut self, handle: FlatHandle, x: f32, y: f32, z: f32, w: f32) {
-        if let Some(q) = na::Unit::try_new(na::Quaternion::new(w, x, y, z), 0.0) {
-            self.map_mut(handle, |co| co.set_rotation_wrt_parent(q.scaled_axis()))
+        let q = Rotation::from_xyzw(x, y, z, w);
+        if q.length_squared() != 0.0 {
+            let q = q.normalize();
+            self.map_mut(handle, |co| co.set_rotation_wrt_parent(q.to_scaled_axis()))
         }
     }
 
@@ -283,7 +285,7 @@ impl RawColliderSet {
     ) -> bool {
         self.map(handle, |co| {
             co.shape().as_halfspace().map_or(false, |h| {
-                let u = h.normal.into_inner();
+                let u = h.normal;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 true
@@ -302,7 +304,7 @@ impl RawColliderSet {
     ) -> bool {
         self.map(handle, |co| {
             co.shape().as_halfspace().map_or(false, |h| {
-                let u = h.normal.into_inner();
+                let u = h.normal;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 scratch_buffer.set_index(2, u.z);
@@ -458,7 +460,7 @@ impl RawColliderSet {
     pub fn coSetHalfHeight(&mut self, handle: FlatHandle, newHalfheight: Real) {
         self.map_mut(handle, |co| match co.shape().shape_type() {
             ShapeType::Capsule => {
-                let point = Point::from(Vector::y() * newHalfheight);
+                let point = Vector::Y * newHalfheight;
                 co.shape_mut().as_capsule_mut().map(|b| {
                     b.segment.a = -point;
                     b.segment.b = point;
@@ -552,7 +554,7 @@ impl RawColliderSet {
             let coords = vox
                 .voxels()
                 .filter_map(|vox| (!vox.state.is_empty()).then_some(vox.grid_coords))
-                .flat_map(|ids| ids.coords.data.0[0])
+                .flat_map(|ids| ids.to_array())
                 .collect();
             Some(coords)
         })
@@ -569,7 +571,7 @@ impl RawColliderSet {
     pub fn coSetVoxel(&mut self, handle: FlatHandle, ix: i32, iy: i32, filled: bool) {
         self.map_mut(handle, |co| {
             if let Some(vox) = co.shape_mut().as_voxels_mut() {
-                vox.set_voxel(Point::new(ix, iy), filled);
+                vox.set_voxel(IVector::new(ix, iy), filled);
             }
         })
     }
@@ -578,7 +580,7 @@ impl RawColliderSet {
     pub fn coSetVoxel(&mut self, handle: FlatHandle, ix: i32, iy: i32, iz: i32, filled: bool) {
         self.map_mut(handle, |co| {
             if let Some(vox) = co.shape_mut().as_voxels_mut() {
-                vox.set_voxel(Point::new(ix, iy, iz), filled);
+                vox.set_voxel(IVector::new(ix, iy, iz), filled);
             }
         })
     }
@@ -601,8 +603,8 @@ impl RawColliderSet {
                 ) {
                     vox1.propagate_voxel_change(
                         vox2,
-                        Point::new(ix, iy),
-                        Vector::new(shift_x, shift_y),
+                        IVector::new(ix, iy),
+                        IVector::new(shift_x, shift_y),
                     );
                 }
             }
@@ -629,8 +631,8 @@ impl RawColliderSet {
                 ) {
                     vox1.propagate_voxel_change(
                         vox2,
-                        Point::new(ix, iy, iz),
-                        Vector::new(shift_x, shift_y, shift_z),
+                        IVector::new(ix, iy, iz),
+                        IVector::new(shift_x, shift_y, shift_z),
                     );
                 }
             }
@@ -651,7 +653,7 @@ impl RawColliderSet {
                     co1.shape_mut().as_voxels_mut(),
                     co2.shape_mut().as_voxels_mut(),
                 ) {
-                    vox1.combine_voxel_states(vox2, Vector::new(shift_x, shift_y));
+                    vox1.combine_voxel_states(vox2, IVector::new(shift_x, shift_y));
                 }
             }
         })
@@ -672,7 +674,7 @@ impl RawColliderSet {
                     co1.shape_mut().as_voxels_mut(),
                     co2.shape_mut().as_voxels_mut(),
                 ) {
-                    vox1.combine_voxel_states(vox2, Vector::new(shift_x, shift_y, shift_z));
+                    vox1.combine_voxel_states(vox2, IVector::new(shift_x, shift_y, shift_z));
                 }
             }
         })
@@ -685,7 +687,7 @@ impl RawColliderSet {
     /// was built from. This guarantees the result can be used to reconstruct the shape.
     pub fn coVertices(&self, handle: FlatHandle) -> Option<Vec<f32>> {
         let flatten =
-            |vertices: &[Point<f32>]| vertices.iter().flat_map(|p| p.iter()).copied().collect();
+            |vertices: &[Vector]| vertices.iter().flat_map(|p| p.to_array()).collect();
         self.map(handle, |co| match co.shape().shape_type() {
             ShapeType::TriMesh => co.shape().as_trimesh().map(|t| flatten(t.vertices())),
             #[cfg(feature = "dim2")]
@@ -767,10 +769,16 @@ impl RawColliderSet {
     /// The height of this heightfield if it is one.
     pub fn coHeightfieldHeights(&self, handle: FlatHandle) -> Option<Vec<f32>> {
         self.map(handle, |co| match co.shape().shape_type() {
-            ShapeType::HeightField => co
-                .shape()
-                .as_heightfield()
-                .map(|h| h.heights().as_slice().to_vec()),
+            ShapeType::HeightField => co.shape().as_heightfield().map(|h| {
+                #[cfg(feature = "dim2")]
+                {
+                    h.heights().as_slice().to_vec()
+                }
+                #[cfg(feature = "dim3")]
+                {
+                    h.heights().data().to_vec()
+                }
+            }),
             _ => None,
         })
     }
@@ -934,7 +942,7 @@ impl RawColliderSet {
         maxToi: f32,
         stop_at_penetration: bool,
     ) -> Option<RawShapeCastHit> {
-        let pos2 = Isometry::from_parts(shape2Pos.0.into(), shape2Rot.0);
+        let pos2 = Pose::from_parts(shape2Pos.0.into(), shape2Rot.0);
 
         self.map(handle, |co| {
             let pos1 = co.position();
@@ -970,10 +978,10 @@ impl RawColliderSet {
         self.map(handle, |co| {
             query::cast_shapes(
                 co.position(),
-                &collider1Vel.0,
+                collider1Vel.0,
                 co.shape(),
                 co2.position(),
-                &collider2Vel.0,
+                collider2Vel.0,
                 co2.shape(),
                 ShapeCastOptions {
                     max_time_of_impact: max_toi,
@@ -999,7 +1007,7 @@ impl RawColliderSet {
         shapePos2: &RawVector,
         shapeRot2: &RawRotation,
     ) -> bool {
-        let pos2 = Isometry::from_parts(shapePos2.0.into(), shapeRot2.0);
+        let pos2 = Pose::from_parts(shapePos2.0.into(), shapeRot2.0);
 
         self.map(handle, |co| {
             co.shared_shape()
@@ -1015,7 +1023,7 @@ impl RawColliderSet {
         shapeRot2: &RawRotation,
         prediction: f32,
     ) -> Option<RawShapeContact> {
-        let pos2 = Isometry::from_parts(shapePos2.0.into(), shapeRot2.0);
+        let pos2 = Pose::from_parts(shapePos2.0.into(), shapeRot2.0);
 
         self.map(handle, |co| {
             co.shared_shape()

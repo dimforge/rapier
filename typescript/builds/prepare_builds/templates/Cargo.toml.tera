@@ -27,7 +27,10 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 ] }
 
 [dependencies]
-rapier{{ dimension }}d = { version = "0.30.1", features = [
+# `rapier{2,3}d` is patched to the in-repo crate (see the workspace
+# `[patch.crates-io]` in ../../Cargo.toml); this version requirement must stay
+# semver-compatible with that crate's version for the patch to take effect.
+rapier{{ dimension }}d = { version = "0.34", features = [
     "serde-serialize",
     "debug-render",
     "profiler",
@@ -35,12 +38,15 @@ rapier{{ dimension }}d = { version = "0.30.1", features = [
     "{{ feature }}",
     {%- endfor %}
 ] }
-# The explicit dependency to parry only needed to pin the patch version.
-parry{{ dimension }}d = { version = "^0.25.3" }
+# The explicit dependency to parry only needed to pin the version; it must match
+# the version (and math-backend feature set) the in-repo rapier crate depends on.
+parry{{ dimension }}d = { version = "0.29", default-features = false, features = [
+    "required-features",
+] }
 ref-cast = "1"
 wasm-bindgen = "0.2.109"
 js-sys = "0.3"
-nalgebra = "0.34"
+nalgebra = "0.35"
 serde = { version = "1", features = ["derive", "rc"] }
 bincode = "1"
 palette = "0.7"

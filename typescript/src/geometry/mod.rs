@@ -22,13 +22,14 @@ mod shape;
 mod toi;
 
 use rapier::dynamics::CoefficientCombineRule;
-use rapier::geometry::InteractionGroups;
+use rapier::geometry::{InteractionGroups, InteractionTestMode};
 use rapier::prelude::Group;
 
 pub const fn unpack_interaction_groups(memberships_filter: u32) -> InteractionGroups {
     InteractionGroups::new(
         Group::from_bits_retain((memberships_filter >> 16) as u32),
         Group::from_bits_retain((memberships_filter & 0x0000_ffff) as u32),
+        InteractionTestMode::And,
     )
 }
 

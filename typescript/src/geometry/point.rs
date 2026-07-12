@@ -15,7 +15,7 @@ impl RawPointProjection {
     /// Writes the projected point components into the given scratch buffer.
     #[cfg(feature = "dim2")]
     pub fn point(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.0.point.coords;
+        let u = self.0.point;
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
     }
@@ -23,7 +23,7 @@ impl RawPointProjection {
     /// Writes the projected point components into the given scratch buffer.
     #[cfg(feature = "dim3")]
     pub fn point(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.0.point.coords;
+        let u = self.0.point;
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
         scratch_buffer.set_index(2, u.z);
@@ -50,7 +50,7 @@ impl RawPointColliderProjection {
     /// Writes the projected point components into the given scratch buffer.
     #[cfg(feature = "dim2")]
     pub fn point(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.proj.point.coords;
+        let u = self.proj.point;
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
     }
@@ -58,7 +58,7 @@ impl RawPointColliderProjection {
     /// Writes the projected point components into the given scratch buffer.
     #[cfg(feature = "dim3")]
     pub fn point(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.proj.point.coords;
+        let u = self.proj.point;
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
         scratch_buffer.set_index(2, u.z);

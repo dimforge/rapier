@@ -3,6 +3,7 @@ use crate::geometry::RawColliderSet;
 use crate::math::{RawRotation, RawVector};
 use crate::utils::{self, FlatHandle};
 use rapier::dynamics::{MassProperties, RigidBody, RigidBodyBuilder, RigidBodySet, RigidBodyType};
+use rapier::math::Pose;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -95,7 +96,7 @@ impl RawRigidBodySet {
         dominanceGroup: i8,
         additional_solver_iterations: usize,
     ) -> FlatHandle {
-        let pos = na::Isometry3::from_parts(translation.0.into(), rotation.0);
+        let pos = Pose::from_parts(translation.0, rotation.0);
 
         let mut rigid_body = RigidBodyBuilder::new(rb_type.into())
             .enabled(enabled)
@@ -159,7 +160,7 @@ impl RawRigidBodySet {
         dominanceGroup: i8,
         additional_solver_iterations: usize,
     ) -> FlatHandle {
-        let pos = na::Isometry2::from_parts(translation.0.into(), rotation.0);
+        let pos = Pose::from_parts(translation.0, rotation.0);
         let mut rigid_body = RigidBodyBuilder::new(rb_type.into())
             .enabled(enabled)
             .pose(pos)

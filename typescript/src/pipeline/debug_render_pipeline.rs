@@ -6,7 +6,7 @@ use palette::rgb::Rgba;
 use palette::Hsla;
 use rapier::dynamics::{RigidBody, RigidBodySet};
 use rapier::geometry::ColliderSet;
-use rapier::math::{Point, Real};
+use rapier::math::Vector;
 use rapier::pipeline::{DebugRenderBackend, DebugRenderObject, DebugRenderPipeline};
 use rapier::prelude::{QueryFilter, QueryFilterFlags};
 use wasm_bindgen::prelude::*;
@@ -111,10 +111,10 @@ impl<'a> DebugRenderBackend for CopyToBuffersBackend<'a> {
                     && self.filter.test(self.bodies, pair.collider2, co2)
             }
             DebugRenderObject::ImpulseJoint(_, joint) => {
-                let Some(rb1) = self.bodies.get(joint.body1) else {
+                let Some(rb1) = self.bodies.get(joint.body1()) else {
                     return false;
                 };
-                let Some(rb2) = self.bodies.get(joint.body2) else {
+                let Some(rb2) = self.bodies.get(joint.body2()) else {
                     return false;
                 };
                 test_rigid_body(rb1) && test_rigid_body(rb2)
@@ -135,12 +135,12 @@ impl<'a> DebugRenderBackend for CopyToBuffersBackend<'a> {
     fn draw_line(
         &mut self,
         _object: DebugRenderObject,
-        a: Point<Real>,
-        b: Point<Real>,
+        a: Vector,
+        b: Vector,
         color: [f32; 4],
     ) {
-        self.vertices.extend_from_slice(a.coords.as_slice());
-        self.vertices.extend_from_slice(b.coords.as_slice());
+        self.vertices.extend_from_slice(&a.to_array());
+        self.vertices.extend_from_slice(&b.to_array());
 
         // Convert to RGB which will be easier to handle in JS.
         let hsl = Hsla::new(color[0], color[1], color[2], color[3]);

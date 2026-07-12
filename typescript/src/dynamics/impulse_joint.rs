@@ -2,7 +2,7 @@ use crate::dynamics::{RawImpulseJointSet, RawJointAxis, RawJointType, RawMotorMo
 use crate::math::{RawRotation, RawVector};
 use crate::utils::{self, FlatHandle};
 use rapier::dynamics::JointAxis;
-use rapier::math::Isometry;
+use rapier::math::Pose;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -14,22 +14,22 @@ impl RawImpulseJointSet {
 
     /// The unique integer identifier of the first rigid-body this joint it attached to.
     pub fn jointBodyHandle1(&self, handle: FlatHandle) -> FlatHandle {
-        self.map(handle, |j| utils::flat_handle(j.body1.0))
+        self.map(handle, |j| utils::flat_handle(j.body1().0))
     }
 
     /// The unique integer identifier of the second rigid-body this joint is attached to.
     pub fn jointBodyHandle2(&self, handle: FlatHandle) -> FlatHandle {
-        self.map(handle, |j| utils::flat_handle(j.body2.0))
+        self.map(handle, |j| utils::flat_handle(j.body2().0))
     }
 
     /// The angular part of the joint’s local frame relative to the first rigid-body it is attached to.
     #[cfg(feature = "dim3")]
     pub fn jointFrameX1(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |j| {
-            let u = j.data.local_frame1.rotation.into_inner();
-            scratch_buffer.set_index(0, u.i);
-            scratch_buffer.set_index(1, u.j);
-            scratch_buffer.set_index(2, u.k);
+            let u = j.data.local_frame1.rotation;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
             scratch_buffer.set_index(3, u.w);
         });
     }
@@ -38,10 +38,10 @@ impl RawImpulseJointSet {
     #[cfg(feature = "dim3")]
     pub fn jointFrameX2(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |j| {
-            let u = j.data.local_frame2.rotation.into_inner();
-            scratch_buffer.set_index(0, u.i);
-            scratch_buffer.set_index(1, u.j);
-            scratch_buffer.set_index(2, u.k);
+            let u = j.data.local_frame2.rotation;
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
             scratch_buffer.set_index(3, u.w);
         });
     }
@@ -53,7 +53,7 @@ impl RawImpulseJointSet {
     #[cfg(feature = "dim2")]
     pub fn jointAnchor1(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |j| {
-            let u = j.data.local_frame1.translation.vector;
+            let u = j.data.local_frame1.translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
         });
@@ -66,7 +66,7 @@ impl RawImpulseJointSet {
     #[cfg(feature = "dim3")]
     pub fn jointAnchor1(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |j| {
-            let u = j.data.local_frame1.translation.vector;
+            let u = j.data.local_frame1.translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
             scratch_buffer.set_index(2, u.z);
@@ -80,7 +80,7 @@ impl RawImpulseJointSet {
     #[cfg(feature = "dim2")]
     pub fn jointAnchor2(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |j| {
-            let u = j.data.local_frame2.translation.vector;
+            let u = j.data.local_frame2.translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
         });
@@ -93,7 +93,7 @@ impl RawImpulseJointSet {
     #[cfg(feature = "dim3")]
     pub fn jointAnchor2(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |j| {
-            let u = j.data.local_frame2.translation.vector;
+            let u = j.data.local_frame2.translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
             scratch_buffer.set_index(2, u.z);
@@ -137,7 +137,7 @@ impl RawImpulseJointSet {
     ) {
         self.map_mut(handle, |j| {
             j.data
-                .set_local_frame1(Isometry::from_parts(anchor.0.into(), rot.0));
+                .set_local_frame1(Pose::from_parts(anchor.0, rot.0));
         });
     }
 
@@ -150,7 +150,7 @@ impl RawImpulseJointSet {
     ) {
         self.map_mut(handle, |j| {
             j.data
-                .set_local_frame2(Isometry::from_parts(anchor.0.into(), rot.0));
+                .set_local_frame2(Pose::from_parts(anchor.0, rot.0));
         });
     }
 

@@ -14,16 +14,16 @@ impl RawShapeContact {
     #[cfg(feature = "dim2")]
     pub fn getComponents(&self, scratch_buffer: &js_sys::Float32Array) {
         scratch_buffer.set_index(0, self.contact.dist);
-        let p1 = self.contact.point1.coords;
+        let p1 = self.contact.point1;
         scratch_buffer.set_index(1, p1.x);
         scratch_buffer.set_index(2, p1.y);
-        let p2 = self.contact.point2.coords;
+        let p2 = self.contact.point2;
         scratch_buffer.set_index(3, p2.x);
         scratch_buffer.set_index(4, p2.y);
-        let n1 = self.contact.normal1.into_inner();
+        let n1 = self.contact.normal1;
         scratch_buffer.set_index(5, n1.x);
         scratch_buffer.set_index(6, n1.y);
-        let n2 = self.contact.normal2.into_inner();
+        let n2 = self.contact.normal2;
         scratch_buffer.set_index(7, n2.x);
         scratch_buffer.set_index(8, n2.y);
     }
@@ -34,19 +34,19 @@ impl RawShapeContact {
     #[cfg(feature = "dim3")]
     pub fn getComponents(&self, scratch_buffer: &js_sys::Float32Array) {
         scratch_buffer.set_index(0, self.contact.dist);
-        let p1 = self.contact.point1.coords;
+        let p1 = self.contact.point1;
         scratch_buffer.set_index(1, p1.x);
         scratch_buffer.set_index(2, p1.y);
         scratch_buffer.set_index(3, p1.z);
-        let p2 = self.contact.point2.coords;
+        let p2 = self.contact.point2;
         scratch_buffer.set_index(4, p2.x);
         scratch_buffer.set_index(5, p2.y);
         scratch_buffer.set_index(6, p2.z);
-        let n1 = self.contact.normal1.into_inner();
+        let n1 = self.contact.normal1;
         scratch_buffer.set_index(7, n1.x);
         scratch_buffer.set_index(8, n1.y);
         scratch_buffer.set_index(9, n1.z);
-        let n2 = self.contact.normal2.into_inner();
+        let n2 = self.contact.normal2;
         scratch_buffer.set_index(10, n2.x);
         scratch_buffer.set_index(11, n2.y);
         scratch_buffer.set_index(12, n2.z);

@@ -60,7 +60,7 @@ jobs:
                       ~/.cargo/registry/cache/
                       ~/.cargo/git/db/
                       typescript/target/
-                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('typescript/Cargo.lock') }}
+                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('typescript/builds/prepare_builds/templates/Cargo.toml.tera') }}
                   restore-keys: |
                       ${{ runner.os }}-cargo-js-
             - run: npm ci;
@@ -116,7 +116,7 @@ jobs:
                       ~/.cargo/registry/cache/
                       ~/.cargo/git/db/
                       typescript/target/
-                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('typescript/Cargo.lock') }}
+                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('typescript/builds/prepare_builds/templates/Cargo.toml.tera') }}
                   restore-keys: |
                       ${{ runner.os }}-cargo-js-
             - run: npm ci;

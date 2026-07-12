@@ -3,10 +3,8 @@
 #[cfg(feature = "dim3")]
 use js_sys::Float32Array;
 #[cfg(feature = "dim3")]
-use na::{Quaternion, Unit};
-#[cfg(feature = "dim3")]
 use rapier::math::Real;
-use rapier::math::{Point, Rotation, Vector};
+use rapier::math::{Rotation, Vector};
 #[cfg(feature = "dim3")]
 use rapier::parry::utils::SdpMatrix3;
 use wasm_bindgen::prelude::*;
@@ -15,10 +13,10 @@ use wasm_bindgen::prelude::*;
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 /// A rotation quaternion.
-pub struct RawRotation(pub(crate) Rotation<f32>);
+pub struct RawRotation(pub(crate) Rotation);
 
-impl From<Rotation<f32>> for RawRotation {
-    fn from(v: Rotation<f32>) -> Self {
+impl From<Rotation> for RawRotation {
+    fn from(v: Rotation) -> Self {
         RawRotation(v)
     }
 }
@@ -62,30 +60,30 @@ impl RawRotation {
 impl RawRotation {
     #[wasm_bindgen(constructor)]
     pub fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
-        RawRotation(Unit::new_unchecked(Quaternion::new(w, x, y, z)))
+        RawRotation(Rotation::from_xyzw(x, y, z, w))
     }
 
     /// The identity quaternion.
     pub fn identity() -> Self {
-        Self(Rotation::identity())
+        Self(Rotation::IDENTITY)
     }
 
     /// The `x` component of this quaternion.
     #[wasm_bindgen(getter)]
     pub fn x(&self) -> f32 {
-        self.0.i
+        self.0.x
     }
 
     /// The `y` component of this quaternion.
     #[wasm_bindgen(getter)]
     pub fn y(&self) -> f32 {
-        self.0.j
+        self.0.y
     }
 
     /// The `z` component of this quaternion.
     #[wasm_bindgen(getter)]
     pub fn z(&self) -> f32 {
-        self.0.k
+        self.0.z
     }
 
     /// The `w` component of this quaternion.
@@ -99,17 +97,11 @@ impl RawRotation {
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 /// A vector.
-pub struct RawVector(pub(crate) Vector<f32>);
+pub struct RawVector(pub(crate) Vector);
 
-impl From<Vector<f32>> for RawVector {
-    fn from(v: Vector<f32>) -> Self {
+impl From<Vector> for RawVector {
+    fn from(v: Vector) -> Self {
         RawVector(v)
-    }
-}
-
-impl From<Point<f32>> for RawVector {
-    fn from(pt: Point<f32>) -> Self {
-        pt.coords.into()
     }
 }
 
@@ -117,7 +109,7 @@ impl From<Point<f32>> for RawVector {
 impl RawVector {
     /// Creates a new vector filled with zeros.
     pub fn zero() -> Self {
-        Self(Vector::zeros())
+        Self(Vector::ZERO)
     }
 
     /// Creates a new 2D vector from its two components.
@@ -184,20 +176,13 @@ impl RawVector {
     /// Create a new 2D vector from this vector with its components rearranged as `{x, y}`.
     #[cfg(feature = "dim2")]
     pub fn xy(&self) -> Self {
-        Self(self.0.xy())
+        Self(Vector::new(self.0.x, self.0.y))
     }
 
     /// Create a new 2D vector from this vector with its components rearranged as `{y, x}`.
     #[cfg(feature = "dim2")]
     pub fn yx(&self) -> Self {
-        Self(self.0.yx())
-    }
-
-    /// Create a new 2D vector from this vector with its components rearranged as `{z, y}`.
-    #[cfg(feature = "dim2")]
-    #[cfg(feature = "dim3")]
-    pub fn zy(&self) -> Self {
-        Self(self.0.zy())
+        Self(Vector::new(self.0.y, self.0.x))
     }
 
     /// Create a new 3D vector from this vector with its components rearranged as `{x, y, z}`.
@@ -206,37 +191,37 @@ impl RawVector {
     /// other swizzling functions.
     #[cfg(feature = "dim3")]
     pub fn xyz(&self) -> Self {
-        Self(self.0.xyz())
+        Self(Vector::new(self.0.x, self.0.y, self.0.z))
     }
 
     /// Create a new 3D vector from this vector with its components rearranged as `{y, x, z}`.
     #[cfg(feature = "dim3")]
     pub fn yxz(&self) -> Self {
-        Self(self.0.yxz())
+        Self(Vector::new(self.0.y, self.0.x, self.0.z))
     }
 
     /// Create a new 3D vector from this vector with its components rearranged as `{z, x, y}`.
     #[cfg(feature = "dim3")]
     pub fn zxy(&self) -> Self {
-        Self(self.0.zxy())
+        Self(Vector::new(self.0.z, self.0.x, self.0.y))
     }
 
     /// Create a new 3D vector from this vector with its components rearranged as `{x, z, y}`.
     #[cfg(feature = "dim3")]
     pub fn xzy(&self) -> Self {
-        Self(self.0.xzy())
+        Self(Vector::new(self.0.x, self.0.z, self.0.y))
     }
 
     /// Create a new 3D vector from this vector with its components rearranged as `{y, z, x}`.
     #[cfg(feature = "dim3")]
     pub fn yzx(&self) -> Self {
-        Self(self.0.yzx())
+        Self(Vector::new(self.0.y, self.0.z, self.0.x))
     }
 
     /// Create a new 3D vector from this vector with its components rearranged as `{z, y, x}`.
     #[cfg(feature = "dim3")]
     pub fn zyx(&self) -> Self {
-        Self(self.0.zyx())
+        Self(Vector::new(self.0.z, self.0.y, self.0.x))
     }
 }
 

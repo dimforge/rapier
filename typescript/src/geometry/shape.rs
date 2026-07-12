@@ -1,12 +1,9 @@
 use crate::geometry::{RawPointProjection, RawRayIntersection, RawShapeCastHit, RawShapeContact};
 use crate::math::{RawRotation, RawVector};
-#[cfg(feature = "dim3")]
-use na::DMatrix;
-#[cfg(feature = "dim2")]
-use na::DVector;
-use na::Unit;
 use rapier::geometry::{Shape, SharedShape, TriMeshFlags};
-use rapier::math::{Isometry, Point, Real, Vector, DIM};
+use rapier::math::{IVector, Pose, Rotation, Vector, DIM};
+#[cfg(feature = "dim3")]
+use rapier::parry::utils::Array2;
 use rapier::parry::query;
 use rapier::parry::query::{Ray, ShapeCastOptions};
 use rapier::parry::transformation::vhacd::{VHACDParameters, VHACD};
@@ -15,11 +12,11 @@ use wasm_bindgen::prelude::*;
 pub trait SharedShapeUtility {
     fn castShape(
         &self,
-        shapePos1: &Isometry<Real>,
-        shapeVel1: &Vector<Real>,
+        shapePos1: &Pose,
+        shapeVel1: &Vector,
         shape2: &dyn Shape,
-        shapePos2: &Isometry<Real>,
-        shapeVel2: &Vector<Real>,
+        shapePos2: &Pose,
+        shapeVel2: &Vector,
         target_distance: f32,
         maxToi: f32,
         stop_at_penetration: bool,
@@ -27,50 +24,50 @@ pub trait SharedShapeUtility {
 
     fn intersectsShape(
         &self,
-        shapePos1: &Isometry<Real>,
+        shapePos1: &Pose,
         shape2: &dyn Shape,
-        shapePos2: &Isometry<Real>,
+        shapePos2: &Pose,
     ) -> bool;
 
     fn contactShape(
         &self,
-        shapePos1: &Isometry<Real>,
+        shapePos1: &Pose,
         shape2: &dyn Shape,
-        shapePos2: &Isometry<Real>,
+        shapePos2: &Pose,
         prediction: f32,
     ) -> Option<RawShapeContact>;
 
-    fn containsPoint(&self, shapePos: &Isometry<Real>, point: &Point<Real>) -> bool;
+    fn containsPoint(&self, shapePos: &Pose, point: &Vector) -> bool;
 
     fn projectPoint(
         &self,
-        shapePos: &Isometry<Real>,
-        point: &Point<Real>,
+        shapePos: &Pose,
+        point: &Vector,
         solid: bool,
     ) -> RawPointProjection;
 
     fn intersectsRay(
         &self,
-        shapePos: &Isometry<Real>,
-        rayOrig: Point<Real>,
-        rayDir: Vector<Real>,
+        shapePos: &Pose,
+        rayOrig: Vector,
+        rayDir: Vector,
         maxToi: f32,
     ) -> bool;
 
     fn castRay(
         &self,
-        shapePos: &Isometry<Real>,
-        rayOrig: Point<Real>,
-        rayDir: Vector<Real>,
+        shapePos: &Pose,
+        rayOrig: Vector,
+        rayDir: Vector,
         maxToi: f32,
         solid: bool,
     ) -> f32;
 
     fn castRayAndGetNormal(
         &self,
-        shapePos: &Isometry<Real>,
-        rayOrig: Point<Real>,
-        rayDir: Vector<Real>,
+        shapePos: &Pose,
+        rayOrig: Vector,
+        rayDir: Vector,
         maxToi: f32,
         solid: bool,
     ) -> Option<RawRayIntersection>;
@@ -79,7 +76,7 @@ pub trait SharedShapeUtility {
 #[cfg(feature = "dim3")]
 pub(crate) fn normalized_convex_polyhedron_mesh(
     polyhedron: &rapier::parry::shape::ConvexPolyhedron,
-) -> Option<(Vec<Point<Real>>, Vec<u32>)> {
+) -> Option<(Vec<Vector>, Vec<u32>)> {
     let (points, indices) =
         rapier::parry::transformation::try_convex_hull(polyhedron.points()).ok()?;
     let flat_indices = indices
@@ -94,21 +91,21 @@ pub(crate) fn normalized_convex_polyhedron_mesh(
 impl SharedShapeUtility for SharedShape {
     fn castShape(
         &self,
-        shapePos1: &Isometry<Real>,
-        shapeVel1: &Vector<Real>,
+        shapePos1: &Pose,
+        shapeVel1: &Vector,
         shape2: &dyn Shape,
-        shapePos2: &Isometry<Real>,
-        shapeVel2: &Vector<Real>,
+        shapePos2: &Pose,
+        shapeVel2: &Vector,
         target_distance: f32,
         maxToi: f32,
         stop_at_penetration: bool,
     ) -> Option<RawShapeCastHit> {
         query::cast_shapes(
             shapePos1,
-            shapeVel1,
+            *shapeVel1,
             &*self.0,
             shapePos2,
-            &shapeVel2,
+            *shapeVel2,
             shape2,
             ShapeCastOptions {
                 max_time_of_impact: maxToi,
@@ -124,18 +121,18 @@ impl SharedShapeUtility for SharedShape {
 
     fn intersectsShape(
         &self,
-        shapePos1: &Isometry<Real>,
+        shapePos1: &Pose,
         shape2: &dyn Shape,
-        shapePos2: &Isometry<Real>,
+        shapePos2: &Pose,
     ) -> bool {
         query::intersection_test(shapePos1, &*self.0, shapePos2, shape2).unwrap_or(false)
     }
 
     fn contactShape(
         &self,
-        shapePos1: &Isometry<Real>,
+        shapePos1: &Pose,
         shape2: &dyn Shape,
-        shapePos2: &Isometry<Real>,
+        shapePos2: &Pose,
         prediction: f32,
     ) -> Option<RawShapeContact> {
         query::contact(shapePos1, &*self.0, shapePos2, shape2, prediction)
@@ -144,24 +141,24 @@ impl SharedShapeUtility for SharedShape {
             .map(|contact| RawShapeContact { contact })
     }
 
-    fn containsPoint(&self, shapePos: &Isometry<Real>, point: &Point<Real>) -> bool {
-        self.as_ref().contains_point(shapePos, point)
+    fn containsPoint(&self, shapePos: &Pose, point: &Vector) -> bool {
+        self.as_ref().contains_point(shapePos, *point)
     }
 
     fn projectPoint(
         &self,
-        shapePos: &Isometry<Real>,
-        point: &Point<Real>,
+        shapePos: &Pose,
+        point: &Vector,
         solid: bool,
     ) -> RawPointProjection {
-        RawPointProjection(self.as_ref().project_point(shapePos, point, solid))
+        RawPointProjection(self.as_ref().project_point(shapePos, *point, solid))
     }
 
     fn intersectsRay(
         &self,
-        shapePos: &Isometry<Real>,
-        rayOrig: Point<Real>,
-        rayDir: Vector<Real>,
+        shapePos: &Pose,
+        rayOrig: Vector,
+        rayDir: Vector,
         maxToi: f32,
     ) -> bool {
         self.as_ref()
@@ -170,9 +167,9 @@ impl SharedShapeUtility for SharedShape {
 
     fn castRay(
         &self,
-        shapePos: &Isometry<Real>,
-        rayOrig: Point<Real>,
-        rayDir: Vector<Real>,
+        shapePos: &Pose,
+        rayOrig: Vector,
+        rayDir: Vector,
         maxToi: f32,
         solid: bool,
     ) -> f32 {
@@ -183,9 +180,9 @@ impl SharedShapeUtility for SharedShape {
 
     fn castRayAndGetNormal(
         &self,
-        shapePos: &Isometry<Real>,
-        rayOrig: Point<Real>,
-        rayDir: Vector<Real>,
+        shapePos: &Pose,
+        rayOrig: Vector,
+        rayDir: Vector,
         maxToi: f32,
         solid: bool,
     ) -> Option<RawRayIntersection> {
@@ -376,7 +373,7 @@ impl RawShape {
     pub fn halfspaceNormal(&self) -> Option<RawVector> {
         self.0
             .as_halfspace()
-            .map(|halfspace| halfspace.normal.into_inner().into())
+            .map(|halfspace| halfspace.normal.into())
     }
 
     pub fn halfExtents(&self) -> Option<RawVector> {
@@ -478,7 +475,7 @@ impl RawShape {
             voxels
                 .voxels()
                 .filter_map(|vox| (!vox.state.is_empty()).then_some(vox.grid_coords))
-                .flat_map(|ids| ids.coords.data.0[0])
+                .flat_map(|ids| ids.to_array())
                 .collect(),
         )
     }
@@ -497,11 +494,10 @@ impl RawShape {
     /// If both `vertices` and `indices` are needed, prefer `convexMeshData` which computes
     /// the convex hull only once.
     pub fn vertices(&self) -> Option<Vec<f32>> {
-        let flatten = |vertices: &[Point<f32>]| {
+        let flatten = |vertices: &[Vector]| {
             vertices
                 .iter()
-                .flat_map(|point| point.iter())
-                .copied()
+                .flat_map(|point| point.to_array())
                 .collect()
         };
 
@@ -610,8 +606,7 @@ impl RawShape {
         Some(RawConvexMeshData {
             vertices: points
                 .iter()
-                .flat_map(|point| point.iter())
-                .copied()
+                .flat_map(|point| point.to_array())
                 .collect(),
             indices,
         })
@@ -632,10 +627,16 @@ impl RawShape {
 
     pub fn heightfieldHeights(&self) -> Option<Vec<f32>> {
         match self.0.shape_type() {
-            rapier::geometry::ShapeType::HeightField => self
-                .0
-                .as_heightfield()
-                .map(|heightfield| heightfield.heights().as_slice().to_vec()),
+            rapier::geometry::ShapeType::HeightField => self.0.as_heightfield().map(|heightfield| {
+                #[cfg(feature = "dim2")]
+                {
+                    heightfield.heights().as_slice().to_vec()
+                }
+                #[cfg(feature = "dim3")]
+                {
+                    heightfield.heights().data().to_vec()
+                }
+            }),
             _ => None,
         }
     }
@@ -645,7 +646,7 @@ impl RawShape {
             rapier::geometry::ShapeType::HeightField => self
                 .0
                 .as_heightfield()
-                .map(|heightfield| RawVector(*heightfield.scale())),
+                .map(|heightfield| RawVector(heightfield.scale())),
             _ => None,
         }
     }
@@ -687,7 +688,7 @@ impl RawShape {
         self.0
             .as_compound()
             .and_then(|compound| compound.shapes().get(index))
-            .map(|(position, _)| position.translation.vector.into())
+            .map(|(position, _)| position.translation.into())
     }
 
     pub fn compoundRotation(&self, index: usize) -> Option<RawRotation> {
@@ -722,11 +723,11 @@ impl RawShape {
     }
 
     pub fn halfspace(normal: &RawVector) -> Self {
-        Self(SharedShape::halfspace(Unit::new_normalize(normal.0)))
+        Self(SharedShape::halfspace(normal.0.normalize()))
     }
 
     pub fn capsule(halfHeight: f32, radius: f32) -> Self {
-        let p2 = Point::from(Vector::y() * halfHeight);
+        let p2 = Vector::Y * halfHeight;
         let p1 = -p2;
         Self(SharedShape::capsule(p1, p2, radius))
     }
@@ -758,18 +759,18 @@ impl RawShape {
     pub fn voxels(voxel_size: &RawVector, grid_coords: Vec<i32>) -> Self {
         let grid_coords: Vec<_> = grid_coords
             .chunks_exact(DIM)
-            .map(Point::from_slice)
+            .map(IVector::from_slice)
             .collect();
         Self(SharedShape::voxels(voxel_size.0, &grid_coords))
     }
 
     pub fn voxelsFromPoints(voxel_size: &RawVector, points: Vec<f32>) -> Self {
-        let points: Vec<_> = points.chunks_exact(DIM).map(Point::from_slice).collect();
+        let points: Vec<_> = points.chunks_exact(DIM).map(Vector::from_slice).collect();
         Self(SharedShape::voxels_from_points(voxel_size.0, &points))
     }
 
     pub fn polyline(vertices: Vec<f32>, indices: Vec<u32>) -> Self {
-        let vertices = vertices.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         let indices: Vec<_> = indices.chunks(2).map(|v| [v[0], v[1]]).collect();
         if indices.is_empty() {
             Self(SharedShape::polyline(vertices, None))
@@ -780,7 +781,7 @@ impl RawShape {
 
     pub fn trimesh(vertices: Vec<f32>, indices: Vec<u32>, flags: u32) -> Option<RawShape> {
         let flags = TriMeshFlags::from_bits(flags as u16).unwrap_or_default();
-        let vertices = vertices.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         let indices = indices.chunks(3).map(|v| [v[0], v[1], v[2]]).collect();
         SharedShape::trimesh_with_flags(vertices, indices, flags)
             .ok()
@@ -789,7 +790,6 @@ impl RawShape {
 
     #[cfg(feature = "dim2")]
     pub fn heightfield(heights: Vec<f32>, scale: &RawVector) -> Self {
-        let heights = DVector::from_vec(heights);
         Self(SharedShape::heightfield(heights, scale.0))
     }
 
@@ -803,7 +803,7 @@ impl RawShape {
     ) -> Self {
         let flags =
             rapier::parry::shape::HeightFieldFlags::from_bits(flags as u8).unwrap_or_default();
-        let heights = DMatrix::from_vec(nrows as usize + 1, ncols as usize + 1, heights);
+        let heights = Array2::new(nrows as usize + 1, ncols as usize + 1, heights);
         Self(SharedShape::heightfield_with_flags(heights, scale.0, flags))
     }
 
@@ -830,30 +830,30 @@ impl RawShape {
     }
 
     pub fn convexHull(points: Vec<f32>) -> Option<RawShape> {
-        let points: Vec<_> = points.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let points: Vec<_> = points.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         SharedShape::convex_hull(&points).map(|s| Self(s))
     }
 
     pub fn roundConvexHull(points: Vec<f32>, borderRadius: f32) -> Option<RawShape> {
-        let points: Vec<_> = points.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let points: Vec<_> = points.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         SharedShape::round_convex_hull(&points, borderRadius).map(|s| Self(s))
     }
 
     #[cfg(feature = "dim2")]
     pub fn convexPolyline(vertices: Vec<f32>) -> Option<RawShape> {
-        let vertices = vertices.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         SharedShape::convex_polyline(vertices).map(|s| Self(s))
     }
 
     #[cfg(feature = "dim2")]
     pub fn roundConvexPolyline(vertices: Vec<f32>, borderRadius: f32) -> Option<RawShape> {
-        let vertices = vertices.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         SharedShape::round_convex_polyline(vertices, borderRadius).map(|s| Self(s))
     }
 
     #[cfg(feature = "dim3")]
     pub fn convexMesh(vertices: Vec<f32>, indices: Vec<u32>) -> Option<RawShape> {
-        let vertices = vertices.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         let indices: Vec<_> = indices.chunks(3).map(|v| [v[0], v[1], v[2]]).collect();
         SharedShape::convex_mesh(vertices, &indices).map(|s| Self(s))
     }
@@ -864,7 +864,7 @@ impl RawShape {
         indices: Vec<u32>,
         borderRadius: f32,
     ) -> Option<RawShape> {
-        let vertices = vertices.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         let indices: Vec<_> = indices.chunks(3).map(|v| [v[0], v[1], v[2]]).collect();
         SharedShape::round_convex_mesh(vertices, &indices, borderRadius).map(|s| Self(s))
     }
@@ -895,32 +895,31 @@ impl RawShape {
             let pos_offset = i * DIM;
 
             #[cfg(feature = "dim2")]
-            let translation = Vector::new(positions[pos_offset], positions[pos_offset + 1]).into();
+            let translation = Vector::new(positions[pos_offset], positions[pos_offset + 1]);
 
             #[cfg(feature = "dim3")]
             let translation = Vector::new(
                 positions[pos_offset],
                 positions[pos_offset + 1],
                 positions[pos_offset + 2],
-            )
-            .into();
+            );
 
             #[cfg(feature = "dim2")]
-            let rotation = na::UnitComplex::new(rotations[i]);
+            let rotation = Rotation::new(rotations[i]);
 
             #[cfg(feature = "dim3")]
             let rotation = {
                 let rot_offset = i * 4;
-                na::UnitQuaternion::from_quaternion(na::Quaternion::new(
-                    rotations[rot_offset + 3], // w
+                Rotation::from_xyzw(
                     rotations[rot_offset],     // x
                     rotations[rot_offset + 1], // y
                     rotations[rot_offset + 2], // z
-                ))
+                    rotations[rot_offset + 3], // w
+                )
             };
 
-            let isometry = Isometry::from_parts(translation, rotation);
-            compound_parts.push((isometry, shapes[i].0.clone()));
+            let pose = Pose::from_parts(translation, rotation);
+            compound_parts.push((pose, shapes[i].0.clone()));
         }
 
         Self(SharedShape::compound(compound_parts))
@@ -935,7 +934,7 @@ impl RawShape {
         indices: Vec<u32>,
         params: &RawVHACDParameters,
     ) -> Option<RawShape> {
-        let vertices: Vec<_> = vertices.chunks(DIM).map(|v| Point::from_slice(v)).collect();
+        let vertices: Vec<_> = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
         #[cfg(feature = "dim2")]
         let indices: Vec<_> = indices.chunks(2).map(|v| [v[0], v[1]]).collect();
         #[cfg(feature = "dim3")]
@@ -950,7 +949,7 @@ impl RawShape {
         #[cfg(feature = "dim2")]
         for hull_vertices in decomp.compute_exact_convex_hulls(&vertices, &indices) {
             if let Some(convex) = SharedShape::convex_polyline(hull_vertices) {
-                parts.push((Isometry::identity(), convex));
+                parts.push((Pose::identity(), convex));
             }
         }
 
@@ -958,7 +957,7 @@ impl RawShape {
         for (hull_vertices, hull_indices) in decomp.compute_exact_convex_hulls(&vertices, &indices)
         {
             if let Some(convex) = SharedShape::convex_mesh(hull_vertices, &hull_indices) {
-                parts.push((Isometry::identity(), convex));
+                parts.push((Pose::identity(), convex));
             }
         }
 
@@ -982,8 +981,8 @@ impl RawShape {
         maxToi: f32,
         stop_at_penetration: bool,
     ) -> Option<RawShapeCastHit> {
-        let pos1 = Isometry::from_parts(shapePos1.0.into(), shapeRot1.0);
-        let pos2 = Isometry::from_parts(shapePos2.0.into(), shapeRot2.0);
+        let pos1 = Pose::from_parts(shapePos1.0.into(), shapeRot1.0);
+        let pos2 = Pose::from_parts(shapePos2.0.into(), shapeRot2.0);
 
         self.0.castShape(
             &pos1,
@@ -1005,8 +1004,8 @@ impl RawShape {
         shapePos2: &RawVector,
         shapeRot2: &RawRotation,
     ) -> bool {
-        let pos1 = Isometry::from_parts(shapePos1.0.into(), shapeRot1.0);
-        let pos2 = Isometry::from_parts(shapePos2.0.into(), shapeRot2.0);
+        let pos1 = Pose::from_parts(shapePos1.0.into(), shapeRot1.0);
+        let pos2 = Pose::from_parts(shapePos2.0.into(), shapeRot2.0);
 
         self.0.intersectsShape(&pos1, &*shape2.0, &pos2)
     }
@@ -1020,8 +1019,8 @@ impl RawShape {
         shapeRot2: &RawRotation,
         prediction: f32,
     ) -> Option<RawShapeContact> {
-        let pos1 = Isometry::from_parts(shapePos1.0.into(), shapeRot1.0);
-        let pos2 = Isometry::from_parts(shapePos2.0.into(), shapeRot2.0);
+        let pos1 = Pose::from_parts(shapePos1.0.into(), shapeRot1.0);
+        let pos2 = Pose::from_parts(shapePos2.0.into(), shapeRot2.0);
 
         self.0.contactShape(&pos1, &*shape2.0, &pos2, prediction)
     }
@@ -1032,7 +1031,7 @@ impl RawShape {
         shapeRot: &RawRotation,
         point: &RawVector,
     ) -> bool {
-        let pos = Isometry::from_parts(shapePos.0.into(), shapeRot.0);
+        let pos = Pose::from_parts(shapePos.0.into(), shapeRot.0);
 
         self.0.containsPoint(&pos, &point.0.into())
     }
@@ -1044,7 +1043,7 @@ impl RawShape {
         point: &RawVector,
         solid: bool,
     ) -> RawPointProjection {
-        let pos = Isometry::from_parts(shapePos.0.into(), shapeRot.0);
+        let pos = Pose::from_parts(shapePos.0.into(), shapeRot.0);
 
         self.0.projectPoint(&pos, &point.0.into(), solid)
     }
@@ -1057,7 +1056,7 @@ impl RawShape {
         rayDir: &RawVector,
         maxToi: f32,
     ) -> bool {
-        let pos = Isometry::from_parts(shapePos.0.into(), shapeRot.0);
+        let pos = Pose::from_parts(shapePos.0.into(), shapeRot.0);
 
         self.0
             .intersectsRay(&pos, rayOrig.0.into(), rayDir.0.into(), maxToi)
@@ -1072,7 +1071,7 @@ impl RawShape {
         maxToi: f32,
         solid: bool,
     ) -> f32 {
-        let pos = Isometry::from_parts(shapePos.0.into(), shapeRot.0);
+        let pos = Pose::from_parts(shapePos.0.into(), shapeRot.0);
 
         self.0
             .castRay(&pos, rayOrig.0.into(), rayDir.0.into(), maxToi, solid)
@@ -1087,7 +1086,7 @@ impl RawShape {
         maxToi: f32,
         solid: bool,
     ) -> Option<RawRayIntersection> {
-        let pos = Isometry::from_parts(shapePos.0.into(), shapeRot.0);
+        let pos = Pose::from_parts(shapePos.0.into(), shapeRot.0);
 
         self.0
             .castRayAndGetNormal(&pos, rayOrig.0.into(), rayDir.0.into(), maxToi, solid)

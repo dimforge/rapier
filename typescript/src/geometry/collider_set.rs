@@ -82,7 +82,7 @@ impl RawColliderSet {
         parent: FlatHandle,
         bodies: &mut RawRigidBodySet,
     ) -> Option<FlatHandle> {
-        let pos = Isometry::from_parts(translation.0.into(), rotation.0);
+        let pos = Pose::from_parts(translation.0.into(), rotation.0);
         let mut builder = ColliderBuilder::new(shape.0.clone())
             .enabled(enabled)
             .position(pos)

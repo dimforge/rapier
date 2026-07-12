@@ -4,8 +4,8 @@ use crate::geometry::RawColliderSet;
 use crate::math::RawRotation;
 use crate::math::RawVector;
 use crate::utils::{self, FlatHandle};
-use na::Point;
 use rapier::dynamics::MassProperties;
+use rapier::math::{Rotation, Vector};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -17,7 +17,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
-            let u = rb.position().translation.vector;
+            let u = rb.position().translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
         });
@@ -30,7 +30,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim3")]
     pub fn rbTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
-            let u = rb.position().translation.vector;
+            let u = rb.position().translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
             scratch_buffer.set_index(2, u.z);
@@ -51,11 +51,10 @@ impl RawRigidBodySet {
     pub fn rbRotation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
             let u = rb.position().rotation;
-            let inner = u.into_inner();
-            scratch_buffer.set_index(0, inner.i);
-            scratch_buffer.set_index(1, inner.j);
-            scratch_buffer.set_index(2, inner.k);
-            scratch_buffer.set_index(3, inner.w);
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            scratch_buffer.set_index(3, u.w);
         });
     }
 
@@ -85,7 +84,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbNextTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
-            let u = rb.next_position().translation.vector;
+            let u = rb.next_position().translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
         });
@@ -102,7 +101,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim3")]
     pub fn rbNextTranslation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
-            let u = rb.next_position().translation.vector;
+            let u = rb.next_position().translation;
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
             scratch_buffer.set_index(2, u.z);
@@ -131,11 +130,10 @@ impl RawRigidBodySet {
     pub fn rbNextRotation(&self, handle: FlatHandle, scratch_buffer: &js_sys::Float32Array) {
         self.map(handle, |rb| {
             let u = rb.next_position().rotation;
-            let inner = u.into_inner();
-            scratch_buffer.set_index(0, inner.i);
-            scratch_buffer.set_index(1, inner.j);
-            scratch_buffer.set_index(2, inner.k);
-            scratch_buffer.set_index(3, inner.w);
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            scratch_buffer.set_index(3, u.w);
         });
     }
 
@@ -150,7 +148,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim3")]
     pub fn rbSetTranslation(&mut self, handle: FlatHandle, x: f32, y: f32, z: f32, wakeUp: bool) {
         self.map_mut(handle, |rb| {
-            rb.set_translation(na::Vector3::new(x, y, z), wakeUp);
+            rb.set_translation(Vector::new(x, y, z), wakeUp);
         })
     }
 
@@ -164,7 +162,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbSetTranslation(&mut self, handle: FlatHandle, x: f32, y: f32, wakeUp: bool) {
         self.map_mut(handle, |rb| {
-            rb.set_translation(na::Vector2::new(x, y), wakeUp);
+            rb.set_translation(Vector::new(x, y), wakeUp);
         })
     }
 
@@ -189,7 +187,9 @@ impl RawRigidBodySet {
         w: f32,
         wakeUp: bool,
     ) {
-        if let Some(q) = na::Unit::try_new(na::Quaternion::new(w, x, y, z), 0.0) {
+        let q = Rotation::from_xyzw(x, y, z, w);
+        if q.length_squared() > 0.0 {
+            let q = q.normalize();
             self.map_mut(handle, |rb| rb.set_rotation(q, wakeUp))
         }
     }
@@ -203,7 +203,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbSetRotation(&mut self, handle: FlatHandle, angle: f32, wakeUp: bool) {
         self.map_mut(handle, |rb| {
-            rb.set_rotation(na::UnitComplex::new(angle), wakeUp)
+            rb.set_rotation(Rotation::new(angle), wakeUp)
         })
     }
 
@@ -245,7 +245,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim3")]
     pub fn rbSetNextKinematicTranslation(&mut self, handle: FlatHandle, x: f32, y: f32, z: f32) {
         self.map_mut(handle, |rb| {
-            rb.set_next_kinematic_translation(na::Vector3::new(x, y, z));
+            rb.set_next_kinematic_translation(Vector::new(x, y, z));
         })
     }
 
@@ -263,7 +263,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbSetNextKinematicTranslation(&mut self, handle: FlatHandle, x: f32, y: f32) {
         self.map_mut(handle, |rb| {
-            rb.set_next_kinematic_translation(na::Vector2::new(x, y));
+            rb.set_next_kinematic_translation(Vector::new(x, y));
         })
     }
 
@@ -289,7 +289,9 @@ impl RawRigidBodySet {
         z: f32,
         w: f32,
     ) {
-        if let Some(q) = na::Unit::try_new(na::Quaternion::new(w, x, y, z), 0.0) {
+        let q = Rotation::from_xyzw(x, y, z, w);
+        if q.length_squared() > 0.0 {
+            let q = q.normalize();
             self.map_mut(handle, |rb| {
                 rb.set_next_kinematic_rotation(q);
             })
@@ -309,7 +311,7 @@ impl RawRigidBodySet {
     #[cfg(feature = "dim2")]
     pub fn rbSetNextKinematicRotation(&mut self, handle: FlatHandle, angle: f32) {
         self.map_mut(handle, |rb| {
-            rb.set_next_kinematic_rotation(na::UnitComplex::new(angle));
+            rb.set_next_kinematic_rotation(Rotation::new(angle));
         })
     }
 
@@ -424,7 +426,7 @@ impl RawRigidBodySet {
         scratch_buffer: &js_sys::Float32Array,
     ) {
         self.map(handle, |rb| {
-            let u = rb.velocity_at_point(&Point::from(point.0));
+            let u = rb.velocity_at_point(point.0);
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
         });
@@ -442,7 +444,7 @@ impl RawRigidBodySet {
         scratch_buffer: &js_sys::Float32Array,
     ) {
         self.map(handle, |rb| {
-            let u = rb.velocity_at_point(&Point::from(point.0));
+            let u = rb.velocity_at_point(point.0);
             scratch_buffer.set_index(0, u.x);
             scratch_buffer.set_index(1, u.y);
             scratch_buffer.set_index(2, u.z);
@@ -648,11 +650,10 @@ impl RawRigidBodySet {
                 .mass_properties()
                 .local_mprops
                 .principal_inertia_local_frame;
-            let inner = u.into_inner();
-            scratch_buffer.set_index(0, inner.i);
-            scratch_buffer.set_index(1, inner.j);
-            scratch_buffer.set_index(2, inner.k);
-            scratch_buffer.set_index(3, inner.w);
+            scratch_buffer.set_index(0, u.x);
+            scratch_buffer.set_index(1, u.y);
+            scratch_buffer.set_index(2, u.z);
+            scratch_buffer.set_index(3, u.w);
         });
     }
 

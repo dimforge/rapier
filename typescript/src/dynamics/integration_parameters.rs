@@ -18,7 +18,7 @@ impl RawIntegrationParameters {
 
     #[wasm_bindgen(getter)]
     pub fn contact_erp(&self) -> f32 {
-        self.0.contact_erp()
+        self.0.contact_softness.erp(self.0.dt)
     }
 
     #[wasm_bindgen(getter)]
@@ -63,7 +63,7 @@ impl RawIntegrationParameters {
 
     #[wasm_bindgen(setter)]
     pub fn set_contact_natural_frequency(&mut self, value: f32) {
-        self.0.contact_natural_frequency = value
+        self.0.contact_softness.natural_frequency = value
     }
 
     #[wasm_bindgen(setter)]

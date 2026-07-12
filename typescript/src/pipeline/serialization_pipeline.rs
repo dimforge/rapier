@@ -14,7 +14,7 @@ use wasm_bindgen::prelude::*;
 
 #[derive(Serialize)]
 struct SerializableWorld<'a> {
-    gravity: &'a Vector<f32>,
+    gravity: &'a Vector,
     integration_parameters: &'a IntegrationParameters,
     islands: &'a IslandManager,
     broad_phase: &'a DefaultBroadPhase,
@@ -27,7 +27,7 @@ struct SerializableWorld<'a> {
 
 #[derive(Deserialize)]
 struct DeserializableWorld {
-    gravity: Vector<f32>,
+    gravity: Vector,
     integration_parameters: IntegrationParameters,
     islands: IslandManager,
     broad_phase: DefaultBroadPhase,

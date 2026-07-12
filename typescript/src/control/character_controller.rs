@@ -2,13 +2,12 @@ use crate::dynamics::RawRigidBodySet;
 use crate::geometry::{RawBroadPhase, RawColliderSet, RawNarrowPhase};
 use crate::math::RawVector;
 use crate::utils::{self, FlatHandle};
-use na::{Isometry, Unit};
 use rapier::control::{
     CharacterAutostep, CharacterCollision, CharacterLength, EffectiveCharacterMovement,
     KinematicCharacterController,
 };
 use rapier::geometry::{ColliderHandle, ShapeCastHit};
-use rapier::math::{Point, Real, Vector};
+use rapier::math::{Pose, Real, Vector};
 use rapier::parry::query::ShapeCastStatus;
 use rapier::pipeline::{QueryFilter, QueryFilterFlags};
 use wasm_bindgen::prelude::*;
@@ -40,7 +39,7 @@ impl RawKinematicCharacterController {
         Self {
             controller,
             result: EffectiveCharacterMovement {
-                translation: Vector::zeros(),
+                translation: Vector::ZERO,
                 grounded: false,
                 is_sliding_down_slope: false,
             },
@@ -49,11 +48,11 @@ impl RawKinematicCharacterController {
     }
 
     pub fn up(&self) -> RawVector {
-        self.controller.up.into_inner().into()
+        self.controller.up.into()
     }
 
     pub fn setUp(&mut self, vector: &RawVector) {
-        self.controller.up = Unit::new_normalize(vector.0);
+        self.controller.up = vector.0.normalize();
     }
 
     pub fn normalNudgeFactor(&self) -> Real {
@@ -208,7 +207,7 @@ impl RawKinematicCharacterController {
                 }
             });
         } else {
-            self.result.translation.fill(0.0);
+            self.result.translation = Vector::ZERO;
         }
     }
 
@@ -253,15 +252,15 @@ impl RawCharacterCollision {
     pub fn new() -> Self {
         Self(CharacterCollision {
             handle: ColliderHandle::invalid(),
-            character_pos: Isometry::identity(),
-            translation_applied: Vector::zeros(),
-            translation_remaining: Vector::zeros(),
+            character_pos: Pose::identity(),
+            translation_applied: Vector::ZERO,
+            translation_remaining: Vector::ZERO,
             hit: ShapeCastHit {
                 time_of_impact: 0.0,
-                witness1: Point::origin(),
-                witness2: Point::origin(),
-                normal1: Vector::y_axis(),
-                normal2: Vector::y_axis(),
+                witness1: Vector::ZERO,
+                witness2: Vector::ZERO,
+                normal1: Vector::Y,
+                normal2: Vector::Y,
                 status: ShapeCastStatus::Failed,
             },
         })
@@ -307,14 +306,14 @@ impl RawCharacterCollision {
 
     #[cfg(feature = "dim2")]
     pub fn worldWitness1(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.0.hit.witness1.coords; // Already in world-space.
+        let u = self.0.hit.witness1; // Already in world-space.
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
     }
 
     #[cfg(feature = "dim3")]
     pub fn worldWitness1(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.0.hit.witness1.coords; // Already in world-space.
+        let u = self.0.hit.witness1; // Already in world-space.
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
         scratch_buffer.set_index(2, u.z);
@@ -322,14 +321,14 @@ impl RawCharacterCollision {
 
     #[cfg(feature = "dim2")]
     pub fn worldWitness2(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = (self.0.character_pos * self.0.hit.witness2).coords;
+        let u = self.0.character_pos.transform_point(self.0.hit.witness2);
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
     }
 
     #[cfg(feature = "dim3")]
     pub fn worldWitness2(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = (self.0.character_pos * self.0.hit.witness2).coords;
+        let u = self.0.character_pos.transform_point(self.0.hit.witness2);
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
         scratch_buffer.set_index(2, u.z);
@@ -337,14 +336,14 @@ impl RawCharacterCollision {
 
     #[cfg(feature = "dim2")]
     pub fn worldNormal1(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.0.hit.normal1.into_inner(); // Already in world-space.
+        let u = self.0.hit.normal1; // Already in world-space.
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
     }
 
     #[cfg(feature = "dim3")]
     pub fn worldNormal1(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.0.hit.normal1.into_inner(); // Already in world-space.
+        let u = self.0.hit.normal1; // Already in world-space.
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
         scratch_buffer.set_index(2, u.z);
@@ -352,14 +351,14 @@ impl RawCharacterCollision {
 
     #[cfg(feature = "dim2")]
     pub fn worldNormal2(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.0.character_pos * self.0.hit.normal2.into_inner();
+        let u = self.0.character_pos.transform_vector(self.0.hit.normal2);
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
     }
 
     #[cfg(feature = "dim3")]
     pub fn worldNormal2(&self, scratch_buffer: &js_sys::Float32Array) {
-        let u = self.0.character_pos * self.0.hit.normal2.into_inner();
+        let u = self.0.character_pos.transform_vector(self.0.hit.normal2);
         scratch_buffer.set_index(0, u.x);
         scratch_buffer.set_index(1, u.y);
         scratch_buffer.set_index(2, u.z);

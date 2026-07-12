@@ -110,7 +110,7 @@ impl RawPhysicsPipeline {
         ccd_solver: &mut RawCCDSolver,
     ) {
         self.0.step(
-            &gravity.0,
+            gravity.0,
             &integrationParameters.0,
             &mut islands.0,
             &mut broadPhase.0,
@@ -153,7 +153,7 @@ impl RawPhysicsPipeline {
         };
 
         self.0.step(
-            &gravity.0,
+            gravity.0,
             &integrationParameters.0,
             &mut islands.0,
             &mut broadPhase.0,
