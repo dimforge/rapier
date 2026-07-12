@@ -1,0 +1,21 @@
+rapier2d/compat
+rapier3d/compat
+**/*.rs.bk
+node_modules
+target
+.idea
+.DS_Store
+dist
+pkg
+gen2d/
+gen3d/
+docs
+*.swp
+*.d.ts
+
+# Made by the prepare_builds crate
+builds/*
+!builds/prepare_builds
+
+# compat generated builds
+rapier-compat/builds/

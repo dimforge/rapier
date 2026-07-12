@@ -1,0 +1,23 @@
+[workspace]
+members = ["builds/*"]
+resolver = "2"
+
+[profile.release]
+debug = false
+codegen-units = 1
+#lto = true
+strip = true # Workaround for https://github.com/bevyengine/bevy/issues/16030 (the bug only happens in 2D)
+
+[patch.crates-io]
+#rapier2d = { path = "../rapier/crates/rapier2d" }
+#rapier3d = { path = "../rapier/crates/rapier3d" }
+#parry2d = { path = "../parry/crates/parry2d" }
+#parry3d = { path = "../parry/crates/parry3d" }
+#nalgebra = { path = "../nalgebra" }
+#simba = { path = "../simba" }
+
+#nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
+#rapier2d = { git = "https://github.com/dimforge/rapier", rev = "82416e3ca66dcdc34c0f350cec570ef1019a199f" }
+#rapier3d = { git = "https://github.com/dimforge/rapier", rev = "82416e3ca66dcdc34c0f350cec570ef1019a199f" }
+#parry2d = { git = "https://github.com/dimforge/parry" }
+#parry3d = { git = "https://github.com/dimforge/parry" }

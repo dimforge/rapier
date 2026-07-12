@@ -1,0 +1,10 @@
+{
+    "extends": "./tsconfig.common.json",
+    "compilerOptions": {
+        "lib": ["es6", "DOM"],
+        "esModuleInterop": true,
+        "types": ["jest"],
+        "outDir": "./dist"
+    },
+    "include": ["./tests/**/*.test.ts"]
+}

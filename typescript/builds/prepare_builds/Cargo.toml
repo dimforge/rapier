@@ -1,0 +1,9 @@
+[package]
+name = "prepare_builds"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5" }
+clap_derive = { version = "4.5" }
+tera = "1.20"

@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+        "outDir": "./pkg",
+        "moduleResolution": "node",
+        "sourceMap": true,
+        "declaration": true,
+        "lib": ["es6", "ESNext.Disposable"]
+    },
+    "files": ["./pkg/rapier.d.ts"]
+}

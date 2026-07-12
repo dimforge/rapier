@@ -1,0 +1,60 @@
+[package]
+name = "dimforge_{{ js_package_name }}" # Can't be named rapier{{ dimension }}d which conflicts with the dependency.
+version = "0.19.3"
+authors = ["Sébastien Crozet <developer@crozet.re>"]
+description = "{{ dimension }}-dimensional physics engine in Rust - official JS bindings."
+documentation = "https://rapier.rs/rustdoc/rapier{{ dimension }}d/index.html"
+homepage = "https://rapier.rs"
+repository = "https://github.com/dimforge/rapier.js"
+readme = "README.md"
+keywords = ["physics", "dynamics", "rigid", "real-time", "joints"]
+license = "Apache-2.0"
+edition = "2018"
+
+[features]
+default = ["dim{{ dimension }}"]
+dim{{ dimension }} = []
+
+[lib]
+name = "rapier_wasm{{ dimension }}d"
+path = "../../src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+required-features = ["dim{{ dimension }}"]
+
+[lints]
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(feature, values("dim{% if dimension == "2" %}3{% else %}2{% endif %}"))',
+] }
+
+[dependencies]
+rapier{{ dimension }}d = { version = "0.30.1", features = [
+    "serde-serialize",
+    "debug-render",
+    "profiler",
+    {%- for feature in additional_features %}
+    "{{ feature }}",
+    {%- endfor %}
+] }
+# The explicit dependency to parry only needed to pin the patch version.
+parry{{ dimension }}d = { version = "^0.25.3" }
+ref-cast = "1"
+wasm-bindgen = "0.2.109"
+js-sys = "0.3"
+nalgebra = "0.34"
+serde = { version = "1", features = ["derive", "rc"] }
+bincode = "1"
+palette = "0.7"
+
+[package.metadata.wasm-pack.profile.release]
+# add -g to keep debug symbols
+wasm-opt = [
+    '-O4',
+    '--dce',
+    # The two options below are needed because of: https://github.com/rustwasm/wasm-pack/issues/1501
+    '--enable-bulk-memory',
+    '--enable-nontrapping-float-to-int',
+    {%- for flag in additional_wasm_opt_flags %}
+    '{{ flag }}',
+    {%- endfor %}
+]
+#wasm-opt = ['-g']
