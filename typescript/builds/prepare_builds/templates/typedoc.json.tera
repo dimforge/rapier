@@ -1,0 +1,42 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPoints": [
+        "./pkg/rapier.d.ts"
+    ],
+    "out": "./docs",
+    "readme": "none",
+    "excludeExternals": true,
+    "excludeNotDocumented": false,
+    "intentionallyNotExported": [
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawBroadPhase",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawCCDSolver",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawColliderSet",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawEventQueue",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawImpulseJointSet",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawMultibodyJointSet",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawIntegrationParameters",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawIslandManager",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawNarrowPhase",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawPhysicsPipeline",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawRigidBodySet",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawSerializationPipeline",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawContactManifold",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawShape",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawGenericJoint",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawJointAxis",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawRotation",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawVector",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawPointColliderProjection",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawPointProjection",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawRayColliderIntersection",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawRayColliderHit",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawRayIntersection",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawColliderShapeCastHit",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawShapeContact",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawShapeCastHit",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawQueryPipeline",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawDeserializedWorld",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawDebugRenderPipeline",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawContactForceEvent"
+    ]
+}

@@ -1,0 +1,26 @@
+{
+    "name": "@dimforge/{{ js_package_name }}",
+    "description": "",
+    "private": true,
+    "exports": "./pkg",
+    "types": "./pkg/rapier.d.ts",
+    "scripts": {
+        "build": "npm run clean && npm run build:wasm && npm run build:ts && npm run build:doc",
+        "build:doc": "typedoc --tsconfig tsconfig_typedoc.json",
+        "build:wasm": "sh ./build_rust.sh",
+        "build:ts": "sh ./build_typescript.sh",
+        "clean": "rimraf pkg"
+    },
+    "//": "Better keep rimraf version in sync with wasm-pack, see https://github.com/rustwasm/wasm-pack/issues/1444",
+    "devDependencies": {
+        "rimraf": "^3.0.2",
+        "typedoc": "^0.25.13",
+        "typescript": "~5.4.5"
+    },
+    "dependencies": {
+        "wasm-pack": "^0.12.1"
+    },
+    "sideEffects": [
+        "./*.js"
+    ]
+}
