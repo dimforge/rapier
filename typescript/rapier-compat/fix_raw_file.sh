@@ -5,7 +5,8 @@ for feature in \
 3d 3d-deterministic 3d-simd
 do
 
-echo 'export * from "'"./rapier_wasm$feature"'"' > builds/${feature}/pkg/raw.d.ts
-echo 'export * from "'"./rapier_wasm$feature"'"' > builds/${feature}/pkg/raw.d.ts
+dimension="${feature%%-*}"
+
+echo "export * from \"./rapier_wasm${dimension}\";" > "builds/${feature}/pkg/dist/raw.d.ts"
 
 done;
