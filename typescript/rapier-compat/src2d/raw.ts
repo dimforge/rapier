@@ -1,1 +1,1 @@
-export * from "../pkg/rapier_wasm2d";
+export * from "../pkg/dist/rapier_wasm2d";

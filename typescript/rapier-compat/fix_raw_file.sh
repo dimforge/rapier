@@ -9,6 +9,6 @@ do
 # whatever the feature variant (-deterministic/-simd) of the build.
 dimension="${feature%%-*}"
 
-echo 'export * from "'"./rapier_wasm$dimension"'"' > builds/${feature}/pkg/raw.d.ts
+echo "export * from \"./rapier_wasm${dimension}\";" > "builds/${feature}/pkg/dist/raw.d.ts"
 
 done;

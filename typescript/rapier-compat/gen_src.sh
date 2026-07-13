@@ -40,19 +40,22 @@ do
     feature="${1}d-${2}";
   fi
 
-  mkdir -p ./builds/${feature}/pkg/
+  pkg_dir="./builds/${feature}/pkg"
+  dist_dir="${pkg_dir}/dist"
 
-  cp ./builds/${feature}/wasm-build/rapier_wasm* ./builds/${feature}/pkg/
-  cp -r ./gen${dimension}d ./builds/${feature}/
+  mkdir -p "${dist_dir}"
+
+  cp ./builds/${feature}/wasm-build/rapier_wasm* "${dist_dir}/"
+  cp -r "./gen${dimension}d" "./builds/${feature}/"
 
   # copy tsconfig, as they contain paths
-  cp ./tsconfig.common.json ./tsconfig.json ./builds/${feature}/
-  cp ./tsconfig.pkg${dimension}d.json ./builds/${feature}/tsconfig.pkg.json
+  cp ./tsconfig.common.json ./tsconfig.json "./builds/${feature}/"
+  cp "./tsconfig.pkg${dimension}d.json" "./builds/${feature}/tsconfig.pkg.json"
 
   # "import.meta" causes Babel to choke, but the code path is never taken so just remove it.
-  sed -i.bak 's/import.meta.url/"<deleted>"/g' ./builds/${feature}/pkg/rapier_wasm${dimension}d.js
+  sed -i.bak 's/import.meta.url/"<deleted>"/g' "${dist_dir}/rapier_wasm${dimension}d.js"
 
   # Clean up backup files.
-  find ./builds/${feature}/pkg/ -type f -name '*.bak' | xargs rm
+  find "${dist_dir}" -type f -name '*.bak' -delete
 
 done
