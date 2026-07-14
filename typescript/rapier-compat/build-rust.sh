@@ -47,4 +47,13 @@ else
     export additional_rustflags=''
 fi
 
-RUSTFLAGS="${additional_rustflags}" wasm-pack --verbose build --target web --out-dir "../../rapier-compat/builds/${dimension}d${feature_postfix}/wasm-build" "$rust_source_directory"
+# The generated variants share the typescript Cargo workspace target directory.
+# Clean it because SIMD and non-SIMD builds use different RUSTFLAGS.
+cargo clean --manifest-path ../Cargo.toml
+
+RUSTFLAGS="${additional_rustflags}" wasm-pack \
+    --verbose \
+    build \
+    --target web \
+    --out-dir "../../rapier-compat/builds/${dimension}d${feature_postfix}/wasm-build" \
+    "$rust_source_directory"
