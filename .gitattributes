@@ -2,3 +2,6 @@
 # monorepo but is documentation, not part of the engine's source. Mark it so
 # GitHub Linguist excludes it from the repository's language statistics.
 website/** linguist-documentation
+
+# Keep shell scripts compatible with Unix/Linux by enforcing LF line endings
+*.sh text eol=lf
