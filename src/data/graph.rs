@@ -146,12 +146,9 @@ fn index_twice<T>(arr: &mut [T], a: usize, b: usize) -> Pair<&mut T> {
     } else if a == b {
         Pair::One(&mut arr[max(a, b)])
     } else {
-        // safe because a, b are in bounds and distinct
-        unsafe {
-            let ar = &mut *(arr.get_unchecked_mut(a) as *mut _);
-            let br = &mut *(arr.get_unchecked_mut(b) as *mut _);
-            Pair::Both(ar, br)
-        }
+        // can't panic because a, b are in bounds and distinct
+        let [ar, br] = arr.get_disjoint_mut([a, b]).unwrap();
+        Pair::Both(ar, br)
     }
 }
 
