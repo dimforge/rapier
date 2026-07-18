@@ -416,3 +416,107 @@ def test_wheel_tuning_default_kwargs(ns):
     t2 = ns.WheelTuning(suspension_stiffness=10.0, friction_slip=5.0)
     assert abs(t2.suspension_stiffness - 10.0) < 1e-5
     assert abs(t2.friction_slip - 5.0) < 1e-5
+
+def test_wheel_rotation_updates_without_steering(ns):
+    """Regression test for https://github.com/dimforge/rapier/issues/925
+ 
+    wheel.rotation must accumulate while the vehicle drives straight forward
+    (engine force applied, steering = 0 on all wheels).  Before the fix,
+    delta_rotation was computed using a forward vector inconsistent in sign
+    with the one used by update_friction(), so the wheel appeared frozen
+    (or span backwards) unless steering was applied.
+    """
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0), auto_update_query=True)
+    w.add_body(
+        ns.RigidBody.fixed(translation=(0, -0.1, 0)),
+        colliders=[ns.Collider.cuboid(50, 0.1, 50)],
+    )
+    _, veh = _build_vehicle(ns, w)
+ 
+    # Let the chassis settle on the ground (no engine force yet).
+    for _ in range(120):
+        w.step()
+        w.update_query_pipeline()
+        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
+ 
+    rotation_before = [veh.wheel(i).rotation for i in range(4)]
+ 
+    # Drive straight forward — NO steering on any wheel.
+    for i in range(4):
+        veh.apply_engine_force(i, 100.0)
+ 
+    for _ in range(60):
+        w.step()
+        w.update_query_pipeline()
+        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
+ 
+    rotation_after = [veh.wheel(i).rotation for i in range(4)]
+ 
+    # Every grounded wheel must have rotated by a non-trivial amount.
+    for i in range(4):
+        delta = abs(rotation_after[i] - rotation_before[i])
+        assert delta > 0.01, (
+            f"wheel {i} did not rotate without steering "
+            f"(before={rotation_before[i]:.4f}, after={rotation_after[i]:.4f})"
+        )
+ 
+    # All four wheels should rotate in the same direction (all positive or all
+    # negative) — they are symmetric left/right for straight driving.
+    signs = [
+        (rotation_after[i] - rotation_before[i]) > 0
+        for i in range(4)
+    ]
+    assert all(s == signs[0] for s in signs), (
+        f"wheels rotated in inconsistent directions: deltas="
+        f"{[rotation_after[i] - rotation_before[i] for i in range(4)]}"
+    )
+ 
+ 
+def test_wheel_rotation_direction_matches_travel(ns):
+    """When driving forward the wheel rotation sign must be consistent with
+    forward motion (not reversed), regardless of steering angle.
+ 
+    This catches the sign-flip variant of the bug where rotation was non-zero
+    but in the wrong direction.
+    """
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0), auto_update_query=True)
+    w.add_body(
+        ns.RigidBody.fixed(translation=(0, -0.1, 0)),
+        colliders=[ns.Collider.cuboid(50, 0.1, 50)],
+    )
+    h, veh = _build_vehicle(ns, w)
+ 
+    # Settle.
+    for _ in range(120):
+        w.step()
+        w.update_query_pipeline()
+        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
+ 
+    # Drive forward, record wheel rotation accumulation and chassis displacement.
+    x_start = w.rigid_bodies[h].translation.x
+    for i in range(4):
+        veh.apply_engine_force(i, 100.0)
+ 
+    for _ in range(60):
+        w.step()
+        w.update_query_pipeline()
+        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
+ 
+    x_end = w.rigid_bodies[h].translation.x
+    chassis_moved_positive_x = (x_end - x_start) > 0
+ 
+    for i in range(4):
+        wheel_delta = veh.wheel(i).rotation
+        # The wheel rotation direction must agree with the direction of travel.
+        # (positive chassis displacement <-> positive wheel rotation and vice-versa)
+        if chassis_moved_positive_x:
+            assert wheel_delta > 0, (
+                f"wheel {i} rotated in wrong direction for forward travel "
+                f"(delta={wheel_delta:.4f}, chassis moved +x)"
+            )
+        else:
+            assert wheel_delta < 0, (
+                f"wheel {i} rotated in wrong direction for forward travel "
+                f"(delta={wheel_delta:.4f}, chassis moved -x)"
+            )
+ 

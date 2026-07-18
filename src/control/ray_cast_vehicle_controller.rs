@@ -47,6 +47,12 @@ pub struct WheelTuning {
     pub max_suspension_travel: Real,
     /// The multiplier of friction between a tire and the collider it's on top of.
     pub side_friction_stiffness: Real,
+    /// The rotational speed (radians per second) applied to the wheel's visual
+    /// rotation while it is airborne or fully sliding and engine force is applied.
+    ///
+    /// A value of 0 disables this behavior. The sign determines the spin
+    /// direction and depends on the wheel's axle orientation.
+    pub free_spin_speed: Real,
     /// Parameter controlling how much traction the tire has.
     ///
     /// The larger the value, the more instantaneous braking will happen (with the risk of
@@ -64,6 +70,7 @@ impl Default for WheelTuning {
             suspension_damping: 0.88,
             max_suspension_travel: 5.0,
             side_friction_stiffness: 1.0,
+            free_spin_speed: 0.0,
             friction_slip: 10.5,
             max_suspension_force: 6000.0,
         }
@@ -106,6 +113,7 @@ struct WheelDesc {
     pub max_suspension_force: Real,
     /// The multiplier of friction between a tire and the collider it's on top of.
     pub side_friction_stiffness: Real,
+    pub free_spin_speed: Real,
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -149,6 +157,12 @@ pub struct Wheel {
     pub friction_slip: Real,
     /// The multiplier of friction between a tire and the collider it's on top of.
     pub side_friction_stiffness: Real,
+    /// The rotational speed (radians per second) applied to the wheel's visual
+    /// rotation while it is airborne or fully sliding and engine force is applied.
+    ///
+    /// A value of 0 disables this behavior. The sign determines the spin
+    /// direction and depends on the wheel's axle orientation.
+    pub free_spin_speed: Real,
     /// The wheel’s current rotation on its axle.
     pub rotation: Real,
     delta_rotation: Real,
@@ -206,6 +220,7 @@ impl Wheel {
             side_impulse: 0.0,
             forward_impulse: 0.0,
             side_friction_stiffness: info.side_friction_stiffness,
+            free_spin_speed: info.free_spin_speed,
         }
     }
 
@@ -292,6 +307,7 @@ impl DynamicRayCastVehicleController {
             max_suspension_travel: tuning.max_suspension_travel,
             max_suspension_force: tuning.max_suspension_force,
             side_friction_stiffness: tuning.side_friction_stiffness,
+            free_spin_speed: tuning.free_spin_speed,
         };
 
         let wheel_id = self.wheels.len();
@@ -465,20 +481,37 @@ impl DynamicRayCastVehicleController {
             let vel = chassis.velocity_at_point(wheel.raycast_info.hard_point_ws);
 
             if wheel.raycast_info.is_in_contact {
-                let mut fwd =
-                    chassis.position().rotation * Vector::ith(self.index_forward_axis, 1.0);
-                let proj = fwd.dot(wheel.raycast_info.contact_normal_ws);
-                fwd -= wheel.raycast_info.contact_normal_ws * proj;
+                let fwd = wheel
+                    .raycast_info
+                    .contact_normal_ws
+                    .cross(wheel.wheel_axle_ws)
+                    .normalize_or_zero();
 
                 let proj2 = fwd.dot(vel);
-
-                wheel.delta_rotation = (proj2 * dt) / (wheel.radius);
-                wheel.rotation += wheel.delta_rotation;
-            } else {
-                wheel.rotation += wheel.delta_rotation;
+                wheel.delta_rotation = (proj2 * dt) / wheel.radius;
             }
 
-            wheel.delta_rotation *= 0.99; //damping of rotation when not in contact
+            // Wheelspin while airborne or sliding under power: without this, a wheel
+            // that's off the ground (or fully sliding) and has engine force applied
+            // never visually spins, since delta_rotation is only ever derived from
+            // ground-contact velocity above.
+            if (wheel.skid_info < 1.0 || !wheel.raycast_info.is_in_contact)
+                && wheel.engine_force != 0.0
+                && wheel.free_spin_speed != 0.0
+            {
+                let dir = if wheel.engine_force > 0.0 { 1.0 } else { -1.0 };
+                wheel.delta_rotation = dir * wheel.free_spin_speed  * dt;
+            }
+
+            // Lock wheels: if the brake force exceeds the engine force, the wheel
+            // is locked by the brake and should stop visually rotating, even
+            // though the chassis may still be sliding over the ground.
+            if wheel.brake.abs() > wheel.engine_force.abs() {
+                wheel.delta_rotation = 0.0;
+            }
+
+            wheel.rotation += wheel.delta_rotation;
+            wheel.delta_rotation *= 0.99; // damping of rotation when not in contact
         }
     }
 
