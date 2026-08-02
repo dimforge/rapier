@@ -1,4 +1,4 @@
-## Unreleased
+## v0.35.0-beta.0 (02 August 2026)
 
 ### Breaking changes
 
