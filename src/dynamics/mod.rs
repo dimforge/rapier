@@ -3,12 +3,13 @@
 #[cfg(feature = "alloc")]
 pub use self::ccd::CCDSolver;
 pub use self::coefficient_combine_rule::CoefficientCombineRule;
+#[cfg(feature = "dim3")]
+pub use self::integration_parameters::FrictionModel;
 pub use self::integration_parameters::{IntegrationParameters, SpringCoefficients};
 #[cfg(feature = "alloc")]
 pub use self::island_manager::IslandManager;
-
-#[cfg(feature = "dim3")]
-pub use self::integration_parameters::FrictionModel;
+#[cfg(feature = "alloc")]
+pub(crate) use self::island_manager::{INVALID_ISLAND, ImpulseJointIslandEvent, PersistentIslands};
 
 #[cfg(feature = "alloc")]
 pub(crate) use self::joint::JointGraphEdge;
@@ -20,11 +21,8 @@ pub use self::rigid_body_components::*;
 pub use self::rigid_body_handle::RigidBodyHandle;
 #[cfg(feature = "alloc")]
 pub(crate) use self::rigid_body_set::ModifiedRigidBodies;
-// #[cfg(not(feature = "parallel"))]
 #[cfg(feature = "alloc")]
-pub(crate) use self::solver::IslandSolver;
-// #[cfg(feature = "parallel")]
-// pub(crate) use self::solver::ParallelIslandSolver;
+pub(crate) use self::solver::StagedIslandSolver;
 pub use parry::mass_properties::MassProperties;
 
 #[cfg(feature = "alloc")]
@@ -43,7 +41,7 @@ mod joint;
 mod rigid_body_components;
 mod rigid_body_handle;
 #[cfg(feature = "alloc")]
-mod solver;
+pub(crate) mod solver;
 
 #[cfg(feature = "alloc")]
 mod rigid_body;

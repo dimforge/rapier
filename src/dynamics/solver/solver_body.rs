@@ -6,50 +6,21 @@ use core::ops::{AddAssign, Sub, SubAssign};
 use na::{DVectorView, DVectorViewMut};
 use parry::math::{Pose, Rotation, SIMD_WIDTH, SimdReal};
 
-#[cfg(feature = "simd-is-enabled")]
-use crate::utils::transmute_to_wide;
+use crate::utils::{SolverBlock, transpose_wide, transpose_wide_inv};
 
-#[cfg(feature = "simd-is-enabled")]
 macro_rules! aos(
     ($data_repr: ident [ $idx: ident ] . $data_n: ident, $fallback: ident) => {
-        [
-            if ($idx[0] as usize) < $data_repr.len() {
-                $data_repr[$idx[0] as usize].$data_n.0
+        // One 128-bit block per lane (`SIMD_WIDTH` inferred from the consumer).
+        core::array::from_fn(|k| {
+            if ($idx[k] as usize) < $data_repr.len() {
+                $data_repr[$idx[k] as usize].$data_n.0
             } else {
                 $fallback.$data_n.0
-            },
-            if ($idx[1] as usize) < $data_repr.len() {
-                $data_repr[$idx[1] as usize].$data_n.0
-            } else {
-                $fallback.$data_n.0
-            },
-            if ($idx[2] as usize) < $data_repr.len() {
-                $data_repr[$idx[2] as usize].$data_n.0
-            } else {
-                $fallback.$data_n.0
-            },
-            if ($idx[3] as usize) < $data_repr.len() {
-                $data_repr[$idx[3] as usize].$data_n.0
-            } else {
-                $fallback.$data_n.0
-            },
-        ]
+            }
+        })
     }
 );
 
-#[cfg(feature = "simd-is-enabled")]
-macro_rules! aos_unchecked(
-    ($data_repr: ident [ $idx: ident ] . $data_n: ident) => {
-        [
-            unsafe { $data_repr.get_unchecked($idx[0] as usize).$data_n.0 },
-            unsafe { $data_repr.get_unchecked($idx[1] as usize).$data_n.0 },
-            unsafe { $data_repr.get_unchecked($idx[2] as usize).$data_n.0 },
-            unsafe { $data_repr.get_unchecked($idx[3] as usize).$data_n.0 },
-        ]
-    }
-);
-
-#[cfg(feature = "simd-is-enabled")]
 macro_rules! scatter(
     ($data: ident [ $idx: ident [ $i: expr ] ] = [$($aos: ident),*]) => {
        unsafe {
@@ -61,54 +32,72 @@ macro_rules! scatter(
     }
 );
 
-#[cfg(feature = "simd-is-enabled")]
-macro_rules! scatter_unchecked(
-    ($data: ident [ $idx: ident [ $i: expr ] ] = [$($aos: ident),*]) => {
-       #[allow(clippy::missing_transmute_annotations)] // Different macro calls transmute to different types
-       unsafe {
-           *$data.get_unchecked_mut($idx[$i] as usize) = core::mem::transmute([$($aos[$i]),*]);
-       }
-    }
-);
+/// Per-solver-body flag: bypass the angular speed cap. Kept in a
+/// `SolverBodies.flags` byte parallel to `vels`/`poses` so the scalar integrate-positions loop
+/// can read it without disturbing the SIMD-gathered `SolverVel`/`SolverPose` layouts.
+pub(crate) const SOLVER_BODY_ALLOW_FAST_ROTATION: u8 = 1;
 
 #[derive(Default)]
 pub struct SolverBodies {
     pub vels: Vec<SolverVel<Real>>,
     pub poses: Vec<SolverPose<Real>>,
+    /// Per-body flag bytes (see `SOLVER_BODY_ALLOW_FAST_ROTATION`), indexed like `vels`/`poses`.
+    pub flags: Vec<u8>,
 }
 
 impl SolverBodies {
     pub fn clear(&mut self) {
         self.vels.clear();
         self.poses.clear();
+        self.flags.clear();
     }
 
     pub fn resize(&mut self, sz: usize) {
         self.vels.resize(sz, Default::default());
         self.poses.resize(sz, Default::default());
+        self.flags.resize(sz, 0);
     }
 
     pub fn len(&self) -> usize {
         self.vels.len()
     }
 
+    /// Panics if any non-world (`!= u32::MAX`) solver-body id is out of range. Part of the
+    /// `solver-bounds-checks` guards: a stale id (e.g. a contact-graph maintenance bug) would
+    /// silently gather the world-body fallback instead of the real body — this turns that into
+    /// a clean panic. Called once per chunk at constraint generation (NOT per solve iteration).
+    #[cfg(feature = "solver-bounds-checks")]
+    #[inline]
+    pub fn assert_ids_in_range(&self, idx: [u32; SIMD_WIDTH]) {
+        let len = self.len();
+        for id in idx {
+            assert!(
+                id == u32::MAX || (id as usize) < len,
+                "stale solver-body id {id} (solver bodies: {len}) — solver contact graph corruption"
+            );
+        }
+    }
+
     // TODO: add a SIMD version?
-    pub fn copy_from(&mut self, _dt: Real, i: usize, rb: &RigidBody) {
+    pub fn copy_from(&mut self, i: usize, rb: &RigidBody) {
         let poses = &mut self.poses[i];
         let vels = &mut self.vels[i];
 
+        self.flags[i] = if rb.ccd.allow_fast_rotation {
+            SOLVER_BODY_ALLOW_FAST_ROTATION
+        } else {
+            0
+        };
+
+        // NOTE: gyroscopic forces (3D) are applied per-substep by the staged
+        // solver's velocity-increment stage, not here.
         #[cfg(feature = "dim2")]
         {
             vels.angular = rb.vels.angvel;
         }
-
         #[cfg(feature = "dim3")]
         {
-            if rb.forces.gyroscopic_forces_enabled {
-                vels.angular = rb.angvel_with_gyroscopic_forces(_dt);
-            } else {
-                vels.angular = rb.angvel();
-            }
+            vels.angular = rb.angvel();
         }
         vels.linear = rb.vels.linvel;
 
@@ -119,7 +108,10 @@ impl SolverBodies {
         poses.rotation = pose.rotation;
         poses.translation = pose.translation;
 
-        if rb.is_dynamic_or_kinematic() {
+        // A sleeping body only reaches the solver as a frontier solver body (partial-island
+        // sleep): a kinematic-like read-only wall at its real pose, so its mass properties
+        // must read as infinite despite its dynamic body type.
+        if rb.is_dynamic_or_kinematic() && !rb.is_sleeping() {
             poses.ii = rb.mprops.effective_world_inv_inertia;
             poses.im = rb.mprops.effective_inv_mass;
         } else {
@@ -129,23 +121,8 @@ impl SolverBodies {
     }
 
     #[inline]
-    pub unsafe fn gather_vels_unchecked(&self, idx: [u32; SIMD_WIDTH]) -> SolverVel<SimdReal> {
-        #[cfg(not(feature = "simd-is-enabled"))]
-        unsafe {
-            *self.vels.get_unchecked(idx[0] as usize)
-        }
-        #[cfg(feature = "simd-is-enabled")]
-        unsafe {
-            SolverVel::gather_unchecked(&self.vels, idx)
-        }
-    }
-
-    #[inline]
     pub fn gather_vels(&self, idx: [u32; SIMD_WIDTH]) -> SolverVel<SimdReal> {
-        #[cfg(not(feature = "simd-is-enabled"))]
-        return self.vels.get(idx[0] as usize).copied().unwrap_or_default();
-        #[cfg(feature = "simd-is-enabled")]
-        return SolverVel::gather(&self.vels, idx);
+        SolverVel::gather(&self.vels, idx)
     }
 
     #[inline]
@@ -155,12 +132,6 @@ impl SolverBodies {
 
     #[inline]
     pub fn scatter_vels(&mut self, idx: [u32; SIMD_WIDTH], vels: SolverVel<SimdReal>) {
-        #[cfg(not(feature = "simd-is-enabled"))]
-        if (idx[0] as usize) < self.vels.len() {
-            self.vels[idx[0] as usize] = vels
-        }
-
-        #[cfg(feature = "simd-is-enabled")]
         vels.scatter(&mut self.vels, idx);
     }
 
@@ -177,53 +148,22 @@ impl SolverBodies {
     }
 
     #[inline]
-    pub unsafe fn gather_poses_unchecked(&self, idx: [u32; SIMD_WIDTH]) -> SolverPose<SimdReal> {
-        #[cfg(not(feature = "simd-is-enabled"))]
-        unsafe {
-            *self.poses.get_unchecked(idx[0] as usize)
-        }
-
-        #[cfg(feature = "simd-is-enabled")]
-        unsafe {
-            SolverPose::gather_unchecked(&self.poses, idx)
-        }
-    }
-
-    #[inline]
     pub fn gather_poses(&self, idx: [u32; SIMD_WIDTH]) -> SolverPose<SimdReal> {
-        #[cfg(not(feature = "simd-is-enabled"))]
-        return self.poses.get(idx[0] as usize).copied().unwrap_or_default();
-
-        #[cfg(feature = "simd-is-enabled")]
-        return SolverPose::gather(&self.poses, idx);
+        SolverPose::gather(&self.poses, idx)
     }
 
+    /// Gathers only the transform part (rotation + translation) of the solver poses — half (2D)
+    /// or less (3D) of [`Self::gather_poses`]'s transposition work; for kernels that keep the
+    /// (step-constant) mass properties in their own constraint storage.
     #[inline]
-    pub fn scatter_poses(&mut self, idx: [u32; SIMD_WIDTH], poses: SolverPose<SimdReal>) {
-        #[cfg(not(feature = "simd-is-enabled"))]
-        if (idx[0] as usize) < self.poses.len() {
-            self.poses[idx[0] as usize] = poses;
-        }
-
-        #[cfg(feature = "simd-is-enabled")]
-        poses.scatter(&mut self.poses, idx);
-    }
-
-    #[inline]
-    pub fn scatter_poses_unchecked(&mut self, idx: [u32; SIMD_WIDTH], poses: SolverPose<SimdReal>) {
-        #[cfg(not(feature = "simd-is-enabled"))]
-        unsafe {
-            *self.poses.get_unchecked_mut(idx[0] as usize) = poses
-        }
-
-        #[cfg(feature = "simd-is-enabled")]
-        poses.scatter_unchecked(&mut self.poses, idx);
+    pub fn gather_transforms(&self, idx: [u32; SIMD_WIDTH]) -> SolverTransform<SimdReal> {
+        SolverTransform::gather(&self.poses, idx)
     }
 }
 
 // Total 7/13
 #[repr(C)]
-#[cfg_attr(feature = "simd-is-enabled", repr(align(16)))]
+#[repr(align(16))]
 #[derive(Copy, Clone, Default)]
 pub struct SolverVel<T: ScalarType> {
     pub linear: T::Vector,     // 2/3
@@ -231,23 +171,19 @@ pub struct SolverVel<T: ScalarType> {
     // TODO: explicit padding are useful for static assertions.
     //       But might be wasteful for the SolverVel<SimdReal>
     //       specialization.
-    #[cfg(feature = "simd-is-enabled")]
     #[cfg(feature = "dim2")]
     padding: [T; 1],
-    #[cfg(feature = "simd-is-enabled")]
     #[cfg(feature = "dim3")]
     padding: [T; 2],
 }
 
-#[cfg(feature = "simd-is-enabled")]
 #[repr(C)]
 struct SolverVelRepr {
-    data0: SimdReal,
+    data0: SolverBlock,
     #[cfg(feature = "dim3")]
-    data1: SimdReal,
+    data1: SolverBlock,
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl SolverVelRepr {
     pub fn zero() -> Self {
         Self {
@@ -258,32 +194,7 @@ impl SolverVelRepr {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl SolverVel<SimdReal> {
-    #[inline]
-    pub unsafe fn gather_unchecked(data: &[SolverVel<Real>], idx: [u32; SIMD_WIDTH]) -> Self {
-        // TODO: double-check that the compiler is using simd loads and
-        //       isn’t generating useless copies.
-
-        let data_repr: &[SolverVelRepr] = unsafe { core::mem::transmute(data) };
-
-        #[cfg(feature = "dim2")]
-        {
-            let aos = aos_unchecked!(data_repr[idx].data0);
-            let soa = wide::f32x4::transpose(transmute_to_wide(aos));
-            unsafe { core::mem::transmute(soa) }
-        }
-
-        #[cfg(feature = "dim3")]
-        {
-            let aos0 = aos_unchecked!(data_repr[idx].data0);
-            let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
-            let aos1 = aos_unchecked!(data_repr[idx].data1);
-            let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
-            unsafe { core::mem::transmute((soa0, soa1)) }
-        }
-    }
-
     #[inline]
     pub fn gather(data: &[SolverVel<Real>], idx: [u32; SIMD_WIDTH]) -> Self {
         // TODO: double-check that the compiler is using simd loads and
@@ -295,16 +206,16 @@ impl SolverVel<SimdReal> {
         #[cfg(feature = "dim2")]
         {
             let aos = aos!(data_repr[idx].data0, zero);
-            let soa = wide::f32x4::transpose(transmute_to_wide(aos));
+            let soa = transpose_wide(aos);
             unsafe { core::mem::transmute(soa) }
         }
 
         #[cfg(feature = "dim3")]
         {
             let aos0 = aos!(data_repr[idx].data0, zero);
-            let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
+            let soa0 = transpose_wide(aos0);
             let aos1 = aos!(data_repr[idx].data1, zero);
-            let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
+            let soa1 = transpose_wide(aos1);
             unsafe { core::mem::transmute((soa0, soa1)) }
         }
     }
@@ -313,31 +224,29 @@ impl SolverVel<SimdReal> {
     #[cfg(feature = "dim2")]
     pub fn scatter(self, data: &mut [SolverVel<Real>], idx: [u32; SIMD_WIDTH]) {
         // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let soa: [wide::f32x4; 4] = unsafe { core::mem::transmute(self) };
-        let aos = wide::f32x4::transpose(soa);
-        scatter!(data[idx[0]] = [aos]);
-        scatter!(data[idx[1]] = [aos]);
-        scatter!(data[idx[2]] = [aos]);
-        scatter!(data[idx[3]] = [aos]);
+        let soa: [SimdReal; 4] = unsafe { core::mem::transmute(self) };
+        let aos = transpose_wide_inv(soa);
+        for i in 0..SIMD_WIDTH {
+            scatter!(data[idx[i]] = [aos]);
+        }
     }
 
     #[inline]
     #[cfg(feature = "dim3")]
     pub fn scatter(self, data: &mut [SolverVel<Real>], idx: [u32; SIMD_WIDTH]) {
-        let soa: [[wide::f32x4; 4]; 2] = unsafe { core::mem::transmute(self) };
+        let soa: [[SimdReal; 4]; 2] = unsafe { core::mem::transmute(self) };
         // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let aos0 = wide::f32x4::transpose(soa[0]);
-        let aos1 = wide::f32x4::transpose(soa[1]);
-        scatter!(data[idx[0]] = [aos0, aos1]);
-        scatter!(data[idx[1]] = [aos0, aos1]);
-        scatter!(data[idx[2]] = [aos0, aos1]);
-        scatter!(data[idx[3]] = [aos0, aos1]);
+        let aos0 = transpose_wide_inv(soa[0]);
+        let aos1 = transpose_wide_inv(soa[1]);
+        for i in 0..SIMD_WIDTH {
+            scatter!(data[idx[i]] = [aos0, aos1]);
+        }
     }
 }
 
 // Total: 7/16
 #[repr(C)]
-#[cfg_attr(feature = "simd-is-enabled", repr(align(16)))]
+#[repr(align(16))]
 #[derive(Copy, Clone)]
 pub struct SolverPose<N: ScalarType> {
     /// Positional change of the rigid-body’s center of mass.
@@ -355,7 +264,6 @@ impl SolverPose<Real> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl SolverPose<SimdReal> {
     pub fn pose(&self) -> <SimdReal as ScalarType>::Pose {
         <SimdReal as ScalarType>::Pose::from_parts(self.translation.into(), self.rotation)
@@ -374,6 +282,59 @@ impl<N: ScalarType> SolverPose<N> {
     }
 }
 
+/// The transform part of a [`SolverPose`], gathered without its mass properties. The field
+/// order deliberately matches the head of [`SolverPose`] so the SIMD gather can transpose only
+/// the leading pose blocks.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct SolverTransform<N: ScalarType> {
+    pub rotation: N::Rotation,
+    pub translation: N::Vector,
+}
+
+impl<N: ScalarType> SolverTransform<N> {
+    #[inline]
+    pub fn transform_point(&self, pt: N::Vector) -> N::Vector {
+        self.rotation * pt + self.translation
+    }
+}
+
+impl SolverTransform<SimdReal> {
+    #[inline]
+    pub fn gather(data: &[SolverPose<Real>], idx: [u32; SIMD_WIDTH]) -> Self {
+        let identity = SolverPoseRepr::identity();
+        let data_repr: &[SolverPoseRepr] = unsafe { core::mem::transmute(data) };
+
+        #[cfg(feature = "dim2")]
+        {
+            // In 2D the (rotation, translation) pair is exactly the first SIMD
+            // block of the pose: one transposition instead of two.
+            let aos0 = aos!(data_repr[idx].data0, identity);
+            let soa0 = transpose_wide(aos0);
+            unsafe { core::mem::transmute(soa0) }
+        }
+
+        #[cfg(feature = "dim3")]
+        {
+            // In 3D the quaternion + translation live in the first two SIMD
+            // blocks of the pose: two transpositions instead of four.
+            let aos0 = aos!(data_repr[idx].data0, identity);
+            let aos1 = aos!(data_repr[idx].data1, identity);
+            let soa0 = transpose_wide(aos0);
+            let soa1 = transpose_wide(aos1);
+
+            #[repr(C)]
+            struct TransformAndPad {
+                transform: SolverTransform<SimdReal>,
+                // First inertia element sharing the second pose block.
+                _ii_xx: SimdReal,
+            }
+            let repr: TransformAndPad = unsafe { core::mem::transmute([soa0, soa1]) };
+            repr.transform
+        }
+    }
+}
+
 impl Default for SolverPose<Real> {
     #[inline]
     fn default() -> Self {
@@ -388,18 +349,16 @@ impl Default for SolverPose<Real> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 #[repr(C)]
 struct SolverPoseRepr {
-    data0: SimdReal,
-    data1: SimdReal,
+    data0: SolverBlock,
+    data1: SolverBlock,
     #[cfg(feature = "dim3")]
-    data2: SimdReal,
+    data2: SolverBlock,
     #[cfg(feature = "dim3")]
-    data3: SimdReal,
+    data3: SolverBlock,
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl SolverPoseRepr {
     pub fn identity() -> Self {
         // TODO PERF: will the compiler handle this efficiently and generate
@@ -408,38 +367,7 @@ impl SolverPoseRepr {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl SolverPose<SimdReal> {
-    #[inline]
-    pub unsafe fn gather_unchecked(data: &[SolverPose<Real>], idx: [u32; SIMD_WIDTH]) -> Self {
-        // TODO: double-check that the compiler is using simd loads and
-        //       isn’t generating useless copies.
-
-        let data_repr: &[SolverPoseRepr] = unsafe { core::mem::transmute(data) };
-
-        #[cfg(feature = "dim2")]
-        {
-            let aos0 = aos_unchecked!(data_repr[idx].data0);
-            let aos1 = aos_unchecked!(data_repr[idx].data1);
-            let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
-            let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
-            unsafe { core::mem::transmute([soa0, soa1]) }
-        }
-
-        #[cfg(feature = "dim3")]
-        {
-            let aos0 = aos_unchecked!(data_repr[idx].data0);
-            let aos1 = aos_unchecked!(data_repr[idx].data1);
-            let aos2 = aos_unchecked!(data_repr[idx].data2);
-            let aos3 = aos_unchecked!(data_repr[idx].data3);
-            let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
-            let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
-            let soa2 = wide::f32x4::transpose(transmute_to_wide(aos2));
-            let soa3 = wide::f32x4::transpose(transmute_to_wide(aos3));
-            unsafe { core::mem::transmute([soa0, soa1, soa2, soa3]) }
-        }
-    }
-
     #[inline]
     pub fn gather(data: &[SolverPose<Real>], idx: [u32; SIMD_WIDTH]) -> Self {
         // TODO: double-check that the compiler is using simd loads and
@@ -452,8 +380,8 @@ impl SolverPose<SimdReal> {
         {
             let aos0 = aos!(data_repr[idx].data0, identity);
             let aos1 = aos!(data_repr[idx].data1, identity);
-            let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
-            let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
+            let soa0 = transpose_wide(aos0);
+            let soa1 = transpose_wide(aos1);
             unsafe { core::mem::transmute([soa0, soa1]) }
         }
 
@@ -463,68 +391,12 @@ impl SolverPose<SimdReal> {
             let aos1 = aos!(data_repr[idx].data1, identity);
             let aos2 = aos!(data_repr[idx].data2, identity);
             let aos3 = aos!(data_repr[idx].data3, identity);
-            let soa0 = wide::f32x4::transpose(transmute_to_wide(aos0));
-            let soa1 = wide::f32x4::transpose(transmute_to_wide(aos1));
-            let soa2 = wide::f32x4::transpose(transmute_to_wide(aos2));
-            let soa3 = wide::f32x4::transpose(transmute_to_wide(aos3));
+            let soa0 = transpose_wide(aos0);
+            let soa1 = transpose_wide(aos1);
+            let soa2 = transpose_wide(aos2);
+            let soa3 = transpose_wide(aos3);
             unsafe { core::mem::transmute([soa0, soa1, soa2, soa3]) }
         }
-    }
-
-    #[inline]
-    #[cfg(feature = "dim2")]
-    pub fn scatter_unchecked(self, data: &mut [SolverPose<Real>], idx: [u32; SIMD_WIDTH]) {
-        // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let soa: [[wide::f32x4; 4]; 2] = unsafe { core::mem::transmute(self) };
-        let aos0 = wide::f32x4::transpose(soa[0]);
-        let aos1 = wide::f32x4::transpose(soa[1]);
-        scatter_unchecked!(data[idx[0]] = [aos0, aos1]);
-        scatter_unchecked!(data[idx[1]] = [aos0, aos1]);
-        scatter_unchecked!(data[idx[2]] = [aos0, aos1]);
-        scatter_unchecked!(data[idx[3]] = [aos0, aos1]);
-    }
-
-    #[inline]
-    #[cfg(feature = "dim3")]
-    pub fn scatter_unchecked(self, data: &mut [SolverPose<Real>], idx: [u32; SIMD_WIDTH]) {
-        let soa: [[wide::f32x4; 4]; 4] = unsafe { core::mem::transmute(self) };
-        // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let aos0 = wide::f32x4::transpose(soa[0]);
-        let aos1 = wide::f32x4::transpose(soa[1]);
-        let aos2 = wide::f32x4::transpose(soa[2]);
-        let aos3 = wide::f32x4::transpose(soa[3]);
-        scatter_unchecked!(data[idx[0]] = [aos0, aos1, aos2, aos3]);
-        scatter_unchecked!(data[idx[1]] = [aos0, aos1, aos2, aos3]);
-        scatter_unchecked!(data[idx[2]] = [aos0, aos1, aos2, aos3]);
-        scatter_unchecked!(data[idx[3]] = [aos0, aos1, aos2, aos3]);
-    }
-
-    #[inline]
-    #[cfg(feature = "dim2")]
-    pub fn scatter(self, data: &mut [SolverPose<Real>], idx: [u32; SIMD_WIDTH]) {
-        // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let soa: [[wide::f32x4; 4]; 2] = unsafe { core::mem::transmute(self) };
-        let aos0 = wide::f32x4::transpose(soa[0]);
-        let aos1 = wide::f32x4::transpose(soa[1]);
-        scatter!(data[idx[0]] = [aos0, aos1]);
-        scatter!(data[idx[1]] = [aos0, aos1]);
-        scatter!(data[idx[2]] = [aos0, aos1]);
-        scatter!(data[idx[3]] = [aos0, aos1]);
-    }
-
-    #[inline]
-    #[cfg(feature = "dim3")]
-    pub fn scatter(self, data: &mut [SolverPose<Real>], idx: [u32; SIMD_WIDTH]) {
-        let soa: [[wide::f32x4; 4]; 4] = unsafe { core::mem::transmute(self) };
-        // TODO: double-check that the compiler is using simd loads and no useless copies.
-        let aos0 = wide::f32x4::transpose(soa[0]);
-        let aos1 = wide::f32x4::transpose(soa[1]);
-        let aos2 = wide::f32x4::transpose(soa[2]);
-        let aos3 = wide::f32x4::transpose(soa[3]);
-        scatter!(data[idx[0]] = [aos0, aos1, aos2, aos3]);
-        scatter!(data[idx[1]] = [aos0, aos1, aos2, aos3]);
-        scatter!(data[idx[2]] = [aos0, aos1, aos2, aos3]);
-        scatter!(data[idx[3]] = [aos0, aos1, aos2, aos3]);
     }
 }
 
@@ -551,10 +423,8 @@ impl<N: ScalarType> SolverVel<N> {
         Self {
             linear: Default::default(),
             angular: Default::default(),
-            #[cfg(feature = "simd-is-enabled")]
             #[cfg(feature = "dim2")]
             padding: [na::zero(); 1],
-            #[cfg(feature = "simd-is-enabled")]
             #[cfg(feature = "dim3")]
             padding: [na::zero(); 2],
         }
@@ -582,7 +452,6 @@ impl<N: ScalarType> Sub for SolverVel<N> {
         SolverVel {
             linear: self.linear - rhs.linear,
             angular: self.angular - rhs.angular,
-            #[cfg(feature = "simd-is-enabled")]
             padding: self.padding,
         }
     }

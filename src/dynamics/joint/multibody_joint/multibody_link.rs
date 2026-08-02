@@ -133,11 +133,11 @@ impl MultibodyLinkVec {
         );
         assert!(parent_id < self.len(), "Invalid parent index.");
 
-        unsafe {
-            let rb = &mut *(self.get_unchecked_mut(i) as *mut _);
-            let parent_rb = &*(self.get_unchecked(parent_id) as *const _);
-            (rb, parent_rb)
-        }
+        let [rb, parent_rb] = self
+            .0
+            .get_disjoint_mut([i, parent_id])
+            .expect("indices are in bounds and distinct");
+        (rb, &*parent_rb)
     }
 }
 

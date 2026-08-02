@@ -323,10 +323,41 @@ impl GenericJoint {
         *Self::default().lock_axes(locked_axes)
     }
 
-    #[cfg(feature = "simd-is-enabled")]
     /// Can this joint use SIMD-accelerated constraint formulations?
+    ///
+    /// Locked axes and uncoupled limits have wide row formulations, as does the
+    /// 2D angular motor (the workhorse of ragdoll joints); linear motors, 3D
+    /// motors and coupled limit rows don't (yet) and fall back to the scalar
+    /// path.
     pub(crate) fn supports_simd_constraints(&self) -> bool {
-        self.limit_axes.is_empty() && self.motor_axes.is_empty()
+        #[cfg(feature = "dim2")]
+        let motors_ok =
+            (self.motor_axes.bits() & !self.locked_axes.bits() & JointAxesMask::LIN_AXES.bits())
+                == 0;
+        #[cfg(feature = "dim3")]
+        let motors_ok = (self.motor_axes.bits() & !self.locked_axes.bits()) == 0;
+        motors_ok && (self.limit_axes & self.coupled_axes).is_empty()
+    }
+
+    /// The constraint-row layout signature of this joint: joints sharing it emit
+    /// the same row sequence (kinds, axes and count), so they can share the
+    /// lanes of one SIMD constraint group.
+    pub(crate) fn simd_row_signature(&self) -> u32 {
+        let locked = self.locked_axes.bits() as u32;
+        let limits = (self.limit_axes.bits() & !self.locked_axes.bits()) as u32;
+        #[cfg(feature = "dim2")]
+        {
+            // The angular motor row's coefficient formula depends on the motor
+            // model, so lanes must also share it.
+            let motors = (self.motor_axes.bits() & !self.locked_axes.bits()) as u32;
+            let model = (self.motors[crate::math::DIM].model
+                == crate::dynamics::MotorModel::ForceBased) as u32;
+            locked | (limits << 8) | (motors << 16) | (model << 24)
+        }
+        #[cfg(feature = "dim3")]
+        {
+            locked | (limits << 8)
+        }
     }
 
     #[doc(hidden)]

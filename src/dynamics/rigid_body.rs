@@ -157,23 +157,20 @@ impl RigidBody {
         self.changes = RigidBodyChanges::all();
     }
 
-    /// Set the additional number of solver iterations run for this rigid-body and
-    /// everything interacting with it.
+    /// The additional number of solver iterations run for the constraints directly
+    /// involving this rigid-body.
     ///
     /// See [`Self::set_additional_solver_iterations`] for additional information.
     pub fn additional_solver_iterations(&self) -> usize {
         self.additional_solver_iterations
     }
 
-    /// Set the additional number of solver iterations run for this rigid-body and
-    /// everything interacting with it.
-    ///
-    /// Increasing this number will help improve simulation accuracy on this rigid-body
-    /// and every rigid-body interacting directly or indirectly with it (through joints
-    /// or contacts). This implies a performance hit.
-    ///
-    /// The default value is 0, meaning exactly [`IntegrationParameters::num_solver_iterations`] will
-    /// be used as number of solver iterations for this body.
+    /// Set the additional number of solver substeps run for the simulation island containing this
+    /// rigid-body (default: 0). Each extra substep re-derives the soft constraint bias at a smaller
+    /// timestep, improving accuracy for stiff couplings (joint chains, high mass-ratio stacks). The
+    /// whole connected component (contacts + joints) runs `num_solver_iterations +
+    /// max(additional_solver_iterations)` substeps, so the cost scales with component size —
+    /// attaching an elevated body to a large pile substeps the pile too.
     pub fn set_additional_solver_iterations(&mut self, additional_iterations: usize) {
         self.additional_solver_iterations = additional_iterations;
     }
@@ -260,6 +257,10 @@ impl RigidBody {
             if status == RigidBodyType::Fixed {
                 self.vels = RigidBodyVelocity::zero();
             }
+
+            // The effective mass-properties depend on the body type (kinematic and
+            // fixed bodies have zero effective inverse masses).
+            self.update_world_mass_properties();
 
             if self.is_dynamic_or_kinematic() && wake_up {
                 self.wake_up(true);
@@ -492,17 +493,18 @@ impl RigidBody {
         ]
     }
 
-    /// Enables or disables Continuous Collision Detection for this body.
-    ///
-    /// CCD prevents fast-moving objects from tunneling through thin walls, but costs more CPU.
-    /// Enable for bullets, fast projectiles, or any object that must never pass through geometry.
+    /// Enables or disables full ("bullet") CCD: fast dynamic bodies already sweep **fixed**
+    /// colliders automatically (unless [`IntegrationParameters::max_ccd_substeps`] is `0`); this
+    /// upgrades the body to also sweep **kinematic and dynamic** bodies at extra CPU cost —
+    /// for projectiles that must not tunnel through other moving bodies. A bullet never
+    /// sweeps another bullet, so two bullets can still tunnel through each other.
     pub fn enable_ccd(&mut self, enabled: bool) {
         self.ccd.ccd_enabled = enabled;
     }
 
-    /// Checks if CCD is enabled for this body.
-    ///
-    /// Returns `true` if CCD is turned on (not whether it's currently active this frame).
+    /// Checks if full ("bullet") CCD is enabled: whether this body sweeps against all bodies
+    /// rather than only fixed colliders. Independent from whether CCD is *active* this frame
+    /// ([`RigidBody::is_ccd_active`]) and from the automatic fixed-collider CCD of fast dynamic bodies.
     pub fn is_ccd_enabled(&self) -> bool {
         self.ccd.ccd_enabled
     }
@@ -529,17 +531,29 @@ impl RigidBody {
         self.ccd.soft_ccd_prediction
     }
 
+    /// Allow (or disallow) this body to exceed the angular speed cap.
+    ///
+    /// By default angular velocity is clamped each substep to ~45°/step to keep CCD reliable;
+    /// pass `true` for bodies that must spin fast, e.g. wheels.
+    pub fn set_allow_fast_rotation(&mut self, allow: bool) {
+        self.ccd.allow_fast_rotation = allow;
+    }
+
+    /// Is this body allowed to exceed the angular speed cap?
+    ///
+    /// See [`RigidBody::set_allow_fast_rotation`].
+    pub fn is_fast_rotation_allowed(&self) -> bool {
+        self.ccd.allow_fast_rotation
+    }
+
     // This is different from `is_ccd_enabled`. This checks that CCD
     // is active for this rigid-body, i.e., if it was seen to move fast
     // enough to justify a CCD run.
     /// Is CCD active for this rigid-body?
     ///
-    /// The CCD is considered active if the rigid-body is moving at
-    /// a velocity greater than an automatically-computed threshold.
-    ///
-    /// This is not the same as `self.is_ccd_enabled` which only
-    /// checks if CCD is enabled to run for this rigid-body or if
-    /// it is completely disabled (independently from its velocity).
+    /// Set for *any* dynamic body moving faster than an automatically-computed threshold (which
+    /// then sweeps fixed colliders), not only bodies with [`RigidBody::is_ccd_enabled`] — which
+    /// only says whether the body is upgraded to sweep all bodies, independently of its velocity.
     pub fn is_ccd_active(&self) -> bool {
         self.ccd.ccd_active
     }
@@ -671,7 +685,7 @@ impl RigidBody {
     //       to all the fixed bodies active set offsets?
     pub fn effective_active_set_offset(&self) -> u32 {
         if self.is_dynamic_or_kinematic() {
-            self.ids.active_set_id as u32
+            self.ids.active_set_id
         } else {
             u32::MAX
         }
@@ -1441,24 +1455,16 @@ impl RigidBody {
     /// Computes the angular velocity of this rigid-body after application of gyroscopic forces.
     #[cfg(feature = "dim3")]
     pub fn angvel_with_gyroscopic_forces(&self, dt: Real) -> AngVector {
-        // NOTE: integrating the gyroscopic forces implicitly are both slower and
-        //       very dissipative. Instead, we only keep the explicit term and
-        //       ensure angular momentum is preserved (similar to Jolt).
-        let w = self.pos.position.rotation.inverse() * self.angvel();
-        let i = self.mprops.local_mprops.principal_inertia();
-        let ii = self.mprops.local_mprops.inv_principal_inertia;
-        let curr_momentum = i * w;
-        let explicit_gyro_momentum = -w.cross(curr_momentum) * dt;
-        let total_momentum = curr_momentum + explicit_gyro_momentum;
-        let total_momentum_sqnorm = total_momentum.length_squared();
-
-        if total_momentum_sqnorm != 0.0 {
-            let capped_momentum =
-                total_momentum * (curr_momentum.length_squared() / total_momentum_sqnorm).sqrt();
-            self.pos.position.rotation * (ii * capped_momentum)
-        } else {
-            self.angvel()
-        }
+        let mprops = &self.mprops.local_mprops;
+        // World-space principal axes = body rotation ∘ principal frame.
+        let principal_axes = self.pos.position.rotation * mprops.principal_inertia_local_frame;
+        gyroscopic_corrected_angvel(
+            self.angvel(),
+            principal_axes,
+            mprops.principal_inertia(),
+            mprops.inv_principal_inertia,
+            dt,
+        )
     }
 }
 
@@ -1504,9 +1510,9 @@ pub struct RigidBodyBuilder {
     pub can_sleep: bool,
     /// Whether the rigid-body is to be created asleep.
     pub sleeping: bool,
-    /// Whether Continuous Collision-Detection is enabled for the rigid-body to be built.
-    ///
-    /// CCD prevents tunneling, but may still allow limited interpenetration of colliders.
+    /// Whether full ("bullet") Continuous Collision-Detection is enabled for the rigid-body to be
+    /// built. Fast dynamic bodies always sweep fixed colliders; this also sweeps kinematic and
+    /// dynamic bodies. CCD prevents tunneling but may allow limited interpenetration of colliders.
     pub ccd_enabled: bool,
     /// The maximum prediction distance Soft Continuous Collision-Detection.
     ///
@@ -1519,14 +1525,17 @@ pub struct RigidBodyBuilder {
     /// [`RigidBodyBuilder::ccd_enabled`] since it relies on predictive constraints instead of
     /// shape-cast and substeps.
     pub soft_ccd_prediction: Real,
+    /// Allow the rigid-body being built to exceed the angular speed cap.
+    /// See [`RigidBody::set_allow_fast_rotation`].
+    pub allow_fast_rotation: bool,
     /// The dominance group of the rigid-body to be built.
     pub dominance_group: i8,
     /// Will the rigid-body being built be enabled?
     pub enabled: bool,
     /// An arbitrary user-defined 128-bit integer associated to the rigid-bodies built by this builder.
     pub user_data: u128,
-    /// The additional number of solver iterations run for this rigid-body and
-    /// everything interacting with it.
+    /// The additional number of solver iterations run for the constraints directly
+    /// involving this rigid-body.
     ///
     /// See [`RigidBody::set_additional_solver_iterations`] for additional information.
     pub additional_solver_iterations: usize,
@@ -1562,11 +1571,12 @@ impl RigidBodyBuilder {
             sleeping: false,
             ccd_enabled: false,
             soft_ccd_prediction: 0.0,
+            allow_fast_rotation: false,
             dominance_group: 0,
             enabled: true,
             user_data: 0,
             additional_solver_iterations: 0,
-            gyroscopic_forces_enabled: false,
+            gyroscopic_forces_enabled: true,
         }
     }
 
@@ -1634,8 +1644,8 @@ impl RigidBodyBuilder {
         Self::new(RigidBodyType::Dynamic)
     }
 
-    /// Sets the additional number of solver iterations run for this rigid-body and
-    /// everything interacting with it.
+    /// Sets the additional number of solver iterations run for the constraints directly
+    /// involving this rigid-body.
     ///
     /// See [`RigidBody::set_additional_solver_iterations`] for additional information.
     pub fn additional_solver_iterations(mut self, additional_iterations: usize) -> Self {
@@ -1887,20 +1897,16 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Enables Continuous Collision Detection to prevent fast objects from tunneling.
-    ///
-    /// CCD prevents "tunneling" where fast-moving objects pass through thin walls.
-    /// Enable this for:
-    /// - Bullets and fast projectiles
-    /// - Small objects moving at high speed
-    /// - Objects that must never pass through walls
-    ///
-    /// **Trade-off**: More accurate but more expensive. Most objects don't need CCD.
+    /// Enables full ("bullet") Continuous Collision Detection: fast dynamic bodies already sweep
+    /// **fixed** colliders automatically; this upgrades the body to also sweep **kinematic and
+    /// dynamic** bodies at extra cost — for projectiles and fast small
+    /// objects that must not tunnel through other moving bodies. Setting
+    /// [`IntegrationParameters::max_ccd_substeps`] to `0` disables CCD world-wide.
     ///
     /// # Example
     /// ```
     /// # use rapier3d::prelude::*;
-    /// // Bullet that should never tunnel through walls
+    /// // Bullet that should never tunnel through walls or other moving bodies
     /// let bullet = RigidBodyBuilder::dynamic()
     ///     .ccd_enabled(true)
     ///     .build();
@@ -1922,6 +1928,15 @@ impl RigidBodyBuilder {
     /// shape-cast and substeps.
     pub fn soft_ccd_prediction(mut self, prediction_distance: Real) -> Self {
         self.soft_ccd_prediction = prediction_distance;
+        self
+    }
+
+    /// Allow the rigid-body being built to exceed the angular speed cap.
+    ///
+    /// By default angular velocity is clamped each substep to ~45°/step to keep CCD reliable;
+    /// pass `true` for bodies that must spin fast, e.g. wheels.
+    pub fn allow_fast_rotation(mut self, allow: bool) -> Self {
+        self.allow_fast_rotation = allow;
         self
     }
 
@@ -1979,6 +1994,7 @@ impl RigidBodyBuilder {
         rb.enabled = self.enabled;
         rb.enable_ccd(self.ccd_enabled);
         rb.set_soft_ccd_prediction(self.soft_ccd_prediction);
+        rb.set_allow_fast_rotation(self.allow_fast_rotation);
 
         if self.can_sleep && self.sleeping {
             rb.sleep();
@@ -1996,5 +2012,35 @@ impl RigidBodyBuilder {
 impl From<RigidBodyBuilder> for RigidBody {
     fn from(val: RigidBodyBuilder) -> RigidBody {
         val.build()
+    }
+}
+
+/// One explicit, angular-momentum-preserving gyroscopic correction of a world-space angular velocity,
+/// computed in the world principal-inertia frame (`principal_axes`) so `w × I·w` is exact for tilted
+/// axes. Shared by [`RigidBody::angvel_with_gyroscopic_forces`] and the solver's per-substep pass.
+#[cfg(feature = "dim3")]
+#[inline]
+pub(crate) fn gyroscopic_corrected_angvel(
+    angvel: AngVector,
+    principal_axes: Rotation,
+    principal_inertia: AngVector,
+    inv_principal_inertia: AngVector,
+    dt: Real,
+) -> AngVector {
+    // NOTE: integrating the gyroscopic forces implicitly are both slower and
+    //       very dissipative. Instead, we only keep the explicit term and
+    //       ensure angular momentum is preserved (similar to Jolt).
+    let w = principal_axes.inverse() * angvel;
+    let curr_momentum = principal_inertia * w;
+    let explicit_gyro_momentum = -w.cross(curr_momentum) * dt;
+    let total_momentum = curr_momentum + explicit_gyro_momentum;
+    let total_momentum_sqnorm = total_momentum.length_squared();
+
+    if total_momentum_sqnorm != 0.0 {
+        let capped_momentum =
+            total_momentum * (curr_momentum.length_squared() / total_momentum_sqnorm).sqrt();
+        principal_axes * (inv_principal_inertia * capped_momentum)
+    } else {
+        angvel
     }
 }

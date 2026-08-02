@@ -387,12 +387,8 @@ impl Multibody {
         &mut self.damping
     }
 
-    /// The vector of per-DoF armature (reflected rotor inertia) of this
-    /// multibody.
-    ///
-    /// This acts as additional inertia added directly to the mass matrix.
-    /// Use this to simulate the intrinsic weight distribution of the joint
-    /// itself.
+    /// The vector of per-DoF armature (reflected rotor inertia) of this multibody: additional
+    /// inertia added directly to the mass matrix, simulating the joint's own weight distribution.
     #[inline]
     pub fn armature(&self) -> &DVector {
         &self.armature
@@ -548,14 +544,9 @@ impl Multibody {
         self.accelerations
             .cmpy(-1.0, &self.damping, &self.velocities, 1.0);
 
-        // Implicit joint springs. The backward-Euler spring force evaluated at
-        // the end-of-step position `q⁺ = q + dt·v⁺` is `-k·(q − rest) − k·dt·v⁺`.
-        // The `−k·dt·v⁺` part is made implicit by the `dt²·k` term on the
-        // mass-matrix diagonal (see `update_mass_matrix`); for that to be
-        // consistent the generalized force here must include both the position
-        // term `-k·(q − rest)` *and* the velocity-coupling term `-k·dt·v`
-        // (at the current `v`). Omitting the latter leaves the spring only
-        // semi-implicit.
+        // Implicit joint springs: backward-Euler at `q⁺ = q + dt·v⁺` gives `-k·(q − rest) − k·dt·v⁺`,
+        // with the `v⁺` part implicit via the `dt²·k` mass-matrix diagonal (see `update_mass_matrix`).
+        // Consistency requires BOTH `-k·(q − rest)` and `-k·dt·v` here, else the spring is only semi-implicit.
         for li in 0..self.links.len() {
             let mut idx = self.links[li].assembly_id;
             let locked = self.links[li].joint.data.locked_axes.bits();
@@ -883,14 +874,9 @@ impl Multibody {
             self.augmented_mass[(i, i)] += diag;
         }
 
-        // Implicit joint springs. A passive spring contributes a generalized
-        // force `-k·(q − rest)`; integrating it implicitly (evaluating it at the
-        // end-of-step position `q + dt·v⁺`) adds `dt²·k` to the mass-matrix
-        // diagonal here, with the `-k·(q − rest)` term added in
-        // `update_acceleration`. This is what keeps a stiff spring on a
-        // low-inertia link stable where an explicit position motor injects
-        // energy. The spring lives on the link's `MultibodyJoint` so it travels
-        // with the link through topology changes.
+        // Implicit joint springs: `dt²·k` on the mass-matrix diagonal (force term in `update_acceleration`)
+        // keeps a stiff spring on a low-inertia link stable where an explicit position motor injects energy.
+        // The spring lives on the link's `MultibodyJoint` so it travels with the link through topology changes.
         let dt2 = dt * dt;
         for li in 0..self.links.len() {
             let mut idx = self.links[li].assembly_id;
@@ -937,20 +923,15 @@ impl Multibody {
         );
     }
 
-    /// Per-DoF inverse joint-space inertia `diag(M⁻¹)` at the current
-    /// configuration, where `M` is the generalized mass matrix *including
-    /// armature* but excluding joint damping and springs. This is MuJoCo's
-    /// `dof_invweight0`: the apparent inverse inertia seen at each DoF when all
-    /// other DoFs are free, accounting for the full articulated coupling.
-    ///
-    /// It (re)runs forward kinematics and reassembles the mass matrix, so it is
-    /// intended for occasional use (e.g. sizing `<joint springdamper>` springs
-    /// at load time), not for every simulation step.
+    /// Per-DoF inverse joint-space inertia `diag(M⁻¹)` at the current configuration, where `M`
+    /// includes armature but excludes joint damping and springs — MuJoCo's `dof_invweight0`: the
+    /// apparent inverse inertia at each DoF with all other DoFs free, including the articulated
+    /// coupling. Re-runs forward kinematics and reassembles the mass matrix, so intended for
+    /// occasional use (e.g. sizing `<joint springdamper>` springs at load time), not every step.
     pub fn dof_inverse_inertia(&mut self, bodies: &RigidBodySet) -> DVector {
-        // Resolve the root joint type (a fixed base may still be a 6-DoF free
-        // root pre-collapse) so `ndofs` is final, then assemble `M`. Using
-        // `dt = 0` drops the `dt·damping` and `dt²·stiffness` diagonal terms,
-        // leaving exactly `M + armature`.
+        // Resolve the root joint type (a fixed base may still be a 6-DoF free root pre-collapse)
+        // so `ndofs` is final, then assemble `M`. `dt = 0` drops the `dt·damping` and
+        // `dt²·stiffness` diagonal terms, leaving exactly `M + armature`.
         self.forward_kinematics(bodies, false);
         self.update_mass_matrix(0.0, bodies);
 
@@ -959,10 +940,9 @@ impl Multibody {
         if n == 0 {
             return out;
         }
-        // `(M⁻¹)[i, i]` for each DoF: solve `M x = e_i` and read `x[i]`. The
-        // factorization in `inv_augmented_mass` lives in the kinematic-reduced
-        // ordering, so route the unit vector through the same rearrangement the
-        // solver uses.
+        // `(M⁻¹)[i, i]` for each DoF: solve `M x = e_i` and read `x[i]`. The `inv_augmented_mass`
+        // factorization lives in the kinematic-reduced ordering, so route the unit vector through
+        // the same rearrangement the solver uses.
         let mut e = DVector::zeros(n);
         for i in 0..n {
             e.fill(0.0);
@@ -988,10 +968,9 @@ impl Multibody {
         &self.couplings
     }
 
-    /// Number of coupling constraints "owned" by `owner_link` — i.e. couplings
-    /// whose first joint (`link1`) is that link. Each coupling is generated once,
-    /// by `link1` (which always has a free DoF and so is an active link in the
-    /// solver island, unlike a possibly-fixed root).
+    /// Number of coupling constraints "owned" by `owner_link` — couplings whose first joint
+    /// (`link1`) is that link. Each coupling is generated once, by `link1` (which always has a
+    /// free DoF and so is an active link in the solver island, unlike a possibly-fixed root).
     pub(crate) fn num_couplings_owned_by(&self, owner_link: usize) -> usize {
         self.couplings
             .iter()
@@ -999,11 +978,9 @@ impl Multibody {
             .count()
     }
 
-    /// Generates the velocity constraints for the DoF couplings owned by
-    /// `owner_link`, writing them into `out[..]`. Each coupling
-    /// `q2 = coeff·q1 + offset` becomes a single bilateral constraint with the
-    /// generalized jacobian `J = e_{q2} − coeff·e_{q1}` and a right-hand side
-    /// that pulls the position drift `q2 − coeff·q1 − offset` back to zero.
+    /// Generates the velocity constraints for the DoF couplings owned by `owner_link` into
+    /// `out[..]`: each coupling `q2 = coeff·q1 + offset` is one bilateral constraint with jacobian
+    /// `J = e_{q2} − coeff·e_{q1}` and a rhs pulling the position drift back to zero.
     pub(crate) fn coupling_velocity_constraints(
         &self,
         owner_link: usize,
@@ -1479,20 +1456,9 @@ impl Multibody {
         (j.dot(&invm_j), j.dot(&self.generalized_velocity()))
     }
 
-    /// Fills `jacobians` with the relative jacobian `J = J2ᵀ·f2 − J1ᵀ·f1` of two
-    /// links of `self` (followed by its product with the inverse augmented mass),
-    /// where `fk = (unit_forcek, unit_torquek)`.
-    ///
-    /// This is the jacobian of a velocity constraint between two links of the
-    /// same multibody (e.g. a loop closure). The difference must be computed
-    /// explicitly — keeping one block per link loses the `J1ᵀ·W·J2` coupling in
-    /// the constraint’s effective mass since both blocks act on the same
-    /// generalized velocities.
-    ///
-    /// Rows that vanish by cancellation (the constrained direction is not
-    /// expressible in the multibody’s reduced coordinates, e.g. a loop-closure
-    /// anchor coinciding with the joint pivot it closes over) are zeroed so the
-    /// solver skips them instead of dividing by floating-point noise.
+    /// Fills `jacobians` with the relative jacobian `J = J2ᵀ·f2 − J1ᵀ·f1` of two links of `self`, then `M⁻¹·J`
+    /// (e.g. a loop closure). The difference must be explicit: per-link blocks lose the `J1ᵀ·W·J2` effective-mass
+    /// coupling since both act on the same generalized velocities. Cancellation-vanished rows are zeroed so the solver skips them.
     pub(crate) fn fill_relative_jacobians(
         &self,
         link_id1: usize,
@@ -1532,12 +1498,9 @@ impl Multibody {
             jb1.tr_mul_to(force1.as_vector(), &mut scratch);
             out_j.axpy(-1.0, &scratch, 1.0);
 
-            // Cancellation guard. The reference scale is the magnitude of the
-            // dot-product operands (not of their results, which may themselves
-            // be pure cancellation noise when the constrained direction isn’t
-            // expressible by the multibody’s dofs at all). A row this small
-            // compared to ~1000× the machine epsilon times that scale is
-            // numerical noise, not an actual constraint direction.
+            // Cancellation guard: the reference scale is the magnitude of the dot-product operands,
+            // not their results (which may be pure cancellation noise when the direction isn’t
+            // expressible by the dofs). Rows below ~1000·ε times that scale are noise, not a constraint.
             let scale_sq = jb1.norm_squared() * force1.as_vector().norm_squared()
                 + jb2.norm_squared() * force2.as_vector().norm_squared();
             let eps = Real::EPSILON * 1.0e3;
@@ -1561,49 +1524,37 @@ impl Multibody {
 
         *j_id += self.ndofs * 2;
     }
-
-    // #[cfg(feature = "parallel")]
-    // #[inline]
-    // pub(crate) fn has_active_internal_constraints(&self) -> bool {
-    //     self.links()
-    //         .any(|link| link.joint().num_velocity_constraints() != 0)
-    // }
-
-    #[cfg(feature = "parallel")]
-    #[inline]
-    #[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
-    pub(crate) fn num_active_internal_constraints_and_jacobian_lines(&self) -> (usize, usize) {
-        let num_constraints: usize = self
-            .links
-            .iter()
-            .map(|l| l.joint().num_velocity_constraints())
-            .sum();
-        (num_constraints, num_constraints)
-    }
 }
 
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 struct IndexSequence {
-    first_to_remove: usize,
+    first_to_remove: u32,
     index_map: Vec<usize>,
 }
 
 impl IndexSequence {
+    const NONE: u32 = u32::MAX;
+
     fn new() -> Self {
         Self {
-            first_to_remove: usize::MAX,
+            first_to_remove: Self::NONE,
             index_map: vec![],
         }
     }
 
+    /// Index of the first removed dof, assuming there is one.
+    fn start(&self) -> usize {
+        self.first_to_remove as usize
+    }
+
     fn clear(&mut self) {
-        self.first_to_remove = usize::MAX;
+        self.first_to_remove = Self::NONE;
         self.index_map.clear();
     }
 
     fn keep(&mut self, i: usize) {
-        if self.first_to_remove == usize::MAX {
+        if self.first_to_remove == Self::NONE {
             // Nothing got removed yet. No need to register any
             // special indexing.
             return;
@@ -1613,16 +1564,16 @@ impl IndexSequence {
     }
 
     fn remove(&mut self, i: usize) {
-        if self.first_to_remove == usize::MAX {
-            self.first_to_remove = i;
+        if self.first_to_remove == Self::NONE {
+            self.first_to_remove = i as u32;
         }
     }
 
     fn dim_after_removal(&self, original_dim: usize) -> usize {
-        if self.first_to_remove == usize::MAX {
+        if self.first_to_remove == Self::NONE {
             original_dim
         } else {
-            self.first_to_remove + self.index_map.len()
+            self.start() + self.index_map.len()
         }
     }
 
@@ -1631,19 +1582,19 @@ impl IndexSequence {
         mat: &mut na::Matrix<Real, R, C, S>,
         clear_removed: bool,
     ) {
-        if self.first_to_remove == usize::MAX {
+        if self.first_to_remove == Self::NONE {
             // Nothing to rearrange.
             return;
         }
 
         for (target_shift, source) in self.index_map.iter().enumerate() {
-            let target = self.first_to_remove + target_shift;
+            let target = self.start() + target_shift;
             let (mut target_col, source_col) = mat.columns_range_pair_mut(target, *source);
             target_col.copy_from(&source_col);
         }
 
         if clear_removed {
-            mat.columns_range_mut(self.first_to_remove + self.index_map.len()..)
+            mat.columns_range_mut(self.start() + self.index_map.len()..)
                 .fill(0.0);
         }
     }
@@ -1653,19 +1604,19 @@ impl IndexSequence {
         mat: &mut na::Matrix<Real, R, C, S>,
         clear_removed: bool,
     ) {
-        if self.first_to_remove == usize::MAX {
+        if self.first_to_remove == Self::NONE {
             // Nothing to rearrange.
             return;
         }
 
         for mut col in mat.column_iter_mut() {
             for (target_shift, source) in self.index_map.iter().enumerate() {
-                let target = self.first_to_remove + target_shift;
+                let target = self.start() + target_shift;
                 col[target] = col[*source];
             }
 
             if clear_removed {
-                col.rows_range_mut(self.first_to_remove + self.index_map.len()..)
+                col.rows_range_mut(self.start() + self.index_map.len()..)
                     .fill(0.0);
             }
         }
@@ -1675,14 +1626,14 @@ impl IndexSequence {
         &self,
         mat: &mut na::Matrix<Real, R, C, S>,
     ) {
-        if self.first_to_remove == usize::MAX {
+        if self.first_to_remove == Self::NONE {
             // Nothing to rearrange.
             return;
         }
 
         for mut col in mat.column_iter_mut() {
             for (target_shift, source) in self.index_map.iter().enumerate().rev() {
-                let target = self.first_to_remove + target_shift;
+                let target = self.start() + target_shift;
                 col[*source] = col[target];
                 col[target] = 0.0;
             }

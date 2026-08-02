@@ -7,9 +7,7 @@ use crate::math::{DIM, Real, SPATIAL_DIM};
 use crate::utils::{ComponentMul, DotProduct, ScalarType, SimdRealCopy};
 
 use crate::dynamics::solver::solver_body::SolverBodies;
-#[cfg(feature = "simd-is-enabled")]
 use crate::math::{SIMD_WIDTH, SimdReal};
-#[cfg(feature = "simd-is-enabled")]
 use na::SimdValue;
 use parry::math::Pose;
 
@@ -123,6 +121,24 @@ impl<N: ScalarType, const LANES: usize> JointConstraint<N, LANES> {
 
     pub fn remove_bias_from_rhs(&mut self) {
         self.rhs = self.rhs_wo_bias;
+    }
+
+    /// Applies the currently-accumulated impulse to the body velocities. Only used when
+    /// `IntegrationParameters::warmstart_joints` is enabled: the constraint's `impulse` was
+    /// carried from the previous substep (or seeded from last step's writeback) by the update.
+    pub fn warmstart_generic(
+        &mut self,
+        solver_vel1: &mut SolverVel<N>,
+        solver_vel2: &mut SolverVel<N>,
+    ) {
+        let lin_impulse = self.lin_jac * self.impulse;
+        let ii_ang_impulse1 = self.ii_ang_jac1 * self.impulse;
+        let ii_ang_impulse2 = self.ii_ang_jac2 * self.impulse;
+
+        solver_vel1.linear += lin_impulse.component_mul(&self.im1);
+        solver_vel1.angular += ii_ang_impulse1;
+        solver_vel2.linear -= lin_impulse.component_mul(&self.im2);
+        solver_vel2.angular -= ii_ang_impulse2;
     }
 }
 
@@ -271,7 +287,11 @@ impl JointConstraint<Real, 1> {
                     body1,
                     body2,
                     i - DIM,
-                    [joint.limits[i].min, joint.limits[i].max],
+                    // `limit_angular` takes the sines of the half-angle limits.
+                    [
+                        (joint.limits[i].min * 0.5).sin(),
+                        (joint.limits[i].max * 0.5).sin(),
+                    ],
                     WritebackId::Limit(i),
                     erp_inv_dt,
                     cfm_coeff,
@@ -347,6 +367,16 @@ impl JointConstraint<Real, 1> {
         solver_vels.set_vel(self.solver_vel2[0], solver_vel2);
     }
 
+    pub fn warmstart(&mut self, solver_vels: &mut SolverBodies) {
+        let mut solver_vel1 = solver_vels.get_vel(self.solver_vel1[0]);
+        let mut solver_vel2 = solver_vels.get_vel(self.solver_vel2[0]);
+
+        self.warmstart_generic(&mut solver_vel1, &mut solver_vel2);
+
+        solver_vels.set_vel(self.solver_vel1[0], solver_vel1);
+        solver_vels.set_vel(self.solver_vel2[0], solver_vel2);
+    }
+
     pub fn writeback_impulses(&self, joints_all: &mut [JointGraphEdge]) {
         let joint = &mut joints_all[self.joint_id[0]].weight;
         match self.writeback_id {
@@ -357,8 +387,8 @@ impl JointConstraint<Real, 1> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl JointConstraint<SimdReal, SIMD_WIDTH> {
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         params: &IntegrationParameters,
         joint_id: [JointIndex; SIMD_WIDTH],
@@ -367,7 +397,12 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         frame1: &<SimdReal as ScalarType>::Pose,
         frame2: &<SimdReal as ScalarType>::Pose,
         locked_axes: u8,
+        limit_axes: u8,
+        limits: &[[SimdReal; 2]; SPATIAL_DIM],
         softness: crate::dynamics::SpringCoefficients<SimdReal>,
+        // `Some` = emit the (2D) angular motor row. Kept out of 3D until the
+        // wide builder gathers per-axis motors.
+        ang_motor: Option<&MotorParameters<SimdReal>>,
         out: &mut [Self],
     ) -> usize {
         let dt = SimdReal::splat(params.dt);
@@ -383,6 +418,23 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         );
 
         let mut len = 0;
+
+        // Motor rows come first and are orthogonalized in their own group,
+        // exactly like the scalar row emission.
+        if let Some(motor_params) = ang_motor {
+            out[len] = builder.motor_angular(
+                joint_id,
+                body1,
+                body2,
+                0,
+                motor_params,
+                WritebackId::Motor(DIM),
+            );
+            len += 1;
+            JointConstraintHelper::finalize_constraints(&mut out[..len]);
+        }
+        let group_start = len;
+
         for i in 0..DIM {
             if locked_axes & (1 << i) != 0 {
                 out[len] = builder.lock_linear(
@@ -415,7 +467,40 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
             }
         }
 
-        JointConstraintHelper::finalize_constraints(&mut out[..len]);
+        for i in DIM..SPATIAL_DIM {
+            if limit_axes & (1 << i) != 0 {
+                out[len] = builder.limit_angular(
+                    params,
+                    joint_id,
+                    body1,
+                    body2,
+                    i - DIM,
+                    limits[i],
+                    WritebackId::Limit(i),
+                    erp_inv_dt,
+                    cfm_coeff,
+                );
+                len += 1;
+            }
+        }
+        for i in 0..DIM {
+            if limit_axes & (1 << i) != 0 {
+                out[len] = builder.limit_linear(
+                    params,
+                    joint_id,
+                    body1,
+                    body2,
+                    i,
+                    limits[i],
+                    WritebackId::Limit(i),
+                    erp_inv_dt,
+                    cfm_coeff,
+                );
+                len += 1;
+            }
+        }
+
+        JointConstraintHelper::finalize_constraints(&mut out[group_start..len]);
         len
     }
 
@@ -424,6 +509,16 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         let mut solver_vel2 = solver_vels.gather_vels(self.solver_vel2);
 
         self.solve_generic(&mut solver_vel1, &mut solver_vel2);
+
+        solver_vels.scatter_vels(self.solver_vel1, solver_vel1);
+        solver_vels.scatter_vels(self.solver_vel2, solver_vel2);
+    }
+
+    pub fn warmstart(&mut self, solver_vels: &mut SolverBodies) {
+        let mut solver_vel1 = solver_vels.gather_vels(self.solver_vel1);
+        let mut solver_vel2 = solver_vels.gather_vels(self.solver_vel2);
+
+        self.warmstart_generic(&mut solver_vel1, &mut solver_vel2);
 
         solver_vels.scatter_vels(self.solver_vel1, solver_vel1);
         solver_vels.scatter_vels(self.solver_vel2, solver_vel2);

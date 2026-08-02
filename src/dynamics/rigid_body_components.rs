@@ -323,6 +323,11 @@ pub struct RigidBodyMassProps {
     pub flags: LockedAxes,
     /// Mass-properties of this rigid-bodies, added to the contributions of its attached colliders.
     pub additional_local_mprops: Option<Box<RigidBodyAdditionalMassProps>>,
+    /// Conservative bound on the distance of any shape point from the local center of mass;
+    /// the sleep metric and the CCD fast-body criterion use it to turn angular velocity into
+    /// a farthest-point speed. Refreshed with the mass properties; `0` for collider-less bodies.
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) max_extent: Real,
 }
 
 impl Default for RigidBodyMassProps {
@@ -334,6 +339,7 @@ impl Default for RigidBodyMassProps {
             world_com: Vector::ZERO,
             effective_inv_mass: Vector::ZERO,
             effective_world_inv_inertia: AngularInertia::zero(),
+            max_extent: 0.0,
         }
     }
 }
@@ -451,7 +457,44 @@ impl RigidBodyMassProps {
             }
         }
 
+        self.recompute_max_extent(colliders, attached_colliders);
         self.update_world_mass_properties(body_type, position);
+    }
+
+    /// Refreshes [`Self::max_extent`] from the attached colliders' bounding
+    /// spheres, measured about the local center of mass.
+    pub(crate) fn recompute_max_extent(
+        &mut self,
+        colliders: &ColliderSet,
+        attached_colliders: &RigidBodyColliders,
+    ) {
+        let local_com = self.local_mprops.local_com;
+        let mut max_extent: Real = 0.0;
+        for handle in &attached_colliders.0 {
+            if let Some(co) = colliders.get(*handle) {
+                if co.is_enabled() {
+                    if let Some(co_parent) = co.parent {
+                        let sphere = co
+                            .shape
+                            .compute_local_bounding_sphere()
+                            .transform_by(&co_parent.pos_wrt_parent);
+                        let extent = (sphere.center - local_com).length() + sphere.radius;
+                        max_extent = max_extent.max(extent);
+                    }
+                }
+            }
+        }
+        self.max_extent = max_extent;
+    }
+
+    /// Conservative bound on the distance of any point of the body's shapes
+    /// from its local center of mass. `0` for collider-less bodies.
+    ///
+    /// Used by the sleep metric and the CCD fast-body criterion to turn angular
+    /// velocity into a farthest-point speed.
+    #[inline]
+    pub fn max_extent(&self) -> Real {
+        self.max_extent
     }
 
     /// Update the world-space mass properties of `self`, taking into account the new position.
@@ -505,6 +548,9 @@ impl RigidBodyMassProps {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, Copy, PartialEq)]
 /// The velocities of this rigid-body.
+// repr(C): `as_vector` reinterprets this struct as a flat vector with the
+// linear part first, so the field order must be guaranteed.
+#[repr(C)]
 pub struct RigidBodyVelocity<T: ScalarType> {
     /// The linear velocity of the rigid-body.
     pub linvel: T::Vector,
@@ -569,6 +615,12 @@ impl RigidBodyVelocity<Real> {
             linvel: Default::default(),
             angvel: Default::default(),
         }
+    }
+
+    /// Are both the linear and angular velocities finite (neither NaN nor infinite)?
+    #[must_use]
+    pub fn is_finite(&self) -> bool {
+        self.linvel.is_finite() && self.angvel.is_finite()
     }
 
     /// This velocity seen as a slice.
@@ -923,7 +975,7 @@ impl Default for RigidBodyForces {
             gravity_scale: 1.0,
             user_force: Vector::ZERO,
             user_torque: AngVector::ZERO,
-            gyroscopic_forces_enabled: false,
+            gyroscopic_forces_enabled: true,
         };
     }
 }
@@ -972,29 +1024,33 @@ pub struct RigidBodyCcd {
     /// The distance used by the CCD solver to decide if a movement would
     /// result in a tunnelling problem.
     pub ccd_thickness: Real,
-    /// The max distance between this rigid-body's center of mass and its
-    /// furthest collider point.
-    pub ccd_max_dist: Real,
     /// Is CCD active for this rigid-body?
     ///
-    /// If `self.ccd_enabled` is `true`, then this is automatically set to
-    /// `true` when the CCD solver detects that the rigid-body is moving fast
-    /// enough to potential cause a tunneling problem.
+    /// Set automatically for any **dynamic** body moving fast enough to tunnel (regardless of
+    /// `self.ccd_enabled`): it then sweeps fixed colliders, or all bodies if `ccd_enabled` is set too.
     pub ccd_active: bool,
-    /// Is CCD enabled for this rigid-body?
+    /// Is full ("bullet") CCD enabled for this rigid-body?
+    ///
+    /// Fast dynamic bodies always sweep *fixed* colliders; `true` upgrades this body to also
+    /// sweep kinematic and dynamic bodies.
     pub ccd_enabled: bool,
     /// The soft-CCD prediction distance for this rigid-body.
     pub soft_ccd_prediction: Real,
+    /// Allow this body to exceed the angular speed cap.
+    ///
+    /// By default angular velocity is clamped each substep to ~45°/step to keep CCD reliable;
+    /// set `true` for bodies that must spin fast (e.g. wheels).
+    pub allow_fast_rotation: bool,
 }
 
 impl Default for RigidBodyCcd {
     fn default() -> Self {
         Self {
             ccd_thickness: Real::MAX,
-            ccd_max_dist: 0.0,
             ccd_active: false,
             ccd_enabled: false,
             soft_ccd_prediction: 0.0,
+            allow_fast_rotation: false,
         }
     }
 }
@@ -1002,41 +1058,74 @@ impl Default for RigidBodyCcd {
 impl RigidBodyCcd {
     /// The maximum velocity any point of any collider attached to this rigid-body
     /// moving with the given velocity can have.
-    pub fn max_point_velocity(&self, vels: &RigidBodyVelocity<Real>) -> Real {
+    ///
+    /// `max_extent` is the body's farthest collider point distance from its center of
+    /// mass ([`RigidBodyMassProps::max_extent`]).
+    pub fn max_point_velocity(&self, vels: &RigidBodyVelocity<Real>, max_extent: Real) -> Real {
         #[cfg(feature = "dim2")]
-        return vels.linvel.length() + vels.angvel.abs() * self.ccd_max_dist;
+        return vels.linvel.length() + vels.angvel.abs() * max_extent;
         #[cfg(feature = "dim3")]
-        return vels.linvel.length() + vels.angvel.length() * self.ccd_max_dist;
+        return vels.linvel.length() + vels.angvel.length() * max_extent;
     }
 
     /// Is this rigid-body moving fast enough so that it may cause a tunneling problem?
+    ///
+    /// The fast-body criterion: fast when the farthest point of its colliders can move more
+    /// than half the body’s thinnest extent (`ccd_thickness`) within one timestep.
     pub fn is_moving_fast(
         &self,
         dt: Real,
         vels: &RigidBodyVelocity<Real>,
         forces: Option<&RigidBodyForces>,
+        max_extent: Real,
     ) -> bool {
-        // NOTE: for the threshold we don't use the exact CCD thickness. Theoretically, we
-        //       should use `self.rb_ccd.ccd_thickness - smallest_contact_dist` where `smallest_contact_dist`
-        //       is the deepest contact (the contact with the largest penetration depth, i.e., the
-        //       negative `dist` with the largest absolute value.
-        //       However, getting this penetration depth assumes querying the contact graph from
-        //       the narrow-phase, which can be pretty expensive. So we use the CCD thickness
-        //       divided by 10 right now. We will see in practice if this value is OK or if we
-        //       should use a smaller (to be less conservative) or larger divisor (to be more conservative).
-        let threshold = self.ccd_thickness / 10.0;
-
-        if let Some(forces) = forces {
+        let max_point_velocity = if let Some(forces) = forces {
             let linear_part = (vels.linvel + forces.force * dt).length();
             #[cfg(feature = "dim2")]
-            let angular_part = (vels.angvel + forces.torque * dt).abs() * self.ccd_max_dist;
+            let angular_part = (vels.angvel + forces.torque * dt).abs() * max_extent;
             #[cfg(feature = "dim3")]
-            let angular_part = (vels.angvel + forces.torque * dt).length() * self.ccd_max_dist;
-            let vel_with_forces = linear_part + angular_part;
-            vel_with_forces > threshold
+            let angular_part = (vels.angvel + forces.torque * dt).length() * max_extent;
+            linear_part + angular_part
         } else {
-            self.max_point_velocity(vels) * dt > threshold
-        }
+            self.max_point_velocity(vels, max_extent)
+        };
+
+        max_point_velocity * dt > Self::FAST_BODY_SAFETY_FACTOR * self.ccd_thickness
+    }
+
+    /// The fast-body safety factor: a body is fast when it can move more than half its
+    /// thinnest extent in one step.
+    pub const FAST_BODY_SAFETY_FACTOR: Real = 0.5;
+
+    /// The fast-body criterion evaluated on the actual solved motion of this step.
+    ///
+    /// `pos` must hold the solved `next_position`; the test uses the larger of the actual pose
+    /// delta and the velocity-based estimate.
+    pub fn is_moving_fast_with_next_position(
+        &self,
+        dt: Real,
+        vels: &RigidBodyVelocity<Real>,
+        pos: &RigidBodyPosition,
+        local_com: Vector,
+        max_extent: Real,
+    ) -> bool {
+        let com1 = pos.position * local_com;
+        let com2 = pos.next_position * local_com;
+
+        // Rotation contribution to the moved distance of the farthest point:
+        // 2D: |sin(Δθ)| · maxExtent; 3D: 2·|Δq.v| · maxExtent ≈ Δθ · maxExtent.
+        let delta_rot = pos.next_position.rotation * pos.position.rotation.inverse();
+        #[cfg(feature = "dim2")]
+        let angular_delta = delta_rot.sin().abs() * max_extent;
+        #[cfg(feature = "dim3")]
+        let angular_delta =
+            2.0 * Vector::new(delta_rot.x, delta_rot.y, delta_rot.z).length() * max_extent;
+
+        let max_delta_position = (com2 - com1).length() + angular_delta;
+        let max_velocity = self.max_point_velocity(vels, max_extent);
+        let max_motion = max_delta_position.max(max_velocity * dt);
+
+        max_motion > Self::FAST_BODY_SAFETY_FACTOR * self.ccd_thickness
     }
 }
 
@@ -1044,17 +1133,23 @@ impl RigidBodyCcd {
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
 /// Internal identifiers used by the physics engine.
 pub struct RigidBodyIds {
-    pub(crate) active_island_id: usize,
-    pub(crate) active_set_id: usize,
-    pub(crate) active_set_timestamp: u32,
+    pub(crate) active_island_id: u32,
+    pub(crate) active_set_id: u32,
+    /// The persistent island this body belongs to ([`crate::dynamics::INVALID_ISLAND`] for fixed
+    /// or disabled bodies).
+    pub(crate) island_id: u32,
+    /// This body's index in its persistent island's `bodies` array (also its
+    /// union-find node id during an island split).
+    pub(crate) island_index: u32,
 }
 
 impl Default for RigidBodyIds {
     fn default() -> Self {
         Self {
-            active_island_id: usize::MAX,
-            active_set_id: usize::MAX,
-            active_set_timestamp: 0,
+            active_island_id: u32::MAX,
+            active_set_id: u32::MAX,
+            island_id: crate::dynamics::INVALID_ISLAND,
+            island_index: u32::MAX,
         }
     }
 }
@@ -1098,12 +1193,12 @@ impl RigidBodyColliders {
         rb_changes.set(RigidBodyChanges::COLLIDERS, true);
 
         co_pos.0 = rb_pos.position * co_parent.pos_wrt_parent;
-        rb_ccd.ccd_thickness = rb_ccd.ccd_thickness.min(co_shape.ccd_thickness());
-
-        let shape_bsphere = co_shape.compute_bounding_sphere(&co_parent.pos_wrt_parent);
-        rb_ccd.ccd_max_dist = rb_ccd
-            .ccd_max_dist
-            .max(shape_bsphere.center.length() + shape_bsphere.radius);
+        // Shapes the continuous phase never sweeps (meshes, heightfields, polylines, voxels)
+        // don't count toward CCD thickness: a trimesh's zero `ccd_thickness` would flag the body
+        // as fast every step for a sweep that never happens.
+        if !crate::dynamics::ccd::shape_never_ccd_swept(&**co_shape) {
+            rb_ccd.ccd_thickness = rb_ccd.ccd_thickness.min(co_shape.ccd_thickness());
+        }
 
         let mass_properties = co_mprops
             .mass_properties(&**co_shape)
@@ -1153,19 +1248,6 @@ impl RigidBodyDominance {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub(crate) enum SleepRootState {
-    /// This sleep root has already been traversed. No need to traverse
-    /// again until the rigid-body either gets awaken by an event.
-    Traversed,
-    /// This sleep root has not been traversed yet.
-    TraversalPending,
-    /// This body can become a sleep root once it falls asleep.
-    #[default]
-    Unknown,
-}
-
 /// Controls when a body goes to sleep (becomes inactive to save CPU).
 ///
 /// ## Sleeping System
@@ -1179,7 +1261,7 @@ pub(crate) enum SleepRootState {
 /// ## How sleeping works
 ///
 /// A body sleeps after its linear AND angular velocities stay below thresholds for
-/// `time_until_sleep` seconds (default: 2 seconds). Set thresholds to negative to disable sleeping.
+/// `time_until_sleep` seconds (default: 1 second). Set thresholds to negative to disable sleeping.
 ///
 /// ## When to disable sleeping
 ///
@@ -1191,19 +1273,23 @@ pub(crate) enum SleepRootState {
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct RigidBodyActivation {
-    /// Linear velocity threshold for sleeping (scaled by `length_unit`).
+    /// Velocity threshold for sleeping (scaled by `length_unit`).
     ///
-    /// If negative, body never sleeps. Default: 0.4 (in length units/second).
+    /// Compared against the body's farthest-point speed (`|linvel| + |angvel| * max_extent`)
+    /// and against its farthest-point displacement rate (so solver position
+    /// corrections count as motion too). If negative, body never sleeps. Default: 0.05 units/second.
     pub normalized_linear_threshold: Real,
 
     /// Angular velocity threshold for sleeping (radians/second).
     ///
+    /// For bodies with colliders, angular motion is folded into the point-velocity check of
+    /// `normalized_linear_threshold`; this raw threshold only applies to collider-less bodies.
     /// If negative, body never sleeps. Default: 0.5 rad/s.
     pub angular_threshold: Real,
 
-    /// How long the body must be still before sleeping (seconds).
+    /// How long the body must stay below the velocity threshold before sleeping (seconds).
     ///
-    /// Default: 2.0 seconds. Must be below both velocity thresholds for this duration.
+    /// Default: 0.5 seconds.
     pub time_until_sleep: Real,
 
     /// Internal timer tracking how long body has been still.
@@ -1212,7 +1298,10 @@ pub struct RigidBodyActivation {
     /// Is this body currently sleeping?
     pub sleeping: bool,
 
-    pub(crate) sleep_root_state: SleepRootState,
+    /// Pose when the sleep timer last started (re-anchored on every timer reset). Farthest-point
+    /// displacement since this anchor gates sleep: secular creep from solver corrections (invisible
+    /// in velocities) blocks it, bounded oscillatory jitter doesn't (a raw per-step correction term would).
+    pub(crate) sleep_drift_anchor: Pose,
 }
 
 impl Default for RigidBodyActivation {
@@ -1223,8 +1312,10 @@ impl Default for RigidBodyActivation {
 
 impl RigidBodyActivation {
     /// The default linear velocity below which a body can be put to sleep.
+    ///
+    /// Default: `0.05` length units per second.
     pub fn default_normalized_linear_threshold() -> Real {
-        0.4
+        0.05
     }
 
     /// The default angular velocity below which a body can be put to sleep.
@@ -1234,8 +1325,10 @@ impl RigidBodyActivation {
 
     /// The amount of time the rigid-body must remain below it’s linear and angular velocity
     /// threshold before falling to sleep.
+    ///
+    /// Default: half a second.
     pub fn default_time_until_sleep() -> Real {
-        2.0
+        0.5
     }
 
     /// Create a new rb_activation status initialised with the default rb_activation threshold and is active.
@@ -1246,7 +1339,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: 0.0,
             sleeping: false,
-            sleep_root_state: SleepRootState::Unknown,
+            sleep_drift_anchor: Pose::IDENTITY,
         }
     }
 
@@ -1258,7 +1351,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: Self::default_time_until_sleep(),
             sleeping: true,
-            sleep_root_state: SleepRootState::Unknown,
+            sleep_drift_anchor: Pose::IDENTITY,
         }
     }
 
@@ -1281,11 +1374,6 @@ impl RigidBodyActivation {
     #[inline]
     pub fn wake_up(&mut self, strong: bool) {
         self.sleeping = false;
-
-        // Make this body eligible as a sleep root again.
-        if self.sleep_root_state != SleepRootState::TraversalPending {
-            self.sleep_root_state = SleepRootState::Unknown;
-        }
 
         if strong {
             self.time_since_can_sleep = 0.0;
@@ -1311,13 +1399,41 @@ impl RigidBodyActivation {
         length_unit: Real,
         sq_linvel: Real,
         sq_angvel: Real,
+        max_extent: Real,
+        pose: &Pose,
         dt: Real,
     ) {
         let can_sleep = match body_type {
             RigidBodyType::Dynamic => {
+                // Sleep metric: farthest-point speed (|v| + |ω|·max_extent) below the linear
+                // threshold, AND drift since the timer started below threshold·sleep_delay — drift catches
+                // bias creep invisible in velocities; anchoring (rather than measuring per step) lets oscillatory jitter rest.
                 let linear_threshold = self.normalized_linear_threshold * length_unit;
-                sq_linvel < linear_threshold * linear_threshold.abs()
-                    && sq_angvel < self.angular_threshold * self.angular_threshold.abs()
+                let max_point_vel = sq_linvel.sqrt() + sq_angvel.sqrt() * max_extent;
+                let angular_ok = if max_extent > 0.0 {
+                    self.angular_threshold >= 0.0
+                } else {
+                    sq_angvel < self.angular_threshold * self.angular_threshold.abs()
+                };
+                let vel_ok = max_point_vel * max_point_vel
+                    < linear_threshold * linear_threshold.abs()
+                    && angular_ok;
+                // Only bodies passing the velocity gate pay for the drift check (chord math +
+                // anchor writes); the anchor is (re)set when a stillness period starts, i.e. when
+                // the gate passes with a zeroed timer.
+                if vel_ok {
+                    if self.time_since_can_sleep == 0.0 {
+                        self.sleep_drift_anchor = *pose;
+                    }
+                    let drift = crate::geometry::relative_pose_drift(
+                        &self.sleep_drift_anchor,
+                        pose,
+                        max_extent,
+                    );
+                    drift <= linear_threshold.max(0.0) * self.time_until_sleep.max(0.0)
+                } else {
+                    false
+                }
             }
             RigidBodyType::KinematicPositionBased | RigidBodyType::KinematicVelocityBased => {
                 // Platforms only sleep if both velocities are exactly zero. If it’s not exactly

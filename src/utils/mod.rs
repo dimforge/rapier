@@ -14,6 +14,8 @@ mod orthonormal_basis;
 #[cfg(not(target_arch = "spirv"))]
 mod pos_ops;
 #[cfg(not(target_arch = "spirv"))]
+mod prefetch;
+#[cfg(not(target_arch = "spirv"))]
 mod rotation_ops;
 #[cfg(not(target_arch = "spirv"))]
 mod scalar_type;
@@ -28,6 +30,8 @@ pub use orthonormal_basis::OrthonormalBasis;
 #[cfg(not(target_arch = "spirv"))]
 pub use pos_ops::PoseOps;
 #[cfg(not(target_arch = "spirv"))]
+pub(crate) use prefetch::prefetch_read;
+#[cfg(not(target_arch = "spirv"))]
 pub use rotation_ops::RotationOps;
 #[cfg(not(target_arch = "spirv"))]
 pub use scalar_type::ScalarType;
@@ -40,9 +44,8 @@ pub use cross_product::CrossProduct;
 pub use cross_product_matrix::CrossProductMatrix;
 pub use dot_product::{DotProduct, SimdLength};
 #[allow(unused_imports)]
-pub(crate) use fp_flags::{DisableFloatingPointExceptionsFlags, FlushToZeroDenormalsAreZeroFlags};
+pub(crate) use fp_flags::DisableFloatingPointExceptionsFlags;
 
-#[cfg(feature = "simd-is-enabled")]
 use crate::math::SIMD_WIDTH;
 #[cfg(not(target_arch = "spirv"))]
 use crate::math::SimdVector;
@@ -121,6 +124,59 @@ pub(crate) fn select_other<T: PartialEq>(pair: (T, T), elt: T) -> T {
     if pair.0 == elt { pair.1 } else { pair.0 }
 }
 
+/// `Sync`, unless the `unsync-callbacks` feature says otherwise.
+#[cfg(not(feature = "unsync-callbacks"))]
+pub trait MaybeSync: Sync {}
+#[cfg(not(feature = "unsync-callbacks"))]
+impl<T: Sync + ?Sized> MaybeSync for T {}
+
+/// See the non-`unsync-callbacks` variant of this trait.
+#[cfg(feature = "unsync-callbacks")]
+pub trait MaybeSync {}
+#[cfg(feature = "unsync-callbacks")]
+impl<T: ?Sized> MaybeSync for T {}
+
+/// Removes a key from a [`parry::utils::hashmap::HashMap`] without caring about the
+/// resulting entry order.
+///
+/// The map is an `IndexMap` under `enhanced-determinism` and a `hashbrown` map otherwise,
+/// and only the former has (and demands) the order-explicit `swap_remove`. Its order still
+/// only depends on the sequence of operations, so swapping stays deterministic.
+#[cfg(feature = "alloc")]
+pub(crate) fn hashmap_remove<K, V>(
+    map: &mut parry::utils::hashmap::HashMap<K, V>,
+    key: &K,
+) -> Option<V>
+where
+    K: core::hash::Hash + Eq,
+{
+    #[cfg(feature = "enhanced-determinism")]
+    return map.swap_remove(key);
+    #[cfg(not(feature = "enhanced-determinism"))]
+    return map.remove(key);
+}
+
+/// A raw pointer to an array of `T` that can be shared across threads.
+///
+/// Safety: this is only sound if each element is accessed by at most one
+/// thread at a time (threads own disjoint sets of indices).
+#[cfg(feature = "parallel")]
+#[derive(Copy, Clone)]
+pub(crate) struct SyncPtr<T>(pub *mut T);
+#[cfg(feature = "parallel")]
+unsafe impl<T: Send> Send for SyncPtr<T> {}
+#[cfg(feature = "parallel")]
+unsafe impl<T: Send> Sync for SyncPtr<T> {}
+
+#[cfg(feature = "parallel")]
+impl<T> SyncPtr<T> {
+    /// Pointer to the `i`-th element. Safety: mutating through it is only sound
+    /// under the struct-level contract (disjoint per-thread element indices).
+    pub(crate) fn add(&self, i: usize) -> *mut T {
+        unsafe { self.0.add(i) }
+    }
+}
+
 /// Calculate the difference with smallest absolute value between the two given values.
 pub fn smallest_abs_diff_between_sin_angles<N: SimdRealCopy>(a: N, b: N) -> N {
     // Select the smallest path among the two angles to reach the target.
@@ -141,16 +197,98 @@ pub fn smallest_abs_diff_between_angles<N: SimdRealCopy>(a: N, b: N) -> N {
     s_err.select(s_err_is_smallest, s_err_complement)
 }
 
-#[cfg(feature = "simd-nightly")]
+/// A single solver body's 4-scalar storage block, used to reinterpret a scalar
+/// `SolverVel`/`SolverPose`/`SolverContact` as fixed 4-wide chunks for the
+/// AoS↔SoA gather/scatter transpose.
+///
+/// This is deliberately **always** 4 lanes, independent of [`SIMD_WIDTH`]: it
+/// describes one body's data layout, not the SIMD lane count. At f32 and the
+/// default 4-lane width it is exactly `SimdReal`; at 8 lanes `SimdReal` widens
+/// to 256-bit while a per-body block stays 128-bit.
+#[cfg(feature = "f32")]
+pub(crate) type SolverBlock = simba::simd::WideF32x4;
+/// See [`SolverBlock`]. `wide::f64x4` is 32-byte aligned, which would over-align
+/// a block past the 16-byte AoS rows the scalar structs are laid out in, so the
+/// f64 build keeps the plain-array block.
+#[cfg(feature = "f64")]
+pub(crate) type SolverBlock = simba::simd::AutoF64x4;
+
+/// One body's block as the plain array the `aos!` gather hands over — what
+/// [`SolverBlock`] wraps, and what the transpose below operates on.
+#[cfg(feature = "f32")]
+pub(crate) type RawBlock = wide::f32x4;
+/// See [`RawBlock`].
+#[cfg(feature = "f64")]
+pub(crate) type RawBlock = [Real; 4];
+
+/// A 4x4 block transpose. Pure data movement — no arithmetic — so both
+/// implementations below are bit-exact and interchangeable.
+#[cfg(feature = "f32")]
 #[inline(always)]
-pub(crate) fn transmute_to_wide(val: [core::simd::f32x4; SIMD_WIDTH]) -> [wide::f32x4; SIMD_WIDTH] {
-    unsafe { core::mem::transmute(val) }
+fn transpose4(data: [RawBlock; 4]) -> [RawBlock; 4] {
+    wide::f32x4::transpose(data)
 }
 
-#[cfg(feature = "simd-stable")]
+/// See [`transpose4`].
+#[cfg(feature = "f64")]
 #[inline(always)]
-pub(crate) fn transmute_to_wide(val: [wide::f32x4; SIMD_WIDTH]) -> [wide::f32x4; SIMD_WIDTH] {
-    val
+fn transpose4(data: [RawBlock; 4]) -> [RawBlock; 4] {
+    let [
+        [a0, a1, a2, a3],
+        [b0, b1, b2, b3],
+        [c0, c1, c2, c3],
+        [d0, d1, d2, d3],
+    ] = data;
+    [
+        [a0, b0, c0, d0],
+        [a1, b1, c1, d1],
+        [a2, b2, c2, d2],
+        [a3, b3, c3, d3],
+    ]
+}
+
+/// Transposes `SIMD_WIDTH` bodies' blocks (AoS) into 4 SoA lane-vectors, one per
+/// float field. Inverse of [`transpose_wide_inv`].
+///
+/// At 4 lanes this is a single [`transpose4`]. At 8 lanes it does two 4x4
+/// transposes (bodies 0–3 / 4–7) and concatenates each field's two halves.
+#[inline(always)]
+pub(crate) fn transpose_wide(aos: [RawBlock; SIMD_WIDTH]) -> [crate::math::SimdReal; 4] {
+    #[cfg(not(feature = "simd8"))]
+    {
+        unsafe { core::mem::transmute(transpose4(aos)) }
+    }
+    #[cfg(feature = "simd8")]
+    {
+        let lo = transpose4([aos[0], aos[1], aos[2], aos[3]]);
+        let hi = transpose4([aos[4], aos[5], aos[6], aos[7]]);
+        // Field j spans body 0..8: lanes 0..4 from the low half, 4..8 from the high.
+        core::array::from_fn(|j| unsafe {
+            core::mem::transmute::<[RawBlock; 2], crate::math::SimdReal>([lo[j], hi[j]])
+        })
+    }
+}
+
+/// Transposes 4 SoA lane-vectors back into `SIMD_WIDTH` bodies' blocks (AoS).
+/// Inverse of [`transpose_wide`].
+#[inline(always)]
+pub(crate) fn transpose_wide_inv(soa: [crate::math::SimdReal; 4]) -> [RawBlock; SIMD_WIDTH] {
+    #[cfg(not(feature = "simd8"))]
+    {
+        transpose4(unsafe {
+            core::mem::transmute::<[crate::math::SimdReal; 4], [RawBlock; 4]>(soa)
+        })
+    }
+    #[cfg(feature = "simd8")]
+    {
+        // Split each 8-lane field into its low/high 4-lane halves.
+        let split: [[RawBlock; 2]; 4] = unsafe { core::mem::transmute(soa) };
+        let lo: [RawBlock; 4] = core::array::from_fn(|j| split[j][0]);
+        let hi: [RawBlock; 4] = core::array::from_fn(|j| split[j][1]);
+        let aos_lo = transpose4(lo); // bodies 0..4
+        let aos_hi = transpose4(hi); // bodies 4..8
+        core::array::from_fn(|i| if i < 4 { aos_lo[i] } else { aos_hi[i - 4] })
+    }
 }
 
 /// Helpers around serialization.
@@ -175,6 +313,25 @@ pub mod serde {
         s: S,
     ) -> Result<S::Ok, S::Error> {
         let container: Vec<_> = target.into_iter().collect();
+        serde::Serialize::serialize(&container, s)
+    }
+
+    /// Serializes to a `Vec<(K, V)>` ordered by `key`, whatever order the container
+    /// iterates in.
+    pub fn serialize_sorted_to_vec_tuple<
+        'a,
+        S: serde::Serializer,
+        T: IntoIterator<Item = (&'a K, &'a V)>,
+        K: Serialize + 'a,
+        V: Serialize + 'a,
+        O: Ord,
+    >(
+        target: T,
+        key: impl Fn(&K) -> O,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        let mut container: Vec<_> = target.into_iter().collect();
+        container.sort_unstable_by_key(|(a, _)| key(a));
         serde::Serialize::serialize(&container, s)
     }
 

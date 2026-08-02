@@ -59,6 +59,18 @@ impl<N: Copy, E> InteractionGraph<N, E> {
         self.graph.remove_edge(id)
     }
 
+    /// Same as [`Self::remove_edge`], invoking `on_remove` with each removed edge
+    /// index right before the removal is applied (see `Graph::remove_edge_with`).
+    pub(crate) fn remove_edge_with(
+        &mut self,
+        index1: ColliderGraphIndex,
+        index2: ColliderGraphIndex,
+        on_remove: &mut dyn FnMut(TemporaryInteractionIndex),
+    ) -> Option<E> {
+        let id = self.graph.find_edge(index1, index2)?;
+        self.graph.remove_edge_with(id, on_remove)
+    }
+
     /// Removes a handle from this graph and returns a handle that must have its graph index changed to `id`.
     ///
     /// When a node is removed, another node of the graph takes it place. This means that the `ColliderGraphIndex`
@@ -68,6 +80,17 @@ impl<N: Copy, E> InteractionGraph<N, E> {
     #[must_use = "The graph index of the collision object returned by this method has been changed to `id`."]
     pub(crate) fn remove_node(&mut self, id: ColliderGraphIndex) -> Option<N> {
         let _ = self.graph.remove_node(id);
+        self.graph.node_weight(id).cloned()
+    }
+
+    /// Same as [`Self::remove_node`], invoking `on_remove` with each removed edge
+    /// index right before its removal is applied (see `Graph::remove_node_with`).
+    pub(crate) fn remove_node_with(
+        &mut self,
+        id: ColliderGraphIndex,
+        on_remove: &mut dyn FnMut(TemporaryInteractionIndex),
+    ) -> Option<N> {
+        let _ = self.graph.remove_node_with(id, on_remove);
         self.graph.node_weight(id).cloned()
     }
 

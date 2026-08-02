@@ -1,11 +1,13 @@
 pub use manager::IslandManager;
 
 pub(crate) use island::Island;
-use optimizer::IslandsOptimizer;
+pub(crate) use persistent::{INVALID_ISLAND, ImpulseJointIslandEvent, PersistentIslands};
+pub(crate) use substep_groups::SolveGroup;
 
+mod global_split;
 mod island;
+mod local_split;
 mod manager;
-mod optimizer;
+mod persistent;
 mod sleep;
-mod utils;
-mod validation;
+mod substep_groups;

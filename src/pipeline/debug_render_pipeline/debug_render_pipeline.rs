@@ -121,11 +121,11 @@ impl DebugRenderPipeline {
                         for manifold in &pair.manifolds {
                             for contact in manifold.contacts() {
                                 let world_subshape_pos1 =
-                                    manifold.subshape_pos1.prepend_to(co1.position());
+                                    manifold.subshape_pos1().prepend_to(co1.position());
                                 backend.draw_line(
                                     object,
                                     world_subshape_pos1 * contact.local_p1,
-                                    manifold.subshape_pos2.prepend_to(co2.position())
+                                    manifold.subshape_pos2().prepend_to(co2.position())
                                         * contact.local_p2,
                                     self.style.contact_depth_color,
                                 );
@@ -153,8 +153,21 @@ impl DebugRenderPipeline {
 
                     if backend.filter_object(object) {
                         for manifold in &pair.manifolds {
+                            let world_pos1 = manifold.subshape_pos1().prepend_to(co1.position());
+                            let world_pos2 = manifold.subshape_pos2().prepend_to(co2.position());
                             for contact in &manifold.data.solver_contacts {
-                                let point = contact.point;
+                                // Solver contacts store body-local anchors; without
+                                // the rigid-body set at hand, resolve the world
+                                // point through the matching manifold point (equal
+                                // up to the contact-skin shift and hook edits).
+                                let cid = (contact.contact_id[0]
+                                    & !crate::geometry::NEW_CONTACT_BIT)
+                                    as usize;
+                                let Some(pt) = manifold.points.get(cid) else {
+                                    continue;
+                                };
+                                let point =
+                                    (world_pos1 * pt.local_p1).midpoint(world_pos2 * pt.local_p2);
                                 backend.draw_line(
                                     object,
                                     point,

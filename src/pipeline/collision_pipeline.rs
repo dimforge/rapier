@@ -4,8 +4,8 @@ use crate::alloc_prelude::*;
 
 use crate::dynamics::{ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet};
 use crate::geometry::{
-    BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ColliderPair,
-    ModifiedColliders, NarrowPhase,
+    BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ModifiedColliders,
+    NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
@@ -27,7 +27,6 @@ use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 /// Like PhysicsPipeline, this only holds temporary buffers. Reuse the same instance for performance.
 // NOTE: this contains only workspace data, so there is no point in making this serializable.
 pub struct CollisionPipeline {
-    broadphase_collider_pairs: Vec<ColliderPair>,
     broad_phase_events: Vec<BroadPhasePairEvent>,
 }
 
@@ -47,7 +46,6 @@ impl CollisionPipeline {
     /// Initializes a new physics pipeline.
     pub fn new() -> CollisionPipeline {
         CollisionPipeline {
-            broadphase_collider_pairs: Vec::new(),
             broad_phase_events: Vec::new(),
         }
     }
@@ -68,7 +66,6 @@ impl CollisionPipeline {
     ) {
         // Update broad-phase.
         self.broad_phase_events.clear();
-        self.broadphase_collider_pairs.clear();
 
         let params = IntegrationParameters {
             normalized_prediction_distance: prediction_distance,
@@ -101,15 +98,25 @@ impl CollisionPipeline {
         narrow_phase.compute_contacts(
             prediction_distance,
             0.0,
+            false,
+            0.0,
             islands,
             bodies,
             colliders,
             &ImpulseJointSet::new(),
             &MultibodyJointSet::new(),
+            modified_colliders,
             hooks,
             events,
         );
-        narrow_phase.compute_intersections(bodies, colliders, hooks, events);
+        narrow_phase.compute_intersections(
+            islands,
+            bodies,
+            colliders,
+            modified_colliders,
+            hooks,
+            events,
+        );
     }
 
     fn clear_modified_colliders(
