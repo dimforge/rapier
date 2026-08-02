@@ -1,6 +1,5 @@
 //! ScalarType trait for generic scalar types in Rapier.
 
-#[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 use crate::math::{AngularInertia, Matrix, Pose, Real, Rotation, Vector};
 #[cfg(feature = "dim3")]
@@ -118,7 +117,7 @@ impl ScalarType for Real {
     type Rotation = Rotation;
 }
 
-#[cfg(all(feature = "dim3", feature = "simd-is-enabled"))]
+#[cfg(feature = "dim3")]
 impl ScalarType for SimdReal {
     type Pose = na::Isometry3<SimdReal>;
     type Vector = na::Vector3<SimdReal>;
@@ -128,7 +127,7 @@ impl ScalarType for SimdReal {
     type Rotation = na::UnitQuaternion<SimdReal>;
 }
 
-#[cfg(all(feature = "dim2", feature = "simd-is-enabled"))]
+#[cfg(feature = "dim2")]
 impl ScalarType for SimdReal {
     type Pose = na::Isometry2<SimdReal>;
     type Vector = na::Vector2<SimdReal>;

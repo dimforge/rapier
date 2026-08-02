@@ -1,6 +1,5 @@
 //! SimdSelect trait for conditional selection.
 
-#[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 use crate::math::{Real, Vector};
 use simba::simd::SimdValue;
@@ -18,7 +17,7 @@ impl SimdSelect<Real> for Vector {
     }
 }
 
-#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
+#[cfg(not(target_arch = "spirv"))]
 impl SimdSelect<SimdReal> for na::Vector3<SimdReal> {
     #[inline]
     fn select(self, condition: <SimdReal as SimdValue>::SimdBool, if_false: Self) -> Self {

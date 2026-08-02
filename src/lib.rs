@@ -16,7 +16,10 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)] // TODO: remove this? I find that in the math code using indices adds clarity.
 #![allow(clippy::module_inception)]
-#![cfg_attr(feature = "simd-nightly", feature(portable_simd))]
+#[cfg(all(feature = "simd8", feature = "enhanced-determinism"))]
+core::compile_error!(
+    "8-lanes SIMD cannot be enabled when the `enhanced-determinism` feature is also enabled because it breaks cross-platform determinism."
+);
 
 #[cfg(feature = "std")]
 extern crate std;
@@ -50,51 +53,12 @@ extern crate num_traits as num;
 
 pub use parry::glamx;
 
-#[cfg(feature = "parallel")]
+#[cfg(all(feature = "std", feature = "parallel"))]
 pub use rayon;
-
-#[cfg(all(
-    feature = "simd-is-enabled",
-    not(feature = "simd-stable"),
-    not(feature = "simd-nightly")
-))]
-core::compile_error!(
-    "The `simd-is-enabled` feature should not be enabled explicitly. Please enable the `simd-stable` or the `simd-nightly` feature instead."
-);
-#[cfg(all(feature = "simd-is-enabled", feature = "enhanced-determinism"))]
-core::compile_error!(
-    "SIMD cannot be enabled when the `enhanced-determinism` feature is also enabled."
-);
-
-#[allow(unused_macros)]
-macro_rules! enable_flush_to_zero(
-    () => {
-        let _flush_to_zero = crate::utils::FlushToZeroDenormalsAreZeroFlags::flush_denormal_to_zero();
-    }
-);
 
 #[allow(unused_macros)]
 macro_rules! gather(
-    ($callback: expr) => {
-        {
-            #[inline(always)]
-            #[allow(dead_code)]
-            #[cfg(not(feature = "simd-is-enabled"))]
-            fn create_arr<T>(mut callback: impl FnMut(usize) -> T) -> T {
-                callback(0usize)
-            }
-
-            #[inline(always)]
-            #[allow(dead_code)]
-            #[cfg(feature = "simd-is-enabled")]
-            fn create_arr<T>(mut callback: impl FnMut(usize) -> T) -> [T; SIMD_WIDTH] {
-                [callback(0usize), callback(1usize), callback(2usize), callback(3usize)]
-            }
-
-
-            create_arr($callback)
-        }
-    }
+    ($callback: expr) => { array!($callback) }
 );
 
 #[allow(unused_macros)]
@@ -103,11 +67,10 @@ macro_rules! array(
         {
             #[inline(always)]
             #[allow(dead_code)]
-            fn create_arr<T>(mut callback: impl FnMut(usize) -> T) -> [T; SIMD_WIDTH] {
-                #[cfg(not(feature = "simd-is-enabled"))]
-                return [callback(0usize)];
-                #[cfg(feature = "simd-is-enabled")]
-                return [callback(0usize), callback(1usize), callback(2usize), callback(3usize)];
+            fn create_arr<T>(callback: impl FnMut(usize) -> T) -> [T; SIMD_WIDTH] {
+                // Width-agnostic: `N` is inferred from `[T; SIMD_WIDTH]`, covering the
+                // 1-, 4-, and 8-lane builds alike.
+                core::array::from_fn(callback)
             }
 
             create_arr($callback)

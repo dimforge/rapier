@@ -8,8 +8,6 @@ publish = false
 
 [features]
 parallel = ["rapier3d/parallel", "rapier_testbed3d/parallel"]
-simd-stable = ["rapier3d/simd-stable"]
-simd-nightly = ["rapier3d/simd-nightly"]
 enhanced-determinism = ["rapier3d/enhanced-determinism"]
 
 [dependencies]

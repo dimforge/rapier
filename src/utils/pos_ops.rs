@@ -1,6 +1,5 @@
 //! SimdPose trait for pose (isometry) operations.
 
-#[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 use crate::math::{AngVector, Pose, Real, Rotation, Vector};
 use crate::utils::ScalarType;
@@ -23,7 +22,7 @@ pub trait PoseOps<N: ScalarType>: Copy {
     fn append_rotation(&self, axisangle: N::AngVector) -> Self;
 }
 
-#[cfg(all(feature = "dim3", feature = "simd-is-enabled"))]
+#[cfg(feature = "dim3")]
 impl PoseOps<SimdReal> for na::Isometry3<SimdReal> {
     #[inline]
     fn rotation(&self) -> na::UnitQuaternion<SimdReal> {
@@ -60,7 +59,7 @@ impl PoseOps<SimdReal> for na::Isometry3<SimdReal> {
     }
 }
 
-#[cfg(all(feature = "dim2", feature = "simd-is-enabled"))]
+#[cfg(feature = "dim2")]
 impl PoseOps<SimdReal> for na::Isometry2<SimdReal> {
     #[inline]
     fn rotation(&self) -> na::UnitComplex<SimdReal> {
