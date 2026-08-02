@@ -1,9 +1,7 @@
 #[cfg(feature = "alloc")]
-use crate::alloc_prelude::*;
-#[cfg(feature = "alloc")]
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 #[cfg(feature = "alloc")]
-use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, SolverContact, SolverFlags};
+use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, SolverContacts, SolverFlags};
 #[cfg(feature = "alloc")]
 use crate::math::{Real, Vector};
 #[cfg(feature = "alloc")]
@@ -44,9 +42,23 @@ pub struct ContactModificationContext<'a> {
     /// The contact manifold.
     pub manifold: &'a ContactManifold,
     /// The solver contacts that can be modified.
-    pub solver_contacts: &'a mut Vec<SolverContact>,
+    ///
+    /// While inside the hook, each solver contact's `anchor1`/`anchor2` hold the
+    /// fresh **world-space** contact points on each body, and `dist` their
+    /// separation (contact skins deducted); all are writable. After the hook
+    /// returns, any difference between `dist` and the anchors' geometric gap is
+    /// baked into the anchors, which are then converted to body-local frames for
+    /// the solver (see [`SolverContact`](crate::geometry::SolverContact)).
+    pub solver_contacts: &'a mut SolverContacts,
     /// The contact normal that can be modified.
     pub normal: &'a mut Vector,
+    /// The friction coefficient applied to every solver contact of this manifold,
+    /// that can be modified. (Since contact materials became per-manifold, per-contact
+    /// friction overrides are no longer possible.)
+    pub friction: &'a mut Real,
+    /// The restitution coefficient applied to every solver contact of this manifold,
+    /// that can be modified.
+    pub restitution: &'a mut Real,
     /// User-defined data attached to the manifold.
     // NOTE: we keep this a &'a mut u32 to emphasize the
     // fact that this can be modified.
@@ -162,30 +174,8 @@ impl Default for ActiveHooks {
     }
 }
 
-// TODO: right now, the wasm version don't have the Send+Sync bounds.
-//       This is because these bounds are very difficult to fulfill if we want to
-//       call JS closures. Also, parallelism cannot be enabled for wasm targets, so
-//       not having Send+Sync isn't a problem.
 /// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
-#[cfg(all(target_arch = "wasm32", feature = "alloc"))]
-pub trait PhysicsHooks {
-    /// Applies the contact pair filter.
-    fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
-        Some(SolverFlags::COMPUTE_IMPULSES)
-    }
-
-    /// Applies the intersection pair filter.
-    fn filter_intersection_pair(&self, _context: &PairFilterContext) -> bool {
-        true
-    }
-
-    /// Modifies the set of contacts seen by the constraints solver.
-    fn modify_solver_contacts(&self, _context: &mut ContactModificationContext) {}
-}
-
-/// User-defined functions called by the physics engines during one timestep in order to customize its behavior.
-#[cfg(all(not(target_arch = "wasm32"), feature = "alloc"))]
-pub trait PhysicsHooks: Send + Sync {
+pub trait PhysicsHooks: crate::utils::MaybeSync {
     /// Applies the contact pair filter.
     ///
     /// Note that this method will only be called if at least one of the colliders

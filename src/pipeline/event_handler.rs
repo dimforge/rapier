@@ -91,7 +91,7 @@ impl Default for ActiveEvents {
 /// }
 /// ```
 #[cfg(feature = "alloc")]
-pub trait EventHandler: Send + Sync {
+pub trait EventHandler: crate::utils::MaybeSync {
     /// Called when two colliders start or stop touching each other.
     ///
     /// Collision events are triggered when intersection state changes (Started/Stopped).
