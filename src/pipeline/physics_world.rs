@@ -9,7 +9,9 @@ use crate::geometry::{
     NarrowPhase,
 };
 use crate::math::{Real, Vector};
-use crate::pipeline::{EventHandler, PhysicsHooks, PhysicsPipeline, QueryFilter, QueryPipeline};
+use crate::pipeline::{
+    EventHandler, PhysicsHooks, PhysicsPipeline, Quarantine, QueryFilter, QueryPipeline,
+};
 use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::partitioning::BvhNode;
 use parry::query::details::ShapeCastOptions;
@@ -55,12 +57,14 @@ use crate::pipeline::{DebugRenderBackend, DebugRenderPipeline};
 ///
 /// println!("Ball position: {:?}", world.bodies[ball].translation());
 /// ```
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct PhysicsWorld {
     /// Gravity applied to all dynamic bodies each step.
     pub gravity: Vector,
     /// Parameters controlling the simulation (timestep, solver iterations, etc.).
     pub integration_parameters: IntegrationParameters,
     /// The main simulation pipeline that orchestrates each physics step.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub physics_pipeline: PhysicsPipeline,
     /// Manages active/sleeping body groups (islands) for efficient simulation.
     pub islands: IslandManager,
@@ -77,6 +81,9 @@ pub struct PhysicsWorld {
     /// All multibody joints (kinematic chains, articulations).
     pub multibody_joints: MultibodyJointSet,
     /// The continuous collision detection solver.
+    ///
+    /// Workspace only: not part of a snapshot (see the type docs).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub ccd_solver: CCDSolver,
 }
 
@@ -146,6 +153,12 @@ impl PhysicsWorld {
             hooks,
             events,
         );
+    }
+
+    /// The bodies and colliders automatically disabled during the last step because their
+    /// state became non-finite; see [`Quarantine`].
+    pub fn quarantine(&self) -> &Quarantine {
+        self.physics_pipeline.quarantine()
     }
 
     // ── Rigid bodies ────────────────────────────────────────────────────
@@ -781,5 +794,46 @@ impl PhysicsWorld {
             &self.multibody_joints,
             &self.narrow_phase,
         );
+    }
+}
+
+#[cfg(all(feature = "parallel", not(feature = "unsync-callbacks")))]
+impl PhysicsWorld {
+    /// Configures a dedicated thread pool for this physics world’s parallel work.
+    ///
+    /// If `num_threads` is `0`, then the new threadpool will use rayon’s default
+    /// number of threads.
+    ///
+    /// If no threadpool is configured, the global rayon thread pool, or the threadpool
+    /// setup with `ThreadPool::install`, is used.
+    pub fn configure_thread_pool(
+        &mut self,
+        num_threads: usize,
+    ) -> Result<(), rayon::ThreadPoolBuildError> {
+        self.physics_pipeline.configure_thread_pool(num_threads)
+    }
+
+    /// The thread-pool used by this physics world, if it was configured.
+    pub fn thread_pool(&self) -> Option<std::sync::Arc<rayon::ThreadPool>> {
+        self.physics_pipeline.thread_pool()
+    }
+
+    /// Sets (or clears) the thread pool running this physics world’s parallel work.
+    ///
+    /// Unlike [`Self::configure_thread_pool`], this takes an existing pool.
+    pub fn set_thread_pool(&mut self, pool: Option<std::sync::Arc<rayon::ThreadPool>>) {
+        self.physics_pipeline.set_thread_pool(pool)
+    }
+
+    /// Removes the dedicated thread pool: the parallel parts of the step run on whichever
+    /// pool the calling thread is in again.
+    pub fn clear_thread_pool(&mut self) {
+        self.physics_pipeline.clear_thread_pool()
+    }
+
+    /// The number of workers this physics world’s parallel work runs on: the size of its
+    /// dedicated thread pool if one was configured.
+    pub fn num_threads(&self) -> Option<usize> {
+        self.physics_pipeline.num_threads()
     }
 }
