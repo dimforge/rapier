@@ -1,116 +1,46 @@
-use super::TOIEntry;
 use crate::alloc_prelude::*;
-use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodySet};
 use crate::geometry::{
-    BroadPhaseBvh, Collider, ColliderHandle, ColliderParent, ColliderSet, CollisionEvent,
-    NarrowPhase,
+    BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, CollisionEvent, NarrowPhase,
 };
 use crate::math::Real;
-use crate::parry::utils::SortedPair;
-use crate::pipeline::{ActiveHooks, EventHandler, PairFilterContext, PhysicsHooks, QueryFilter};
+use crate::parry::bounding_volume::Aabb;
+use crate::pipeline::{EventHandler, PhysicsHooks, QueryFilter};
 use crate::prelude::{ActiveEvents, CollisionEventFlags};
-use alloc::collections::BinaryHeap;
-use parry::utils::hashmap::HashMap;
+use parry::query::sweep_toi::Sweep;
 
-/// Returns `true` if the user's `filter_contact_pair` hook rejected this
-/// pair. Mirrors the narrow-phase filter call in `NarrowPhase::compute_contacts`
-/// so CCD respects the same user-level contact filtering (see issue #754).
-///
-/// Note: the narrow phase may invoke this hook for sensor pairs too (it
-/// uses `solver_flags` to decide downstream). The CCD sweep sites skip
-/// sensors before calling this helper, which is intentional — CCD only
-/// resolves contact TOIs, and sensor intersections are reported elsewhere.
-#[inline]
-fn pair_filtered_out_by_hooks(
-    hooks: &dyn PhysicsHooks,
-    bodies: &RigidBodySet,
-    colliders: &ColliderSet,
-    co1: &Collider,
-    co2: &Collider,
-    ch1: ColliderHandle,
-    ch2: ColliderHandle,
-    bh1: Option<RigidBodyHandle>,
-    bh2: Option<RigidBodyHandle>,
-) -> bool {
-    let active_hooks = co1.flags.active_hooks | co2.flags.active_hooks;
-    if !active_hooks.contains(ActiveHooks::FILTER_CONTACT_PAIRS) {
-        return false;
-    }
-    let context = PairFilterContext {
-        bodies,
-        colliders,
-        rigid_body1: bh1,
-        rigid_body2: bh2,
-        collider1: ch1,
-        collider2: ch2,
-    };
-    hooks.filter_contact_pair(&context).is_none()
-}
+use super::sweeps::{
+    BodyContinuousResult, CcdTargets, PseudoHitMode, collect_fixed_targets, is_bullet,
+    map_bodies_parallel, sweep_fast_body,
+};
 
-pub enum PredictedImpacts {
-    Impacts(HashMap<RigidBodyHandle, Real>),
-    ImpactsAfterEndTime(Real),
-    NoImpacts,
-}
-
-/// Continuous Collision Detection solver that prevents fast objects from tunneling through geometry.
+/// Continuous Collision Detection solver preventing fast objects from tunneling:
+/// after the solver, bodies that moved more than half their thinnest extent sweep their colliders
+/// and `next_position` is clamped to the earliest impact — velocities untouched, no re-solve; the
+/// residual approach resolves next step via speculative contacts.
 ///
-/// CCD (Continuous Collision Detection) solves the "tunneling problem" where fast-moving objects
-/// pass through thin walls because they move more than the wall's thickness in one timestep.
-///
-/// ## How it works
-///
-/// 1. Detects which bodies are moving fast enough to potentially tunnel
-/// 2. Predicts where/when they would impact during the timestep
-/// 3. Clamps their motion to stop just before impact
-/// 4. Next frame, normal collision detection handles the contact
-///
-/// ## When to use CCD
-///
-/// Enable CCD on bodies that:
-/// - Move very fast (bullets, projectiles)
-/// - Are small and hit thin geometry
-/// - Must NEVER pass through walls (gameplay-critical)
-///
-/// **Cost**: More expensive than regular collision detection. Only use when needed!
-///
-/// Enable via `RigidBodyBuilder::ccd_enabled(true)` or `body.enable_ccd(true)`.
+/// Fast dynamic bodies automatically sweep against **fixed** colliders; `ccd_enabled` upgrades to
+/// a *bullet* that also sweeps kinematic/dynamic bodies (never other bullets). Mesh-like colliders
+/// are never swept as the *moving* shape (targets are fine), compounds sweep per
+/// convex child, and [`IntegrationParameters::max_ccd_substeps`] `= 0` disables CCD entirely.
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub struct CCDSolver;
+pub struct CCDSolver {
+    /// Cached fixed-target list for the non-bullet sweep pass: the AABB loosening it was built
+    /// with; `None` past [`FIXED_TARGETS_LIST_MAX`] (sweep queries the full BVH). Invalidated by
+    /// the scene-change flag — re-scanning every collider each step dominated CCD on large scenes.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    fixed_targets_cache: Option<FixedTargetsCache>,
+}
+
+/// The AABB loosening the cached fixed-target list was built with, paired with the list
+/// itself — `None` past [`FIXED_TARGETS_LIST_MAX`], where the sweep queries the full BVH.
+type FixedTargetsCache = (Real, Option<Vec<(ColliderHandle, Aabb)>>);
 
 impl CCDSolver {
     /// Initializes a new CCD solver
     pub fn new() -> Self {
-        Self
-    }
-
-    /// Apply motion-clamping to the bodies affected by the given `impacts`.
-    ///
-    /// The `impacts` should be the result of a previous call to `self.predict_next_impacts`.
-    pub fn clamp_motions(&self, dt: Real, bodies: &mut RigidBodySet, impacts: &PredictedImpacts) {
-        if let PredictedImpacts::Impacts(tois) = impacts {
-            for (handle, toi) in tois {
-                let rb = bodies.index_mut_internal(*handle);
-                let local_com = &rb.mprops.local_mprops.local_com;
-
-                let min_toi = (rb.ccd.ccd_thickness
-                    * 0.15
-                    * crate::utils::inv(rb.ccd.max_point_velocity(&rb.ccd_vels)))
-                .min(dt);
-                // println!(
-                //     "Min toi: {}, Toi: {}, thick: {}, max_vel: {}",
-                //     min_toi,
-                //     toi,
-                //     rb.ccd.ccd_thickness,
-                //     rb.ccd.max_point_velocity(&rb.integrated_vels)
-                // );
-                let new_pos = rb
-                    .ccd_vels
-                    .integrate(toi.max(min_toi), &rb.pos.position, local_com);
-                rb.pos.next_position = new_pos;
-            }
-        }
+        Self::default()
     }
 
     /// Updates the set of bodies that needs CCD to be resolved.
@@ -125,17 +55,32 @@ impl CCDSolver {
     ) -> bool {
         let mut ccd_active = false;
 
-        // println!("Checking CCD activation");
         for handle in islands.active_bodies() {
             let rb = bodies.index_mut_internal(handle);
 
-            if rb.ccd.ccd_enabled {
-                let forces = if include_forces {
-                    Some(&rb.forces)
+            // Default tier: every fast dynamic body is a CCD origin. `ccd_enabled`
+            // no longer gates *activation*, only the sweep *scope* (fixed-only vs all bodies),
+            // applied later during pair selection.
+            if rb.is_dynamic() {
+                let moving_fast = if include_forces {
+                    // Pre-solve (substep splitter): `next_position` isn't solved yet, use
+                    // the velocity-based estimate including forces.
+                    rb.ccd.is_moving_fast(
+                        dt,
+                        &rb.ccd_vels,
+                        Some(&rb.forces),
+                        rb.mprops.max_extent(),
+                    )
                 } else {
-                    None
+                    // Post-solve: the fast-body criterion on the actual solved motion.
+                    rb.ccd.is_moving_fast_with_next_position(
+                        dt,
+                        &rb.ccd_vels,
+                        &rb.pos,
+                        rb.mprops.local_mprops.local_com,
+                        rb.mprops.max_extent(),
+                    )
                 };
-                let moving_fast = rb.ccd.is_moving_fast(dt, &rb.ccd_vels, forces);
                 rb.ccd.ccd_active = moving_fast;
                 ccd_active = ccd_active || moving_fast;
             }
@@ -144,8 +89,12 @@ impl CCDSolver {
         ccd_active
     }
 
-    /// Find the first time a CCD-enabled body has a non-sensor collider hitting another non-sensor collider.
+    /// Find the first time a CCD-active body has a non-sensor collider hitting another
+    /// non-sensor collider, for the multi-substep splitter.
+    ///
+    /// Returns the impact time in `[0, dt)` if any.
     #[profiling::function]
+    #[allow(clippy::too_many_arguments)]
     pub fn find_first_impact(
         &mut self,
         dt: Real, // NOTE: this doesn’t necessarily match the `params.dt`.
@@ -157,470 +106,236 @@ impl CCDSolver {
         narrow_phase: &NarrowPhase,
         hooks: &dyn PhysicsHooks,
     ) -> Option<Real> {
-        // Update the query pipeline with the colliders’ predicted positions.
-        for (handle, co) in colliders.iter_enabled() {
-            if let Some(co_parent) = co.parent {
-                let rb = &bodies[co_parent.handle];
-                if rb.is_ccd_active() {
-                    let predicted_pos = rb
-                        .pos
-                        .integrate_forces_and_velocities(dt, &rb.forces, &rb.vels, &rb.mprops);
-                    let next_position = predicted_pos * co_parent.pos_wrt_parent;
-                    let swept_aabb = co.shape.compute_swept_aabb(&co.pos, &next_position);
-                    broad_phase.set_aabb(params, handle, swept_aabb);
-                }
-            }
-        }
-
+        // NOTE: broad-phase AABBs are NOT enlarged to the swept volumes: only the fast body's
+        // query box is swept (per collider, below); targets keep their regular fat AABBs.
+        // Swept AABBs written into the tree would leak into the next step (pair explosion).
         let query_pipeline = broad_phase.as_query_pipeline(
             narrow_phase.query_dispatcher(),
             bodies,
             colliders,
             QueryFilter::default(),
         );
+        let (bvh, dispatcher) = (query_pipeline.bvh, query_pipeline.dispatcher);
 
-        let mut pairs_seen = HashMap::default();
-        let mut min_toi = dt;
+        let linear_slop = params.allowed_linear_error();
+        let fast_bodies: Vec<_> = islands
+            .active_bodies()
+            .filter(|h| bodies[*h].ccd.ccd_active)
+            .collect();
 
-        for handle in islands.active_bodies() {
+        let fractions = map_bodies_parallel(&fast_bodies, hooks, |handle, hooks| {
             let rb1 = &bodies[handle];
+            // `next_position` isn't solved yet: sweep to the forces/velocities integration.
+            let predicted_body_pos =
+                rb1.pos
+                    .integrate_forces_and_velocities(dt, &rb1.forces, &rb1.vels, &rb1.mprops);
+            sweep_fast_body(
+                handle,
+                bodies,
+                colliders,
+                predicted_body_pos,
+                CcdTargets::FullBvh(bvh),
+                dispatcher,
+                hooks,
+                dt,
+                linear_slop,
+                PseudoHitMode::Ignore,
+            )
+            .fraction
+        });
 
-            if rb1.ccd.ccd_active {
-                let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
-                    dt,
-                    &rb1.forces,
-                    &rb1.ccd_vels,
-                    &rb1.mprops,
-                );
-
-                for ch1 in &rb1.colliders.0 {
-                    let co1 = &colliders[*ch1];
-                    let co1_parent = co1
-                        .parent
-                        .as_ref()
-                        .expect("Could not find the ColliderParent component.");
-
-                    if co1.is_sensor() {
-                        continue; // Ignore sensors.
-                    }
-
-                    let predicted_collider_pos1 = predicted_body_pos1 * co1_parent.pos_wrt_parent;
-                    let aabb1 = co1
-                        .shape
-                        .compute_swept_aabb(&co1.pos, &predicted_collider_pos1);
-
-                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb1) {
-                        if *ch1 == ch2 {
-                            // Ignore self-intersection.
-                            continue;
-                        }
-
-                        if pairs_seen
-                            .insert(
-                                SortedPair::new(ch1.into_raw_parts().0, ch2.into_raw_parts().0),
-                                (),
-                            )
-                            .is_none()
-                        {
-                            let co1 = &colliders[*ch1];
-                            let co2 = &colliders[ch2];
-
-                            let bh1 = co1.parent.map(|p| p.handle);
-                            let bh2 = co2.parent.map(|p| p.handle);
-
-                            // Ignore self-intersection and sensors and apply collision groups filter.
-                            if bh1 == bh2                                                       // Ignore self-intersection.
-                                    || (co1.is_sensor() || co2.is_sensor())                         // Ignore sensors.
-                                    || !co1.flags.collision_groups.test(co2.flags.collision_groups) // Apply collision groups.
-                                    || !co1.flags.solver_groups.test(co2.flags.solver_groups)
-                            // Apply solver groups.
-                            {
-                                continue;
-                            }
-
-                            if pair_filtered_out_by_hooks(
-                                hooks, bodies, colliders, co1, co2, *ch1, ch2, bh1, bh2,
-                            ) {
-                                continue;
-                            }
-
-                            let smallest_dist = narrow_phase
-                                .contact_pair(*ch1, ch2)
-                                .and_then(|p| p.find_deepest_contact())
-                                .map(|c| c.1.dist)
-                                .unwrap_or(0.0);
-
-                            let rb2 = bh2.and_then(|h| bodies.get(h));
-
-                            if let Some(toi) = TOIEntry::try_from_colliders(
-                                narrow_phase.query_dispatcher(),
-                                *ch1,
-                                ch2,
-                                co1,
-                                co2,
-                                Some(rb1),
-                                rb2,
-                                None,
-                                None,
-                                0.0,
-                                min_toi,
-                                smallest_dist,
-                            ) {
-                                min_toi = min_toi.min(toi.toi);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if min_toi < dt { Some(min_toi) } else { None }
+        let min_fraction = fractions.into_iter().fold(1.0, Real::min);
+        (min_fraction < 1.0).then_some(min_fraction * dt)
     }
 
-    /// Outputs the set of bodies as well as their first time-of-impact event.
+    /// Runs the continuous-collision pass on all fast bodies and clamps their `next_position`
+    /// to their earliest time of impact: non-bullets sweep fixed colliders first, then bullets
+    /// sweep every (possibly already clamped) body; velocities are never modified. Sensor
+    /// crossings the narrow phase would miss entirely emit paired `Started`/`Stopped`
+    /// intersection events.
     #[profiling::function]
-    pub fn predict_impacts_at_next_positions(
+    #[allow(clippy::too_many_arguments)]
+    pub fn solve_continuous(
         &mut self,
         params: &IntegrationParameters,
         islands: &IslandManager,
-        bodies: &RigidBodySet,
+        bodies: &mut RigidBodySet,
         colliders: &ColliderSet,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
-    ) -> PredictedImpacts {
+        // `true` when colliders/bodies were added, removed or modified by the
+        // user since the last step: the only ways a fixed target can appear,
+        // vanish or move, hence the fixed-target cache invalidation signal.
+        scene_changed: bool,
+    ) {
         let dt = params.dt;
-        let mut frozen = HashMap::<_, Real>::default();
-        let mut all_toi = BinaryHeap::new();
-        let mut pairs_seen = HashMap::default();
-        let mut min_overstep = dt;
+        let linear_slop = params.allowed_linear_error();
 
-        // Update the query pipeline with the colliders’ `next_position`.
-        for (handle, co) in colliders.iter_enabled() {
-            if let Some(co_parent) = co.parent {
-                let rb = &bodies[co_parent.handle];
-                if rb.is_ccd_active() {
-                    let rb_next_pos = &bodies[co_parent.handle].pos.next_position;
-                    let next_position = rb_next_pos * co_parent.pos_wrt_parent;
-                    let swept_aabb = co.shape.compute_swept_aabb(&co.pos, &next_position);
-                    broad_phase.set_aabb(params, handle, swept_aabb);
-                }
+        // NOTE: broad-phase AABBs are NOT enlarged to the swept volumes: only the fast body's
+        // query box is swept; stationary targets keep their fat AABBs. Swept AABBs in
+        // the tree leak into the next step's broad phase (pair explosion, ~2x narrow-phase cost).
+        let (non_bullets, bullets): (Vec<_>, Vec<_>) = islands
+            .active_bodies()
+            .filter(|h| bodies[*h].ccd.ccd_active)
+            .partition(|h| !is_bullet(&bodies[*h]));
+
+        let mut all_results = Vec::new();
+
+        // Pass 1: fast non-bullet bodies vs fixed targets (all targets are stationary, so
+        // the bodies are independent and can run in parallel).
+        {
+            let query_pipeline = broad_phase.as_query_pipeline(
+                narrow_phase.query_dispatcher(),
+                bodies,
+                colliders,
+                QueryFilter::default(),
+            );
+            let (bvh, dispatcher) = (query_pipeline.bvh, query_pipeline.dispatcher);
+            // Non-bullet fast bodies only hit fixed targets: sweep against the (small) cached
+            // fixed-collider list instead of the full BVH. Rebuilt — a full collider scan —
+            // only on scene changes, since fixed targets can't move otherwise.
+            let prediction = params.prediction_distance();
+            let cache_valid = !scene_changed
+                && self
+                    .fixed_targets_cache
+                    .as_ref()
+                    .is_some_and(|(p, _)| *p == prediction);
+            if !cache_valid {
+                self.fixed_targets_cache = Some((
+                    prediction,
+                    collect_fixed_targets(bodies, colliders, prediction),
+                ));
             }
-        }
-
-        let query_pipeline = broad_phase.as_query_pipeline(
-            narrow_phase.query_dispatcher(),
-            bodies,
-            colliders,
-            QueryFilter::default(),
-        );
-
-        /*
-         *
-         * First, collect all TOIs.
-         *
-         */
-        // TODO: don't iterate through all the colliders.
-        for handle in islands.active_bodies() {
-            let rb1 = &bodies[handle];
-
-            if rb1.ccd.ccd_active {
-                let predicted_body_pos1 = rb1.pos.integrate_forces_and_velocities(
+            let targets = match &self.fixed_targets_cache.as_ref().unwrap().1 {
+                Some(fixed) => CcdTargets::FixedList(fixed),
+                None => CcdTargets::FullBvh(bvh),
+            };
+            let results = map_bodies_parallel(&non_bullets, hooks, |handle, hooks| {
+                sweep_fast_body(
+                    handle,
+                    bodies,
+                    colliders,
+                    bodies[handle].pos.next_position,
+                    targets,
+                    dispatcher,
+                    hooks,
                     dt,
-                    &rb1.forces,
-                    &rb1.ccd_vels,
-                    &rb1.mprops,
+                    linear_slop,
+                    PseudoHitMode::Record,
+                )
+            });
+            all_results.extend(results);
+        }
+        Self::apply_clamps(bodies, &all_results);
+
+        // Pass 2: bullets vs everything except other bullets. Targets read the (already
+        // clamped) `next_position` from pass 1 (deferred bullet stage).
+        if !bullets.is_empty() {
+            let bullet_results = {
+                let query_pipeline = broad_phase.as_query_pipeline(
+                    narrow_phase.query_dispatcher(),
+                    bodies,
+                    colliders,
+                    QueryFilter::default(),
                 );
-
-                for ch1 in &rb1.colliders.0 {
-                    let co1 = &colliders[*ch1];
-                    let co_parent1 = co1
-                        .parent
-                        .as_ref()
-                        .expect("Could not find the ColliderParent component.");
-
-                    let predicted_collider_pos1 = predicted_body_pos1 * co_parent1.pos_wrt_parent;
-                    let aabb1 = co1
-                        .shape
-                        .compute_swept_aabb(&co1.pos, &predicted_collider_pos1);
-
-                    for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb1) {
-                        if *ch1 == ch2 {
-                            // Ignore self-intersection.
-                            continue;
-                        }
-
-                        if pairs_seen
-                            .insert(
-                                SortedPair::new(ch1.into_raw_parts().0, ch2.into_raw_parts().0),
-                                (),
-                            )
-                            .is_none()
-                        {
-                            let co1 = &colliders[*ch1];
-                            let co2 = &colliders[ch2];
-
-                            let bh1 = co1.parent.map(|p| p.handle);
-                            let bh2 = co2.parent.map(|p| p.handle);
-
-                            // Ignore self-intersections and apply groups filter.
-                            if bh1 == bh2
-                                || !co1.flags.collision_groups.test(co2.flags.collision_groups)
-                            {
-                                continue;
-                            }
-
-                            if pair_filtered_out_by_hooks(
-                                hooks, bodies, colliders, co1, co2, *ch1, ch2, bh1, bh2,
-                            ) {
-                                continue;
-                            }
-
-                            let smallest_dist = narrow_phase
-                                .contact_pair(*ch1, ch2)
-                                .and_then(|p| p.find_deepest_contact())
-                                .map(|c| c.1.dist)
-                                .unwrap_or(0.0);
-
-                            let rb1 = bh1.map(|h| &bodies[h]);
-                            let rb2 = bh2.map(|h| &bodies[h]);
-
-                            if let Some(toi) = TOIEntry::try_from_colliders(
-                                query_pipeline.dispatcher,
-                                *ch1,
-                                ch2,
-                                co1,
-                                co2,
-                                rb1,
-                                rb2,
-                                None,
-                                None,
-                                0.0,
-                                // NOTE: we use dt here only once we know that
-                                // there is at least one TOI before dt.
-                                min_overstep,
-                                smallest_dist,
-                            ) {
-                                if toi.toi > dt {
-                                    min_overstep = min_overstep.min(toi.toi);
-                                } else {
-                                    min_overstep = dt;
-                                    all_toi.push(toi);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        /*
-         *
-         * If the smallest TOI is outside of the time interval, return.
-         *
-         */
-        if min_overstep == dt && all_toi.is_empty() {
-            return PredictedImpacts::NoImpacts;
-        } else if min_overstep > dt {
-            return PredictedImpacts::ImpactsAfterEndTime(min_overstep);
-        }
-
-        // NOTE: all fixed bodies (and kinematic bodies?) should be considered as "frozen", this
-        // may avoid some resweeps.
-        let mut pseudo_intersections_to_check = vec![];
-
-        while let Some(toi) = all_toi.pop() {
-            assert!(toi.toi <= dt);
-
-            let rb1 = toi.b1.and_then(|b| bodies.get(b));
-            let rb2 = toi.b2.and_then(|b| bodies.get(b));
-
-            let mut colliders_to_check = Vec::new();
-            let should_freeze1 = rb1.is_some()
-                && rb1.unwrap().ccd.ccd_active
-                && !frozen.contains_key(&toi.b1.unwrap());
-            let should_freeze2 = rb2.is_some()
-                && rb2.unwrap().ccd.ccd_active
-                && !frozen.contains_key(&toi.b2.unwrap());
-
-            if !should_freeze1 && !should_freeze2 {
-                continue;
-            }
-
-            if toi.is_pseudo_intersection_test {
-                // NOTE: this test is redundant with the previous `if !should_freeze && ...`
-                //       but let's keep it to avoid tricky regressions if we end up swapping both
-                //       `if` for some reason in the future.
-                if should_freeze1 || should_freeze2 {
-                    // This is only an intersection so we don't have to freeze and there is no
-                    // need to resweep. However, we will need to see if we have to generate
-                    // intersection events, so push the TOI for further testing.
-                    pseudo_intersections_to_check.push(toi);
-                }
-                continue;
-            }
-
-            if should_freeze1 {
-                let _ = frozen.insert(toi.b1.unwrap(), toi.toi);
-                colliders_to_check.extend_from_slice(&rb1.unwrap().colliders.0);
-            }
-
-            if should_freeze2 {
-                let _ = frozen.insert(toi.b2.unwrap(), toi.toi);
-                colliders_to_check.extend_from_slice(&rb2.unwrap().colliders.0);
-            }
-
-            let start_time = toi.toi;
-
-            // NOTE: the 1 and 2 indices (e.g., `ch1`, `ch2`) below are unrelated to the
-            //       ones we used above.
-            for ch1 in &colliders_to_check {
-                let co1 = &colliders[*ch1];
-                let co1_parent = co1.parent.as_ref().unwrap();
-                let rb1 = &bodies[co1_parent.handle];
-
-                let co_next_pos1 = rb1.pos.next_position * co1_parent.pos_wrt_parent;
-                let aabb = co1.shape.compute_swept_aabb(&co1.pos, &co_next_pos1);
-
-                for (ch2, _) in query_pipeline.intersect_aabb_conservative(aabb) {
-                    let co2 = &colliders[ch2];
-
-                    let bh1 = co1.parent.map(|p| p.handle);
-                    let bh2 = co2.parent.map(|p| p.handle);
-
-                    // Ignore self-intersection and apply groups filter.
-                    if bh1 == bh2 || !co1.flags.collision_groups.test(co2.flags.collision_groups) {
-                        continue;
-                    }
-
-                    if pair_filtered_out_by_hooks(
-                        hooks, bodies, colliders, co1, co2, *ch1, ch2, bh1, bh2,
-                    ) {
-                        continue;
-                    }
-
-                    let frozen1 = bh1.and_then(|h| frozen.get(&h));
-                    let frozen2 = bh2.and_then(|h| frozen.get(&h));
-
-                    let rb1 = bh1.and_then(|h| bodies.get(h));
-                    let rb2 = bh2.and_then(|h| bodies.get(h));
-
-                    if (frozen1.is_some() || !rb1.map(|b| b.ccd.ccd_active).unwrap_or(false))
-                        && (frozen2.is_some() || !rb2.map(|b| b.ccd.ccd_active).unwrap_or(false))
-                    {
-                        // We already did a resweep.
-                        continue;
-                    }
-
-                    let smallest_dist = narrow_phase
-                        .contact_pair(*ch1, ch2)
-                        .and_then(|p| p.find_deepest_contact())
-                        .map(|c| c.1.dist)
-                        .unwrap_or(0.0);
-
-                    if let Some(toi) = TOIEntry::try_from_colliders(
-                        query_pipeline.dispatcher,
-                        *ch1,
-                        ch2,
-                        co1,
-                        co2,
-                        rb1,
-                        rb2,
-                        frozen1.copied(),
-                        frozen2.copied(),
-                        start_time,
+                let (bvh, dispatcher) = (query_pipeline.bvh, query_pipeline.dispatcher);
+                map_bodies_parallel(&bullets, hooks, |handle, hooks| {
+                    sweep_fast_body(
+                        handle,
+                        bodies,
+                        colliders,
+                        bodies[handle].pos.next_position,
+                        CcdTargets::FullBvh(bvh),
+                        dispatcher,
+                        hooks,
                         dt,
-                        smallest_dist,
-                    ) {
-                        all_toi.push(toi);
-                    }
+                        linear_slop,
+                        PseudoHitMode::Record,
+                    )
+                })
+            };
+            Self::apply_clamps(bodies, &bullet_results);
+            all_results.extend(bullet_results);
+        }
+
+        // Emit intersection events for sensor crossings that happened strictly before each
+        // body's final solid impact and that the narrow phase would never observe (no
+        // overlap at either the start or the clamped end pose).
+        for result in &all_results {
+            for hit in &result.pseudo_hits {
+                if hit.fraction >= result.fraction {
+                    // The body stops before reaching this sensor.
+                    continue;
+                }
+
+                let co1 = &colliders[hit.ch1];
+                let co2 = &colliders[hit.ch2];
+
+                if !co1.is_sensor() && !co2.is_sensor() {
+                    // TODO: this happens if we found a TOI between two non-sensor
+                    //       colliders with mismatching solver_flags. It is not clear
+                    //       what we should do in this case: we could report a
+                    //       contact started/contact stopped event for example. But in
+                    //       that case, what contact pair should be pass to these events?
+                    // For now we just ignore this special case. Let's wait for an actual
+                    // use-case to come up before we determine what we want to do here.
+                    continue;
+                }
+
+                let next_pose = |co: &Collider| match co.parent.as_ref() {
+                    Some(parent) => bodies[parent.handle].pos.next_position * parent.pos_wrt_parent,
+                    None => co.pos.0,
+                };
+
+                let prev_pos12 = co1.pos.inv_mul(&co2.pos);
+                let next_pos12 = next_pose(co1).inv_mul(&next_pose(co2));
+
+                let dispatcher = narrow_phase.query_dispatcher();
+                let intersect_before = dispatcher
+                    .intersection_test(&prev_pos12, co1.shape.as_ref(), co2.shape.as_ref())
+                    .unwrap_or(false);
+                let intersect_after = dispatcher
+                    .intersection_test(&next_pos12, co1.shape.as_ref(), co2.shape.as_ref())
+                    .unwrap_or(false);
+
+                if !intersect_before
+                    && !intersect_after
+                    && (co1.flags.active_events | co2.flags.active_events)
+                        .contains(ActiveEvents::COLLISION_EVENTS)
+                {
+                    // Emit one intersection-started and one intersection-stopped event.
+                    events.handle_collision_event(
+                        bodies,
+                        colliders,
+                        CollisionEvent::Started(hit.ch1, hit.ch2, CollisionEventFlags::SENSOR),
+                        None,
+                    );
+                    events.handle_collision_event(
+                        bodies,
+                        colliders,
+                        CollisionEvent::Stopped(hit.ch1, hit.ch2, CollisionEventFlags::SENSOR),
+                        None,
+                    );
                 }
             }
         }
+    }
 
-        for toi in pseudo_intersections_to_check {
-            // See if the intersection is still active once the bodies
-            // reach their final positions.
-            // - If the intersection is still active, don't report it yet. It will be
-            //   reported by the narrow-phase at the next timestep/substep.
-            // - If the intersection isn't active anymore, and it wasn't intersecting
-            //   before, then we need to generate one interaction-start and one interaction-stop
-            //   events because it will never be detected by the narrow-phase because of tunneling.
-            let co1 = &colliders[toi.c1];
-            let co2 = &colliders[toi.c2];
-
-            if !co1.is_sensor() && !co2.is_sensor() {
-                // TODO: this happens if we found a TOI between two non-sensor
-                //       colliders with mismatching solver_flags. It is not clear
-                //       what we should do in this case: we could report a
-                //       contact started/contact stopped event for example. But in
-                //       that case, what contact pair should be pass to these events?
-                // For now we just ignore this special case. Let's wait for an actual
-                // use-case to come up before we determine what we want to do here.
-                continue;
-            }
-
-            let co_next_pos1 = if let Some(b1) = toi.b1 {
-                let co_parent1: &ColliderParent = co1.parent.as_ref().unwrap();
-                let rb1 = &bodies[b1];
-                let local_com1 = &rb1.mprops.local_mprops.local_com;
-                let frozen1 = frozen.get(&b1);
-                let pos1 = frozen1
-                    .map(|t| rb1.ccd_vels.integrate(*t, &rb1.pos.position, local_com1))
-                    .unwrap_or(rb1.pos.next_position);
-                pos1 * co_parent1.pos_wrt_parent
-            } else {
-                co1.pos.0
-            };
-
-            let co_next_pos2 = if let Some(b2) = toi.b2 {
-                let co_parent2: &ColliderParent = co2.parent.as_ref().unwrap();
-                let rb2 = &bodies[b2];
-                let local_com2 = &rb2.mprops.local_mprops.local_com;
-                let frozen2 = frozen.get(&b2);
-                let pos2 = frozen2
-                    .map(|t| rb2.ccd_vels.integrate(*t, &rb2.pos.position, local_com2))
-                    .unwrap_or(rb2.pos.next_position);
-                pos2 * co_parent2.pos_wrt_parent
-            } else {
-                co2.pos.0
-            };
-
-            let prev_coll_pos12 = co1.pos.inv_mul(&co2.pos);
-            let next_coll_pos12 = co_next_pos1.inv_mul(&co_next_pos2);
-
-            let intersect_before = query_pipeline
-                .dispatcher
-                .intersection_test(&prev_coll_pos12, co1.shape.as_ref(), co2.shape.as_ref())
-                .unwrap_or(false);
-
-            let intersect_after = query_pipeline
-                .dispatcher
-                .intersection_test(&next_coll_pos12, co1.shape.as_ref(), co2.shape.as_ref())
-                .unwrap_or(false);
-
-            if !intersect_before
-                && !intersect_after
-                && (co1.flags.active_events | co2.flags.active_events)
-                    .contains(ActiveEvents::COLLISION_EVENTS)
-            {
-                // Emit one intersection-started and one intersection-stopped event.
-                events.handle_collision_event(
-                    bodies,
-                    colliders,
-                    CollisionEvent::Started(toi.c1, toi.c2, CollisionEventFlags::SENSOR),
-                    None,
+    /// Clamps each impacted body's `next_position` to the interpolated pose at its impact
+    /// fraction. Pose only — velocities are preserved.
+    fn apply_clamps(bodies: &mut RigidBodySet, results: &[BodyContinuousResult]) {
+        for result in results {
+            if result.fraction < 1.0 {
+                let rb = bodies.index_mut_internal(result.handle);
+                let sweep = Sweep::from_poses(
+                    &rb.pos.position,
+                    &rb.pos.next_position,
+                    rb.mprops.local_mprops.local_com,
                 );
-                events.handle_collision_event(
-                    bodies,
-                    colliders,
-                    CollisionEvent::Stopped(toi.c1, toi.c2, CollisionEventFlags::SENSOR),
-                    None,
-                );
+                rb.pos.next_position = sweep.transform_at(result.fraction);
             }
         }
-
-        PredictedImpacts::Impacts(frozen)
     }
 }
