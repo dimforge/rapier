@@ -67,17 +67,18 @@ needless_lifetimes = "allow"
 # Core math
 nalgebra = { version = "0.35", default-features = false, features = ["macros"] }
 glamx = { version = "0.3", default-features = false }
-simba = { version = "0.10", default-features = false }
+simba = { version = "0.10.1", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 approx = { version = "0.5", default-features = false }
 
 # Parry (each crate picks its own variant)
-parry2d = { version = "0.29", default-features = false, features = ["required-features"] }
-parry3d = { version = "0.29", default-features = false, features = ["required-features"] }
-parry2d-f64 = { version = "0.29", default-features = false, features = ["required-features"] }
-parry3d-f64 = { version = "0.29", default-features = false, features = ["required-features"] }
+parry2d = { version = "0.30", default-features = false, features = ["required-features"] }
+parry3d = { version = "0.30", default-features = false, features = ["required-features"] }
+parry2d-f64 = { version = "0.30", default-features = false, features = ["required-features"] }
+parry3d-f64 = { version = "0.30", default-features = false, features = ["required-features"] }
 
 # Utilities
+arrayvec = { version = "0.7", default-features = false }
 bitflags = "2"
 bytemuck = { version = "1", features = ["derive"] }
 log = "0.4"
@@ -95,6 +96,7 @@ serde = { version = "1", default-features = false, features = ["derive"] }
 rand = "0.10"
 rand_pcg = "0.10"
 num_cpus = "1"
+libc = "0.2"
 Inflector = "0.11"
 md5 = "0.8"
 egui = "0.34"
@@ -114,7 +116,10 @@ lyon = "0.17"
 dot_vox = "5"
 usvg = "0.14"
 obj-rs = { version = "0.7", default-features = false }
-glam = { version = "0.33", features = ["fast-math"] }
+# NOTE: no `fast-math` — cargo feature unification would switch it on for every
+# build whose graph includes the examples, and it re-enables FMA contraction in
+# glam's sse2 backend (a cross-platform determinism hazard).
+glam = { version = "0.33" }
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2"
 
