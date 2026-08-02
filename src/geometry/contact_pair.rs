@@ -9,6 +9,8 @@ use crate::utils::ScalarType;
 use crate::utils::SolverBlock;
 use parry::math::{SIMD_WIDTH, SimdReal};
 use parry::query::ContactManifoldsWorkspace;
+#[cfg(not(feature = "std"))]
+use simba::scalar::ComplexField as _;
 
 bitflags::bitflags! {
     #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

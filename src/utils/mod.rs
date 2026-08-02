@@ -13,7 +13,7 @@ mod matrix_column;
 mod orthonormal_basis;
 #[cfg(not(target_arch = "spirv"))]
 mod pos_ops;
-#[cfg(not(target_arch = "spirv"))]
+#[cfg(all(feature = "alloc", not(target_arch = "spirv")))]
 mod prefetch;
 #[cfg(not(target_arch = "spirv"))]
 mod rotation_ops;
@@ -29,7 +29,7 @@ pub use matrix_column::MatrixColumn;
 pub use orthonormal_basis::OrthonormalBasis;
 #[cfg(not(target_arch = "spirv"))]
 pub use pos_ops::PoseOps;
-#[cfg(not(target_arch = "spirv"))]
+#[cfg(all(feature = "alloc", not(target_arch = "spirv")))]
 pub(crate) use prefetch::prefetch_read;
 #[cfg(not(target_arch = "spirv"))]
 pub use rotation_ops::RotationOps;
@@ -46,6 +46,7 @@ pub use dot_product::{DotProduct, SimdLength};
 #[allow(unused_imports)]
 pub(crate) use fp_flags::DisableFloatingPointExceptionsFlags;
 
+#[cfg(feature = "alloc")]
 use crate::math::SIMD_WIDTH;
 #[cfg(not(target_arch = "spirv"))]
 use crate::math::SimdVector;
@@ -205,32 +206,32 @@ pub fn smallest_abs_diff_between_angles<N: SimdRealCopy>(a: N, b: N) -> N {
 /// describes one body's data layout, not the SIMD lane count. At f32 and the
 /// default 4-lane width it is exactly `SimdReal`; at 8 lanes `SimdReal` widens
 /// to 256-bit while a per-body block stays 128-bit.
-#[cfg(feature = "f32")]
+#[cfg(all(feature = "alloc", feature = "f32"))]
 pub(crate) type SolverBlock = simba::simd::WideF32x4;
 /// See [`SolverBlock`]. `wide::f64x4` is 32-byte aligned, which would over-align
 /// a block past the 16-byte AoS rows the scalar structs are laid out in, so the
 /// f64 build keeps the plain-array block.
-#[cfg(feature = "f64")]
+#[cfg(all(feature = "alloc", feature = "f64"))]
 pub(crate) type SolverBlock = simba::simd::AutoF64x4;
 
 /// One body's block as the plain array the `aos!` gather hands over — what
 /// [`SolverBlock`] wraps, and what the transpose below operates on.
-#[cfg(feature = "f32")]
+#[cfg(all(feature = "alloc", feature = "f32"))]
 pub(crate) type RawBlock = wide::f32x4;
 /// See [`RawBlock`].
-#[cfg(feature = "f64")]
+#[cfg(all(feature = "alloc", feature = "f64"))]
 pub(crate) type RawBlock = [Real; 4];
 
 /// A 4x4 block transpose. Pure data movement — no arithmetic — so both
 /// implementations below are bit-exact and interchangeable.
-#[cfg(feature = "f32")]
+#[cfg(all(feature = "alloc", feature = "f32"))]
 #[inline(always)]
 fn transpose4(data: [RawBlock; 4]) -> [RawBlock; 4] {
     wide::f32x4::transpose(data)
 }
 
 /// See [`transpose4`].
-#[cfg(feature = "f64")]
+#[cfg(all(feature = "alloc", feature = "f64"))]
 #[inline(always)]
 fn transpose4(data: [RawBlock; 4]) -> [RawBlock; 4] {
     let [
@@ -252,6 +253,7 @@ fn transpose4(data: [RawBlock; 4]) -> [RawBlock; 4] {
 ///
 /// At 4 lanes this is a single [`transpose4`]. At 8 lanes it does two 4x4
 /// transposes (bodies 0–3 / 4–7) and concatenates each field's two halves.
+#[cfg(feature = "alloc")]
 #[inline(always)]
 pub(crate) fn transpose_wide(aos: [RawBlock; SIMD_WIDTH]) -> [crate::math::SimdReal; 4] {
     #[cfg(not(feature = "simd8"))]
@@ -271,6 +273,7 @@ pub(crate) fn transpose_wide(aos: [RawBlock; SIMD_WIDTH]) -> [crate::math::SimdR
 
 /// Transposes 4 SoA lane-vectors back into `SIMD_WIDTH` bodies' blocks (AoS).
 /// Inverse of [`transpose_wide`].
+#[cfg(feature = "alloc")]
 #[inline(always)]
 pub(crate) fn transpose_wide_inv(soa: [crate::math::SimdReal; 4]) -> [RawBlock; SIMD_WIDTH] {
     #[cfg(not(feature = "simd8"))]

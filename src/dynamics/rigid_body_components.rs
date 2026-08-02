@@ -16,6 +16,8 @@ use crate::utils::{
 use num::Zero;
 #[cfg(feature = "dim2")]
 use parry::math::Rot2;
+#[cfg(not(feature = "std"))]
+use simba::scalar::ComplexField as _;
 
 /// The type of a body, governing the way it is affected by external forces.
 #[deprecated(note = "renamed as RigidBodyType")]

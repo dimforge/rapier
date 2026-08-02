@@ -8,6 +8,8 @@ use crate::dynamics::{GenericJoint, ImpulseJoint, IntegrationParameters, JointIn
 use crate::math::{Real, SPATIAL_DIM};
 use crate::prelude::RigidBodySet;
 
+#[cfg(not(feature = "std"))]
+use simba::scalar::ComplexField as _;
 use {
     crate::dynamics::SpringCoefficients,
     crate::dynamics::solver::MotorParameters,
@@ -15,10 +17,6 @@ use {
     crate::na::SimdValue,
     crate::utils::ScalarType,
 };
-// Only so the scalar `sin` below resolves on `no_std` targets, where `f32`
-// has no inherent one. A `std` build keeps using the inherent method.
-#[cfg(not(feature = "std"))]
-use simba::scalar::ComplexField as _;
 
 pub struct JointConstraintBuilder {
     body1: u32,

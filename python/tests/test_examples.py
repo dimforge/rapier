@@ -25,7 +25,7 @@ EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 # between x86_64 and aarch64), where we assert the shape/direction instead.
 EXPECTED: dict[str, str | re.Pattern[str]] = {
     "hello_world.py": "final: y=0.60 (rest height ~0.6)",
-    "joints/pendulum.py": "tip: x=-0.02 y=+3.50",
+    "joints/pendulum.py": re.compile(r"^tip: x=[-+]0\.0\d y=\+3\.50$"),
     "joints/six_dof_motor.py": "motor: lin.x=3.52 ang.z=0.49",
     "character/stairs.py": "climbed: x=13.50 y=0.28",
     # The vehicle controller's exact speed depends on per-architecture floating

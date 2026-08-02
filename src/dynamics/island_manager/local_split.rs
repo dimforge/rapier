@@ -2,6 +2,9 @@
 //! Adjacency reuses existing structures (no new bookkeeping): [`NarrowPhase::touching_edges_with`] (its edge ids and touching predicate are exactly what keys the island's contact links), [`ImpulseJointSet::attached_joints`], and multibody chain links (a multibody is one atomic-for-sleep neighborhood; its chain links travel with it).
 //! Ordering: every unlink of a step happens in the narrow phase, *before* islands update, so all searches run against the final post-removal graph — verdicts are batch-order-independent.
 
+#[cfg(not(feature = "std"))]
+use simba::scalar::ComplexField as _;
+
 use super::INVALID_ISLAND;
 use super::persistent::{JointLinkKey, PersistentIslands, Removal, multibody_index_key};
 use crate::alloc_prelude::*;

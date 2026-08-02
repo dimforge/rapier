@@ -5,6 +5,8 @@ use crate::dynamics::{
 };
 use crate::math::{DIM, Real, SPATIAL_DIM};
 use crate::utils::{ComponentMul, DotProduct, ScalarType, SimdRealCopy};
+#[cfg(not(feature = "std"))]
+use simba::scalar::ComplexField as _;
 
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::math::{SIMD_WIDTH, SimdReal};
