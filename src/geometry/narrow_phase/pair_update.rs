@@ -452,7 +452,8 @@ pub(super) fn process_pair(
             if num_selected > 1 {
                 use crate::utils::OrthonormalBasis;
                 let basis = manifold.local_n1.orthonormal_basis();
-                let mut keyed = [(0.0f32, 0.0f32, 0usize); MAX_MANIFOLD_POINTS];
+                let mut keyed: [(Real, Real, usize); MAX_MANIFOLD_POINTS] =
+                    [(0.0, 0.0, 0); MAX_MANIFOLD_POINTS];
                 for (i, sel) in selected[..num_selected].iter().enumerate() {
                     let p = manifold.points[*sel].local_p1;
                     keyed[i] = (p.dot(basis[0]), p.dot(basis[1]), *sel);

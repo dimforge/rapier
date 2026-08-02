@@ -3,13 +3,33 @@
 
 use crate::alloc_prelude::*;
 use core::ops::Range;
-use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+/// The packed cursor's integer type: 64 bits wherever the target has 64-bit atomics, which
+/// is every target the parallel solver can run on (`parallel` implies `std`). The small
+/// no-`std` targets that lack them fall back to 32 bits — those are always single-worker,
+/// so the halved stage/position range below is out of reach in practice.
+#[cfg(target_has_atomic = "64")]
+type CursorInt = u64;
+#[cfg(target_has_atomic = "64")]
+type AtomicCursor = core::sync::atomic::AtomicU64;
+#[cfg(not(target_has_atomic = "64"))]
+type CursorInt = u32;
+#[cfg(not(target_has_atomic = "64"))]
+type AtomicCursor = core::sync::atomic::AtomicU32;
+
+/// Bit position of the stage ordinal in a packed cursor; the claim position takes the low half.
+/// A step builds a fresh [`StageSync`] and every worker restarts at stage 0, so the stage half
+/// only has to hold one step's stage count.
+const STAGE_SHIFT: u32 = CursorInt::BITS / 2;
+/// Mask of a packed cursor's position half.
+const POS_MASK: CursorInt = (1 << STAGE_SHIFT) - 1;
 
 /// An atomic cursor on its own cache line (no false sharing between per-worker claim cursors).
-/// Packed `(stage_ordinal << 32) | position` so a straggler's stale claim fails its CAS
+/// Packed `(stage_ordinal << STAGE_SHIFT) | position` so a straggler's stale claim fails its CAS
 /// instead of corrupting a cursor already reset for a later stage.
 #[repr(align(64))]
-struct PaddedCursor(AtomicU64);
+struct PaddedCursor(AtomicCursor);
 
 /// Completion-gated stage sync with per-worker claim cursors: each worker drains its own static
 /// sub-slice of every stage (for cache affinity), then steals. A stage advances when all its
@@ -38,7 +58,7 @@ impl StageSync {
             advance_ticket: AtomicUsize::new(0),
             completed: AtomicUsize::new(0),
             cursors: (0..num_workers)
-                .map(|_| PaddedCursor(AtomicU64::new(0)))
+                .map(|_| PaddedCursor(AtomicCursor::new(0)))
                 .collect(),
         }
     }
@@ -68,7 +88,9 @@ impl StageSync {
         // idempotent when the ticket CAS itself already stored it.
         self.advance_ticket.store(next, Ordering::Relaxed);
         for cursor in &self.cursors {
-            cursor.0.store((next as u64) << 32, Ordering::Relaxed);
+            cursor
+                .0
+                .store((next as CursorInt) << STAGE_SHIFT, Ordering::Relaxed);
         }
         self.completed.store(0, Ordering::Relaxed);
         self.published.store(next, Ordering::Release);
@@ -119,7 +141,7 @@ impl StageSync {
     ) -> Option<Range<usize>> {
         let len = range.end - range.start;
         let per_worker = len.div_ceil(self.num_workers);
-        let stage_tag = (stage as u64) << 32;
+        let stage_tag = (stage as CursorInt) << STAGE_SHIFT;
 
         for k in 0..self.num_workers {
             let victim = (worker_id + k) % self.num_workers;
@@ -133,19 +155,19 @@ impl StageSync {
             let cursor = &self.cursors[victim].0;
             let mut packed = cursor.load(Ordering::Relaxed);
             loop {
-                if packed & !0xFFFF_FFFF != stage_tag {
+                if packed & !POS_MASK != stage_tag {
                     // The machine advanced past the claimant's stage; everything
                     // it could claim is already done.
                     return None;
                 }
-                let got = (packed & 0xFFFF_FFFF) as usize;
+                let got = (packed & POS_MASK) as usize;
                 if got >= slice_len {
                     // This slice is exhausted (don't grow the cursor).
                     break;
                 }
                 match cursor.compare_exchange_weak(
                     packed,
-                    packed + batch as u64,
+                    packed + batch as CursorInt,
                     Ordering::AcqRel,
                     Ordering::Relaxed,
                 ) {

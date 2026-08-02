@@ -2393,7 +2393,11 @@ impl PhysicsPipeline {
     /// The number of worker threads :meth:`step` runs its parallel stages on.
     #[getter]
     fn num_threads(&self) -> usize {
-        self.0.num_threads()
+        // `None` means no dedicated pool: the step runs on whichever pool the
+        // calling thread is in, i.e. rayon's global one here.
+        self.0
+            .num_threads()
+            .unwrap_or_else(rapier::rayon::current_num_threads)
     }
 
     /// Choose how many worker threads :meth:`step` runs its parallel stages on.
@@ -2411,7 +2415,7 @@ impl PhysicsPipeline {
     #[pyo3(signature = (num_threads=None))]
     fn set_num_threads(&mut self, num_threads: Option<usize>) -> PyResult<()> {
         match num_threads {
-            None => self.0.clear_dedicated_thread_pool(),
+            None => self.0.clear_thread_pool(),
             Some(0) => {
                 return Err(pyo3::exceptions::PyValueError::new_err(
                     "num_threads must be >= 1 (pass None for rayon's default pool)",
@@ -2419,7 +2423,7 @@ impl PhysicsPipeline {
             }
             Some(n) => self
                 .0
-                .set_dedicated_thread_pool(Some(n))
+                .configure_thread_pool(n)
                 .map_err(|e| crate::errors::RapierError::new_err(e.to_string()))?,
         }
         Ok(())

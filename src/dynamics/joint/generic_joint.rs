@@ -329,6 +329,7 @@ impl GenericJoint {
     /// 2D angular motor (the workhorse of ragdoll joints); linear motors, 3D
     /// motors and coupled limit rows don't (yet) and fall back to the scalar
     /// path.
+    #[cfg(feature = "alloc")]
     pub(crate) fn supports_simd_constraints(&self) -> bool {
         #[cfg(feature = "dim2")]
         let motors_ok =
@@ -342,6 +343,7 @@ impl GenericJoint {
     /// The constraint-row layout signature of this joint: joints sharing it emit
     /// the same row sequence (kinds, axes and count), so they can share the
     /// lanes of one SIMD constraint group.
+    #[cfg(feature = "alloc")]
     pub(crate) fn simd_row_signature(&self) -> u32 {
         let locked = self.locked_axes.bits() as u32;
         let limits = (self.limit_axes.bits() & !self.locked_axes.bits()) as u32;

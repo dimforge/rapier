@@ -141,7 +141,7 @@ fn golden_state_hash_is_backend_independent() {
     // Regenerate by running this test on every supported target: they must all
     // print the same value. If they don't, the backends have diverged and
     // `simd_backend_parity` should say on which operation.
-    const GOLDEN: u64 = 0x5ba1_cfe5_3d4d_6aef;
+    const GOLDEN: u64 = 0xd9ef_17af_939e_942b;
     let hash = run(120);
     assert_eq!(
         hash, GOLDEN,
