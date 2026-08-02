@@ -16,7 +16,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
 
     for i in 0..n {
         let (ball_pos, attach) = (
-            Vector::new(i as Real * 2.2 * radius, 0.0, 0.0),
+            Vector::new(i as Real * 2.02 * radius, 0.0, 0.0),
             Vector::Y * length,
         );
         let vel = if i >= n - 1 {

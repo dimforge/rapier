@@ -17,9 +17,6 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
      * Create the balls
      */
     // Build the rigid body.
-    // NOTE: a smaller radius (e.g. 0.1) breaks Box2D so
-    // in order to be able to compare rapier with Box2D,
-    // we set it to 0.4.
     let rad = 0.4;
     let numi = 10; // Num vertical nodes.
     let numk = 10; // Num horizontal nodes.

@@ -1,73 +1,65 @@
+//! A wide brick-laid box pyramid: slightly shrunken 1.95-cubes on
+//! a 2.25 pitch with a 1.0 brick offset — which is *not* half of 2.25 — so the
+//! boxes rest on four **unequal** corner patches (0.95 and 0.70 wide). The
+//! asymmetry is deliberate: a perfectly symmetric brick is a degenerate,
+//! marginally-stable configuration.
+//!
+//! 50 layers with (50−i)² boxes per layer (~43k bodies), each box on
+//! four corner supports, dropped onto a large ground box.
+
 use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-fn create_pyramid(
-    bodies: &mut RigidBodySet,
-    colliders: &mut ColliderSet,
-    offset: Vec3,
-    stack_height: usize,
-    half_extents: Vec3,
-) {
-    let shift = half_extents * 2.5;
-    for i in 0usize..stack_height {
-        for j in i..stack_height {
-            for k in i..stack_height {
-                let fi = i as f32;
-                let fj = j as f32;
-                let fk = k as f32;
-                let x = (fi * shift.x / 2.0) + (fk - fi) * shift.x + offset.x
-                    - stack_height as f32 * half_extents.x;
-                let y = fi * shift.y + offset.y;
-                let z = (fi * shift.z / 2.0) + (fj - fi) * shift.z + offset.z
-                    - stack_height as f32 * half_extents.z;
+pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::new(0.0, -9.81, 0.0);
 
-                // Build the rigid body.
-                let rigid_body = RigidBodyBuilder::dynamic().translation(Vec3::new(x, y, z));
-                let rigid_body_handle = bodies.insert(rigid_body);
+    /*
+     * Ground: a 100×1×100 half-extents box at y = -1, so its top face is y = 0.
+     */
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -1.0, 0.0)),
+        ColliderBuilder::cuboid(100.0, 1.0, 100.0),
+    );
 
-                let collider =
-                    ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z);
-                colliders.insert_with_parent(collider, rigid_body_handle, bodies);
+    /*
+     * The pyramid.
+     */
+    let pyramid_height = 50i32;
+    let box_size = 2.0;
+    let box_separation = 0.5;
+    let half_box_size = 0.5 * box_size;
+    // Shrunken cube: the boxes never *quite* fill their lattice cell.
+    let h = half_box_size - 0.025;
+
+    for i in 0..pyramid_height {
+        // Odd layers are brick-offset by a half box (1.0) — note this is NOT
+        // half of the 2.25 lateral pitch, which is what makes the four corner
+        // supports unequal.
+        let brick = if i & 1 != 0 { half_box_size } else { 0.0 };
+        let y = 1.0 + (box_size + box_separation) * i as f32;
+
+        for j in i / 2..pyramid_height - (i + 1) / 2 {
+            for k in i / 2..pyramid_height - (i + 1) / 2 {
+                let x = -(pyramid_height as f32) + (box_size + 0.25) * j as f32 + brick;
+                let z = -(pyramid_height as f32) + (box_size + 0.25) * k as f32 + brick;
+
+                world.insert(
+                    RigidBodyBuilder::dynamic().translation(Vector::new(x, y, z)),
+                    // Water density (1000). For a uniform-density pile this
+                    // changes nothing dynamically (the soft-contact coefficients
+                    // are mass-normalized).
+                    ColliderBuilder::cuboid(h, h, h).density(1000.0),
+                );
             }
         }
     }
-}
-
-pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
-    /*
-     * World
-     */
-    let mut world = PhysicsWorld::new();
-
-    /*
-     * Ground
-     */
-    let ground_size = 50.0;
-    let ground_height = 0.1;
-
-    let rigid_body = RigidBodyBuilder::fixed().translation(Vec3::new(0.0, -ground_height, 0.0));
-    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-    let _ = world.insert(rigid_body, collider);
-
-    /*
-     * Create the cubes
-     */
-    let cube_size = 1.0;
-    let hext = Vec3::splat(cube_size);
-    let bottomy = cube_size;
-    create_pyramid(
-        &mut world.bodies,
-        &mut world.colliders,
-        Vec3::new(0.0, bottomy, 0.0),
-        24,
-        hext,
-    );
 
     /*
      * Set up the testbed.
      */
     viewer.set_world(&mut world);
-    viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
+    viewer.look_at(Vec3::new(200.0, 130.0, 200.0), Vec3::new(5.0, 50.0, 5.0));
 
     while viewer.render_frame(&mut world).await {
         if viewer.simulating() {

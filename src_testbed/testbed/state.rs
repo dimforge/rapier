@@ -112,6 +112,10 @@ pub struct TestbedState {
     pub example_settings: ExampleSettings,
     pub broad_phase_type: RapierBroadPhaseType,
     pub snapshot: Option<PhysicsSnapshot>,
+    /// Number of physics steps run since the example was (re)started. Bumped by
+    /// [`crate::TestbedViewer::simulating`], and carried through snapshot
+    /// save/restore so a restored world reports the step it was saved at.
+    pub timestep_id: usize,
     pub camera_locked: bool,
     pub selected_tab: UiTab,
     pub prev_save_data: SerializableTestbedState,
@@ -121,6 +125,11 @@ pub struct TestbedState {
     /// (`-up_axis`) instead of the hard-coded Y-axis it used to assume.
     /// Defaults to `Vector::Y`.
     pub up_axis: rapier::math::Vector,
+    /// Thread pool running the physics step, shared across example reloads: sized
+    /// to the performance cores (efficiency cores stall the solver's
+    /// barrier-paced parallel stages). Built lazily on the first `set_world`.
+    #[cfg(feature = "parallel")]
+    pub physics_thread_pool: Option<std::sync::Arc<rapier::rayon::ThreadPool>>,
 }
 
 impl Default for TestbedState {
@@ -130,6 +139,7 @@ impl Default for TestbedState {
             running: RunMode::Running,
             can_grab_behind_ground: false,
             snapshot: None,
+            timestep_id: 0,
             prev_flags: flags,
             flags,
             action_flags: TestbedActionFlags::APP_STARTED,
@@ -144,6 +154,8 @@ impl Default for TestbedState {
             selected_tab: UiTab::default(),
             prev_save_data: SerializableTestbedState::default(),
             up_axis: rapier::math::Vector::Y,
+            #[cfg(feature = "parallel")]
+            physics_thread_pool: None,
         }
     }
 }

@@ -45,36 +45,36 @@ fn setup_custom_theme(ctx: &egui::Context) {
 
         v.widgets.noninteractive.bg_fill = faint_bg;
         v.widgets.noninteractive.weak_bg_fill = faint_bg;
-        v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, stroke_color);
+        v.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, stroke_color);
         v.widgets.noninteractive.corner_radius = rounding;
-        v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, text_color);
+        v.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, text_color);
 
         v.widgets.inactive.bg_fill = widget_bg;
         v.widgets.inactive.weak_bg_fill = widget_bg;
-        v.widgets.inactive.bg_stroke = Stroke::new(1.0, stroke_color);
+        v.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, stroke_color);
         v.widgets.inactive.corner_radius = small_rounding;
-        v.widgets.inactive.fg_stroke = Stroke::new(1.0, text_color);
+        v.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, text_color);
 
         v.widgets.hovered.bg_fill = widget_bg_hover;
         v.widgets.hovered.weak_bg_fill = widget_bg_hover;
-        v.widgets.hovered.bg_stroke = Stroke::new(1.0, stroke_hover);
+        v.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, stroke_hover);
         v.widgets.hovered.corner_radius = small_rounding;
-        v.widgets.hovered.fg_stroke = Stroke::new(1.5, text_color);
+        v.widgets.hovered.fg_stroke = Stroke::new(1.5_f32, text_color);
 
         v.widgets.active.bg_fill = widget_bg_active;
         v.widgets.active.weak_bg_fill = widget_bg_active;
-        v.widgets.active.bg_stroke = Stroke::new(1.0, accent);
+        v.widgets.active.bg_stroke = Stroke::new(1.0_f32, accent);
         v.widgets.active.corner_radius = small_rounding;
-        v.widgets.active.fg_stroke = Stroke::new(2.0, accent_active);
+        v.widgets.active.fg_stroke = Stroke::new(2.0_f32, accent_active);
 
         v.widgets.open.bg_fill = widget_bg;
         v.widgets.open.weak_bg_fill = widget_bg;
-        v.widgets.open.bg_stroke = Stroke::new(1.0, stroke_color);
+        v.widgets.open.bg_stroke = Stroke::new(1.0_f32, stroke_color);
         v.widgets.open.corner_radius = small_rounding;
-        v.widgets.open.fg_stroke = Stroke::new(1.0, text_color);
+        v.widgets.open.fg_stroke = Stroke::new(1.0_f32, text_color);
 
         v.selection.bg_fill = accent.gamma_multiply(0.25);
-        v.selection.stroke = Stroke::new(1.0, accent);
+        v.selection.stroke = Stroke::new(1.0_f32, accent);
 
         v.hyperlink_color = accent;
         v.faint_bg_color = faint_bg;
@@ -85,7 +85,7 @@ fn setup_custom_theme(ctx: &egui::Context) {
 
         v.window_corner_radius = CornerRadius::same(8);
         v.window_fill = window_fill;
-        v.window_stroke = Stroke::new(1.0, stroke_color);
+        v.window_stroke = Stroke::new(1.0_f32, stroke_color);
 
         v.panel_fill = bg_fill;
 
@@ -144,7 +144,7 @@ pub(crate) fn update_ui(
                         settings_tab(ui, state, world, debug_render);
                     }
                     UiTab::Performance => {
-                        performance_tab(ui, world);
+                        performance_tab(ui, state, world);
                     }
                 });
 
@@ -173,6 +173,9 @@ pub(crate) fn update_ui(
                 if ui.button("Step").on_hover_text("Single step (S)").clicked() {
                     state.running = RunMode::Step;
                 }
+
+                ui.label(RichText::new(format!("#{}", state.timestep_id)).monospace())
+                    .on_hover_text("Steps run since the example started");
 
                 // Restart
                 if ui
@@ -361,14 +364,29 @@ fn settings_tab(
         world.gravity += up * (gravity_along_up - current);
     }
 
-    // Sleep
+    // Sleeping toggle (whole-island sleep is the only strategy).
     let mut sleep = state.flags.contains(TestbedStateFlags::SLEEP);
     if ui
-        .checkbox(&mut sleep, "Sleep enabled")
-        .on_hover_text("Allow resting bodies to sleep for better performance.")
+        .checkbox(&mut sleep, "Sleeping")
+        .on_hover_text(
+            "An island (touching-contact/joint connected component) falls \
+             asleep once all of its bodies settled; it sleeps and wakes as a \
+             unit.",
+        )
         .changed()
     {
         state.flags.set(TestbedStateFlags::SLEEP, sleep);
+        if sleep {
+            // Wake everything so the scene re-settles from a clean state.
+            // Field-borrow version of `PhysicsWorld::wake_up_all`
+            // (`integration_parameters` is still borrowed from `world` here).
+            let handles: Vec<_> = world.bodies.iter().map(|(h, _)| h).collect();
+            for handle in handles {
+                world.islands.wake_up(&mut world.bodies, handle, true);
+            }
+        }
+        // Disabling is applied by `handle_sleep_settings` reacting to the
+        // flag change (wakes everything and negates the sleep thresholds).
     }
 
     ui.add_space(8.0);
@@ -438,7 +456,7 @@ fn settings_tab(
         ui.add(
             Slider::new(
                 &mut integration_parameters.contact_softness.damping_ratio,
-                0.01..=20.0,
+                0.01..=100.0,
             )
             .text("Damping"),
         )
@@ -513,29 +531,68 @@ fn settings_tab(
         )
         .on_hover_text("Continuous collision detection substeps.");
 
-        ui.add(
-            Slider::new(&mut integration_parameters.min_island_size, 1..=10_000)
-                .text("Min island sz."),
-        )
-        .on_hover_text("Minimum bodies per simulation island.");
+        #[cfg(feature = "parallel")]
+        {
+            let max_threads = num_cpus::get();
+            let mut num_threads = state
+                .physics_thread_pool
+                .as_ref()
+                .map(|pool| pool.current_num_threads())
+                .unwrap_or_else(|| (max_threads.saturating_sub(1)).clamp(1, 8));
+
+            if ui
+                .add(Slider::new(&mut num_threads, 1..=max_threads).text("Solver threads"))
+                .on_hover_text(
+                    "Worker threads running the physics step. On heterogeneous CPUs,                      the performance-core count works best (efficiency cores stall                      the solver's barrier-paced stages).",
+                )
+                .changed()
+            {
+                if let Err(e) = world.configure_thread_pool(num_threads) {
+                    eprintln!("Failed to build the physics thread pool: {e}");
+                }
+                if let Some(pool) = world.thread_pool()
+                {
+                    state.physics_thread_pool = Some(pool);
+                }
+            }
+        }
 
         ui.add_space(8.0);
     }
 }
 
-fn performance_tab(ui: &mut Ui, world: &PhysicsWorld) {
+fn performance_tab(ui: &mut Ui, state: &TestbedState, world: &PhysicsWorld) {
     // ─────────────────────────────────────────────────────────────────
     // SCENE INFO
     // ─────────────────────────────────────────────────────────────────
     ui.label(RichText::new("Scene").strong());
     ui.add_space(2.0);
 
+    let num_contacts: usize = world
+        .narrow_phase
+        .contact_pairs()
+        .map(|pair| pair.manifolds.iter().map(|m| m.points.len()).sum::<usize>())
+        .sum();
+
+    let num_sleeping = world
+        .rigid_bodies()
+        .filter(|(_, rb)| rb.is_sleeping())
+        .count();
+
     egui::Grid::new("scene_grid")
         .num_columns(2)
         .spacing([20.0, 2.0])
         .show(ui, |ui| {
+            ui.label("Step:");
+            ui.label(format!("{}", state.timestep_id));
+            ui.end_row();
+
             ui.label("Bodies:");
             ui.label(format!("{}", world.bodies.len()));
+            ui.end_row();
+
+            ui.label("Sleeping:");
+            ui.label(format!("{}", num_sleeping));
             ui.end_row();
 
             ui.label("Colliders:");
@@ -545,6 +602,23 @@ fn performance_tab(ui: &mut Ui, world: &PhysicsWorld) {
             ui.label("Joints:");
             ui.label(format!("{}", world.impulse_joints.len()));
             ui.end_row();
+
+            ui.label("Contacts:");
+            ui.label(format!("{}", num_contacts));
+            ui.end_row();
+        });
+
+    // ─────────────────────────────────────────────────────────────────
+    // SERIALIZATION INFO
+    // ─────────────────────────────────────────────────────────────────
+    egui::CollapsingHeader::new("Serialization Hashes")
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(serialization_string(world))
+                    .small()
+                    .monospace(),
+            );
         });
 
     ui.add_space(8.0);
@@ -671,19 +745,6 @@ fn performance_tab(ui: &mut Ui, world: &PhysicsWorld) {
     ui.add_space(8.0);
     ui.separator();
     ui.add_space(4.0);
-
-    // ─────────────────────────────────────────────────────────────────
-    // SERIALIZATION INFO
-    // ─────────────────────────────────────────────────────────────────
-    egui::CollapsingHeader::new("Serialization Hashes")
-        .default_open(false)
-        .show(ui, |ui| {
-            ui.label(
-                egui::RichText::new(serialization_string(world))
-                    .small()
-                    .monospace(),
-            );
-        });
 }
 
 fn serialization_string(world: &PhysicsWorld) -> String {

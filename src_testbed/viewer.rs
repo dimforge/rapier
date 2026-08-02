@@ -46,6 +46,7 @@ use crate::testbed::state::{
     ExampleEntry, RunMode, TestbedActionFlags, TestbedState, TestbedStateFlags, Transition,
 };
 use crate::ui;
+use kiss3d::prelude::NumSamples;
 
 /// The example-owned-loop testbed viewer.
 ///
@@ -87,6 +88,8 @@ impl TestbedViewer {
         let mut window = Window::new_with_size(title, 1280, 720).await;
         window.set_background_color(Color::new(245.0 / 255.0, 245.0 / 255.0, 236.0 / 255.0, 1.0));
         window.set_ambient(0.1);
+        window.set_samples(NumSamples::One);
+        window.set_shadows_enabled(false);
 
         let mut camera = Camera::default();
 
@@ -159,6 +162,11 @@ impl TestbedViewer {
             .draw(self.state.flags, &world.bodies, &world.colliders);
         debug_render_scene(&mut self.window, &mut self.debug_render, world);
 
+        // Snapshot flags before the UI runs (`draw_ui` mutates `state.flags`) so next frame's
+        // handlers can detect toggles; syncing after `draw_ui` would consume the diff on the
+        // same frame and the handlers would never see it.
+        self.state.prev_flags = self.state.flags;
+
         // Disjoint field borrows: the closure captures `state`/`debug` while
         // `self.window` is the receiver.
         let state = &mut self.state;
@@ -166,46 +174,70 @@ impl TestbedViewer {
         self.window
             .draw_ui(|ctx| ui::update_ui(ctx, state, world, debug));
 
-        self.state.prev_flags = self.state.flags;
         self.state.transition.is_none()
     }
 
     /// Whether the simulation should advance this frame, honoring run/pause/step.
     /// A pending single-step is consumed (returns `true` once, then pauses).
     pub fn simulating(&mut self) -> bool {
-        match self.state.running {
+        let simulating = match self.state.running {
             RunMode::Stop => false,
             RunMode::Running => true,
             RunMode::Step => {
                 self.state.running = RunMode::Stop;
                 true
             }
+        };
+
+        if simulating {
+            self.state.timestep_id += 1;
         }
+
+        simulating
     }
 
     // ───────────────────────── scene registration ───────────────────────────
 
-    /// Registers render nodes for the world the example just built, configures
-    /// the selected broad-phase, and enables the profiling counters.
-    ///
-    /// Render-node creation is deferred to the next frame so example code can
-    /// still set initial body/collider colors after calling this.
+    /// Registers render nodes for the world the example just built, configures the selected
+    /// broad-phase, and enables the profiling counters. Render-node creation is deferred to
+    /// the next frame so example code can still set initial colors after calling this.
     pub fn set_world(&mut self, world: &mut PhysicsWorld) {
         world.broad_phase = self.state.broad_phase_type.init_broad_phase();
         world.physics_pipeline.counters.enable();
+
+        // Dedicated physics pool of `cores - 1` threads capped at 8: leave a core for the
+        // render thread and avoid heterogeneous CPUs' efficiency cores (they stall the solver's
+        // barrier-paced stages). Built once, shared across example reloads.
+        #[cfg(feature = "parallel")]
+        {
+            if self.state.physics_thread_pool.is_none() {
+                let num_threads = (num_cpus::get().saturating_sub(1)).clamp(1, 8);
+                if let Err(e) = world.configure_thread_pool(num_threads) {
+                    eprintln!("Failed to build the physics thread pool: {e}");
+                }
+                self.state.physics_thread_pool = world.thread_pool();
+            } else {
+                world.clear_thread_pool();
+            }
+        }
         self.state
             .action_flags
             .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
+
+        // Honor the current sleep setting on the freshly built bodies: the
+        // flag-diff handler only fires on toggles, so without this a restart
+        // with sleeping disabled would silently let the new bodies sleep again.
+        self.apply_sleep_flag(world);
     }
 
-    /// Clears the scene and resets per-example viewer state. Called by the outer
-    /// demo runner between examples. A switch caused by a restart / backend /
-    /// solver-parameter change preserves the camera and the user's setting
-    /// edits; selecting a different example resets both.
+    /// Clears the scene and resets per-example viewer state (called by the outer demo runner
+    /// between examples). A restart / backend / solver-parameter switch preserves the camera
+    /// and the user's setting edits; selecting a different example resets both.
     pub fn clear_scene(&mut self) {
         self.graphics.clear();
         self.state.transition = None;
         self.state.snapshot = None;
+        self.state.timestep_id = 0;
         self.state.action_flags = TestbedActionFlags::empty();
 
         if self.state.preserve_settings_on_switch {
@@ -476,7 +508,7 @@ impl TestbedViewer {
             self.state
                 .action_flags
                 .set(TestbedActionFlags::TAKE_SNAPSHOT, false);
-            self.state.snapshot = Some(snapshot_world(world, 0));
+            self.state.snapshot = Some(snapshot_world(world, self.state.timestep_id));
         }
 
         if self
@@ -488,7 +520,7 @@ impl TestbedViewer {
                 .action_flags
                 .set(TestbedActionFlags::RESTORE_SNAPSHOT, false);
             if let Some(snapshot) = &self.state.snapshot {
-                restore_world(world, snapshot);
+                self.state.timestep_id = restore_world(world, snapshot);
                 self.state
                     .action_flags
                     .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, true);
@@ -554,18 +586,25 @@ impl TestbedViewer {
         if self.state.prev_flags.contains(TestbedStateFlags::SLEEP)
             != self.state.flags.contains(TestbedStateFlags::SLEEP)
         {
-            if self.state.flags.contains(TestbedStateFlags::SLEEP) {
-                for (_, body) in world.bodies.iter_mut() {
-                    body.activation_mut().normalized_linear_threshold =
-                        RigidBodyActivation::default_normalized_linear_threshold();
-                    body.activation_mut().angular_threshold =
-                        RigidBodyActivation::default_angular_threshold();
-                }
-            } else {
-                for (_, body) in world.bodies.iter_mut() {
-                    body.wake_up(true);
-                    body.activation_mut().normalized_linear_threshold = -1.0;
-                }
+            self.apply_sleep_flag(world);
+        }
+    }
+
+    /// Applies the current `SLEEP` flag to every body (and the selected sleep strategy to the
+    /// island manager). Called on toggle *and* on fresh-world builds (restart / scene switch),
+    /// so newly created bodies honor the setting.
+    fn apply_sleep_flag(&self, world: &mut PhysicsWorld) {
+        if self.state.flags.contains(TestbedStateFlags::SLEEP) {
+            for (_, body) in world.bodies.iter_mut() {
+                body.activation_mut().normalized_linear_threshold =
+                    RigidBodyActivation::default_normalized_linear_threshold();
+                body.activation_mut().angular_threshold =
+                    RigidBodyActivation::default_angular_threshold();
+            }
+        } else {
+            for (_, body) in world.bodies.iter_mut() {
+                body.wake_up(true);
+                body.activation_mut().normalized_linear_threshold = -1.0;
             }
         }
     }

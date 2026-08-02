@@ -1,8 +1,4 @@
-use rapier::dynamics::{ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodySet};
-use rapier::geometry::{
-    BroadPhaseBvh, BvhOptimizationStrategy, ColliderSet, CollisionEvent, ContactForceEvent,
-    DefaultBroadPhase, NarrowPhase,
-};
+use rapier::geometry::{BroadPhaseBvh, BvhOptimizationStrategy, CollisionEvent, ContactForceEvent};
 use rapier::pipeline::PhysicsWorld;
 use std::sync::mpsc::Receiver;
 
@@ -29,109 +25,66 @@ impl RapierBroadPhaseType {
 
 /// Snapshots the full simulation state of a [`PhysicsWorld`].
 pub fn snapshot_world(world: &PhysicsWorld, timestep_id: usize) -> PhysicsSnapshot {
-    PhysicsSnapshot::new(
-        timestep_id,
-        &world.broad_phase,
-        &world.narrow_phase,
-        &world.islands,
-        &world.bodies,
-        &world.colliders,
-        &world.impulse_joints,
-        &world.multibody_joints,
-    )
-    .expect("Failed to create physics snapshot")
+    PhysicsSnapshot::new(timestep_id, world).expect("Failed to create physics snapshot")
 }
 
-/// Restores a [`PhysicsWorld`] from a snapshot produced by [`snapshot_world`].
-pub fn restore_world(world: &mut PhysicsWorld, snapshot: &PhysicsSnapshot) {
-    let restored = snapshot
+/// Restores a [`PhysicsWorld`] from a snapshot produced by [`snapshot_world`],
+/// returning the timestep id the snapshot was taken at.
+pub fn restore_world(world: &mut PhysicsWorld, snapshot: &PhysicsSnapshot) -> usize {
+    let (restored, timestep_id) = snapshot
         .restore()
         .expect("Failed to restore physics snapshot");
-    world.broad_phase = restored.broad_phase;
-    world.narrow_phase = restored.narrow_phase;
-    world.islands = restored.island_manager;
-    world.bodies = restored.bodies;
-    world.colliders = restored.colliders;
-    world.impulse_joints = restored.impulse_joints;
-    world.multibody_joints = restored.multibody_joints;
+    let PhysicsWorld {
+        gravity,
+        integration_parameters,
+        physics_pipeline: _,
+        islands,
+        broad_phase,
+        narrow_phase,
+        bodies,
+        colliders,
+        impulse_joints,
+        multibody_joints,
+        ccd_solver: _,
+    } = restored;
+    world.gravity = gravity;
+    world.integration_parameters = integration_parameters;
+    world.islands = islands;
+    world.broad_phase = broad_phase;
+    world.narrow_phase = narrow_phase;
+    world.bodies = bodies;
+    world.colliders = colliders;
+    world.impulse_joints = impulse_joints;
+    world.multibody_joints = multibody_joints;
+    timestep_id
 }
 
+/// A serialized [`PhysicsWorld`], plus the timestep it was taken at.
+///
+/// The world serializes exactly the state a step reads (see [`PhysicsWorld`]); the
+/// destructuring in [`restore_world`] is deliberate, so a new field there has to be
+/// considered here rather than silently dropped.
 #[derive(Clone)]
 pub struct PhysicsSnapshot {
     timestep_id: usize,
-    broad_phase: Vec<u8>,
-    narrow_phase: Vec<u8>,
-    bodies: Vec<u8>,
-    colliders: Vec<u8>,
-    impulse_joints: Vec<u8>,
-    multibody_joints: Vec<u8>,
-    island_manager: Vec<u8>,
-}
-
-pub struct DeserializedPhysicsSnapshot {
-    pub timestep_id: usize,
-    pub broad_phase: DefaultBroadPhase,
-    pub narrow_phase: NarrowPhase,
-    pub island_manager: IslandManager,
-    pub bodies: RigidBodySet,
-    pub colliders: ColliderSet,
-    pub impulse_joints: ImpulseJointSet,
-    pub multibody_joints: MultibodyJointSet,
+    world: Vec<u8>,
 }
 
 impl PhysicsSnapshot {
-    pub fn new(
-        timestep_id: usize,
-        broad_phase: &DefaultBroadPhase,
-        narrow_phase: &NarrowPhase,
-        island_manager: &IslandManager,
-        bodies: &RigidBodySet,
-        colliders: &ColliderSet,
-        impulse_joints: &ImpulseJointSet,
-        multibody_joints: &MultibodyJointSet,
-    ) -> bincode::Result<Self> {
+    pub fn new(timestep_id: usize, world: &PhysicsWorld) -> bincode::Result<Self> {
         Ok(Self {
             timestep_id,
-            broad_phase: bincode::serialize(broad_phase)?,
-            narrow_phase: bincode::serialize(narrow_phase)?,
-            island_manager: bincode::serialize(island_manager)?,
-            bodies: bincode::serialize(bodies)?,
-            colliders: bincode::serialize(colliders)?,
-            impulse_joints: bincode::serialize(impulse_joints)?,
-            multibody_joints: bincode::serialize(multibody_joints)?,
+            world: bincode::serialize(world)?,
         })
     }
 
     #[profiling::function]
-    pub fn restore(&self) -> bincode::Result<DeserializedPhysicsSnapshot> {
-        Ok(DeserializedPhysicsSnapshot {
-            timestep_id: self.timestep_id,
-            broad_phase: bincode::deserialize(&self.broad_phase)?,
-            narrow_phase: bincode::deserialize(&self.narrow_phase)?,
-            island_manager: bincode::deserialize(&self.island_manager)?,
-            bodies: bincode::deserialize(&self.bodies)?,
-            colliders: bincode::deserialize(&self.colliders)?,
-            impulse_joints: bincode::deserialize(&self.impulse_joints)?,
-            multibody_joints: bincode::deserialize(&self.multibody_joints)?,
-        })
+    pub fn restore(&self) -> bincode::Result<(PhysicsWorld, usize)> {
+        Ok((bincode::deserialize(&self.world)?, self.timestep_id))
     }
 
     pub fn print_snapshot_len(&self) {
-        let total = self.broad_phase.len()
-            + self.narrow_phase.len()
-            + self.island_manager.len()
-            + self.bodies.len()
-            + self.colliders.len()
-            + self.impulse_joints.len()
-            + self.multibody_joints.len();
-        println!("Snapshot length: {total}B");
-        println!("|_ broad_phase: {}B", self.broad_phase.len());
-        println!("|_ narrow_phase: {}B", self.narrow_phase.len());
-        println!("|_ island_manager: {}B", self.island_manager.len());
-        println!("|_ bodies: {}B", self.bodies.len());
-        println!("|_ colliders: {}B", self.colliders.len());
-        println!("|_ impulse_joints: {}B", self.impulse_joints.len());
-        println!("|_ multibody_joints: {}B", self.multibody_joints.len());
+        println!("Snapshot length: {}B", self.world.len());
     }
 }
 

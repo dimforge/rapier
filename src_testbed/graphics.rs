@@ -23,6 +23,75 @@ pub enum ShapeTemplateType {
     Cylinder,
     #[cfg(feature = "dim3")]
     Cone,
+    /// A convex hull (polyhedron in 3D, polygon in 2D), keyed by a hash of its
+    /// vertices so that identical hulls (e.g. thousands of copies of the same
+    /// shape) share one instanced mesh instead of one individual mesh each.
+    Convex(u64),
+}
+
+/// Hash a convex polyhedron's vertices so identical hulls map to the same
+/// instancing template. Returns `None` for non-convex shapes.
+#[cfg(feature = "dim3")]
+fn convex_shape_hash(shape: &dyn Shape) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+
+    let poly = shape
+        .as_convex_polyhedron()
+        .or_else(|| shape.as_round_convex_polyhedron().map(|rp| &rp.inner_shape))?;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let points = poly.points();
+    points.len().hash(&mut hasher);
+    for p in points {
+        (p.x as f32).to_bits().hash(&mut hasher);
+        (p.y as f32).to_bits().hash(&mut hasher);
+        (p.z as f32).to_bits().hash(&mut hasher);
+    }
+    // Fold in the border radius so round/non-round variants don't collide.
+    if let Some(rp) = shape.as_round_convex_polyhedron() {
+        (rp.border_radius as f32).to_bits().hash(&mut hasher);
+    }
+    Some(hasher.finish())
+}
+
+/// 2D counterpart: hash a convex polygon's vertices.
+#[cfg(feature = "dim2")]
+fn convex_shape_hash(shape: &dyn Shape) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+
+    let poly = shape
+        .as_convex_polygon()
+        .or_else(|| shape.as_round_convex_polygon().map(|rp| &rp.inner_shape))?;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let points = poly.points();
+    points.len().hash(&mut hasher);
+    for p in points {
+        (p.x as f32).to_bits().hash(&mut hasher);
+        (p.y as f32).to_bits().hash(&mut hasher);
+    }
+    if let Some(rp) = shape.as_round_convex_polygon() {
+        (rp.border_radius as f32).to_bits().hash(&mut hasher);
+    }
+    Some(hasher.finish())
+}
+
+/// Build a kiss3d render mesh for a convex polyhedron (used as an instancing
+/// template). Returns `None` for non-convex shapes.
+#[cfg(feature = "dim3")]
+fn convex_render_mesh(shape: &dyn Shape) -> Option<kiss3d::procedural::RenderMesh> {
+    use kiss3d::procedural::{IndexBuffer, RenderMesh};
+
+    let poly = shape
+        .as_convex_polyhedron()
+        .or_else(|| shape.as_round_convex_polyhedron().map(|rp| &rp.inner_shape))?;
+    let (vertices, indices) = poly.to_trimesh();
+    let vtx = vertices
+        .iter()
+        .map(|pt| Vec3::new(pt.x as f32, pt.y as f32, pt.z as f32))
+        .collect();
+    let mut mesh = RenderMesh::new(vtx, None, None, Some(IndexBuffer::Unified(indices)));
+    mesh.replicate_vertices();
+    mesh.recompute_normals();
+    Some(mesh)
 }
 
 /// Info about an instanced collider
@@ -36,9 +105,20 @@ pub struct InstancedCollider {
     pub tmp_color: Option<Color>,
 }
 
-/// A template node that can render multiple instances
+/// A template node that can render multiple instances.
+///
+/// The instances are split across two scene nodes sharing the same geometry:
+/// opaque instances render through `node`, translucent ones through
+/// `transparent_node`. kiss3d classifies a whole instanced node into a single
+/// render pass (opaque vs. order-independent transparency) from that node's
+/// base-color alpha, so opaque and translucent instances — e.g. a solid box
+/// next to a semi-transparent sensor of the same shape — cannot coexist in one
+/// node without the translucent ones being drawn opaque.
 pub struct ShapeTemplate {
+    /// Opaque instances (`color.a >= 1.0`), drawn in the opaque pass.
     pub node: SceneNode,
+    /// Translucent instances (`color.a < 1.0`), drawn in the transparent pass.
+    pub transparent_node: SceneNode,
     pub colliders: Vec<InstancedCollider>,
 }
 
@@ -121,6 +201,16 @@ const GROUND_COLOR: Color = Color {
     a: 1.0,
 };
 
+/// Base-color alpha applied to the transparent instance node of every shape
+/// template. kiss3d routes an entire instanced node to either the opaque or the
+/// order-independent-transparency pass based on the node's base-color alpha
+/// (`< 1.0` ⇒ transparent). The fragment shader then multiplies each instance's
+/// own alpha by this base alpha, so we keep it a hair under 1.0: close enough to
+/// leave per-instance alpha visually untouched, yet still `< 1.0` so translucent
+/// instances land in the transparency pass instead of being drawn opaque.
+#[cfg(feature = "dim3")]
+const TRANSPARENT_NODE_BASE_ALPHA: f32 = 1.0 - f32::EPSILON;
+
 /// PBR shading parameters for a body render mesh, applied on top of its base
 /// color/texture.
 #[derive(Copy, Clone, Debug)]
@@ -176,11 +266,6 @@ impl GraphicsManager {
                 .scene
                 .add_light(Light::directional(Vec3::new(-1.0, -1.0, -1.0)));
             light.set_position(Vec3::new(100.0, 100.0, 100.0));
-
-            let mut light = self
-                .scene
-                .add_light(Light::point(10000.0).with_intensity(1.0));
-            light.set_position(Vec3::new(-100.0, 100.0, -100.0));
         }
 
         self.templates.clear();
@@ -376,41 +461,83 @@ impl GraphicsManager {
 
     /// Get or create a template node for a shape type
     #[cfg(feature = "dim3")]
-    fn get_or_create_template(&mut self, template_type: ShapeTemplateType) -> &mut ShapeTemplate {
+    fn get_or_create_template(
+        &mut self,
+        template_type: ShapeTemplateType,
+        shape: &dyn Shape,
+    ) -> &mut ShapeTemplate {
         self.templates
             .entry(template_type.clone())
             .or_insert_with(|| {
-                // Create a unit-sized template node
-                let node = match template_type {
-                    ShapeTemplateType::Ball => self.scene.add_sphere_with_subdiv(1.0, 20, 20),
-                    ShapeTemplateType::Cuboid => self.scene.add_cube(2.0, 2.0, 2.0),
-                    // ShapeTemplateType::Capsule => self.scene.add_capsule(1.0, 2.0),
-                    ShapeTemplateType::Cylinder => self.scene.add_cylinder(1.0, 2.0),
-                    ShapeTemplateType::Cone => self.scene.add_cone(1.0, 2.0),
+                // Create a unit-sized template node. Built twice so opaque and
+                // translucent instances get their own node in the right pass.
+                let make_node = |scene: &mut SceneNode| match template_type {
+                    ShapeTemplateType::Ball => scene.add_sphere_with_subdiv(1.0, 20, 20),
+                    ShapeTemplateType::Cuboid => scene.add_cube(2.0, 2.0, 2.0),
+                    // ShapeTemplateType::Capsule => scene.add_capsule(1.0, 2.0),
+                    ShapeTemplateType::Cylinder => scene.add_cylinder(1.0, 2.0),
+                    ShapeTemplateType::Cone => scene.add_cone(1.0, 2.0),
+                    // The convex mesh is baked at unit scale from the first
+                    // hull with this key; all instances share that geometry.
+                    ShapeTemplateType::Convex(_) => {
+                        scene.add_render_mesh(convex_render_mesh(shape).unwrap(), Vec3::ONE)
+                    }
                 };
+                let node = make_node(&mut self.scene);
+                let mut transparent_node = make_node(&mut self.scene);
+                // Force this node into the transparency pass: base alpha `< 1.0`
+                // routes it to OIT, and an explicit Blend mode makes the
+                // classification independent of the node's default.
+                transparent_node.set_alpha_mode(kiss3d::scene::AlphaMode::Blend);
+                transparent_node.set_color(Color::new(1.0, 1.0, 1.0, TRANSPARENT_NODE_BASE_ALPHA));
                 ShapeTemplate {
                     node,
+                    transparent_node,
                     colliders: Vec::new(),
                 }
             })
     }
 
     #[cfg(feature = "dim2")]
-    fn get_or_create_template(&mut self, template_type: ShapeTemplateType) -> &mut ShapeTemplate {
+    fn get_or_create_template(
+        &mut self,
+        template_type: ShapeTemplateType,
+        _shape: &dyn Shape,
+    ) -> &mut ShapeTemplate {
         self.templates
             .entry(template_type.clone())
             .or_insert_with(|| {
-                // Create a unit-sized template node
-                let node = match template_type {
-                    ShapeTemplateType::Ball => self.scene.add_circle(1.0),
-                    ShapeTemplateType::Cuboid => self.scene.add_rectangle(2.0, 2.0),
+                // Create a unit-sized template node. Built twice so opaque and
+                // translucent instances get their own node, mirroring the 3D
+                // path; in 2D everything already alpha-blends, so the split
+                // only affects draw order (translucent instances drawn last).
+                let make_node = |scene: &mut SceneNode| match template_type {
+                    ShapeTemplateType::Ball => scene.add_circle(1.0),
+                    ShapeTemplateType::Cuboid => scene.add_rectangle(2.0, 2.0),
                     // ShapeTemplateType::Capsule => {
                     //     // Use proper 2D capsule with unit radius and unit half-height
-                    //     window.add_capsule_2d(1.0, 2.0)
+                    //     scene.add_capsule_2d(1.0, 2.0)
                     // }
+                    // The polygon is baked at unit scale from the first hull
+                    // with this key; all instances share that geometry.
+                    ShapeTemplateType::Convex(_) => {
+                        let poly = _shape
+                            .as_convex_polygon()
+                            .or_else(|| _shape.as_round_convex_polygon().map(|rp| &rp.inner_shape))
+                            .unwrap();
+                        let vertices: Vec<Vec2> = poly
+                            .points()
+                            .iter()
+                            .map(|pt| Vec2::new(pt.x as f32, pt.y as f32))
+                            .collect();
+                        scene.add_convex_polygon(vertices, Vec2::ONE)
+                    }
                 };
+                let node = make_node(&mut self.scene);
+                let transparent_node = make_node(&mut self.scene);
                 ShapeTemplate {
                     node,
+                    transparent_node,
                     colliders: Vec::new(),
                 }
             })
@@ -426,6 +553,14 @@ impl GraphicsManager {
             ShapeType::Cylinder | ShapeType::RoundCylinder => Some(ShapeTemplateType::Cylinder),
             #[cfg(feature = "dim3")]
             ShapeType::Cone | ShapeType::RoundCone => Some(ShapeTemplateType::Cone),
+            #[cfg(feature = "dim3")]
+            ShapeType::ConvexPolyhedron | ShapeType::RoundConvexPolyhedron => {
+                convex_shape_hash(shape).map(ShapeTemplateType::Convex)
+            }
+            #[cfg(feature = "dim2")]
+            ShapeType::ConvexPolygon | ShapeType::RoundConvexPolygon => {
+                convex_shape_hash(shape).map(ShapeTemplateType::Convex)
+            }
             _ => None,
         }
     }
@@ -726,12 +861,12 @@ impl GraphicsManager {
             return;
         }
 
-        let opacity = if sensor { 0.5 } else { 1.0 };
+        let opacity = if sensor { 0.5 } else { color.a };
 
         // Try to use instancing for primitive shapes
         if let Some(template_type) = Self::shape_template_type(shape) {
             let half_extents = Self::shape_half_extents(shape);
-            let template = self.get_or_create_template(template_type.clone());
+            let template = self.get_or_create_template(template_type.clone(), shape);
             let index = template.colliders.len();
             template.colliders.push(InstancedCollider {
                 collider: handle,
@@ -981,9 +1116,9 @@ impl GraphicsManager {
 
         // Update instance data for all templates
         for (template_type, template) in &mut self.templates {
-            template
-                .node
-                .set_visible(show_colliders && !template.colliders.is_empty());
+            let visible = show_colliders && !template.colliders.is_empty();
+            template.node.set_visible(visible);
+            template.transparent_node.set_visible(visible);
 
             if template.colliders.is_empty() {
                 continue;
@@ -1062,6 +1197,9 @@ impl GraphicsManager {
                                 ic.half_extents.z as f32,
                             )
                         }
+                        // Convex meshes bake their geometry into the template
+                        // at unit scale, so no per-instance scaling.
+                        ShapeTemplateType::Convex(_) => Vec3::ONE,
                     };
 
                     let scale_mat = Mat3::from_diagonal(scale);
@@ -1079,7 +1217,13 @@ impl GraphicsManager {
                 })
                 .collect();
 
-            template.node.set_instances(&instances);
+            // Route each instance to the node whose pass matches its opacity so
+            // translucent instances (e.g. sensors) blend instead of drawing
+            // opaque (see `ShapeTemplate`).
+            let (transparent, opaque): (Vec<_>, Vec<_>) =
+                instances.into_iter().partition(|i| i.color.a < 1.0);
+            template.node.set_instances(&opaque);
+            template.transparent_node.set_instances(&transparent);
         }
 
         // Update individual nodes. Colliders are colliders — whatever
@@ -1126,9 +1270,9 @@ impl GraphicsManager {
 
         // Update instance data for all templates
         for (template_type, template) in &mut self.templates {
-            template
-                .node
-                .set_visible(show_colliders && !template.colliders.is_empty());
+            let visible = show_colliders && !template.colliders.is_empty();
+            template.node.set_visible(visible);
+            template.transparent_node.set_visible(visible);
 
             if template.colliders.is_empty() {
                 continue;
@@ -1177,6 +1321,9 @@ impl GraphicsManager {
                             // Cuboid template is 2x2, scale by half_extents
                             Vec2::new(ic.half_extents.x as f32, ic.half_extents.y as f32)
                         }
+                        // Convex polygons bake their geometry into the template
+                        // at unit scale, so no per-instance scaling.
+                        ShapeTemplateType::Convex(_) => Vec2::ONE,
                     };
 
                     let scale_mat = Mat2::from_diagonal(scale);
@@ -1194,7 +1341,13 @@ impl GraphicsManager {
                 })
                 .collect();
 
-            template.node.set_instances(&instances);
+            // Split opaque and translucent instances into their respective
+            // nodes, mirroring the 3D path (see `ShapeTemplate`). 2D always
+            // alpha-blends, so this only affects draw order.
+            let (transparent, opaque): (Vec<_>, Vec<_>) =
+                instances.into_iter().partition(|i| i.color[3] < 1.0);
+            template.node.set_instances(&opaque);
+            template.transparent_node.set_instances(&transparent);
         }
 
         // Update individual nodes

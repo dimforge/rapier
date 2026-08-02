@@ -37,6 +37,17 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(0);
     let distribution = StandardUniform;
 
+    let poly_shape: Vec<_> = (0..5)
+        .map(|_| {
+            let mut points = Vec::new();
+            for _ in 0..10 {
+                let pt: [f32; 3] = distribution.sample(&mut rng);
+                points.push(Vec3::from(pt) * scale);
+            }
+            SharedShape::round_convex_hull(&points, border_rad).unwrap()
+        })
+        .collect();
+
     for j in 0usize..47 {
         for i in 0..num {
             for k in 0usize..num {
@@ -44,15 +55,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
                 let y = j as f32 * shift + centery + 3.0;
                 let z = k as f32 * shift - centerz + offset;
 
-                let mut points = Vec::new();
-                for _ in 0..10 {
-                    let pt: [f32; 3] = distribution.sample(&mut rng);
-                    points.push(Vec3::from(pt) * scale);
-                }
-
                 // Build the rigid body.
                 let rigid_body = RigidBodyBuilder::dynamic().translation(Vec3::new(x, y, z));
-                let collider = ColliderBuilder::round_convex_hull(&points, border_rad).unwrap();
+                let collider = ColliderBuilder::new(poly_shape[(i + k) % 5].clone());
                 let _ = world.insert(rigid_body, collider);
             }
         }

@@ -1,7 +1,7 @@
 use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 
-const MAX_NUMBER_OF_BODIES: usize = 400;
+const MAX_NUMBER_OF_BODIES: usize = 2000;
 
 pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
@@ -14,12 +14,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let ground_size = 40.0;
     let ground_height = 2.1; // 16.0;
 
-    for k in 0..3 {
-        let rigid_body =
-            RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height - k as f32, 0.0));
-        let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
-        let (_handle, _) = world.insert(rigid_body, collider);
-    }
+    let rigid_body = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -ground_height, 0.0));
+    let collider = ColliderBuilder::cuboid(ground_size, ground_height, ground_size);
+    let (_handle, _) = world.insert(rigid_body, collider);
 
     /*
      * Set up the viewer.
