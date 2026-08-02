@@ -202,9 +202,7 @@ impl RawRigidBodySet {
     /// wasn't moving before modifying its position.
     #[cfg(feature = "dim2")]
     pub fn rbSetRotation(&mut self, handle: FlatHandle, angle: f32, wakeUp: bool) {
-        self.map_mut(handle, |rb| {
-            rb.set_rotation(Rotation::new(angle), wakeUp)
-        })
+        self.map_mut(handle, |rb| rb.set_rotation(Rotation::new(angle), wakeUp))
     }
 
     /// Sets the linear velocity of this rigid-body.

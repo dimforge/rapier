@@ -20,10 +20,6 @@ Until **rapier** reaches 1.0, it is strongly recommended to always use its
 latest published version, though you may encounter breaking changes from time to time.
 
 To get the best of **rapier** multiple features can be enabled optionally:
-- `simd-stable`: enables explicit SIMD optimizations using the [`wide` crate](https://crates.io/crates/wide).
-Has limited cross-platform support but can be used with a stable version of the Rust compiler.
-- `simd-nightly`: enables explicit SIMD optimizations using the [`packed_simd` crate](https://crates.io/crates/packed_simd).
-Has a great cross-platform support but requires a nightly version of the Rust compiler.
 - `parallel`: enables parallelism of the physics pipeline with the [`rayon` crate](https://crates.io/crates/rayon).
 - `serde-serialize`: enables serialization of the physics components with [`serde`](https://github.com/serde-rs/serde).
 - `enhanced-determinism`: enables cross-platform determinism (assuming the rest of your code is also deterministic) across
@@ -31,14 +27,18 @@ Has a great cross-platform support but requires a nightly version of the Rust co
  IEEE 754-2008 standard strictly. This includes most modern processors as well as WASM targets.
 - `wasm-bindgen`: enables usage of `rapier` as a dependency of a WASM crate that is compiled with `wasm-bindgen`.
 
+SIMD optimizations (based on the [`wide` crate](https://crates.io/crates/wide)) are always enabled: the
+solver processes 4 contact manifolds per instruction, and falls back to scalar code on targets without
+SIMD support.
+
 :::warning
 Enabling parallelism is only useful if the scene being simulated has a high number of moving rigid-bodies, colliders,
 and/or joints. If the simulation isn't sufficiently complex, the parallelism may actually make the simulation slower
 because of the parallelism overhead.
 :::
 
-Currently, the `enhanced-determinism` feature cannot be enabled at the same time as the `parallel` or
-`simd-{stable,nightly}` features.
+Currently, the `enhanced-determinism` feature cannot be enabled at the same time as the `simd8` feature,
+which changes the SIMD lane width and is therefore its own determinism domain.
 
 ## Cargo example
 <Tabs
@@ -58,7 +58,7 @@ authors = [ "You" ]
 
 [dependencies]
 # TODO: Replace the * by the latest version number.
-rapier2d = { version = "*", features = [ "simd-stable" ] }
+rapier2d = { version = "*" }
 
 [[bin]]
 name = "example"
@@ -76,7 +76,7 @@ authors = [ "You" ]
 
 [dependencies]
 # TODO: Replace the * by the latest version number.
-rapier3d = { version = "*", features = [ "simd-stable" ] }
+rapier3d = { version = "*" }
 
 [[bin]]
 name = "example"

@@ -36,7 +36,11 @@ pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multipl
 numpy = "0.22"
 nalgebra.workspace = true
 thiserror.workspace = true
-rapier3d = { workspace = true, features = ["serde-serialize", "debug-render", "simd-stable"] }
+rapier3d = { workspace = true, features = [
+    "serde-serialize",
+    "debug-render",
+    "parallel",
+] }
 # Phase 09 — Loaders. URDF + MJCF + mesh. Mesh-loader features are
 # explicitly enabled so .stl / .obj / .dae meshes referenced from URDF /
 # MJCF files work out of the box.

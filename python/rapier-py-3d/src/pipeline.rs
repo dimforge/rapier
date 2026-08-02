@@ -2390,6 +2390,41 @@ impl PhysicsPipeline {
         Counters(self.0.counters)
     }
 
+    /// The number of worker threads :meth:`step` runs its parallel stages on.
+    #[getter]
+    fn num_threads(&self) -> usize {
+        self.0.num_threads()
+    }
+
+    /// Choose how many worker threads :meth:`step` runs its parallel stages on.
+    ///
+    /// The pipeline gets its own thread pool, so this is independent of any other
+    /// pipeline and of rayon's global pool. ``1`` runs everything inline on the
+    /// calling thread.
+    ///
+    /// :param num_threads: Worker count, or ``None`` to go back to rayon's global
+    ///     pool (as many workers as logical CPUs). On CPUs mixing performance and
+    ///     efficiency cores, prefer the performance-core count: the solver's stages
+    ///     advance at the speed of their slowest worker.
+    /// :raises ValueError: If ``num_threads`` is 0.
+    /// :raises RapierError: If the thread pool could not be built.
+    #[pyo3(signature = (num_threads=None))]
+    fn set_num_threads(&mut self, num_threads: Option<usize>) -> PyResult<()> {
+        match num_threads {
+            None => self.0.clear_dedicated_thread_pool(),
+            Some(0) => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "num_threads must be >= 1 (pass None for rayon's default pool)",
+                ));
+            }
+            Some(n) => self
+                .0
+                .set_dedicated_thread_pool(Some(n))
+                .map_err(|e| crate::errors::RapierError::new_err(e.to_string()))?,
+        }
+        Ok(())
+    }
+
     /// Advance the simulation by one step.
     ///
     /// Releases the GIL via ``Python::allow_threads`` while the
@@ -2814,6 +2849,29 @@ impl PhysicsWorld {
     #[getter]
     fn query_pipeline(&self, py: Python<'_>) -> Py<QueryPipeline> {
         self.query_pipeline.clone_ref(py)
+    }
+
+    /// The number of worker threads :meth:`step` runs its parallel stages on.
+    #[getter]
+    fn num_threads(&self, py: Python<'_>) -> usize {
+        self.physics_pipeline.borrow(py).num_threads()
+    }
+
+    /// Choose how many worker threads :meth:`step` runs its parallel stages on.
+    ///
+    /// See :meth:`PhysicsPipeline.set_num_threads`; this forwards to the world's
+    /// own :attr:`physics_pipeline`, so worlds do not share a worker pool.
+    ///
+    /// :param num_threads: Worker count, or ``None`` to go back to rayon's global
+    ///     pool (as many workers as logical CPUs). ``1`` runs everything inline on
+    ///     the calling thread.
+    /// :raises ValueError: If ``num_threads`` is 0.
+    /// :raises RapierError: If the thread pool could not be built.
+    #[pyo3(signature = (num_threads=None))]
+    fn set_num_threads(&self, py: Python<'_>, num_threads: Option<usize>) -> PyResult<()> {
+        self.physics_pipeline
+            .borrow_mut(py)
+            .set_num_threads(num_threads)
     }
 
     /// World-space gravity vector applied to dynamic bodies.

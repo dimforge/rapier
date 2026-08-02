@@ -1,3 +1,4 @@
+use crate::dynamics::RawRigidBodySet;
 use crate::utils::{self, FlatHandle};
 use rapier::geometry::{ContactManifold, ContactPair, NarrowPhase};
 use rapier::math::Real;
@@ -270,11 +271,21 @@ impl RawContactManifold {
         unsafe { (*self.0).data.solver_contacts.len() }
     }
 
+    // Solver contacts store one body-local anchor per body surface (the two differ by the
+    // current separation along the normal), so resolving the point the solver acts on
+    // needs the bodies they are anchored to.
     #[cfg(feature = "dim2")]
-    pub fn solver_contact_point(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+    pub fn solver_contact_point(
+        &self,
+        bodies: &RawRigidBodySet,
+        i: usize,
+        scratch_buffer: &js_sys::Float32Array,
+    ) -> bool {
         unsafe {
-            (&(*self.0).data).solver_contacts.get(i).map_or(false, |c| {
-                let u = c.point;
+            let data = &(*self.0).data;
+            data.solver_contacts.get(i).map_or(false, |c| {
+                let (p1, p2) = data.solver_contact_world_points(c, &bodies.0);
+                let u = (p1 + p2) / 2.0;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 true
@@ -283,10 +294,17 @@ impl RawContactManifold {
     }
 
     #[cfg(feature = "dim3")]
-    pub fn solver_contact_point(&self, i: usize, scratch_buffer: &js_sys::Float32Array) -> bool {
+    pub fn solver_contact_point(
+        &self,
+        bodies: &RawRigidBodySet,
+        i: usize,
+        scratch_buffer: &js_sys::Float32Array,
+    ) -> bool {
         unsafe {
-            (&(*self.0).data).solver_contacts.get(i).map_or(false, |c| {
-                let u = c.point;
+            let data = &(*self.0).data;
+            data.solver_contacts.get(i).map_or(false, |c| {
+                let (p1, p2) = data.solver_contact_world_points(c, &bodies.0);
+                let u = (p1 + p2) / 2.0;
                 scratch_buffer.set_index(0, u.x);
                 scratch_buffer.set_index(1, u.y);
                 scratch_buffer.set_index(2, u.z);
@@ -305,12 +323,14 @@ impl RawContactManifold {
         }
     }
 
-    pub fn solver_contact_friction(&self, i: usize) -> Real {
-        unsafe { (&(*self.0).data).solver_contacts[i].friction }
+    // Friction and restitution are combined once per manifold, so they are read for the
+    // whole manifold rather than per solver contact.
+    pub fn friction(&self) -> Real {
+        unsafe { (*self.0).data.friction }
     }
 
-    pub fn solver_contact_restitution(&self, i: usize) -> Real {
-        unsafe { (&(*self.0).data).solver_contacts[i].restitution }
+    pub fn restitution(&self) -> Real {
+        unsafe { (*self.0).data.restitution }
     }
 
     #[cfg(feature = "dim2")]

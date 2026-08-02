@@ -91,8 +91,14 @@ fn main() {
 
             // Read the solver contacts.
             for solver_contact in &manifold.data.solver_contacts {
-                // Keep in mind that all the solver contact data are expressed in world-space.
-                println!("Found solver contact point: {:?}", solver_contact.point);
+                // Solver contacts are anchored in the local-space of the body they touch, so
+                // they ride rigidly with it. Resolve them through the bodies' current poses to
+                // get the world-space contact point on each body's surface.
+                let (point1, point2) =
+                    manifold
+                        .data
+                        .solver_contact_world_points(solver_contact, &rigid_body_set);
+                println!("Found solver contact points: {point1:?}, {point2:?}");
                 // The solver contact distance is negative if there is a penetration.
                 println!("Found solver contact distance: {:?}", solver_contact.dist);
             }
@@ -182,8 +188,8 @@ fn main() {
             // for illustration purpose:
             // - Flip all the contact normals.
             // - Delete the first contact.
-            // - Set the friction coefficients to 0.3
-            // - Set the restitution coefficients to 0.4
+            // - Set the friction coefficient to 0.3
+            // - Set the restitution coefficient to 0.4
             // - Set the tangent velocities to X * 10.0
             *context.normal = -*context.normal;
 
@@ -191,9 +197,12 @@ fn main() {
                 context.solver_contacts.swap_remove(0);
             }
 
+            // Friction and restitution are combined once per manifold, so they are set
+            // for the whole manifold rather than per solver contact.
+            *context.friction = 0.3;
+            *context.restitution = 0.4;
+
             for solver_contact in &mut *context.solver_contacts {
-                solver_contact.friction = 0.3;
-                solver_contact.restitution = 0.4;
                 solver_contact.tangent_velocity.x = 10.0;
             }
 

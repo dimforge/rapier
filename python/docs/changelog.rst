@@ -26,3 +26,12 @@ The package is a standard ``abi3`` maturin wheel, so installs and platform
 support (manylinux/musllinux, macOS, Windows) now go through the normal
 wheel pipeline. The Panda3D testbed moved to a separate ``rapier-testbed``
 package.
+
+**Multi-threaded by default.** The wheels are now built with the engine's
+``parallel`` feature always enabled, and the worker count is a runtime
+setting: :meth:`~rapier3d.PhysicsWorld.set_num_threads` (also on
+:class:`~rapier3d.PhysicsPipeline`) picks how many workers a world's
+parallel stages run on, and :attr:`~rapier3d.PhysicsWorld.num_threads`
+reports it. Each world owns its pool; ``None`` restores the default of one
+worker per logical CPU and ``1`` runs everything inline on the calling
+thread. Results are bit-identical whatever the worker count.

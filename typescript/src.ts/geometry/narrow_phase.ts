@@ -1,5 +1,6 @@
 import {RawNarrowPhase, RawContactManifold} from "../raw";
 import {ColliderHandle} from "./collider";
+import {RigidBodySet} from "../dynamics";
 import {Vector, VectorOps, scratchBuffer} from "../math";
 
 /**
@@ -56,6 +57,8 @@ export class NarrowPhase {
      *
      * @param collider1 - The first collider involved in the contact.
      * @param collider2 - The second collider involved in the contact.
+     * @param bodies - The set of rigid-bodies the colliders are attached to. Solver contacts are
+     *                 anchored in body-local space, so this is needed to read them back in world-space.
      * @param f - Closure that will be called on each contact manifold between the two colliders. If the second argument
      *            passed to this closure is `true`, then the contact manifold data is flipped, i.e., methods like `localNormal1`
      *            actually apply to the `collider2` and fields like `localNormal2` apply to the `collider1`.
@@ -63,6 +66,7 @@ export class NarrowPhase {
     public contactPair(
         collider1: ColliderHandle,
         collider2: ColliderHandle,
+        bodies: RigidBodySet,
         f: (manifold: TempContactManifold, flipped: boolean) => void,
     ) {
         const rawPair = this.raw.contact_pair(collider1, collider2);
@@ -72,6 +76,7 @@ export class NarrowPhase {
 
             let i;
             for (i = 0; i < rawPair.numContactManifolds(); ++i) {
+                this.tempManifold.bodies = bodies;
                 this.tempManifold.raw = rawPair.contactManifold(i);
                 if (!!this.tempManifold.raw) {
                     f(this.tempManifold, flipped);
@@ -101,6 +106,8 @@ export class NarrowPhase {
 
 export class TempContactManifold {
     raw: RawContactManifold;
+    /** The bodies the manifold's solver contacts are anchored to. */
+    bodies: RigidBodySet;
 
     public free() {
         if (!!this.raw) {
@@ -109,8 +116,9 @@ export class TempContactManifold {
         this.raw = undefined;
     }
 
-    constructor(raw: RawContactManifold) {
+    constructor(raw: RawContactManifold, bodies?: RigidBodySet) {
         this.raw = raw;
+        this.bodies = bodies;
     }
 
     /**
@@ -226,7 +234,11 @@ export class TempContactManifold {
      * the function returns this object instead of creating a new one.
      */
     public solverContactPoint(i: number, target?: Vector): Vector | null {
-        const exists = this.raw.solver_contact_point(i, scratchBuffer);
+        const exists = this.raw.solver_contact_point(
+            this.bodies.raw,
+            i,
+            scratchBuffer,
+        );
         return exists ? VectorOps.fromBuffer(scratchBuffer, target) : null;
     }
 
@@ -234,12 +246,20 @@ export class TempContactManifold {
         return this.raw.solver_contact_dist(i);
     }
 
-    public solverContactFriction(i: number): number {
-        return this.raw.solver_contact_friction(i);
+    /**
+     * The friction coefficient applied to this manifold's solver contacts. It is combined
+     * once per manifold, so every solver contact of this manifold shares it.
+     */
+    public friction(): number {
+        return this.raw.friction();
     }
 
-    public solverContactRestitution(i: number): number {
-        return this.raw.solver_contact_restitution(i);
+    /**
+     * The restitution coefficient applied to this manifold's solver contacts. It is
+     * combined once per manifold, so every solver contact of this manifold shares it.
+     */
+    public restitution(): number {
+        return this.raw.restitution();
     }
 
     /**
