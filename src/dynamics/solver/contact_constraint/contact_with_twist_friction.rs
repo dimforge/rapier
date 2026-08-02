@@ -428,16 +428,32 @@ impl ContactWithTwistFriction<SimdReal> {
             #[cfg(feature = "dim2")]
             let tangents1 = [&self.dir1.orthonormal_vector()];
 
-            let mut tangent_limit = SimdReal::zero();
-            let mut twist_limit = SimdReal::zero();
-            for (normal_part, dist) in normal_parts.iter().zip(self.twist_dists.iter()) {
-                tangent_limit += normal_part.impulse;
-                // The twist limit is computed as the sum of impulses multiplied by the
-                // lever-arm length relative to the friction center. The rational is that
-                // the further the point is from the friction center, the stronger angular
-                // resistance it can offer.
-                twist_limit += normal_part.impulse * *dist;
-            }
+            // Most contact manifolds have only one or two contacts, so avoid
+            // setting up an iterator for those common cases.
+            let (mut tangent_limit, mut twist_limit) = match normal_parts {
+                [normal_part] => (
+                    normal_part.impulse,
+                    normal_part.impulse * self.twist_dists[0],
+                ),
+                [normal_part0, normal_part1] => (
+                    normal_part0.impulse + normal_part1.impulse,
+                    normal_part0.impulse * self.twist_dists[0]
+                        + normal_part1.impulse * self.twist_dists[1],
+                ),
+                _ => {
+                    let mut tangent_limit = SimdReal::zero();
+                    let mut twist_limit = SimdReal::zero();
+                    for (normal_part, dist) in normal_parts.iter().zip(self.twist_dists.iter()) {
+                        tangent_limit += normal_part.impulse;
+                        // The twist limit is computed as the sum of impulses multiplied by the
+                        // lever-arm length relative to the friction center. The rational is that
+                        // the further the point is from the friction center, the stronger angular
+                        // resistance it can offer.
+                        twist_limit += normal_part.impulse * *dist;
+                    }
+                    (tangent_limit, twist_limit)
+                }
+            };
 
             // Multiply by the friction coefficient.
             tangent_limit *= self.limit;
