@@ -1,6 +1,5 @@
 //! SimdAngularInertia trait for angular inertia operations.
 
-#[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 #[cfg(feature = "dim3")]
 use crate::math::{Matrix, Real, Vector};
@@ -85,7 +84,6 @@ impl AngularInertiaOps<Real> for SdpMatrix3<Real> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl AngularInertiaOps<SimdReal> for parry::utils::SdpMatrix3<SimdReal> {
     type AngVector = na::Vector3<SimdReal>;
     type AngMatrix = na::Matrix3<SimdReal>;

@@ -4,10 +4,10 @@
 use crate::math::Matrix;
 #[cfg(not(target_arch = "spirv"))]
 use crate::math::Real;
-#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
+#[cfg(not(target_arch = "spirv"))]
 use crate::math::SimdReal;
 use crate::math::Vector;
-#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
+#[cfg(not(target_arch = "spirv"))]
 use crate::num::Zero;
 #[cfg(not(target_arch = "spirv"))]
 use crate::utils::SimdRealCopy;
@@ -82,7 +82,7 @@ impl CrossProductMatrix for Real {
     }
 }
 
-#[cfg(all(feature = "simd-is-enabled", not(target_arch = "spirv")))]
+#[cfg(not(target_arch = "spirv"))]
 impl CrossProductMatrix for SimdReal {
     type CrossMat = Matrix2<SimdReal>;
     type CrossMatTr = Matrix2<SimdReal>;

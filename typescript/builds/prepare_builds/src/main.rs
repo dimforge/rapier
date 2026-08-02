@@ -58,7 +58,9 @@ impl BuildValues {
         let feature_set = match args.feature_set {
             FeatureSet::NonDeterministic => vec![],
             FeatureSet::Deterministic => vec!["enhanced-determinism"],
-            FeatureSet::Simd => vec!["simd-stable"],
+            // SIMD is always on in rapier itself; the wasm build only differs by
+            // the `+simd128` target feature and wasm-opt flags set below.
+            FeatureSet::Simd => vec![],
         };
         let js_package_name = match args.feature_set {
             FeatureSet::NonDeterministic => format!("rapier{dim}d"),

@@ -1,6 +1,5 @@
 //! SimdDot and SimdLength traits for generalized dot product and length.
 
-#[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 use crate::math::{Real, Vector};
 #[cfg(not(target_arch = "spirv"))]
@@ -63,7 +62,6 @@ impl DotProduct<Real> for Real {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl DotProduct<SimdReal> for SimdReal {
     type Result = SimdReal;
 

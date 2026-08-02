@@ -1,11 +1,9 @@
 //! SimdSign trait for copying signs between values.
 
 use crate::math::Real;
-#[cfg(feature = "simd-is-enabled")]
 use crate::math::SimdReal;
 #[cfg(not(target_arch = "spirv"))]
 use na::{Scalar, Vector2, Vector3};
-#[cfg(feature = "simd-is-enabled")]
 use simba::simd::SimdRealField;
 
 /// Trait to copy the sign of each component of one scalar/vector/matrix to another.
@@ -59,7 +57,6 @@ impl<N: Scalar + Copy + CopySign<N>> CopySign<Vector3<N>> for Vector3<N> {
     }
 }
 
-#[cfg(feature = "simd-is-enabled")]
 impl CopySign<SimdReal> for SimdReal {
     fn copy_sign_to(self, to: SimdReal) -> SimdReal {
         to.simd_copysign(self)
