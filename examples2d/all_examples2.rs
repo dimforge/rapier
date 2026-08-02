@@ -6,6 +6,16 @@ use std::future::Future;
 use std::pin::Pin;
 
 mod add_remove2;
+mod b2d_compounds;
+mod b2d_joint_grid;
+mod b2d_junkyard;
+mod b2d_large_pyramid;
+mod b2d_many_pyramids;
+mod b2d_rain;
+mod b2d_smash;
+mod b2d_spinner;
+mod b2d_tumbler;
+mod b2d_washer;
 mod ccd2;
 mod character_controller2;
 mod collision_groups2;
@@ -69,6 +79,7 @@ pub async fn main() {
     const DEBUG: &str = "Debug";
     const S2D: &str = "Inspired by Solver 2D";
     const STRESS: &str = "Stress tests";
+    const B2D: &str = "Box2D benchmarks";
 
     let examples: Vec<(ExampleEntry, ExampleFn)> = examples![
         // ── Collisions ──────────────────────────────────────────────────────
@@ -116,13 +127,28 @@ pub async fn main() {
         S2D, "Ball and chain", s2d_ball_and_chain::run;
         S2D, "Joint grid", s2d_joint_grid::run;
         S2D, "Far pyramid", s2d_far_pyramid::run;
+        // ── Box2D benchmarks (ports of box2d/benchmark) ─────────────────────
+        B2D, "Compounds", b2d_compounds::run;
+        B2D, "Joint grid", b2d_joint_grid::run;
+        B2D, "Junkyard", b2d_junkyard::run;
+        B2D, "Large pyramid", b2d_large_pyramid::run;
+        B2D, "Many pyramids", b2d_many_pyramids::run;
+        B2D, "Rain", b2d_rain::run;
+        B2D, "Smash", b2d_smash::run;
+        B2D, "Spinner", b2d_spinner::run;
+        B2D, "Tumbler", b2d_tumbler::run;
+        B2D, "Washer", b2d_washer::run;
         // ── Stress tests ────────────────────────────────────────────────────
         STRESS, "Balls", stress_tests::balls2::run;
         STRESS, "Boxes", stress_tests::boxes2::run;
         STRESS, "Capsules", stress_tests::capsules2::run;
         STRESS, "Convex polygons", stress_tests::convex_polygons2::run;
         STRESS, "Heightfield", stress_tests::heightfield2::run;
+        STRESS, "Large pyramids", stress_tests::large_pyramids2::run;
+        STRESS, "Many pyramids", stress_tests::many_pyramids2::run;
         STRESS, "Pyramid", stress_tests::pyramid2::run;
+        STRESS, "Ragdoll piles", stress_tests::ragdolls2::run;
+        STRESS, "Ropes", stress_tests::ropes2::run;
         STRESS, "Verticals stacks", stress_tests::vertical_stacks2::run;
         STRESS, "(Stress test) joint ball", stress_tests::joint_ball2::run;
         STRESS, "(Stress test) joint fixed", stress_tests::joint_fixed2::run;

@@ -44,21 +44,24 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut rng = StdRng::seed_from_u64(0);
     let distribution = StandardUniform;
 
+    let poly_shapes: Vec<_> = (0..5)
+        .map(|_| {
+            let mut points = Vec::new();
+            for _ in 0..10 {
+                let pt: [f32; 2] = distribution.sample(&mut rng);
+                points.push(Vec2::from(pt) * scale);
+            }
+            SharedShape::convex_hull(&points).unwrap()
+        })
+        .collect();
+
     for i in 0..num {
         for j in 0usize..num * 5 {
             let x = i as f32 * shift - centerx;
             let y = j as f32 * shift * 2.0 + centery + 2.0;
 
             let rigid_body = RigidBodyBuilder::dynamic().translation(Vec2::new(x, y));
-
-            let mut points = Vec::new();
-
-            for _ in 0..10 {
-                let pt: [f32; 2] = distribution.sample(&mut rng);
-                points.push(Vec2::from(pt) * scale);
-            }
-
-            let collider = ColliderBuilder::convex_hull(&points).unwrap();
+            let collider = ColliderBuilder::new(poly_shapes[i % 5].clone());
             let _ = world.insert(rigid_body, collider);
         }
     }

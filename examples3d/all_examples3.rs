@@ -7,6 +7,14 @@ use std::pin::Pin;
 
 mod utils;
 
+mod b3d_joint_grid;
+mod b3d_junkyard;
+mod b3d_large_pyramid;
+mod b3d_large_world;
+mod b3d_many_pyramids;
+mod b3d_rain;
+mod b3d_trees;
+mod b3d_washer;
 mod ccd3;
 mod character_controller3;
 mod collision_groups3;
@@ -87,6 +95,7 @@ pub async fn main() {
     const DEBUG: &str = "Debug";
     const ROBOTICS: &str = "Robotics";
     const STRESS: &str = "Stress tests";
+    const B3D: &str = "Box3D benchmarks";
 
     let examples: Vec<(ExampleEntry, ExampleFn)> = examples![
         // ── Collisions ──────────────────────────────────────────────────────
@@ -171,9 +180,22 @@ pub async fn main() {
         STRESS, "ImpulseJoint fixed", stress_tests::joint_fixed3::run;
         STRESS, "ImpulseJoint revolute", stress_tests::joint_revolute3::run;
         STRESS, "ImpulseJoint prismatic", stress_tests::joint_prismatic3::run;
+        STRESS, "Ragdoll piles", stress_tests::ragdolls3::run;
+        STRESS, "Ropes", stress_tests::ropes3::run;
         STRESS, "Many pyramids", stress_tests::many_pyramids3::run;
         STRESS, "Keva tower", stress_tests::keva3::run;
         STRESS, "Ray cast", stress_tests::ray_cast3::run;
+        // ── Box3D benchmarks (ports of box3d/benchmark) ─────────────────────
+        B3D, "Large pyramid", b3d_large_pyramid::run;
+        B3D, "Many pyramids", b3d_many_pyramids::run;
+        B3D, "Joint grid", b3d_joint_grid::run;
+        B3D, "Junkyard", b3d_junkyard::run;
+        B3D, "Washer", b3d_washer::run;
+        B3D, "Trees 100", b3d_trees::run100;
+        B3D, "Trees 50", b3d_trees::run50;
+        B3D, "Trees 25", b3d_trees::run25;
+        B3D, "Rain", b3d_rain::run;
+        B3D, "Large world", b3d_large_world::run;
     ];
 
     let (entries, run_fns): (Vec<_>, Vec<ExampleFn>) = examples.into_iter().unzip();

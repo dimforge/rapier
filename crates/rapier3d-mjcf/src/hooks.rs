@@ -77,9 +77,8 @@ impl PhysicsHooks for MjcfContactHooks {
         let key = (ctx.collider1, ctx.collider2);
         if let Some(ov) = self.overrides.get(&key) {
             if let Some(f) = ov.friction {
-                for c in ctx.solver_contacts.iter_mut() {
-                    c.friction = f;
-                }
+                // Contact materials are per-manifold since the solver-contact slimming.
+                *ctx.friction = f;
             }
             // Margin: rapier's solver uses `dist` as penetration depth;
             // shifting it acts like adding to the contact margin.

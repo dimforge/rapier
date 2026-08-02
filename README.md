@@ -49,6 +49,24 @@ The easiest way to get started with Rapier is to:
    Their source code are available on the `examples2d/` and `examples3d/` directory.
 3. Don't hesitate to ask for help on [Discord](https://discord.gg/vt9DJSW), or by opening an issue on GitHub.
 
+## Performance
+
+SIMD-batched constraint solving and contact processing are always on: the
+solver processes 4 contact manifolds per instruction, falling back to scalar
+code on targets without SIMD support. For performance-sensitive applications,
+also enable:
+
+- **`parallel`** — multithreading of the whole physics step (broad phase,
+  narrow phase, solver) through rayon. On CPUs with heterogeneous cores
+  (Apple silicon, Intel hybrid), also call
+  `PhysicsPipeline::set_dedicated_thread_pool(None)` to run the step on a
+  pool sized to the performance cores only: the solver's barrier-paced stages
+  otherwise run at the speed of the slowest (efficiency) core.
+
+```toml
+rapier3d = { version = "*", features = ["parallel"] }
+```
+
 ## Python bindings
 
 Python bindings are under development. They ship as four PyPI packages —

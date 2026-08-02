@@ -17,6 +17,8 @@ pub mod many_pyramids3;
 pub mod many_sleep3;
 pub mod many_static3;
 pub mod pyramid3;
+pub mod ragdolls3;
 pub mod ray_cast3;
+pub mod ropes3;
 pub mod stacks3;
 pub mod trimesh3;
