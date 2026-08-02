@@ -17,3 +17,5 @@ pub(crate) mod graph;
 mod modified_objects;
 #[cfg(feature = "alloc")]
 pub mod pubsub;
+#[cfg(feature = "alloc")]
+pub(crate) mod union_find;

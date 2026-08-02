@@ -24,6 +24,28 @@ pub struct ImpulseJoint {
 
     // A joint needs to know its handle to simplify its removal.
     pub(crate) handle: ImpulseJointHandle,
+
+    /// The solver-body index (`active_set_id`) of each attached body, or
+    /// `u32::MAX` for a side that is world-attached from the solver's point of
+    /// view (fixed or sleeping).
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(skip, default = "default_solver_body_ids")
+    )]
+    pub(crate) solver_body_ids: [u32; 2],
+    /// The solver graph color assigned to this joint.
+    #[cfg_attr(feature = "serde-serialize", serde(default = "default_solver_color"))]
+    pub(crate) solver_color: u8,
+}
+
+#[cfg(feature = "serde-serialize")]
+fn default_solver_color() -> u8 {
+    crate::geometry::contact_pair::SOLVER_COLOR_UNCOLORED
+}
+
+#[cfg(feature = "serde-serialize")]
+fn default_solver_body_ids() -> [u32; 2] {
+    [u32::MAX; 2]
 }
 
 impl ImpulseJoint {

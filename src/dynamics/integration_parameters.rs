@@ -3,10 +3,9 @@ use super::RigidBodyActivation;
 use crate::math::Real;
 use simba::simd::SimdRealField;
 
-// TODO: enabling the block solver in 3d introduces a lot of jitters in
-//       the 3D domino demo. So for now we dont enable it in 3D.
-#[allow(dead_code)]
-pub(crate) static BLOCK_SOLVER_ENABLED: bool = cfg!(feature = "dim2");
+// NOTE: the 2x2 block solver (`block-solver` feature) runs in BOTH passes and solves the COMPLIANT
+//       LCP `(K + C, b)`, `C = diag((1/ms_i - 1) k_ii)` — the coupled soft step — so it shares
+//       the sequential sweep's fixed points; a rigid-LCP-then-cfm-scale variant left piles micro-jiggling.
 
 /// Friction models used for all contact constraints between two rigid-bodies.
 ///
@@ -55,11 +54,23 @@ impl<N: SimdRealField<Element = Real> + Copy> SpringCoefficients<N> {
         }
     }
 
-    /// Default softness coefficients for contacts.
+    /// Default softness coefficients for contacts (30 Hz, ζ = 10).
+    /// The high ζ is load-bearing for large piles/stacks: softer contacts settle
+    /// deeper under load, and the extra penetration keeps them wedging and creeping instead of resting.
     pub fn contact_defaults() -> Self {
         Self {
             natural_frequency: N::splat(30.0),
-            damping_ratio: N::splat(5.0),
+            damping_ratio: N::splat(10.0),
+        }
+    }
+
+    /// Default softness coefficients for contacts touching a fixed body: twice the natural
+    /// frequency of [`Self::contact_defaults`], holding piled/pushed
+    /// bodies more firmly against walls and floors so they are less likely to squeeze through.
+    pub fn contact_static_defaults() -> Self {
+        Self {
+            natural_frequency: N::splat(60.0),
+            damping_ratio: N::splat(10.0),
         }
     }
 
@@ -191,6 +202,12 @@ pub struct IntegrationParameters {
     /// Softness coefficients for contact constraints.
     pub contact_softness: SpringCoefficients<Real>,
 
+    /// Softness coefficients for contact constraints where one side is a fixed body.
+    ///
+    /// Stiffer than [`Self::contact_softness`] by default so bodies are
+    /// held firmly against static walls/floors; set equal to [`Self::contact_softness`] to disable.
+    pub static_contact_softness: SpringCoefficients<Real>,
+
     /// The coefficient in `[0, 1]` applied to warmstart impulses, i.e., impulses that are used as the
     /// initial solution (instead of 0) at the next simulation step.
     ///
@@ -214,18 +231,28 @@ pub struct IntegrationParameters {
     /// with your chosen units.
     pub length_unit: Real,
 
-    /// Amount of penetration the engine won’t attempt to correct (default: `0.001m`).
+    /// Geometric slop distance (default: `0.005`), e.g. the standoff kept
+    /// by the CCD clamp. NOT a deadzone on the position-correction bias: penetrations are corrected
+    /// all the way to zero; a deadzone would keep loaded piles wedging and creeping.
     ///
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_allowed_linear_error: Real,
-    /// Maximum amount of penetration the solver will attempt to resolve in one timestep (default: `10.0`).
+    /// Maximum speed at which contact penetration is pushed out by the biased solve
+    /// (default: `3.0`).
     ///
+    /// Capping this recovery velocity keeps deep penetrations from being resolved explosively.
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_max_corrective_velocity: Real,
     /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002m`).
     ///
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_prediction_distance: Real,
+    /// Maximum linear velocity a body may have after each solver substep (default: `400.0` m/s).
+    /// Bounding per-step travel keeps CCD and speculative contacts
+    /// reliable (a body cannot be flung or crushed to an arbitrary speed); set to `Real::MAX` to disable.
+    ///
+    /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
+    pub normalized_max_linear_velocity: Real,
     /// The number of solver iterations run by the constraints solver for calculating forces (default: `4`).
     ///
     /// Higher values produce more accurate and stable simulations at the cost of performance.
@@ -237,10 +264,40 @@ pub struct IntegrationParameters {
     pub num_internal_pgs_iterations: usize,
     /// The number of stabilization iterations run at each solver iterations (default: `1`).
     pub num_internal_stabilization_iterations: usize,
-    /// Minimum number of dynamic bodies on each active island (default: `128`).
-    pub min_island_size: usize,
-    /// Maximum number of substeps performed by the  solver (default: `1`).
+    /// Maximum number of CCD substeps performed by the solver (default: `1`).
+    ///
+    /// Also the global CCD on/off switch: `0` disables **all** CCD for the world (including the
+    /// automatic CCD of fast dynamic bodies vs fixed colliders).
     pub max_ccd_substeps: usize,
+    /// If enabled, contact manifolds of a collider pair sharing (nearly) the same normal are merged
+    /// into one "cluster" manifold before constraint generation (default: `true`, 3D only), so at
+    /// most 4 contact points are solved per contact plane — a large solver win on composite shapes
+    /// (meshes, heightfields, compounds, voxels) that emit one manifold per subshape. When clustering
+    /// applies, read solver contacts/impulses from [`crate::geometry::ContactPair::solver_clusters`],
+    /// not [`crate::geometry::ContactPair::manifolds`].
+    pub contact_clustering: bool,
+    /// If enabled, a contact pair whose relative pose moved less than [`Self::contact_recycle_distance`]
+    /// since its last full narrow-phase update skips contact determination and keeps its existing points
+    /// (default: `true`) — a large speed-up for quasi-static scenes. Trade-offs:
+    /// contact features and user-facing contact data (`dist`, is-new bits) may be stale by up to that
+    /// distance, and per-step joint-based contact filtering is skipped until the pair moves.
+    /// [`crate::pipeline::ActiveHooks`] pairs are never recycled.
+    pub contact_recycling: bool,
+    /// Maximum relative-pose drift (translation plus rotation-arc) below which a contact pair may
+    /// be recycled instead of fully updated (default: `0.05`, i.e. ten times the linear slop,
+    /// multiplied by [`Self::length_unit`]). Only used when [`Self::contact_recycling`] is enabled.
+    pub normalized_contact_recycle_distance: Real,
+    /// If `false`, friction is only solved during the unbiased (relax) pass of each substep instead
+    /// of both passes (default: `false`, the "no friction when applying bias" rule).
+    /// This makes contact kernels much cheaper and is load-bearing for tall stacks: friction
+    /// reacting to bias velocities pumps their coherent lean mode until they topple. If
+    /// [`Self::num_internal_stabilization_iterations`] is zero there is no unbiased pass and this flag is ignored.
+    pub friction_in_bias_pass: bool,
+    /// If enabled, impulse-joint constraints are warm-started like contacts: impulses accumulated
+    /// by the previous step are re-applied (scaled by [`Self::warmstart_coefficient`]) at the start
+    /// of each substep instead of restarting from zero (default: `false`). This
+    /// noticeably improves convergence of stiff joint assemblies. Multibody joints are unaffected.
+    pub warmstart_joints: bool,
     /// The type of friction constraints used in the simulation.
     #[cfg(feature = "dim3")]
     pub friction_model: FrictionModel,
@@ -298,6 +355,25 @@ impl IntegrationParameters {
     pub fn prediction_distance(&self) -> Real {
         self.normalized_prediction_distance * self.length_unit
     }
+
+    /// Maximum linear velocity a body may have after each solver substep.
+    ///
+    /// This is equal to [`Self::normalized_max_linear_velocity`] multiplied by
+    /// [`Self::length_unit`], or `Real::MAX` when the linear speed cap is disabled.
+    pub fn max_linear_velocity(&self) -> Real {
+        if self.normalized_max_linear_velocity != Real::MAX {
+            self.normalized_max_linear_velocity * self.length_unit
+        } else {
+            Real::MAX
+        }
+    }
+
+    /// Maximum relative-pose drift below which a contact pair can be recycled instead of fully
+    /// updated: [`Self::normalized_contact_recycle_distance`] multiplied by [`Self::length_unit`].
+    /// Only used when [`Self::contact_recycling`] is enabled.
+    pub fn contact_recycle_distance(&self) -> Real {
+        self.normalized_contact_recycle_distance * self.length_unit
+    }
 }
 
 impl Default for IntegrationParameters {
@@ -306,20 +382,24 @@ impl Default for IntegrationParameters {
             dt: 1.0 / 60.0,
             min_ccd_dt: 1.0 / 60.0 / 100.0,
             contact_softness: SpringCoefficients::contact_defaults(),
+            static_contact_softness: SpringCoefficients::contact_static_defaults(),
             warmstart_coefficient: 1.0,
             num_internal_pgs_iterations: 1,
             num_internal_stabilization_iterations: 1,
             num_solver_iterations: 4,
-            // TODO: what is the optimal value for min_island_size?
-            // It should not be too big so that we don't end up with
-            // huge islands that don't fit in cache.
-            // However we don't want it to be too small and end up with
-            // tons of islands, reducing SIMD parallelism opportunities.
-            min_island_size: 128,
-            normalized_allowed_linear_error: 0.001,
-            normalized_max_corrective_velocity: 10.0,
-            normalized_prediction_distance: 0.002,
+            normalized_allowed_linear_error: 0.005,
+            normalized_max_corrective_velocity: 3.0,
+            // Four times the linear slop. A larger speculative
+            // margin generates contacts earlier, which (together with oriented/one-sided static
+            // geometry) keeps fast/piled bodies from tunneling through thin walls.
+            normalized_prediction_distance: 0.02,
+            normalized_max_linear_velocity: 400.0,
             max_ccd_substeps: 1,
+            contact_clustering: true,
+            contact_recycling: true,
+            normalized_contact_recycle_distance: 0.05,
+            friction_in_bias_pass: false,
+            warmstart_joints: false,
             length_unit: 1.0,
             #[cfg(feature = "dim3")]
             friction_model: FrictionModel::default(),

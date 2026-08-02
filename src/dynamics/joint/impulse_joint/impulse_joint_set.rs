@@ -51,6 +51,20 @@ pub struct ImpulseJointSet {
     pub(crate) to_wake_up: HashSet<RigidBodyHandle>,
     /// A set of rigid-body pairs to join in the island manager during the next timestep.
     pub(crate) to_join: HashSet<(RigidBodyHandle, RigidBodyHandle)>,
+    /// Persistent-island connectivity events (joint created/removed/rewired),
+    /// drained at the start of the next timestep, in order.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) island_events: Vec<crate::dynamics::ImpulseJointIslandEvent>,
+    /// Bumped by every mutation that can affect the solver's joint constraint assembly (joint
+    /// insertion/removal, mutable joint access, user-changes to a rigid-body with attached joints).
+    /// The solver reuses its joint assembly while this, the joint list, and the island epoch are unchanged.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) assembly_epoch: u32,
+    /// The `(active_set_epoch, assembly_epoch)` the last [`Self::select_active_interactions`] ran
+    /// with: while both are unchanged the selection (and the solver-body ids it stamps) is
+    /// identical, so the caller's previous output is reused untouched.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    selection_epochs: Option<(u32, u32)>,
 }
 
 impl ImpulseJointSet {
@@ -62,7 +76,30 @@ impl ImpulseJointSet {
             joint_graph: InteractionGraph::new(),
             to_wake_up: HashSet::default(),
             to_join: HashSet::default(),
+            island_events: Vec::new(),
+            assembly_epoch: 0,
+            selection_epochs: None,
         }
+    }
+
+    /// Drops the memo of the last [`Self::select_active_interactions`], forcing the next
+    /// call to recompute into the caller's buffer.
+    pub(crate) fn invalidate_selection_memo(&mut self) {
+        self.selection_epochs = None;
+    }
+
+    /// Marks the solver-facing joint assembly inputs as changed. See
+    /// [`Self::assembly_epoch`].
+    pub(crate) fn bump_assembly_epoch(&mut self) {
+        self.assembly_epoch = self.assembly_epoch.wrapping_add(1);
+        self.selection_epochs = None;
+    }
+
+    /// `true` if this body has (or recently had) impulse joints attached.
+    pub(crate) fn body_may_have_joints(&self, body: crate::dynamics::RigidBodyHandle) -> bool {
+        self.rb_graph_ids.get(body.0).is_some_and(|id| {
+            InteractionGraph::<RigidBodyHandle, ImpulseJoint>::is_graph_index_valid(*id)
+        })
     }
 
     /// Returns how many joints are currently in this collection.
@@ -154,6 +191,7 @@ impl ImpulseJointSet {
         body: RigidBodyHandle,
         mut f: impl FnMut(RigidBodyHandle, RigidBodyHandle, ImpulseJointHandle, &mut ImpulseJoint),
     ) {
+        self.bump_assembly_epoch();
         self.rb_graph_ids.get(body.0).into_iter().for_each(|id| {
             for inter in self.joint_graph.interactions_with_mut(*id) {
                 (f)(inter.0, inter.1, inter.3.handle, inter.3)
@@ -199,6 +237,7 @@ impl ImpulseJointSet {
         handle: ImpulseJointHandle,
         wake_up_connected_bodies: bool,
     ) -> Option<&mut ImpulseJoint> {
+        self.bump_assembly_epoch();
         let id = self.joint_ids.get(handle.0)?;
         let joint = self.joint_graph.graph.edge_weight_mut(*id);
         if wake_up_connected_bodies {
@@ -229,6 +268,7 @@ impl ImpulseJointSet {
         &mut self,
         i: u32,
     ) -> Option<(&mut ImpulseJoint, ImpulseJointHandle)> {
+        self.bump_assembly_epoch();
         let (id, handle) = self.joint_ids.get_unknown_gen(i)?;
         Some((
             self.joint_graph.graph.edge_weight_mut(*id)?,
@@ -251,6 +291,7 @@ impl ImpulseJointSet {
     ///
     /// Each iteration yields `(joint_handle, &mut joint)`.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (ImpulseJointHandle, &mut ImpulseJoint)> {
+        self.bump_assembly_epoch();
         self.joint_graph
             .graph
             .edges
@@ -258,24 +299,8 @@ impl ImpulseJointSet {
             .map(|e| (e.weight.handle, &mut e.weight))
     }
 
-    // /// The set of impulse_joints as an array.
-    // pub(crate) fn impulse_joints(&self) -> &[JointGraphEdge] {
-    //     // self.joint_graph
-    //     //     .graph
-    //     //     .edges
-    //     //     .iter_mut()
-    //     //     .map(|e| &mut e.weight)
-    // }
-
-    // #[cfg(not(feature = "parallel"))]
-    #[allow(dead_code)] // That will likely be useful when we re-introduce intra-island parallelism.
     pub(crate) fn joints_mut(&mut self) -> &mut [JointGraphEdge] {
         &mut self.joint_graph.graph.edges[..]
-    }
-
-    #[cfg(feature = "parallel")]
-    pub(crate) fn joints_vec_mut(&mut self) -> &mut Vec<JointGraphEdge> {
-        &mut self.joint_graph.graph.edges
     }
 
     /// Adds a joint connecting two bodies and returns its handle.
@@ -309,6 +334,8 @@ impl ImpulseJointSet {
         wake_up: bool,
     ) -> ImpulseJointHandle {
         let data = data.into();
+        let joint_enabled = data.is_enabled();
+        self.bump_assembly_epoch();
         let handle = self.joint_ids.insert(0.into());
         let joint = ImpulseJoint {
             body1,
@@ -316,6 +343,8 @@ impl ImpulseJointSet {
             data,
             impulses: Default::default(),
             handle: ImpulseJointHandle(handle),
+            solver_body_ids: [u32::MAX; 2],
+            solver_color: crate::geometry::contact_pair::SOLVER_COLOR_UNCOLORED,
         };
 
         let default_id = InteractionGraph::<(), ()>::invalid_graph_index();
@@ -346,6 +375,14 @@ impl ImpulseJointSet {
         }
 
         self.to_join.insert((body1, body2));
+        if joint_enabled {
+            self.island_events
+                .push(crate::dynamics::ImpulseJointIslandEvent::Link {
+                    handle: ImpulseJointHandle(handle),
+                    body1,
+                    body2,
+                });
+        }
 
         ImpulseJointHandle(handle)
     }
@@ -393,6 +430,7 @@ impl ImpulseJointSet {
         new_body2: RigidBodyHandle,
         wake_up: bool,
     ) -> Option<&mut ImpulseJoint> {
+        self.bump_assembly_epoch();
         let edge_id = *self.joint_ids.get(handle.0)?;
 
         // Early-out when the endpoints haven't actually changed.
@@ -442,6 +480,21 @@ impl ImpulseJointSet {
             self.to_wake_up.insert(new_body2);
         }
         self.to_join.insert((new_body1, new_body2));
+        self.island_events
+            .push(crate::dynamics::ImpulseJointIslandEvent::Unlink { handle });
+        if self
+            .joint_graph
+            .graph
+            .edge_weight(new_edge_id)
+            .is_some_and(|j| j.data.is_enabled())
+        {
+            self.island_events
+                .push(crate::dynamics::ImpulseJointIslandEvent::Link {
+                    handle,
+                    body1: new_body1,
+                    body2: new_body2,
+                });
+        }
 
         self.joint_graph.graph.edge_weight_mut(new_edge_id)
     }
@@ -449,18 +502,51 @@ impl ImpulseJointSet {
     /// Retrieve all the enabled impulse joints happening between two active bodies.
     // NOTE: this is very similar to the code from NarrowPhase::select_active_interactions.
     pub(crate) fn select_active_interactions(
-        &self,
+        &mut self,
         islands: &IslandManager,
         bodies: &RigidBodySet,
-        out: &mut [Vec<JointIndex>],
+        out: &mut Vec<JointIndex>,
     ) {
-        for out_island in &mut out[..islands.active_islands().len()] {
-            out_island.clear();
+        // The selection depends only on the active-set epoch and the assembly epoch: while both
+        // are unchanged, `out` (assumed to be the previous call's output, which the physics
+        // pipeline keeps around) and the stamped solver-body ids are still exact.
+        let epochs = (islands.active_set_epoch, self.assembly_epoch);
+        if self.selection_epochs == Some(epochs) {
+            return;
+        }
+        self.selection_epochs = Some(epochs);
+
+        out.clear();
+
+        // Only iterate joints adjacent to an active body instead of the whole graph: any joint
+        // selected below has at least one awake dynamic/kinematic body, so the neighborhood walk
+        // is exhaustive — and much smaller when most of the scene is asleep.
+        let mut candidates: Vec<u32> = Vec::new();
+
+        // When most bodies are awake, walking the graph adjacency (pointer-chasing) and sorting
+        // costs more than the linear edge scan it replaces — just visit every joint and let the
+        // per-joint checks below skip inactive ones.
+        let num_active = islands.active_bodies().count();
+        if num_active * 2 >= bodies.len() {
+            candidates.extend(0..self.joint_graph.graph.edges.len() as u32);
+        } else {
+            for handle in islands.active_bodies() {
+                if let Some(gid) = self.rb_graph_ids.get(handle.0) {
+                    for edge in self.joint_graph.graph.edges(*gid) {
+                        candidates.push(edge.id().index() as u32);
+                    }
+                }
+            }
+
+            // Sorting + deduplicating guarantees each joint is visited exactly once, in
+            // the same deterministic edge-index order as a full graph scan.
+            candidates.sort_unstable();
+            candidates.dedup();
         }
 
-        // FIXME: don't iterate through all the interactions.
-        for (i, edge) in self.joint_graph.graph.edges.iter().enumerate() {
-            let joint = &edge.weight;
+        for i in candidates.iter().map(|id| *id as usize) {
+            let edge = &mut self.joint_graph.graph.edges[i];
+            let joint = &mut edge.weight;
             let rb1 = &bodies[joint.body1];
             let rb2 = &bodies[joint.body2];
 
@@ -469,17 +555,18 @@ impl ImpulseJointSet {
                 && (!rb1.is_dynamic_or_kinematic() || !rb1.is_sleeping())
                 && (!rb2.is_dynamic_or_kinematic() || !rb2.is_sleeping())
             {
-                let island_awake_index = if !rb1.is_dynamic_or_kinematic() {
-                    islands.islands[rb2.ids.active_island_id]
-                        .id_in_awake_list()
-                        .expect("Internal error: island should be awake.")
-                } else {
-                    islands.islands[rb1.ids.active_island_id]
-                        .id_in_awake_list()
-                        .expect("Internal error: island should be awake.")
+                // Stamp the solver-body ids while both body cache lines are hot so the solver's
+                // coloring/grouping and jacobian generation don't re-read the rigid-body set. `u32::MAX`
+                // marks a world-attached side (fixed, or defensively sleeping — its `active_set_id` indexes another island).
+                let solver_id = |rb: &crate::dynamics::RigidBody| {
+                    if rb.is_dynamic_or_kinematic() && !rb.is_sleeping() {
+                        rb.ids.active_set_id
+                    } else {
+                        u32::MAX
+                    }
                 };
-
-                out[island_awake_index].push(i);
+                joint.solver_body_ids = [solver_id(rb1), solver_id(rb2)];
+                out.push(i);
             }
         }
     }
@@ -506,15 +593,15 @@ impl ImpulseJointSet {
     /// ```
     #[profiling::function]
     pub fn remove(&mut self, handle: ImpulseJointHandle, wake_up: bool) -> Option<ImpulseJoint> {
+        self.bump_assembly_epoch();
         let id = self.joint_ids.remove(handle.0)?;
         let endpoints = self.joint_graph.graph.edge_endpoints(id)?;
 
         if wake_up {
-            if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.0) {
-                self.to_wake_up.insert(*rb_handle);
-            }
-            if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoints.1) {
-                self.to_wake_up.insert(*rb_handle);
+            for endpoint in [endpoints.0, endpoints.1] {
+                if let Some(rb_handle) = self.joint_graph.graph.node_weight(endpoint) {
+                    self.to_wake_up.insert(*rb_handle);
+                }
             }
         }
 
@@ -523,6 +610,9 @@ impl ImpulseJointSet {
         if let Some(edge) = self.joint_graph.graph.edge_weight(id) {
             self.joint_ids[edge.handle.0] = id;
         }
+
+        self.island_events
+            .push(crate::dynamics::ImpulseJointIslandEvent::Unlink { handle });
 
         removed_joint
     }
@@ -566,6 +656,10 @@ impl ImpulseJointSet {
                     // Wake up the attached bodies.
                     self.to_wake_up.insert(h1);
                     self.to_wake_up.insert(h2);
+                    self.island_events
+                        .push(crate::dynamics::ImpulseJointIslandEvent::Unlink {
+                            handle: to_delete_handle,
+                        });
                 }
 
                 if let Some(other) = self.joint_graph.remove_node(deleted_id) {

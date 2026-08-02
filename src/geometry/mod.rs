@@ -1,6 +1,8 @@
 //! Structures related to geometry: colliders, shapes, etc.
 
 #[cfg(feature = "alloc")]
+pub(crate) use self::broad_phase_bvh::DeferredBvhOptimize;
+#[cfg(feature = "alloc")]
 pub use self::broad_phase_bvh::{BroadPhaseBvh, BvhOptimizationStrategy};
 pub use self::broad_phase_pair_event::{BroadPhasePairEvent, ColliderPair};
 #[cfg(feature = "alloc")]
@@ -11,9 +13,16 @@ pub use self::collider_handle::ColliderHandle;
 #[cfg(feature = "alloc")]
 pub use self::collider_set::{ColliderSet, ModifiedColliders};
 #[cfg(feature = "alloc")]
+pub(crate) use self::contact_pair::ContactRecycleState;
+#[cfg(feature = "alloc")]
+pub(crate) use self::contact_pair::SOLVER_DYNAMIC_COLOR_COUNT;
+#[cfg(feature = "alloc")]
+pub(crate) use self::contact_pair::relative_pose_drift;
+#[cfg(feature = "alloc")]
 pub use self::contact_pair::{
-    ContactData, ContactManifoldData, ContactPair, IntersectionPair, SimdSolverContact,
-    SolverContact, SolverFlags,
+    ContactData, ContactId, ContactManifoldData, ContactPair, IntersectionPair, NEW_CONTACT_BIT,
+    SimdSolverContact, SolverContact, SolverContactGeneric, SolverContacts, SolverFlags, is_bouncy,
+    is_bouncy_simd,
 };
 #[cfg(feature = "alloc")]
 pub use self::interaction_graph::{
@@ -247,7 +256,7 @@ pub(crate) fn default_persistent_query_dispatcher()
 mod collider_components;
 mod collider_handle;
 #[cfg(feature = "alloc")]
-mod contact_pair;
+pub(crate) mod contact_pair;
 #[cfg(feature = "alloc")]
 mod interaction_graph;
 mod interaction_groups;
@@ -266,3 +275,6 @@ mod mesh_converter;
 
 #[cfg(all(feature = "dim3", feature = "alloc"))]
 mod manifold_reduction;
+
+#[cfg(all(feature = "dim3", feature = "alloc"))]
+mod contact_clustering;

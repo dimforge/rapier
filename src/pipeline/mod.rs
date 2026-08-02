@@ -7,11 +7,12 @@ pub use event_handler::ActiveEvents;
 pub use event_handler::ChannelEventCollector;
 #[cfg(feature = "alloc")]
 pub use event_handler::EventHandler;
+#[cfg(feature = "alloc")]
 pub use physics_hooks::ActiveHooks;
 #[cfg(feature = "alloc")]
 pub use physics_hooks::{ContactModificationContext, PairFilterContext, PhysicsHooks};
 #[cfg(feature = "alloc")]
-pub use physics_pipeline::PhysicsPipeline;
+pub use physics_pipeline::{PhysicsPipeline, Quarantine};
 #[cfg(feature = "alloc")]
 pub use physics_world::PhysicsWorld;
 #[cfg(feature = "alloc")]
@@ -26,6 +27,7 @@ pub use self::debug_render_pipeline::{
 #[cfg(feature = "alloc")]
 mod collision_pipeline;
 mod event_handler;
+#[cfg(feature = "alloc")]
 mod physics_hooks;
 #[cfg(feature = "alloc")]
 mod physics_pipeline;

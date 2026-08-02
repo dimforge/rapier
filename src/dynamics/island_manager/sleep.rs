@@ -1,15 +1,15 @@
-use crate::dynamics::{
-    ImpulseJointSet, MultibodyJointSet, RigidBodyHandle, RigidBodySet, SleepRootState,
-};
-use crate::geometry::{ColliderSet, NarrowPhase};
+use crate::alloc_prelude::*;
+use crate::dynamics::{RigidBodyHandle, RigidBodySet};
+use crate::geometry::NarrowPhase;
 
 use super::{Island, IslandManager};
 
 impl IslandManager {
     /// Wakes up a sleeping body, forcing it back into the active simulation.
     ///
-    /// Use this when you want to ensure a body is active (useful after manually moving
-    /// a sleeping body, or to prevent it from sleeping in the next few frames).
+    /// Waking any body of a sleeping island wakes the **whole island** (its
+    /// entire touching-contact/joint connected component) and resets every
+    /// member's sleep timer.
     ///
     /// # Parameters
     /// * `strong` - If `true`, the body is guaranteed to stay awake for multiple frames.
@@ -35,167 +35,143 @@ impl IslandManager {
         if bodies.get(handle).map(|rb| !rb.is_fixed()) == Some(true) {
             let rb = bodies.index_mut_internal(handle);
 
-            // TODO: not sure if this is still relevant:
-            // // Check that the user didn’t change the sleeping state explicitly, in which
-            // // case we don’t overwrite it.
-            // if rb.changes.contains(RigidBodyChanges::SLEEP) {
-            //     return;
-            // }
-
             rb.activation.wake_up(strong);
+            let persistent_id = rb.ids.island_id;
             let island_to_wake_up = rb.ids.active_island_id;
-            self.wake_up_island(bodies, island_to_wake_up);
+
+            // Whole-island wake: waking any body wakes the entire persistent island, with
+            // a *strong* timer reset for every member — `RigidBody::sleep` leaves timers at the
+            // eligibility threshold, so a freshly woken island would otherwise re-sleep next step.
+            if persistent_id != crate::dynamics::INVALID_ISLAND {
+                let sleeping_island = self
+                    .persistent
+                    .islands
+                    .get(persistent_id as usize)
+                    .is_some_and(|island| island.sleeping);
+                if sleeping_island {
+                    let island = &mut self.persistent.islands[persistent_id as usize];
+                    island.sleeping = false;
+                    // The island's bodies normally share one sleeping-chunk
+                    // container, but joint-merged sleeping islands can span
+                    // several: wake each body's chunk.
+                    let handles = island.bodies.clone();
+                    for h in &handles {
+                        if let Some(rb) = bodies.get_mut(*h) {
+                            rb.activation.wake_up(true);
+                        }
+                    }
+                    for h in handles {
+                        let chunk = match bodies.get(h) {
+                            Some(rb) => rb.ids.active_island_id,
+                            None => continue,
+                        };
+                        self.wake_up_island(bodies, chunk as usize);
+                    }
+                    return;
+                }
+            }
+
+            self.wake_up_island(bodies, island_to_wake_up as usize);
         }
     }
 
-    /// Returns the number of iterations run by the graph traversal so we can balance load across
-    /// frames.
-    pub(super) fn extract_sleeping_island(
+    /// Puts `chunks` (disjoint subsets of the awake island's bodies, all
+    /// sleep-eligible) to sleep: in place if they cover the entire awake
+    /// island, otherwise by extracting each chunk into a new sleeping island.
+    pub(super) fn commit_sleeping_chunks(
         &mut self,
         bodies: &mut RigidBodySet,
-        colliders: &ColliderSet,
-        impulse_joints: &ImpulseJointSet,
-        multibody_joints: &MultibodyJointSet,
-        narrow_phase: &NarrowPhase,
-        sleep_root: RigidBodyHandle,
-    ) -> usize {
-        let Some(rb) = bodies.get_mut_internal(sleep_root) else {
-            // This branch happens if the rigid-body no longer exists.
-            return 0;
-        };
-
-        if rb.activation.sleep_root_state != SleepRootState::TraversalPending {
-            // We already traversed this sleep root.
-            return 0;
-        }
-
-        rb.activation.sleep_root_state = SleepRootState::Traversed;
-
-        let active_island_id = rb.ids.active_island_id;
-        let active_island = &mut self.islands[active_island_id];
-        if active_island.is_sleeping() {
-            // This rigid-body is already part of a sleeping island.
-            return 0;
-        }
-
-        // TODO: implement recycling islands to avoid repeated allocations?
-        let mut new_island = Island::default();
-        self.stack.clear();
-        self.stack.push(sleep_root);
-
-        let mut niter = 0;
-        self.traversal_timestamp += 1;
-
-        while let Some(handle) = self.stack.pop() {
-            let rb = bodies.index_mut_internal(handle);
-
-            if rb.is_fixed() {
-                // Don’t propagate islands through fixed bodies.
-                continue;
-            }
-
-            if rb.ids.active_set_timestamp == self.traversal_timestamp {
-                // We already visited this body and its neighbors.
-                continue;
-            }
-
-            // if rb.ids.active_set_timestamp >= frame_base_timestamp {
-            //     // We already visited this body and its neighbors during this frame.
-            //     // So we already know this islands cannot sleep (otherwise the bodies
-            //     // currently being traversed would already have been marked as sleeping).
-            //     return niter;
-            // }
-
-            niter += 1;
-            rb.ids.active_set_timestamp = self.traversal_timestamp;
-
-            if rb.activation.is_eligible_for_sleep() {
-                rb.activation.sleep_root_state = SleepRootState::Traversed;
-            }
-
-            assert_eq!(
-                rb.ids.active_island_id,
-                active_island_id,
-                "handle: {:?}, note niter: {}, isl size: {}",
-                handle,
-                niter,
-                active_island.len()
-            );
-            assert!(
-                !rb.activation.sleeping,
-                "is sleeping: {:?} note niter: {}, isl size: {}",
-                handle,
-                niter,
-                active_island.len()
-            );
-
-            if !rb.activation.is_eligible_for_sleep() {
-                // If this body cannot sleep, abort the traversal, we are not traversing
-                // yet an island that can sleep.
-                self.stack.clear();
-                return niter;
-            }
-
-            // Traverse bodies that are interacting with the current one either through
-            // contacts or a joint.
-            super::utils::push_contacting_bodies(
-                &rb.colliders,
-                colliders,
-                narrow_phase,
-                &mut self.stack,
-            );
-            super::utils::push_linked_bodies(
-                impulse_joints,
-                multibody_joints,
-                handle,
-                &mut self.stack,
-            );
-            new_island.bodies.push(handle);
-        }
-
-        // If we reached this line, we completed a sleeping island traversal.
-        // - Put its bodies to sleep.
-        // - Remove them from the active set.
-        // - Push the sleeping island.
-        if active_island.len() == new_island.len() {
+        narrow_phase: &mut NarrowPhase,
+        active_island_id: usize,
+        active_island_len: usize,
+        mut chunks: Vec<Vec<RigidBodyHandle>>,
+    ) {
+        if chunks.len() == 1 && chunks[0].len() == active_island_len {
             // The whole island is asleep. No need to insert a new one.
             // Put all its bodies to sleep.
+            let active_island = &mut self.islands[active_island_id];
             for handle in &active_island.bodies {
-                let rb = bodies.index_mut_internal(*handle);
-                rb.sleep();
+                bodies.index_mut_internal(*handle).sleep();
             }
 
-            // Mark the existing island as sleeping (by clearing its `id_in_awake_list`)
-            // and remove it from the awake list.
-            let island_awake_id = active_island
-                .id_in_awake_list
-                .take()
-                .unwrap_or_else(|| unreachable!());
-            self.awake_islands.swap_remove(island_awake_id);
-
-            if let Some(moved_id) = self.awake_islands.get(island_awake_id) {
-                self.islands[*moved_id].id_in_awake_list = Some(island_awake_id);
+            for handle in &active_island.bodies {
+                let rb = &bodies[*handle];
+                for co_handle in rb.colliders.0.iter().copied() {
+                    narrow_phase.clear_asleep_pair_solver_hint_counts_of(co_handle);
+                }
             }
+
+            // Membership changed (the whole island leaves the active set): bump the epoch so
+            // epoch-keyed caches can't go stale. The hint count-clears above only cover bodies
+            // WITH colliders — collider-less (joint-only) bodies would otherwise sleep without invalidating e.g. the cached body qualification table.
+            self.active_set_epoch = self.active_set_epoch.wrapping_add(1);
+
+            // Mark the island as sleeping: no island is awake anymore.
+            debug_assert_eq!(self.awake_island, Some(active_island_id));
+            self.awake_island = None;
         } else {
-            niter += new_island.len(); // Include this part into the cost estimate for this function.
-            self.extract_sub_island(bodies, active_island_id, new_island, true);
+            let slept: Vec<RigidBodyHandle> = chunks.iter().flatten().copied().collect();
+
+            for chunk in &mut chunks {
+                let new_island = Island {
+                    bodies: core::mem::take(chunk),
+                };
+                self.extract_sleeping_sub_island(bodies, active_island_id, new_island);
+            }
+
+            // Clear hints after the extractions (which flag the bodies as
+            // sleeping).
+            for handle in &slept {
+                let rb = &bodies[*handle];
+                for co_handle in rb.colliders.0.iter().copied() {
+                    narrow_phase.clear_asleep_pair_solver_hint_counts_of(co_handle);
+                }
+            }
         }
-        niter
     }
 
-    fn wake_up_island(&mut self, bodies: &mut RigidBodySet, island_id: usize) {
+    pub(super) fn wake_up_island(&mut self, bodies: &mut RigidBodySet, island_id: usize) {
+        if self.awake_island == Some(island_id) {
+            // Already awake.
+            return;
+        }
+
         let Some(island) = self.islands.get_mut(island_id) else {
             return;
         };
 
-        if island.is_sleeping() {
-            island.id_in_awake_list = Some(self.awake_islands.len());
-            self.awake_islands.push(island_id);
+        match self.awake_island {
+            None => {
+                // Nothing is awake: this chunk becomes the awake island. No renumbering (bodies
+                // keep their `active_set_id`s), but the active-set *membership* changes, so
+                // epoch-keyed caches (body qualification table, persistent solver graph, solver constraint caches) must not survive — bump the epoch like the merge branch. (Direct field bump: `island` still borrows `self.islands`.)
+                self.active_set_epoch = self.active_set_epoch.wrapping_add(1);
+                self.awake_island = Some(island_id);
 
-            // Wake up all the bodies from this island.
-            for handle in &island.bodies {
-                if let Some(rb) = bodies.get_mut(*handle) {
+                for handle in &island.bodies {
+                    if let Some(rb) = bodies.get_mut(*handle) {
+                        rb.wake_up(false);
+                    }
+                }
+            }
+            Some(awake_id) => {
+                // Merge the chunk's bodies into the single awake island.
+                self.bump_active_set_epoch();
+                let Some(removed) = self.islands.remove(island_id) else {
+                    unreachable!()
+                };
+                self.free_islands.push(island_id);
+
+                let target = &mut self.islands[awake_id];
+                for handle in &removed.bodies {
+                    let Some(rb) = bodies.get_mut(*handle) else {
+                        // This body no longer exists.
+                        continue;
+                    };
                     rb.wake_up(false);
+                    rb.ids.active_island_id = awake_id as u32;
+                    rb.ids.active_set_id = (target.bodies.len()) as u32;
+                    target.bodies.push(*handle);
                 }
             }
         }

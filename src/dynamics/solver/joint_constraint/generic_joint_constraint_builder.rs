@@ -14,7 +14,7 @@ use crate::utils;
 use crate::utils::{ComponentMul, IndexMut2, MatrixColumn};
 
 use crate::dynamics::integration_parameters::SpringCoefficients;
-use crate::dynamics::solver::ConstraintsCounts;
+use crate::dynamics::solver::joint_num_constraints;
 use crate::dynamics::solver::solver_body::SolverBodies;
 #[cfg(feature = "dim3")]
 use crate::utils::AngularInertiaOps;
@@ -124,6 +124,9 @@ impl JointGenericExternalConstraintBuilder {
         // TODO: use a more precise increment.
         *j_id += multibodies_ndof * 2 * SPATIAL_DIM;
 
+        // Grow the jacobian buffer to fit this constraint: runs serially in the staged solver's
+        // pre-phase, so race-free (see `generic_contact_constraint`); the internal-constraint
+        // `generate` below already resizes unconditionally.
         if jacobians.nrows() < required_jacobian_len {
             jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
         }
@@ -156,7 +159,7 @@ impl JointGenericExternalConstraintBuilder {
             constraint_id: *out_constraint_id,
         });
 
-        *out_constraint_id += ConstraintsCounts::from_joint(joint).num_constraints;
+        *out_constraint_id += joint_num_constraints(joint);
     }
 
     pub fn update(

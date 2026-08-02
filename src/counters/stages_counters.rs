@@ -10,7 +10,11 @@ pub struct StagesCounters {
     pub collision_detection_time: Timer,
     /// Time spent for the computation of collision island and body activation/deactivation (sleeping).
     pub island_construction_time: Timer,
-    /// Time spent for collecting awake constraints from islands.
+    /// Time spent maintaining the persistent solver-facing structures (solver
+    /// contact graph reconciliation for the pairs that changed this step,
+    /// frontier solver-body slots, force-event pair list). O(changed pairs) —
+    /// the solvers consume the persistent buckets directly, so there is no
+    /// per-step constraints-collection pass anymore.
     pub island_constraints_collection_time: Timer,
     /// Total time spent for the constraints resolution and position update.t
     pub solver_time: Timer,
@@ -61,7 +65,7 @@ impl Display for StagesCounters {
         )?;
         writeln!(
             f,
-            "Island construction time: {}",
+            "Constraints maintenance time: {}",
             self.island_constraints_collection_time
         )?;
         writeln!(f, "Solver time: {}", self.solver_time)?;

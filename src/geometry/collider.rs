@@ -896,6 +896,23 @@ impl ColliderBuilder {
         Self::new(SharedShape::polyline(vertices, indices))
     }
 
+    /// Initializes a collider builder with an **oriented** (one-sided) polyline shape.
+    ///
+    /// Unlike [`Self::polyline`], the segments only collide from their outward side, determined by
+    /// the winding of the vertices (counter-clockwise ⇒ the enclosed interior is solid; clockwise ⇒
+    /// the exterior is solid). This is the right choice for
+    /// container walls: bodies pushed against the wall are only resolved on the intended side, which
+    /// avoids the two-sided normal-flip that lets crushed/piled bodies squeeze through a thin wall.
+    #[cfg(feature = "dim2")]
+    pub fn oriented_polyline(vertices: Vec<Vector>, indices: Option<Vec<[u32; 2]>>) -> Self {
+        use parry::shape::{Polyline, PolylineFlags};
+        Self::new(SharedShape::new(Polyline::with_flags(
+            vertices,
+            indices,
+            PolylineFlags::ORIENTED,
+        )))
+    }
+
     /// Creates a triangle mesh collider from vertices and triangle indices.
     ///
     /// Use for complex, arbitrary shapes like:
