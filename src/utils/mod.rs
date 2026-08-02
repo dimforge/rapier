@@ -102,6 +102,7 @@ pub fn mat_to_na(m: Matrix) -> Matrix3<Real> {
 const INV_EPSILON: Real = 1.0e-20;
 
 #[allow(dead_code)]
+#[inline]
 pub(crate) fn inv(val: Real) -> Real {
     if (-INV_EPSILON..=INV_EPSILON).contains(&val) {
         0.0
