@@ -1,3 +1,95 @@
+## Unreleased
+
+### Breaking changes
+
+- ⚠ Removed the `simd-stable`, `simd-nightly` and `simd-is-enabled` features: SIMD is now
+  always on, backed by `wide` (which falls back to scalar code where unsupported); the
+  nightly `core::simd` backend is gone (we will support it when it get stabilized).
+  Just drop these features from your `Cargo.toml`.
+- ⚠ `PhysicsHooks` and `EventHandler` now require `Sync` instead of `Send + Sync` (through
+  the blanket-implemented `utils::MaybeSync`). Existing implementations keep compiling.
+- ⚠ Sleeping was rewritten around persistent islands: an island sleeps and wakes strictly
+  as a unit, so a body is never frozen while something it touches still moves. The
+  `IslandManager` and `RigidBodyActivation` serialization formats changed.
+- ⚠ Sleep thresholds changed: `normalized_linear_threshold` defaults to `0.05` (was `0.4`,
+  and is now measured at the body’s farthest point) and `time_until_sleep` to `0.5` seconds
+  (was `2.0`).
+- ⚠ Awake bodies are solved as a single active set: `IntegrationParameters::min_island_size`
+  was removed.
+- ⚠ The CCD solver was rewritten around sweep-based time of impact: each fast body is
+  clamped to its earliest impact (pose only; velocities resolve through speculative
+  contacts), and already-touching pairs no longer pin the body in place.
+  `CCDSolver::predict_impacts_at_next_positions`/`clamp_motions`, `PredictedImpacts` and
+  `TOIEntry` were replaced by `CCDSolver::solve_continuous`.
+- ⚠ Fast dynamic bodies now always run CCD against fixed colliders; `ccd_enabled` upgrades
+  a body to a "bullet" that also sweeps kinematic and dynamic bodies. Set
+  `IntegrationParameters::max_ccd_substeps` to `0` to disable CCD entirely.
+- ⚠ Body velocities are now capped each substep: linear speed at
+  `IntegrationParameters::max_linear_velocity()` (default 400 units/s) and rotation at
+  ~45° per step (`RigidBody::set_allow_fast_rotation` bypasses the angular cap).
+  `RigidBodyCcd::ccd_max_dist` became `RigidBody::max_extent()`, which `max_point_velocity`
+  now takes as an argument.
+- ⚠ Contact defaults changed: `normalized_prediction_distance` is `0.02` (was `0.002`),
+  `normalized_max_corrective_velocity` is `3.0` (was `10.0`) and
+  `normalized_allowed_linear_error` is `0.005` (was `0.001`), greatly reducing tunneling
+  through thin walls. Contacts against fixed bodies use a stiffer spring
+  (`IntegrationParameters::static_contact_softness`).
+- ⚠ `SolverContact` stores per-body anchors instead of a single world point, and friction
+  and restitution became per-manifold (new `friction`/`restitution` fields on
+  `ContactModificationContext`, instead of per-contact). Inside
+  `PhysicsHooks::modify_solver_contacts` the anchors still hold fresh world-space points,
+  and `dist` edits are still honored. `ContactModificationContext::solver_contacts` is now
+  a `SolverContacts` (an inline `ArrayVec` in 2D, still a `Vec` in 3D).
+- ⚠ `ContactPair` can now store reduced *solver clusters* alongside its manifolds; use
+  `ContactPair::solver_manifolds()` to read what the solver actually sees.
+- ⚠ `RigidBody::additional_solver_iterations` now adds whole solver substeps for the
+  body’s constraint-connected component, converging much better on high mass ratios.
+
+### Added
+
+- NaN/infinity quarantine: bodies and colliders whose pose, velocity or geometry goes
+  non-finite are rolled back to their last valid pose, disabled, and reported through
+  `PhysicsPipeline::quarantine()`/`PhysicsWorld::quarantine()` (new `Quarantine` type),
+  instead of corrupting the rest of the simulation.
+- Thread-pool API on `PhysicsPipeline`/`PhysicsWorld` (`parallel` feature):
+  `configure_thread_pool`, `set_thread_pool`, `thread_pool`, `clear_thread_pool` and
+  `num_threads`. When set, the whole step runs inside that pool.
+- `enhanced-determinism` can now be combined with `parallel`, with results bitwise
+  identical for any thread-pool size, and costs no measurable performance anymore
+  (cross-platform determinism now rests on glam’s shared scalar core plus `libm`-pinned
+  transcendentals). It remains incompatible with `simd8`, and cross-platform reproducibility
+  still requires matching numeric features (`block-solver`, f32 vs f64).
+- New `simd8` feature: widens the solver’s SIMD from 4 to 8 lanes (f32 only; needs an
+  AVX2-capable target to emit 256-bit instructions).
+- New `block-solver` feature (on by default in 2D): solves adjacent contact points as
+  coupled 2x2 blocks for better resting-stack stability.
+- New `unsync-callbacks` feature: drops the `Sync` requirement from `PhysicsHooks` and
+  `EventHandler` for thread-affine callbacks (a JS closure, a GUI handle). Callbacks then
+  all run on the thread driving `step()`, and the thread-pool API above is compiled out
+  (install a pool by stepping from inside it). Parallelism is kept: only the pairs that can
+  reach a callback are held back for the driving thread.
+- New `solver-bounds-checks` feature: validates the solver’s body indices at constraint
+  generation, turning a stale index into a clean panic instead of an unchecked SIMD gather.
+- `ColliderBuilder::oriented_polyline` (2D): a one-sided polyline that only collides on the
+  side determined by vertex winding.
+- `IntegrationParameters::contact_clustering` and `contact_recycling` (both on by default,
+  plus `normalized_contact_recycle_distance`): reduce narrow-phase and solver work on
+  composite-shape and resting contacts.
+- `IntegrationParameters::friction_in_bias_pass` and `warmstart_joints` solver tuning knobs.
+
+### Modified
+
+- The narrow phase and constraint solver were reworked around a persistent contact graph and
+  a staged multithreaded solver (parallelism within a single island), for lower per-step
+  overhead and steadier timings; multithreaded trajectories may shift within solver
+  tolerance.
+- The broad phase was reworked for large, mostly-static worlds: scenes with very large static
+  collider counts now pay near-zero per-step broad-phase cost.
+- Gyroscopic forces are applied per-substep in the principal inertia frame, improving
+  fast-spinning asymmetric bodies.
+- Removed the x86 flush-to-zero/denormals-are-zero floating-point flag: it mutated a
+  process-wide control register behind the user’s back.
+
 ## v0.34.0 (04 July 2026)
 
 ### Added

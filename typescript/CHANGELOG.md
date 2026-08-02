@@ -1,3 +1,19 @@
+## Unreleased
+
+### Breaking changes
+
+- Removed `IntegrationParameters.minIslandSize`: awake bodies are now solved as a single
+  active set, so there is no island size to tune.
+- `NarrowPhase.contactPair` takes the `RigidBodySet` as its third argument. Solver
+  contacts are now anchored in the local-space of the body they touch, so reading one
+  back in world-space needs the bodies' current poses. `World.contactPair` is unchanged
+  — it passes the world's own body set.
+- `TempContactManifold.solverContactPoint` returns the midpoint of the contact's two
+  per-body surface points (previously a single point).
+- `TempContactManifold.solverContactFriction` and `solverContactRestitution` became
+  `friction()` and `restitution()`, without a contact index: friction and restitution are
+  now combined once per manifold, so every solver contact of a manifold shares them.
+
 ## 0.19.3 (05 Nov. 2025)
 
 - Significantly improve performances of `combineVoxelStates`.
