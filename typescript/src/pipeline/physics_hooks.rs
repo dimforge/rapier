@@ -10,13 +10,6 @@ pub struct RawPhysicsHooks {
     // pub modify_solver_contacts: &'a js_sys::Function,
 }
 
-// HACK: the RawPhysicsHooks is no longer Send+Sync because the JS objects are
-//       no longer Send+Sync since https://github.com/rustwasm/wasm-bindgen/pull/955
-//       As far as this is confined to the bindings this should be fine since we
-//       never use threading in wasm.
-unsafe impl Send for RawPhysicsHooks {}
-unsafe impl Sync for RawPhysicsHooks {}
-
 #[wasm_bindgen]
 extern "C" {
     // Use `js_namespace` here to bind `console.log(..)` instead of just
