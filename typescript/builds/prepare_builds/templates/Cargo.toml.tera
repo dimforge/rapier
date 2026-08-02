@@ -30,7 +30,7 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 # `rapier{2,3}d` is patched to the in-repo crate (see the workspace
 # `[patch.crates-io]` in ../../Cargo.toml); this version requirement must stay
 # semver-compatible with that crate's version for the patch to take effect.
-rapier{{ dimension }}d = { version = "0.34", features = [
+rapier{{ dimension }}d = { version = "0.35.0-beta.0", features = [
     "serde-serialize",
     "debug-render",
     "profiler",
