@@ -19,14 +19,20 @@ maintenance = { status = "actively-developed" }
 [lints]
 clippy = { needless_lifetimes = "allow" }
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim2", "f32", "std", "alloc", "bytemuck", "simd-is-enabled", "simd-stable", "simd-nightly"))',
+    'cfg(feature, values("dim2", "f32", "std", "alloc", "bytemuck", "simd8"))',
     'cfg(target_arch, values("spirv"))',
 ] }
 
 [features]
-default = ["dim3", "f64", "std"]
+default = ["dim3", "f64", "std", "block-solver"]
 dim3 = []
 f64 = []
+# Enables the 2x2 block solver for contact manifolds (couples the two normal
+# constraints of a contact pair into a single 2x2 MLCP solve). Disabling it
+# also removes the extra per-contact `r_mat_elts` field from the solver's
+# normal-constraint struct. NOT enabled by default in 3D: it introduces jitter
+# in the 3D domino demo. Exposed as an opt-in for experimentation.
+block-solver = []
 alloc = [
     "nalgebra/alloc",
     "parry3d-f64/alloc",
@@ -42,18 +48,13 @@ std = [
     "thiserror/std",
     "serde?/std",
 ]
-parallel = ["dep:rayon", "std"]
-# SoA SIMD not supported yet on f64
-#simd-stable = ["parry3d-f64/simd-stable", "simba/wide", "simd-is-enabled"]
-#simd-nightly = [
-#    "parry3d-f64/simd-nightly",
-#    "simba/portable_simd",
-#    "simd-is-enabled",
-#]
-## Do not enable this feature directly. It is automatically
-## enabled with the "simd-stable" or "simd-nightly" feature.
-#simd-is-enabled = []
+parallel = ["dep:rayon", "std", "parry3d-f64/parallel"]
+# Drops the `Sync` requirement from callbacks (`PhysicsHooks`, `EventHandler`).
+# As a side effect, this also removes the dedicated threadpool API from the physics world
+# and pipeline.
+unsync-callbacks = []
 serde-serialize = [
+    "arrayvec/serde",
     "nalgebra/serde-serialize",
     "parry3d-f64/serde-serialize",
     "dep:serde",
@@ -71,8 +72,16 @@ debug-disable-legitimate-fe-exceptions = []
 # Do not enable this unless you are working on the engine internals.
 dev-remove-slow-accessors = []
 
+# Opt-in bounds checks on the solver's otherwise-unchecked SIMD body gathers
+# (`SolverBodies::gather_*` use `get_unchecked`). Validates the per-constraint
+# solver-body ids once at constraint generation — off the per-iteration solve
+# loop — so a stale id from a solver-graph maintenance bug becomes a clean
+# panic instead of an out-of-bounds gather (UB / segfault in the SIMD build).
+# Cheap but non-zero; off by default.
+solver-bounds-checks = []
+
 [package.metadata.docs.rs]
-features = ["parallel", "simd-stable", "serde-serialize", "debug-render"]
+features = ["parallel", "serde-serialize", "debug-render"]
 
 [lib]
 name = "rapier3d_f64"
@@ -86,6 +95,7 @@ parry3d-f64.workspace = true
 simba.workspace = true
 num-traits.workspace = true
 approx.workspace = true
+arrayvec.workspace = true
 bitflags.workspace = true
 log.workspace = true
 thiserror.workspace = true
@@ -107,3 +117,5 @@ bincode.workspace = true
 serde_json.workspace = true
 serde = { workspace = true, features = ["std"] }
 oorandom.workspace = true
+
+[target.'cfg(target_vendor = "apple")'.dependencies]

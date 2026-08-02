@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Cargo doc
-        run: cargo doc --features parallel,simd-stable,serde-serialize,debug-render -p rapier3d -p rapier2d -p rapier3d-meshloader -p rapier3d-urdf && cargo doc -p mjcf-rs --features msh && cargo doc -p rapier3d-mjcf --features stl,wavefront,msh
+        run: cargo doc --features parallel,serde-serialize,debug-render -p rapier3d -p rapier2d -p rapier3d-meshloader -p rapier3d-urdf && cargo doc -p mjcf-rs --features msh && cargo doc -p rapier3d-mjcf --features stl,wavefront,msh
   build-native:
     runs-on: ubuntu-latest
     env:
@@ -34,9 +34,9 @@ jobs:
       - name: Clippy
         run: cargo clippy
       - name: Clippy rapier2d
-        run: cargo clippy -p rapier-examples-2d --features parallel,simd-stable
+        run: cargo clippy -p rapier-examples-2d --features parallel
       - name: Clippy rapier3d
-        run: cargo clippy -p rapier-examples-3d --features parallel,simd-stable
+        run: cargo clippy -p rapier-examples-3d --features parallel
       - name: Clippy mjcf-rs
         run: cargo clippy -p mjcf-rs --all-targets --features msh
       - name: Clippy rapier3d-mjcf
@@ -45,16 +45,46 @@ jobs:
         run: cargo build --verbose -p rapier2d;
       - name: Build rapier3d
         run: cargo build --verbose -p rapier3d;
-      - name: Build rapier2d SIMD
-        run: cd crates/rapier2d; cargo build --verbose --features simd-stable;
-      - name: Build rapier3d SIMD
-        run: cd crates/rapier3d; cargo build --verbose --features simd-stable;
-      - name: Build rapier2d SIMD Parallel
-        run: cd crates/rapier2d; cargo build --verbose --features simd-stable --features parallel;
-      - name: Build rapier3d SIMD Parallel
-        run: cd crates/rapier3d; cargo build --verbose --features simd-stable --features parallel;
+      - name: Build rapier2d Parallel
+        run: cd crates/rapier2d; cargo build --verbose --features parallel;
+      - name: Build rapier3d Parallel
+        run: cd crates/rapier3d; cargo build --verbose --features parallel;
+      - name: Build rapier3d 8-lanes SIMD
+        run: cd crates/rapier3d; cargo build --verbose --features simd8;
       - name: Run tests
         run: cargo test
+      - name: Test determinism (SIMD backend)
+        run: cargo test -p rapier3d --release --features enhanced-determinism --test simd_backend_determinism
+      - name: Test SIMD backend op-level parity
+        run: cargo test -p rapier3d --release --features enhanced-determinism --test simd_backend_parity
+      - name: Test parallel-path parity (feature off)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test parallel_path_parity
+      - name: Test parallel-path parity (feature on)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize,parallel --test parallel_path_parity
+      - name: Test thread-count determinism
+        run: cargo test -p rapier3d --release --features parallel,serde-serialize --test thread_count_determinism
+      - name: Test snapshot round-trip (3D)
+        run: cargo test -p rapier3d --release --features serde-serialize --test snapshot_roundtrip
+      - name: Test snapshot round-trip (2D)
+        run: cargo test -p rapier2d --release --features serde-serialize --test snapshot_roundtrip
+      # The native half of the cross-target check: the `wasm-determinism` job below runs
+      # these same two tests, against the same goldens, on 32-bit pointers.
+      - name: Test snapshot portability (3D, native)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
+      - name: Test snapshot portability (2D, native)
+        run: cargo test -p rapier2d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
+      - name: Test single-worker deferred BVH
+        run: cargo test -p rapier3d --release --features parallel --test single_worker_deferred_bvh
+      # `unsync-callbacks` drops the `Sync` bound off the hooks/event traits; the test's
+      # callbacks hold a `Cell`, so it only compiles while that holds.
+      - name: Test unsync callbacks
+        run: cargo test -p rapier3d --release --features parallel,unsync-callbacks --test unsync_callbacks
+      # The bound is keyed on `unsync-callbacks` alone, so the no-`parallel` build is its own
+      # configuration rather than one that trivially has no bound.
+      - name: Test unsync callbacks (no parallel)
+        run: cargo test -p rapier3d --release --features unsync-callbacks --test unsync_callbacks
+      - name: Test parallel-path parity (unsync-callbacks)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize,parallel,unsync-callbacks --test parallel_path_parity
       - name: Test mjcf-rs
         run: cargo test -p mjcf-rs --features msh
       - name: Test rapier3d-mjcf
@@ -106,6 +136,31 @@ jobs:
         run: cargo check --verbose -p rapier2d --no-default-features --features dim2,f32,alloc,debug-render --target=thumbv7em-none-eabihf
       - name: Check rapier3d thumbv7em-none-eabihf + alloc + debug-render
         run: cargo check --verbose -p rapier3d --no-default-features --features dim3,f32,alloc,debug-render --target=thumbv7em-none-eabihf
+  # Runs the tiny-scene tests under Miri to check the solver's unsafe hot paths
+  # (manifold store, solver-graph buckets, raw color-mask slices) for UB.
+  # x86_64 only: glam's aarch64 NEON backend hits foreign intrinsics Miri does
+  # not implement (on Apple Silicon, use --target x86_64-unknown-linux-gnu).
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install nightly Rust with Miri
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          components: miri
+      - name: Miri test rapier3d (tiny scenes)
+        run: cargo miri test -p rapier3d --test miri_scenes
+      - name: Miri test rapier2d (tiny scenes)
+        run: cargo miri test -p rapier2d --test miri_scenes
+      # The SIMD solver paths lean harder on transmutes and raw slices; worth the
+      # extra interpretation time (~3.5x the scalar run). `parallel` also passes,
+      # but only manually (not in CI): crossbeam-epoch's container_of pattern
+      # violates Stacked Borrows in rayon's steal path, so it needs
+      # MIRIFLAGS="-Zmiri-tree-borrows -Zmiri-ignore-leaks" (ignore-leaks for
+      # rayon's never-joined global pool) and RAYON_NUM_THREADS=2.
+      - name: Miri test rapier3d (tiny scenes)
+        run: cargo miri test -p rapier3d --test miri_scenes
   build-wasm:
     runs-on: ubuntu-latest
     env:
@@ -117,6 +172,32 @@ jobs:
         run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-unknown;
       - name: build rapier3d
         run: cd crates/rapier3d && cargo build --verbose --target wasm32-unknown-unknown;
+  # A snapshot taken in a browser must be byte-identical to one taken on the server, so the
+  # same golden the native jobs check is checked again on a 32-bit-pointer target with its
+  # own libm and codegen backend. `wasm32-wasip1` rather than `wasm32-unknown-unknown`
+  # because it can run a test binary; the arithmetic and the serialized layout are the same
+  # for both wasm targets.
+  wasm-determinism:
+    runs-on: ubuntu-latest
+    env:
+      # Absolute: cargo runs a test binary from its own package directory, not the
+      # workspace root.
+      CARGO_TARGET_WASM32_WASIP1_RUNNER: node ${{ github.workspace }}/.github/scripts/run-wasi.mjs
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable Rust with wasm32-wasip1
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: wasm32-wasip1
+      # `node:wasi` needs no command-line flag from 22 on.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test snapshot portability (3D, wasm32)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --target wasm32-wasip1 --test snapshot_portability
+      - name: Test snapshot portability (2D, wasm32)
+        run: cargo test -p rapier2d --release --features enhanced-determinism,serde-serialize --target wasm32-wasip1 --test snapshot_portability
   # If this fails, consider changing your text or adding something to .typos.toml
   # You can find typos here: https://crates.io/crates/typos'
   typos:
