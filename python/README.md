@@ -62,6 +62,22 @@ maturin develop -m python/rapier-py-3d/Cargo.toml      # 3D f32 -> import rapier
 python -c "import rapier3d; print(rapier3d.__version__)"   # smoke check
 ```
 
+### Threads
+
+The engine is always built multi-threaded, and `step()` releases the GIL while
+it runs. A world defaults to one worker per logical CPU; each world owns its
+pool, so worlds stepped from different Python threads don't compete:
+
+```python
+world.set_num_threads(4)     # four workers for this world
+world.num_threads            # -> 4
+world.set_num_threads(1)     # everything inline on the calling thread
+world.set_num_threads(None)  # back to one worker per logical CPU
+```
+
+The worker count never changes the result: the same scene stepped with 1 and
+with 8 workers gives bit-identical states.
+
 ### Run the test suite
 
 ```bash

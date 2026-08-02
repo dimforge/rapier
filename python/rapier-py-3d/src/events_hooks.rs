@@ -20,7 +20,9 @@
 //! from a worker thread. Our adapter types (`PyEventHandler`, `PyPhysicsHooks`,
 //! `ChannelEventCollector`) hold `Py<PyAny>` callables; each callback wraps the
 //! call in `Python::with_gil(...)` to re-acquire the GIL before touching any
-//! Python object.
+//! Python object. That is also what makes the adapters `Sync`, as the engine's
+//! worker threads require: `Py<PyAny>` and `Arc<Mutex<..>>` are `Sync` on their
+//! own, so no `unsafe impl` is involved.
 //!
 //! Exceptions raised inside Python callbacks are **deferred**: they're stashed
 //! into a shared `Mutex<Option<PyErr>>` and re-raised after `step()` returns to
@@ -29,15 +31,6 @@
 //! support mid-step aborts, so "strict" simply makes the error get re-raised
 //! *and* future hook calls during the same step early-return without invoking
 //! the user callback).
-//!
-//! # Safety
-//!
-//! `PyEventHandler` / `PyPhysicsHooks` declare `unsafe impl Send + Sync`. PyO3's
-//! `Py<PyAny>` is `Send` already (it manages the refcount through atomic ops via
-//! `clone_ref`), but we still re-acquire the GIL with `Python::with_gil` before
-//! every interaction. The wrappers themselves never read or write the inner
-//! Python object outside of a GIL section, so the `Send + Sync` upgrade is
-//! sound.
 
 use crate::pyo3::exceptions::PyTypeError;
 use crate::pyo3::pyclass::CompareOp;
@@ -258,6 +251,8 @@ pub struct ContactModificationContext {
     local_n2: rapier::math::Vector,
     normal: *mut rapier::math::Vector,
     solver_contacts: *mut Vec<rapier::geometry::SolverContact>,
+    friction: *mut Real,
+    restitution: *mut Real,
     user_data: *mut u32,
     valid: bool,
 }
@@ -356,6 +351,51 @@ impl ContactModificationContext {
         Ok(())
     }
 
+    /// Friction coefficient applied to every solver contact of this
+    /// manifold (read).
+    ///
+    /// :raises RuntimeError: If accessed outside the callback.
+    #[getter]
+    fn friction(&self) -> PyResult<Real> {
+        self.check_valid()?;
+        // SAFETY: see `normal` getter.
+        Ok(unsafe { *self.friction })
+    }
+    /// Per-manifold friction coefficient (write).
+    ///
+    /// :raises RuntimeError: If accessed outside the callback.
+    #[setter]
+    fn set_friction(&mut self, v: Real) -> PyResult<()> {
+        self.check_valid()?;
+        // SAFETY: see `normal` getter.
+        unsafe {
+            *self.friction = v;
+        }
+        Ok(())
+    }
+    /// Restitution coefficient applied to every solver contact of this
+    /// manifold (read).
+    ///
+    /// :raises RuntimeError: If accessed outside the callback.
+    #[getter]
+    fn restitution(&self) -> PyResult<Real> {
+        self.check_valid()?;
+        // SAFETY: see `normal` getter.
+        Ok(unsafe { *self.restitution })
+    }
+    /// Per-manifold restitution coefficient (write).
+    ///
+    /// :raises RuntimeError: If accessed outside the callback.
+    #[setter]
+    fn set_restitution(&mut self, v: Real) -> PyResult<()> {
+        self.check_valid()?;
+        // SAFETY: see `normal` getter.
+        unsafe {
+            *self.restitution = v;
+        }
+        Ok(())
+    }
+
     /// Return the current solver contacts as a list (read-only snapshot).
     ///
     /// :raises RuntimeError: If accessed outside the callback.
@@ -367,14 +407,18 @@ impl ContactModificationContext {
         let mut out = Vec::with_capacity(vec_ref.len());
         for sc in vec_ref {
             out.push({
-                let p: crate::na::Vector3<Real> = sc.point.into();
+                // Inside the modification hook the anchors hold the fresh
+                // world-space contact points; is-new lives in bit 31 of the
+                // contact id.
+                let p1: crate::na::Vector3<Real> = sc.anchor1.into();
+                let p2: crate::na::Vector3<Real> = sc.anchor2.into();
+                let id = sc.contact_id[0];
                 SolverContact {
-                    point: Point3(crate::na::Point3::from(p)),
+                    point: Point3(crate::na::Point3::from(p1)),
+                    point2: Point3(crate::na::Point3::from(p2)),
                     dist: sc.dist,
-                    friction: sc.friction,
-                    restitution: sc.restitution,
-                    contact_id: sc.contact_id[0],
-                    is_new: sc.is_new != 0.0,
+                    contact_id: id & !rapier::geometry::NEW_CONTACT_BIT,
+                    is_new: (id & rapier::geometry::NEW_CONTACT_BIT) != 0,
                 }
             });
         }
@@ -504,14 +548,6 @@ impl PyEventHandler {
         Self { obj, err_slot }
     }
 }
-
-// SAFETY: `Py<PyAny>` is `Send` (PyO3 manages the refcount via atomic
-// ops on `clone_ref`). Every interaction with the inner Python object
-// happens inside `Python::with_gil`, which re-acquires the GIL — so we
-// never touch Python state without serialization. `Arc<Mutex<...>>` is
-// both `Send` and `Sync`.
-unsafe impl Send for PyEventHandler {}
-unsafe impl Sync for PyEventHandler {}
 
 impl rapier::pipeline::EventHandler for PyEventHandler {
     fn handle_collision_event(
@@ -676,7 +712,8 @@ impl ChannelEventCollector {
 
 impl ChannelEventCollector {
     /// Build an `EventHandler`-implementing adapter that pushes into
-    /// this collector's buffers. The adapter is `Send + Sync`.
+    /// this collector's buffers. The adapter is `Sync`, as the engine's worker
+    /// threads require.
     pub fn as_event_handler(&self) -> ChannelEventCollectorAdapter {
         ChannelEventCollectorAdapter {
             collisions: Arc::clone(&self.collisions),
@@ -748,10 +785,6 @@ impl PyPhysicsHooks {
         Self { obj, err_slot }
     }
 }
-
-// SAFETY: see `PyEventHandler`.
-unsafe impl Send for PyPhysicsHooks {}
-unsafe impl Sync for PyPhysicsHooks {}
 
 impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
     fn filter_contact_pair(
@@ -878,6 +911,8 @@ impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
             let manifold_local_n2 = context.manifold.local_n2;
             let normal_ptr: *mut rapier::math::Vector = context.normal;
             let sc_ptr: *mut Vec<rapier::geometry::SolverContact> = context.solver_contacts;
+            let friction_ptr: *mut Real = context.friction;
+            let restitution_ptr: *mut Real = context.restitution;
             let ud_ptr: *mut u32 = context.user_data;
             let ctx_py = match Py::new(
                 py,
@@ -890,6 +925,8 @@ impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
                     local_n2: manifold_local_n2,
                     normal: normal_ptr,
                     solver_contacts: sc_ptr,
+                    friction: friction_ptr,
+                    restitution: restitution_ptr,
                     user_data: ud_ptr,
                     valid: true,
                 },

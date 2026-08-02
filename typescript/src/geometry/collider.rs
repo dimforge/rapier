@@ -686,8 +686,7 @@ impl RawColliderSet {
     /// `try_convex_hull`, so they may differ in count and order from the points the shape
     /// was built from. This guarantees the result can be used to reconstruct the shape.
     pub fn coVertices(&self, handle: FlatHandle) -> Option<Vec<f32>> {
-        let flatten =
-            |vertices: &[Vector]| vertices.iter().flat_map(|p| p.to_array()).collect();
+        let flatten = |vertices: &[Vector]| vertices.iter().flat_map(|p| p.to_array()).collect();
         self.map(handle, |co| match co.shape().shape_type() {
             ShapeType::TriMesh => co.shape().as_trimesh().map(|t| flatten(t.vertices())),
             #[cfg(feature = "dim2")]

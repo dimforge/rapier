@@ -42,11 +42,6 @@ impl RawIntegrationParameters {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn minIslandSize(&self) -> usize {
-        self.0.min_island_size
-    }
-
-    #[wasm_bindgen(getter)]
     pub fn maxCcdSubsteps(&self) -> usize {
         self.0.max_ccd_substeps
     }
@@ -83,10 +78,6 @@ impl RawIntegrationParameters {
     #[wasm_bindgen(setter)]
     pub fn set_numInternalPgsIterations(&mut self, value: usize) {
         self.0.num_internal_pgs_iterations = value;
-    }
-    #[wasm_bindgen(setter)]
-    pub fn set_minIslandSize(&mut self, value: usize) {
-        self.0.min_island_size = value
     }
 
     #[wasm_bindgen(setter)]

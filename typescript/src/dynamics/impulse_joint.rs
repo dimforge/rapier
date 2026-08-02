@@ -136,8 +136,7 @@ impl RawImpulseJointSet {
         rot: &RawRotation,
     ) {
         self.map_mut(handle, |j| {
-            j.data
-                .set_local_frame1(Pose::from_parts(anchor.0, rot.0));
+            j.data.set_local_frame1(Pose::from_parts(anchor.0, rot.0));
         });
     }
 
@@ -149,8 +148,7 @@ impl RawImpulseJointSet {
         rot: &RawRotation,
     ) {
         self.map_mut(handle, |j| {
-            j.data
-                .set_local_frame2(Pose::from_parts(anchor.0, rot.0));
+            j.data.set_local_frame2(Pose::from_parts(anchor.0, rot.0));
         });
     }
 

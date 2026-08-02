@@ -253,3 +253,63 @@ def test_pipeline_counters_property(ns):
     pp = ns.PhysicsPipeline()
     c = pp.counters
     assert isinstance(c, ns.Counters)
+
+
+# ---- Threading ------------------------------------------------------------
+
+
+def test_num_threads_defaults_to_the_global_pool(ns):
+    w = ns.PhysicsWorld()
+    assert w.num_threads >= 1
+    assert w.num_threads == w.physics_pipeline.num_threads
+
+
+def test_set_num_threads_is_per_world(ns):
+    w1 = ns.PhysicsWorld()
+    w2 = ns.PhysicsWorld()
+    default = w2.num_threads
+    w1.set_num_threads(2)
+    assert w1.num_threads == 2
+    # Worlds own their pool: configuring one leaves the other alone.
+    assert w2.num_threads == default
+    # `None` goes back to the global pool.
+    w1.set_num_threads(None)
+    assert w1.num_threads == default
+
+
+def test_set_num_threads_rejects_zero(ns):
+    w = ns.PhysicsWorld()
+    with pytest.raises(ValueError):
+        w.set_num_threads(0)
+
+
+@pytest.mark.parametrize("num_threads", [1, 4])
+def test_step_matches_across_thread_counts(ns, num_threads):
+    """The worker count must not change the simulation result."""
+
+    def run(threads):
+        w = ns.PhysicsWorld(gravity=(0, -9.81, 0))
+        w.set_num_threads(threads)
+        w.colliders.insert(ns.Collider.cuboid(50, 0.1, 50).build())
+        # Enough active bodies to clear the pipeline's threshold for splitting
+        # the step across workers — otherwise both runs take the inline path and
+        # the comparison proves nothing.
+        handles = [
+            w.add_body(
+                ns.RigidBody.dynamic(
+                    translation=(x * 1.1, 1.0 + y * 1.1, z * 1.1)
+                ),
+                colliders=[ns.Collider.ball(0.5)],
+            )
+            for x in range(8)
+            for y in range(8)
+            for z in range(8)
+        ]
+        for _ in range(60):
+            w.step()
+        return [
+            (t.x, t.y, t.z)
+            for t in (w.rigid_bodies[h].translation for h in handles)
+        ]
+
+    assert run(num_threads) == run(1)

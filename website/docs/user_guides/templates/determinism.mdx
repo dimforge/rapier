@@ -25,7 +25,8 @@ computers (including different OS and/or different processors) will result in th
 achieve this, both computers must start the simulation with the **same initial conditions** as discussed above, and the
 following additional conditions must be met:
 - The `enhanced-determinism` feature of Rapier is enabled. Note that the `enhanced-determinism` feature cannot be
-  enabled at the same time as the `simd-nightly`, `simd-stable`, and `parallel` features.
+  enabled at the same time as the `simd8` feature, which changes the SIMD lane width and is therefore its own
+  determinism domain.
 - The target platforms must strictly comply to the IEEE 754-2008 floating-points standard. This ensures that
   floating-point computations behave the same on all platforms. This include most modern mainstream processors
   as well as WASM targets.

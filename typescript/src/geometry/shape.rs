@@ -2,11 +2,11 @@ use crate::geometry::{RawPointProjection, RawRayIntersection, RawShapeCastHit, R
 use crate::math::{RawRotation, RawVector};
 use rapier::geometry::{Shape, SharedShape, TriMeshFlags};
 use rapier::math::{IVector, Pose, Rotation, Vector, DIM};
-#[cfg(feature = "dim3")]
-use rapier::parry::utils::Array2;
 use rapier::parry::query;
 use rapier::parry::query::{Ray, ShapeCastOptions};
 use rapier::parry::transformation::vhacd::{VHACDParameters, VHACD};
+#[cfg(feature = "dim3")]
+use rapier::parry::utils::Array2;
 use wasm_bindgen::prelude::*;
 
 pub trait SharedShapeUtility {
@@ -22,12 +22,7 @@ pub trait SharedShapeUtility {
         stop_at_penetration: bool,
     ) -> Option<RawShapeCastHit>;
 
-    fn intersectsShape(
-        &self,
-        shapePos1: &Pose,
-        shape2: &dyn Shape,
-        shapePos2: &Pose,
-    ) -> bool;
+    fn intersectsShape(&self, shapePos1: &Pose, shape2: &dyn Shape, shapePos2: &Pose) -> bool;
 
     fn contactShape(
         &self,
@@ -39,20 +34,9 @@ pub trait SharedShapeUtility {
 
     fn containsPoint(&self, shapePos: &Pose, point: &Vector) -> bool;
 
-    fn projectPoint(
-        &self,
-        shapePos: &Pose,
-        point: &Vector,
-        solid: bool,
-    ) -> RawPointProjection;
+    fn projectPoint(&self, shapePos: &Pose, point: &Vector, solid: bool) -> RawPointProjection;
 
-    fn intersectsRay(
-        &self,
-        shapePos: &Pose,
-        rayOrig: Vector,
-        rayDir: Vector,
-        maxToi: f32,
-    ) -> bool;
+    fn intersectsRay(&self, shapePos: &Pose, rayOrig: Vector, rayDir: Vector, maxToi: f32) -> bool;
 
     fn castRay(
         &self,
@@ -119,12 +103,7 @@ impl SharedShapeUtility for SharedShape {
         .map(|hit| RawShapeCastHit { hit })
     }
 
-    fn intersectsShape(
-        &self,
-        shapePos1: &Pose,
-        shape2: &dyn Shape,
-        shapePos2: &Pose,
-    ) -> bool {
+    fn intersectsShape(&self, shapePos1: &Pose, shape2: &dyn Shape, shapePos2: &Pose) -> bool {
         query::intersection_test(shapePos1, &*self.0, shapePos2, shape2).unwrap_or(false)
     }
 
@@ -145,22 +124,11 @@ impl SharedShapeUtility for SharedShape {
         self.as_ref().contains_point(shapePos, *point)
     }
 
-    fn projectPoint(
-        &self,
-        shapePos: &Pose,
-        point: &Vector,
-        solid: bool,
-    ) -> RawPointProjection {
+    fn projectPoint(&self, shapePos: &Pose, point: &Vector, solid: bool) -> RawPointProjection {
         RawPointProjection(self.as_ref().project_point(shapePos, *point, solid))
     }
 
-    fn intersectsRay(
-        &self,
-        shapePos: &Pose,
-        rayOrig: Vector,
-        rayDir: Vector,
-        maxToi: f32,
-    ) -> bool {
+    fn intersectsRay(&self, shapePos: &Pose, rayOrig: Vector, rayDir: Vector, maxToi: f32) -> bool {
         self.as_ref()
             .intersects_ray(shapePos, &Ray::new(rayOrig, rayDir), maxToi)
     }
@@ -494,12 +462,8 @@ impl RawShape {
     /// If both `vertices` and `indices` are needed, prefer `convexMeshData` which computes
     /// the convex hull only once.
     pub fn vertices(&self) -> Option<Vec<f32>> {
-        let flatten = |vertices: &[Vector]| {
-            vertices
-                .iter()
-                .flat_map(|point| point.to_array())
-                .collect()
-        };
+        let flatten =
+            |vertices: &[Vector]| vertices.iter().flat_map(|point| point.to_array()).collect();
 
         match self.0.shape_type() {
             rapier::geometry::ShapeType::TriMesh => {
@@ -604,10 +568,7 @@ impl RawShape {
         }?;
         let (points, indices) = normalized_convex_polyhedron_mesh(polyhedron)?;
         Some(RawConvexMeshData {
-            vertices: points
-                .iter()
-                .flat_map(|point| point.to_array())
-                .collect(),
+            vertices: points.iter().flat_map(|point| point.to_array()).collect(),
             indices,
         })
     }
@@ -627,16 +588,18 @@ impl RawShape {
 
     pub fn heightfieldHeights(&self) -> Option<Vec<f32>> {
         match self.0.shape_type() {
-            rapier::geometry::ShapeType::HeightField => self.0.as_heightfield().map(|heightfield| {
-                #[cfg(feature = "dim2")]
-                {
-                    heightfield.heights().as_slice().to_vec()
-                }
-                #[cfg(feature = "dim3")]
-                {
-                    heightfield.heights().data().to_vec()
-                }
-            }),
+            rapier::geometry::ShapeType::HeightField => {
+                self.0.as_heightfield().map(|heightfield| {
+                    #[cfg(feature = "dim2")]
+                    {
+                        heightfield.heights().as_slice().to_vec()
+                    }
+                    #[cfg(feature = "dim3")]
+                    {
+                        heightfield.heights().data().to_vec()
+                    }
+                })
+            }
             _ => None,
         }
     }
@@ -770,7 +733,10 @@ impl RawShape {
     }
 
     pub fn polyline(vertices: Vec<f32>, indices: Vec<u32>) -> Self {
-        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
+        let vertices = vertices
+            .chunks(DIM)
+            .map(|v| Vector::from_slice(v))
+            .collect();
         let indices: Vec<_> = indices.chunks(2).map(|v| [v[0], v[1]]).collect();
         if indices.is_empty() {
             Self(SharedShape::polyline(vertices, None))
@@ -781,7 +747,10 @@ impl RawShape {
 
     pub fn trimesh(vertices: Vec<f32>, indices: Vec<u32>, flags: u32) -> Option<RawShape> {
         let flags = TriMeshFlags::from_bits(flags as u16).unwrap_or_default();
-        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
+        let vertices = vertices
+            .chunks(DIM)
+            .map(|v| Vector::from_slice(v))
+            .collect();
         let indices = indices.chunks(3).map(|v| [v[0], v[1], v[2]]).collect();
         SharedShape::trimesh_with_flags(vertices, indices, flags)
             .ok()
@@ -841,19 +810,28 @@ impl RawShape {
 
     #[cfg(feature = "dim2")]
     pub fn convexPolyline(vertices: Vec<f32>) -> Option<RawShape> {
-        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
+        let vertices = vertices
+            .chunks(DIM)
+            .map(|v| Vector::from_slice(v))
+            .collect();
         SharedShape::convex_polyline(vertices).map(|s| Self(s))
     }
 
     #[cfg(feature = "dim2")]
     pub fn roundConvexPolyline(vertices: Vec<f32>, borderRadius: f32) -> Option<RawShape> {
-        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
+        let vertices = vertices
+            .chunks(DIM)
+            .map(|v| Vector::from_slice(v))
+            .collect();
         SharedShape::round_convex_polyline(vertices, borderRadius).map(|s| Self(s))
     }
 
     #[cfg(feature = "dim3")]
     pub fn convexMesh(vertices: Vec<f32>, indices: Vec<u32>) -> Option<RawShape> {
-        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
+        let vertices = vertices
+            .chunks(DIM)
+            .map(|v| Vector::from_slice(v))
+            .collect();
         let indices: Vec<_> = indices.chunks(3).map(|v| [v[0], v[1], v[2]]).collect();
         SharedShape::convex_mesh(vertices, &indices).map(|s| Self(s))
     }
@@ -864,7 +842,10 @@ impl RawShape {
         indices: Vec<u32>,
         borderRadius: f32,
     ) -> Option<RawShape> {
-        let vertices = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
+        let vertices = vertices
+            .chunks(DIM)
+            .map(|v| Vector::from_slice(v))
+            .collect();
         let indices: Vec<_> = indices.chunks(3).map(|v| [v[0], v[1], v[2]]).collect();
         SharedShape::round_convex_mesh(vertices, &indices, borderRadius).map(|s| Self(s))
     }
@@ -934,7 +915,10 @@ impl RawShape {
         indices: Vec<u32>,
         params: &RawVHACDParameters,
     ) -> Option<RawShape> {
-        let vertices: Vec<_> = vertices.chunks(DIM).map(|v| Vector::from_slice(v)).collect();
+        let vertices: Vec<_> = vertices
+            .chunks(DIM)
+            .map(|v| Vector::from_slice(v))
+            .collect();
         #[cfg(feature = "dim2")]
         let indices: Vec<_> = indices.chunks(2).map(|v| [v[0], v[1]]).collect();
         #[cfg(feature = "dim3")]

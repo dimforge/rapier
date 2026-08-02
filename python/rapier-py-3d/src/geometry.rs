@@ -2939,21 +2939,20 @@ impl ContactData {
 
 /// One contact prepared for the constraints solver.
 ///
-/// Read-only snapshot. `point` is in world coordinates;
-/// `friction`/`restitution` are the per-contact combined material
-/// values; `is_new` is true when the contact is freshly generated
-/// this step.
+/// Read-only snapshot. `point`/`point2` are the contact points on the
+/// first and second body, in world coordinates while inside
+/// ``PhysicsHooks.modify_solver_contacts``; `is_new` is true when the
+/// contact is freshly generated this step. The manifold's friction and
+/// restitution live on :class:`ContactModificationContext`.
 #[pyclass(name = "SolverContact", module = "rapier", frozen)]
 #[derive(Debug, Clone)]
 pub struct SolverContact {
     #[pyo3(get)]
     pub point: Point3,
     #[pyo3(get)]
+    pub point2: Point3,
+    #[pyo3(get)]
     pub dist: Real,
-    #[pyo3(get)]
-    pub friction: Real,
-    #[pyo3(get)]
-    pub restitution: Real,
     #[pyo3(get)]
     pub contact_id: u32,
     #[pyo3(get)]

@@ -92,11 +92,13 @@ manifolds stored in a contact pair:
    expressed in a way that is more efficient for the constraints solver to process. These solver contacts can be modified
    or deleted by the user using [contact modification](./advanced_collision_detection.mdx#contact-modification).
 
-All the **geometric contact** data are expressed in the local-space of the colliders. The **solver contacts** are
-expressed in world-space.
-   
+All the **geometric contact** data are expressed in the local-space of the colliders. The **solver contacts** hold one
+anchor per body surface, expressed in the local-space of the body that surface belongs to (so they ride rigidly with
+it); `ContactManifoldData::solver_contact_world_points` resolves them back to world-space through the bodies' current
+poses. Inside a contact-modification hook they are world-space instead, since the hook runs before they are localized.
+
 :::info
-Because the solver contacts can be modified by the user and are expressed in world-space, they are transients by nature:
+Because the solver contacts can be modified by the user, they are transients by nature:
 they are recomputed  at each frame from the geometric contacts. Because of their transient nature, the constraint solver will
 store the forces it computes inside of the geometric contacts `TrackedContact::data::impulse` field instead of the solver
 contacts themselves.
@@ -274,8 +276,8 @@ It is possible to modify contacts after they have been computed by the narrow-ph
 multiple advanced usages, for example:
 - The simulation of **conveyor belts** by modifying the `tangent_velocity` of solver contacts.
 - The simulation of **one-way-platforms** by deleting some contacts depending on the contact normal.
-- The simulation of colliders with **non-uniform friction** or **non-uniform restitution** coefficients, i.e.,
-  friction or restitution coefficients that depend on the contact points location.
+- The simulation of colliders whose **friction** or **restitution** depends on where they are touched,
+  by setting the coefficients from the contact points' location.
 
 The `PhysicsHooks::modify_solver_contacts` methods is called on each contact manifold between two colliders where at
 least one of them has the `ActiveHooks::MODIFY_SOLVER_CONTACTS` flag enabled in its
@@ -288,8 +290,10 @@ be used to add new contacts manually. If this is something that could useful to 
 is worth adding.
 :::
 
-Contact-modification lets you change most characteristics of a contact, including the contact normal, contact friction/restitution
-coefficients, contact penetration depth, and warmstart impulses. None of these modifications are persistent (they
+Contact-modification lets you change most characteristics of a contact: the contact normal, the contact points and
+their penetration depth, and the tangent velocity. The friction and restitution coefficients are combined once per
+manifold, so they are set for the whole manifold (`context.friction` / `context.restitution`) rather than per contact.
+None of these modifications are persistent (they
 are overwritten during the next timestep). There is one exception though: you can modify a `user_data` associated to
 each `ContactManifold`. This `user_data` will persist throughout timesteps as long as the `ContactManifold` remains alive
 (i.e. as long as some contacts exist between the touching parts of the colliders shapes). This can be useful

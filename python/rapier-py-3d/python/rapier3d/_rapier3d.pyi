@@ -815,9 +815,13 @@ class IntegrationParameters:
     num_solver_iterations: int
     num_internal_pgs_iterations: int
     num_internal_stabilization_iterations: int
-    min_island_size: int
+    contact_clustering: bool
+    contact_recycling: bool
+    normalized_contact_recycle_distance: float
+    normalized_max_linear_velocity: float
     max_ccd_substeps: int
     contact_softness: SpringCoefficients
+    static_contact_softness: SpringCoefficients
     friction_model: FrictionModel
     def __init__(self) -> None: ...
     @staticmethod
@@ -1604,9 +1608,8 @@ class BroadPhaseBvh:
 
 class SolverContact:
     point: Point3
+    point2: Point3
     dist: float
-    friction: float
-    restitution: float
     contact_id: int
     is_new: bool
 
@@ -1659,6 +1662,8 @@ class ContactModificationContext:
     @property
     def local_n2(self) -> Vec3: ...
     normal: Vec3
+    friction: float
+    restitution: float
     user_data: int
     @property
     def solver_contacts(self) -> list[SolverContact]: ...

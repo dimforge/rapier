@@ -62,6 +62,29 @@ and attaching colliders to the resulting rigid body. The lower-level
 ``world.rigid_bodies.insert(...)`` + ``world.colliders.insert_with_parent(...)``
 flow is also available and matches the Rust API.
 
+Choosing the number of threads
+------------------------------
+
+The bindings always ship the multi-threaded engine, and ``step()``
+releases the GIL while it runs. By default a world spreads its parallel
+stages over as many workers as there are logical CPUs; give it a
+different worker count with ``set_num_threads``::
+
+    world.set_num_threads(4)   # four workers, private to this world
+    print(world.num_threads)   # -> 4
+
+    world.set_num_threads(1)   # everything inline on the calling thread
+    world.set_num_threads(None)  # back to one worker per logical CPU
+
+Each world gets its own pool, so several worlds stepped from different
+Python threads don't compete for one another's workers. On CPUs that mix
+performance and efficiency cores, passing the performance-core count is
+usually faster than the default: the solver's stages advance at the speed
+of their slowest worker.
+
+The worker count never changes the result of a simulation — stepping the
+same scene with 1 and with 8 workers gives bit-identical states.
+
 What to read next
 -----------------
 

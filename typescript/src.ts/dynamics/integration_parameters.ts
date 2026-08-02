@@ -69,13 +69,6 @@ export class IntegrationParameters {
     }
 
     /**
-     * Minimum number of dynamic bodies in each active island (default: `128`).
-     */
-    get minIslandSize(): number {
-        return this.raw.minIslandSize;
-    }
-
-    /**
      * Maximum number of substeps performed by the  solver (default: `1`).
      */
     get maxCcdSubsteps(): number {
@@ -114,10 +107,6 @@ export class IntegrationParameters {
      */
     set numInternalPgsIterations(value: number) {
         this.raw.numInternalPgsIterations = value;
-    }
-
-    set minIslandSize(value: number) {
-        this.raw.minIslandSize = value;
     }
 
     set maxCcdSubsteps(value: number) {

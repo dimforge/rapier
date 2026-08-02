@@ -1302,16 +1302,47 @@ impl IntegrationParameters {
     fn set_num_internal_stabilization_iterations(&mut self, v: usize) {
         self.0.num_internal_stabilization_iterations = v;
     }
-    /// Minimum number of bodies in an island before it is solved in
-    /// parallel.
+    /// Cluster the sub-shape manifolds of composite-shape pairs before
+    /// the solver (on by default).
     #[getter]
-    fn min_island_size(&self) -> usize {
-        self.0.min_island_size
+    fn contact_clustering(&self) -> bool {
+        self.0.contact_clustering
     }
-    /// Set the minimum parallel-island size.
+    /// Enable/disable contact clustering.
     #[setter]
-    fn set_min_island_size(&mut self, v: usize) {
-        self.0.min_island_size = v;
+    fn set_contact_clustering(&mut self, v: bool) {
+        self.0.contact_clustering = v;
+    }
+    /// Reuse contact manifolds while the pair's relative pose drift stays
+    /// below the recycle distance (on by default).
+    #[getter]
+    fn contact_recycling(&self) -> bool {
+        self.0.contact_recycling
+    }
+    /// Enable/disable contact recycling.
+    #[setter]
+    fn set_contact_recycling(&mut self, v: bool) {
+        self.0.contact_recycling = v;
+    }
+    /// Contact-recycling drift threshold, in fractions of ``length_unit``.
+    #[getter]
+    fn normalized_contact_recycle_distance(&self) -> Real {
+        self.0.normalized_contact_recycle_distance
+    }
+    /// Set the normalized contact-recycle distance.
+    #[setter]
+    fn set_normalized_contact_recycle_distance(&mut self, v: Real) {
+        self.0.normalized_contact_recycle_distance = v;
+    }
+    /// Per-substep linear speed cap, in ``length_unit``s per second.
+    #[getter]
+    fn normalized_max_linear_velocity(&self) -> Real {
+        self.0.normalized_max_linear_velocity
+    }
+    /// Set the normalized linear speed cap.
+    #[setter]
+    fn set_normalized_max_linear_velocity(&mut self, v: Real) {
+        self.0.normalized_max_linear_velocity = v;
     }
     /// Maximum number of CCD substeps per simulation step.
     #[getter]
@@ -1333,6 +1364,19 @@ impl IntegrationParameters {
     #[setter]
     fn set_contact_softness(&mut self, v: SpringCoefficients) {
         self.0.contact_softness = v.0;
+    }
+
+    /// Stiffer spring coefficients applied to contacts touching a fixed
+    /// body (defaults to twice the natural frequency of
+    /// ``contact_softness``).
+    #[getter]
+    fn static_contact_softness(&self) -> SpringCoefficients {
+        SpringCoefficients(self.0.static_contact_softness)
+    }
+    /// Set the static-contact-spring coefficients.
+    #[setter]
+    fn set_static_contact_softness(&mut self, v: SpringCoefficients) {
+        self.0.static_contact_softness = v.0;
     }
 
     /// 3D friction model used by the contact solver.
