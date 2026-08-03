@@ -456,8 +456,12 @@ impl DebugRenderPipeline {
              * Round shapes.
              */
             TypedShape::RoundCuboid(s) => {
-                let vtx = s.to_polyline(self.style.border_subdivisions);
-                backend.draw_line_strip(object, &vtx, pos, Vector::splat(1.0), color, true)
+                if s.border_radius == 0.0 {
+                    self.render_shape(object, backend, &s.inner_shape, pos, color)
+                } else {
+                    let vtx = s.to_polyline(self.style.border_subdivisions);
+                    backend.draw_line_strip(object, &vtx, pos, Vector::splat(1.0), color, true)
+                }
             }
             TypedShape::RoundTriangle(s) => {
                 // TODO: take roundness into account.
@@ -590,8 +594,12 @@ impl DebugRenderPipeline {
              * Round shapes.
              */
             TypedShape::RoundCuboid(s) => {
-                let (vtx, idx) = s.to_outline(self.style.border_subdivisions);
-                backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
+                if s.border_radius == 0.0 {
+                    self.render_shape(object, backend, &s.inner_shape, pos, color)
+                } else {
+                    let (vtx, idx) = s.to_outline(self.style.border_subdivisions);
+                    backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
+                }
             }
             TypedShape::RoundTriangle(s) => {
                 // TODO: take roundness into account.
@@ -621,5 +629,54 @@ impl DebugRenderPipeline {
             }
             TypedShape::Custom(_) => {}
         }
+    }
+}
+
+#[cfg(all(test, feature = "dim3"))]
+mod tests {
+    use super::*;
+    use crate::geometry::ColliderBuilder;
+
+    #[derive(Default)]
+    struct LineCountingBackend {
+        lines: usize,
+    }
+
+    impl DebugRenderBackend for LineCountingBackend {
+        fn draw_line(
+            &mut self,
+            _object: DebugRenderObject,
+            _a: Vector,
+            _b: Vector,
+            _color: DebugColor,
+        ) {
+            self.lines += 1;
+        }
+    }
+
+    #[test]
+    fn debug_render_round_cuboid_with_zero_radius() {
+        let bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+        colliders.insert(ColliderBuilder::round_cuboid(1.0, 1.0, 1.0, 0.0).build());
+        let impulse_joints = ImpulseJointSet::new();
+        let multibody_joints = MultibodyJointSet::new();
+        let narrow_phase = NarrowPhase::new();
+
+        let mut pipeline = DebugRenderPipeline::new(
+            DebugRenderStyle::default(),
+            DebugRenderMode::COLLIDER_SHAPES,
+        );
+        let mut backend = LineCountingBackend::default();
+        pipeline.render(
+            &mut backend,
+            &bodies,
+            &colliders,
+            &impulse_joints,
+            &multibody_joints,
+            &narrow_phase,
+        );
+
+        assert!(backend.lines > 0);
     }
 }
