@@ -2002,6 +2002,7 @@ class DebugRenderStyle:
     multibody_joint_anchor_color: DebugColor
     multibody_joint_separation_color: DebugColor
     sleep_color_multiplier: DebugColor
+    sleep_eligible_color_multiplier: DebugColor
     disabled_color_multiplier: DebugColor
     rigid_body_axes_length: float
     contact_depth_color: DebugColor

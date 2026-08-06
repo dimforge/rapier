@@ -1,7 +1,7 @@
 use super::{DebugColor, DebugRenderBackend, outlines};
 use crate::alloc_prelude::*;
 use crate::dynamics::{
-    GenericJoint, ImpulseJointSet, MultibodyJointSet, RigidBodySet, RigidBodyType,
+    GenericJoint, ImpulseJointSet, MultibodyJointSet, RigidBody, RigidBodySet, RigidBodyType,
 };
 use crate::geometry::{Ball, ColliderSet, Cuboid, NarrowPhase, Shape, TypedShape};
 #[cfg(feature = "dim3")]
@@ -76,6 +76,25 @@ impl DebugRenderPipeline {
             instances: outlines::instances(style.subdivisions),
             style,
             mode,
+        }
+    }
+
+    /// The color multiplier for one body's attached entities: disabled, asleep, sleep-eligible,
+    /// or plain awake. `eligible_tint` opts out for entities whose hue already carries meaning.
+    fn body_color_multiplier(
+        &self,
+        rb: &RigidBody,
+        co_enabled: bool,
+        eligible_tint: bool,
+    ) -> DebugColor {
+        if !rb.is_enabled() || !co_enabled {
+            self.style.disabled_color_multiplier
+        } else if rb.is_sleeping() {
+            self.style.sleep_color_multiplier
+        } else if eligible_tint && !rb.is_fixed() && rb.activation().is_eligible_for_sleep() {
+            self.style.sleep_eligible_color_multiplier
+        } else {
+            [1.0; 4]
         }
     }
 
@@ -202,12 +221,15 @@ impl DebugRenderPipeline {
             }
 
             if let (Some(rb1), Some(rb2)) = (bodies.get(body1), bodies.get(body2)) {
+                let settled = |rb: &RigidBody| rb.is_fixed() || rb.is_sleeping();
+                let eligible =
+                    |rb: &RigidBody| settled(rb) || rb.activation().is_eligible_for_sleep();
                 let coeff = if !data.is_enabled() || !rb1.is_enabled() || !rb2.is_enabled() {
                     self.style.disabled_color_multiplier
-                } else if (rb1.is_fixed() || rb1.is_sleeping())
-                    && (rb2.is_fixed() || rb2.is_sleeping())
-                {
+                } else if settled(rb1) && settled(rb2) {
                     self.style.sleep_color_multiplier
+                } else if eligible(rb1) && eligible(rb2) {
+                    self.style.sleep_eligible_color_multiplier
                 } else {
                     [1.0; 4]
                 };
@@ -283,13 +305,7 @@ impl DebugRenderPipeline {
                 let basis = Matrix::from_angle(rb.rotation().angle());
                 #[cfg(feature = "dim3")]
                 let basis = Matrix::from_quat(*rb.rotation());
-                let coeff = if !rb.is_enabled() {
-                    self.style.disabled_color_multiplier
-                } else if rb.is_sleeping() {
-                    self.style.sleep_color_multiplier
-                } else {
-                    [1.0; 4]
-                };
+                let coeff = self.body_color_multiplier(rb, true, false);
                 let colors = [
                     [0.0 * coeff[0], 1.0 * coeff[1], 0.25 * coeff[2], coeff[3]],
                     [120.0 * coeff[0], 1.0 * coeff[1], 0.1 * coeff[2], coeff[3]],
@@ -320,13 +336,7 @@ impl DebugRenderPipeline {
 
                 if backend.filter_object(object) {
                     let color = if let Some(parent) = co.parent().and_then(|p| bodies.get(p)) {
-                        let coeff = if !parent.is_enabled() || !co.is_enabled() {
-                            self.style.disabled_color_multiplier
-                        } else if parent.is_sleeping() {
-                            self.style.sleep_color_multiplier
-                        } else {
-                            [1.0; 4]
-                        };
+                        let coeff = self.body_color_multiplier(parent, co.is_enabled(), true);
                         let c = match parent.body_type {
                             RigidBodyType::Fixed => self.style.collider_fixed_color,
                             RigidBodyType::Dynamic => self.style.collider_dynamic_color,

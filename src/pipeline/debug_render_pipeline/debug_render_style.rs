@@ -36,6 +36,9 @@ pub struct DebugRenderStyle {
     /// multiplied by this array. (For a joint, both attached rigid-bodies must be sleeping
     /// or non-dynamic for this multiplier to be applied).
     pub sleep_color_multiplier: DebugColor,
+    /// If a rigid-body is awake but eligible for sleep, its attached entities will have their
+    /// colors multiplied by this array: the plain awake color then marks what holds a pile awake.
+    pub sleep_eligible_color_multiplier: DebugColor,
     /// If a rigid-body is disabled, its attached entities will have their colors
     /// multiplied by this array. (For a joint, both attached rigid-bodies must be disabled
     /// for this multiplier to be applied).
@@ -66,6 +69,9 @@ impl Default for DebugRenderStyle {
             multibody_joint_anchor_color: [300.0, 1.0, 0.4, 1.0],
             multibody_joint_separation_color: [0.0, 1.0, 0.4, 1.0],
             sleep_color_multiplier: [1.0, 1.0, 0.2, 1.0],
+            // A hue rotation, not a dimming: the three sleep states must be told apart at a
+            // glance, and lightness steps of one hue are not enough.
+            sleep_eligible_color_multiplier: [0.35, 1.0, 1.4, 1.0],
             disabled_color_multiplier: [0.0, 0.0, 1.0, 1.0],
             rigid_body_axes_length: 0.5,
             contact_depth_color: [120.0, 1.0, 0.4, 1.0],
