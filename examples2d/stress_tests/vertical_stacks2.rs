@@ -25,7 +25,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
      */
 
     let shiftx_centerx = [
-        (rad * 2.0 + 0.0002, -(num as f32) * rad * 2.0 * 1.5),
+        (rad * 2.0, -(num as f32) * rad * 2.0 * 1.5),
         (rad * 2.0 + rad, num as f32 * rad * 2.0 * 1.5),
     ];
 
