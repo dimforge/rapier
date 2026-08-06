@@ -48,17 +48,21 @@ def main() -> None:
         world.update_query_pipeline()
         veh.update_vehicle(1.0 / 60.0, world.rigid_bodies, world.colliders, world.query_pipeline)
 
-    # Accelerate via the rear wheels.
-    veh.apply_engine_force(2, 100.0)
-    veh.apply_engine_force(3, 100.0)
+    # Accelerate via the rear wheels. 30N matches the Rust demo's arrow-key
+    # force; more would drive off the edge of the ground before step 240.
+    veh.apply_engine_force(2, 30.0)
+    veh.apply_engine_force(3, 30.0)
     for _ in range(240):
         world.step()
         world.update_query_pipeline()
         veh.update_vehicle(1.0 / 60.0, world.rigid_bodies, world.colliders, world.query_pipeline)
 
     speed = veh.current_speed_km_hour()
-    vx = world.rigid_bodies[chassis].linvel.x
-    print(f"vehicle: speed={speed:+.1f} km/h vx={vx:+.2f}")
+    body = world.rigid_bodies[chassis]
+    vx = body.linvel.x
+    # Ride height: half-height + rest length + wheel radius, minus suspension sag.
+    y = body.translation.y
+    print(f"vehicle: speed={speed:+.1f} km/h vx={vx:+.2f} y={y:+.2f}")
 
 
 if __name__ == "__main__":

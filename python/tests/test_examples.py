@@ -30,8 +30,11 @@ EXPECTED: dict[str, str | re.Pattern[str]] = {
     "character/stairs.py": "climbed: x=13.50 y=0.28",
     # The vehicle controller's exact speed depends on per-architecture floating
     # point (rapier is not bit-reproducible across arches without
-    # enhanced-determinism). Assert it drove backward at a real speed instead.
-    "vehicle/drive.py": re.compile(r"^vehicle: speed=-\d+\.\d+ km/h vx=[-+]\d+\.\d+$"),
+    # enhanced-determinism), so assert the shape instead: it drove forward at a
+    # real speed, riding on its suspension (y=0.31) the whole way.
+    "vehicle/drive.py": re.compile(
+        r"^vehicle: speed=\+[1-9]\d*\.\d km/h vx=\+[1-9]\d*\.\d\d y=\+0\.31$"
+    ),
     "urdf/load_simple.py": "urdf: name=two_link links=2 joints=1",
     "render/matplotlib_animation.py": "matplotlib: segments=27000 frames=120",
     # The snapshot's byte count tracks the engine's stored state, which changes
