@@ -47,7 +47,6 @@ pub fn build_block(
                 let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
                 colliders.insert_with_parent(collider, handle, bodies);
 
-                viewer.set_initial_body_color(handle, color0);
                 std::mem::swap(&mut color0, &mut color1);
             }
         }
@@ -67,7 +66,6 @@ pub fn build_block(
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
             colliders.insert_with_parent(collider, handle, bodies);
-            viewer.set_initial_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
         }
     }
@@ -96,10 +94,10 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut block_height = 0.0;
     // These should only be set to odd values otherwise
     // the blocks won't align in the nicest way.
-    let numy = [0, 9, 13, 17, 21, 41];
+    let numy = [0, 13, 17, 21, 41, 83];
 
     for i in (1..=5).rev() {
-        let numx = i;
+        let numx = i * 2;
         let numy = numy[i];
         let numz = numx * 3 + 1;
         let block_width = numx as f32 * half_extents.z * 2.0;

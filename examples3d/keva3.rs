@@ -47,7 +47,6 @@ pub fn build_block(
                 let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
                 let (handle, _) = world.insert(rigid_body, collider);
 
-                viewer.set_initial_body_color(handle, color0);
                 std::mem::swap(&mut color0, &mut color1);
             }
         }
@@ -66,7 +65,6 @@ pub fn build_block(
             ));
             let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
             let (handle, _) = world.insert(rigid_body, collider);
-            viewer.set_initial_body_color(handle, color0);
             std::mem::swap(&mut color0, &mut color1);
         }
     }
