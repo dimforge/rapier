@@ -429,7 +429,7 @@ pub(super) fn process_pair(
 
             // Sort points lexicographically on the contact plane (in `local_n1`'s orthonormal-
             // basis frame): picked empirically for pyramid stability over the alternatives.
-            #[cfg(all(feature = "dim3"))]
+            #[cfg(feature = "dim3")]
             if num_selected > 1 {
                 use crate::utils::OrthonormalBasis;
                 let basis = manifold.local_n1.orthonormal_basis();

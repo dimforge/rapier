@@ -183,11 +183,15 @@ print_step "Checking rapier_testbed3d with parallel..."
 (cd crates/rapier_testbed3d && RUSTFLAGS="-D warnings" cargo check --verbose --features parallel) || print_error "Check rapier_testbed3d parallel"
 print_success "Check rapier_testbed3d parallel"
 
-# Glam backend golden hashes: must produce identical bits on every platform this
+# SIMD backend golden hashes: must produce identical bits on every platform this
 # runs on (the cross-platform determinism contract).
-print_step "Running glam backend determinism test..."
-(cd crates/rapier3d && cargo test --features enhanced-determinism --test glam_backend_determinism) || print_error "Glam backend determinism test"
-print_success "Glam backend determinism test"
+print_step "Running SIMD backend determinism test..."
+(cd crates/rapier3d && cargo test --release --features enhanced-determinism --test simd_backend_determinism) || print_error "SIMD backend determinism test"
+print_success "SIMD backend determinism test"
+
+print_step "Running SIMD backend op-level parity test..."
+(cd crates/rapier3d && cargo test --release --features enhanced-determinism --test simd_backend_parity) || print_error "SIMD backend parity test"
+print_success "SIMD backend parity test"
 
 # Check enhanced-determinism feature
 print_step "Checking rapier2d with enhanced-determinism..."

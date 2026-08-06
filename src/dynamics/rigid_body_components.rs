@@ -16,8 +16,6 @@ use crate::utils::{
 use num::Zero;
 #[cfg(feature = "dim2")]
 use parry::math::Rot2;
-#[cfg(not(feature = "std"))]
-use simba::scalar::ComplexField as _;
 
 /// The type of a body, governing the way it is affected by external forces.
 #[deprecated(note = "renamed as RigidBodyType")]
@@ -1409,7 +1407,8 @@ impl RigidBodyActivation {
                     // The position-based criteria will be more restrictive, but we keep
                     // this for the rare case where the orientation’s periodicity would
                     // make the pose drift estimate too approximate.
-                    self.angular_threshold >= 0.0 && sq_angvel < Real::FRAC_PI_2() * Real::FRAC_PI_2()
+                    self.angular_threshold >= 0.0
+                        && sq_angvel < Real::FRAC_PI_2() * Real::FRAC_PI_2()
                 } else {
                     // Collider-less bodies have `max_extent == 0` so we need to take its
                     // angular velocity into account since the pose delta cannot take its

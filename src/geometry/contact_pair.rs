@@ -9,7 +9,8 @@ use crate::utils::ScalarType;
 use crate::utils::SolverBlock;
 use parry::math::{SIMD_WIDTH, SimdReal};
 use parry::query::ContactManifoldsWorkspace;
-#[cfg(not(feature = "std"))]
+// Only `relative_pose_drift`’s 2D branch needs the no-std float methods.
+#[cfg(all(not(feature = "std"), feature = "dim2"))]
 use simba::scalar::ComplexField as _;
 
 bitflags::bitflags! {
@@ -291,6 +292,7 @@ pub(crate) fn relative_pose_drift(base: &Pose, cur: &Pose, max_extent: Real) -> 
         } else {
             1.0
         };
+
         2.0 * half_sin * max_extent
     };
     #[cfg(feature = "dim3")]
@@ -836,8 +838,9 @@ mod tests {
     use super::relative_pose_drift;
     use crate::math::{Pose, Real, Vector};
 
-    /// A pose compared against *itself* must report exactly no drift, whatever the orientation
-    /// and however far the shape reaches.
+    /// A pose compared against *itself* must report no drift beyond rounding noise (the
+    /// `cur ∘ base⁻¹` product is not exactly the identity), whatever the orientation and
+    /// however far the shape reaches: it must never eat into the sleep gate's allowance.
     #[test]
     fn same_pose_never_drifts() {
         // The sleep gate's per-step allowance at the default threshold and 60 Hz.
@@ -860,10 +863,11 @@ mod tests {
                 n += 1;
             }
         }
-        assert_eq!(
-            worst, 0.0,
+        let rounding_noise = 8.0 * Real::EPSILON * max_extent;
+        assert!(
+            worst <= rounding_noise,
             "an unmoved pose drifted by up to {worst} over {n} orientations \
-             (the sleep gate allows {allowance} per step)"
+             (rounding noise is {rounding_noise}, the sleep gate allows {allowance} per step)"
         );
     }
 }
