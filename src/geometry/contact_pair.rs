@@ -275,21 +275,28 @@ pub(crate) fn relative_rot_cos(base: &crate::math::Rotation, cur: &crate::math::
 
 /// Straight-line bound on how far any point within `max_extent` of the origin moved
 /// between poses `base` and `cur`: translation delta + rotation *chord* `2·max_extent·sin(Δθ/2)`.
-/// One rotation dot + one `sqrt` (no `atan2`/`acos`); tighter than the arc length `max_extent·Δθ`.
+/// Tighter than the arc length `max_extent·Δθ`, and no `atan2`/`acos`.
 #[inline]
 pub(crate) fn relative_pose_drift(base: &Pose, cur: &Pose, max_extent: Real) -> Real {
     let trans = (cur.translation - base.translation).length();
+    let delta_rot = cur.rotation * base.rotation.inverse();
     #[cfg(feature = "dim2")]
     let rot_chord = {
-        // `dot` = cos(Δθ); chord = 2·sin(Δθ/2)·max_extent = sqrt(2(1−cos Δθ))·max_extent.
-        let c = base.rotation.dot(cur.rotation);
-        (2.0 * (1.0 - c)).max(0.0).sqrt() * max_extent
+        // To avoid explicit trigonometric functions, use the identity:
+        // `sin(Δθ/2) = |sin Δθ| / sqrt(2(1 + cos Δθ))`
+        let (sin, cos) = (delta_rot.sin(), delta_rot.cos());
+        let denom = 2.0 * (1.0 + cos);
+        let half_sin = if denom > 1.0e-6 {
+            sin.abs() / denom.sqrt()
+        } else {
+            1.0
+        };
+        2.0 * half_sin * max_extent
     };
     #[cfg(feature = "dim3")]
     let rot_chord = {
-        // quaternion `dot` = cos(Δθ/2); chord = 2·sin(Δθ/2)·max_extent.
-        let c = base.rotation.dot(cur.rotation);
-        2.0 * (1.0 - c * c).max(0.0).sqrt() * max_extent
+        // A unit quaternion's vector part is already `sin(Δθ/2)` about its axis.
+        2.0 * Vector::new(delta_rot.x, delta_rot.y, delta_rot.z).length() * max_extent
     };
     trans + rot_chord
 }
@@ -821,5 +828,42 @@ pub trait ContactManifoldExt {
 impl ContactManifoldExt for ContactManifold {
     fn total_impulse(&self) -> Real {
         self.points.iter().map(|pt| pt.data.impulse).sum()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::relative_pose_drift;
+    use crate::math::{Pose, Real, Vector};
+
+    /// A pose compared against *itself* must report exactly no drift, whatever the orientation
+    /// and however far the shape reaches.
+    #[test]
+    fn same_pose_never_drifts() {
+        // The sleep gate's per-step allowance at the default threshold and 60 Hz.
+        let allowance = 0.05 * (1.0 / 60.0) * 2.0;
+        let max_extent = 4.0;
+
+        let mut worst: Real = 0.0;
+        let mut n = 0;
+        for i in 0..40 {
+            for j in 0..10 {
+                let angle = i as Real * 0.157;
+                #[cfg(feature = "dim2")]
+                let pose = Pose::new(Vector::new(j as Real * 3.7, 1.0), angle);
+                #[cfg(feature = "dim3")]
+                let pose = Pose::new(
+                    Vector::new(j as Real * 3.7, 1.0, -2.0),
+                    Vector::new(0.3, -0.7, 0.15).normalize() * angle,
+                );
+                worst = worst.max(relative_pose_drift(&pose, &pose, max_extent));
+                n += 1;
+            }
+        }
+        assert_eq!(
+            worst, 0.0,
+            "an unmoved pose drifted by up to {worst} over {n} orientations \
+             (the sleep gate allows {allowance} per step)"
+        );
     }
 }

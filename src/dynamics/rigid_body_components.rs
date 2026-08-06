@@ -1260,11 +1260,6 @@ impl RigidBodyDominance {
 /// - Automatically woken when disturbed (hit by moving object, connected via joint)
 /// - Woken manually with `body.wake_up()` or `islands.wake_up()`
 ///
-/// ## How sleeping works
-///
-/// A body sleeps after its linear AND angular velocities stay below thresholds for
-/// `time_until_sleep` seconds (default: 1 second). Set thresholds to negative to disable sleeping.
-///
 /// ## When to disable sleeping
 ///
 /// Most bodies should sleep! Only disable if the body needs to stay active despite being still:
@@ -1300,10 +1295,9 @@ pub struct RigidBodyActivation {
     /// Is this body currently sleeping?
     pub sleeping: bool,
 
-    /// Pose when the sleep timer last started (re-anchored on every timer reset). Farthest-point
-    /// displacement since this anchor gates sleep: secular creep from solver corrections (invisible
-    /// in velocities) blocks it, bounded oscillatory jitter doesn't (a raw per-step correction term would).
-    pub(crate) sleep_drift_anchor: Pose,
+    /// Pose at the previous step: the sleep check measures actual per-step displacement,
+    /// solver position corrections included (those never show up in the velocities).
+    pub(crate) sleep_prev_pose: Pose,
 }
 
 impl Default for RigidBodyActivation {
@@ -1341,7 +1335,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: 0.0,
             sleeping: false,
-            sleep_drift_anchor: Pose::IDENTITY,
+            sleep_prev_pose: Pose::IDENTITY,
         }
     }
 
@@ -1353,7 +1347,7 @@ impl RigidBodyActivation {
             time_until_sleep: Self::default_time_until_sleep(),
             time_since_can_sleep: Self::default_time_until_sleep(),
             sleeping: true,
-            sleep_drift_anchor: Pose::IDENTITY,
+            sleep_prev_pose: Pose::IDENTITY,
         }
     }
 
@@ -1407,35 +1401,24 @@ impl RigidBodyActivation {
     ) {
         let can_sleep = match body_type {
             RigidBodyType::Dynamic => {
-                // Sleep metric: farthest-point speed (|v| + |ω|·max_extent) below the linear
-                // threshold, AND drift since the timer started below threshold·sleep_delay — drift catches
-                // bias creep invisible in velocities; anchoring (rather than measuring per step) lets oscillatory jitter rest.
                 let linear_threshold = self.normalized_linear_threshold * length_unit;
-                let max_point_vel = sq_linvel.sqrt() + sq_angvel.sqrt() * max_extent;
+                let prev_pose = core::mem::replace(&mut self.sleep_prev_pose, *pose);
                 let angular_ok = if max_extent > 0.0 {
-                    self.angular_threshold >= 0.0
+                    use crate::num::FloatConst;
+                    // Use a fixed angular threshold that unambiguously imply movement.
+                    // The position-based criteria will be more restrictive, but we keep
+                    // this for the rare case where the orientation’s periodicity would
+                    // make the pose drift estimate too approximate.
+                    self.angular_threshold >= 0.0 && sq_angvel < Real::FRAC_PI_2() * Real::FRAC_PI_2()
                 } else {
+                    // Collider-less bodies have `max_extent == 0` so we need to take its
+                    // angular velocity into account since the pose delta cannot take its
+                    // rotation into account.
                     sq_angvel < self.angular_threshold * self.angular_threshold.abs()
                 };
-                let vel_ok = max_point_vel * max_point_vel
-                    < linear_threshold * linear_threshold.abs()
-                    && angular_ok;
-                // Only bodies passing the velocity gate pay for the drift check (chord math +
-                // anchor writes); the anchor is (re)set when a stillness period starts, i.e. when
-                // the gate passes with a zeroed timer.
-                if vel_ok {
-                    if self.time_since_can_sleep == 0.0 {
-                        self.sleep_drift_anchor = *pose;
-                    }
-                    let drift = crate::geometry::relative_pose_drift(
-                        &self.sleep_drift_anchor,
-                        pose,
-                        max_extent,
-                    );
-                    drift <= linear_threshold.max(0.0) * self.time_until_sleep.max(0.0)
-                } else {
-                    false
-                }
+
+                let drift = crate::geometry::relative_pose_drift(&prev_pose, pose, max_extent);
+                angular_ok && drift * 0.5 < linear_threshold * dt
             }
             RigidBodyType::KinematicPositionBased | RigidBodyType::KinematicVelocityBased => {
                 // Platforms only sleep if both velocities are exactly zero. If it’s not exactly
@@ -1504,5 +1487,67 @@ mod tests {
             let interp_pos = vel.integrate(dt, &curr_pos, &local_com);
             approx::assert_relative_eq!(interp_pos, next_pos, epsilon = 1.0e-5);
         }
+    }
+
+    /// Runs `steps` of `update_energy` on a body that only ever moves by `shift_per_step`
+    /// (zero velocity: the motion stands for solver position corrections).
+    fn creep(shift_per_step: Real, steps: usize, dt: Real) -> RigidBodyActivation {
+        let mut activation = RigidBodyActivation::active();
+        let mut shift = 0.0;
+
+        for _ in 0..steps {
+            shift += shift_per_step;
+            let pose = Pose::from_translation(Vector::X * shift);
+            activation.update_energy(RigidBodyType::Dynamic, 1.0, 0.0, 0.0, 1.0, &pose, dt);
+        }
+
+        activation
+    }
+
+    /// Runs `steps` of `update_energy` on a body pinned to one pose while reporting `linvel`,
+    /// like a body in a loaded stack whose contacts cancel its velocity again every step.
+    fn pinned_with_velocity(linvel: Real, steps: usize, dt: Real) -> RigidBodyActivation {
+        let mut activation = RigidBodyActivation::active();
+        let pose = Pose::from_translation(Vector::X * 3.0);
+
+        for _ in 0..steps {
+            activation.update_energy(
+                RigidBodyType::Dynamic,
+                1.0,
+                linvel * linvel,
+                0.0,
+                1.0,
+                &pose,
+                dt,
+            );
+        }
+
+        activation
+    }
+
+    #[test]
+    fn test_sleep_allows_pinned_body_with_residual_velocity() {
+        let dt = 1.0 / 60.0;
+        let threshold = RigidBodyActivation::default_normalized_linear_threshold();
+        let steps = (10.0 * RigidBodyActivation::default_time_until_sleep() / dt) as usize;
+
+        // A still body sleeps even while its velocity reads several times the threshold:
+        // that residual is the solver cancelling itself, not motion.
+        assert!(pinned_with_velocity(threshold * 5.0, steps, dt).is_eligible_for_sleep());
+    }
+
+    #[test]
+    fn test_sleep_gates_position_corrections() {
+        let dt = 1.0 / 60.0;
+        // The per-step displacement the sleep metric tolerates: the threshold, halved.
+        let budget = 2.0 * RigidBodyActivation::default_normalized_linear_threshold() * dt;
+        let steps = (10.0 * RigidBodyActivation::default_time_until_sleep() / dt) as usize;
+
+        // Creeping faster than the budget blocks sleep, however small the velocities are.
+        assert!(!creep(budget * 1.5, steps, dt).is_eligible_for_sleep());
+
+        // Creeping below it doesn't, no matter how long the body has been still.
+        assert!(creep(budget * 0.5, steps, dt).is_eligible_for_sleep());
+        assert!(creep(0.0, steps, dt).is_eligible_for_sleep());
     }
 }
