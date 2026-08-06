@@ -1,3 +1,29 @@
+## Unreleased
+
+### Added
+
+- `DebugRenderStyle::sleep_eligible_color_multiplier`: the debug-renderer now draws bodies that
+  are eligible for sleep but still awake in a distinct color, making it easy to spot what is
+  keeping a pile awake.
+
+### Fixed
+
+- Python: `DynamicRayCastVehicleController.update_vehicle` now excludes the chassis body from
+  the suspension raycasts by default (their origins sit on its own collider).
+
+### Modified
+
+- Sleep eligibility is now judged on the actual per-step pose displacement (measured at the
+  body’s farthest point) instead of the velocities: a body held in place by contacts can sleep
+  even with residual solver velocities, while a body creeping through solver position
+  corrections cannot.
+- With the `block-solver` feature, manifolds whose 2x2 constraint matrix is almost singular
+  (e.g. redundant contact points) are now solved with the sequential solver instead of a
+  degraded one-point solve, removing residual jiggle in piles. The block solver also uses the
+  same lexicographic manifold point ordering as the sequential solver.
+- Improved 3D solver performance by caching the constraints angular jacobians instead of
+  recomputing them at each solver iteration.
+
 ## v0.35.0-beta.0 (02 August 2026)
 
 ### Breaking changes
