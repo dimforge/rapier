@@ -8,6 +8,11 @@ use na::Vector2;
 #[cfg(feature = "block-solver")]
 use simba::simd::SimdValue;
 
+/// How well-conditioned a manifold's 2x2 matrix `K` must be for the block solver to take it
+/// (`det(K) > BLOCK_SOLVER_MIN_CONDITION * k11 * k22`): near-singular pairs go to the sequential path.
+#[cfg(feature = "block-solver")]
+pub(crate) const BLOCK_SOLVER_MIN_CONDITION: crate::math::Real = 0.01;
+
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct ContactConstraintTangentPart<N: ScalarType> {
     pub torque_dir1: [N::AngVector; DIM - 1],
@@ -312,15 +317,17 @@ impl<N: ScalarType> ContactConstraintNormalPart<N> {
         let block_result = new_impulse0.select(keep0, selected1);
 
         // Degraded lanes (`block_flag` = 0: manifold lacks both points, or the pair matrix
-        // wasn't invertible at build time).
+        // wasn't invertible at build time): solve the two points one after the other, exactly
+        // as the feature-off build does, with `k12` carrying the first solve's velocity change.
         // Use `degraded_dvel_a` rather than `dvel.x` so that this case matches the non-mlcp
         // solve exactly.
         // TODO: measure if using `degraded_dvel_a` instead of `dvel.x` has any performance
         //       impact.
-        let degraded = Vector2::new(
-            cfm_factor.x * (prev_impulse.x - r_a * degraded_dvel_a).simd_max(zero),
-            zero,
-        );
+        let degraded_a = cfm_factor.x * (prev_impulse.x - r_a * degraded_dvel_a).simd_max(zero);
+        let degraded_b = cfm_factor.y
+            * (prev_impulse.y - r_b * (dvel.y + k12 * (degraded_a - prev_impulse.x)))
+                .simd_max(zero);
+        let degraded = Vector2::new(degraded_a, degraded_b);
         let use_block = block_flag.simd_gt(N::splat(0.5));
         block_result.select(use_block, degraded)
     }

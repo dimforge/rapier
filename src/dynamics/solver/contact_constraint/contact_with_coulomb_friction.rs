@@ -1,4 +1,6 @@
 use super::{ContactConstraintNormalPart, ContactConstraintTangentPart};
+#[cfg(feature = "block-solver")]
+use crate::dynamics::solver::contact_constraint::BLOCK_SOLVER_MIN_CONDITION;
 use crate::dynamics::solver::manifold_store::ManifoldStore;
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::solver::solver_contact_graph::ContactRef;
@@ -332,19 +334,18 @@ impl ContactWithCoulombFrictionBuilder {
                         .ii_torque_dir2
                         .gdot(out_constraint.normal_part[k1].torque_dir2);
                 let (k11, k22) = (utils::simd_inv(r0), utils::simd_inv(r1));
-                // Physical-K invertibility is a conservative proxy for the
-                // compliant K' the solve inverts per iteration (its diagonals
-                // are only ever stiffer: k'_ii = k_ii / ms_i >= k_ii).
-                let is_invertible = (k11 * k22 - k12 * k12).simd_gt(SimdReal::zero());
+                // Conditioning check on the physical K: a bare `det > 0` also admits
+                // near-singular pairs, and block-solving those keeps piles jiggling.
+                let is_invertible = (k11 * k22 - k12 * k12)
+                    .simd_gt(SimdReal::splat(BLOCK_SOLVER_MIN_CONDITION) * k11 * k22);
 
-                // Degenerate (redundant contacts) or partially-active lanes store `[0, 0]`:
-                // `solve_pair` then degrades to the scalar soft solve of point k0 (itself a
-                // no-op if k0 is inactive — its `r` lane was zero-selected above).
+                // Degenerate (redundant contacts) or partially-active lanes clear the block
+                // flag: `solve_pair` then solves the two points sequentially instead.
                 let block = is_invertible & pair_active;
-                out_constraint.normal_part[k0].r_mat_elts = [
-                    k12.select(block, SimdReal::zero()),
-                    SimdReal::splat(1.0).select(block, SimdReal::zero()),
-                ];
+                // `k12` stays on every lane: the degraded path carries the first point's
+                // impulse change over to the second.
+                out_constraint.normal_part[k0].r_mat_elts =
+                    [k12, SimdReal::splat(1.0).select(block, SimdReal::zero())];
                 out_constraint.normal_part[k1].r_mat_elts = [SimdReal::zero(); 2];
             }
         }

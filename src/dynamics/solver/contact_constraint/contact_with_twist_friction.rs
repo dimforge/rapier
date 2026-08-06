@@ -2,6 +2,8 @@ use super::{
     ContactConstraintNormalPartSlim, ContactConstraintTangentPartSlim,
     ContactConstraintTwistPartSlim,
 };
+#[cfg(feature = "block-solver")]
+use crate::dynamics::solver::contact_constraint::BLOCK_SOLVER_MIN_CONDITION;
 use crate::dynamics::solver::manifold_store::ManifoldStore;
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::solver::solver_contact_graph::ContactRef;
@@ -400,17 +402,17 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
                         .transform_vector(torque_dir2_0)
                         .gdot(torque_dir2_1);
                 let (k11, k22) = (utils::simd_inv(r0), utils::simd_inv(r1));
-                // See the coulomb builder: physical-K invertibility is a
-                // conservative proxy for the compliant K'.
-                let is_invertible = (k11 * k22 - k12 * k12).simd_gt(SimdReal::zero());
+                // See the coulomb builder: near-singular pairs fall back to the sequential path.
+                let is_invertible = (k11 * k22 - k12 * k12)
+                    .simd_gt(SimdReal::splat(BLOCK_SOLVER_MIN_CONDITION) * k11 * k22);
 
                 // Degenerate or partially-active lanes store `[0, 0]`:
                 // `solve_pair` degrades to the scalar soft solve of point k0.
                 let block = is_invertible & pair_active;
-                out_constraint.normal_part[k0].r_mat_elts = [
-                    k12.select(block, SimdReal::zero()),
-                    SimdReal::splat(1.0).select(block, SimdReal::zero()),
-                ];
+                // `k12` stays on every lane: the degraded path carries the first point's
+                // impulse change over to the second.
+                out_constraint.normal_part[k0].r_mat_elts =
+                    [k12, SimdReal::splat(1.0).select(block, SimdReal::zero())];
                 out_constraint.normal_part[k1].r_mat_elts = [SimdReal::zero(); 2];
             }
         }
