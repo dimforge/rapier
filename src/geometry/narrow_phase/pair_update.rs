@@ -427,28 +427,9 @@ pub(super) fn process_pair(
                 prediction_distance,
             );
 
-            // Order a 4-point manifold as two DIAGONAL pairs: the block solver couples
-            // ((0,1),(2,3)), and a diagonal spans the face in both directions so rocking
-            // stays inside a 2x2 LCP block — load-bearing for tall-stack stability.
-            #[cfg(all(feature = "dim3", feature = "block-solver"))]
-            if num_selected == 4 {
-                let p = |i: usize| manifold.points[selected[i]].local_p1;
-                let d2 = |a, b| (p(a) - p(b)).length_squared();
-                // Partner of point 0 = farthest of the remaining three.
-                let far = if d2(0, 1) >= d2(0, 2) && d2(0, 1) >= d2(0, 3) {
-                    1
-                } else if d2(0, 2) >= d2(0, 3) {
-                    2
-                } else {
-                    3
-                };
-                selected.swap(1, far);
-            }
-
-            // GS point order is a real solver DOF: sort lexicographically in the contact plane
-            // (basis from `local_n1`, frame-invariant; normal excluded) — stack-30 sleeping 2/8 -> 8/8.
-            // Do NOT reverse `selected`: the native cycle preserves x<->z symmetry; reversed breaks it (0/8).
-            #[cfg(all(feature = "dim3", not(feature = "block-solver")))]
+            // Sort points lexicographically on the contact plane (in `local_n1`'s orthonormal-
+            // basis frame): picked empirically for pyramid stability over the alternatives.
+            #[cfg(all(feature = "dim3"))]
             if num_selected > 1 {
                 use crate::utils::OrthonormalBasis;
                 let basis = manifold.local_n1.orthonormal_basis();
@@ -458,9 +439,7 @@ pub(super) fn process_pair(
                     let p = manifold.points[*sel].local_p1;
                     keyed[i] = (p.dot(basis[0]), p.dot(basis[1]), *sel);
                 }
-                // Insertion sort with direct float compares: at most 4 elements,
-                // and this runs on every manifold of every full update, so the
-                // generic `sort_unstable_by` + `partial_cmp` costs real time here.
+                // Manual insertion sort: much faster than `sort_unstable_by` for 4 elements.
                 for i in 1..num_selected {
                     let k = keyed[i];
                     let mut j = i;
