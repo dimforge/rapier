@@ -108,6 +108,7 @@ pub async fn main() {
         JOINTS, "Pin Slot Joint", pin_slot_joint2::run;
         JOINTS, "Joint motor position", joint_motor_position2::run;
         JOINTS, "Inverse kinematics", inverse_kinematics2::run;
+        JOINTS, "Multi Pendulum", multi_pendulum2::run;
         // ── Controls ────────────────────────────────────────────────────────
         CONTROLS, "Character controller", character_controller2::run;
         // ── Debug ───────────────────────────────────────────────────────────

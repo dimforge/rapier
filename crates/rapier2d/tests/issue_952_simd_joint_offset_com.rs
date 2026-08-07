@@ -9,7 +9,7 @@
 //! `JOINT_BATCH * LAYOUT_REF_WORKERS / 2` (= 64) joints, so the scene must be big enough:
 //! with fewer joints everything falls back to the (correct) scalar path and the bug hides.
 
-use rapier3d::prelude::*;
+use rapier2d::prelude::*;
 
 /// Comfortably above the 64-joint SIMD batching threshold.
 const PENDULUMS: usize = 128;
@@ -18,7 +18,7 @@ const SPACING: f32 = 20.0;
 const COM_OFFSET: f32 = 1.0;
 
 fn make_pendulum(world: &mut PhysicsWorld, x: f32) -> RigidBodyHandle {
-    let base_pos = Vector::new(x, 0.0, 0.0);
+    let base_pos = Vector::new(x, 0.0);
     let base = world
         .bodies
         .insert(RigidBodyBuilder::fixed().translation(base_pos));
@@ -29,13 +29,13 @@ fn make_pendulum(world: &mut PhysicsWorld, x: f32) -> RigidBodyHandle {
     );
     // Collider offset from the body origin: the CoM is NOT at the body origin.
     world.colliders.insert_with_parent(
-        ColliderBuilder::capsule_x(COM_OFFSET, 0.2).translation(Vector::new(COM_OFFSET, 0.0, 0.0)),
+        ColliderBuilder::capsule_x(COM_OFFSET, 0.2).translation(Vector::new(COM_OFFSET, 0.0)),
         body,
         &mut world.bodies,
     );
 
     // Pins the body's origin (local anchor `ZERO`) to the base position.
-    let joint = RevoluteJointBuilder::new(Vector::Z)
+    let joint = RevoluteJointBuilder::new()
         .local_anchor1(Vector::ZERO)
         .local_anchor2(Vector::ZERO)
         .contacts_enabled(false);
@@ -55,7 +55,7 @@ fn max_anchor_error(n: usize) -> f32 {
     for _ in 0..120 {
         world.step();
         for (i, handle) in bodies.iter().enumerate() {
-            let base_pos = Vector::new(i as f32 * SPACING, 0.0, 0.0);
+            let base_pos = Vector::new(i as f32 * SPACING, 0.0);
             let anchor_world = world.bodies[*handle].position() * Vector::ZERO;
             max_err = max_err.max((anchor_world - base_pos).length());
         }
