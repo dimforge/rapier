@@ -37,6 +37,7 @@ mod debug_friction3;
 mod debug_infinite_fall3;
 mod debug_internal_edges3;
 mod debug_long_chain3;
+mod debug_multi_collider_body3;
 mod debug_multibody_ang_motor_pos3;
 mod debug_pop3;
 mod debug_prismatic3;
@@ -139,6 +140,7 @@ pub async fn main() {
         // ── Debug ───────────────────────────────────────────────────────────
         DEBUG, "Multibody joints", debug_articulations3::run;
         DEBUG, "Add/rm collider", debug_add_remove_collider3::run;
+        DEBUG, "Multi-collider body", debug_multi_collider_body3::run;
         DEBUG, "Big colliders", debug_big_colliders3::run;
         DEBUG, "Boxes", debug_boxes3::run;
         DEBUG, "Balls", debug_balls3::run;
