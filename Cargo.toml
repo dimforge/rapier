@@ -72,10 +72,10 @@ num-traits = { version = "0.2", default-features = false }
 approx = { version = "0.5", default-features = false }
 
 # Parry (each crate picks its own variant)
-parry2d = { version = "0.30.1", default-features = false, features = ["required-features"] }
-parry3d = { version = "0.30.1", default-features = false, features = ["required-features"] }
-parry2d-f64 = { version = "0.30.1", default-features = false, features = ["required-features"] }
-parry3d-f64 = { version = "0.30.1", default-features = false, features = ["required-features"] }
+parry2d = { version = "0.30.2", default-features = false, features = ["required-features"] }
+parry3d = { version = "0.30.2", default-features = false, features = ["required-features"] }
+parry2d-f64 = { version = "0.30.2", default-features = false, features = ["required-features"] }
+parry3d-f64 = { version = "0.30.2", default-features = false, features = ["required-features"] }
 
 # Utilities
 arrayvec = { version = "0.7", default-features = false }
