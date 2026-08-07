@@ -178,7 +178,7 @@ impl GenericContactConstraintBuilder {
                 (manifold_point.contact_id[0] & !crate::geometry::NEW_CONTACT_BIT) as u8;
 
             // Normal part.
-            let normal_rhs_wo_bias;
+            let restitution_seed;
             {
                 let torque_dir1 = dp1.gcross(force_dir1);
                 let torque_dir2 = dp2.gcross(-force_dir1);
@@ -225,7 +225,7 @@ impl GenericContactConstraintBuilder {
                 let is_new = pt_data.impulse == 0.0;
                 let is_bouncy = crate::geometry::is_bouncy(manifold.data.restitution, is_new);
 
-                normal_rhs_wo_bias =
+                restitution_seed =
                     (is_bouncy * manifold.data.restitution) * (vel1 - vel2).dot(force_dir1);
 
                 out_constraint.normal_part[k] = ContactConstraintNormalPart {
@@ -342,7 +342,7 @@ impl GenericContactConstraintBuilder {
                 local_p2: rb2.pos.position.inverse_transform_point(point2),
                 tangent_vel: manifold_point.tangent_velocity,
                 dist: dist - (point - point2).dot(force_dir1),
-                normal_vel: normal_rhs_wo_bias,
+                restitution_seed,
             };
 
             out_builder.handle1 = handle1;
@@ -426,7 +426,10 @@ impl GenericContactConstraintBuilder {
 
             // Normal part.
             {
-                let rhs_wo_bias = info.normal_vel + dist.max(0.0) * inv_dt;
+                // NOTE: `info.restitution_seed` is deliberately NOT part of
+                // the substep rhs (see the coulomb kernel); it is applied once, after all
+                // substeps, by `Self::apply_restitution`.
+                let rhs_wo_bias = dist.max(0.0) * inv_dt;
                 // No slop deadzone on the bias (see the coulomb kernel).
                 let rhs_bias = (erp_inv_dt * dist).clamp(-params.max_corrective_velocity(), 0.0);
                 let new_rhs = rhs_wo_bias + rhs_bias;
@@ -450,6 +453,50 @@ impl GenericContactConstraintBuilder {
         }
 
         constraint.cfm_factor = cfm_factor;
+    }
+
+    /// Does any active point of this constraint hold a restitution seed (an approaching
+    /// bouncy contact captured at prepare time)? Cheap pre-check gating
+    /// [`Self::apply_restitution`].
+    pub fn has_bouncy_seed(&self, num_contacts: u8) -> bool {
+        let num = (num_contacts as usize).min(MAX_MANIFOLD_POINTS);
+        self.infos[..num]
+            .iter()
+            .any(|info| info.restitution_seed < 0.0)
+    }
+
+    /// End-of-step restitution pass (box2d-style): after all substeps, drive each bouncy
+    /// point's normal velocity to its prepare-time `restitution * approach_velocity`, gated
+    /// on the point having carried an impulse. Implemented by re-running the normal solve
+    /// with `rhs = seed` on those points and a zeroed effective mass on the others.
+    pub fn apply_restitution(
+        &self,
+        constraint: &mut GenericContactConstraint,
+        jacobians: &DVector,
+        bodies: &mut SolverBodies,
+        generic_solver_vels: &mut DVector,
+    ) {
+        if !self.has_bouncy_seed(constraint.num_contacts) {
+            return;
+        }
+
+        let mut any_gated = false;
+        for (info, normal_part) in self.infos[..constraint.num_contacts as usize]
+            .iter()
+            .zip(constraint.normal_part[..constraint.num_contacts as usize].iter_mut())
+        {
+            if info.restitution_seed < 0.0 && normal_part.total_impulse() > 0.0 {
+                normal_part.rhs = info.restitution_seed;
+                any_gated = true;
+            } else {
+                normal_part.r = 0.0;
+            }
+        }
+
+        if any_gated {
+            constraint.cfm_factor = 1.0;
+            constraint.solve(jacobians, bodies, generic_solver_vels, true, false);
+        }
     }
 }
 

@@ -11,12 +11,15 @@ use crate::math::{DIM, MAX_MANIFOLD_POINTS, Real, SIMD_WIDTH, SimdReal, TangentI
 use crate::utils::OrthonormalBasis;
 use crate::utils::{self, AngularInertiaOps, CrossProduct, DotProduct, ScalarType};
 use num::Zero;
-use simba::simd::{SimdPartialOrd, SimdValue};
+use simba::simd::{SimdBool, SimdPartialOrd, SimdValue};
 
 #[derive(Copy, Clone, Debug)]
 pub struct CoulombContactPointInfos<N: ScalarType> {
     pub tangent_vel: N::Vector, // PERF: could be one float less, be shared by both contact point infos?
-    pub normal_vel: N,
+    /// `restitution * approach_velocity`, captured at prepare time and zeroed on
+    /// non-bouncy points (see [`crate::geometry::is_bouncy_simd`]). Negative while
+    /// approaching: the end-of-step pass drives the normal velocity to `-restitution_seed`.
+    pub restitution_seed: N,
     pub local_p1: N::Vector,
     pub local_p2: N::Vector,
     pub dist: N,
@@ -26,7 +29,7 @@ impl<N: ScalarType> Default for CoulombContactPointInfos<N> {
     fn default() -> Self {
         Self {
             tangent_vel: Default::default(),
-            normal_vel: N::zero(),
+            restitution_seed: N::zero(),
             local_p1: Default::default(),
             local_p2: Default::default(),
             dist: N::zero(),
@@ -218,7 +221,7 @@ impl ContactWithCoulombFrictionBuilder {
             }];
 
             // Normal part.
-            let normal_rhs_wo_bias;
+            let restitution_seed;
             {
                 let torque_dir1 = dp1.gcross(force_dir1);
                 let torque_dir2 = dp2.gcross(-force_dir1);
@@ -233,7 +236,7 @@ impl ContactWithCoulombFrictionBuilder {
                 );
 
                 let projected_velocity = (vel1 - vel2).gdot(force_dir1);
-                normal_rhs_wo_bias = is_bouncy * restitution * projected_velocity;
+                restitution_seed = is_bouncy * restitution * projected_velocity;
 
                 out_constraint.normal_part[k].torque_dir1 = torque_dir1;
                 out_constraint.normal_part[k].torque_dir2 = torque_dir2;
@@ -306,7 +309,7 @@ impl ContactWithCoulombFrictionBuilder {
             // is non-zero at build time on recycled pairs (drift since the freeze, already in `dist`).
             out_builder.infos[k].dist =
                 dist - ((world_com1 + dp1) - (world_com2 + dp2)).gdot(force_dir1);
-            out_builder.infos[k].normal_vel = normal_rhs_wo_bias;
+            out_builder.infos[k].restitution_seed = restitution_seed;
         }
 
         #[cfg(feature = "block-solver")]
@@ -409,7 +412,10 @@ impl ContactWithCoulombFrictionBuilder {
 
             // Normal part.
             {
-                let rhs_wo_bias = info.normal_vel + dist.simd_max(SimdReal::zero()) * inv_dt;
+                // NOTE: `info.restitution_seed` is deliberately NOT part of the substep
+                // rhs (the speculative slack would truncate the bounce there):
+                // `Self::apply_restitution` applies it once, after all substeps.
+                let rhs_wo_bias = dist.simd_max(SimdReal::zero()) * inv_dt;
                 // No slop deadzone on the position-correction bias;
                 // `allowed_linear_error` is geometric slop, not a solver deadzone. A deadzone
                 // lets every loaded interface settle to its deep edge, and the accumulated
@@ -469,12 +475,56 @@ impl ContactWithCoulombFrictionBuilder {
             let p1 = poses1.transform_point(info.local_p1) + info.tangent_vel * solved_dt;
             let p2 = poses2.transform_point(info.local_p2);
             let dist = info.dist + (p1 - p2).gdot(constraint.dir1);
-            normal_part.rhs = info.normal_vel + dist.simd_max(SimdReal::zero()) * inv_dt;
+            // See `update`: the restitution seed is applied by `apply_restitution`, not here.
+            normal_part.rhs = dist.simd_max(SimdReal::zero()) * inv_dt;
             normal_part.cfm_factor = SimdReal::splat(1.0);
             tangent_part.rhs = tangent_part.rhs_wo_bias;
         }
 
         constraint.cfm_factor = SimdReal::splat(1.0);
+    }
+
+    /// Does any active point of this chunk hold a restitution seed (an approaching bouncy
+    /// contact captured at prepare time)? Cheap pre-check gating [`Self::apply_restitution`].
+    pub fn has_bouncy_seed(&self, num_contacts: u8) -> bool {
+        let num = (num_contacts as usize).min(MAX_MANIFOLD_POINTS);
+        self.infos[..num]
+            .iter()
+            .any(|info| info.restitution_seed.simd_lt(SimdReal::zero()).any())
+    }
+
+    /// End-of-step restitution pass (box2d-style): after all substeps, drive each bouncy
+    /// point's normal velocity to its prepare-time `restitution * approach_velocity`, gated
+    /// on the point having carried an impulse. See `ContactConstraintNormalPart::solve_restitution`.
+    pub fn apply_restitution(
+        &self,
+        constraint: &mut ContactWithCoulombFriction<SimdReal>,
+        bodies: &mut SolverBodies,
+    ) {
+        if !self.has_bouncy_seed(constraint.num_contacts) {
+            return;
+        }
+
+        let mut solver_vel1 = bodies.gather_vels(constraint.solver_vel1);
+        let mut solver_vel2 = bodies.gather_vels(constraint.solver_vel2);
+
+        let num = constraint.num_contacts as usize;
+        for (info, normal_part) in self.infos[..num]
+            .iter()
+            .zip(constraint.normal_part[..num].iter_mut())
+        {
+            normal_part.solve_restitution(
+                info.restitution_seed,
+                &constraint.dir1,
+                &constraint.im1,
+                &constraint.im2,
+                &mut solver_vel1,
+                &mut solver_vel2,
+            );
+        }
+
+        bodies.scatter_vels(constraint.solver_vel1, solver_vel1);
+        bodies.scatter_vels(constraint.solver_vel2, solver_vel2);
     }
 }
 

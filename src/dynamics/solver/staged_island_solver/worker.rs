@@ -109,6 +109,7 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
     {
         let bodies = unsafe { &*ctx.bodies };
         let mut done = 0;
+        let mut local_bouncy = false;
         while let Some(claimed) = sync.claim(
             stage,
             &all_chunks,
@@ -149,27 +150,38 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
 
                 #[cfg(feature = "dim3")]
                 if ctx.use_twist {
+                    let builder = unsafe { &mut *ctx.twist_builders.add(chunk_id) };
+                    let constraint = unsafe { &mut *ctx.twist_constraints.add(chunk_id) };
                     ContactWithTwistFrictionBuilder::generate(
                         cref_ids,
                         manifold_refs,
                         bodies,
                         solver_bodies,
-                        unsafe { &mut *ctx.twist_builders.add(chunk_id) },
-                        unsafe { &mut *ctx.twist_constraints.add(chunk_id) },
+                        builder,
+                        constraint,
                     );
+                    local_bouncy |= builder.has_bouncy_seed(constraint.num_contacts);
                 }
                 if !ctx.use_twist {
+                    let builder = unsafe { &mut *ctx.coulomb_builders.add(chunk_id) };
+                    let constraint = unsafe { &mut *ctx.coulomb_constraints.add(chunk_id) };
                     ContactWithCoulombFrictionBuilder::generate(
                         cref_ids,
                         manifold_refs,
                         bodies,
                         solver_bodies,
-                        unsafe { &mut *ctx.coulomb_builders.add(chunk_id) },
-                        unsafe { &mut *ctx.coulomb_constraints.add(chunk_id) },
+                        builder,
+                        constraint,
                     );
+                    local_bouncy |= builder.has_bouncy_seed(constraint.num_contacts);
                 }
             }
             done += claimed_len;
+        }
+        // Publish this worker's restitution-seed sightings BEFORE the completion flush so
+        // every worker reads a settled value after the stage barrier.
+        if local_bouncy {
+            unsafe { &*ctx.any_bouncy }.store(true, Ordering::Relaxed);
         }
         // One completion flush per worker per stage: per-batch RMWs on the
         // shared counter measurably throttle scalar builds (4x the chunks).
@@ -188,6 +200,10 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
     // value; gyro-free islands (the common case) skip the per-substep pass.
     #[cfg(feature = "dim3")]
     let has_gyroscopic = unsafe { &*ctx.any_gyroscopic }.load(Ordering::Relaxed);
+    // Whether any contact constraint captured a restitution seed, published by the
+    // constraint-generation barrier so every worker agrees. Bounce-free steps (the common
+    // case) skip the end-of-step restitution stages entirely.
+    let has_bouncy = unsafe { &*ctx.any_bouncy }.load(Ordering::Relaxed);
     for group in ctx.groups {
         // This group's substep parameters: identical to `base_params` except
         // for the substep dt. Everything dt-derived downstream (soft erp/cfm,
@@ -631,6 +647,90 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                     )
                 };
             }
+        }
+
+        /*
+         * Stages: end-of-step restitution, color by color (box2d-style). Applied ONCE after
+         * all substeps, gated on the point having carried an impulse: inside the substep rhs
+         * the speculative `dist * inv_dt` slack would truncate the bounce.
+         */
+        if has_bouncy {
+            for (_, color) in &ctx.color_ranges[group.colors.clone()] {
+                let mut done = 0;
+                while let Some(claimed) = sync.claim(
+                    stage,
+                    color,
+                    stage_batch(color.end - color.start, sync.num_workers),
+                    worker_id,
+                ) {
+                    let claimed_len = claimed.len();
+                    for chunk_id in claimed {
+                        // SAFETY: constraints of a same color touch pairwise-disjoint bodies.
+                        let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
+                        #[cfg(feature = "dim3")]
+                        if ctx.use_twist {
+                            let builder = unsafe { &*ctx.twist_builders.add(chunk_id) };
+                            builder.apply_restitution(
+                                unsafe { &mut *ctx.twist_constraints.add(chunk_id) },
+                                solver_bodies,
+                            );
+                        }
+                        if !ctx.use_twist {
+                            let builder = unsafe { &*ctx.coulomb_builders.add(chunk_id) };
+                            builder.apply_restitution(
+                                unsafe { &mut *ctx.coulomb_constraints.add(chunk_id) },
+                                solver_bodies,
+                            );
+                        }
+                    }
+                    done += claimed_len;
+                }
+                // One completion flush per worker per stage (see the warmstart stages).
+                sync.complete(stage, done, color.len());
+                stage = sync.sync(stage, color.len());
+            }
+
+            // Overflow + generic (multibody) contacts, exclusively on worker 0.
+            if worker_id == 0 {
+                for chunk_id in group.overflow.clone() {
+                    let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
+                    #[cfg(feature = "dim3")]
+                    if ctx.use_twist {
+                        let builder = unsafe { &*ctx.twist_builders.add(chunk_id) };
+                        builder.apply_restitution(
+                            unsafe { &mut *ctx.twist_constraints.add(chunk_id) },
+                            solver_bodies,
+                        );
+                    }
+                    if !ctx.use_twist {
+                        let builder = unsafe { &*ctx.coulomb_builders.add(chunk_id) };
+                        builder.apply_restitution(
+                            unsafe { &mut *ctx.coulomb_constraints.add(chunk_id) },
+                            solver_bodies,
+                        );
+                    }
+                }
+
+                // Generic constraints exist only on the single-group path.
+                if ctx.groups.len() == 1 {
+                    let contacts = unsafe { &mut *ctx.contact_constraints };
+                    let vs = unsafe { &mut *ctx.velocity_solver };
+                    for (builder, c) in contacts
+                        .generic_velocity_constraints_builder
+                        .iter()
+                        .zip(contacts.generic_velocity_constraints.iter_mut())
+                    {
+                        builder.apply_restitution(
+                            c,
+                            &contacts.generic_jacobians,
+                            &mut vs.solver_bodies,
+                            &mut vs.generic_solver_vels,
+                        );
+                    }
+                }
+                sync.complete(stage, 1, 1);
+            }
+            stage = sync.sync(stage, 1);
         }
     }
 
