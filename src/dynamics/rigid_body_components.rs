@@ -1424,6 +1424,14 @@ impl RigidBodyActivation {
         pose: &Pose,
         dt: Real,
     ) {
+        // A manual `RigidBody::sleep()` pins sleep eligibility until something wakes the
+        // body: the velocity/drift gates must not cancel it (a teleport right before
+        // sleeping trips the drift gate, keeping the body simulated while flagged asleep).
+        if self.sleeping {
+            self.time_since_can_sleep = self.time_until_sleep;
+            return;
+        }
+
         let can_sleep = match body_type {
             RigidBodyType::Dynamic => {
                 let linear_threshold = self.normalized_linear_threshold * length_unit;
