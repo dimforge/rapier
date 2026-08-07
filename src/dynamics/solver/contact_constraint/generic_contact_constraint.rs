@@ -337,9 +337,25 @@ impl GenericContactConstraintBuilder {
                 } else {
                     mprops2.world_com + dp2
                 };
+            // Each anchor must live in the exact frame `update()` re-resolves it
+            // with: a multibody link's rigid-body pose, a regular solver body's
+            // CoM-centered pose, or the identity for a world-attached side
+            // (`solver_vel == u32::MAX`, whose "local" anchor is the world point).
+            let local_point = |is_multibody: bool,
+                               solver_vel: u32,
+                               rb: &crate::dynamics::RigidBody,
+                               world_point: Vector| {
+                if is_multibody {
+                    rb.pos.position.inverse_transform_point(world_point)
+                } else if solver_vel != u32::MAX {
+                    rb.pos.position.rotation.inverse() * (world_point - rb.mprops.world_com)
+                } else {
+                    world_point
+                }
+            };
             let infos = CoulombContactPointInfos {
-                local_p1: rb1.pos.position.inverse_transform_point(point),
-                local_p2: rb2.pos.position.inverse_transform_point(point2),
+                local_p1: local_point(multibody1.is_some(), solver_vel1, rb1, point),
+                local_p2: local_point(multibody2.is_some(), solver_vel2, rb2, point2),
                 tangent_vel: manifold_point.tangent_velocity,
                 dist: dist - (point - point2).dot(force_dir1),
                 restitution_seed,
@@ -393,14 +409,31 @@ impl GenericContactConstraintBuilder {
         let erp_inv_dt = softness.erp_inv_dt(params.dt);
 
         // We don't update jacobians so the update is mostly identical to the non-generic velocity constraint.
-        let pose1 = multibodies
-            .rigid_body_link(self.handle1)
-            .map(|m| multibodies[m.multibody].link(m.id).unwrap().local_to_world)
-            .unwrap_or_else(|| bodies.get_pose(constraint.solver_vel1).pose());
-        let pose2 = multibodies
-            .rigid_body_link(self.handle2)
-            .map(|m| multibodies[m.multibody].link(m.id).unwrap().local_to_world)
-            .unwrap_or_else(|| bodies.get_pose(constraint.solver_vel2).pose());
+        // Anchor frames must match `generate` exactly: identity for a world-attached side
+        // (including sleeping multibody links, whose anchors are stored as world points),
+        // the link pose for a live multibody side, the solver-body (CoM-centered) pose otherwise.
+        let pose_for = |handle: RigidBodyHandle, solver_vel: u32, is_multibody: bool| {
+            if solver_vel == u32::MAX {
+                crate::math::Pose::IDENTITY
+            } else if is_multibody {
+                multibodies
+                    .rigid_body_link(handle)
+                    .map(|m| multibodies[m.multibody].link(m.id).unwrap().local_to_world)
+                    .unwrap_or(crate::math::Pose::IDENTITY)
+            } else {
+                bodies.get_pose(solver_vel).pose()
+            }
+        };
+        let pose1 = pose_for(
+            self.handle1,
+            constraint.solver_vel1,
+            constraint.generic_constraint_mask & 0b01 != 0,
+        );
+        let pose2 = pose_for(
+            self.handle2,
+            constraint.solver_vel2,
+            constraint.generic_constraint_mask & 0b10 != 0,
+        );
         let all_infos = &self.infos[..constraint.num_contacts as usize];
         let normal_parts = &mut constraint.normal_part[..constraint.num_contacts as usize];
         let tangent_parts = &mut constraint.tangent_part[..constraint.num_contacts as usize];
