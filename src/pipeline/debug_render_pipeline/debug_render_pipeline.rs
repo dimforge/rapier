@@ -6,6 +6,8 @@ use crate::dynamics::{
 use crate::geometry::{Ball, ColliderSet, Cuboid, NarrowPhase, Shape, TypedShape};
 #[cfg(feature = "dim3")]
 use crate::geometry::{Cone, Cylinder};
+#[cfg(feature = "dim2")]
+use crate::geometry::{ConvexPolygon, RoundShape};
 use crate::math::{DIM, Matrix, Pose, Vector};
 use crate::pipeline::debug_render_pipeline::DebugRenderStyle;
 use crate::pipeline::debug_render_pipeline::debug_render_backend::DebugRenderObject;
@@ -470,8 +472,20 @@ impl DebugRenderPipeline {
                 backend.draw_line_strip(object, &vtx, pos, Vector::splat(1.0), color, true)
             }
             TypedShape::RoundTriangle(s) => {
-                // TODO: take roundness into account.
-                self.render_shape(object, backend, &s.inner_shape, pos, color)
+                // Parry doesn’t implement `to_polyline` for `RoundTriangle`, so convert it
+                // to a round convex polygon which discretizes to the same rounded boundary.
+                let tri = &s.inner_shape;
+                if let Some(inner_shape) = ConvexPolygon::from_convex_hull(&[tri.a, tri.b, tri.c]) {
+                    let poly = RoundShape {
+                        inner_shape,
+                        border_radius: s.border_radius,
+                    };
+                    let vtx = poly.to_polyline(self.style.border_subdivisions);
+                    backend.draw_line_strip(object, &vtx, pos, Vector::splat(1.0), color, true)
+                } else {
+                    // Degenerate triangle: render the flat inner shape instead.
+                    self.render_shape(object, backend, &s.inner_shape, pos, color)
+                }
             }
             // TypedShape::RoundTriMesh(s) => self.render_shape(backend, &s.inner_shape, pos, color),
             // TypedShape::RoundHeightField(s) => {
@@ -604,7 +618,9 @@ impl DebugRenderPipeline {
                 backend.draw_polyline(object, &vtx, &idx, pos, Vector::splat(1.0), color)
             }
             TypedShape::RoundTriangle(s) => {
-                // TODO: take roundness into account.
+                // Parry doesn’t implement `to_outline` for `RoundTriangle` in 3D
+                // (the impl is currently disabled upstream), so fall back to
+                // rendering the flat inner triangle.
                 self.render_shape(object, backend, &s.inner_shape, pos, color)
             }
             // TypedShape::RoundTriMesh(s) => self.render_shape(object, backend, &s.inner_shape, pos, color),
