@@ -449,6 +449,10 @@ impl<'a> QueryPipeline<'a> {
     /// Returns the first collision: `(collider_handle, hit_details)` where hit contains
     /// time-of-impact, witness points, and surface normal.
     ///
+    /// In the returned [`ShapeCastHit`], `witness1` and `normal1` refer to the hit collider
+    /// and are expressed in **world space**. `witness2` and `normal2` refer to the cast shape
+    /// and are expressed in its **local space** (relative to `shape_pos`).
+    ///
     /// # Parameters
     /// * `shape_pos` - Starting position/orientation of the shape
     /// * `shape_vel` - Direction and speed to move the shape (velocity vector)
@@ -491,8 +495,9 @@ impl<'a> QueryPipeline<'a> {
 
     /// Casts a shape with an arbitrary continuous motion and retrieve the first collider it hits.
     ///
-    /// In the resulting `TOI`, witness and normal 1 refer to the world collider, and are in world
-    /// space.
+    /// In the returned [`ShapeCastHit`], `witness1` and `normal1` refer to the hit collider
+    /// and are expressed in **world space**. `witness2` and `normal2` refer to the cast shape
+    /// and are expressed in its **local space** (they follow the shape along `shape_motion`).
     ///
     /// # Parameters
     /// * `shape_motion` - The motion of the shape.
