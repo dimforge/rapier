@@ -8,6 +8,11 @@ use na::Vector2;
 #[cfg(feature = "block-solver")]
 use simba::simd::SimdValue;
 
+/// How well-conditioned a manifold's 2x2 matrix `K` must be for the block solver to take it
+/// (`det(K) > BLOCK_SOLVER_MIN_CONDITION * k11 * k22`): near-singular pairs go to the sequential path.
+#[cfg(feature = "block-solver")]
+pub(crate) const BLOCK_SOLVER_MIN_CONDITION: crate::math::Real = 0.01;
+
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct ContactConstraintTangentPart<N: ScalarType> {
     pub torque_dir1: [N::AngVector; DIM - 1],
@@ -312,15 +317,17 @@ impl<N: ScalarType> ContactConstraintNormalPart<N> {
         let block_result = new_impulse0.select(keep0, selected1);
 
         // Degraded lanes (`block_flag` = 0: manifold lacks both points, or the pair matrix
-        // wasn't invertible at build time).
+        // wasn't invertible at build time): solve the two points one after the other, exactly
+        // as the feature-off build does, with `k12` carrying the first solve's velocity change.
         // Use `degraded_dvel_a` rather than `dvel.x` so that this case matches the non-mlcp
         // solve exactly.
         // TODO: measure if using `degraded_dvel_a` instead of `dvel.x` has any performance
         //       impact.
-        let degraded = Vector2::new(
-            cfm_factor.x * (prev_impulse.x - r_a * degraded_dvel_a).simd_max(zero),
-            zero,
-        );
+        let degraded_a = cfm_factor.x * (prev_impulse.x - r_a * degraded_dvel_a).simd_max(zero);
+        let degraded_b = cfm_factor.y
+            * (prev_impulse.y - r_b * (dvel.y + k12 * (degraded_a - prev_impulse.x)))
+                .simd_max(zero);
+        let degraded = Vector2::new(degraded_a, degraded_b);
         let use_block = block_flag.simd_gt(N::splat(0.5));
         block_result.select(use_block, degraded)
     }
@@ -378,19 +385,19 @@ impl<N: ScalarType> ContactConstraintNormalPart<N> {
 }
 
 /*
- * "Slim" variants for the twist-friction (Simplified) model: store only the world-space lever
- * arms and recompute the angular jacobians per use from the constraint-wide directions and
- * inverse inertia — bit-equivalent (poses refresh only in the builder, never inside velocity
- * iterations) for ~40% less memory streamed per sweep, the solver's bound on large scenes.
+ * "Slim" variants for the twist-friction (Simplified) model.
  */
-
 #[cfg(feature = "dim3")]
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct ContactConstraintNormalPartSlim<N: ScalarType> {
-    /// World-space lever arm of the contact point wrt the first body's center of mass.
-    pub dp1: N::Vector,
-    /// World-space lever arm of the contact point wrt the second body's center of mass.
-    pub dp2: N::Vector,
+    /// Angular jacobian wrt the first body.
+    pub torque_dir1: N::AngVector,
+    /// Angular jacobian wrt the second body.
+    pub torque_dir2: N::AngVector,
+    /// Equals to `ii1 * torque_dir1`.
+    pub ii_torque_dir1: N::AngVector,
+    /// Equals to `ii2 * torque_dir2`.
+    pub ii_torque_dir2: N::AngVector,
     pub rhs: N,
     pub rhs_wo_bias: N,
     pub impulse: N,
@@ -423,19 +430,14 @@ where
         dir1: &N::Vector,
         im1: &N::Vector,
         im2: &N::Vector,
-        ii1: &N::AngInertia,
-        ii2: &N::AngInertia,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) {
-        let ii_torque_dir1 = ii1.transform_vector(self.dp1.gcross(*dir1));
-        let ii_torque_dir2 = ii2.transform_vector(self.dp2.gcross(-*dir1));
-
         solver_vel1.linear += dir1.component_mul(im1) * self.impulse;
-        solver_vel1.angular += ii_torque_dir1 * self.impulse;
+        solver_vel1.angular += self.ii_torque_dir1 * self.impulse;
 
         solver_vel2.linear += dir1.component_mul(im2) * -self.impulse;
-        solver_vel2.angular += ii_torque_dir2 * self.impulse;
+        solver_vel2.angular += self.ii_torque_dir2 * self.impulse;
     }
 
     #[inline]
@@ -444,31 +446,24 @@ where
         dir1: &N::Vector,
         im1: &N::Vector,
         im2: &N::Vector,
-        ii1: &N::AngInertia,
-        ii2: &N::AngInertia,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
         N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
-        let torque_dir1 = self.dp1.gcross(*dir1);
-        let torque_dir2 = self.dp2.gcross(-*dir1);
-        let ii_torque_dir1 = ii1.transform_vector(torque_dir1);
-        let ii_torque_dir2 = ii2.transform_vector(torque_dir2);
-
-        let dvel = dir1.gdot(solver_vel1.linear) + torque_dir1.gdot(solver_vel1.angular)
+        let dvel = dir1.gdot(solver_vel1.linear) + self.torque_dir1.gdot(solver_vel1.angular)
             - dir1.gdot(solver_vel2.linear)
-            + torque_dir2.gdot(solver_vel2.angular)
+            + self.torque_dir2.gdot(solver_vel2.angular)
             + self.rhs;
         let new_impulse = self.cfm_factor * (self.impulse - self.r * dvel).simd_max(N::zero());
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 
         solver_vel1.linear += dir1.component_mul(im1) * dlambda;
-        solver_vel1.angular += ii_torque_dir1 * dlambda;
+        solver_vel1.angular += self.ii_torque_dir1 * dlambda;
 
         solver_vel2.linear += dir1.component_mul(im2) * -dlambda;
-        solver_vel2.angular += ii_torque_dir2 * dlambda;
+        solver_vel2.angular += self.ii_torque_dir2 * dlambda;
     }
 
     /// See [`ContactConstraintNormalPart::solve_pair`]: solves two coupled
@@ -483,21 +478,19 @@ where
         dir1: &N::Vector,
         im1: &N::Vector,
         im2: &N::Vector,
-        ii1: &N::AngInertia,
-        ii2: &N::AngInertia,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
         N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
-        let torque_dir1_a = constraint_a.dp1.gcross(*dir1);
-        let torque_dir2_a = constraint_a.dp2.gcross(-*dir1);
-        let torque_dir1_b = constraint_b.dp1.gcross(*dir1);
-        let torque_dir2_b = constraint_b.dp2.gcross(-*dir1);
-        let ii_torque_dir1_a = ii1.transform_vector(torque_dir1_a);
-        let ii_torque_dir2_a = ii2.transform_vector(torque_dir2_a);
-        let ii_torque_dir1_b = ii1.transform_vector(torque_dir1_b);
-        let ii_torque_dir2_b = ii2.transform_vector(torque_dir2_b);
+        let torque_dir1_a = constraint_a.torque_dir1;
+        let torque_dir2_a = constraint_a.torque_dir2;
+        let torque_dir1_b = constraint_b.torque_dir1;
+        let torque_dir2_b = constraint_b.torque_dir2;
+        let ii_torque_dir1_a = constraint_a.ii_torque_dir1;
+        let ii_torque_dir2_a = constraint_a.ii_torque_dir2;
+        let ii_torque_dir1_b = constraint_b.ii_torque_dir1;
+        let ii_torque_dir2_b = constraint_b.ii_torque_dir2;
 
         let dvel_lin1 = dir1.gdot(solver_vel1.linear);
         let dvel_lin2 = dir1.gdot(solver_vel2.linear);
@@ -543,6 +536,14 @@ pub(crate) struct ContactConstraintTangentPartSlim<N: ScalarType> {
     pub dp1: N::Vector,
     /// World-space lever arm of the friction center wrt the second body's center of mass.
     pub dp2: N::Vector,
+    /// Angular jacobians wrt the first body (one per tangent), cached at build time.
+    pub torque_dir1: [N::AngVector; 2],
+    /// Angular jacobians wrt the second body (one per tangent), cached at build time.
+    pub torque_dir2: [N::AngVector; 2],
+    /// `ii1 * torque_dir1[j]`, cached at build time.
+    pub ii_torque_dir1: [N::AngVector; 2],
+    /// `ii2 * torque_dir2[j]`, cached at build time.
+    pub ii_torque_dir2: [N::AngVector; 2],
     pub rhs: [N; 2],
     pub rhs_wo_bias: [N; 2],
     pub impulse: na::Vector2<N>,
@@ -561,15 +562,11 @@ where
         tangents1: [&N::Vector; 2],
         im1: &N::Vector,
         im2: &N::Vector,
-        ii1: &N::AngInertia,
-        ii2: &N::AngInertia,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) {
-        let ii_torque_dir1_0 = ii1.transform_vector(self.dp1.gcross(*tangents1[0]));
-        let ii_torque_dir1_1 = ii1.transform_vector(self.dp1.gcross(*tangents1[1]));
-        let ii_torque_dir2_0 = ii2.transform_vector(self.dp2.gcross(-*tangents1[0]));
-        let ii_torque_dir2_1 = ii2.transform_vector(self.dp2.gcross(-*tangents1[1]));
+        let (ii_torque_dir1_0, ii_torque_dir1_1) = (self.ii_torque_dir1[0], self.ii_torque_dir1[1]);
+        let (ii_torque_dir2_0, ii_torque_dir2_1) = (self.ii_torque_dir2[0], self.ii_torque_dir2[1]);
 
         solver_vel1.linear +=
             (*tangents1[0] * self.impulse[0] + *tangents1[1] * self.impulse[1]).component_mul(im1);
@@ -588,22 +585,16 @@ where
         tangents1: [&N::Vector; 2],
         im1: &N::Vector,
         im2: &N::Vector,
-        ii1: &N::AngInertia,
-        ii2: &N::AngInertia,
         limit: N,
         solver_vel1: &mut SolverVel<N>,
         solver_vel2: &mut SolverVel<N>,
     ) where
         N::AngVector: DotProduct<N::AngVector, Result = N>,
     {
-        let torque_dir1_0 = self.dp1.gcross(*tangents1[0]);
-        let torque_dir1_1 = self.dp1.gcross(*tangents1[1]);
-        let torque_dir2_0 = self.dp2.gcross(-*tangents1[0]);
-        let torque_dir2_1 = self.dp2.gcross(-*tangents1[1]);
-        let ii_torque_dir1_0 = ii1.transform_vector(torque_dir1_0);
-        let ii_torque_dir1_1 = ii1.transform_vector(torque_dir1_1);
-        let ii_torque_dir2_0 = ii2.transform_vector(torque_dir2_0);
-        let ii_torque_dir2_1 = ii2.transform_vector(torque_dir2_1);
+        let (torque_dir1_0, torque_dir1_1) = (self.torque_dir1[0], self.torque_dir1[1]);
+        let (torque_dir2_0, torque_dir2_1) = (self.torque_dir2[0], self.torque_dir2[1]);
+        let (ii_torque_dir1_0, ii_torque_dir1_1) = (self.ii_torque_dir1[0], self.ii_torque_dir1[1]);
+        let (ii_torque_dir2_0, ii_torque_dir2_1) = (self.ii_torque_dir2[0], self.ii_torque_dir2[1]);
 
         let dvel_0 = tangents1[0].gdot(solver_vel1.linear)
             + torque_dir1_0.gdot(solver_vel1.angular)

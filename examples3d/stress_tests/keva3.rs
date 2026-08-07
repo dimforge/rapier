@@ -1,10 +1,8 @@
-use kiss3d::color::Color;
 use rapier_testbed3d::TestbedViewer;
 use rapier3d::glamx::Vec3Swizzles;
 use rapier3d::prelude::*;
 
 pub fn build_block(
-    viewer: &mut TestbedViewer,
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
     half_extents: Vec3,
@@ -15,8 +13,6 @@ pub fn build_block(
     let block_width = 2.0 * half_extents.z * numx as f32;
     let block_height = 2.0 * half_extents.y * numy as f32;
     let spacing = (half_extents.z * numx as f32 - half_extents.x) / (numz as f32 - 1.0);
-    let mut color0 = Color::new(0.7, 0.5, 0.9, 1.0);
-    let mut color1 = Color::new(0.6, 1.0, 0.6, 1.0);
 
     for i in 0..numy {
         std::mem::swap(&mut numx, &mut numz);
@@ -46,9 +42,6 @@ pub fn build_block(
                 let handle = bodies.insert(rigid_body);
                 let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
                 colliders.insert_with_parent(collider, handle, bodies);
-
-                viewer.set_initial_body_color(handle, color0);
-                std::mem::swap(&mut color0, &mut color1);
             }
         }
     }
@@ -67,8 +60,6 @@ pub fn build_block(
             let handle = bodies.insert(rigid_body);
             let collider = ColliderBuilder::cuboid(dim.x, dim.y, dim.z);
             colliders.insert_with_parent(collider, handle, bodies);
-            viewer.set_initial_body_color(handle, color0);
-            std::mem::swap(&mut color0, &mut color1);
         }
     }
 }
@@ -96,15 +87,14 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut block_height = 0.0;
     // These should only be set to odd values otherwise
     // the blocks won't align in the nicest way.
-    let numy = [0, 9, 13, 17, 21, 41];
+    let numy = [0, 13, 17, 21, 41, 83];
 
     for i in (1..=5).rev() {
-        let numx = i;
+        let numx = i * 2;
         let numy = numy[i];
         let numz = numx * 3 + 1;
         let block_width = numx as f32 * half_extents.z * 2.0;
         build_block(
-            viewer,
             &mut world.bodies,
             &mut world.colliders,
             half_extents,

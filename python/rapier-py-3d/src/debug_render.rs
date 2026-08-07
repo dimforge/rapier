@@ -609,6 +609,19 @@ impl DebugRenderStyle {
         self.0.sleep_color_multiplier = DebugColor::extract_from(v)?;
         Ok(())
     }
+    /// Multiplier applied to base colors of awake bodies that are eligible for sleep:
+    /// the plain awake color then marks whatever is holding the pile up.
+    #[getter]
+    fn sleep_eligible_color_multiplier(&self) -> DebugColor {
+        DebugColor(self.0.sleep_eligible_color_multiplier)
+    }
+    #[setter]
+    /// Set the HSLA multiplier applied to sleep-eligible (but awake) body colors,
+    /// from a :class:`DebugColor` or a 4-tuple HSLA.
+    fn set_sleep_eligible_color_multiplier(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.sleep_eligible_color_multiplier = DebugColor::extract_from(v)?;
+        Ok(())
+    }
     /// Multiplier applied to base colors of disabled bodies.
     #[getter]
     fn disabled_color_multiplier(&self) -> DebugColor {

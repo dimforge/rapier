@@ -1745,6 +1745,9 @@ impl DynamicRayCastVehicleController {
     /// Requires a fresh :class:`QueryPipeline` — typically call
     /// ``world.update_query_pipeline()`` first.
     ///
+    /// The chassis body is excluded from the suspension raycasts (their origins
+    /// sit on its own collider), unless ``filter`` already excludes a body.
+    ///
     /// :param dt: Time step in seconds.
     /// :param bodies: Rigid-body set (mutated).
     /// :param colliders: Collider set (mutated).
@@ -1764,7 +1767,8 @@ impl DynamicRayCastVehicleController {
         let np = queries.narrow_phase.borrow(py);
         let mut bodies_ref = bodies.borrow_mut(py);
         let mut colliders_ref = colliders.borrow_mut(py);
-        let qf = filter.map(|f| f.as_rapier(None)).unwrap_or_default();
+        let mut qf = filter.map(|f| f.as_rapier(None)).unwrap_or_default();
+        qf.exclude_rigid_body = qf.exclude_rigid_body.or(Some(self.0.chassis));
         let qpmut = bp.0.as_query_pipeline_mut(
             np.0.query_dispatcher(),
             &mut bodies_ref.0,

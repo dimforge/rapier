@@ -2,6 +2,8 @@ use super::{
     ContactConstraintNormalPartSlim, ContactConstraintTangentPartSlim,
     ContactConstraintTwistPartSlim,
 };
+#[cfg(feature = "block-solver")]
+use crate::dynamics::solver::contact_constraint::BLOCK_SOLVER_MIN_CONDITION;
 use crate::dynamics::solver::manifold_store::ManifoldStore;
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::solver::solver_contact_graph::ContactRef;
@@ -270,8 +272,10 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
                 let projected_velocity = (vel1 - vel2).gdot(force_dir1);
                 normal_rhs_wo_bias = is_bouncy * restitution * projected_velocity;
 
-                out_constraint.normal_part[k].dp1 = dp1;
-                out_constraint.normal_part[k].dp2 = dp2;
+                out_constraint.normal_part[k].torque_dir1 = torque_dir1;
+                out_constraint.normal_part[k].torque_dir2 = torque_dir2;
+                out_constraint.normal_part[k].ii_torque_dir1 = ii_torque_dir1;
+                out_constraint.normal_part[k].ii_torque_dir2 = ii_torque_dir2;
                 // Inactive slots: zero warm-start impulse and effective mass ⇒
                 // the scalar normal solve is an exact no-op.
                 out_constraint.normal_part[k].impulse =
@@ -361,6 +365,11 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
             out_constraint.tangent_part.r[j] = r;
         }
 
+        out_constraint.tangent_part.torque_dir1 = torque_dirs1;
+        out_constraint.tangent_part.torque_dir2 = torque_dirs2;
+        out_constraint.tangent_part.ii_torque_dir1 = ii_torque_dirs1;
+        out_constraint.tangent_part.ii_torque_dir2 = ii_torque_dirs2;
+
         out_constraint.tangent_part.r[2] = SimdReal::splat(2.0)
             * (ii_torque_dirs1[0].gdot(torque_dirs1[1]) + ii_torque_dirs2[0].gdot(torque_dirs2[1]));
 
@@ -378,10 +387,10 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
                 let r0 = out_constraint.normal_part[k0].r;
                 let r1 = out_constraint.normal_part[k1].r;
 
-                let torque_dir1_0 = out_constraint.normal_part[k0].dp1.gcross(force_dir1);
-                let torque_dir2_0 = out_constraint.normal_part[k0].dp2.gcross(-force_dir1);
-                let torque_dir1_1 = out_constraint.normal_part[k1].dp1.gcross(force_dir1);
-                let torque_dir2_1 = out_constraint.normal_part[k1].dp2.gcross(-force_dir1);
+                let torque_dir1_0 = out_constraint.normal_part[k0].torque_dir1;
+                let torque_dir2_0 = out_constraint.normal_part[k0].torque_dir2;
+                let torque_dir1_1 = out_constraint.normal_part[k1].torque_dir1;
+                let torque_dir2_1 = out_constraint.normal_part[k1].torque_dir2;
 
                 let k12 = force_dir1.gdot(imsum.component_mul(&force_dir1))
                     + poses1
@@ -393,17 +402,17 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
                         .transform_vector(torque_dir2_0)
                         .gdot(torque_dir2_1);
                 let (k11, k22) = (utils::simd_inv(r0), utils::simd_inv(r1));
-                // See the coulomb builder: physical-K invertibility is a
-                // conservative proxy for the compliant K'.
-                let is_invertible = (k11 * k22 - k12 * k12).simd_gt(SimdReal::zero());
+                // See the coulomb builder: near-singular pairs fall back to the sequential path.
+                let is_invertible = (k11 * k22 - k12 * k12)
+                    .simd_gt(SimdReal::splat(BLOCK_SOLVER_MIN_CONDITION) * k11 * k22);
 
                 // Degenerate or partially-active lanes store `[0, 0]`:
                 // `solve_pair` degrades to the scalar soft solve of point k0.
                 let block = is_invertible & pair_active;
-                out_constraint.normal_part[k0].r_mat_elts = [
-                    k12.select(block, SimdReal::zero()),
-                    SimdReal::splat(1.0).select(block, SimdReal::zero()),
-                ];
+                // `k12` stays on every lane: the degraded path carries the first point's
+                // impulse change over to the second.
+                out_constraint.normal_part[k0].r_mat_elts =
+                    [k12, SimdReal::splat(1.0).select(block, SimdReal::zero())];
                 out_constraint.normal_part[k1].r_mat_elts = [SimdReal::zero(); 2];
             }
         }
@@ -581,8 +590,6 @@ impl ContactWithTwistFriction<SimdReal> {
                 &self.dir1,
                 &self.im1,
                 &self.im2,
-                &self.ii1,
-                &self.ii2,
                 &mut solver_vel1,
                 &mut solver_vel2,
             );
@@ -597,8 +604,6 @@ impl ContactWithTwistFriction<SimdReal> {
             tangents1,
             &self.im1,
             &self.im2,
-            &self.ii1,
-            &self.ii2,
             &mut solver_vel1,
             &mut solver_vel2,
         );
@@ -645,8 +650,6 @@ impl ContactWithTwistFriction<SimdReal> {
                         &self.dir1,
                         &self.im1,
                         &self.im2,
-                        &self.ii1,
-                        &self.ii2,
                         &mut solver_vel1,
                         &mut solver_vel2,
                     );
@@ -657,8 +660,6 @@ impl ContactWithTwistFriction<SimdReal> {
                         &self.dir1,
                         &self.im1,
                         &self.im2,
-                        &self.ii1,
-                        &self.ii2,
                         &mut solver_vel1,
                         &mut solver_vel2,
                     );
@@ -670,8 +671,6 @@ impl ContactWithTwistFriction<SimdReal> {
                     &self.dir1,
                     &self.im1,
                     &self.im2,
-                    &self.ii1,
-                    &self.ii2,
                     &mut solver_vel1,
                     &mut solver_vel2,
                 );
@@ -717,8 +716,6 @@ impl ContactWithTwistFriction<SimdReal> {
                 tangents1,
                 &self.im1,
                 &self.im2,
-                &self.ii1,
-                &self.ii2,
                 tangent_limit,
                 &mut solver_vel1,
                 &mut solver_vel2,

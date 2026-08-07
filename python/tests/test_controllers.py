@@ -362,6 +362,31 @@ def test_vehicle_construction_and_wheels(ns):
         assert wheel.brake == 0.0
 
 
+def test_vehicle_settles_on_its_suspension(ns):
+    """The vehicle comes to rest on the ground, not in the air.
+
+    Regression test: without excluding the chassis from its own suspension
+    raycasts, every wheel hits the vehicle itself and it flies off.
+    """
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0), auto_update_query=True)
+    w.add_body(
+        ns.RigidBody.fixed(translation=(0, -0.1, 0)),
+        colliders=[ns.Collider.cuboid(50, 0.1, 50)],
+    )
+    h, veh = _build_vehicle(ns, w)
+    for _ in range(120):
+        w.step()
+        w.update_query_pipeline()
+        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline)
+
+    body = w.rigid_bodies[h]
+    # Half-height + suspension rest length + wheel radius, minus spring sag.
+    assert 0.25 < body.translation.y < 0.34, (
+        f"chassis is not riding on its suspension: y={body.translation.y}"
+    )
+    assert abs(body.linvel.y) < 0.5, f"chassis is still moving: vy={body.linvel.y}"
+
+
 def test_vehicle_accelerates_with_engine_force(ns):
     """Applying engine force makes the vehicle gain forward speed (in m/s,
     measured via the chassis linvel along its forward axis)."""
@@ -390,6 +415,8 @@ def test_vehicle_accelerates_with_engine_force(ns):
     assert abs(forward_after) > abs(forward_before), (
         f"engine force did not accelerate (before={forward_before}, after={forward_after})"
     )
+    # ...by driving on the ground, not by taking off.
+    assert 0.25 < w.rigid_bodies[h].translation.y < 0.34
     # Sanity check the km/h converter agrees with the chassis linvel.
     assert veh.current_speed_km_hour() != 0.0
 

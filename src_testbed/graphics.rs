@@ -2,7 +2,6 @@
 
 use crate::testbed::TestbedStateFlags;
 use kiss3d::prelude::*;
-use rand_pcg::Pcg32;
 use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType, SharedShape};
 use std::collections::HashMap;
@@ -161,7 +160,7 @@ pub enum NodeLocation {
 
 pub struct GraphicsManager {
     scene: SceneNode,
-    rand: Pcg32,
+    curr_color_index: usize,
     /// Template nodes for instanced primitives
     templates: HashMap<ShapeTemplateType, ShapeTemplate>,
     /// Individual nodes for complex shapes (trimesh, heightfield, etc.)
@@ -240,7 +239,7 @@ impl GraphicsManager {
     pub fn new() -> GraphicsManager {
         GraphicsManager {
             scene: Default::default(),
-            rand: Pcg32::new(0, 1),
+            curr_color_index: 0,
             templates: HashMap::new(),
             individual_nodes: Vec::new(),
             body_attached_nodes: Vec::new(),
@@ -276,7 +275,6 @@ impl GraphicsManager {
         self.c2color.clear();
         self.b2color.clear();
         self.b2wireframe.clear();
-        self.rand = Pcg32::new(0, 1);
         // Per-channel visibility is also reset so example A doesn't leak
         // its rendering choices into example B after a swap.
         self.colliders_visible = true;
@@ -741,13 +739,18 @@ impl GraphicsManager {
     }
 
     pub fn next_color(&mut self) -> Rgba<f32> {
-        Self::gen_color(&mut self.rand)
+        Self::gen_color(&mut self.curr_color_index)
     }
 
-    fn gen_color(rng: &mut Pcg32) -> Rgba<f32> {
-        use rand::RngExt;
-        let [r, g, b]: [f32; 3] = rng.random();
-        [r, g, b, 1.0].into()
+    fn gen_color(curr_color_index: &mut usize) -> Rgba<f32> {
+        let palette = [
+            [0.02, 0.44, 0.19, 1.0],
+            [0.36, 0.13, 0.66, 1.0],
+            [0.44, 0.94, 0.23, 1.0],
+            [0.85, 0.51, 0.98, 1.0],
+        ];
+        *curr_color_index += 1;
+        palette[*curr_color_index % palette.len()].into()
     }
 
     fn alloc_color(&mut self, handle: RigidBodyHandle, is_fixed: bool) -> Color {
@@ -756,7 +759,7 @@ impl GraphicsManager {
         if !is_fixed {
             match self.b2color.get(&handle).cloned() {
                 Some(c) => color = c,
-                None => color = Self::gen_color(&mut self.rand),
+                None => color = Self::gen_color(&mut self.curr_color_index),
             }
         }
 

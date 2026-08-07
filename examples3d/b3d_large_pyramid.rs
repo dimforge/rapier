@@ -11,7 +11,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
     world.gravity = Vector::new(0.0, -10.0, 0.0);
 
-    let base_count = 90i32;
+    let base_count = 200i32;
 
     // Ground: b3MakeBoxHull(400, 1, 400) at y = -1.
     world.insert(
