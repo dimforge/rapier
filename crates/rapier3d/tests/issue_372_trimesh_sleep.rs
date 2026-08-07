@@ -107,11 +107,12 @@ fn ball_on_trimesh_falls_asleep() {
     h.assert_sleeps(ball, 2000, "ball");
 }
 
-/// A capsule dropped sideways onto a flat trimesh with a small push must come to
-/// rest and fall asleep. Currently it instead self-accelerates to a steady roll
-/// (see the module docs for the analysis) and never sleeps.
+/// A capsule dropped sideways onto a flat trimesh with a small push must come to rest and
+/// fall asleep. The nudge must keep `v0 * (1 + max_extent / radius)` under the sleep
+/// threshold: rolling without slip is energy-conserving, so a bigger push settles into a
+/// steady roll that legitimately never sleeps.
 #[test]
-#[ignore = "issue #372 not fixed yet: rolling capsule is velocity-pumped by parry's frozen manifold anchors"]
+#[ignore = "needs a parry release with the rolling-anchor cache fix (parry triage-fixes; rapier issue #372)"]
 fn capsule_on_trimesh_falls_asleep() {
     let mut h = Harness::new();
     h.insert_trimesh_ground();
@@ -121,7 +122,7 @@ fn capsule_on_trimesh_falls_asleep() {
         RigidBodyBuilder::dynamic()
             .translation(Vector::new(-5.0, 1.0, 5.0))
             .rotation(Vector::new(std::f32::consts::FRAC_PI_2 as Real, 0.0, 0.0))
-            .linvel(Vector::new(0.03, 0.0, 0.0)),
+            .linvel(Vector::new(0.012, 0.0, 0.0)),
     );
     h.colliders
         .insert_with_parent(ColliderBuilder::capsule_y(0.4, 0.3), capsule, &mut h.bodies);
