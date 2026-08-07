@@ -364,18 +364,19 @@ impl GenericJoint {
 
     #[doc(hidden)]
     pub fn complete_ang_frame(axis: Vector) -> Rotation {
-        let basis = axis.orthonormal_basis();
-
         #[cfg(feature = "dim2")]
         {
+            let basis = axis.orthonormal_basis();
             let mat = Matrix::from_cols(axis, basis[0]);
             Rotation::from_matrix_unchecked(mat)
         }
 
         #[cfg(feature = "dim3")]
         {
-            let mat = Matrix::from_cols(axis, basis[0], basis[1]);
-            Rotation::from_mat3(&mat)
+            // Minimal rotation taking +X to `axis`, NOT an arbitrary orthonormal basis:
+            // frames completed from two independently-set axes must not disagree by a twist,
+            // which fights a prismatic-like joint's angular locks and can diverge.
+            Rotation::from_rotation_arc(Vector::X, axis)
         }
     }
 
@@ -425,6 +426,11 @@ impl GenericJoint {
     }
 
     /// Sets the principal (local X) axis of this joint, expressed in the first rigid-body’s local-space.
+    ///
+    /// The tangent axes of the joint frame are completed deterministically with the minimal
+    /// rotation taking +X to `local_axis`, so frames set from two rotated-but-matching axes
+    /// remain twist-consistent. For exact control over the tangent axes, set the full frame
+    /// with [`Self::set_local_frame1`] instead.
     pub fn set_local_axis1(&mut self, local_axis: Vector) -> &mut Self {
         self.local_frame1.rotation = Self::complete_ang_frame(local_axis);
         self
@@ -437,6 +443,11 @@ impl GenericJoint {
     }
 
     /// Sets the principal (local X) axis of this joint, expressed in the second rigid-body’s local-space.
+    ///
+    /// The tangent axes of the joint frame are completed deterministically with the minimal
+    /// rotation taking +X to `local_axis`, so frames set from two rotated-but-matching axes
+    /// remain twist-consistent. For exact control over the tangent axes, set the full frame
+    /// with [`Self::set_local_frame2`] instead.
     pub fn set_local_axis2(&mut self, local_axis: Vector) -> &mut Self {
         self.local_frame2.rotation = Self::complete_ang_frame(local_axis);
         self
