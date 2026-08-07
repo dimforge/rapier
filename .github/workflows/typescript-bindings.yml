@@ -3,6 +3,11 @@ name: TypeScript bindings
 on:
     push:
         branches: [master]
+        # A `js-v<version>` tag cuts a real release (see the `publish` job); the
+        # JS packages carry their own version line, independent of the `v*` tags
+        # of the Rust crates. Path filters are not evaluated for tag pushes, so
+        # the `paths` list below only ever gates the `master` pushes.
+        tags: ["js-v*"]
         paths:
             - "typescript/**"
             - ".github/workflows/typescript-bindings.yml"
@@ -20,9 +25,11 @@ env:
 # workspace (it pulls `rapier2d`/`rapier3d` from crates.io, not from the crates
 # in this repo). Every step therefore runs inside that directory.
 
+# Never cancel a run that can publish: interrupting the `publish` job partway
+# leaves some of the twelve packages released and the rest missing.
 concurrency:
     group: typescript-bindings-${{ github.ref }}
-    cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+    cancel-in-progress: ${{ github.ref != 'refs/heads/master' && !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
     check-fmt:
@@ -162,10 +169,17 @@ jobs:
     # *and* this workflow file (`typescript-bindings.yml`) as its trusted
     # publisher on npmjs.com; a rename of this file breaks publishing until the
     # npm-side settings are updated to match.
+    #
+    # Both release kinds have to live in this one job: npm allows a single
+    # trusted publisher per package, so a separate tag-only workflow file could
+    # not authenticate.
+    #   - push to master  -> `0.0.0-<sha>-<date>` under the `canary` dist-tag
+    #   - push a `js-v*` tag -> the version baked into the packages, released
+    #     under `latest` (or `next` for a pre-release)
     publish:
         runs-on: ubuntu-latest
         needs: [build, build-compat]
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/js-v')
         permissions:
             contents: read
             # Lets npm request the OIDC token it exchanges for publish rights.
@@ -191,6 +205,28 @@ jobs:
             # Node 22 still bundles npm 10; OIDC publishing needs npm >= 11.5.1.
             - name: Upgrade npm
               run: npm install -g npm@latest
-            - name: Publish projects
+            # The tag does not set the version: the packages inherit it from
+            # `builds/prepare_builds/templates/Cargo.toml.tera`. Catch the
+            # mismatch here rather than after half the packages are released
+            # under a version nobody tagged.
+            - name: Check the tag matches the package version
+              if: startsWith(github.ref, 'refs/tags/js-v')
+              run: |
+                  tag_version="${GITHUB_REF_NAME#js-v}"
+                  status=0
+                  for pkg in builds/*/pkg rapier-compat/builds/*/pkg; do
+                      pkg_version=$(node -p "require('./$pkg/package.json').version")
+                      if [ "$pkg_version" != "$tag_version" ]; then
+                          >&2 echo "ERROR: $pkg is version $pkg_version, but tag $GITHUB_REF_NAME asks for $tag_version."
+                          status=1
+                      fi
+                  done
+                  exit $status
+            - name: Publish canary versions
+              if: github.ref == 'refs/heads/master'
               run: |
                   ./publish_all_canary.sh
+            - name: Publish release versions
+              if: startsWith(github.ref, 'refs/tags/js-v')
+              run: |
+                  ./publish_all_prod.sh
