@@ -1278,15 +1278,16 @@ mod test {
         let character_body = bodies.get_mut(character_handle_no_snap).unwrap();
         let translation = character_body.translation();
 
-        // accumulated numerical errors make the test go less far than it should,
-        // but it's expected.
+        // Accumulated numerical error makes the character fall short of the ideal distance.
+        // The bound was 940 until parry 0.30.2 tightened the shape-cast TOI at GJK stagnation
+        // (parry#429), which costs a little more progress per step.
         assert!(
-            translation.x >= 940.0,
+            translation.x >= 930.0,
             "actual translation.x:{}",
             translation.x
         );
         assert!(
-            translation.z >= 940.0,
+            translation.z >= 930.0,
             "actual translation.z:{}",
             translation.z
         );

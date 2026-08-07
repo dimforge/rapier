@@ -27,7 +27,9 @@ EXPECTED: dict[str, str | re.Pattern[str]] = {
     "hello_world.py": "final: y=0.60 (rest height ~0.6)",
     "joints/pendulum.py": re.compile(r"^tip: x=[-+]0\.0\d y=\+3\.50$"),
     "joints/six_dof_motor.py": "motor: lin.x=3.52 ang.z=0.49",
-    "character/stairs.py": "climbed: x=13.50 y=0.28",
+    # Moved from x=13.50 when parry 0.30.2 tightened the shape-cast TOI at GJK
+    # stagnation (parry#429): the character controller now climbs slightly further.
+    "character/stairs.py": "climbed: x=13.62 y=0.28",
     # The vehicle controller's exact speed depends on per-architecture floating
     # point (rapier is not bit-reproducible across arches without
     # enhanced-determinism), so assert the shape instead: it drove forward at a

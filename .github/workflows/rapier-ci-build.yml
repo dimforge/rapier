@@ -31,6 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get install -y cmake libxcb-composite0-dev
+      # WORKAROUND: zune-core 0.5.2 made its `warn!` macro expand to nothing, which breaks
+      # zune-jpeg (all 0.5.x), where it is called in expression position. Reached through the
+      # testbeds' kiss3d -> gltf/image dependency. Remove once upstream is fixed.
+      - name: Pin zune-core (0.5.2 breaks zune-jpeg)
+        run: cargo update -p zune-core@0.5 --precise 0.5.1
       - name: Clippy
         run: cargo clippy
       - name: Clippy rapier2d
@@ -213,6 +218,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get install -y cmake libxcb-composite0-dev
+      # See `build-native`: zune-core 0.5.2 breaks zune-jpeg, reached here through the
+      # testbed crates' kiss3d dependency. Remove once upstream is fixed.
+      - name: Pin zune-core (0.5.2 breaks zune-jpeg)
+        run: cargo update -p zune-core@0.5 --precise 0.5.1
       # Builds and verifies each crate the same way `cargo publish` does,
       # catching bugs hidden by workspace feature unification.
       - name: publish dry-run
