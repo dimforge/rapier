@@ -919,6 +919,9 @@ impl KinematicCharacterController {
         let dispatcher = DefaultQueryDispatcher;
 
         let mut manifolds: Vec<ContactManifold> = vec![];
+        // World pose of the collider each manifold was computed against: the `local_p2`
+        // points are in the collider’s frame, which differs from its body’s when offset.
+        let mut manifold_collider_poses: Vec<Pose> = vec![];
         let character_aabb = character_shape
             .compute_aabb(&collision.character_pos)
             .loosened(prediction);
@@ -927,7 +930,6 @@ impl KinematicCharacterController {
             if let Some(parent) = collider.parent {
                 if let Some(body) = queries.bodies.get(parent.handle) {
                     if body.is_dynamic() {
-                        manifolds.clear();
                         let pos12 = collision.character_pos.inv_mul(collider.position());
                         let prev_manifolds_len = manifolds.len();
                         let _ = dispatcher.contact_manifolds(
@@ -943,6 +945,7 @@ impl KinematicCharacterController {
                             m.data.rigid_body2 = Some(parent.handle);
                             m.data.normal = collision.character_pos.rotation * m.local_n1;
                         }
+                        manifold_collider_poses.resize(manifolds.len(), *collider.position());
                     }
                 }
             }
@@ -950,14 +953,14 @@ impl KinematicCharacterController {
 
         let velocity_to_transfer = movement_to_transfer * utils::inv(dt);
 
-        for manifold in &manifolds {
+        for (manifold, collider_pos) in manifolds.iter().zip(manifold_collider_poses.iter()) {
             let body_handle = manifold.data.rigid_body2.unwrap();
             let body = &mut queries.bodies[body_handle];
 
             for pt in &manifold.points {
                 if pt.dist <= prediction {
                     let body_mass = body.mass();
-                    let contact_point = body.position() * pt.local_p2;
+                    let contact_point = collider_pos * pt.local_p2;
                     let delta_vel_per_contact = (velocity_to_transfer
                         - body.velocity_at_point(contact_point))
                     .dot(manifold.data.normal);
