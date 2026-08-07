@@ -316,6 +316,19 @@ pub mod math {
 }
 
 /// Prelude containing the common types defined by Rapier.
+///
+/// The `nalgebra` crate and its `vector!`/`point!` macros are re-exported by this prelude,
+/// so the macros can be used without declaring `nalgebra` as an explicit dependency:
+///
+/// ```
+/// use rapier3d::prelude::*;
+///
+/// // No `use nalgebra` anywhere: the macros must still resolve.
+/// let v = vector![1.0, 2.0, 3.0];
+/// let p = point![1.0, 2.0, 3.0];
+/// assert_eq!(v, nalgebra::Vector3::new(1.0, 2.0, 3.0));
+/// assert_eq!(p, nalgebra::Point3::new(1.0, 2.0, 3.0));
+/// ```
 pub mod prelude {
     #[cfg(feature = "alloc")]
     pub use crate::dynamics::*;
