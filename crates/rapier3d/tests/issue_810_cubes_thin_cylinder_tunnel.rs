@@ -1,10 +1,10 @@
 //! Regression test for #810: small cubes dropped at ~20 m/s onto a thin fixed cylinder disc
 //! used to pass straight through it, even with `ccd_enabled`.
 //!
-//! STILL BROKEN (2/20 cubes tunnel): the CCD sweep clamps the cube at the cap surface, but
-//! parry's cuboid-vs-cylinder-cap manifold has a single contact point, so the solver zeroes
-//! the velocity via spin (~74 rad/s in one step) and the cube corkscrews through — the fix
-//! belongs in parry (cf. parry#298/parry#318).
+//! The CCD sweep already clamped the cube at the cap surface, but parry's
+//! cuboid-vs-cylinder-cap manifold held a single contact point, so the solver zeroed the
+//! velocity via spin (~74 rad/s in one step) and the cube corkscrewed through. Fixed in
+//! parry by orienting the cap's contact-feature approximation toward the contact point.
 
 use rapier3d::prelude::*;
 
@@ -58,7 +58,6 @@ impl Harness {
 }
 
 #[test]
-#[ignore = "needs a parry release with the hint-oriented cylinder-cap feature (parry triage-fixes; rapier issue #810)"]
 fn cubes_do_not_fall_through_thin_cylinder_disc() {
     let mut h = Harness::new();
 

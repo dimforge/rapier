@@ -1,10 +1,9 @@
 //! Regression tests for #372: round shapes resting on a triangle mesh never lost their
 //! kinetic energy and never fell asleep.
 //!
-//! The ball is fixed; the capsule and cylinder still *gain* energy, self-accelerating to a
-//! steady ~1 degree per timestep — root cause is parry's cached-manifold fast path
-//! (`ContactManifold::try_update_contacts`) freezing contact anchors, so those cases stay
-//! `#[ignore]`d pending a parry fix.
+//! The pump came from parry's cached-manifold fast path
+//! (`ContactManifold::try_update_contacts`) freezing contact anchors, which self-accelerated
+//! a rolling shape to a steady ~1 degree per timestep.
 
 use rapier3d::prelude::*;
 
@@ -112,7 +111,6 @@ fn ball_on_trimesh_falls_asleep() {
 /// threshold: rolling without slip is energy-conserving, so a bigger push settles into a
 /// steady roll that legitimately never sleeps.
 #[test]
-#[ignore = "needs a parry release with the rolling-anchor cache fix (parry triage-fixes; rapier issue #372)"]
 fn capsule_on_trimesh_falls_asleep() {
     let mut h = Harness::new();
     h.insert_trimesh_ground();
