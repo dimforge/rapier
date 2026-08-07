@@ -490,6 +490,21 @@ impl<N, E> Graph<N, E> {
         self.find_edge_undirected(a, b).map(|(ix, _)| ix)
     }
 
+    /// Return an iterator over all the edges connecting `a` and `b`, in either direction.
+    ///
+    /// Unlike [`Self::find_edge`], this yields every parallel edge between the two
+    /// nodes instead of only the first one found.
+    pub fn edges_between(
+        &self,
+        a: NodeIndex,
+        b: NodeIndex,
+    ) -> impl Iterator<Item = EdgeIndex> + '_ {
+        self.edges(a).filter_map(move |e| {
+            let node = self.edges[e.id().index()].node;
+            (node == [a, b] || node == [b, a]).then_some(e.id())
+        })
+    }
+
     /// Lookup an edge between `a` and `b`, in either direction.
     ///
     /// If the graph is undirected, then this is equivalent to `.find_edge()`.

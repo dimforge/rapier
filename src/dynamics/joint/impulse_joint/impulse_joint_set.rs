@@ -145,7 +145,7 @@ impl ImpulseJointSet {
             .get(body1.0)
             .zip(self.rb_graph_ids.get(body2.0))
             .into_iter()
-            .flat_map(move |(id1, id2)| self.joint_graph.interaction_pair(*id1, *id2).into_iter())
+            .flat_map(move |(id1, id2)| self.joint_graph.interactions_between(*id1, *id2))
             .map(|inter| (inter.2.handle, inter.2))
     }
 

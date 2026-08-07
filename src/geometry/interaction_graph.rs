@@ -126,6 +126,24 @@ impl<N: Copy, E> InteractionGraph<N, E> {
         })
     }
 
+    /// All the interactions between the two collision objects identified by their graph index.
+    ///
+    /// Unlike [`Self::interaction_pair`], this yields every parallel edge connecting the two
+    /// nodes (e.g. every joint attached to the same pair of bodies) instead of only the first.
+    pub fn interactions_between(
+        &self,
+        id1: ColliderGraphIndex,
+        id2: ColliderGraphIndex,
+    ) -> impl Iterator<Item = (N, N, &E)> {
+        self.graph.edges_between(id1, id2).filter_map(move |edge| {
+            let endpoints = self.graph.edge_endpoints(edge)?;
+            let h1 = self.graph.node_weight(endpoints.0)?;
+            let h2 = self.graph.node_weight(endpoints.1)?;
+            let weight = self.graph.edge_weight(edge)?;
+            Some((*h1, *h2, weight))
+        })
+    }
+
     /// The interaction between the two collision objects identified by their graph index.
     #[profiling::function]
     pub fn interaction_pair_mut(
