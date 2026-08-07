@@ -33,6 +33,7 @@ mod inverse_kinematics2;
 mod joint_motor_position2;
 mod joints2;
 mod locked_rotations2;
+mod multi_pendulum2;
 mod one_way_platforms2;
 mod pin_slot_joint2;
 mod platform2;
@@ -107,6 +108,7 @@ pub async fn main() {
         JOINTS, "Pin Slot Joint", pin_slot_joint2::run;
         JOINTS, "Joint motor position", joint_motor_position2::run;
         JOINTS, "Inverse kinematics", inverse_kinematics2::run;
+        JOINTS, "Multi Pendulum", multi_pendulum2::run;
         // ── Controls ────────────────────────────────────────────────────────
         CONTROLS, "Character controller", character_controller2::run;
         // ── Debug ───────────────────────────────────────────────────────────
