@@ -452,8 +452,35 @@ impl RigidBodyMassProps {
                 self.local_mprops += mprops;
             }
             RigidBodyAdditionalMassProps::Mass(mass) => {
-                let new_mass = self.local_mprops.mass() + mass;
-                self.local_mprops.set_mass(new_mass, true);
+                let prev_mass = self.local_mprops.mass();
+                if prev_mass > 0.0 {
+                    self.local_mprops.set_mass(prev_mass + mass, true);
+                } else {
+                    // The colliders contribute no mass, so `set_mass` has no angular
+                    // inertia to rescale and the body could never rotate. Derive it (and the
+                    // CoM) from the shapes at unit density, rescaled to the additional mass.
+                    let mut unit_mprops = MassProperties::default();
+                    for handle in &attached_colliders.0 {
+                        if let Some(co) = colliders.get(*handle) {
+                            if co.is_enabled() {
+                                if let Some(co_parent) = co.parent {
+                                    unit_mprops += co
+                                        .shape
+                                        .mass_properties(1.0)
+                                        .transform_by(&co_parent.pos_wrt_parent);
+                                }
+                            }
+                        }
+                    }
+
+                    if unit_mprops.mass() > 0.0 {
+                        unit_mprops.set_mass(mass, true);
+                        self.local_mprops += unit_mprops;
+                    } else {
+                        // No shape to derive an inertia from: just set the mass.
+                        self.local_mprops.set_mass(mass, true);
+                    }
+                }
             }
         }
 
