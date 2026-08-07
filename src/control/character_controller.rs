@@ -232,34 +232,64 @@ pub struct EffectiveCharacterMovement {
 }
 
 impl KinematicCharacterController {
-    fn check_and_fix_penetrations(&self) {
-        /*
-        // 1/ Check if the body is grounded and if there are penetrations.
-        let mut grounded = false;
-        let mut penetrating = false;
+    /// Pushes the character out of any non-sensor collider it is overlapping with, which is
+    /// what stops an obstacle pushed into a non-moving character from tunneling through it
+    /// ([`Self::move_shape`]'s shape-casts never run on a zero desired translation).
+    ///
+    /// The total correction per call is capped relative to the character’s height.
+    fn check_and_fix_penetrations(
+        &self,
+        queries: &QueryPipeline,
+        character_shape: &dyn Shape,
+        character_pos: &Pose,
+        dims: Vector2<Real>,
+        result: &mut EffectiveCharacterMovement,
+    ) {
+        let offset = self.offset.eval(dims.y);
+        let max_correction = dims.y * 0.25;
+        let mut applied = 0.0;
 
-        let mut contacts = vec![];
+        // Run a few passes so that getting pushed out of one collider doesn’t leave the
+        // character stuck inside another one.
+        for _ in 0..4 {
+            let character_aabb = character_shape
+                .compute_aabb(&(Pose::from_translation(result.translation) * *character_pos))
+                .loosened(offset);
+            let mut corrected = false;
 
-        let aabb = shape
-            .compute_aabb(shape_pos)
-            .loosened(self.offset);
-        queries.colliders_with_aabb_intersecting_aabb(&aabb, |handle| {
-            // TODO: apply the filter.
-            if let Some(collider) = colliders.get(*handle) {
-                if let Ok(Some(contact)) = parry::query::contact(
-                    &shape_pos,
-                    shape,
-                    collider.position(),
-                    collider.shape(),
-                    self.offset,
-                ) {
-                    contacts.push((contact, collider));
+            for (_, collider) in queries.intersect_aabb_conservative(character_aabb) {
+                if collider.is_sensor() {
+                    continue;
+                }
+
+                let character_pos = Pose::from_translation(result.translation) * *character_pos;
+                let pos12 = character_pos.inv_mul(collider.position());
+
+                if let Ok(Some(contact)) =
+                    queries
+                        .dispatcher
+                        .contact(&pos12, character_shape, collider.shape(), 0.0)
+                {
+                    if contact.dist < -1.0e-5 {
+                        // Push out until the usual `offset` gap is restored.
+                        let push = (offset - contact.dist).min(max_correction - applied);
+                        if push <= 0.0 {
+                            return; // The per-call correction budget is exhausted.
+                        }
+
+                        // `normal1` (expressed in the character’s local frame) points towards
+                        // the obstacle: move backwards along it to resolve the overlap.
+                        result.translation -= (character_pos.rotation * contact.normal1) * push;
+                        applied += push;
+                        corrected = true;
+                    }
                 }
             }
 
-            true
-        });
-         */
+            if !corrected {
+                break;
+            }
+        }
     }
 
     /// Computes the possible movement for a shape.
@@ -280,8 +310,18 @@ impl KinematicCharacterController {
         };
         let dims = self.compute_dims(character_shape);
 
-        // 1. Check and fix penetrations.
-        self.check_and_fix_penetrations();
+        // 1. Depenetrate, but only when there is no desired movement: the shape-casting
+        //    loop below never runs then, so obstacles pushed into the character would
+        //    tunnel through it (#485). When it moves, the shape-casts handle them instead.
+        if utils::try_normalize_and_get_length(desired_translation, 1.0e-5).is_none() {
+            self.check_and_fix_penetrations(
+                queries,
+                character_shape,
+                character_pos,
+                dims,
+                &mut result,
+            );
+        }
 
         let mut translation_remaining = desired_translation;
 
@@ -289,7 +329,7 @@ impl KinematicCharacterController {
             dt,
             queries,
             character_shape,
-            character_pos,
+            &(Pose::from_translation(result.translation) * *character_pos),
             dims,
             None,
             None,
