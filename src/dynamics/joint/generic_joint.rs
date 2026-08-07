@@ -8,7 +8,10 @@ use crate::dynamics::integration_parameters::SpringCoefficients;
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::{FixedJoint, MotorModel, PrismaticJoint, RevoluteJoint, RopeJoint};
 use crate::math::{Pose, Real, Rotation, SPATIAL_DIM, Vector};
-use crate::utils::{OrthonormalBasis, SimdRealCopy};
+#[cfg(feature = "dim2")]
+use crate::utils::OrthonormalBasis;
+use crate::utils::SimdRealCopy;
+#[cfg(feature = "dim2")]
 use parry::math::Matrix;
 
 #[cfg(feature = "dim3")]
