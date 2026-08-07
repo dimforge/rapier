@@ -207,6 +207,10 @@ struct SharedCtx<'a> {
     /// post-solve motion qualifies it for CCD; replaces the pipeline's serial
     /// post-solve `update_ccd_active_flags` walk over the active bodies.
     any_ccd_active: *const AtomicBool,
+    /// Set by the constraint-generation stage when any contact constraint captured a
+    /// restitution seed (approaching bouncy contact); gates the end-of-step restitution
+    /// pass. Published before the first substep barrier, read after it.
+    any_bouncy: *const AtomicBool,
 }
 
 unsafe impl Sync for SharedCtx<'_> {}
@@ -279,6 +283,8 @@ pub(crate) struct StagedIslandSolver {
     any_gyroscopic: AtomicBool,
     /// Set by the body-writeback stage (see `SharedCtx::any_ccd_active`).
     any_ccd_active: AtomicBool,
+    /// Set by the constraint-generation stage (see `SharedCtx::any_bouncy`).
+    any_bouncy: AtomicBool,
     /// `Some(any_active)` when the last solve computed post-solve CCD activation flags for
     /// EVERY dynamic body it wrote back (multibody links skip the fused computation); the
     /// pipeline falls back to its own pass otherwise.
@@ -315,6 +321,7 @@ impl StagedIslandSolver {
             #[cfg(feature = "dim3")]
             any_gyroscopic: AtomicBool::new(false),
             any_ccd_active: AtomicBool::new(false),
+            any_bouncy: AtomicBool::new(false),
             post_solve_ccd_active: None,
             sync: StageSync::new(1),
         }

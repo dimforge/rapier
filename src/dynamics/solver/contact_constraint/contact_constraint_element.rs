@@ -262,6 +262,40 @@ impl<N: ScalarType> ContactConstraintNormalPart<N> {
         solver_vel2.angular += self.ii_torque_dir2 * dlambda;
     }
 
+    /// End-of-step restitution (box2d-style): drives the relative normal velocity toward
+    /// `-seed` (`restitution * approach_velocity`, captured at prepare), rigidly and AFTER
+    /// all substeps — inside the substep rhs the speculative slack truncates the bounce.
+    ///
+    /// Gated per lane on the point having carried a normal impulse this step.
+    #[inline]
+    pub fn solve_restitution(
+        &mut self,
+        seed: N,
+        dir1: &N::Vector,
+        im1: &N::Vector,
+        im2: &N::Vector,
+        solver_vel1: &mut SolverVel<N>,
+        solver_vel2: &mut SolverVel<N>,
+    ) where
+        N::AngVector: DotProduct<N::AngVector, Result = N>,
+    {
+        let dvel = dir1.gdot(solver_vel1.linear) + self.torque_dir1.gdot(solver_vel1.angular)
+            - dir1.gdot(solver_vel2.linear)
+            + self.torque_dir2.gdot(solver_vel2.angular)
+            + seed;
+        let gate = seed.simd_lt(N::zero()) & self.total_impulse().simd_gt(N::zero());
+        let new_impulse = (self.impulse - self.r * dvel).simd_max(N::zero());
+        let new_impulse = new_impulse.select(gate, self.impulse);
+        let dlambda = new_impulse - self.impulse;
+        self.impulse = new_impulse;
+
+        solver_vel1.linear += dir1.component_mul(im1) * dlambda;
+        solver_vel1.angular += self.ii_torque_dir1 * dlambda;
+
+        solver_vel2.linear += dir1.component_mul(im2) * -dlambda;
+        solver_vel2.angular += self.ii_torque_dir2 * dlambda;
+    }
+
     #[cfg(feature = "block-solver")]
     #[inline]
     pub(crate) fn solve_mlcp_two_constraints(
@@ -456,6 +490,36 @@ where
             + self.torque_dir2.gdot(solver_vel2.angular)
             + self.rhs;
         let new_impulse = self.cfm_factor * (self.impulse - self.r * dvel).simd_max(N::zero());
+        let dlambda = new_impulse - self.impulse;
+        self.impulse = new_impulse;
+
+        solver_vel1.linear += dir1.component_mul(im1) * dlambda;
+        solver_vel1.angular += self.ii_torque_dir1 * dlambda;
+
+        solver_vel2.linear += dir1.component_mul(im2) * -dlambda;
+        solver_vel2.angular += self.ii_torque_dir2 * dlambda;
+    }
+
+    /// See [`ContactConstraintNormalPart::solve_restitution`].
+    #[inline]
+    pub fn solve_restitution(
+        &mut self,
+        seed: N,
+        dir1: &N::Vector,
+        im1: &N::Vector,
+        im2: &N::Vector,
+        solver_vel1: &mut SolverVel<N>,
+        solver_vel2: &mut SolverVel<N>,
+    ) where
+        N::AngVector: DotProduct<N::AngVector, Result = N>,
+    {
+        let dvel = dir1.gdot(solver_vel1.linear) + self.torque_dir1.gdot(solver_vel1.angular)
+            - dir1.gdot(solver_vel2.linear)
+            + self.torque_dir2.gdot(solver_vel2.angular)
+            + seed;
+        let gate = seed.simd_lt(N::zero()) & self.total_impulse().simd_gt(N::zero());
+        let new_impulse = (self.impulse - self.r * dvel).simd_max(N::zero());
+        let new_impulse = new_impulse.select(gate, self.impulse);
         let dlambda = new_impulse - self.impulse;
         self.impulse = new_impulse;
 

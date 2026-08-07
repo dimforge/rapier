@@ -447,6 +447,15 @@ impl StagedIslandSolver {
         #[cfg(feature = "dim3")]
         self.any_gyroscopic.store(false, Ordering::Relaxed);
         self.any_ccd_active.store(false, Ordering::Relaxed);
+        // Seed the restitution-pass gate with the generic constraints' contribution (built
+        // serially above); the workers OR in the SIMD chunks' contribution during the
+        // constraint-generation stage.
+        let generic_bouncy = set
+            .generic_velocity_constraints_builder
+            .iter()
+            .zip(set.generic_velocity_constraints.iter())
+            .any(|(b, c)| b.has_bouncy_seed(c.num_contacts));
+        self.any_bouncy.store(generic_bouncy, Ordering::Relaxed);
 
         counters.solver.velocity_assembly_time.pause();
         counters.solver.velocity_resolution_time.resume();
@@ -486,6 +495,7 @@ impl StagedIslandSolver {
             #[cfg(feature = "dim3")]
             any_gyroscopic: &self.any_gyroscopic as *const _,
             any_ccd_active: &self.any_ccd_active as *const _,
+            any_bouncy: &self.any_bouncy as *const _,
         };
 
         let ctx_ref = &ctx;
