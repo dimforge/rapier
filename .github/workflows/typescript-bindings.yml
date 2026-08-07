@@ -156,10 +156,20 @@ jobs:
                   path: |
                       typescript/rapier-compat/builds/*/pkg
                   overwrite: true
+    # Publishes with npm Trusted Publishing: instead of a long-lived `NPM_TOKEN`,
+    # npm mints a short-lived credential from the GitHub OIDC token of this very
+    # job. Each `@dimforge/rapier*` package must therefore list this repository
+    # *and* this workflow file (`typescript-bindings.yml`) as its trusted
+    # publisher on npmjs.com; a rename of this file breaks publishing until the
+    # npm-side settings are updated to match.
     publish:
         runs-on: ubuntu-latest
         needs: [build, build-compat]
         if: github.ref == 'refs/heads/master'
+        permissions:
+            contents: read
+            # Lets npm request the OIDC token it exchanges for publish rights.
+            id-token: write
         defaults:
             run:
                 working-directory: typescript
@@ -173,12 +183,14 @@ jobs:
               with:
                   name: pkg compat ubuntu-latest
                   path: typescript/rapier-compat/builds
+            # No `registry-url`: that would write an `.npmrc` expecting a
+            # `NODE_AUTH_TOKEN`, which trusted publishing replaces.
             - uses: actions/setup-node@v4
               with:
                   node-version: "22.x"
-                  registry-url: "https://registry.npmjs.org"
+            # Node 22 still bundles npm 10; OIDC publishing needs npm >= 11.5.1.
+            - name: Upgrade npm
+              run: npm install -g npm@latest
             - name: Publish projects
               run: |
                   ./publish_all_canary.sh
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
