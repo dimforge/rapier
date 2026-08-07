@@ -1,8 +1,14 @@
 use crate::math::Real;
 
-/// A color for debug-rendering.
+/// A color for debug-rendering, as `[hue, saturation, lightness, alpha]` in HSLA format:
+/// - `hue` in `0..=360` (degrees),
+/// - `saturation` in `0..=1`,
+/// - `lightness` in `0..=1`,
+/// - `alpha` in `0..=1`.
 ///
-/// The default colors are provided in HSLA (Hue Saturation Lightness Alpha) format.
+/// Every [`DebugRenderStyle`] color and every color passed to the
+/// [`DebugRenderBackend`](super::DebugRenderBackend) uses it; backends working in another
+/// color space (e.g. RGBA) are responsible for the conversion.
 pub type DebugColor = [f32; 4];
 
 /// Style used for computing colors when rendering the scene.
