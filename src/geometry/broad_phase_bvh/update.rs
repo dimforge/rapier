@@ -71,16 +71,19 @@ impl BroadPhaseBvh {
             }
         }
 
-        // Colliders whose pair-filter inputs may have flipped (re-parented / parent type changed) get
-        // their leaf removed so the loop below re-inserts it as brand-new: the traversal then re-reports
-        // every pair involving them, re-creating pairs the filter suppressed under the previous type. Skipped for leaves not in the tree yet.
+        // Colliders whose pair-filter inputs may have flipped (re-parent, parent type,
+        // collision groups) get their leaf removed and re-inserted as brand-new, so the
+        // traversal re-reports every pair the filter suppressed before. Skipped for leaves
+        // not in the tree yet.
         let mut forced_reinsertion = false;
         for handle in modified_colliders {
             if let Some(co) = colliders.get(*handle) {
                 let leaf_index = handle.into_raw_parts().0;
                 if co.is_enabled()
                     && co.changes.intersects(
-                        ColliderChanges::PARENT | ColliderChanges::PARENT_EFFECTIVE_DOMINANCE,
+                        ColliderChanges::PARENT
+                            | ColliderChanges::PARENT_EFFECTIVE_DOMINANCE
+                            | ColliderChanges::GROUPS,
                     )
                     && self.tree.leaf_node(leaf_index).is_some()
                 {
@@ -97,14 +100,14 @@ impl BroadPhaseBvh {
 
         let compute_update = |modified: &ColliderHandle| -> Option<(ColliderHandle, Aabb, Real)> {
             let collider = colliders.get(*modified)?;
-            // `PARENT_EFFECTIVE_DOMINANCE` is NF-only in general, but the forced
-            // leaf-removal pre-pass above targets exactly these colliders: they MUST
-            // be re-inserted here or their leaf would be lost.
+            // `PARENT_EFFECTIVE_DOMINANCE` and `GROUPS` are NF-only in general, but the
+            // forced leaf-removal pre-pass above targets exactly these colliders: they
+            // MUST be re-inserted here or their leaf would be lost.
             if !collider.is_enabled()
                 || !(collider.changes.needs_broad_phase_update()
-                    || collider
-                        .changes
-                        .contains(ColliderChanges::PARENT_EFFECTIVE_DOMINANCE))
+                    || collider.changes.intersects(
+                        ColliderChanges::PARENT_EFFECTIVE_DOMINANCE | ColliderChanges::GROUPS,
+                    ))
             {
                 return None;
             }
@@ -343,9 +346,12 @@ impl BroadPhaseBvh {
                         return None;
                     }
 
-                    // Never create a pair the narrow phase's `ActiveCollisionTypes` filter
-                    // would drop anyway (keeps big static environments from flooding the contact
-                    // graph); later filter-input changes re-discover via the forced re-insertion pre-pass.
+                    // Never create a pair the narrow phase's `ActiveCollisionTypes` or
+                    // collision-groups filters would drop anyway (keeps big static environments
+                    // and dense group-filtered scenes from flooding the contact graph); later
+                    // filter-input changes re-discover via the forced re-insertion pre-pass.
+                    // NOTE: `solver_groups` must NOT be tested here: solver-filtered pairs
+                    // still produce contact events.
                     let rb_type = |co: &Collider| {
                         co.parent
                             .and_then(|p| bodies.get(p.handle))
@@ -362,6 +368,14 @@ impl BroadPhaseBvh {
                             .flags
                             .active_collision_types
                             .test(rb_type1, rb_type2)
+                    {
+                        return None;
+                    }
+
+                    if !collider1
+                        .flags
+                        .collision_groups
+                        .test(collider2.flags.collision_groups)
                     {
                         return None;
                     }
