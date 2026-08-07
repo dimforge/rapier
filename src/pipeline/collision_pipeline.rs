@@ -2,13 +2,16 @@
 
 use crate::alloc_prelude::*;
 
-use crate::dynamics::{ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet};
+use crate::dynamics::{
+    ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodyChanges,
+};
 use crate::geometry::{
     BroadPhaseBvh, BroadPhasePairEvent, ColliderChanges, ColliderHandle, ModifiedColliders,
     NarrowPhase,
 };
 use crate::math::Real;
 use crate::pipeline::{EventHandler, PhysicsHooks};
+use crate::prelude::ModifiedRigidBodies;
 use crate::{dynamics::RigidBodySet, geometry::ColliderSet};
 
 /// A collision detection pipeline that can be used without full physics simulation.
@@ -133,6 +136,23 @@ impl CollisionPipeline {
         modified_colliders.clear();
     }
 
+    fn clear_modified_bodies(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        modified_bodies: &mut ModifiedRigidBodies,
+    ) {
+        // Without this, a body modified by the user keeps its MODIFIED flag forever, so
+        // `RigidBodySet::get_mut` never re-inserts it into the modified set and later user
+        // changes stop propagating to its colliders (same as `PhysicsPipeline`).
+        for handle in modified_bodies.iter() {
+            if let Some(rb) = bodies.get_mut_internal(*handle) {
+                rb.changes = RigidBodyChanges::empty();
+            }
+        }
+
+        modified_bodies.clear();
+    }
+
     /// Executes one step of the collision detection.
     pub fn step(
         &mut self,
@@ -145,7 +165,7 @@ impl CollisionPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        let modified_bodies = bodies.take_modified();
+        let mut modified_bodies = bodies.take_modified();
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();
 
@@ -187,6 +207,7 @@ impl CollisionPipeline {
         );
 
         self.clear_modified_colliders(colliders, &mut modified_colliders);
+        self.clear_modified_bodies(bodies, &mut modified_bodies);
         removed_colliders.clear();
     }
 }
