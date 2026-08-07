@@ -58,7 +58,7 @@ impl Harness {
 }
 
 #[test]
-#[ignore = "issue #810 not fixed yet: single-point cylinder-cap manifold lets landing cubes spin through"]
+#[ignore = "needs a parry release with the hint-oriented cylinder-cap feature (parry triage-fixes; rapier issue #810)"]
 fn cubes_do_not_fall_through_thin_cylinder_disc() {
     let mut h = Harness::new();
 
