@@ -216,7 +216,7 @@ impl ContactForceEvent {
             ..ContactForceEvent::default()
         };
 
-        for m in &pair.manifolds {
+        for m in pair.solver_manifolds() {
             let mut total_manifold_impulse = 0.0;
             for pt in m.contacts() {
                 total_manifold_impulse += pt.data.impulse;
