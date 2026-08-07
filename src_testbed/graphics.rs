@@ -174,6 +174,11 @@ pub struct GraphicsManager {
     /// Per-channel visibility for body-attached render-only meshes
     /// (e.g. MJCF visual meshes added via [`Self::add_body_render_mesh`]).
     body_render_meshes_visible: bool,
+    /// Last-known state of the global `DRAW_SURFACES` flag, refreshed on every
+    /// [`Self::draw`]. Nodes created between two `draw` calls (e.g. during a
+    /// scene reset) are spawned with this visibility so they don't flash for
+    /// one frame when surface rendering is disabled (see #843).
+    draw_surfaces: bool,
     /// Map from collider to its render nodes
     c2nodes: HashMap<ColliderHandle, NodeLocation>,
     /// Colliders attached to a particular body, used to identify the
@@ -245,6 +250,7 @@ impl GraphicsManager {
             body_attached_nodes: Vec::new(),
             colliders_visible: true,
             body_render_meshes_visible: true,
+            draw_surfaces: true,
             c2nodes: HashMap::new(),
             b2colliders: HashMap::new(),
             b2color: HashMap::new(),
@@ -276,7 +282,9 @@ impl GraphicsManager {
         self.b2color.clear();
         self.b2wireframe.clear();
         // Per-channel visibility is also reset so example A doesn't leak
-        // its rendering choices into example B after a swap.
+        // its rendering choices into example B after a swap. `draw_surfaces`
+        // is NOT reset: it mirrors a global testbed flag that persists across
+        // scene swaps, so freshly created nodes must honor it immediately.
         self.colliders_visible = true;
         self.body_render_meshes_visible = true;
     }
@@ -427,9 +435,12 @@ impl GraphicsManager {
             }
         }
 
-        let Some(node) = node else {
+        let Some(mut node) = node else {
             return;
         };
+        // Honor the current visibility flags immediately so the mesh doesn't
+        // flash for one frame before the next `draw` (see #843).
+        node.set_visible(self.draw_surfaces && self.body_render_meshes_visible);
         self.body_attached_nodes.push(BodyAttachedNode {
             node,
             body,
@@ -464,6 +475,9 @@ impl GraphicsManager {
         template_type: ShapeTemplateType,
         shape: &dyn Shape,
     ) -> &mut ShapeTemplate {
+        // Nodes created between two `draw` calls must honor the current
+        // visibility flags immediately (see #843).
+        let visible = self.draw_surfaces && self.colliders_visible;
         self.templates
             .entry(template_type.clone())
             .or_insert_with(|| {
@@ -481,8 +495,10 @@ impl GraphicsManager {
                         scene.add_render_mesh(convex_render_mesh(shape).unwrap(), Vec3::ONE)
                     }
                 };
-                let node = make_node(&mut self.scene);
+                let mut node = make_node(&mut self.scene);
                 let mut transparent_node = make_node(&mut self.scene);
+                node.set_visible(visible);
+                transparent_node.set_visible(visible);
                 // Force this node into the transparency pass: base alpha `< 1.0`
                 // routes it to OIT, and an explicit Blend mode makes the
                 // classification independent of the node's default.
@@ -502,6 +518,9 @@ impl GraphicsManager {
         template_type: ShapeTemplateType,
         _shape: &dyn Shape,
     ) -> &mut ShapeTemplate {
+        // Nodes created between two `draw` calls must honor the current
+        // visibility flags immediately (see #843).
+        let visible = self.draw_surfaces && self.colliders_visible;
         self.templates
             .entry(template_type.clone())
             .or_insert_with(|| {
@@ -531,8 +550,10 @@ impl GraphicsManager {
                         scene.add_convex_polygon(vertices, Vec2::ONE)
                     }
                 };
-                let node = make_node(&mut self.scene);
-                let transparent_node = make_node(&mut self.scene);
+                let mut node = make_node(&mut self.scene);
+                let mut transparent_node = make_node(&mut self.scene);
+                node.set_visible(visible);
+                transparent_node.set_visible(visible);
                 ShapeTemplate {
                     node,
                     transparent_node,
@@ -888,8 +909,12 @@ impl GraphicsManager {
             );
         } else {
             // Create individual node for complex shapes
-            if let Some(node) = Self::create_individual_node(&mut self.scene, shape, color, sensor)
+            if let Some(mut node) =
+                Self::create_individual_node(&mut self.scene, shape, color, sensor)
             {
+                // Honor the current visibility flags immediately so the node
+                // doesn't flash for one frame before the next `draw` (see #843).
+                node.set_visible(self.draw_surfaces && self.colliders_visible);
                 let index = self.individual_nodes.len();
                 self.individual_nodes.push(IndividualNode {
                     node,
@@ -1113,9 +1138,9 @@ impl GraphicsManager {
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
     ) {
-        let draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
-        let show_colliders = draw_surfaces && self.colliders_visible;
-        let show_body_meshes = draw_surfaces && self.body_render_meshes_visible;
+        self.draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
+        let show_colliders = self.draw_surfaces && self.colliders_visible;
+        let show_body_meshes = self.draw_surfaces && self.body_render_meshes_visible;
 
         // Update instance data for all templates
         for (template_type, template) in &mut self.templates {
@@ -1268,8 +1293,8 @@ impl GraphicsManager {
         _bodies: &RigidBodySet,
         colliders: &ColliderSet,
     ) {
-        let draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
-        let show_colliders = draw_surfaces && self.colliders_visible;
+        self.draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
+        let show_colliders = self.draw_surfaces && self.colliders_visible;
 
         // Update instance data for all templates
         for (template_type, template) in &mut self.templates {
