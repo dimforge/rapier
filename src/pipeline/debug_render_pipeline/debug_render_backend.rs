@@ -37,10 +37,18 @@ pub trait DebugRenderBackend {
 
     /// Draws a colored line.
     ///
+    /// The `color` is in HSLA format: `[hue 0..=360, saturation 0..=1, lightness 0..=1,
+    /// alpha 0..=1]` (see [`DebugColor`]); convert it if the backend expects another
+    /// color space (e.g. RGBA).
+    ///
     /// Note that this method can be called multiple time for the same `object`.
     fn draw_line(&mut self, object: DebugRenderObject, a: Vector, b: Vector, color: DebugColor);
 
     /// Draws a set of lines.
+    ///
+    /// The `color` is in HSLA format: `[hue 0..=360, saturation 0..=1, lightness 0..=1,
+    /// alpha 0..=1]` (see [`DebugColor`]); convert it if the backend expects another
+    /// color space (e.g. RGBA).
     fn draw_polyline(
         &mut self,
         object: DebugRenderObject,
@@ -58,6 +66,10 @@ pub trait DebugRenderBackend {
     }
 
     /// Draws a chain of lines.
+    ///
+    /// The `color` is in HSLA format: `[hue 0..=360, saturation 0..=1, lightness 0..=1,
+    /// alpha 0..=1]` (see [`DebugColor`]); convert it if the backend expects another
+    /// color space (e.g. RGBA).
     fn draw_line_strip(
         &mut self,
         object: DebugRenderObject,
