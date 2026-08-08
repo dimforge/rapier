@@ -45,7 +45,7 @@ exclude = ["typescript"]
 resolver = "2"
 
 [workspace.package]
-version = "0.35.0"
+version = "0.35.0-glamx0.2"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
@@ -65,17 +65,17 @@ needless_lifetimes = "allow"
 
 [workspace.dependencies]
 # Core math
-nalgebra = { version = "0.35", default-features = false, features = ["macros"] }
-glamx = { version = "0.3", default-features = false }
-simba = { version = "0.10.2", default-features = false }
+nalgebra = { version = "0.34", default-features = false, features = ["macros"] }
+glamx = { version = "0.2", default-features = false }
+simba = { version = "0.9", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 approx = { version = "0.5", default-features = false }
 
 # Parry (each crate picks its own variant)
-parry2d = { version = "0.30.2", default-features = false, features = ["required-features"] }
-parry3d = { version = "0.30.2", default-features = false, features = ["required-features"] }
-parry2d-f64 = { version = "0.30.2", default-features = false, features = ["required-features"] }
-parry3d-f64 = { version = "0.30.2", default-features = false, features = ["required-features"] }
+parry2d = { version = "=0.30.2-glamx0.2-b", default-features = false, features = ["required-features"] }
+parry3d = { version = "=0.30.2-glamx0.2-b", default-features = false, features = ["required-features"] }
+parry2d-f64 = { version = "=0.30.2-glamx0.2-b", default-features = false, features = ["required-features"] }
+parry3d-f64 = { version = "=0.30.2-glamx0.2-b", default-features = false, features = ["required-features"] }
 
 # Utilities
 arrayvec = { version = "0.7", default-features = false }
@@ -85,7 +85,7 @@ log = "0.4"
 thiserror = { version = "2", default-features = false }
 profiling = "1.0"
 static_assertions = "1"
-wide = { version = "1", default-features = false }
+wide = { version = "0.7", default-features = false }
 
 # Optional (optional = true must be set per-crate, not here)
 web-time = "1.1"
@@ -124,18 +124,18 @@ getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2"
 
 # Internal crates (paths are relative to the workspace root)
-rapier2d = { version = "0.35.0", path = "crates/rapier2d" }
-rapier2d-f64 = { version = "0.35.0", path = "crates/rapier2d-f64" }
-rapier3d = { version = "0.35.0", path = "crates/rapier3d" }
-rapier3d-f64 = { version = "0.35.0", path = "crates/rapier3d-f64" }
-rapier_testbed2d = { version = "0.35.0", path = "crates/rapier_testbed2d" }
-rapier_testbed2d-f64 = { version = "0.35.0", path = "crates/rapier_testbed2d-f64" }
-rapier_testbed3d = { version = "0.35.0", path = "crates/rapier_testbed3d" }
-rapier_testbed3d-f64 = { version = "0.35.0", path = "crates/rapier_testbed3d-f64" }
-rapier3d-urdf = { version = "0.35.0", path = "crates/rapier3d-urdf" }
-rapier3d-meshloader = { version = "0.35.0", path = "crates/rapier3d-meshloader", default-features = false }
-mjcf-rs = { version = "0.35.0", path = "crates/mjcf-rs" }
-rapier3d-mjcf = { version = "0.35.0", path = "crates/rapier3d-mjcf" }
+rapier2d = { version = "=0.35.0-glamx0.2", path = "crates/rapier2d" }
+rapier2d-f64 = { version = "=0.35.0-glamx0.2", path = "crates/rapier2d-f64" }
+rapier3d = { version = "=0.35.0-glamx0.2", path = "crates/rapier3d" }
+rapier3d-f64 = { version = "=0.35.0-glamx0.2", path = "crates/rapier3d-f64" }
+rapier_testbed2d = { version = "=0.35.0-glamx0.2", path = "crates/rapier_testbed2d" }
+rapier_testbed2d-f64 = { version = "=0.35.0-glamx0.2", path = "crates/rapier_testbed2d-f64" }
+rapier_testbed3d = { version = "=0.35.0-glamx0.2", path = "crates/rapier_testbed3d" }
+rapier_testbed3d-f64 = { version = "=0.35.0-glamx0.2", path = "crates/rapier_testbed3d-f64" }
+rapier3d-urdf = { version = "=0.35.0-glamx0.2", path = "crates/rapier3d-urdf" }
+rapier3d-meshloader = { version = "=0.35.0-glamx0.2", path = "crates/rapier3d-meshloader", default-features = false }
+mjcf-rs = { version = "=0.35.0-glamx0.2", path = "crates/mjcf-rs" }
+rapier3d-mjcf = { version = "=0.35.0-glamx0.2", path = "crates/rapier3d-mjcf" }
 
 # Dev
 bincode = "1"

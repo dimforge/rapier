@@ -43,8 +43,10 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
 
                 let mut points = Vec::new();
                 for _ in 0..10 {
-                    let pt: SimdPoint<f32> = distribution.sample(&mut rng);
-                    points.push(Vector::new(pt.x, pt.y, pt.z) * scale);
+                    let x: f32 = distribution.sample(&mut rng);
+                    let y: f32 = distribution.sample(&mut rng);
+                    let z: f32 = distribution.sample(&mut rng);
+                    points.push(Vector::new(x, y, z) * scale);
                 }
 
                 // Build the rigid body.

@@ -26,8 +26,11 @@ impl SceneMouse {
             // Convert cursor position to world coordinates using the camera
             let cursor = Vec2::new(x as f32, y as f32);
             let window_size = Vec2::new(window_size.0 as f32, window_size.1 as f32);
-            let world_pos = camera.unproject(cursor, window_size);
-            self.point = Some(world_pos);
+            let world_pos = camera.unproject(
+                crate::kiss3d_compat::vec2(cursor),
+                crate::kiss3d_compat::vec2(window_size),
+            );
+            self.point = Some(crate::kiss3d_compat::from_vec2(world_pos));
         } else {
             self.point = None;
         }
@@ -46,7 +49,14 @@ impl SceneMouse {
             // Convert cursor position to world coordinates using the camera
             let cursor = Vec2::new(x as f32, y as f32);
             let window_size = Vec2::new(window_size.0 as f32, window_size.1 as f32);
-            self.ray = Some(camera.unproject(cursor, window_size));
+            let (orig, dir) = camera.unproject(
+                crate::kiss3d_compat::vec2(cursor),
+                crate::kiss3d_compat::vec2(window_size),
+            );
+            self.ray = Some((
+                crate::kiss3d_compat::from_vec3(orig),
+                crate::kiss3d_compat::from_vec3(dir),
+            ));
         } else {
             self.ray = None;
         }

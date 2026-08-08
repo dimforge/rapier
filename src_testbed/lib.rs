@@ -21,6 +21,7 @@ pub use egui;
 
 mod debug_render;
 mod graphics;
+mod kiss3d_compat;
 mod mouse;
 pub mod physics;
 mod save;

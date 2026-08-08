@@ -265,7 +265,7 @@ impl TestbedViewer {
     #[cfg(feature = "dim2")]
     pub fn look_at(&mut self, at: glamx::Vec2, zoom: f32) {
         if !self.state.camera_locked {
-            self.camera.set_at(at);
+            self.camera.set_at(crate::kiss3d_compat::vec2(at));
             self.camera.set_zoom(zoom);
         }
     }
@@ -273,7 +273,8 @@ impl TestbedViewer {
     #[cfg(feature = "dim3")]
     pub fn look_at(&mut self, eye: Vec3, at: Vec3) {
         if !self.state.camera_locked {
-            self.camera.look_at(eye, at);
+            self.camera
+                .look_at(crate::kiss3d_compat::vec3(eye), crate::kiss3d_compat::vec3(at));
         }
     }
 
@@ -286,7 +287,7 @@ impl TestbedViewer {
             self.state.up_axis = up_axis.normalize().into();
         }
         if !self.state.camera_locked {
-            self.camera.set_up_axis(up_axis);
+            self.camera.set_up_axis(crate::kiss3d_compat::vec3(up_axis));
         }
     }
 

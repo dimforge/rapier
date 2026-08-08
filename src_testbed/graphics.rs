@@ -978,7 +978,7 @@ impl GraphicsManager {
                 let mut parent = scene.add_group();
                 let mut node =
                     parent.add_capsule(caps.radius as f32, caps.half_height() as f32 * 2.0);
-                node.set_pose(pose.into());
+                node.set_pose(crate::kiss3d_compat::pose(pose));
                 Some(parent)
             }
             ShapeType::Triangle => {
@@ -1060,7 +1060,7 @@ impl GraphicsManager {
                 let mut parent = scene.add_group();
                 let mut node =
                     parent.add_capsule(caps.radius as f32, caps.half_height() as f32 * 2.0);
-                node.set_pose(pose.into());
+                node.set_pose(crate::kiss3d_compat::pose(pose));
                 Some(parent)
             }
             ShapeType::Segment => {
@@ -1267,7 +1267,7 @@ impl GraphicsManager {
             if let Some(co) = colliders.get(node.collider) {
                 let co_pos = *co.position() * node.delta;
                 node.node
-                    .set_pose(co_pos.append_translation(self.gfx_shift).into());
+                    .set_pose(crate::kiss3d_compat::pose(co_pos.append_translation(self.gfx_shift)));
                 node.node
                     .set_color_recursive(node.tmp_color.take().unwrap_or(node.color));
             }
@@ -1280,7 +1280,7 @@ impl GraphicsManager {
             if let Some(rb) = bodies.get(node.body) {
                 let pose = *rb.position() * node.delta;
                 node.node
-                    .set_pose(pose.append_translation(self.gfx_shift).into());
+                    .set_pose(crate::kiss3d_compat::pose(pose.append_translation(self.gfx_shift)));
                 node.node.set_color(node.color);
             }
         }

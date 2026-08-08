@@ -1,4 +1,4 @@
-use glam::Vec3;
+use rapier3d::math::Vec3;
 use rapier_testbed3d::TestbedViewer;
 use rapier3d::prelude::*;
 

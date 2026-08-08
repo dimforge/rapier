@@ -38,7 +38,7 @@ features = ["parallel", "profiler_ui"]
 
 [dependencies]
 nalgebra = { workspace = true, features = ["rand", "std"] }
-glamx = { workspace = true, features = ["std", "all-types"] }
+glamx = { workspace = true, features = ["std"] }
 rand.workspace = true
 rand_pcg.workspace = true
 web-time.workspace = true
@@ -60,5 +60,5 @@ env_logger.workspace = true
 [dependencies.rapier]
 package = "rapier2d"
 path = "../rapier2d"
-version = "0.35.0"
+version = "=0.35.0-glamx0.2"
 features = ["serde-serialize", "debug-render", "profiler"]

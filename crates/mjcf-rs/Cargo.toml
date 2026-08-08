@@ -27,7 +27,7 @@ roxmltree.workspace = true
 thiserror = { workspace = true, features = ["std"] }
 log.workspace = true
 byteorder = { version = "1", optional = true }
-glamx = { workspace = true, features = ["std", "f64"] }
+glamx = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 tempfile.workspace = true

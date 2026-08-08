@@ -35,8 +35,8 @@ impl<'a> DebugRenderBackend for Kiss3dLinesRenderBackend<'a> {
         // Convert HSLA to RGB
         let rgb = hsla_to_rgb(color[0], color[1], color[2], color[3]);
         self.window.draw_line_2d(
-            glamx::Vec2::new(a.x as f32, a.y as f32),
-            glamx::Vec2::new(b.x as f32, b.y as f32),
+            kiss3d::glamx::Vec2::new(a.x as f32, a.y as f32),
+            kiss3d::glamx::Vec2::new(b.x as f32, b.y as f32),
             rgb.into(),
             4.0,
         );
@@ -47,8 +47,8 @@ impl<'a> DebugRenderBackend for Kiss3dLinesRenderBackend<'a> {
         // Convert HSLA to RGB
         let rgb = hsla_to_rgb(color[0], color[1], color[2], color[3]);
         self.window.draw_line(
-            glamx::Vec3::new(a.x as f32, a.y as f32, a.z as f32),
-            glamx::Vec3::new(b.x as f32, b.y as f32, b.z as f32),
+            kiss3d::glamx::Vec3::new(a.x as f32, a.y as f32, a.z as f32),
+            kiss3d::glamx::Vec3::new(b.x as f32, b.y as f32, b.z as f32),
             rgb.into(),
             4.0,
             false,
