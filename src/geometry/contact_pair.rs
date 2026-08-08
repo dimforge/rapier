@@ -719,6 +719,10 @@ impl SimdSolverContact {
 
 impl<N: ScalarType, const LANES: usize> SolverContactGeneric<N, LANES> {
     /// The manifold contact indices, with the is-new bit masked off.
+    ///
+    /// These indices are only valid within the timestep that produced this solver
+    /// contact: manifold points may be reordered or replaced by the next narrow-phase
+    /// update.
     #[inline]
     pub fn contact_indices(&self) -> [ContactId; LANES] {
         self.contact_id.map(|id| id & !NEW_CONTACT_BIT)
