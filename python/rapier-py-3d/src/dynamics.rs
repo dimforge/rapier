@@ -211,6 +211,8 @@ pub enum CoefficientCombineRule {
     MAX,
     /// Sum of the two coefficients, clamped to ``[0, 1]``.
     CLAMPED_SUM,
+    /// Square root of the product of the two coefficients.
+    GEOMETRIC_MEAN,
 }
 
 impl CoefficientCombineRule {
@@ -223,6 +225,7 @@ impl CoefficientCombineRule {
             Self::MULTIPLY => rapier::dynamics::CoefficientCombineRule::Multiply,
             Self::MAX => rapier::dynamics::CoefficientCombineRule::Max,
             Self::CLAMPED_SUM => rapier::dynamics::CoefficientCombineRule::ClampedSum,
+            Self::GEOMETRIC_MEAN => rapier::dynamics::CoefficientCombineRule::GeometricMean,
         }
     }
     #[allow(dead_code)]
@@ -234,6 +237,7 @@ impl CoefficientCombineRule {
             rapier::dynamics::CoefficientCombineRule::Multiply => Self::MULTIPLY,
             rapier::dynamics::CoefficientCombineRule::Max => Self::MAX,
             rapier::dynamics::CoefficientCombineRule::ClampedSum => Self::CLAMPED_SUM,
+            rapier::dynamics::CoefficientCombineRule::GeometricMean => Self::GEOMETRIC_MEAN,
         }
     }
 }
