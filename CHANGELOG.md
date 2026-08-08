@@ -31,6 +31,10 @@
   violation recovers over a few steps instead of catapulting the bodies.
 - Python: `DynamicRayCastVehicleController.update_vehicle` now excludes the chassis body from
   the suspension raycasts by default (their origins sit on its own collider).
+- The character controller's snap-to-ground now triggers on any movement that isn't upwards,
+  including movements exactly orthogonal to the up vector, instead of requiring a downward
+  motion larger than an arbitrary epsilon. Purely lateral movement along the ground no longer
+  flickers the `grounded` flag when snap-to-ground is enabled (PR #481 by @ChrisJanssens).
 
 ### Modified
 
