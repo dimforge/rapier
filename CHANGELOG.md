@@ -2,6 +2,9 @@
 
 ### Added
 
+- `CoefficientCombineRule::GeometricMean`: combines friction/restitution as
+  `sqrt(c1 * c2)`, the convention used by several other engines. It has the highest
+  rule priority, and clamps negative coefficients to zero before the square root.
 - `DebugRenderStyle::sleep_eligible_color_multiplier`: the debug-renderer now draws bodies that
   are eligible for sleep but still awake in a distinct color, making it easy to spot what is
   keeping a pile awake.
