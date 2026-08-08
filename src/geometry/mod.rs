@@ -15,6 +15,8 @@ pub use self::collider_set::{ColliderSet, ModifiedColliders};
 #[cfg(feature = "alloc")]
 pub(crate) use self::contact_pair::ContactRecycleState;
 #[cfg(feature = "alloc")]
+pub(crate) use self::contact_pair::PairEventStatus;
+#[cfg(feature = "alloc")]
 pub(crate) use self::contact_pair::SOLVER_DYNAMIC_COLOR_COUNT;
 #[cfg(feature = "alloc")]
 pub(crate) use self::contact_pair::relative_pose_drift;
@@ -203,6 +205,16 @@ pub struct ContactForceEvent {
     pub max_force_direction: Vector,
     /// The magnitude of the largest force at a contact point of this contact pair.
     pub max_force_magnitude: Real,
+    /// Is this the first step the pair's total force exceeded its threshold?
+    ///
+    /// `true` on the step the force crosses the pair's
+    /// [`Collider::contact_force_event_threshold`] coming from below (or from not
+    /// touching), `false` while it stays above on consecutive steps. The status resets
+    /// when the force drops back below the threshold or the colliders separate, so the
+    /// next crossing reports `true` again. Note that this is about the *force*
+    /// threshold, not contact newness: a pair can touch gently for many steps (emitting
+    /// no force event) before its first `started` event.
+    pub started: bool,
 }
 
 #[cfg(feature = "alloc")]
@@ -213,6 +225,11 @@ impl ContactForceEvent {
             collider1: pair.collider1,
             collider2: pair.collider2,
             total_force_magnitude,
+            // The pair's status is updated only after the event handlers ran, so at
+            // this point it still holds the previous step's value.
+            started: !pair
+                .event_status
+                .contains(PairEventStatus::INITIAL_FORCE_THRESHOLD_EVENT_EMITTED),
             ..ContactForceEvent::default()
         };
 

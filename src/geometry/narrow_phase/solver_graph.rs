@@ -10,10 +10,12 @@ use crate::dynamics::solver::solver_contact_graph::{
 };
 use crate::dynamics::{IslandManager, MultibodyJointSet, RigidBodySet};
 use crate::geometry::{
-    ColliderHandle, ColliderSet, ContactManifold, ContactManifoldData, ContactPair,
-    InteractionGraph, SolverFlags,
+    Collider, ColliderHandle, ColliderSet, ContactManifold, ContactManifoldData, ContactPair,
+    InteractionGraph, PairEventStatus, SolverFlags,
 };
 use crate::math::Real;
+#[cfg(feature = "alloc")]
+use crate::pipeline::EventHandler;
 
 impl NarrowPhase {
     /// Count-clears the solver hints of a just-asleep body's pairs so they stop
@@ -450,8 +452,49 @@ impl NarrowPhase {
 
     /// The solver-active pairs with contact-force events enabled — the exact set
     /// the pipeline's post-solve force-event pass must inspect.
-    pub(crate) fn force_event_pairs(&self) -> &[u32] {
-        &self.force_event_pairs
+    /// Emits the contact force events of the solver-active pairs that request them, and
+    /// updates each pair's above-threshold status (from which
+    /// [`crate::geometry::ContactForceEvent::started`] is derived).
+    ///
+    /// The narrow-phase maintains the exact set of solver-active pairs with force events
+    /// enabled, so scenes without them pay nothing here.
+    #[cfg(feature = "alloc")]
+    pub(crate) fn emit_contact_force_events(
+        &mut self,
+        dt: Real,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        events: &dyn EventHandler,
+    ) {
+        let inv_dt = crate::utils::inv(dt);
+        for i in 0..self.force_event_pairs.len() {
+            let edge = self.force_event_pairs[i] as usize;
+            let pair = &mut self.contact_graph.graph.edges[edge].weight;
+            let threshold = |h| {
+                colliders
+                    .get(h)
+                    .map(|co: &Collider| co.effective_contact_force_event_threshold())
+                    .unwrap_or(Real::MAX)
+            };
+            let threshold = threshold(pair.collider1).min(threshold(pair.collider2));
+
+            if threshold < Real::MAX {
+                let total_magnitude = pair.total_impulse_magnitude() * inv_dt;
+
+                // NOTE: the strict inequality is important here, so we don’t
+                //       trigger an event if the force is 0.0 and the threshold is 0.0.
+                if total_magnitude > threshold {
+                    // The handler runs before the status update, so the event can read
+                    // the previous step's status to derive `started`.
+                    events.handle_contact_force_event(dt, bodies, colliders, pair, total_magnitude);
+                    pair.event_status
+                        .insert(PairEventStatus::INITIAL_FORCE_THRESHOLD_EVENT_EMITTED);
+                } else {
+                    pair.event_status
+                        .remove(PairEventStatus::INITIAL_FORCE_THRESHOLD_EVENT_EMITTED);
+                }
+            }
+        }
     }
 
     /// Raw parts of the solver-facing `ManifoldStore` view: the contact graph's edge-array

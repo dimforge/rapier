@@ -6,9 +6,7 @@ use crate::alloc_prelude::*;
 use crate::dynamics::{
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
 };
-use crate::geometry::{
-    BroadPhaseBvh, ColliderHandle, ColliderSet, NarrowPhase, TemporaryInteractionIndex,
-};
+use crate::geometry::{BroadPhaseBvh, ColliderHandle, ColliderSet, NarrowPhase};
 use crate::math::{Real, Vector};
 use crate::pipeline::{EventHandler, PhysicsHooks};
 
@@ -390,34 +388,14 @@ impl PhysicsPipeline {
             );
         }
 
-        // Generate contact force events if needed. The narrow-phase maintains the
-        // exact set of solver-active pairs with force events enabled, so scenes
-        // without them pay nothing here.
-        let inv_dt = crate::utils::inv(integration_parameters.dt);
-        for &edge_id in narrow_phase.force_event_pairs() {
-            let pair = narrow_phase.contact_pair_at_index(TemporaryInteractionIndex::new(edge_id));
-            let co1 = &colliders[pair.collider1];
-            let co2 = &colliders[pair.collider2];
-            let threshold = co1
-                .effective_contact_force_event_threshold()
-                .min(co2.effective_contact_force_event_threshold());
-
-            if threshold < Real::MAX {
-                let total_magnitude = pair.total_impulse_magnitude() * inv_dt;
-
-                // NOTE: the strict inequality is important here, so we don’t
-                //       trigger an event if the force is 0.0 and the threshold is 0.0.
-                if total_magnitude > threshold {
-                    events.handle_contact_force_event(
-                        integration_parameters.dt,
-                        bodies,
-                        colliders,
-                        pair,
-                        total_magnitude,
-                    );
-                }
-            }
-        }
+        // Generate contact force events if needed, and update each pair's
+        // above-threshold status (the source of `ContactForceEvent::started`).
+        narrow_phase.emit_contact_force_events(
+            integration_parameters.dt,
+            bodies,
+            colliders,
+            events,
+        );
 
         self.counters.stages.solver_time.pause();
     }

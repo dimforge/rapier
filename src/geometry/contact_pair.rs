@@ -30,6 +30,24 @@ impl Default for SolverFlags {
     }
 }
 
+bitflags::bitflags! {
+    #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+    /// Event bookkeeping bits of a contact pair.
+    ///
+    /// Serialized as a single byte with the same values as the `start_event_emitted`
+    /// bool it replaces, so snapshots keep their exact byte layout.
+    pub(crate) struct PairEventStatus: u8 {
+        /// A `CollisionEvent::Started` was emitted for this pair.
+        const START_EVENT_EMITTED = 0b01;
+        /// The pair's total contact force exceeded its force-event threshold at the
+        /// previous step. [`ContactForceEvent::started`] is derived from it, and it
+        /// resets when the force drops back below the threshold or the pair stops
+        /// touching.
+        const INITIAL_FORCE_THRESHOLD_EVENT_EMITTED = 0b10;
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 /// A single contact between two collider.
@@ -223,8 +241,9 @@ pub struct ContactPair {
         serde(default = "default_solver_color_bodies")
     )]
     pub(crate) solver_color_bodies: [u32; 2],
-    /// Was a `CollisionEvent::Started` emitted for this collider?
-    pub(crate) start_event_emitted: bool,
+    /// Event bookkeeping: `CollisionEvent::Started` emission and force-event
+    /// threshold status.
+    pub(crate) event_status: PairEventStatus,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
     /// State cached at the last full narrow-phase update, allowing the update to be
     /// skipped ("recycled") while the colliders' relative pose stays within
@@ -319,7 +338,7 @@ impl ContactPair {
             solver_clusters_prev: Vec::new(),
             solver_color: SOLVER_COLOR_UNCOLORED,
             solver_color_bodies: [u32::MAX; 2],
-            start_event_emitted: false,
+            event_status: PairEventStatus::empty(),
             workspace: None,
             recycle_state: None,
         }
@@ -336,7 +355,7 @@ impl ContactPair {
         self.solver_clusters_prev.clear();
         self.solver_color = SOLVER_COLOR_UNCOLORED;
         self.solver_color_bodies = [u32::MAX; 2];
-        self.start_event_emitted = false;
+        self.event_status = PairEventStatus::empty();
         self.workspace = None;
         self.recycle_state = None;
     }
@@ -468,7 +487,8 @@ impl ContactPair {
         colliders: &ColliderSet,
         events: &dyn EventHandler,
     ) {
-        self.start_event_emitted = true;
+        self.event_status
+            .insert(PairEventStatus::START_EVENT_EMITTED);
 
         events.handle_collision_event(
             bodies,
@@ -484,7 +504,8 @@ impl ContactPair {
         colliders: &ColliderSet,
         events: &dyn EventHandler,
     ) {
-        self.start_event_emitted = false;
+        // Not touching anymore: the force-event threshold status resets with it.
+        self.event_status = PairEventStatus::empty();
 
         events.handle_collision_event(
             bodies,
