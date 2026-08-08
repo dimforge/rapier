@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 
 help()
@@ -17,14 +17,14 @@ do
     esac
 done
 
-if [[ -z "$dimension" ]]; then
+if [ -z "$dimension" ]; then
     help; exit 2;
 fi
-if [[ -z "$feature" ]]; then
+if [ -z "$feature" ]; then
     help; exit 3;
 fi
 
-if [[ $feature == "non-deterministic" ]]; then
+if [ "$feature" = "non-deterministic" ]; then
     feature_postfix=""
 else
     feature_postfix="-${feature}"
@@ -41,7 +41,7 @@ fi
 
 # Working dir in wasm-pack is the project root so we need that "../../"
 
-if [[ $feature == "simd" ]]; then
+if [ "$feature" = "simd" ]; then
     export additional_rustflags='-C target-feature=+simd128'
 else
     export additional_rustflags=''

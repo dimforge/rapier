@@ -49,20 +49,25 @@ const config = (dim, features_postfix) => {
                             };
                             // delete config.module;
                             config.files = ["dist"];
+                            // The base manifest's `sideEffects: ["./*.js"]` matches
+                            // nothing (the bundles are .cjs/.mjs), which bundlers already
+                            // treat as "no side effects"; say so explicitly.
+                            config.sideEffects = false;
                             return JSON.stringify(config, undefined, 2);
                         },
                     },
                     {
-                        src: `../rapier${features_postfix}/LICENSE`,
+                        src: `../builds/rapier${features_postfix}/LICENSE`,
                         dest: pkgDir,
                     },
                     {
-                        src: `../rapier${features_postfix}/README.md`,
+                        src: `../builds/rapier${features_postfix}/README.md`,
                         dest: pkgDir,
                     },
                 ],
             }),
             base64({include: "**/*.wasm"}),
+            terser(),
             nodeResolve(),
             commonjs(),
             typescript({
