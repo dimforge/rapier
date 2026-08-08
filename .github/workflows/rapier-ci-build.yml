@@ -6,8 +6,16 @@ on:
   pull_request:
     branches: [master]
 
+# A new push to a PR cancels the still-running build of the previous push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
+  # Incremental compilation only pays off for local rebuild loops; in CI it just
+  # slows the build down and bloats the caches.
+  CARGO_INCREMENTAL: 0
 
 jobs:
   check-fmt:
@@ -22,42 +30,80 @@ jobs:
       RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - name: Cargo doc
         run: cargo doc --features parallel,serde-serialize,debug-render -p rapier3d -p rapier2d -p rapier3d-meshloader -p rapier3d-urdf && cargo doc -p mjcf-rs --features msh && cargo doc -p rapier3d-mjcf --features stl,wavefront,msh
-  build-native:
+  # All the lints, plus the testbed/example feature-combination checks. This is the only
+  # job (besides publish-dry-run) that compiles the graphical stack (kiss3d), so it owns
+  # the cmake/xcb setup and the zune-core pin.
+  clippy:
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get install -y cmake libxcb-composite0-dev
       # WORKAROUND: zune-core 0.5.2 made its `warn!` macro expand to nothing, which breaks
       # zune-jpeg (all 0.5.x), where it is called in expression position. Reached through the
       # testbeds' kiss3d -> gltf/image dependency. Remove once upstream is fixed.
       - name: Pin zune-core (0.5.2 breaks zune-jpeg)
         run: cargo update -p zune-core@0.5 --precise 0.5.1
+      # Bare clippy covers every default-member with default features: the rapier crates,
+      # the testbeds, and the example crates (so no separate `cargo check` for those).
       - name: Clippy
         run: cargo clippy
-      - name: Clippy rapier2d
+      - name: Clippy rapier2d examples (parallel)
         run: cargo clippy -p rapier-examples-2d --features parallel
-      - name: Clippy rapier3d
+      - name: Clippy rapier3d examples (parallel)
         run: cargo clippy -p rapier-examples-3d --features parallel
       - name: Clippy mjcf-rs
         run: cargo clippy -p mjcf-rs --all-targets --features msh
       - name: Clippy rapier3d-mjcf
         run: cargo clippy -p rapier3d-mjcf --all-targets --features stl,wavefront,msh
+      - name: Check rapier_testbed2d --features parallel
+        run: cd crates/rapier_testbed2d; cargo check --features parallel;
+      - name: Check rapier_testbed3d --features parallel
+        run: cd crates/rapier_testbed3d; cargo check --features parallel;
+      - name: Check rapier2d --features enhanced-determinism
+        run: cd crates/rapier2d; cargo check --features enhanced-determinism;
+      - name: Check rapier3d --features enhanced-determinism
+        run: cd crates/rapier3d; cargo check --features enhanced-determinism;
+  # Builds the core crates in their feature variants, and runs the debug test suites.
+  # Scoped to the non-graphical crates: the testbeds/examples are compiled by `clippy`.
+  build-native:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - name: Build rapier2d
-        run: cargo build --verbose -p rapier2d;
+        run: cargo build -p rapier2d;
       - name: Build rapier3d
-        run: cargo build --verbose -p rapier3d;
+        run: cargo build -p rapier3d;
       - name: Build rapier2d Parallel
-        run: cd crates/rapier2d; cargo build --verbose --features parallel;
+        run: cd crates/rapier2d; cargo build --features parallel;
       - name: Build rapier3d Parallel
-        run: cd crates/rapier3d; cargo build --verbose --features parallel;
+        run: cd crates/rapier3d; cargo build --features parallel;
       - name: Build rapier3d 8-lanes SIMD
-        run: cd crates/rapier3d; cargo build --verbose --features simd8;
+        run: cd crates/rapier3d; cargo build --features simd8;
       - name: Run tests
-        run: cargo test
+        run: cargo test -p rapier2d -p rapier2d-f64 -p rapier3d -p rapier3d-f64 -p rapier3d-urdf -p rapier3d-meshloader
+      - name: Test mjcf-rs
+        run: cargo test -p mjcf-rs --features msh
+      - name: Test rapier3d-mjcf
+        run: cargo test -p rapier3d-mjcf --features stl,wavefront,msh
+  # The release-mode determinism suites. Grouped so that invocations sharing a feature
+  # set reuse each other's build artifacts; kept apart from the other release tests so
+  # both halves run in parallel.
+  tests-determinism:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - name: Test determinism (SIMD backend)
         run: cargo test -p rapier3d --release --features enhanced-determinism --test simd_backend_determinism
       - name: Test SIMD backend op-level parity
@@ -66,18 +112,28 @@ jobs:
         run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test parallel_path_parity
       - name: Test parallel-path parity (feature on)
         run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize,parallel --test parallel_path_parity
+      - name: Test parallel-path parity (unsync-callbacks)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize,parallel,unsync-callbacks --test parallel_path_parity
+      # The native half of the cross-target check: the `wasm-determinism` job runs
+      # these same two tests, against the same goldens, on 32-bit pointers.
+      - name: Test snapshot portability (3D, native)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
+      - name: Test snapshot portability (2D, native)
+        run: cargo test -p rapier2d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
+  # The remaining release-mode suites (non-enhanced-determinism feature sets).
+  tests-release:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - name: Test thread-count determinism
         run: cargo test -p rapier3d --release --features parallel,serde-serialize --test thread_count_determinism
       - name: Test snapshot round-trip (3D)
         run: cargo test -p rapier3d --release --features serde-serialize --test snapshot_roundtrip
       - name: Test snapshot round-trip (2D)
         run: cargo test -p rapier2d --release --features serde-serialize --test snapshot_roundtrip
-      # The native half of the cross-target check: the `wasm-determinism` job below runs
-      # these same two tests, against the same goldens, on 32-bit pointers.
-      - name: Test snapshot portability (3D, native)
-        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
-      - name: Test snapshot portability (2D, native)
-        run: cargo test -p rapier2d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
       - name: Test single-worker deferred BVH
         run: cargo test -p rapier3d --release --features parallel --test single_worker_deferred_bvh
       # `unsync-callbacks` drops the `Sync` bound off the hooks/event traits; the test's
@@ -88,28 +144,6 @@ jobs:
       # configuration rather than one that trivially has no bound.
       - name: Test unsync callbacks (no parallel)
         run: cargo test -p rapier3d --release --features unsync-callbacks --test unsync_callbacks
-      - name: Test parallel-path parity (unsync-callbacks)
-        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize,parallel,unsync-callbacks --test parallel_path_parity
-      - name: Test mjcf-rs
-        run: cargo test -p mjcf-rs --features msh
-      - name: Test rapier3d-mjcf
-        run: cargo test -p rapier3d-mjcf --features stl,wavefront,msh
-      - name: Check rapier_testbed2d
-        run: cargo check --verbose -p rapier_testbed2d;
-      - name: Check rapier_testbed3d
-        run: cargo check --verbose -p rapier_testbed3d;
-      - name: Check rapier_testbed2d --features parallel
-        run: cd crates/rapier_testbed2d; cargo check --verbose --features parallel;
-      - name: Check rapier_testbed3d --features parallel
-        run: cd crates/rapier_testbed3d; cargo check --verbose --features parallel;
-      - name: Check rapier_testbed2d --features enhanced-determinism
-        run: cd crates/rapier2d; cargo check --verbose --features enhanced-determinism;
-      - name: Check rapier_testbed3d --features enhanced-determinism
-        run: cd crates/rapier3d; cargo check --verbose --features enhanced-determinism;
-      - name: Check rapier-examples-2d
-        run: cargo check -j 1 --verbose -p rapier-examples-2d;
-      - name: Check rapier-examples-3d
-        run: cargo check -j 1 --verbose -p rapier-examples-3d;
   build-no-std:
     runs-on: ubuntu-latest
     env:
@@ -121,6 +155,7 @@ jobs:
         with:
           toolchain: stable
           targets: "x86_64-unknown-linux-gnu,thumbv7em-none-eabihf"
+      - uses: Swatinem/rust-cache@v2
       - name: Check rapier2d thumbv7em-none-eabihf (no alloc)
         run: cargo check --verbose -p rapier2d --no-default-features --features dim2,f32 --target=thumbv7em-none-eabihf
       - name: Check rapier3d thumbv7em-none-eabihf (no alloc)
@@ -145,6 +180,13 @@ jobs:
   # (manifold store, solver-graph buckets, raw color-mask slices) for UB.
   # x86_64 only: glam's aarch64 NEON backend hits foreign intrinsics Miri does
   # not implement (on Apple Silicon, use --target x86_64-unknown-linux-gnu).
+  #
+  # The SIMD solver paths lean harder on transmutes and raw slices; worth the
+  # extra interpretation time (~3.5x the scalar run). `parallel` also passes,
+  # but only manually (not in CI): crossbeam-epoch's container_of pattern
+  # violates Stacked Borrows in rayon's steal path, so it needs
+  # MIRIFLAGS="-Zmiri-tree-borrows -Zmiri-ignore-leaks" (ignore-leaks for
+  # rayon's never-joined global pool) and RAYON_NUM_THREADS=2.
   miri:
     runs-on: ubuntu-latest
     steps:
@@ -154,18 +196,11 @@ jobs:
         with:
           toolchain: nightly
           components: miri
+      - uses: Swatinem/rust-cache@v2
       - name: Miri test rapier3d (tiny scenes)
         run: cargo miri test -p rapier3d --test miri_scenes
       - name: Miri test rapier2d (tiny scenes)
         run: cargo miri test -p rapier2d --test miri_scenes
-      # The SIMD solver paths lean harder on transmutes and raw slices; worth the
-      # extra interpretation time (~3.5x the scalar run). `parallel` also passes,
-      # but only manually (not in CI): crossbeam-epoch's container_of pattern
-      # violates Stacked Borrows in rayon's steal path, so it needs
-      # MIRIFLAGS="-Zmiri-tree-borrows -Zmiri-ignore-leaks" (ignore-leaks for
-      # rayon's never-joined global pool) and RAYON_NUM_THREADS=2.
-      - name: Miri test rapier3d (tiny scenes)
-        run: cargo miri test -p rapier3d --test miri_scenes
   build-wasm:
     runs-on: ubuntu-latest
     env:
@@ -173,6 +208,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
       - name: build rapier2d
         run: cd crates/rapier2d && cargo build --verbose --target wasm32-unknown-unknown;
       - name: build rapier3d
@@ -195,6 +231,7 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
       # `node:wasi` needs no command-line flag from 22 on.
       - uses: actions/setup-node@v4
         with:
@@ -217,8 +254,9 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get install -y cmake libxcb-composite0-dev
-      # See `build-native`: zune-core 0.5.2 breaks zune-jpeg, reached here through the
+      # See `clippy`: zune-core 0.5.2 breaks zune-jpeg, reached here through the
       # testbed crates' kiss3d dependency. Remove once upstream is fixed.
       - name: Pin zune-core (0.5.2 breaks zune-jpeg)
         run: cargo update -p zune-core@0.5 --precise 0.5.1
@@ -247,6 +285,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: website/docs-examples
       - name: Tests injection + code snippets
         run: cd website/docs-examples && cargo test
   # Checks the JavaScript documentation snippets build (against the published @dimforge/rapier).
