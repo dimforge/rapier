@@ -419,6 +419,28 @@ impl TestbedViewer {
         self.window.egui_context_mut()
     }
 
+    /// The underlying kiss3d window.
+    pub fn window(&self) -> &Window {
+        &self.window
+    }
+
+    /// The graphics manager owning the kiss3d scene.
+    pub fn graphics(&self) -> &GraphicsManager {
+        &self.graphics
+    }
+
+    /// Mutable access to the graphics manager owning the kiss3d scene, e.g. to
+    /// add custom render nodes from an example's render loop.
+    pub fn graphics_mut(&mut self) -> &mut GraphicsManager {
+        &mut self.graphics
+    }
+
+    /// Mutable access to the underlying kiss3d window, e.g. for immediate-mode
+    /// drawing (`draw_point`, `draw_line`, ...) from an example's render loop.
+    pub fn window_mut(&mut self) -> &mut Window {
+        &mut self.window
+    }
+
     // ───────────────────────────── registry / loop ──────────────────────────
 
     /// Display index of the example the UI currently has selected, clamped to a
