@@ -120,6 +120,26 @@ jobs:
         run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
       - name: Test snapshot portability (2D, native)
         run: cargo test -p rapier2d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
+  # The aarch64 leg of the cross-architecture determinism check: the same goldens the
+  # x86_64 job (above) and the wasm32 job (below) verify must also hold on arm NEON.
+  # This is what catches platform-split float semantics that are dynamically invisible —
+  # e.g. the signed zero a min/max tie stores differs between SSE/wasm and NEON, which
+  # diverged serialized snapshots on aarch64 for months without any x86-only job noticing.
+  tests-determinism-arm64:
+    runs-on: ubuntu-24.04-arm
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Test snapshot portability (3D, aarch64)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
+      - name: Test snapshot portability (2D, aarch64)
+        run: cargo test -p rapier2d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
+      - name: Test parallel-path parity (aarch64)
+        run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test parallel_path_parity
+      - name: Test determinism (SIMD backend, aarch64)
+        run: cargo test -p rapier3d --release --features enhanced-determinism --test simd_backend_determinism
   # The remaining release-mode suites (non-enhanced-determinism feature sets).
   tests-release:
     runs-on: ubuntu-latest
