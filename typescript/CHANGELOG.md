@@ -2,6 +2,11 @@
 
 ### Breaking changes
 
+- The files of the `-compat` packages moved from the package root into `dist/`
+  (`dist/rapier.mjs`, `dist/rapier.cjs`, `dist/rapier.d.ts`). Imports resolved through
+  the package entry (bundlers, `+esm` CDN URLs) are unaffected; pinned CDN URLs or deep
+  imports referencing the old root-level files must add the `dist/` segment.
+
 - Removed `IntegrationParameters.minIslandSize`: awake bodies are now solved as a single
   active set, so there is no island size to tune.
 - `NarrowPhase.contactPair` takes the `RigidBodySet` as its third argument. Solver

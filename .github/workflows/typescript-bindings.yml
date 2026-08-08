@@ -148,12 +148,12 @@ jobs:
             # Check simd for compat builds
             - name: Check 2d simd compat build
               run: |
-                  if ! wasm-objdump -d rapier-compat/builds/2d-simd/pkg/rapier_wasm2d_bg.wasm | grep :\\sfd ; then
+                  if ! wasm-objdump -d rapier-compat/builds/2d-simd/pkg/dist/rapier_wasm2d_bg.wasm | grep :\\sfd ; then
                     >&2 echo "ERROR: 2d simd compat build does not include simd opcode prefix." && exit 1;
                   fi
             - name: Check 3d simd compat build
               run: |
-                  if ! wasm-objdump -d rapier-compat/builds/3d-simd/pkg/rapier_wasm3d_bg.wasm | grep :\\sfd ; then
+                  if ! wasm-objdump -d rapier-compat/builds/3d-simd/pkg/dist/rapier_wasm3d_bg.wasm | grep :\\sfd ; then
                     >&2 echo "ERROR: 3d simd compat build does not include simd opcode prefix." && exit 1;
                   fi
             # Upload
