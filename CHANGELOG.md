@@ -34,6 +34,13 @@
 
 ### Modified
 
+- The broad phase no longer creates pairs between colliders attached to the same
+  rigid-body (they can never collide). A single awake body carrying thousands of
+  mutually-overlapping colliders previously flooded the pair map and contact graph with
+  pairs the narrow phase re-discarded every step; the issue #970 scene (2,210 convex
+  colliders on one always-awake body) steps ~90x faster while stationary and ~18x
+  faster while moving. Note that `NarrowPhase::contact_pair` now returns `None` for
+  same-parent colliders instead of a manifold-less pair.
 - Sleep eligibility is now judged on the actual per-step pose displacement (measured at the
   body’s farthest point) instead of the velocities: a body held in place by contacts can sleep
   even with residual solver velocities, while a body creeping through solver position

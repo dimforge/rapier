@@ -25,6 +25,7 @@ mod debug_angular_limits2;
 mod debug_box_ball2;
 mod debug_compression2;
 mod debug_intersection2;
+mod debug_many_colliders2;
 mod debug_total_overlap2;
 mod debug_vertical_column2;
 mod drum2;
@@ -117,6 +118,7 @@ pub async fn main() {
         DEBUG, "Box ball", debug_box_ball2::run;
         DEBUG, "Compression", debug_compression2::run;
         DEBUG, "Intersection", debug_intersection2::run;
+        DEBUG, "Many colliders", debug_many_colliders2::run;
         DEBUG, "Total overlap", debug_total_overlap2::run;
         DEBUG, "Vertical column", debug_vertical_column2::run;
         // ── Inspired by Solver2D ────────────────────────────────────────────

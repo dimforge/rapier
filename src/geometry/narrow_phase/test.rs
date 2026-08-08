@@ -77,10 +77,15 @@ pub fn collider_set_parent_depenetration() {
     let collider_2_position = collider_set.get(collider_2_handle).unwrap().pos;
     assert!((collider_1_position.translation - collider_2_position.translation).length() < 0.5f32);
 
-    let contact_pair = narrow_phase
-        .contact_pair(collider_1_handle, collider_2_handle)
-        .expect("The contact pair should exist.");
-    assert_eq!(contact_pair.manifolds.len(), 0);
+    // Same-parent pairs are filtered out by the broad phase (issue #970), so no (empty)
+    // contact pair is registered while both colliders share their parent. If one of them
+    // is re-parented, the broad phase must re-generate the pair (asserted below).
+    assert!(
+        narrow_phase
+            .contact_pair(collider_1_handle, collider_2_handle)
+            .is_none_or(|pair| pair.manifolds.is_empty()),
+        "No contact should be simulated between same-parent colliders."
+    );
     assert!(
         narrow_phase
             .intersection_pair(collider_1_handle, collider_2_handle)
