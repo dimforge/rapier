@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- `Wheel::rotation` now accumulates from the wheel's own rolling direction on the
+  contact plane (`contact normal × axle`, the same forward direction used by the
+  friction update) instead of the chassis' `index_forward_axis`, so wheels visually
+  spin whenever the vehicle actually rolls (adapted from PR #950 by @tomo0613).
 - `DynamicRayCastVehicleController` no longer has unlimited braking friction when a
   wheel's side impulse is exactly zero (e.g. braking in a straight line): the skid
   clamp now applies to the forward impulse as well, so braking strength is bounded by
