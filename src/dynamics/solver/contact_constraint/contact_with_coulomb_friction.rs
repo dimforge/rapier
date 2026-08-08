@@ -681,11 +681,16 @@ impl ContactWithCoulombFriction<SimdReal> {
         #[cfg(feature = "dim3")]
         let tangent2 = self.dir1.gcross(self.tangent1);
         for k in 0..self.num_contacts as usize {
-            let warmstart_impulses: [_; SIMD_WIDTH] = self.normal_part[k].impulse.into();
-            let warmstart_tangent_impulses = self.tangent_part[k].impulse;
+            // The stored impulses are serialized state: canonicalize signed zeros (see
+            // `utils::canonicalize_zero`) so snapshots stay cross-platform deterministic.
+            let warmstart_impulses: [_; SIMD_WIDTH] =
+                utils::canonicalize_zero(self.normal_part[k].impulse).into();
+            let warmstart_tangent_impulses = utils::canonicalize_zero(self.tangent_part[k].impulse);
             #[cfg(feature = "dim3")]
-            let warmstart_tangent_world = self.tangent1 * warmstart_tangent_impulses.x
-                + tangent2 * warmstart_tangent_impulses.y;
+            let warmstart_tangent_world = utils::canonicalize_zero(
+                self.tangent1 * warmstart_tangent_impulses.x
+                    + tangent2 * warmstart_tangent_impulses.y,
+            );
             #[cfg(feature = "dim3")]
             let (wx, wy, wz): (
                 [Real; SIMD_WIDTH],
@@ -696,8 +701,9 @@ impl ContactWithCoulombFriction<SimdReal> {
                 warmstart_tangent_world.y.into(),
                 warmstart_tangent_world.z.into(),
             );
-            let impulses: [_; SIMD_WIDTH] = self.normal_part[k].total_impulse().into();
-            let tangent_impulses = self.tangent_part[k].total_impulse();
+            let impulses: [_; SIMD_WIDTH] =
+                utils::canonicalize_zero(self.normal_part[k].total_impulse()).into();
+            let tangent_impulses = utils::canonicalize_zero(self.tangent_part[k].total_impulse());
 
             for ii in 0..SIMD_WIDTH {
                 let contact_id = self.manifold_contact_id[k][ii];
