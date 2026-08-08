@@ -4,7 +4,7 @@ use crate::geometry::ContactManifold;
 #[cfg(feature = "dim3")]
 use crate::math::TangentImpulse;
 use crate::math::{DIM, DVector, MAX_MANIFOLD_POINTS, Real};
-use crate::utils::{AngularInertiaOps, CrossProduct, DotProduct};
+use crate::utils::{self, AngularInertiaOps, CrossProduct, DotProduct};
 
 use super::{ContactConstraintNormalPart, ContactConstraintTangentPart};
 use crate::dynamics::solver::CoulombContactPointInfos;
@@ -702,16 +702,22 @@ impl GenericContactConstraint {
         for k in 0..self.num_contacts as usize {
             let contact_id = self.manifold_contact_id[k];
             let active_contact = &mut manifold.points[contact_id as usize];
-            active_contact.data.warmstart_impulse = self.normal_part[k].impulse;
-            active_contact.data.warmstart_tangent_impulse = self.tangent_part[k].impulse;
+            // The stored impulses are serialized state: canonicalize signed zeros (see
+            // `utils::canonicalize_zero`) so snapshots stay cross-platform deterministic.
+            active_contact.data.warmstart_impulse =
+                utils::canonicalize_zero(self.normal_part[k].impulse);
+            active_contact.data.warmstart_tangent_impulse =
+                utils::canonicalize_zero(self.tangent_part[k].impulse);
             #[cfg(feature = "dim3")]
             {
-                let imp = self.tangent_part[k].impulse;
+                let imp = active_contact.data.warmstart_tangent_impulse;
                 active_contact.data.warmstart_tangent_world =
-                    self.tangent1 * imp.x + tangent2 * imp.y;
+                    utils::canonicalize_zero(self.tangent1 * imp.x + tangent2 * imp.y);
             }
-            active_contact.data.impulse = self.normal_part[k].total_impulse();
-            active_contact.data.tangent_impulse = self.tangent_part[k].total_impulse();
+            active_contact.data.impulse =
+                utils::canonicalize_zero(self.normal_part[k].total_impulse());
+            active_contact.data.tangent_impulse =
+                utils::canonicalize_zero(self.tangent_part[k].total_impulse());
         }
     }
 

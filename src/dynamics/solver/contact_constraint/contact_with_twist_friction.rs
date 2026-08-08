@@ -775,21 +775,27 @@ impl ContactWithTwistFriction<SimdReal> {
     }
 
     pub fn writeback_impulses(&self, manifolds_all: &ManifoldStore) {
-        let warmstart_tangent_impulses = self.tangent_part.impulse;
+        // The stored impulses are serialized state: canonicalize signed zeros (see
+        // `utils::canonicalize_zero`) so snapshots stay cross-platform deterministic.
+        let warmstart_tangent_impulses = utils::canonicalize_zero(self.tangent_part.impulse);
         // World-space friction impulse (see `ContactData::warmstart_tangent_world`).
         let tangent2 = self.dir1.gcross(self.tangent1);
-        let warmstart_tangent_world =
-            self.tangent1 * warmstart_tangent_impulses.x + tangent2 * warmstart_tangent_impulses.y;
+        let warmstart_tangent_world = utils::canonicalize_zero(
+            self.tangent1 * warmstart_tangent_impulses.x + tangent2 * warmstart_tangent_impulses.y,
+        );
         let (wx, wy, wz): ([Real; SIMD_WIDTH], [Real; SIMD_WIDTH], [Real; SIMD_WIDTH]) = (
             warmstart_tangent_world.x.into(),
             warmstart_tangent_world.y.into(),
             warmstart_tangent_world.z.into(),
         );
-        let warmstart_twist_impulses: [_; SIMD_WIDTH] = self.twist_part.impulse.into();
+        let warmstart_twist_impulses: [_; SIMD_WIDTH] =
+            utils::canonicalize_zero(self.twist_part.impulse).into();
 
         for k in 0..self.num_contacts as usize {
-            let warmstart_impulses: [_; SIMD_WIDTH] = self.normal_part[k].impulse.into();
-            let impulses: [_; SIMD_WIDTH] = self.normal_part[k].total_impulse().into();
+            let warmstart_impulses: [_; SIMD_WIDTH] =
+                utils::canonicalize_zero(self.normal_part[k].impulse).into();
+            let impulses: [_; SIMD_WIDTH] =
+                utils::canonicalize_zero(self.normal_part[k].total_impulse()).into();
 
             for ii in 0..SIMD_WIDTH {
                 let contact_id = self.manifold_contact_id[k][ii];
