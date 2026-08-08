@@ -1,6 +1,6 @@
 [package]
 name = "dimforge_{{ js_package_name }}" # Can't be named rapier{{ dimension }}d which conflicts with the dependency.
-version = "0.19.3"
+version = "0.20.0"
 authors = ["Sébastien Crozet <developer@crozet.re>"]
 description = "{{ dimension }}-dimensional physics engine in Rust - official JS bindings."
 documentation = "https://rapier.rs/rustdoc/rapier{{ dimension }}d/index.html"
@@ -30,7 +30,7 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 # `rapier{2,3}d` is patched to the in-repo crate (see the workspace
 # `[patch.crates-io]` in ../../Cargo.toml); this version requirement must stay
 # semver-compatible with that crate's version for the patch to take effect.
-rapier{{ dimension }}d = { version = "0.35.0-beta.0", features = [
+rapier{{ dimension }}d = { version = "0.35.0", features = [
     "serde-serialize",
     "debug-render",
     "profiler",

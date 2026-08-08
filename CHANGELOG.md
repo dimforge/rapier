@@ -1,4 +1,4 @@
-## Unreleased
+## v0.35.0 (08 August 2026)
 
 ### Added
 
@@ -41,6 +41,34 @@
   including movements exactly orthogonal to the up vector, instead of requiring a downward
   motion larger than an arbitrary epsilon. Purely lateral movement along the ground no longer
   flickers the `grounded` flag when snap-to-ground is enabled (PR #481 by @ChrisJanssens).
+- Restitution is now applied as an end-of-step pass instead of during the velocity solve, so
+  contacts detected speculatively (within the prediction distance) bounce with the requested
+  coefficient instead of being damped away by the prediction distance (issue #974).
+- SIMD joint constraints now build their local frames relative to the body's center of mass,
+  fixing joints on bodies whose center of mass isn't at their origin (PR #953 by @Kyzzsa).
+- The broad phase now filters candidate pairs by collision groups, so colliders that can never
+  interact don't reach the narrow phase at all (issue #288).
+- `ContactForceEvent` sums the pair's *solver* manifolds, so contact clustering no longer
+  makes the reported force and contact point disagree with what the solver applied.
+- Generic (multibody) contact constraints now rebuild their anchors in the same frames the
+  substep update uses, fixing multibodies welded to rigid-bodies never settling (issue #968).
+- `RigidBodyBuilder::additional_mass` on a body whose colliders are all massless (zero density)
+  now derives the angular inertia from the collider shapes instead of leaving it null, so such
+  bodies rotate (issue #666).
+- Joints specified through a subset of their axes now complete the missing frame axes with a
+  twist-consistent minimal rotation, so a prismatic joint whose axis isn't `x` no longer picks
+  an arbitrarily rolled frame (issue #746).
+- `RigidBody::sleep()` is now honored immediately, even when the body was repositioned during
+  the same frame (issue #448).
+- `ImpulseJointSet::joints_between` now yields every joint between the two bodies instead of
+  only the first (issue #866).
+- `CollisionPipeline::step` now clears the rigid-bodies' modified flags, so a collision-only
+  pipeline no longer accumulates stale change tracking (issue #662).
+- Contact impulses are stored with canonicalized signed zeros, removing a source of
+  cross-platform divergence with `enhanced-determinism`.
+- The debug-renderer now draws the border radius of 2D round triangles (issue #634).
+- Testbed: objects no longer flash visible for one frame when the surface rendering is
+  disabled (issue #843).
 
 ### Modified
 

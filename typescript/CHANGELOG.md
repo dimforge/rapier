@@ -1,4 +1,4 @@
-## Unreleased
+## 0.20.0 (08 August 2026)
 
 ### Breaking changes
 
@@ -18,6 +18,28 @@
 - `TempContactManifold.solverContactFriction` and `solverContactRestitution` became
   `friction()` and `restitution()`, without a contact index: friction and restitution are
   now combined once per manifold, so every solver contact of a manifold shares them.
+
+### Added
+
+- `SphericalImpulseJoint` motors are now exposed (they were commented out as "unsupported"):
+  `configureMotorModel`, `setMotorMaxForce`, `configureMotorVelocity`, `configureMotorPosition`
+  and `configureMotor`. They are all per-axis and take a new `JointAxis` enum as their first
+  argument (issue #791).
+
+### Fixed
+
+- The `-compat` packages now pass the embedded wasm module to `init()` as an object, fixing
+  initialization with recent `wasm-bindgen` output (issues #977, #811).
+- The `-compat` `raw.d.ts` now points at the wasm module matching the built feature variant
+  (deterministic/simd), instead of always the default one (PR #964).
+
+### Modified
+
+- Update to Rapier 0.35.0: rewritten sleeping (persistent islands), a sweep-based CCD that is
+  now enabled by default against fixed colliders, a reworked narrow-phase/solver and a broad
+  phase tuned for large mostly-static worlds. Several contact and sleeping defaults changed —
+  see [rapier's changelog](https://github.com/dimforge/rapier/blob/master/CHANGELOG.md#v0350-08-august-2026)
+  for the full list.
 
 ## 0.19.3 (05 Nov. 2025)
 
