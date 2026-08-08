@@ -8,7 +8,7 @@ pub use generic_joint_constraint_builder::{
 };
 pub(crate) use joint_constraint_builder::JointConstraintBuilder;
 pub(crate) use joint_constraint_builder::JointConstraintBuilderSimd;
-pub use joint_constraint_helper::JointConstraintHelper;
+pub use joint_constraint_helper::{AngularLimitParams, JointConstraintHelper};
 pub use joint_constraints_set::JointConstraintsSet;
 
 mod any_joint_constraint;

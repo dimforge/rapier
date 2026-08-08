@@ -23,6 +23,7 @@ mod convex_decomposition3;
 mod convex_polyhedron3;
 mod damping3;
 mod debug_add_remove_collider3;
+mod debug_angular_limits3;
 mod debug_articulations3;
 mod debug_balls3;
 mod debug_big_colliders3;
@@ -138,6 +139,7 @@ pub async fn main() {
         ROBOTICS, "MJCF", mjcf3::run;
         ROBOTICS, "Mujoco Menagerie", mujoco_menagerie3::run;
         // ── Debug ───────────────────────────────────────────────────────────
+        DEBUG, "Angular limits", debug_angular_limits3::run;
         DEBUG, "Multibody joints", debug_articulations3::run;
         DEBUG, "Add/rm collider", debug_add_remove_collider3::run;
         DEBUG, "Multi-collider body", debug_multi_collider_body3::run;

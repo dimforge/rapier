@@ -1,12 +1,10 @@
 use crate::dynamics::solver::SolverVel;
-use crate::dynamics::solver::joint_constraint::JointConstraintHelper;
+use crate::dynamics::solver::joint_constraint::{AngularLimitParams, JointConstraintHelper};
 use crate::dynamics::{
     GenericJoint, IntegrationParameters, JointAxesMask, JointGraphEdge, JointIndex,
 };
-use crate::math::{DIM, Real, SPATIAL_DIM};
+use crate::math::{ANG_DIM, DIM, Real, SPATIAL_DIM};
 use crate::utils::{ComponentMul, DotProduct, ScalarType, SimdRealCopy};
-#[cfg(not(feature = "std"))]
-use simba::scalar::ComplexField as _;
 
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::math::{SIMD_WIDTH, SimdReal};
@@ -153,6 +151,9 @@ impl JointConstraint<Real, 1> {
         frame1: &Pose,
         frame2: &Pose,
         joint: &GenericJoint,
+        // The angular limits, in the form the rows consume (built once per assembly by
+        // `JointConstraintBuilder`, not once per substep).
+        ang_limits: &[AngularLimitParams<Real>; ANG_DIM],
         out: &mut [Self],
     ) -> usize {
         let mut len = 0;
@@ -289,11 +290,7 @@ impl JointConstraint<Real, 1> {
                     body1,
                     body2,
                     i - DIM,
-                    // `limit_angular` takes the sines of the half-angle limits.
-                    [
-                        (joint.limits[i].min * 0.5).sin(),
-                        (joint.limits[i].max * 0.5).sin(),
-                    ],
+                    ang_limits[i - DIM],
                     WritebackId::Limit(i),
                     erp_inv_dt,
                     cfm_coeff,
@@ -400,7 +397,8 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
         frame2: &<SimdReal as ScalarType>::Pose,
         locked_axes: u8,
         limit_axes: u8,
-        limits: &[[SimdReal; 2]; SPATIAL_DIM],
+        limits: &[[SimdReal; 2]; DIM],
+        ang_limits: &[AngularLimitParams<SimdReal>; ANG_DIM],
         softness: crate::dynamics::SpringCoefficients<SimdReal>,
         // `Some` = emit the (2D) angular motor row. Kept out of 3D until the
         // wide builder gathers per-axis motors.
@@ -477,7 +475,7 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
                     body1,
                     body2,
                     i - DIM,
-                    limits[i],
+                    ang_limits[i - DIM],
                     WritebackId::Limit(i),
                     erp_inv_dt,
                     cfm_coeff,

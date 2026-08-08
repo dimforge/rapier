@@ -4,7 +4,9 @@ use simba::scalar::ComplexField;
 use crate::dynamics::solver::MotorParameters;
 use crate::dynamics::solver::joint_constraint::generic_joint_constraint::GenericJointConstraint;
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::WritebackId;
-use crate::dynamics::solver::joint_constraint::{JointConstraintHelper, JointSolverBody};
+use crate::dynamics::solver::joint_constraint::{
+    AngularLimitParams, JointConstraintHelper, JointSolverBody,
+};
 use crate::dynamics::{
     GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex, Multibody, MultibodyJointSet,
     MultibodyLinkId, RigidBodySet,
@@ -559,7 +561,10 @@ impl JointConstraintHelper<Real> {
 
         let erp_inv_dt = softness.erp_inv_dt(params.dt);
 
-        let rhs_bias = ((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt;
+        // See `limit_linear`: the bias is capped so deep violations don't catapult.
+        let max_bias = params.max_corrective_velocity();
+        let rhs_bias = (((dist - limits[1]).max(0.0) - (limits[0] - dist).max(0.0)) * erp_inv_dt)
+            .clamp(-max_bias, max_bias);
         constraint.rhs += rhs_bias;
         constraint.impulse_bounds = [
             min_enabled as u32 as Real * -Real::MAX,
@@ -681,10 +686,14 @@ impl JointConstraintHelper<Real> {
         softness: SpringCoefficients<Real>,
         writeback_id: WritebackId,
     ) -> GenericJointConstraint {
+        // See `AngularLimitParams`: the row measures the wrapped angle from the middle of
+        // the allowed range; the measure's gradient is the plain joint axis (like the
+        // angular motor row).
+        let limit = AngularLimitParams::new(limits[0], limits[1]);
         #[cfg(feature = "dim2")]
         let ang_jac: AngVector = 1.0;
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(_limited_axis);
+        let ang_jac = self.basis.col(_limited_axis);
 
         let mut constraint = self.lock_jacobians_generic(
             jacobians,
@@ -700,21 +709,21 @@ impl JointConstraintHelper<Real> {
             ang_jac,
         );
 
-        let s_limits = [(limits[0] / 2.0).sin(), (limits[1] / 2.0).sin()];
-        #[cfg(feature = "dim2")]
-        let s_ang = (self.ang_err.angle() / 2.0).sin();
-        #[cfg(feature = "dim3")]
-        let s_ang = self.ang_err.xyz()[_limited_axis];
-        let min_enabled = s_ang <= s_limits[0];
-        let max_enabled = s_limits[1] <= s_ang;
+        let ang_limits = [-limit.half_range, limit.half_range];
+        let ang = self.recentered_angle(_limited_axis, &limit);
+        let min_enabled = ang <= ang_limits[0];
+        let max_enabled = ang_limits[1] <= ang;
         let impulse_bounds = [
             min_enabled as u32 as Real * -Real::MAX,
             max_enabled as u32 as Real * Real::MAX,
         ];
 
         let erp_inv_dt = softness.erp_inv_dt(params.dt);
-        let rhs_bias =
-            ((s_ang - s_limits[1]).max(0.0) - (s_limits[0] - s_ang).max(0.0)) * erp_inv_dt;
+        // See `limit_angular`: the bias is capped so deep violations don't catapult.
+        let max_bias = params.max_corrective_velocity();
+        let rhs_bias = (((ang - ang_limits[1]).max(0.0) - (ang_limits[0] - ang).max(0.0))
+            * erp_inv_dt)
+            .clamp(-max_bias, max_bias);
 
         constraint.rhs += rhs_bias;
         constraint.impulse_bounds = impulse_bounds;
