@@ -5,7 +5,10 @@ for feature in \
 3d 3d-deterministic 3d-simd
 do
 
-echo 'export * from "'"./rapier_wasm$feature"'"' > builds/${feature}/pkg/raw.d.ts
-echo 'export * from "'"./rapier_wasm$feature"'"' > builds/${feature}/pkg/raw.d.ts
+# The wasm-bindgen module is always named after the crate (rapier_wasm2d/rapier_wasm3d),
+# whatever the feature variant (-deterministic/-simd) of the build.
+dimension="${feature%%-*}"
+
+echo 'export * from "'"./rapier_wasm$dimension"'"' > builds/${feature}/pkg/raw.d.ts
 
 done;
