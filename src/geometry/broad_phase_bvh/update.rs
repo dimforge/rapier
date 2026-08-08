@@ -342,6 +342,18 @@ impl BroadPhaseBvh {
                         core::mem::swap(&mut collider1, &mut collider2);
                     }
 
+                    // Same-parent colliders never collide; keeping their pairs out of the
+                    // pair map and contact graph keeps bodies with many mutually-overlapping
+                    // colliders from flooding the narrow phase (issue #970). Reparenting
+                    // re-discovers via the forced re-insertion pre-pass (`PARENT` above),
+                    // and the narrow phase's own per-update same-parent check handles pairs
+                    // whose colliders become same-parent after creation.
+                    if let (Some(p1), Some(p2)) = (&collider1.parent, &collider2.parent) {
+                        if p1.handle == p2.handle {
+                            return None;
+                        }
+                    }
+
                     if self.pairs.contains_key(&(handle1, handle2)) {
                         return None;
                     }
