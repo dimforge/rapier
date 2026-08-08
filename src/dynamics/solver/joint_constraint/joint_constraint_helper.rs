@@ -255,8 +255,8 @@ impl<N: ScalarType> JointConstraintHelper<N> {
         let ii_ang_jac2 = body2.ii.transform_vector(ang_jac2);
 
         let max_bias = N::splat(params.max_corrective_velocity());
-        let rhs_bias = ((dist - limits[1]).simd_max(zero) * erp_inv_dt)
-            .simd_clamp(-max_bias, max_bias);
+        let rhs_bias =
+            ((dist - limits[1]).simd_max(zero) * erp_inv_dt).simd_clamp(-max_bias, max_bias);
         let rhs = rhs_wo_bias + rhs_bias;
         let impulse_bounds = [N::zero(), N::splat(Real::INFINITY)];
 
@@ -760,8 +760,7 @@ impl JointConstraintHelper<Real> {
 
         // See `limit_angular`: the bias is capped so deep violations don't catapult.
         let max_bias = _params.max_corrective_velocity();
-        let rhs_bias = (((angle - limits[1]).max(0.0) - (limits[0] - angle).max(0.0))
-            * erp_inv_dt)
+        let rhs_bias = (((angle - limits[1]).max(0.0) - (limits[0] - angle).max(0.0)) * erp_inv_dt)
             .clamp(-max_bias, max_bias);
 
         let ii_ang_jac1 = body1.ii.transform_vector(ang_jac);
@@ -818,7 +817,8 @@ mod test {
                 (center_deg as Real + 45.0).to_radians(),
             );
             // At the center of the range the measure is zero; at the limits, ±half_range.
-            let at_center = helper_at((center_deg as Real).to_radians()).recentered_angle(0, &limit);
+            let at_center =
+                helper_at((center_deg as Real).to_radians()).recentered_angle(0, &limit);
             assert!(at_center.abs() < 1.0e-5, "center {center_deg}: {at_center}");
             let at_max =
                 helper_at((center_deg as Real + 45.0).to_radians()).recentered_angle(0, &limit);
