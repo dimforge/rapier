@@ -170,9 +170,16 @@ be cuboids, balls, convex meshes, etc.) This is commonly known as a **convex dec
 
 :::info
 An alternative to using a **compound shape** is to attach **multiple colliders** to the same rigid-body: all the colliders
-will move with the rigid-body automatically, behaving in a very similar way than using a single collider with a
-compound shape. The main differences between the two approaches is about collision events: each collider generates
-individual collision start/stop events.
+will move with the rigid-body automatically, and the simulation quality (contact resolution, stability) is identical with
+both approaches. They differ in other ways, so pick based on how you use the object:
+- **Performance:** a compound shape is a single collider, so the broad-phase handles one entry (with its own internal
+  acceleration structure for the parts) instead of one entry per collider. With many parts (hundreds or more), a compound
+  shape makes the physics step significantly cheaper, especially while the rigid-body is awake.
+- **Collision events:** each collider generates its own individual collision start/stop events and can have its own
+  friction, restitution, collision groups, or sensor status. A compound shape is a single collider: one set of events
+  and properties for the whole shape.
+- **Mutability:** adding or removing one collider from a rigid-body is easy and cheap, whereas adding or removing a part
+  of a compound shape requires rebuilding the whole compound shape.
 :::
 
 To build a compound shape, it is possible to directly provide the set of shapes as well as their position in the
