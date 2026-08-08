@@ -8,5 +8,8 @@ import base64 from "base64-js";
  * Has to be called and awaited before using any library methods.
  */
 export async function init() {
-    await wasmInit(base64.toByteArray(wasmBase64 as unknown as string).buffer);
+    await wasmInit({
+        module_or_path: base64.toByteArray(wasmBase64 as unknown as string)
+            .buffer,
+    });
 }

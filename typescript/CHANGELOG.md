@@ -49,6 +49,9 @@
 ### Fixed
 
 - Fix rollup configuration adding `types: "./rapier.d.ts"` to the export config.
+- The `-compat` packages no longer trigger the wasm-bindgen deprecation warning
+  ("using deprecated parameters for the initialization function") on `init()`: the
+  embedded wasm module is now passed as `{ module_or_path: ... }`.
 
 ### 0.18.1 (8 August 2025)
 
