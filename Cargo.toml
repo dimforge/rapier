@@ -45,7 +45,7 @@ exclude = ["typescript"]
 resolver = "2"
 
 [workspace.package]
-version = "0.35.0-beta.0"
+version = "0.35.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
@@ -124,18 +124,18 @@ getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2"
 
 # Internal crates (paths are relative to the workspace root)
-rapier2d = { version = "0.35.0-beta.0", path = "crates/rapier2d" }
-rapier2d-f64 = { version = "0.35.0-beta.0", path = "crates/rapier2d-f64" }
-rapier3d = { version = "0.35.0-beta.0", path = "crates/rapier3d" }
-rapier3d-f64 = { version = "0.35.0-beta.0", path = "crates/rapier3d-f64" }
-rapier_testbed2d = { version = "0.35.0-beta.0", path = "crates/rapier_testbed2d" }
-rapier_testbed2d-f64 = { version = "0.35.0-beta.0", path = "crates/rapier_testbed2d-f64" }
-rapier_testbed3d = { version = "0.35.0-beta.0", path = "crates/rapier_testbed3d" }
-rapier_testbed3d-f64 = { version = "0.35.0-beta.0", path = "crates/rapier_testbed3d-f64" }
-rapier3d-urdf = { version = "0.35.0-beta.0", path = "crates/rapier3d-urdf" }
-rapier3d-meshloader = { version = "0.35.0-beta.0", path = "crates/rapier3d-meshloader", default-features = false }
-mjcf-rs = { version = "0.35.0-beta.0", path = "crates/mjcf-rs" }
-rapier3d-mjcf = { version = "0.35.0-beta.0", path = "crates/rapier3d-mjcf" }
+rapier2d = { version = "0.35.0", path = "crates/rapier2d" }
+rapier2d-f64 = { version = "0.35.0", path = "crates/rapier2d-f64" }
+rapier3d = { version = "0.35.0", path = "crates/rapier3d" }
+rapier3d-f64 = { version = "0.35.0", path = "crates/rapier3d-f64" }
+rapier_testbed2d = { version = "0.35.0", path = "crates/rapier_testbed2d" }
+rapier_testbed2d-f64 = { version = "0.35.0", path = "crates/rapier_testbed2d-f64" }
+rapier_testbed3d = { version = "0.35.0", path = "crates/rapier_testbed3d" }
+rapier_testbed3d-f64 = { version = "0.35.0", path = "crates/rapier_testbed3d-f64" }
+rapier3d-urdf = { version = "0.35.0", path = "crates/rapier3d-urdf" }
+rapier3d-meshloader = { version = "0.35.0", path = "crates/rapier3d-meshloader", default-features = false }
+mjcf-rs = { version = "0.35.0", path = "crates/mjcf-rs" }
+rapier3d-mjcf = { version = "0.35.0", path = "crates/rapier3d-mjcf" }
 
 # Dev
 bincode = "1"
