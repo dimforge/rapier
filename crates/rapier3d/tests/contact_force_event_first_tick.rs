@@ -1,4 +1,4 @@
-//! `ContactForceEvent::first_tick` must be `true` exactly on the steps where the pair's
+//! `ContactForceEvent::started` must be `true` exactly on the steps where the pair's
 //! total force crosses its threshold coming from below (or from separation), and `false`
 //! while the force stays above on consecutive steps — the analogue of PhysX's
 //! `eNOTIFY_THRESHOLD_FORCE_FOUND` vs `_PERSISTS`. In particular it is about the *force*
@@ -45,12 +45,12 @@ impl EventHandler for Events {
         self.force_events
             .lock()
             .unwrap()
-            .push((*self.step.lock().unwrap(), event.first_tick));
+            .push((*self.step.lock().unwrap(), event.started));
     }
 }
 
 #[test]
-fn first_tick_marks_threshold_crossings_not_contact_newness() {
+fn started_marks_threshold_crossings_not_contact_newness() {
     let events = Events::default();
     let mut world = PhysicsWorld::new();
 
@@ -102,7 +102,7 @@ fn first_tick_marks_threshold_crossings_not_contact_newness() {
         assert!(!evts.is_empty(), "pressing must emit force events");
         assert!(
             evts[0].1,
-            "the first event of the episode must have first_tick"
+            "the first event of the episode must have started"
         );
         assert!(
             evts[0].0 >= 100 && evts[0].0 > started[0] + 50,
@@ -112,7 +112,7 @@ fn first_tick_marks_threshold_crossings_not_contact_newness() {
         );
         assert!(
             evts[1..].iter().all(|(_, first)| !first),
-            "consecutive above-threshold steps must not have first_tick"
+            "consecutive above-threshold steps must not have started"
         );
         assert!(evts.len() > 10, "the press lasts many steps");
     }
@@ -125,7 +125,7 @@ fn first_tick_marks_threshold_crossings_not_contact_newness() {
         let evts = events.force_events.lock().unwrap();
         assert!(
             evts.iter().skip(1).all(|(_, first)| !first),
-            "relaxation events are continuations, never first_tick"
+            "relaxation events are continuations, never started"
         );
     }
     let evts_after_press = events.force_events.lock().unwrap().len();
@@ -136,7 +136,7 @@ fn first_tick_marks_threshold_crossings_not_contact_newness() {
         "no force events while below the threshold"
     );
 
-    // Phase D (steps 220..280): press again: a fresh episode, first_tick fires again.
+    // Phase D (steps 220..280): press again: a fresh episode, started fires again.
     step_range(&mut world, 220..280, true);
     {
         let evts = events.force_events.lock().unwrap();
@@ -144,12 +144,12 @@ fn first_tick_marks_threshold_crossings_not_contact_newness() {
         assert!(!episode2.is_empty());
         assert!(
             episode2[0].1,
-            "a new crossing after dropping below the threshold must have first_tick"
+            "a new crossing after dropping below the threshold must have started"
         );
         assert!(episode2[1..].iter().all(|(_, first)| !first));
     }
 
-    // Phase E: separate entirely, then land hard: first_tick fires again.
+    // Phase E: separate entirely, then land hard: started fires again.
     let evts_before = events.force_events.lock().unwrap().len();
     world.bodies[ball].set_linvel(Vector::new(0.0, 8.0, 0.0), true);
     step_range(&mut world, 280..500, false);
@@ -162,7 +162,7 @@ fn first_tick_marks_threshold_crossings_not_contact_newness() {
         );
         assert!(
             episode3[0].1,
-            "the first event after separating must have first_tick"
+            "the first event after separating must have started"
         );
     }
 }
