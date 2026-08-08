@@ -46,6 +46,13 @@
 
 ### 0.18.2 (13 August 2025)
 
+### Added
+
+- `SphericalImpulseJoint` now exposes its per-axis motors like the Rust API does:
+  `configureMotorModel`, `setMotorMaxForce`, `configureMotorVelocity`,
+  `configureMotorPosition` and `configureMotor`, each taking the angular `JointAxis`
+  to configure. The new `JointAxis` enum is exported for this purpose.
+
 ### Fixed
 
 - Fix rollup configuration adding `types: "./rapier.d.ts"` to the export config.

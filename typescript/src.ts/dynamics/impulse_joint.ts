@@ -47,6 +47,28 @@ export enum MotorModel {
 }
 
 /**
+ * An enum representing a single joint axis, used to configure per-axis joint
+ * properties like the motors of a spherical joint.
+ */
+// #if DIM2
+export enum JointAxis {
+    LinX,
+    LinY,
+    AngX,
+}
+// #endif
+// #if DIM3
+export enum JointAxis {
+    LinX,
+    LinY,
+    LinZ,
+    AngX,
+    AngY,
+    AngZ,
+}
+// #endif
+
+/**
  * An enum representing the possible joint axes of a generic joint.
  * They can be ORed together, like:
  * JointAxesMask.LinX || JointAxesMask.LinY
@@ -400,26 +422,103 @@ export class RevoluteImpulseJoint extends UnitImpulseJoint {
 export class GenericImpulseJoint extends ImpulseJoint {}
 
 export class SphericalImpulseJoint extends ImpulseJoint {
-    /* Unsupported by this alpha release.
-    public configureMotorModel(model: MotorModel) {
-        this.rawSet.jointConfigureMotorModel(this.handle, model);
-    }
-
-    public configureMotorVelocity(targetVel: Vector, factor: number) {
-        this.rawSet.jointConfigureBallMotorVelocity(this.handle, targetVel.x, targetVel.y, targetVel.z, factor);
-    }
-
-    public configureMotorPosition(targetPos: Quaternion, stiffness: number, damping: number) {
-        this.rawSet.jointConfigureBallMotorPosition(this.handle, targetPos.w, targetPos.x, targetPos.y, targetPos.z, stiffness, damping);
-    }
-
-    public configureMotor(targetPos: Quaternion, targetVel: Vector, stiffness: number, damping: number) {
-        this.rawSet.jointConfigureBallMotor(this.handle,
-            targetPos.w, targetPos.x, targetPos.y, targetPos.z,
-            targetVel.x, targetVel.y, targetVel.z,
-            stiffness, damping);
-    }
+    /**
+     * Sets the motor model of one of this joint's angular axes.
+     *
+     * @param axis - The angular axis (`JointAxis.AngX/AngY/AngZ`) to configure.
+     * @param model - The motor model to apply to that axis.
      */
+    public configureMotorModel(axis: JointAxis, model: MotorModel) {
+        this.rawSet.jointConfigureMotorModel(
+            this.handle,
+            axis as number as RawJointAxis,
+            model as number as RawMotorModel,
+        );
+    }
+
+    /**
+     * Sets the maximum force/torque the motor of the given angular axis can deliver.
+     *
+     * @param axis - The angular axis (`JointAxis.AngX/AngY/AngZ`) to configure.
+     * @param maxForce - The maximum torque the axis motor can deliver.
+     */
+    public setMotorMaxForce(axis: JointAxis, maxForce: number) {
+        this.rawSet.jointSetMotorMaxForce(
+            this.handle,
+            axis as number as RawJointAxis,
+            maxForce,
+        );
+    }
+
+    /**
+     * Makes the motor of the given angular axis target a specific angular velocity.
+     *
+     * @param axis - The angular axis (`JointAxis.AngX/AngY/AngZ`) to configure.
+     * @param targetVel - The target angular velocity along the axis, in radians per second.
+     * @param factor - The strength used to reach the target velocity (a damping coefficient).
+     */
+    public configureMotorVelocity(
+        axis: JointAxis,
+        targetVel: number,
+        factor: number,
+    ) {
+        this.rawSet.jointConfigureMotorVelocity(
+            this.handle,
+            axis as number as RawJointAxis,
+            targetVel,
+            factor,
+        );
+    }
+
+    /**
+     * Makes the motor of the given angular axis target a specific angle.
+     *
+     * @param axis - The angular axis (`JointAxis.AngX/AngY/AngZ`) to configure.
+     * @param targetPos - The target angle along the axis, in radians.
+     * @param stiffness - The spring-like stiffness used to reach the target angle.
+     * @param damping - The damping applied to the axis' angular velocity.
+     */
+    public configureMotorPosition(
+        axis: JointAxis,
+        targetPos: number,
+        stiffness: number,
+        damping: number,
+    ) {
+        this.rawSet.jointConfigureMotorPosition(
+            this.handle,
+            axis as number as RawJointAxis,
+            targetPos,
+            stiffness,
+            damping,
+        );
+    }
+
+    /**
+     * Configures the motor of the given angular axis with both an angle and an
+     * angular-velocity target.
+     *
+     * @param axis - The angular axis (`JointAxis.AngX/AngY/AngZ`) to configure.
+     * @param targetPos - The target angle along the axis, in radians.
+     * @param targetVel - The target angular velocity along the axis, in radians per second.
+     * @param stiffness - The spring-like stiffness used to reach the target angle.
+     * @param damping - The damping applied to the axis' angular velocity.
+     */
+    public configureMotor(
+        axis: JointAxis,
+        targetPos: number,
+        targetVel: number,
+        stiffness: number,
+        damping: number,
+    ) {
+        this.rawSet.jointConfigureMotor(
+            this.handle,
+            axis as number as RawJointAxis,
+            targetPos,
+            targetVel,
+            stiffness,
+            damping,
+        );
+    }
 }
 // #endif
 
