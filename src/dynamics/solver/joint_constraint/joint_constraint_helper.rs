@@ -17,11 +17,60 @@ use crate::utils::{
     PoseOps, RotationOps, ScalarType, SimdLength,
 };
 
+#[cfg(not(feature = "std"))]
+use simba::scalar::ComplexField as _;
+
+use crate::num::FloatConst;
 #[cfg(feature = "dim2")]
 use crate::num::One;
 
 #[cfg(feature = "dim3")]
 use parry::math::Rot3;
+
+/// The parameters of one angular limit row, expressed relative to the MIDDLE of the
+/// allowed range: the row measures the wrapped, re-centered joint angle and compares it
+/// against the symmetric bound `±half_range`.
+#[derive(Debug, Copy, Clone)]
+pub struct AngularLimitParams<N> {
+    /// The center of the allowed range, as `[cos, sin]` — of *half* the center angle in 3D,
+    /// where the relative rotation is a quaternion.
+    pub center: [N; 2],
+    /// Half the allowed range (radians): the symmetric bound the re-centered angle is
+    /// tested against. Larger than π when the joint is effectively free, which no wrapped
+    /// angle can trigger.
+    pub half_range: N,
+}
+
+impl AngularLimitParams<Real> {
+    /// The row parameters of an angular limit allowing `[min, max]` (radians).
+    pub fn new(min: Real, max: Real) -> Self {
+        let half_range = (max - min) * 0.5;
+
+        // A range of a full turn or more is indistinguishable from "no limit" for an angle
+        // read off a relative rotation, so the row is disabled instead. This is also where the
+        // huge range of an unset limit (`JointLimits::default`) lands, and where NaN bounds
+        // are caught before they can poison the row.
+        if half_range >= Real::PI() || half_range.is_nan() {
+            return Self {
+                center: [1.0, 0.0],
+                half_range: 10.0, // Value greater than π means it’s unconstrained.
+            };
+        }
+
+        let center = (min + max) * 0.5;
+        #[cfg(feature = "dim2")]
+        let (sin, cos) = center.sin_cos();
+        #[cfg(feature = "dim3")]
+        let (sin, cos) = (center * 0.5).sin_cos();
+
+        Self {
+            center: [cos, sin],
+            // Negative for an empty range (`min > max`), which makes both rows active and
+            // pulls the joint to the center — the only sensible reading of such a range.
+            half_range,
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct JointConstraintHelper<N: ScalarType> {
@@ -142,8 +191,12 @@ impl<N: ScalarType> JointConstraintHelper<N> {
         let min_enabled = dist.simd_le(limits[0]);
         let max_enabled = limits[1].simd_le(dist);
 
-        let rhs_bias =
-            ((dist - limits[1]).simd_max(zero) - (limits[0] - dist).simd_max(zero)) * erp_inv_dt;
+        // Like the contact solver, cap the bias so a deep limit violation recovers over a
+        // few steps instead of catapulting the bodies (the erp gain is ~1/dt).
+        let max_bias = N::splat(params.max_corrective_velocity());
+        let rhs_bias = (((dist - limits[1]).simd_max(zero) - (limits[0] - dist).simd_max(zero))
+            * erp_inv_dt)
+            .simd_clamp(-max_bias, max_bias);
         constraint.rhs = constraint.rhs_wo_bias + rhs_bias;
         constraint.cfm_coeff = cfm_coeff;
         constraint.impulse_bounds = [
@@ -201,7 +254,9 @@ impl<N: ScalarType> JointConstraintHelper<N> {
         let ii_ang_jac1 = body1.ii.transform_vector(ang_jac1);
         let ii_ang_jac2 = body2.ii.transform_vector(ang_jac2);
 
-        let rhs_bias = (dist - limits[1]).simd_max(zero) * erp_inv_dt;
+        let max_bias = N::splat(params.max_corrective_velocity());
+        let rhs_bias = ((dist - limits[1]).simd_max(zero) * erp_inv_dt)
+            .simd_clamp(-max_bias, max_bias);
         let rhs = rhs_wo_bias + rhs_bias;
         let impulse_bounds = [N::zero(), N::splat(Real::INFINITY)];
 
@@ -402,10 +457,49 @@ impl<N: ScalarType> JointConstraintHelper<N> {
         }
     }
 
-    /// `s_limits` are the SINES OF THE HALF-ANGLE limits (`sin(limit / 2)`), not raw angles:
-    /// the row compares them against the relative rotation's half-angle sine. Pre-computing
-    /// keeps `sin` out of the per-substep rebuild (the wide `sin` also has pathological
-    /// aarch64-apple codegen: `From<f32>` repeat-expression constants lower to `memset_pattern16`).
+    /// The relative rotation's angle around `_limited_axis`, measured from `limit`'s center
+    /// and wrapped to (-π, π] — the quantity an angular limit row compares against
+    /// [`AngularLimitParams::half_range`].
+    ///
+    /// Measuring the angle itself (rather than a sine of it) keeps the row's gradient with
+    /// respect to the joint angle equal to one everywhere on the circle, so the plain joint
+    /// axis is an exact jacobian for the row: a sine-space measure has a vanishing gradient
+    /// at the antipode of the range's center, where a limit row would degenerate.
+    pub fn recentered_angle(&self, _limited_axis: usize, limit: &AngularLimitParams<N>) -> N {
+        let [c_cos, c_sin] = limit.center;
+
+        // Rotate the angular error by minus the range's center, so the row measures the angle
+        // from there instead of from the joint's rest frame (see `AngularLimitParams`).
+        #[cfg(feature = "dim2")]
+        {
+            // `ang_err` is a unit complex here: (cos θ, sin θ), so re-centering is a plain
+            // complex product, and `atan2` wraps the result to (-π, π] by itself.
+            let re = c_cos * self.ang_err.real() + c_sin * self.ang_err.imag();
+            let im = c_cos * self.ang_err.imag() - c_sin * self.ang_err.real();
+            im.simd_atan2(re)
+        }
+        #[cfg(feature = "dim3")]
+        {
+            // Only the limited axis' imaginary part and the real part of
+            // `conj(center) * ang_err` are needed; the two other imaginary components only
+            // mix with each other.
+            let x = self.ang_err.imag()[_limited_axis];
+            let w = self.ang_err.real();
+            let sin_half = c_cos * x - c_sin * w;
+            let cos_half = c_cos * w + c_sin * x;
+            // The re-centered HALF angle, in (-π, π]. Doubling it must wrap back to
+            // (-π, π] as a full angle, which is a ±π shift of the half angle whenever it
+            // leaves (-π/2, π/2].
+            let half = sin_half.simd_atan2(cos_half);
+            let half_pi = N::splat(Real::FRAC_PI_2());
+            let shift = N::splat(Real::PI()).simd_copysign(half);
+            let wrapped_half = (half - shift).select(half.simd_abs().simd_gt(half_pi), half);
+            wrapped_half * N::splat(2.0)
+        }
+    }
+
+    /// The limit is measured as the wrapped joint angle relative to the middle of the
+    /// allowed range (see [`AngularLimitParams`]).
     pub fn limit_angular<const LANES: usize>(
         &self,
         _params: &IntegrationParameters,
@@ -413,39 +507,36 @@ impl<N: ScalarType> JointConstraintHelper<N> {
         body1: &JointSolverBody<N, LANES>,
         body2: &JointSolverBody<N, LANES>,
         _limited_axis: usize,
-        s_limits: [N; 2],
+        limit: AngularLimitParams<N>,
         writeback_id: WritebackId,
         erp_inv_dt: N,
         cfm_coeff: N,
     ) -> JointConstraint<N, LANES> {
         let zero = N::zero();
-        #[cfg(feature = "dim2")]
-        let half = N::splat(0.5);
-        // Half-angle identity on the unit complex: sin(θ/2) = copysign(√((1 − re)/2), im) —
-        // exact for θ ∈ [-π, π], much cheaper than angle() (per-lane atan2) + simd_sin, and the
-        // 2D analogue of the 3D branch below (quaternion imaginary part = axis·sin(θ/2)).
-        #[cfg(feature = "dim2")]
-        let s_ang = ((N::one() - self.ang_err.real()).simd_max(zero) * half)
-            .simd_sqrt()
-            .simd_copysign(self.ang_err.imag());
-        #[cfg(feature = "dim3")]
-        let s_ang = self.ang_err.imag()[_limited_axis];
-        let min_enabled = s_ang.simd_le(s_limits[0]);
-        let max_enabled = s_limits[1].simd_le(s_ang);
+        let ang = self.recentered_angle(_limited_axis, &limit);
+        let ang_limits = [-limit.half_range, limit.half_range];
+        let min_enabled = ang.simd_le(ang_limits[0]);
+        let max_enabled = ang_limits[1].simd_le(ang);
 
         let impulse_bounds = [
             N::splat(-Real::INFINITY).select(min_enabled, zero),
             N::splat(Real::INFINITY).select(max_enabled, zero),
         ];
 
+        // The angle measure's gradient is the plain joint axis (like the angular motor row).
         #[cfg(feature = "dim2")]
         let ang_jac = N::AngVector::one();
         #[cfg(feature = "dim3")]
-        let ang_jac = self.ang_basis.column(_limited_axis).into();
+        let ang_jac = self.basis.column(_limited_axis).into();
         let rhs_wo_bias = N::zero();
-        let rhs_bias = ((s_ang - s_limits[1]).simd_max(zero)
-            - (s_limits[0] - s_ang).simd_max(zero))
-            * erp_inv_dt;
+        // Like the contact solver, cap the bias so a deep limit violation recovers over a
+        // few steps instead of catapulting the bodies (the erp gain is ~1/dt and the wrapped
+        // angular error can approach π).
+        let max_bias = N::splat(_params.max_corrective_velocity());
+        let rhs_bias = (((ang - ang_limits[1]).simd_max(zero)
+            - (ang_limits[0] - ang).simd_max(zero))
+            * erp_inv_dt)
+            .simd_clamp(-max_bias, max_bias);
 
         let ii_ang_jac1 = body1.ii.transform_vector(ang_jac);
         let ii_ang_jac2 = body2.ii.transform_vector(ang_jac);
@@ -667,7 +758,11 @@ impl JointConstraintHelper<Real> {
 
         let rhs_wo_bias = 0.0;
 
-        let rhs_bias = ((angle - limits[1]).max(0.0) - (limits[0] - angle).max(0.0)) * erp_inv_dt;
+        // See `limit_angular`: the bias is capped so deep violations don't catapult.
+        let max_bias = _params.max_corrective_velocity();
+        let rhs_bias = (((angle - limits[1]).max(0.0) - (limits[0] - angle).max(0.0))
+            * erp_inv_dt)
+            .clamp(-max_bias, max_bias);
 
         let ii_ang_jac1 = body1.ii.transform_vector(ang_jac);
         let ii_ang_jac2 = body2.ii.transform_vector(ang_jac);
@@ -691,6 +786,62 @@ impl JointConstraintHelper<Real> {
             rhs: rhs_wo_bias + rhs_bias,
             rhs_wo_bias,
             writeback_id,
+        }
+    }
+}
+
+#[cfg(all(test, feature = "dim3"))]
+mod test {
+    use super::*;
+    use crate::math::{Pose, Real, Rotation, Vector};
+
+    /// The limit row measures the wrapped re-centered joint angle with the plain joint
+    /// axis as its jacobian; for that pair to be consistent, the measure's slope with
+    /// respect to the joint angle must be exactly one everywhere on the circle (away from
+    /// the wrap discontinuity at the antipode of the range's center). A sine-space
+    /// measure fails this: its gradient vanishes at the antipode, degenerating the row
+    /// (issue #499 follow-up).
+    #[test]
+    fn recentered_angle_slope_is_one_everywhere() {
+        let helper_at = |theta: Real| {
+            JointConstraintHelper::<Real>::new(
+                &Pose::IDENTITY,
+                &Pose::from_rotation(Rotation::from_axis_angle(Vector::X, theta)),
+                &Vector::ZERO,
+                &Vector::ZERO,
+                0,
+            )
+        };
+        for center_deg in [-180, -135, -90, 0, 45, 135, 180] {
+            let limit = AngularLimitParams::<Real>::new(
+                (center_deg as Real - 45.0).to_radians(),
+                (center_deg as Real + 45.0).to_radians(),
+            );
+            // At the center of the range the measure is zero; at the limits, ±half_range.
+            let at_center = helper_at((center_deg as Real).to_radians()).recentered_angle(0, &limit);
+            assert!(at_center.abs() < 1.0e-5, "center {center_deg}: {at_center}");
+            let at_max =
+                helper_at((center_deg as Real + 45.0).to_radians()).recentered_angle(0, &limit);
+            assert!(
+                (at_max - (45.0 as Real).to_radians()).abs() < 1.0e-4,
+                "center {center_deg}: at_max {at_max}"
+            );
+
+            for theta_deg in (-350..=350).step_by(7) {
+                let theta = (theta_deg as Real).to_radians();
+                let eps = 1.0e-3;
+                let a0 = helper_at(theta - eps).recentered_angle(0, &limit);
+                let a1 = helper_at(theta + eps).recentered_angle(0, &limit);
+                // Skip the wrap discontinuity itself.
+                if (a1 - a0).abs() > 1.0 {
+                    continue;
+                }
+                let slope = (a1 - a0) / (2.0 * eps);
+                assert!(
+                    (slope - 1.0).abs() < 1.0e-2,
+                    "center {center_deg} theta {theta_deg}: slope {slope}"
+                );
+            }
         }
     }
 }

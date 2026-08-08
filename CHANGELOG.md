@@ -8,6 +8,16 @@
 
 ### Fixed
 
+- Angular joint limits are no longer restricted to `(-π, π)`: the limit rows now measure the
+  wrapped joint angle from the middle of the allowed range (with the joint axis as the row's
+  jacobian, like the angular motor rows), so a range may sit anywhere on the circle
+  (`[0, 3π/2]` stops the joint at 3π/2 instead of π/2, and ranges crossing the ±π seam like
+  `[3π/4, 5π/4]` work at all). A range wider than a full turn is indistinguishable from "no
+  limit" for an angle read off a relative rotation, so it now leaves the axis free instead of
+  clamping it at some folded-back angle.
+- Joint limit rows (linear and angular) now cap their position-correction bias by
+  `IntegrationParameters::max_corrective_velocity`, like contacts always did: a deep limit
+  violation recovers over a few steps instead of catapulting the bodies.
 - Python: `DynamicRayCastVehicleController.update_vehicle` now excludes the chassis body from
   the suspension raycasts by default (their origins sit on its own collider).
 

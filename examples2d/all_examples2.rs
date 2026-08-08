@@ -21,6 +21,7 @@ mod character_controller2;
 mod collision_groups2;
 mod convex_polygons2;
 mod damping2;
+mod debug_angular_limits2;
 mod debug_box_ball2;
 mod debug_compression2;
 mod debug_intersection2;
@@ -112,6 +113,7 @@ pub async fn main() {
         // ── Controls ────────────────────────────────────────────────────────
         CONTROLS, "Character controller", character_controller2::run;
         // ── Debug ───────────────────────────────────────────────────────────
+        DEBUG, "Angular limits", debug_angular_limits2::run;
         DEBUG, "Box ball", debug_box_ball2::run;
         DEBUG, "Compression", debug_compression2::run;
         DEBUG, "Intersection", debug_intersection2::run;

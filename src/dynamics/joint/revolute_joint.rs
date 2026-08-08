@@ -190,7 +190,10 @@ impl RevoluteJoint {
     /// Restricts rotation to a specific angle range.
     ///
     /// # Parameters
-    /// * `limits` - `[min_angle, max_angle]` in radians
+    /// * `limits` - `[min_angle, max_angle]` in radians. The range may sit anywhere on the
+    ///   circle (e.g. `[0, 3π/2]`), but it can't be wider than a full turn: the joint's angle
+    ///   is derived from the bodies' relative rotation, which doesn't count revolutions, so a
+    ///   wider range is indistinguishable from no limit at all and leaves the joint free.
     ///
     /// # Example
     /// ```

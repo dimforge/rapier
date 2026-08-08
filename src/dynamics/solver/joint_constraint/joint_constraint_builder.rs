@@ -1,15 +1,13 @@
-use crate::dynamics::solver::joint_constraint::JointSolverBody;
 use crate::dynamics::solver::joint_constraint::joint_velocity_constraint::{
     JointConstraint, WritebackId,
 };
+use crate::dynamics::solver::joint_constraint::{AngularLimitParams, JointSolverBody};
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::solver::{joint_data_num_constraints, joint_num_constraints};
 use crate::dynamics::{GenericJoint, ImpulseJoint, IntegrationParameters, JointIndex};
-use crate::math::{Real, SPATIAL_DIM};
+use crate::math::{ANG_DIM, Real, SPATIAL_DIM};
 use crate::prelude::RigidBodySet;
 
-#[cfg(not(feature = "std"))]
-use simba::scalar::ComplexField as _;
 use {
     crate::dynamics::SpringCoefficients,
     crate::dynamics::solver::MotorParameters,
@@ -23,6 +21,9 @@ pub struct JointConstraintBuilder {
     body2: u32,
     joint_id: JointIndex,
     joint: GenericJoint,
+    /// The limited angular axes' limits, in the form the rows consume. Pre-computed here so
+    /// the per-substep row rebuild never calls `sin`/`cos`.
+    ang_limits: [AngularLimitParams<Real>; ANG_DIM],
     constraint_id: usize,
     /// The per-dof impulses written back at the end of the previous step, used to
     /// seed the constraint impulses when joint warm-starting is enabled.
@@ -47,6 +48,10 @@ impl JointConstraintBuilder {
             body2: solver_body2,
             joint_id,
             joint: joint.data,
+            ang_limits: core::array::from_fn(|ang_axis| {
+                let limits = &joint.data.limits[crate::math::DIM + ang_axis];
+                AngularLimitParams::new(limits.min, limits.max)
+            }),
             constraint_id: *out_constraint_id,
             prev_dof_impulses: joint.impulses,
         };
@@ -123,6 +128,7 @@ impl JointConstraintBuilder {
             &frame1,
             &frame2,
             &self.joint,
+            &self.ang_limits,
             out_rows,
         );
 
@@ -178,10 +184,12 @@ pub struct JointConstraintBuilderSimd {
     /// Like `prev_dof_impulses`, for the 2D angular motor row.
     #[cfg(feature = "dim2")]
     prev_motor_impulse: SimdReal,
-    /// Per-axis `[min, max]` limits of the limited axes (unset axes are zero). Linear axes hold
-    /// raw limits; angular axes hold the SINES OF THE HALF-ANGLE limits (`sin(limit / 2)`, what
-    /// `limit_angular` consumes) — pre-computed so the per-substep row rebuild never calls `sin`.
-    limits: [[SimdReal; 2]; SPATIAL_DIM],
+    /// Per-axis `[min, max]` limits of the limited linear axes (unset axes are zero).
+    /// The angular axes go through `ang_limits`.
+    limits: [[SimdReal; 2]; DIM],
+    /// The limited angular axes' limits, in the form the rows consume — pre-computed so the
+    /// per-substep row rebuild never calls `sin`/`cos`.
+    ang_limits: [AngularLimitParams<SimdReal>; ANG_DIM],
     softness: SpringCoefficients<SimdReal>,
     constraint_id: usize,
     /// Per-dof impulses written back at the end of the previous step (one SIMD lane
@@ -274,16 +282,26 @@ impl JointConstraintBuilderSimd {
             prev_motor_impulse: array![|ii| ang_motor(ii).impulse].into(),
             limits: core::array::from_fn(|axis| {
                 if limit_axes & (1 << axis) != 0 {
-                    // Angular limits are stored as half-angle sines (see the
-                    // field docs); the scalar `sin` runs once per assembly
-                    // rebuild, not per substep.
-                    let map = |x: Real| if axis >= DIM { (x * 0.5).sin() } else { x };
                     [
-                        array![|ii| map(joint[ii].data.limits[axis].min)].into(),
-                        array![|ii| map(joint[ii].data.limits[axis].max)].into(),
+                        array![|ii| joint[ii].data.limits[axis].min].into(),
+                        array![|ii| joint[ii].data.limits[axis].max].into(),
                     ]
                 } else {
                     zero2
+                }
+            }),
+            ang_limits: core::array::from_fn(|ang_axis| {
+                // The per-lane scalar `sin`/`cos` run once per assembly rebuild, not per substep.
+                let per_lane = array![|ii| {
+                    let limits = &joint[ii].data.limits[DIM + ang_axis];
+                    AngularLimitParams::new(limits.min, limits.max)
+                }];
+                AngularLimitParams {
+                    center: [
+                        array![|ii| per_lane[ii].center[0]].into(),
+                        array![|ii| per_lane[ii].center[1]].into(),
+                    ],
+                    half_range: array![|ii| per_lane[ii].half_range].into(),
                 }
             }),
             softness: SpringCoefficients {
@@ -447,6 +465,7 @@ impl JointConstraintBuilderSimd {
             self.locked_axes,
             self.limit_axes,
             &self.limits,
+            &self.ang_limits,
             self.softness,
             ang_motor_params.as_ref(),
             out_rows,

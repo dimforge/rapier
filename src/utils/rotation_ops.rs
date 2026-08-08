@@ -29,6 +29,8 @@ pub trait RotationOps<N: ScalarType>:
     fn dot(&self, rhs: &Self) -> N;
     /// The imaginary part of the quaternion.
     fn imag(&self) -> N::Vector;
+    /// The real (scalar) part of the quaternion.
+    fn real(&self) -> N;
     /// Multiply this quaternion by a scalar without renormalizing.
     fn mul_assign_unchecked(&mut self, rhs: N);
 }
@@ -94,6 +96,11 @@ impl RotationOps<SimdReal> for UnitQuaternion<SimdReal> {
     }
 
     #[inline]
+    fn real(&self) -> SimdReal {
+        self.w
+    }
+
+    #[inline]
     fn mul_assign_unchecked(&mut self, rhs: SimdReal) {
         *self.as_mut_unchecked() *= rhs;
     }
@@ -140,6 +147,11 @@ impl RotationOps<Real> for Rotation {
     #[inline]
     fn imag(&self) -> Vector {
         self.xyz()
+    }
+
+    #[inline]
+    fn real(&self) -> Real {
+        self.w
     }
 
     #[inline]

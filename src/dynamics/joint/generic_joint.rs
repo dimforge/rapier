@@ -132,6 +132,11 @@ impl From<JointAxis> for JointAxesMask {
 /// - Elbow that bends 0-150°: revolute joint with limits `[0.0, 5*PI/6]`
 ///
 /// When a joint hits its limit, forces are applied to prevent further movement in that direction.
+///
+/// An angular range may sit anywhere on the circle (`[0, 3π/2]` and `[π, 3π/2]` both work), but
+/// it can't be wider than a full turn: the joint's angle is derived from the bodies' relative
+/// rotation, which doesn't count revolutions, so a wider range is indistinguishable from no
+/// limit at all and leaves the axis free.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct JointLimits<N> {
