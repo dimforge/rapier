@@ -1,3 +1,10 @@
+## v0.35.1 (08 August 2026)
+
+### Added
+
+- Added public access to the testbed’s `Window` and `GraphicsManager` to enable custom
+  rendering on third-party examples.
+
 ## v0.35.0 (08 August 2026)
 
 ### Added
