@@ -12,7 +12,7 @@ use crate::dynamics::{IslandManager, RigidBodySet};
 use crate::geometry::{
     BroadPhasePairEvent, ColliderChanges, ColliderGraphIndex, ColliderHandle, ColliderPair,
     ColliderSet, CollisionEvent, ContactManifoldData, ContactPair, InteractionGraph,
-    IntersectionPair,
+    IntersectionPair, PairEventStatus,
 };
 use crate::pipeline::{ActiveEvents, EventHandler};
 use crate::prelude::CollisionEventFlags;
@@ -97,7 +97,10 @@ impl NarrowPhase {
                     islands.wake_up(bodies, parent.handle, true)
                 }
 
-                if pair.start_event_emitted {
+                if pair
+                    .event_status
+                    .contains(PairEventStatus::START_EVENT_EMITTED)
+                {
                     events.handle_collision_event(
                         bodies,
                         colliders,
@@ -109,7 +112,10 @@ impl NarrowPhase {
         } else {
             // If there is no island, don’t wake-up bodies, but do send the Stopped collision event.
             for (a, b, pair) in self.contact_graph.interactions_with(contact_graph_id) {
-                if pair.start_event_emitted {
+                if pair
+                    .event_status
+                    .contains(PairEventStatus::START_EVENT_EMITTED)
+                {
                     events.handle_collision_event(
                         bodies,
                         colliders,

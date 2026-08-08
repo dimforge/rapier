@@ -2,6 +2,12 @@
 
 ### Added
 
+- `ContactForceEvent::first_tick`: `true` on the step a pair's total contact force first
+  exceeds its `contact_force_event_threshold` (coming from below it, or from separation),
+  `false` while it stays above on consecutive steps — the analogue of PhysX's
+  "threshold force found" vs "persists" report. The status resets when the force drops
+  back below the threshold or the colliders separate.
+
 - `CoefficientCombineRule::GeometricMean`: combines friction/restitution as
   `sqrt(c1 * c2)`, the convention used by several other engines. It has the highest
   rule priority, and clamps negative coefficients to zero before the square root.
