@@ -486,7 +486,11 @@ impl Multibody {
         let check_implicit_coriolis_divergence = dt * self.velocities.amax() >= 1.0e-3;
         // Generalized forces that derive from positions or external inputs
         // (gravity, user forces, spring position terms).
-        let mut pos_forces = DVector::zeros(if check_implicit_coriolis_divergence { self.ndofs } else { 0 });
+        let mut pos_forces = DVector::zeros(if check_implicit_coriolis_divergence {
+            self.ndofs
+        } else {
+            0
+        });
 
         // Eqn 42 to 45
         for i in 0..self.links.len() {
@@ -576,8 +580,7 @@ impl Multibody {
                         let q = self.links[li].joint.coords[a];
                         let rest = self.links[li].joint.spring_ref[a];
                         let spring_pos_force = -k * (q - rest);
-                        self.accelerations[idx] +=
-                            spring_pos_force - k * dt * self.velocities[idx];
+                        self.accelerations[idx] += spring_pos_force - k * dt * self.velocities[idx];
                         if check_implicit_coriolis_divergence {
                             pos_forces[idx] += spring_pos_force;
                         }
@@ -614,12 +617,7 @@ impl Multibody {
     // (indicating undesired/unrealistic energy injection), we fall back to re-solving
     // the forces effect but using only the mass matrix without the implicit coriolis
     // terms.
-    fn free_velocity_energy_guard(
-        &mut self,
-        dt: Real,
-        gen_forces: &DVector,
-        pos_forces: &DVector,
-    ) {
+    fn free_velocity_energy_guard(&mut self, dt: Real, gen_forces: &DVector, pos_forces: &DVector) {
         let eff_dim = self.augmented_mass_indices.dim_after_removal(self.ndofs);
         if eff_dim == 0 {
             return;
@@ -662,10 +660,12 @@ impl Multibody {
                 // The implicit solve injected energy (or produced non-finite
                 // values): fall back to the plain mass matrix.
                 self.accelerations.copy_from(gen_forces);
-                self.augmented_mass_indices
-                    .with_rearranged_rows_mut(&mut self.accelerations, |accs| {
+                self.augmented_mass_indices.with_rearranged_rows_mut(
+                    &mut self.accelerations,
+                    |accs| {
                         self.inv_augmented_mass.solve_mut(accs);
-                    });
+                    },
+                );
 
                 // Last-chance check: if all else fails, just clear the accelerations vector
                 // instead of breaking the simulation. Hopefully it will get back to a
