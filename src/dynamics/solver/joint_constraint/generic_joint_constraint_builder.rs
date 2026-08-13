@@ -116,15 +116,13 @@ impl JointGenericExternalConstraintBuilder {
             return;
         }
 
-        // For each solver contact we generate up to SPATIAL_DIM constraints, and each
-        // constraints appends the multibodies jacobian and weighted jacobians.
-        // Also note that for impulse_joints, the rigid-bodies will also add their jacobians
-        // to the generic DVector.
-        // TODO: is this count correct when we take both motors and limits into account?
-        let required_jacobian_len = *j_id + multibodies_ndof * 2 * SPATIAL_DIM;
-
-        // TODO: use a more precise increment.
-        *j_id += multibodies_ndof * 2 * SPATIAL_DIM;
+        // Each constraint row appends the jacobian and the weighted jacobian for
+        // both sides, i.e. `2 * multibodies_ndof` entries. Reserve exactly the
+        // rows this joint emits: an axis carrying both a motor and a limit
+        // produces two rows, so a joint can exceed `SPATIAL_DIM` of them.
+        let num_rows = joint_num_constraints(joint);
+        let required_jacobian_len = *j_id + multibodies_ndof * 2 * num_rows;
+        *j_id += multibodies_ndof * 2 * num_rows;
 
         // Grow the jacobian buffer to fit this constraint: runs serially in the staged solver's
         // pre-phase, so race-free (see `generic_contact_constraint`); the internal-constraint

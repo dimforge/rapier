@@ -1,6 +1,6 @@
 //! Physics-hook implementations for MJCF features that need runtime
 //! filtering: `<contact><exclude>` pair-suppression and `<contact><pair>`
-//! per-pair friction / margin overrides.
+//! per-pair friction overrides.
 
 use std::collections::HashMap;
 
@@ -8,19 +8,21 @@ use rapier3d::geometry::{ColliderHandle, SolverFlags};
 use rapier3d::math::Real;
 use rapier3d::pipeline::{ContactModificationContext, PairFilterContext, PhysicsHooks};
 
-/// Friction / margin override for a specific collider pair, sourced from a
+/// Friction override for a specific collider pair, sourced from a
 /// `<contact><pair>` element.
+///
+/// The element's `margin` is not represented: it is a contact-generation
+/// distance, which rapier's speculative contacts already cover, so applying it
+/// here would only shift the resting separation.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct PairOverride {
     /// Friction coefficient override.
     pub friction: Option<Real>,
-    /// Margin override (added to the contact distance threshold).
-    pub margin: Option<Real>,
 }
 
 /// Hook implementation honouring MJCF's `<contact><exclude>` (suppress
 /// contact between two collider sets) and `<contact><pair>` (override
-/// friction / margin on a specific pair).
+/// friction on a specific pair).
 ///
 /// The user opts in by passing this object to the rapier physics pipeline
 /// (`pipeline.step(&hooks, ...)`). Without it, excludes are ignored and
@@ -30,7 +32,7 @@ pub struct MjcfContactHooks {
     /// Excluded ordered collider pairs. We store both `(a, b)` and `(b, a)`
     /// for O(1) lookup regardless of which side rapier presents first.
     pub(crate) exclude: std::collections::HashSet<(ColliderHandle, ColliderHandle)>,
-    /// Per-pair friction / margin overrides. Both orderings stored.
+    /// Per-pair friction overrides. Both orderings stored.
     pub(crate) overrides: HashMap<(ColliderHandle, ColliderHandle), PairOverride>,
 }
 
@@ -46,7 +48,7 @@ impl MjcfContactHooks {
         self.exclude.insert((b, a));
     }
 
-    /// Register a friction / margin override for a specific pair.
+    /// Register a friction override for a specific pair.
     pub fn add_override(&mut self, a: ColliderHandle, b: ColliderHandle, ov: PairOverride) {
         self.overrides.insert((a, b), ov);
         self.overrides.insert((b, a), ov);
@@ -79,13 +81,6 @@ impl PhysicsHooks for MjcfContactHooks {
             if let Some(f) = ov.friction {
                 // Contact materials are per-manifold since the solver-contact slimming.
                 *ctx.friction = f;
-            }
-            // Margin: rapier's solver uses `dist` as penetration depth;
-            // shifting it acts like adding to the contact margin.
-            if let Some(m) = ov.margin {
-                for c in ctx.solver_contacts.iter_mut() {
-                    c.dist -= m;
-                }
             }
         }
     }

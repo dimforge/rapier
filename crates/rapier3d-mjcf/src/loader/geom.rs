@@ -6,7 +6,7 @@ use mjcf_rs::Pose as MPose;
 use mjcf_rs::body as mb;
 use mjcf_rs::glam::{DQuat, DVec3};
 use mjcf_rs::model::{BodyEntry, BodyId};
-use rapier3d::dynamics::RigidBody;
+use rapier3d::dynamics::{IntegrationParameters, RigidBody};
 #[cfg(feature = "__meshloader_is_enabled")]
 use rapier3d::geometry::MeshConverter;
 use rapier3d::geometry::{Collider, Group, InteractionGroups, SharedShape};
@@ -350,6 +350,34 @@ impl<'a> Conversion<'a> {
         Some((shape, Pose::IDENTITY))
     }
 
+    /// A geom's `margin` in rapier length units.
+    ///
+    /// MuJoCo uses `margin` as the distance at which a contact is generated,
+    /// with force only starting at `margin - gap`. Rapier already generates
+    /// contacts within its speculative distance, so a margin below that is
+    /// redundant and is dropped; a larger one is honored as a soft-CCD
+    /// prediction on the parent body (see
+    /// [`Self::body_soft_ccd_prediction`]). Mapping it to `contact_skin`
+    /// instead would thicken the surface and make the geoms rest that far
+    /// apart, which is not what the attribute means.
+    fn geom_margin(&self, g: &mb::Geom) -> Real {
+        (g.margin as Real) * self.options.scale
+    }
+
+    /// The soft-CCD prediction distance a body inherits from its geoms'
+    /// `margin`, or `0.0` if no geom asks for more than rapier's speculative
+    /// contacts already cover.
+    fn body_soft_ccd_prediction(&self, entry: &BodyEntry) -> Real {
+        let speculative = IntegrationParameters::default().prediction_distance();
+        entry
+            .body
+            .geoms
+            .iter()
+            .map(|g| self.geom_margin(g))
+            .filter(|m| *m > speculative)
+            .fold(0.0, Real::max)
+    }
+
     /// Convert one MJCF geom into a rapier collider.
     pub(super) fn build_collider(&self, g: &mb::Geom) -> Option<Collider> {
         // `compiler/discardvisual` drops visual-only geoms during compile;
@@ -369,7 +397,6 @@ impl<'a> Conversion<'a> {
         builder.shape = shape;
         builder = builder.position(body_frame_pose);
         builder = builder.friction(g.friction[0] as Real);
-        builder = builder.contact_skin(g.margin as Real);
         builder = builder.collision_groups(self.interaction_groups(g));
         // Enable contact-pair filtering / contact-modification hooks
         // unconditionally — the hooks themselves only kick in if the user
@@ -407,6 +434,10 @@ impl<'a> Conversion<'a> {
         _world_pose: MPose,
         _body: &mut RigidBody,
     ) {
+        let soft_ccd = self.body_soft_ccd_prediction(entry);
+        if soft_ccd > 0.0 {
+            _body.set_soft_ccd_prediction(soft_ccd);
+        }
         self.staged_colliders.clear();
         self.staged_collider_names.clear();
         self.staged_visual_meshes.clear();

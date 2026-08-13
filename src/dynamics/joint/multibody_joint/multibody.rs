@@ -479,6 +479,19 @@ impl Multibody {
 
         self.accelerations.fill(0.0);
 
+        // If there is significant movement, the semi-implicit coriolis term
+        // occasionally cause instabilities due to the matrix being near singular.
+        // To prevent that, we enable a check that verifies the result and fallbacks
+        // to the explicit term if needed
+        let check_implicit_coriolis_divergence = dt * self.velocities.amax() >= 1.0e-3;
+        // Generalized forces that derive from positions or external inputs
+        // (gravity, user forces, spring position terms).
+        let mut pos_forces = DVector::zeros(if check_implicit_coriolis_divergence {
+            self.ndofs
+        } else {
+            0
+        });
+
         // Eqn 42 to 45
         for i in 0..self.links.len() {
             let link = &self.links[i];
@@ -539,6 +552,16 @@ impl Multibody {
                 external_forces.as_vector(),
                 1.0,
             );
+
+            if check_implicit_coriolis_divergence {
+                let applied_forces = Force::new(rb.forces.force, rb.forces.torque);
+                pos_forces.gemv_tr(
+                    1.0,
+                    &self.body_jacobians[i],
+                    applied_forces.as_vector(),
+                    1.0,
+                );
+            }
         }
 
         self.accelerations
@@ -556,17 +579,102 @@ impl Multibody {
                     if k != 0.0 {
                         let q = self.links[li].joint.coords[a];
                         let rest = self.links[li].joint.spring_ref[a];
-                        self.accelerations[idx] += -k * (q - rest) - k * dt * self.velocities[idx];
+                        let spring_pos_force = -k * (q - rest);
+                        self.accelerations[idx] += spring_pos_force - k * dt * self.velocities[idx];
+                        if check_implicit_coriolis_divergence {
+                            pos_forces[idx] += spring_pos_force;
+                        }
                     }
                     idx += 1;
                 }
             }
         }
 
+        // Snapshot the full generalized forces: the energy guard may need them
+        // for a re-solve with the plain mass matrix.
+        let gen_forces = if check_implicit_coriolis_divergence {
+            self.accelerations.clone()
+        } else {
+            DVector::zeros(0)
+        };
+
         self.augmented_mass_indices
             .with_rearranged_rows_mut(&mut self.accelerations, |accs| {
                 self.acc_inv_augmented_mass.solve_mut(accs);
             });
+
+        if check_implicit_coriolis_divergence {
+            self.free_velocity_energy_guard(dt, &gen_forces, &pos_forces);
+        }
+    }
+
+    // If the semi-implicit coriolis solve introduces more energy than the external
+    // forces’ work, we recalculate without the coriolis term in the mass matrix.
+    //
+    // This operates by calculating the effective kinematic energy added by the
+    // external forces after the solve with the semi-implicit mass matrix, and
+    // compare it with the force’s work. If the energy delta exceeds a threshold
+    // (indicating undesired/unrealistic energy injection), we fall back to re-solving
+    // the forces effect but using only the mass matrix without the implicit coriolis
+    // terms.
+    fn free_velocity_energy_guard(&mut self, dt: Real, gen_forces: &DVector, pos_forces: &DVector) {
+        let eff_dim = self.augmented_mass_indices.dim_after_removal(self.ndofs);
+        if eff_dim == 0 {
+            return;
+        }
+
+        // Move all quantities to the kinematic-reduced ordering of the
+        // factorized matrices (no-op when there is no kinematic dof).
+        let mut v = self.velocities.clone();
+        let mut f = gen_forces.clone();
+        let mut f_pos = pos_forces.clone();
+        self.augmented_mass_indices.rearrange_rows(&mut v, true);
+        self.augmented_mass_indices.rearrange_rows(&mut f, true);
+        self.augmented_mass_indices.rearrange_rows(&mut f_pos, true);
+
+        let m = self.augmented_mass.view((0, 0), (eff_dim, eff_dim));
+        let v = v.rows(0, eff_dim);
+        let f = f.rows(0, eff_dim);
+        let f_pos = f_pos.rows(0, eff_dim);
+
+        let energy_delta_minus_work = |accelerations: &DVector| -> Option<Real> {
+            let mut a = accelerations.clone();
+            self.augmented_mass_indices.rearrange_rows(&mut a, true);
+            let a = a.rows(0, eff_dim).into_owned();
+            if !a.iter().all(|x| x.is_finite()) {
+                return None;
+            }
+            let m_a = m * &a;
+            let energy_delta = dt * v.dot(&m_a) + 0.5 * dt * dt * a.dot(&m_a);
+            let work = dt * v.dot(&f) + 0.5 * dt * dt * a.dot(&f_pos);
+            // Margin: a small fraction of the current kinetic energy to absorb
+            // discretization error on healthy steps.
+            let kinetic_energy = 0.5 * v.dot(&(m * v));
+            let energy_margin = 1.0e-2 * kinetic_energy + 1.0e-8;
+            Some(energy_delta - work - energy_margin)
+        };
+
+        match energy_delta_minus_work(&self.accelerations) {
+            Some(excess) if excess <= 0.0 => (), // Implicit update didn’t introduce too much extra energy.
+            _ => {
+                // The implicit solve injected energy (or produced non-finite
+                // values): fall back to the plain mass matrix.
+                self.accelerations.copy_from(gen_forces);
+                self.augmented_mass_indices.with_rearranged_rows_mut(
+                    &mut self.accelerations,
+                    |accs| {
+                        self.inv_augmented_mass.solve_mut(accs);
+                    },
+                );
+
+                // Last-chance check: if all else fails, just clear the accelerations vector
+                // instead of breaking the simulation. Hopefully it will get back to a
+                // sane result in a close timestep.
+                if !self.accelerations.iter().all(|x| x.is_finite()) {
+                    self.accelerations.fill(0.0);
+                }
+            }
+        }
     }
 
     /// Computes the constant terms of the dynamics.

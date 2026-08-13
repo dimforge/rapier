@@ -5,7 +5,7 @@
 use mjcf_rs::extras::Keyframe;
 
 use rapier3d::dynamics::{
-    GenericJoint, ImpulseJointHandle, ImpulseJointSet, JointAxis, MultibodyIndex,
+    GenericJoint, ImpulseJointHandle, ImpulseJointSet, JointAxis, MotorModel, MultibodyIndex,
     MultibodyJointHandle, MultibodyJointSet, RigidBody, RigidBodySet, RigidBodyType,
 };
 use rapier3d::math::{Pose, Real, Rotation, Vector};
@@ -97,7 +97,7 @@ impl<H> MjcfRobotHandles<H> {
             }
         }
 
-        // <pair>: per-pair friction / margin overrides between two named geoms.
+        // <pair>: per-pair friction overrides between two named geoms.
         for p in &robot.contact_pairs {
             let Some(&(b1, gi1)) = robot.geom_name_to_collider.get(&p.geom1) else {
                 log::warn!("<contact><pair>: unknown geom1 `{}`", p.geom1);
@@ -125,7 +125,6 @@ impl<H> MjcfRobotHandles<H> {
             };
             let ov = PairOverride {
                 friction: p.friction.map(|f| f[0] as Real),
-                margin: p.margin.map(|m| m as Real),
             };
             hooks.add_override(h1.handle, h2.handle, ov);
         }
@@ -566,6 +565,13 @@ fn configure_actuator_motor(
 
     let ax = JointAxis::AngX;
     let lin_ax = JointAxis::LinX;
+    // MuJoCo actuators produce absolute generalized forces: a `<position>`
+    // servo applies `kp·(ctrl − q) − kv·q̇` in N·m, straight into `M q̈ = τ`.
+    // That is the force-based model; the acceleration-based one would rescale
+    // those gains by the link's inertia and change what the authored `kp`
+    // means from one link to the next.
+    data.set_motor_model(ax, MotorModel::ForceBased);
+    data.set_motor_model(lin_ax, MotorModel::ForceBased);
     // MuJoCo's `<position>` defaults `kp` to 1 when it isn't set (directly or
     // through a `<default>` class), not 0. Defaulting to 0 here would give a
     // zero-gain — i.e. completely limp — servo, which is what made e.g. the

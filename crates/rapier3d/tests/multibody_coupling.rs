@@ -54,9 +54,11 @@ fn run_coupling(coeff: Real, offset: Real, target: Real) -> (Real, Real) {
             coeff,
             offset,
         });
-        // Drive link1's hinge to `target`.
+        // Drive link1's hinge to `target`. Internal motors honor their
+        // compliance (they are real springs, not rigid servos), so use
+        // critically damped gains that settle well within the simulated time.
         let link1_joint = &mut mb.links_mut().nth(link1_id).unwrap().joint.data;
-        link1_joint.set_motor_position(JointAxis::AngX, target, 20.0, 2.0);
+        link1_joint.set_motor_position(JointAxis::AngX, target, 100.0, 20.0);
     }
 
     let gravity = Vector::ZERO;

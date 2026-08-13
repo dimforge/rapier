@@ -469,14 +469,14 @@ impl GenericContactConstraintBuilder {
 
                 normal_part.rhs_wo_bias = rhs_wo_bias;
                 normal_part.rhs = new_rhs;
-                normal_part.impulse_accumulator += normal_part.impulse;
                 normal_part.impulse *= params.warmstart_coefficient;
+                normal_part.impulse_accumulator += normal_part.impulse;
             }
 
             // Tangent part.
             {
-                tangent_part.impulse_accumulator += tangent_part.impulse;
                 tangent_part.impulse *= params.warmstart_coefficient;
+                tangent_part.impulse_accumulator += tangent_part.impulse;
 
                 for j in 0..DIM - 1 {
                     let bias = (p1 - p2).gdot(tangents1[j]) * inv_dt;

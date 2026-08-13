@@ -430,14 +430,14 @@ impl ContactWithCoulombFrictionBuilder {
                 // the twist-friction `update`).
                 normal_part.cfm_factor =
                     cfm_factor.select(dist.simd_le(SimdReal::zero()), SimdReal::splat(1.0));
-                normal_part.impulse_accumulator += normal_part.impulse;
                 normal_part.impulse *= warmstart_coeff;
+                normal_part.impulse_accumulator += normal_part.impulse;
             }
 
             // tangent parts.
             {
-                tangent_part.impulse_accumulator += tangent_part.impulse;
                 tangent_part.impulse *= warmstart_coeff;
+                tangent_part.impulse_accumulator += tangent_part.impulse;
 
                 for j in 0..DIM - 1 {
                     let bias = (p1 - p2).gdot(tangents1[j]) * inv_dt;
