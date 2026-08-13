@@ -644,12 +644,12 @@ impl Multibody {
             if !a.iter().all(|x| x.is_finite()) {
                 return None;
             }
-            let m_a = &m * &a;
+            let m_a = m * &a;
             let energy_delta = dt * v.dot(&m_a) + 0.5 * dt * dt * a.dot(&m_a);
             let work = dt * v.dot(&f) + 0.5 * dt * dt * a.dot(&f_pos);
             // Margin: a small fraction of the current kinetic energy to absorb
             // discretization error on healthy steps.
-            let kinetic_energy = 0.5 * v.dot(&(&m * &v));
+            let kinetic_energy = 0.5 * v.dot(&(m * v));
             let energy_margin = 1.0e-2 * kinetic_energy + 1.0e-8;
             Some(energy_delta - work - energy_margin)
         };
