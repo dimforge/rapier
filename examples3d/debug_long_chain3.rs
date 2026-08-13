@@ -6,12 +6,12 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
      * World
      */
     let mut world = PhysicsWorld::new();
-    let use_articulations = false;
+    let use_articulations = true;
 
     /*
      * Create the long chain.
      */
-    let num = 100;
+    let num = 85;
     let rad = 0.2;
     let shift = rad * 2.2;
 
