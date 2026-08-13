@@ -5,7 +5,7 @@
 use mjcf_rs::extras::Keyframe;
 
 use rapier3d::dynamics::{
-    GenericJoint, ImpulseJointHandle, ImpulseJointSet, JointAxis, MultibodyIndex,
+    GenericJoint, ImpulseJointHandle, ImpulseJointSet, JointAxis, MotorModel, MultibodyIndex,
     MultibodyJointHandle, MultibodyJointSet, RigidBody, RigidBodySet, RigidBodyType,
 };
 use rapier3d::math::{Pose, Real, Rotation, Vector};
@@ -565,6 +565,13 @@ fn configure_actuator_motor(
 
     let ax = JointAxis::AngX;
     let lin_ax = JointAxis::LinX;
+    // MuJoCo actuators produce absolute generalized forces: a `<position>`
+    // servo applies `kp·(ctrl − q) − kv·q̇` in N·m, straight into `M q̈ = τ`.
+    // That is the force-based model; the acceleration-based one would rescale
+    // those gains by the link's inertia and change what the authored `kp`
+    // means from one link to the next.
+    data.set_motor_model(ax, MotorModel::ForceBased);
+    data.set_motor_model(lin_ax, MotorModel::ForceBased);
     // MuJoCo's `<position>` defaults `kp` to 1 when it isn't set (directly or
     // through a `<default>` class), not 0. Defaulting to 0 here would give a
     // zero-gain — i.e. completely limp — servo, which is what made e.g. the
