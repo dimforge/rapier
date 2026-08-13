@@ -45,6 +45,7 @@ pub fn unit_joint_limit_constraint(
         min_enabled as u32 as Real * -Real::MAX,
         max_enabled as u32 as Real * Real::MAX,
     ];
+    let cfm_gain = lhs * cfm_coeff;
 
     let constraint = GenericJointConstraint {
         is_rigid_body1: false,
@@ -59,11 +60,11 @@ pub fn unit_joint_limit_constraint(
         joint_id: usize::MAX, // TODO: we don’t support impulse writeback for internal constraints yet.
         impulse: 0.0,
         impulse_bounds,
-        inv_lhs: crate::utils::inv(lhs),
+        inv_lhs: crate::utils::inv(lhs + cfm_gain),
         rhs: rhs_wo_bias + rhs_bias,
         rhs_wo_bias,
         cfm_coeff,
-        cfm_gain: 0.0,
+        cfm_gain,
         writeback_id: WritebackId::Limit(dof_id),
     };
 
@@ -102,6 +103,7 @@ pub fn unit_joint_motor_constraint(
 
     let lhs = jacobians[dof_j_id + ndofs]; // = J^t * M^-1 J
     let impulse_bounds = [-motor_params.max_impulse, motor_params.max_impulse];
+    let cfm_gain = lhs * motor_params.cfm_coeff + motor_params.cfm_gain;
 
     let mut rhs_wo_bias = 0.0;
     if motor_params.erp_inv_dt != 0.0 {
@@ -132,8 +134,8 @@ pub fn unit_joint_motor_constraint(
         impulse: 0.0,
         impulse_bounds,
         cfm_coeff: motor_params.cfm_coeff,
-        cfm_gain: motor_params.cfm_gain,
-        inv_lhs: crate::utils::inv(lhs),
+        cfm_gain,
+        inv_lhs: crate::utils::inv(lhs + cfm_gain),
         rhs: rhs_wo_bias,
         rhs_wo_bias,
         writeback_id: WritebackId::Limit(dof_id),
