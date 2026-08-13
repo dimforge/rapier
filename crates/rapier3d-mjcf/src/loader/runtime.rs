@@ -97,7 +97,7 @@ impl<H> MjcfRobotHandles<H> {
             }
         }
 
-        // <pair>: per-pair friction / margin overrides between two named geoms.
+        // <pair>: per-pair friction overrides between two named geoms.
         for p in &robot.contact_pairs {
             let Some(&(b1, gi1)) = robot.geom_name_to_collider.get(&p.geom1) else {
                 log::warn!("<contact><pair>: unknown geom1 `{}`", p.geom1);
@@ -125,7 +125,6 @@ impl<H> MjcfRobotHandles<H> {
             };
             let ov = PairOverride {
                 friction: p.friction.map(|f| f[0] as Real),
-                margin: p.margin.map(|m| m as Real),
             };
             hooks.add_override(h1.handle, h2.handle, ov);
         }
