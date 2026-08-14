@@ -1,16 +1,10 @@
-// Criterion benchmarks for steady-state `PhysicsPipeline::step` on scenes
-// chosen to exercise the hot paths from the 2026-08 optimization audit:
-//
-// - `box_pyramid`: many persistent convex contacts — contact-constraint
-//   update (R1), narrow/broad-phase per-step scratch allocations (R4).
-// - `terrain_debris`: convex shapes on a trimesh — contact clustering
-//   warm-start carry (R5) and the trimesh manifold path in parry.
-//
-// Every scene runs a settle phase outside the timed region and all dynamic
-// bodies have sleeping disabled so each timed step does full solver work.
+// Criterion benchmarks for steady-state `PhysicsPipeline::step` in 2D,
+// mirroring the rapier3d suite: a box pyramid (persistent convex contacts)
+// and mixed debris on a polyline terrain. Written against `Real` so the
+// rapier2d-f64 crate reuses the body verbatim.
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use rapier3d::prelude::*;
+use rapier2d::prelude::*;
 use std::hint::black_box;
 use std::time::Duration;
 
@@ -41,7 +35,7 @@ impl World {
             islands: IslandManager::new(),
             ccd: CCDSolver::new(),
             params: IntegrationParameters::default(),
-            gravity: Vector::new(0.0, -9.81, 0.0),
+            gravity: Vector::new(0.0, -9.81),
         }
     }
 
@@ -72,7 +66,7 @@ impl World {
 fn add_ground(w: &mut World) {
     let ground = w.bodies.insert(RigidBodyBuilder::fixed());
     w.colliders.insert_with_parent(
-        ColliderBuilder::cuboid(50.0, 0.5, 50.0).translation(Vector::new(0.0, -0.5, 0.0)),
+        ColliderBuilder::cuboid(50.0, 0.5).translation(Vector::new(0.0, -0.5)),
         ground,
         &mut w.bodies,
     );
@@ -93,54 +87,32 @@ fn box_pyramid(base: usize) -> World {
         for i in 0..count {
             let body = w.bodies.insert(
                 RigidBodyBuilder::dynamic()
-                    .translation(Vector::new(x0 + i as Real * spacing, y, 0.0))
+                    .translation(Vector::new(x0 + i as Real * spacing, y))
                     .can_sleep(false),
             );
-            w.colliders.insert_with_parent(
-                ColliderBuilder::cuboid(half, half, half),
-                body,
-                &mut w.bodies,
-            );
+            w.colliders
+                .insert_with_parent(ColliderBuilder::cuboid(half, half), body, &mut w.bodies);
         }
     }
     w
 }
 
-fn terrain_mesh(subdivisions: usize) -> (Vec<Vector>, Vec<[u32; 3]>) {
-    let n = subdivisions;
-    let mut vertices = Vec::with_capacity((n + 1) * (n + 1));
-    let mut indices = Vec::with_capacity(n * n * 2);
-    for iz in 0..=n {
-        for ix in 0..=n {
-            let x = ix as Real / n as Real * 40.0 - 20.0;
-            let z = iz as Real / n as Real * 40.0 - 20.0;
-            let y = (x * 0.5).sin() * 0.6 + (z * 0.4).cos() * 0.6;
-            vertices.push(Vector::new(x, y, z));
-        }
-    }
-    let stride = n + 1;
-    for iz in 0..n {
-        for ix in 0..n {
-            let a = (iz * stride + ix) as u32;
-            let b = (iz * stride + ix + 1) as u32;
-            let c = ((iz + 1) * stride + ix) as u32;
-            let d = ((iz + 1) * stride + ix + 1) as u32;
-            indices.push([a, b, c]);
-            indices.push([b, d, c]);
-        }
-    }
-    (vertices, indices)
+fn terrain_vertices(segments: usize) -> Vec<Vector> {
+    (0..=segments)
+        .map(|i| {
+            let x = i as Real / segments as Real * 60.0 - 30.0;
+            Vector::new(x, (x * 0.5).sin() * 0.6)
+        })
+        .collect()
 }
 
-/// Mixed convex debris resting on a trimesh terrain: exercises the trimesh
-/// manifold path and contact clustering.
+/// Mixed convex debris resting on a polyline terrain.
 fn terrain_debris(count: usize) -> World {
     let mut w = World::new();
 
     let terrain_body = w.bodies.insert(RigidBodyBuilder::fixed());
-    let (vertices, indices) = terrain_mesh(64);
     w.colliders.insert_with_parent(
-        ColliderBuilder::trimesh(vertices, indices).unwrap(),
+        ColliderBuilder::polyline(terrain_vertices(256), None),
         terrain_body,
         &mut w.bodies,
     );
@@ -153,17 +125,16 @@ fn terrain_debris(count: usize) -> World {
     };
 
     for i in 0..count {
-        let x = next() * 30.0 - 15.0;
-        let z = next() * 30.0 - 15.0;
-        let y = 2.0 + next() * 3.0;
+        let x = next() * 40.0 - 20.0;
+        let y = 2.0 + next() * 6.0;
         let body = w.bodies.insert(
             RigidBodyBuilder::dynamic()
-                .translation(Vector::new(x, y, z))
+                .translation(Vector::new(x, y))
                 .can_sleep(false),
         );
         let collider = match i % 3 {
             0 => ColliderBuilder::ball(0.4),
-            1 => ColliderBuilder::cuboid(0.35, 0.35, 0.35),
+            1 => ColliderBuilder::cuboid(0.35, 0.35),
             _ => ColliderBuilder::capsule_y(0.3, 0.25),
         };
         w.colliders.insert_with_parent(collider, body, &mut w.bodies);
