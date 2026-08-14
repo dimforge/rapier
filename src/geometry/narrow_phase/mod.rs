@@ -351,6 +351,10 @@ pub struct NarrowPhase {
     /// narrow-phase's it-may-have-moved signal for pair updates.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     awake_body_mask: Vec<bool>,
+    /// Scratch: begin/end-touch transitions recorded during the serial pair update,
+    /// kept as a field so its capacity is reused across steps.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pair_transitions: Vec<pair_update::PairTransition>,
     /// Per-pair solver-qualification hints (contact-graph edge index): bit 15 = has a
     /// dynamic body, low bits = qualified solver-manifold count. Maintained incrementally
     /// (count-cleared on sleep, mirrored on removals) so selection never re-walks every pair.
@@ -429,6 +433,7 @@ impl NarrowPhase {
             intersection_graph: InteractionGraph::new(),
             graph_indices: Coarena::new(),
             update_candidates: Vec::new(),
+            pair_transitions: Vec::new(),
             retired_pairs: Vec::new(),
             body_solver_color_masks: Vec::new(),
             body_qualify_info: Vec::new(),

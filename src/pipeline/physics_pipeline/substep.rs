@@ -1,8 +1,6 @@
 //! The pipeline's inner step loop: CCD substepping and motion clamping, plus
 //! end-of-step advancement of bodies, colliders and broad-phase AABBs.
 
-use crate::alloc_prelude::*;
-
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
     RigidBodyChanges, RigidBodySet, RigidBodyType,
@@ -356,10 +354,13 @@ impl PhysicsPipeline {
         }
 
         // Persistent islands: apply the joint connectivity edits (in order).
-        let joint_island_events: Vec<_> = impulse_joints.island_events.drain(..).collect();
-        for event in joint_island_events {
+        // Take + restore instead of drain().collect() so no per-substep Vec is
+        // allocated (same idiom as the multibody chain events below).
+        let mut joint_island_events = core::mem::take(&mut impulse_joints.island_events);
+        for event in joint_island_events.drain(..) {
             islands.apply_impulse_joint_island_event(bodies, event);
         }
+        impulse_joints.island_events = joint_island_events;
         let mut mb_chain_events = core::mem::take(&mut multibody_joints.island_chain_events);
         for mb_id in &mb_chain_events {
             islands.refresh_multibody_chain(bodies, multibody_joints, *mb_id);

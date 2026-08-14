@@ -12,7 +12,6 @@ use crate::dynamics::solver::solver_contact_graph::SolverContactGraph;
 #[cfg(feature = "dim3")]
 use crate::dynamics::solver::velocity_solver::GyroParams;
 use crate::dynamics::{IntegrationParameters, MultibodyJointSet, RigidBodyHandle, RigidBodySet};
-use crate::math::DVector;
 use parry::math::SIMD_WIDTH;
 
 impl ContactConstraintsSet {
@@ -95,8 +94,16 @@ impl VelocitySolver {
             }
         }
 
-        self.generic_solver_vels_increment = DVector::zeros(multibody_solver_id as usize);
-        self.generic_solver_vels = DVector::zeros(multibody_solver_id as usize);
+        // Resize in place and zero the rows instead of allocating two fresh
+        // vectors every step (reallocation only happens when the total DoF
+        // count grows).
+        let total_ndofs = multibody_solver_id as usize;
+        self.generic_solver_vels_increment
+            .resize_vertically_mut(total_ndofs, 0.0);
+        self.generic_solver_vels_increment.fill(0.0);
+        self.generic_solver_vels
+            .resize_vertically_mut(total_ndofs, 0.0);
+        self.generic_solver_vels.fill(0.0);
 
         for link in &self.multibody_roots {
             let multibody = multibodies

@@ -79,9 +79,14 @@ impl NarrowPhase {
         );
 
         // Begin/end-touch transitions detected during the update; applied by the
-        // sorted post-loop pass (see `PairTransition`).
+        // sorted post-loop pass (see `PairTransition`). Taken from a persistent
+        // scratch field so its capacity is reused across steps.
         #[cfg(not(feature = "parallel"))]
-        let mut transitions: Vec<PairTransition> = Vec::new();
+        let mut transitions: Vec<PairTransition> = {
+            let mut t = core::mem::take(&mut self.pair_transitions);
+            t.clear();
+            t
+        };
         #[cfg(not(feature = "parallel"))]
         let process_pair = |edge: &mut crate::data::graph::Edge<ContactPair>, edge_id: u32| {
             pair_update::process_pair(
@@ -162,7 +167,10 @@ impl NarrowPhase {
         }
 
         #[cfg(not(feature = "parallel"))]
-        self.apply_pair_transitions(&mut transitions, islands, bodies, colliders, events);
+        {
+            self.apply_pair_transitions(&mut transitions, islands, bodies, colliders, events);
+            self.pair_transitions = transitions;
+        }
 
         #[cfg(feature = "parallel")]
         {

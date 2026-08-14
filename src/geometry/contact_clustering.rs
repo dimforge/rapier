@@ -147,14 +147,17 @@ pub(crate) fn carry_warmstart_data(
                     continue;
                 }
 
+                // Manifold-level, invariant across the point loop (and always
+                // `None` for cluster manifolds).
+                let subshape_pos1 = target.subshape_pos1();
+
                 for (pt_id, pt) in target.points.iter().enumerate() {
                     if has_warmstart_data(&pt.data) {
                         // Already claimed by a previous point.
                         continue;
                     }
 
-                    let p1 = target
-                        .subshape_pos1()
+                    let p1 = subshape_pos1
                         .map(|pos| pos * pt.local_p1)
                         .unwrap_or(pt.local_p1);
                     let dist_sq = (p1 - prev_pt.local_p1).length_squared();
