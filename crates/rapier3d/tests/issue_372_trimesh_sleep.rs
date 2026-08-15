@@ -119,7 +119,7 @@ fn capsule_on_trimesh_falls_asleep() {
     let capsule = h.bodies.insert(
         RigidBodyBuilder::dynamic()
             .translation(Vector::new(-5.0, 1.0, 5.0))
-            .rotation(Vector::new(std::f32::consts::FRAC_PI_2 as Real, 0.0, 0.0))
+            .rotation(Vector::new(std::f32::consts::FRAC_PI_2, 0.0, 0.0))
             .linvel(Vector::new(0.012, 0.0, 0.0)),
     );
     h.colliders

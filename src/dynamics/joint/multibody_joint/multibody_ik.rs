@@ -210,8 +210,8 @@ mod test {
             #[cfg(feature = "dim3")]
             let builder = RevoluteJointBuilder::new(Vector::Z);
             let link_ab = builder
-                .local_anchor1((Vector::Y * (0.5 / num_segments as Real)).into())
-                .local_anchor2((Vector::Y * (-0.5 / num_segments as Real)).into());
+                .local_anchor1(Vector::Y * (0.5 / num_segments as Real))
+                .local_anchor2(Vector::Y * (-0.5 / num_segments as Real));
             last_link = multibodies
                 .insert(last_body, new_body, link_ab, true)
                 .unwrap();

@@ -823,7 +823,7 @@ mod test {
             let at_max =
                 helper_at((center_deg as Real + 45.0).to_radians()).recentered_angle(0, &limit);
             assert!(
-                (at_max - (45.0 as Real).to_radians()).abs() < 1.0e-4,
+                (at_max - Real::to_radians(45.0)).abs() < 1.0e-4,
                 "center {center_deg}: at_max {at_max}"
             );
 
