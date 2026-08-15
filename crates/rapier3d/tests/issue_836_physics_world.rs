@@ -34,10 +34,7 @@ fn physics_world_builds_steps_and_queries_a_scene() {
     );
 
     // Queries work directly through the world.
-    let ray = Ray::new(
-        Vector::new(0.0, 20.0, 0.0).into(),
-        Vector::new(0.0, -1.0, 0.0),
-    );
+    let ray = Ray::new(Vector::new(0.0, 20.0, 0.0), Vector::new(0.0, -1.0, 0.0));
     let hit = world.cast_ray(&ray, 100.0, true, QueryFilter::default());
     assert!(hit.is_some(), "raycast through PhysicsWorld found no hit");
 }

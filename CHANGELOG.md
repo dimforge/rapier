@@ -1,3 +1,23 @@
+## v0.35.2 (15 August 2026)
+
+### Fixed
+
+- Multibody: guard against the instabilities the semi-implicit coriolis term can introduce when
+  the mass matrix is near-singular. The free-velocity update is re-solved with the plain mass
+  matrix whenever it injects more energy than the applied forces’ work.
+- Motors and limits of multibody joints now honor their compliance (the CFM term was left out of
+  the row’s effective mass), so their gains may need to be stiffer to settle as fast as before.
+- Generic (multibody) joint constraints now reserve the exact number of jacobian rows they emit:
+  an axis carrying both a motor and a limit produces two, exceeding the previous allocation.
+- The impulses reported on contacts (and the contact-force events derived from them) are now the
+  total impulse applied during the step, instead of one substep too many: they drop by
+  `1 / (num_solver_iterations + 1)` and no longer vary with `warmstart_coefficient`.
+- MJCF: a geom’s `margin` is no longer loaded as a `contact_skin`, which made geoms rest that far
+  apart. It is ignored below rapier’s speculative-contact distance, and becomes the body’s
+  soft-CCD prediction above it (`PairOverride::margin` is removed).
+- MJCF: actuators now load as `MotorModel::ForceBased`, matching MuJoCo gains, which are absolute
+  generalized forces rather than accelerations.
+
 ## v0.35.1 (08 August 2026)
 
 ### Added
