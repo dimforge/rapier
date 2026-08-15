@@ -281,7 +281,11 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
                 // the scalar normal solve is an exact no-op.
                 out_constraint.normal_part[k].impulse =
                     warmstart_impulse.select(active, SimdReal::zero());
-                out_constraint.normal_part[k].impulse_accumulator = SimdReal::zero();
+                // Minus the warm-start impulse, so the first substep's `update` cancels it when
+                // it folds `impulse` in: that value belongs to the previous step (see the
+                // coulomb-friction `generate`).
+                out_constraint.normal_part[k].impulse_accumulator =
+                    -out_constraint.normal_part[k].impulse;
                 out_constraint.normal_part[k].r = projected_mass.select(active, SimdReal::zero());
             }
 
@@ -298,13 +302,13 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
          * Tangent/twist part
          */
         out_constraint.tangent_part.impulse = tangent_warmstart;
-        out_constraint.tangent_part.impulse_accumulator = na::zero();
+        out_constraint.tangent_part.impulse_accumulator = -tangent_warmstart;
         // The twist part only acts on lanes with more than one point (a single point offers no
         // lever arm): zero the warm-start of single-point lanes so a lane whose count just
         // dropped to one can't kick with its stale stored twist impulse.
         out_constraint.twist_part.impulse =
             twist_warmstart.select(counts_simd.simd_gt(SimdReal::splat(1.0)), SimdReal::zero());
-        out_constraint.twist_part.impulse_accumulator = SimdReal::zero();
+        out_constraint.twist_part.impulse_accumulator = -out_constraint.twist_part.impulse;
 
         out_builder.local_friction_center1 = poses1.inverse_transform_point(friction_center);
         out_builder.local_friction_center2 = poses2.inverse_transform_point(friction_center2);
@@ -492,8 +496,10 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
                 // rocking. Only penetrating points get the soft treatment.
                 normal_part.cfm_factor =
                     cfm_factor.select(dist.simd_le(SimdReal::zero()), SimdReal::splat(1.0));
-                normal_part.impulse *= warmstart_coeff;
+                // Bank the previous substep's impulse before the warm-start scaling (see the
+                // coulomb-friction `update`).
                 normal_part.impulse_accumulator += normal_part.impulse;
+                normal_part.impulse *= warmstart_coeff;
             }
         }
 
@@ -506,10 +512,10 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
                 let bias = (p1 - p2).gdot(tangents1[j]) * inv_dt;
                 tangent_part.rhs[j] = tangent_part.rhs_wo_bias[j] + bias;
             }
-            tangent_part.impulse *= warmstart_coeff;
             tangent_part.impulse_accumulator += tangent_part.impulse;
-            twist_part.impulse *= warmstart_coeff;
+            tangent_part.impulse *= warmstart_coeff;
             twist_part.impulse_accumulator += twist_part.impulse;
+            twist_part.impulse *= warmstart_coeff;
         }
 
         constraint.cfm_factor = cfm_factor;

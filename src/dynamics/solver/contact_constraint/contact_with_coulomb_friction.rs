@@ -243,10 +243,12 @@ impl ContactWithCoulombFrictionBuilder {
                 out_constraint.normal_part[k].ii_torque_dir1 = ii_torque_dir1;
                 out_constraint.normal_part[k].ii_torque_dir2 = ii_torque_dir2;
                 out_constraint.normal_part[k].impulse = warmstart_impulse;
-                // The accumulator must start at zero every step: the constraint buffers are
+                // The accumulator is written explicitly every step: the constraint buffers are
                 // reused without zeroing (`reset_buffer_reusing`), so stale bytes survive in
-                // fields `generate` doesn't write.
-                out_constraint.normal_part[k].impulse_accumulator = SimdReal::zero();
+                // fields `generate` doesn't write. It starts at minus the warm-start impulse so
+                // that the first substep's `update` (which folds in whatever `impulse` holds)
+                // cancels it out: that value was applied by the previous step, not this one.
+                out_constraint.normal_part[k].impulse_accumulator = -warmstart_impulse;
                 // Zero effective mass on inactive slots: the scalar normal solve
                 // is then an exact no-op (impulse stays at its zeroed warm-start).
                 out_constraint.normal_part[k].r = projected_mass.select(active, SimdReal::zero());
@@ -254,8 +256,8 @@ impl ContactWithCoulombFrictionBuilder {
 
             // tangent parts.
             out_constraint.tangent_part[k].impulse = warmstart_tangent_impulse;
-            // See the normal part: explicit zero, the buffers are not zeroed.
-            out_constraint.tangent_part[k].impulse_accumulator = na::zero();
+            // See the normal part: explicit write, the buffers are not zeroed.
+            out_constraint.tangent_part[k].impulse_accumulator = -warmstart_tangent_impulse;
 
             for j in 0..DIM - 1 {
                 let torque_dir1 = dp1.gcross(tangents1[j]);
@@ -430,14 +432,17 @@ impl ContactWithCoulombFrictionBuilder {
                 // the twist-friction `update`).
                 normal_part.cfm_factor =
                     cfm_factor.select(dist.simd_le(SimdReal::zero()), SimdReal::splat(1.0));
-                normal_part.impulse *= warmstart_coeff;
+                // Bank the previous substep's impulse before the warm-start scaling: that full
+                // value is what the substep applied (its warm-start included), whereas the
+                // scaling only sets what this substep starts from.
                 normal_part.impulse_accumulator += normal_part.impulse;
+                normal_part.impulse *= warmstart_coeff;
             }
 
             // tangent parts.
             {
-                tangent_part.impulse *= warmstart_coeff;
                 tangent_part.impulse_accumulator += tangent_part.impulse;
+                tangent_part.impulse *= warmstart_coeff;
 
                 for j in 0..DIM - 1 {
                     let bias = (p1 - p2).gdot(tangents1[j]) * inv_dt;

@@ -53,7 +53,8 @@ impl<N: ScalarType> ContactConstraintTangentPart<N> {
         }
     }
 
-    /// Total impulse applied across all the solver substeps.
+    /// Total impulse applied during the step: the sum, over every solver substep, of the
+    /// impulse that substep ended on (the warm-start impulse it re-applied included).
     #[inline]
     pub fn total_impulse(&self) -> TangentImpulse<N> {
         self.impulse_accumulator + self.impulse
@@ -214,7 +215,8 @@ impl<N: ScalarType> ContactConstraintNormalPart<N> {
         }
     }
 
-    /// Total impulse applied across all the solver substeps.
+    /// Total impulse applied during the step: the sum, over every solver substep, of the
+    /// impulse that substep ended on (the warm-start impulse it re-applied included).
     #[inline]
     pub fn total_impulse(&self) -> N {
         self.impulse_accumulator + self.impulse
@@ -452,7 +454,8 @@ impl<N: ScalarType> ContactConstraintNormalPartSlim<N>
 where
     N::Vector: CrossProduct<N::Vector, Result = N::AngVector>,
 {
-    /// Total impulse applied across all the solver substeps.
+    /// Total impulse applied during the step: the sum, over every solver substep, of the
+    /// impulse that substep ended on (the warm-start impulse it re-applied included).
     #[inline]
     pub fn total_impulse(&self) -> N {
         self.impulse_accumulator + self.impulse
