@@ -236,7 +236,10 @@ impl GenericContactConstraintBuilder {
                     rhs: Default::default(),
                     rhs_wo_bias: Default::default(),
                     cfm_factor: Default::default(),
-                    impulse_accumulator: Default::default(),
+                    // Minus the warm-start impulse, so the first substep's `update` cancels it
+                    // when it folds `impulse` in: that value belongs to the previous step (see
+                    // the coulomb-friction `generate`).
+                    impulse_accumulator: -pt_data.warmstart_impulse,
                     impulse: pt_data.warmstart_impulse,
                     r,
                     #[cfg(feature = "block-solver")]
@@ -258,6 +261,10 @@ impl GenericContactConstraintBuilder {
                 {
                     out_constraint.tangent_part[k].impulse = pt_data.warmstart_tangent_impulse;
                 }
+
+                // See the normal part.
+                out_constraint.tangent_part[k].impulse_accumulator =
+                    -out_constraint.tangent_part[k].impulse;
 
                 for j in 0..DIM - 1 {
                     let torque_dir1 = dp1.gcross(tangents1[j]);
@@ -469,14 +476,16 @@ impl GenericContactConstraintBuilder {
 
                 normal_part.rhs_wo_bias = rhs_wo_bias;
                 normal_part.rhs = new_rhs;
-                normal_part.impulse *= params.warmstart_coefficient;
+                // Bank the previous substep's impulse before the warm-start scaling (see the
+                // coulomb-friction `update`).
                 normal_part.impulse_accumulator += normal_part.impulse;
+                normal_part.impulse *= params.warmstart_coefficient;
             }
 
             // Tangent part.
             {
-                tangent_part.impulse *= params.warmstart_coefficient;
                 tangent_part.impulse_accumulator += tangent_part.impulse;
+                tangent_part.impulse *= params.warmstart_coefficient;
 
                 for j in 0..DIM - 1 {
                     let bias = (p1 - p2).gdot(tangents1[j]) * inv_dt;
