@@ -43,6 +43,11 @@ impl CCDSolver {
         Self::default()
     }
 
+    /// Invalidates the fixed-target list after user changes to the scene.
+    pub(crate) fn invalidate_fixed_targets_cache(&mut self) {
+        self.fixed_targets_cache = None;
+    }
+
     /// Updates the set of bodies that needs CCD to be resolved.
     ///
     /// Returns `true` if any rigid-body must have CCD resolved.
