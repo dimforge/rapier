@@ -3,7 +3,7 @@ const katex = require('rehype-katex')
 
 const config = {
   title: 'Rapier',
-  tagline: 'Fast 2D and 3D physics engine for the Rust programming language.',
+  tagline: 'High-performance 2D and 3D physics engine for the Rust programming language.',
   url: 'https://rapier.rs',
   baseUrl: '/',
   onBrokenLinks: 'throw',
@@ -29,7 +29,7 @@ const config = {
       title: 'Rapier',
       logo: {
         alt: 'Rapier Logo',
-        src: 'img/rapier_logo_color_small.svg',
+        src: 'img/rapier_logo_notext.png',
       },
       hideOnScroll: true,
       items: [
@@ -40,18 +40,9 @@ const config = {
           position: 'left',
         },
         {
+          to: '/demos',
           label: 'Demos',
           position: 'left',
-          items: [
-            {
-              href: 'https://rapier.rs/demos2d/index.html', // FIXME: should depend on the base url.
-              label: '2D Demos',
-            },
-            {
-              href: 'https://rapier.rs/demos3d/index.html', // FIXME: should depend on the base url.
-              label: '3D Demos',
-            }
-          ],
         },
         {
           to: '/community',
@@ -101,11 +92,11 @@ const config = {
             },
             {
               label: 'Demos 2D',
-              href: 'https://rapier.rs/demos2d/index.html',
+              href: 'pathname:///demos#2d',
             },
             {
               label: 'Demos 3D',
-              href: 'https://rapier.rs/demos3d/index.html',
+              href: 'pathname:///demos#3d',
             },
           ],
         },

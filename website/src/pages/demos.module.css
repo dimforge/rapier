@@ -1,0 +1,128 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--ifm-navbar-height));
+  overflow: hidden;
+  background: var(--ifm-background-color);
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--ifm-background-surface-color);
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+  flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tab {
+  background: transparent;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0.5rem 1.25rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.tab:hover {
+  background: var(--ifm-color-emphasis-200);
+  color: var(--ifm-font-color-base);
+}
+
+.tabSelected,
+.tabSelected:hover {
+  background: var(--ifm-color-primary);
+  border-color: var(--ifm-color-primary);
+  color: #fff;
+}
+
+.hint {
+  color: var(--ifm-color-emphasis-600);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+  .hint {
+    display: none;
+  }
+}
+
+/* Shown instead of the viewer when the browser can't run the demos */
+.unsupported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.unsupported h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.unsupported p {
+  margin: 0;
+  max-width: 42rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+/* Viewer */
+.viewer {
+  flex: 1;
+  position: relative;
+  background: var(--ifm-background-color);
+}
+
+.viewerFrame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.viewerControls {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sourceLink {
+  background: rgba(0, 0, 0, 0.7);
+  color: #ccc;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: all 0.2s;
+  backdrop-filter: blur(4px);
+}
+
+.sourceLink:hover {
+  background: var(--ifm-color-primary);
+  color: #fff;
+  text-decoration: none;
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--ifm-color-emphasis-600);
+  font-size: 1.1rem;
+}

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ./generate_user_guides.sh
+./scripts/build-demos.sh
 PUBLISH_MODE=1 yarn build
 cp .htaccess build/.
 rsync -av --delete-after build/ crozet@ssh.cluster003.hosting.ovh.net:/home/crozet/rapier/

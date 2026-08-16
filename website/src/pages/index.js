@@ -116,7 +116,7 @@ function Home() {
       <header className={clsx('hero hero--primary', styles.heroBanner)}>
         <div className="container">
           <div className="">
-            <img src="img/rapier_logo_color_textpath.svg" width="70%" alt="Project Logo" />
+            <img src="img/rapier_logo.png" width="50%" alt="Project Logo" />
           </div>
           <p className="hero__subtitle">{siteConfig.tagline}</p>
           <div className={styles.buttons}>
