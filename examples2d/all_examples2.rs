@@ -92,6 +92,8 @@ pub async fn main() {
     const STRESS: &str = "Stress tests";
     const B2D: &str = "Third-party benchmarks";
 
+    // Not a `vec![]`: entries can be individually `#[cfg]`-ed out.
+    #[allow(clippy::vec_init_then_push)]
     let examples: Vec<(ExampleEntry, ExampleFn)> = examples![
         // ── Collisions ──────────────────────────────────────────────────────
         COLLISIONS, "Add remove", add_remove2::run;
