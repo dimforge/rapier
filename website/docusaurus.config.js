@@ -3,7 +3,7 @@ const katex = require('rehype-katex')
 
 const config = {
   title: 'Rapier',
-  tagline: 'Fast 2D and 3D physics engine for the Rust programming language.',
+  tagline: 'High-performance 2D and 3D physics engine for the Rust programming language.',
   url: 'https://rapier.rs',
   baseUrl: '/',
   onBrokenLinks: 'throw',
@@ -29,7 +29,7 @@ const config = {
       title: 'Rapier',
       logo: {
         alt: 'Rapier Logo',
-        src: 'img/rapier_logo_color_small.svg',
+        src: 'img/rapier_logo_notext.png',
       },
       hideOnScroll: true,
       items: [
