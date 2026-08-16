@@ -10,6 +10,9 @@ node_modules
 .docusaurus
 .cache-loader
 
+# WASM demos, built by ./scripts/build-demos.sh
+static/demos
+
 # Misc
 .DS_Store
 .env.local

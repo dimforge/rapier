@@ -40,18 +40,9 @@ const config = {
           position: 'left',
         },
         {
+          to: '/demos',
           label: 'Demos',
           position: 'left',
-          items: [
-            {
-              href: 'https://rapier.rs/demos2d/index.html', // FIXME: should depend on the base url.
-              label: '2D Demos',
-            },
-            {
-              href: 'https://rapier.rs/demos3d/index.html', // FIXME: should depend on the base url.
-              label: '3D Demos',
-            }
-          ],
         },
         {
           to: '/community',
@@ -101,11 +92,11 @@ const config = {
             },
             {
               label: 'Demos 2D',
-              href: 'https://rapier.rs/demos2d/index.html',
+              href: 'pathname:///demos#2d',
             },
             {
               label: 'Demos 3D',
-              href: 'https://rapier.rs/demos3d/index.html',
+              href: 'pathname:///demos#3d',
             },
           ],
         },

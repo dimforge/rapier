@@ -7,6 +7,9 @@ use std::pin::Pin;
 
 mod utils;
 
+// Examples gated on `not(target_arch = "wasm32")` load meshes, robot
+// descriptions or scene dumps from disk, so they can't run in a browser.
+
 mod b3d_joint_grid;
 mod b3d_junkyard;
 mod b3d_large_pyramid;
@@ -19,6 +22,7 @@ mod ccd3;
 mod character_controller3;
 mod collision_groups3;
 mod compound3;
+#[cfg(not(target_arch = "wasm32"))]
 mod convex_decomposition3;
 mod convex_polyhedron3;
 mod damping3;
@@ -31,6 +35,7 @@ mod debug_boxes3;
 mod debug_chain_high_mass_ratio3;
 mod debug_cube_high_mass_ratio3;
 mod debug_cylinder3;
+#[cfg(not(target_arch = "wasm32"))]
 mod debug_deserialize3;
 mod debug_disabled3;
 mod debug_dynamic_collider_add3;
@@ -50,6 +55,7 @@ mod debug_triangle3;
 mod debug_trimesh3;
 mod debug_two_cubes3;
 mod domino3;
+#[cfg(not(target_arch = "wasm32"))]
 mod dynamic_trimesh3;
 mod fountain3;
 mod gyroscopic3;
@@ -59,7 +65,9 @@ mod joint_motor_position3;
 mod joints3;
 mod keva3;
 mod locked_rotations3;
+#[cfg(not(target_arch = "wasm32"))]
 mod mjcf3;
+#[cfg(not(target_arch = "wasm32"))]
 mod mujoco_menagerie3;
 mod newton_cradle3;
 mod one_way_platforms3;
@@ -71,6 +79,7 @@ mod sensor3;
 mod spring_joints3;
 mod stress_tests;
 mod trimesh3;
+#[cfg(not(target_arch = "wasm32"))]
 mod urdf3;
 mod vehicle_controller3;
 mod vehicle_joints3;
@@ -82,10 +91,16 @@ type ExampleFn =
     for<'a> fn(&'a mut TestbedViewer) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + 'a>>;
 
 /// `(group, name, run-fn)` -> `(ExampleEntry, ExampleFn)`.
+/// Entries accept attributes so an example can be `#[cfg]`-ed out (e.g. on wasm).
 macro_rules! examples {
-    ($($group:expr, $name:expr, $run:path);* $(;)?) => {
-        vec![ $( (ExampleEntry::new($group, $name), (|v| Box::pin($run(v))) as ExampleFn) ),* ]
-    };
+    ($($(#[$meta:meta])* $group:ident, $name:expr, $run:path);* $(;)?) => {{
+        let mut entries: Vec<(ExampleEntry, ExampleFn)> = Vec::new();
+        $(
+            $(#[$meta])*
+            entries.push((ExampleEntry::new($group, $name), (|v| Box::pin($run(v))) as ExampleFn));
+        )*
+        entries
+    }};
 }
 
 #[kiss3d::main]
@@ -97,7 +112,7 @@ pub async fn main() {
     const DEBUG: &str = "Debug";
     const ROBOTICS: &str = "Robotics";
     const STRESS: &str = "Stress tests";
-    const B3D: &str = "Box3D benchmarks";
+    const B3D: &str = "Third-party benchmarks";
 
     let examples: Vec<(ExampleEntry, ExampleFn)> = examples![
         // ── Collisions ──────────────────────────────────────────────────────
@@ -109,9 +124,11 @@ pub async fn main() {
         COLLISIONS, "Platform", platform3::run;
         COLLISIONS, "Sensor", sensor3::run;
         COLLISIONS, "Compound", compound3::run;
+        #[cfg(not(target_arch = "wasm32"))]
         COLLISIONS, "Convex decomposition", convex_decomposition3::run;
         COLLISIONS, "Convex polyhedron", convex_polyhedron3::run;
         COLLISIONS, "TriMesh", trimesh3::run;
+        #[cfg(not(target_arch = "wasm32"))]
         COLLISIONS, "Dynamic trimeshes", dynamic_trimesh3::run;
         COLLISIONS, "Heightfield", heightfield3::run;
         COLLISIONS, "Voxels", voxels3::run;
@@ -135,8 +152,11 @@ pub async fn main() {
         CONTROLS, "Vehicle controller", vehicle_controller3::run;
         CONTROLS, "Vehicle joints", vehicle_joints3::run;
         // ── Robotics ────────────────────────────────────────────────────────
+        #[cfg(not(target_arch = "wasm32"))]
         ROBOTICS, "URDF", urdf3::run;
+        #[cfg(not(target_arch = "wasm32"))]
         ROBOTICS, "MJCF", mjcf3::run;
+        #[cfg(not(target_arch = "wasm32"))]
         ROBOTICS, "Mujoco Menagerie", mujoco_menagerie3::run;
         // ── Debug ───────────────────────────────────────────────────────────
         DEBUG, "Angular limits", debug_angular_limits3::run;
@@ -164,6 +184,7 @@ pub async fn main() {
         DEBUG, "Rollback", debug_rollback3::run;
         DEBUG, "Shape modification", debug_shape_modification3::run;
         DEBUG, "Sleeping kinematics", debug_sleeping_kinematic3::run;
+        #[cfg(not(target_arch = "wasm32"))]
         DEBUG, "Deserialize", debug_deserialize3::run;
         DEBUG, "Multibody ang. motor pos.", debug_multibody_ang_motor_pos3::run;
         // ── Stress tests ────────────────────────────────────────────────────

@@ -56,6 +56,8 @@ mod s2d_joint_grid;
 mod s2d_pyramid;
 mod sensor2;
 mod stress_tests;
+// Tessellates an SVG with usvg, which doesn't build for wasm.
+#[cfg(not(target_arch = "wasm32"))]
 mod trimesh2;
 mod voxels2;
 
@@ -67,10 +69,16 @@ type ExampleFn =
     for<'a> fn(&'a mut TestbedViewer) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + 'a>>;
 
 /// `(group, name, run-fn)` -> `(ExampleEntry, ExampleFn)`.
+/// Entries accept attributes so an example can be `#[cfg]`-ed out (e.g. on wasm).
 macro_rules! examples {
-    ($($group:expr, $name:expr, $run:path);* $(;)?) => {
-        vec![ $( (ExampleEntry::new($group, $name), (|v| Box::pin($run(v))) as ExampleFn) ),* ]
-    };
+    ($($(#[$meta:meta])* $group:ident, $name:expr, $run:path);* $(;)?) => {{
+        let mut entries: Vec<(ExampleEntry, ExampleFn)> = Vec::new();
+        $(
+            $(#[$meta])*
+            entries.push((ExampleEntry::new($group, $name), (|v| Box::pin($run(v))) as ExampleFn));
+        )*
+        entries
+    }};
 }
 
 #[kiss3d::main]
@@ -82,7 +90,7 @@ pub async fn main() {
     const DEBUG: &str = "Debug";
     const S2D: &str = "Inspired by Solver 2D";
     const STRESS: &str = "Stress tests";
-    const B2D: &str = "Box2D benchmarks";
+    const B2D: &str = "Third-party benchmarks";
 
     let examples: Vec<(ExampleEntry, ExampleFn)> = examples![
         // ── Collisions ──────────────────────────────────────────────────────
@@ -95,6 +103,7 @@ pub async fn main() {
         COLLISIONS, "Convex polygons", convex_polygons2::run;
         COLLISIONS, "Heightfield", heightfield2::run;
         COLLISIONS, "Polyline", polyline2::run;
+        #[cfg(not(target_arch = "wasm32"))]
         COLLISIONS, "Trimesh", trimesh2::run;
         COLLISIONS, "Voxels", voxels2::run;
         COLLISIONS, "Collision groups", collision_groups2::run;
