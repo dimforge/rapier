@@ -185,6 +185,7 @@ impl RigidBodySet {
     /// # let mut impulse_joints = ImpulseJointSet::new();
     /// # let mut multibody_joints = MultibodyJointSet::new();
     /// # let handle = bodies.insert(RigidBodyBuilder::dynamic());
+    /// # let mut soft_bodies = SoftBodySet::new();
     /// // Remove a body and everything attached to it
     /// if let Some(body) = bodies.remove(
     ///     handle,
@@ -192,6 +193,7 @@ impl RigidBodySet {
     ///     &mut colliders,
     ///     &mut impulse_joints,
     ///     &mut multibody_joints,
+    ///     &mut soft_bodies,
     ///     true  // Remove colliders too
     /// ) {
     ///     println!("Removed body at {:?}", body.translation());

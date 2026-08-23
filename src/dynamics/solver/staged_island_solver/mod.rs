@@ -17,6 +17,7 @@ use core::sync::atomic::AtomicBool;
 use crate::dynamics::solver::contact_constraint::ContactConstraintsSet;
 use crate::dynamics::solver::interaction_groups::ParallelInteractionGroups;
 use crate::dynamics::solver::manifold_store::ManifoldStore;
+use crate::dynamics::solver::soft_constraint::SoftConstraintsSet;
 use crate::dynamics::solver::solver_contact_graph::ContactRef;
 use crate::dynamics::solver::{JointConstraintsSet, VelocitySolver};
 use crate::dynamics::{
@@ -116,6 +117,8 @@ fn chunk_at(segments: &[ChunkSegment], chunk_id: usize) -> [ContactRef; SIMD_WID
 struct GroupLayout {
     /// Solver-body slot range (== awake-island body index range).
     bodies: Range<usize>,
+    /// Solver-body slot range of the group's soft-body particles (after every rigid body's).
+    soft_slots: Range<usize>,
     /// Global chunk-id range (this group's parallel colors + overflow tail).
     chunks: Range<usize>,
     /// Index range into `color_ranges`.
@@ -187,6 +190,9 @@ struct SharedCtx<'a> {
     velocity_solver: *mut VelocitySolver,
     joint_constraints: *mut JointConstraintsSet,
     contact_constraints: *mut ContactConstraintsSet,
+    /// The soft-body constraints of the awake soft bodies (empty when the step has none: every soft
+    /// stage is then skipped, identically on every worker).
+    soft_constraints: *mut SoftConstraintsSet,
 
     coulomb_builders: *mut ContactWithCoulombFrictionBuilder,
     coulomb_constraints: *mut ContactWithCoulombFriction<SimdReal>,
@@ -218,6 +224,7 @@ unsafe impl Sync for SharedCtx<'_> {}
 pub(crate) struct StagedIslandSolver {
     pub contact_constraints: ContactConstraintsSet,
     pub joint_constraints: JointConstraintsSet,
+    pub soft_constraints: SoftConstraintsSet,
     pub velocity_solver: VelocitySolver,
     /// The SIMD chunk layout: segments over the persistent bucket slices (and
     /// over `overflow_chunk_refs`), in global chunk-id order.
@@ -248,7 +255,7 @@ pub(crate) struct StagedIslandSolver {
     joint_chunk_lanes: Vec<[JointIndex; SIMD_WIDTH]>,
     /// Constraint-row range of each SIMD joint chunk.
     joint_chunk_rows: Vec<Range<usize>>,
-    /// Scratch: (row signature, joint index) of a color's SIMD-eligible joints.
+    /// Workspace: (row signature, joint index) of a color's SIMD-eligible joints.
     joint_sig_scratch: Vec<(u32, JointIndex)>,
     /// Scalar joints solved by worker 0: joints without a wide row formulation
     /// (motors, coupled limits), extra-solver-iterations joints, and the joints
@@ -256,9 +263,9 @@ pub(crate) struct StagedIslandSolver {
     joint_overflow_scratch: Vec<JointIndex>,
     /// Joint builders from colors too small to parallelize: solved by worker 0.
     joint_overflow_range: Range<usize>,
-    /// Scratch: the overflow-color manifolds handed to the greedy body-mask
+    /// Workspace: the overflow-color manifolds handed to the greedy body-mask
     /// grouper (snapshotted to sidestep an aliasing borrow of `contact_constraints`).
-    overflow_scratch: Vec<ContactRef>,
+    overflow_workspace: Vec<ContactRef>,
     /// Constraint-row range of each scalar joint builder in
     /// `joint_constraints.velocity_constraints` (a joint yields several rows which
     /// must be solved by a same worker since they touch the same bodies).
@@ -297,6 +304,7 @@ impl StagedIslandSolver {
         Self {
             contact_constraints: ContactConstraintsSet::new(),
             joint_constraints: JointConstraintsSet::new(),
+            soft_constraints: SoftConstraintsSet::new(),
             velocity_solver: VelocitySolver::new(),
             chunk_segments: Vec::new(),
             overflow_chunk_refs: Vec::new(),

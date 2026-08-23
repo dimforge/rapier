@@ -1,14 +1,18 @@
 //! Bounded local island splits (decremental connectivity). Answering every removal *globally* is an O(island) union-find — a 43k-body pyramid shedding one bouncing box would pay a 163k-link scan every other step; here a **lockstep** dual search from the unlinked edge's endpoints answers it at O(smaller piece): meeting the other side ⇒ still connected, island NOT dirtied and still sleep-eligible; one frontier exhausting ⇒ that side is the detached — necessarily smaller — component, moved out in O(its size); [`SEARCH_BUDGET`] exceeded ⇒ dirty the island and defer to the global split ([`PersistentIslands::split_island_now`]), which bounds the worst case at the old behavior.
-//! Adjacency reuses existing structures (no new bookkeeping): [`NarrowPhase::touching_edges_with`] (its edge ids and touching predicate are exactly what keys the island's contact links), [`ImpulseJointSet::attached_joints`], and multibody chain links (a multibody is one atomic-for-sleep neighborhood; its chain links travel with it).
+//! Adjacency reuses existing structures (no new bookkeeping): [`NarrowPhase::touching_edges_with`] (its edge ids and touching predicate are exactly what keys the island's contact links), [`ImpulseJointSet::attached_joints`], multibody chain links (a multibody is one atomic-for-sleep neighborhood; its chain links travel with it), and the soft bodies' particle attachments (root body to attached rigid body, both ways through the soft-body set's attachment index).
 //! Ordering: every unlink of a step happens in the narrow phase, *before* islands update, so all searches run against the final post-removal graph — verdicts are batch-order-independent.
 
 #[cfg(not(feature = "std"))]
 use simba::scalar::ComplexField as _;
 
 use super::INVALID_ISLAND;
-use super::persistent::{JointLinkKey, PersistentIslands, Removal, multibody_index_key};
+use super::persistent::{
+    JointLinkKey, PersistentIslands, Removal, multibody_index_key, soft_body_key,
+};
 use crate::alloc_prelude::*;
-use crate::dynamics::{ImpulseJointSet, MultibodyJointSet, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{
+    ImpulseJointSet, MultibodyJointSet, RigidBodyHandle, RigidBodySet, SoftBodySet,
+};
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::utils::DotProduct;
@@ -29,9 +33,9 @@ enum IncidentLink {
 /// Reusable buffers: the search runs every step and must not allocate once warm.
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub(super) struct LocalSplitScratch {
+pub(super) struct LocalSplitWorkspace {
     /// `(stamp, side)` per body-arena index. Stamped, so a search never clears the
-    /// map — only the bodies it actually touched carry the live stamp.
+    /// map: only the bodies it actually touched have the live stamp.
     visited: Vec<(u32, u8)>,
     stamp: u32,
     /// The two frontiers, and every body each side has reached.
@@ -49,6 +53,7 @@ struct IslandGraph<'a> {
     narrow_phase: &'a NarrowPhase,
     impulse_joints: &'a ImpulseJointSet,
     multibody_joints: &'a MultibodyJointSet,
+    soft_bodies: &'a SoftBodySet,
 }
 
 impl IslandGraph<'_> {
@@ -105,10 +110,24 @@ impl IslandGraph<'_> {
                 }
             }
         }
+
+        // Soft-body attachments: a soft body's root neighbors the bodies its particles are
+        // attached to, and conversely; a cluster proxy neighbors its sibling proxies (the
+        // proxy chain).
+        if let Some(sb) = rb.soft_body().and_then(|h| self.soft_bodies.get(h)) {
+            for attachment in sb.particle_attachments() {
+                visit(attachment.body);
+            }
+        }
+        for (sb_handle, _) in self.soft_bodies.attached_to(body) {
+            if let Some(sb) = self.soft_bodies.get(*sb_handle) {
+                visit(sb.root_body());
+            }
+        }
     }
 
     /// Calls `f` for every island link incident to `body` — including links whose far side is
-    /// *not* an island member (contact against fixed geometry): those carry no connectivity, but
+    /// *not* an island member (contact against fixed geometry): those provide no connectivity, but
     /// they belong to the island and must follow the body when it moves out.
     fn for_each_incident_link(&self, body: RigidBodyHandle, mut f: impl FnMut(IncidentLink)) {
         let Some(rb) = self.bodies.get(body) else {
@@ -128,7 +147,7 @@ impl IslandGraph<'_> {
         }
 
         // The chain links are keyed by ordinal, not by body: one per *consecutive
-        // pair of members*, exactly as `refresh_multibody_chain` numbers them. A
+        // pair of members*, exactly as `update_multibody_chain` numbers them. A
         // multibody moves as a whole, so emit all of them.
         if let Some(link) = self.multibody_joints.rigid_body_link(body) {
             let mb_id = link.multibody;
@@ -143,6 +162,27 @@ impl IslandGraph<'_> {
                 }
             }
         }
+
+        // Soft-body attachments (numbered as `update_soft_body_attachments` does): the root's
+        // and, for a rigid body, those targeting it. A proxy also brings its soft body's whole
+        // proxy chain (numbered as `update_soft_body_proxy_chain` does); proxies move together.
+        if let Some(sb_handle) = rb.soft_body() {
+            if let Some(sb) = self.soft_bodies.get(sb_handle) {
+                let soft_body = soft_body_key(sb_handle);
+                for ordinal in 0..sb.particle_attachments().len() as u32 {
+                    f(IncidentLink::Joint(JointLinkKey::SoftAttachment {
+                        soft_body,
+                        ordinal,
+                    }));
+                }
+            }
+        }
+        for (sb_handle, ordinal) in self.soft_bodies.attached_to(body) {
+            f(IncidentLink::Joint(JointLinkKey::SoftAttachment {
+                soft_body: soft_body_key(*sb_handle),
+                ordinal: *ordinal,
+            }));
+        }
     }
 }
 
@@ -151,7 +191,7 @@ enum Verdict {
     /// The endpoints are still connected: nothing changed.
     Connected,
     /// They are in different components now; `side` is the smaller one, and its
-    /// bodies are in `scratch.reached[side]`.
+    /// bodies are in `workspace.reached[side]`.
     Detached(usize),
     /// Not settled within the budget: hand it to the global split.
     OverBudget,
@@ -168,6 +208,7 @@ impl PersistentIslands {
         narrow_phase: &NarrowPhase,
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
+        soft_bodies: &SoftBodySet,
         length_unit: Real,
     ) {
         if self.removal_journal.is_empty() {
@@ -175,7 +216,7 @@ impl PersistentIslands {
         }
 
         let journal = core::mem::take(&mut self.removal_journal);
-        let mut scratch = core::mem::take(&mut self.local_split);
+        let mut workspace = core::mem::take(&mut self.local_split);
 
         for removal in &journal {
             let graph = IslandGraph {
@@ -184,6 +225,7 @@ impl PersistentIslands {
                 narrow_phase,
                 impulse_joints,
                 multibody_joints,
+                soft_bodies,
             };
 
             // Re-derive the endpoints' islands: an earlier removal of this batch
@@ -192,7 +234,7 @@ impl PersistentIslands {
                 graph.island_of(removal.body1),
                 graph.island_of(removal.body2),
             ) else {
-                // An endpoint is fixed, disabled or gone: the edge carried no connectivity, so
+                // An endpoint is fixed, disabled or gone: the edge provided no connectivity, so
                 // losing it can't disconnect anything. (A body *removal* is different — a body can
                 // be a cut vertex — and `remove_body_raw` still dirties its island eagerly.)
                 continue;
@@ -235,7 +277,7 @@ impl PersistentIslands {
                 continue;
             }
 
-            match search(&graph, &mut scratch, island1, removal) {
+            match search(&graph, &mut workspace, island1, removal) {
                 Verdict::Connected => {}
                 Verdict::OverBudget => {
                     self.islands[island1 as usize].constraint_remove_count += 1;
@@ -243,18 +285,18 @@ impl PersistentIslands {
                 Verdict::Detached(side) => {
                     // Collect the component's links while `bodies` is still only
                     // immutably borrowed, then relocate bodies and links together.
-                    let component = core::mem::take(&mut scratch.reached[side]);
-                    scratch.links.clear();
+                    let component = core::mem::take(&mut workspace.reached[side]);
+                    workspace.links.clear();
                     for body in &component {
-                        graph.for_each_incident_link(*body, |link| scratch.links.push(link));
+                        graph.for_each_incident_link(*body, |link| workspace.links.push(link));
                     }
-                    self.move_component_out(bodies, island1, &component, &scratch.links);
-                    scratch.reached[side] = component;
+                    self.move_component_out(bodies, island1, &component, &workspace.links);
+                    workspace.reached[side] = component;
                 }
             }
         }
 
-        self.local_split = scratch;
+        self.local_split = workspace;
         self.removal_journal = journal;
         self.removal_journal.clear();
     }
@@ -343,32 +385,32 @@ impl PersistentIslands {
 /// The lockstep dual search. See the module docs.
 fn search(
     graph: &IslandGraph,
-    scratch: &mut LocalSplitScratch,
+    workspace: &mut LocalSplitWorkspace,
     island_id: u32,
     removal: &Removal,
 ) -> Verdict {
-    scratch.stamp = scratch.stamp.wrapping_add(1);
-    if scratch.stamp == 0 {
+    workspace.stamp = workspace.stamp.wrapping_add(1);
+    if workspace.stamp == 0 {
         // Wrapped: a zeroed (never-visited) entry would alias stamp 0.
-        scratch.visited.clear();
-        scratch.stamp = 1;
+        workspace.visited.clear();
+        workspace.stamp = 1;
     }
-    let stamp = scratch.stamp;
+    let stamp = workspace.stamp;
 
     for side in 0..2 {
-        scratch.frontier[side].clear();
-        scratch.reached[side].clear();
+        workspace.frontier[side].clear();
+        workspace.reached[side].clear();
     }
     for (side, seed) in [removal.body1, removal.body2].into_iter().enumerate() {
-        mark(scratch, seed, stamp, side as u8);
-        scratch.frontier[side].push(seed);
-        scratch.reached[side].push(seed);
+        mark(workspace, seed, stamp, side as u8);
+        workspace.frontier[side].push(seed);
+        workspace.reached[side].push(seed);
     }
 
     let mut expansions = 0;
     loop {
         for side in 0..2 {
-            let Some(body) = scratch.frontier[side].pop() else {
+            let Some(body) = workspace.frontier[side].pop() else {
                 // This side ran out of frontier without ever reaching the other
                 // seed: it is a detached component — and, having advanced in
                 // lockstep, the smaller of the two pieces.
@@ -378,16 +420,16 @@ fn search(
             let mut met = false;
             graph.for_each_neighbor(body, island_id, |neighbor| {
                 let (index, _) = neighbor.into_raw_parts();
-                match scratch.visited.get(index as usize) {
+                match workspace.visited.get(index as usize) {
                     Some(&(s, seen_side)) if s == stamp => {
                         // Reaching a body the *other* search already owns means the
                         // two endpoints are still connected through it.
                         met |= seen_side != side as u8;
                     }
                     _ => {
-                        mark(scratch, neighbor, stamp, side as u8);
-                        scratch.frontier[side].push(neighbor);
-                        scratch.reached[side].push(neighbor);
+                        mark(workspace, neighbor, stamp, side as u8);
+                        workspace.frontier[side].push(neighbor);
+                        workspace.reached[side].push(neighbor);
                     }
                 }
             });
@@ -404,10 +446,10 @@ fn search(
 }
 
 #[inline]
-fn mark(scratch: &mut LocalSplitScratch, handle: RigidBodyHandle, stamp: u32, side: u8) {
+fn mark(workspace: &mut LocalSplitWorkspace, handle: RigidBodyHandle, stamp: u32, side: u8) {
     let (index, _) = handle.into_raw_parts();
-    if scratch.visited.len() <= index as usize {
-        scratch.visited.resize(index as usize + 1, (0, 0));
+    if workspace.visited.len() <= index as usize {
+        workspace.visited.resize(index as usize + 1, (0, 0));
     }
-    scratch.visited[index as usize] = (stamp, side);
+    workspace.visited[index as usize] = (stamp, side);
 }

@@ -32,6 +32,7 @@ fn settle_angle(stiffness: Real, rest: Real, damping: Real, inertia: Real, steps
     let mut broad_phase = DefaultBroadPhase::new();
     let mut narrow_phase = NarrowPhase::new();
     let mut ccd = CCDSolver::new();
+    let mut soft_bodies = SoftBodySet::new();
 
     let mut step = |bodies: &mut RigidBodySet, mbj: &mut MultibodyJointSet| {
         pipeline.step(
@@ -44,6 +45,7 @@ fn settle_angle(stiffness: Real, rest: Real, damping: Real, inertia: Real, steps
             &mut colliders,
             &mut impulse_joints,
             mbj,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

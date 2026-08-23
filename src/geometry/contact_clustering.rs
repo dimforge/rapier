@@ -4,7 +4,7 @@
 //! giving the solver redundant constraints for one contact plane. This merges them into
 //! per-normal "cluster" manifolds rebuilt every frame — only clusters reach the solver; the
 //! per-subshape manifolds stay untouched for user-facing queries and events. Warm-start impulses
-//! live in the cluster points, carried by nearest-position matching (cluster identity is unstable).
+//! live in the cluster points, kept by nearest-position matching (cluster identity is unstable).
 
 use crate::alloc_prelude::*;
 use crate::geometry::{ContactManifold, ContactManifoldData};
@@ -14,7 +14,7 @@ use crate::math::{Real, Vector};
 const COS_MERGE_ANGLE: Real = 0.996;
 /// Hard cap on points per cluster (the solver stores point indices as `u8`). Reduction
 /// selects at most 4 for the constraints; keeping all deduplicated points until then makes
-/// selection and warm-start carry independent of the manifold iteration order.
+/// selection and warm-start transfer independent of the manifold iteration order.
 const MAX_CLUSTER_POINTS: usize = 255;
 
 fn manifold_normal1(manifold: &ContactManifold) -> Vector {
@@ -28,7 +28,7 @@ fn has_warmstart_data(data: &crate::geometry::ContactData) -> bool {
     data.impulse != 0.0 || data.warmstart_impulse != 0.0
 }
 
-/// Rebuilds `out` as the cluster manifolds for `manifolds`, carrying warm-start data from
+/// Rebuilds `out` as the cluster manifolds for `manifolds`, transferring warm-start data from
 /// `prev` (the clusters solved at the previous step). Buffers in `out` are reused.
 pub(crate) fn cluster_manifolds_for_solver(
     manifolds: &[ContactManifold],
@@ -90,7 +90,7 @@ pub(crate) fn cluster_manifolds_for_solver(
             if let Some(pos2) = manifold.subshape_pos2() {
                 pt.local_p2 = *pos2 * pt.local_p2;
             }
-            // The warm-start data is carried from `prev` below, not from the
+            // The warm-start data is transferred from `prev` below, not from the
             // per-subshape manifolds (the solver never writes those back).
             pt.data = Default::default();
 
@@ -120,13 +120,13 @@ pub(crate) fn cluster_manifolds_for_solver(
 
     out.truncate(num_out);
 
-    carry_warmstart_data(prev, out, prediction_distance);
+    transfer_warmstart_data(prev, out, prediction_distance);
 }
 
 /// Copies warm-start data from `prev` manifold points into the best-matching points of
 /// `targets` (nearest-position in the first shape's local space). Each previous point is
 /// consumed at most once, so impulses are never duplicated.
-pub(crate) fn carry_warmstart_data(
+pub(crate) fn transfer_warmstart_data(
     prev: &[ContactManifold],
     targets: &mut [ContactManifold],
     prediction_distance: Real,

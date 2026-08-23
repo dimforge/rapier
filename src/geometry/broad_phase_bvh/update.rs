@@ -95,8 +95,8 @@ impl BroadPhaseBvh {
 
         // The AABB (and margin) computation is the expensive part of the leaf-update
         // loop; precompute it in parallel and keep only the tree writes sequential.
-        let mut update_scratch = core::mem::take(&mut self.update_scratch);
-        update_scratch.clear();
+        let mut update_workspace = core::mem::take(&mut self.update_workspace);
+        update_workspace.clear();
 
         let compute_update = |modified: &ColliderHandle| -> Option<(ColliderHandle, Aabb, Real)> {
             let collider = colliders.get(*modified)?;
@@ -131,17 +131,17 @@ impl BroadPhaseBvh {
                 .par_chunks(1024)
                 .map(|chunk| chunk.iter().filter_map(compute_update).collect())
                 .collect();
-            update_scratch.extend(precomputed.into_iter().flatten());
+            update_workspace.extend(precomputed.into_iter().flatten());
         }
         #[cfg(not(feature = "parallel"))]
-        update_scratch.extend(modified_colliders.iter().filter_map(compute_update));
+        update_workspace.extend(modified_colliders.iter().filter_map(compute_update));
 
         // Small change volumes relocate moved leaves via SAH re-insertion (O(log n) per leaf):
         // tree quality maintains itself and the periodic O(tree) optimizer never runs — what keeps
         // huge mostly-static scenes free of multi-ms spikes. Bulk volumes keep O(1) in-place updates.
         let leaf_count = self.tree.leaf_count() as usize;
         let use_reinsert =
-            self.reinsert_leaf_updates && update_scratch.len() * 16 < leaf_count && !first_pass;
+            self.reinsert_leaf_updates && update_workspace.len() * 16 < leaf_count && !first_pass;
 
         // In-place leaf updates apply in parallel; the change-flag bookkeeping
         // below stays sequential (it's a cheap push per *changed* leaf).
@@ -149,19 +149,19 @@ impl BroadPhaseBvh {
         let parallel_leaf_updates = !use_reinsert;
         #[cfg(feature = "parallel")]
         if parallel_leaf_updates {
-            self.update_batch_scratch.clear();
-            self.update_batch_scratch.extend(
-                update_scratch
+            self.update_batch_workspace.clear();
+            self.update_batch_workspace.extend(
+                update_workspace
                     .iter()
                     .map(|(handle, aabb, skin)| (*aabb, handle.into_raw_parts().0, *skin)),
             );
             self.tree.insert_or_update_batch_partially_parallel(
-                &self.update_batch_scratch,
+                &self.update_batch_workspace,
                 &mut self.update_batch_statuses,
             );
 
             for ((modified, _, _), status) in
-                update_scratch.iter().zip(self.update_batch_statuses.iter())
+                update_workspace.iter().zip(self.update_batch_statuses.iter())
             {
                 let leaf_index = modified.into_raw_parts().0;
                 match status {
@@ -193,7 +193,7 @@ impl BroadPhaseBvh {
             // mixes moved colliders with newly added ones would otherwise build a
             // different tree here than it does there.
             let mut deferred_inserts: Vec<usize> = Vec::new();
-            for (i, (modified, aabb, change_detection_skin)) in update_scratch.iter().enumerate() {
+            for (i, (modified, aabb, change_detection_skin)) in update_workspace.iter().enumerate() {
                 let leaf_index = modified.into_raw_parts().0;
                 // `..._if_present` reports a missing leaf through the lookup it already
                 // performs, so deferring insertions costs no extra probe.
@@ -230,11 +230,11 @@ impl BroadPhaseBvh {
                 }
             }
 
-            // Pass 2: the structural insertions, in `update_scratch` order. Fresh
+            // Pass 2: the structural insertions, in `update_workspace` order. Fresh
             // insertions pick their spot by SAH descent, so they never count toward the
             // optimizer's debt, and their status is always `Inserted`.
             for i in deferred_inserts {
-                let (modified, aabb, change_detection_skin) = &update_scratch[i];
+                let (modified, aabb, change_detection_skin) = &update_workspace[i];
                 let leaf_index = modified.into_raw_parts().0;
                 let status =
                     self.tree
@@ -245,7 +245,7 @@ impl BroadPhaseBvh {
             }
         }
 
-        self.update_scratch = update_scratch;
+        self.update_workspace = update_workspace;
 
         // The incremental optimizer (and its O(tree) full refit) only runs when enough quality-degrading
         // changes accumulated: every frame under bulk volumes, every 8th for moderate, never for small
@@ -306,7 +306,7 @@ impl BroadPhaseBvh {
         // sequential tail only pays for genuinely new pairs.
         //
         // The probe is read-only in every build. The alternative (a sequential collector
-        // refreshing each visited pair's timestamp, so stale-pair detection could skip it
+        // updating each visited pair's timestamp, so stale-pair detection could skip it
         // with an integer compare) cannot run concurrently, and its map writes are part of
         // the serialized broad-phase state: keeping it would make the two builds' snapshots
         // differ even on an identical simulation.
@@ -320,7 +320,7 @@ impl BroadPhaseBvh {
             // Reused across steps: the sequential walk reports through a closure, so
             // collecting it into the same shape the parallel walk returns costs nothing
             // beyond the (amortized) buffer.
-            let mut candidates = core::mem::take(&mut self.candidates_scratch);
+            let mut candidates = core::mem::take(&mut self.candidates_workspace);
             candidates.clear();
             self.tree
                 .traverse_bvtt_single_tree::<{ Self::CHANGE_DETECTION_ENABLED }>(
@@ -372,6 +372,7 @@ impl BroadPhaseBvh {
                     };
                     let rb_type1 = rb_type(collider1);
                     let rb_type2 = rb_type(collider2);
+
                     if !collider1
                         .flags
                         .active_collision_types
@@ -428,7 +429,7 @@ impl BroadPhaseBvh {
 
         #[cfg(not(feature = "parallel"))]
         {
-            self.candidates_scratch = candidates;
+            self.candidates_workspace = candidates;
         }
 
         /*
@@ -442,7 +443,7 @@ impl BroadPhaseBvh {
         // changed in the tree, so only pairs adjacent to updated/removed colliders are
         // checked. (A linear scan of the whole pair map used to be the fallback when most
         // colliders moved, but it was only worth it thanks to a per-pair timestamp
-        // refreshed by the sequential pair collector — a map write the parallel collector
+        // updated by the sequential pair collector: a map write the parallel collector
         // cannot do, and part of the serialized broad-phase state. One scan for every
         // build is both simpler and what the parallel build already did.)
         self.stale_pairs.clear();

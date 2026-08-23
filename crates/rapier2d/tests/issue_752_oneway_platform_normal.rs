@@ -27,6 +27,7 @@ fn oneway_platform_with_custom_normal() {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut bf = BroadPhaseBvh::new();
     let mut nf = NarrowPhase::new();
@@ -64,6 +65,7 @@ fn oneway_platform_with_custom_normal() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &hooks,
             &(),

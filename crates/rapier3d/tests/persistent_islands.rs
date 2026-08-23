@@ -1,6 +1,6 @@
 //! Structural tests for the persistent islands: eager merge on
 //! touch/joint-link, deferred split (one island per step) after constraint
-//! removals, and link refreshes on body lifecycle edits.
+//! removals, and link updates on body lifecycle edits.
 //!
 //! These tests observe island *equality* between bodies through the
 //! test-only `IslandManager::persistent_island_of` accessor; the heavy

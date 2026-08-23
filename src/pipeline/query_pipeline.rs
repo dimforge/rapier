@@ -792,7 +792,7 @@ mod test {
     use super::QueryFilter;
     use crate::dynamics::{
         CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-        RigidBodyBuilder, RigidBodySet,
+        RigidBodyBuilder, RigidBodySet, SoftBodySet,
     };
     use crate::geometry::{BroadPhaseBvh, ColliderBuilder, ColliderSet, NarrowPhase};
     use crate::math::{Real, Vector};
@@ -815,6 +815,7 @@ mod test {
             colliders,
             &mut ImpulseJointSet::new(),
             &mut MultibodyJointSet::new(),
+            &mut SoftBodySet::new(),
             &mut CCDSolver::new(),
             &(),
             &(),

@@ -65,6 +65,12 @@ pub struct RigidBody {
     pub(crate) dominance: RigidBodyDominance,
     pub(crate) enabled: bool,
     pub(crate) additional_solver_iterations: usize,
+    /// The soft body this rigid body is the root of (invalid for regular rigid bodies).
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(default = "crate::dynamics::SoftBodyHandle::invalid")
+    )]
+    pub(crate) soft_body: crate::dynamics::SoftBodyHandle,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
 }
@@ -94,12 +100,14 @@ impl RigidBody {
             enabled: true,
             user_data: 0,
             additional_solver_iterations: 0,
+            soft_body: crate::dynamics::SoftBodyHandle::invalid(),
         }
     }
 
     pub(crate) fn reset_internal_references(&mut self) {
         self.colliders.0 = Vec::new();
         self.ids = Default::default();
+        self.soft_body = crate::dynamics::SoftBodyHandle::invalid();
     }
 
     /// Copy all the characteristics from `other` to `self`.
@@ -137,6 +145,7 @@ impl RigidBody {
             dominance,
             enabled,
             additional_solver_iterations,
+            soft_body: _soft_body, // The soft-body marker belongs to the root body, not to its state.
             user_data,
         } = other;
 
@@ -163,6 +172,13 @@ impl RigidBody {
     /// See [`Self::set_additional_solver_iterations`] for additional information.
     pub fn additional_solver_iterations(&self) -> usize {
         self.additional_solver_iterations
+    }
+
+    /// The soft body this rigid body is a cluster proxy of, if any. A proxy stands for its cluster
+    /// in islands and joints, holds its colliders, and its removal removes the cluster; see
+    /// [`crate::dynamics::SoftBodySet::insert`] and [`crate::dynamics::SoftBodySet::add_cluster`].
+    pub fn soft_body(&self) -> Option<crate::dynamics::SoftBodyHandle> {
+        (!self.soft_body.is_invalid()).then_some(self.soft_body)
     }
 
     /// Set the additional number of solver substeps run for the simulation island containing this

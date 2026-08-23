@@ -1,6 +1,6 @@
 //! Debug scene for https://github.com/dimforge/rapier/issues/970
 //!
-//! One dynamic body carrying 8000 colliders (a 20x20x20 block of unit boxes) dropped tilted
+//! One dynamic body with 8000 colliders (a 20x20x20 block of unit boxes) dropped tilted
 //! from 40m: the issue reported such a body keeping the step permanently slow, even though
 //! same-parent colliders never collide. Watch the step cost collapse once it sleeps (~5.7s).
 

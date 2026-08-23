@@ -16,7 +16,7 @@ pub enum RunMode {
 }
 
 /// A loop transition requested from the UI: stop entirely, or switch to another
-/// example (or re-run the current one). The target is carried in
+/// example (or re-run the current one). The target is stored in
 /// [`TestbedState::selected_display_index`]; this only signals the
 /// example-owned `while viewer.render_frame()` loop to exit so the outer demo
 /// runner can dispatch the next example.
@@ -41,6 +41,9 @@ bitflags! {
         const WIREFRAME = 1 << 8;
         const STATISTICS = 1 << 9;
         const DRAW_SURFACES = 1 << 10;
+        /// Soft-body surfaces rendered with shared vertices (smooth per-vertex normals)
+        /// instead of flat-shaded triangles (3D).
+        const SMOOTH_MESH_COLLIDERS = 1 << 11;
     }
 }
 
@@ -113,7 +116,7 @@ pub struct TestbedState {
     pub broad_phase_type: RapierBroadPhaseType,
     pub snapshot: Option<PhysicsSnapshot>,
     /// Number of physics steps run since the example was (re)started. Bumped by
-    /// [`crate::TestbedViewer::simulating`], and carried through snapshot
+    /// [`crate::TestbedViewer::simulating`], and kept through snapshot
     /// save/restore so a restored world reports the step it was saved at.
     pub timestep_id: usize,
     pub camera_locked: bool,

@@ -527,7 +527,7 @@ impl NarrowPhase {
 
         let selectable = hint & PAIR_HINT_DYN_BIT != 0 && hint & PAIR_HINT_COUNT_MASK != 0;
         let pair: *const ContactPair = unsafe { &(*edges_ptr.add(edge as usize)).weight };
-        let pair_color = unsafe { (*pair).solver_color };
+        let pair_color = unsafe { (*pair).solver_color() };
         let sm = unsafe { (*pair).solver_manifolds() };
 
         let mut first_of_pair = true;
@@ -536,7 +536,7 @@ impl NarrowPhase {
                 && manifold
                     .data
                     .solver_flags
-                    .contains(SolverFlags::COMPUTE_IMPULSES)
+                    .contains(SolverFlags::COMPUTE_RIGID_IMPULSES)
                 && manifold.data.num_active_contacts() != 0;
             let desired = if qualifies {
                 Self::qualify_manifold_bqi(bqi, manifold).map(|solver_body_ids| {
@@ -593,7 +593,7 @@ impl NarrowPhase {
         let selectable = hint & PAIR_HINT_DYN_BIT != 0 && hint & PAIR_HINT_COUNT_MASK != 0;
 
         let pair: *mut ContactPair = unsafe { &mut (*edges_ptr.add(edge as usize)).weight };
-        let pair_color = unsafe { (*pair).solver_color };
+        let pair_color = unsafe { (*pair).solver_color() };
         let (sm_ptr, num): (*mut ContactManifold, usize) = unsafe {
             let sm = (*pair).solver_manifolds_mut();
             (sm.as_mut_ptr(), sm.len())
@@ -608,7 +608,7 @@ impl NarrowPhase {
                 && unsafe {
                     (*mdata)
                         .solver_flags
-                        .contains(SolverFlags::COMPUTE_IMPULSES)
+                        .contains(SolverFlags::COMPUTE_RIGID_IMPULSES)
                         && (*mdata).num_active_contacts() != 0
                 };
             let desired = if qualifies {
@@ -740,13 +740,13 @@ impl NarrowPhase {
                 continue;
             }
             let pair = &edges[pair_id].weight;
-            let pair_color = pair.solver_color;
+            let pair_color = pair.solver_color();
             let mut first_of_pair = true;
             for (ordinal, manifold) in pair.solver_manifolds().iter().enumerate() {
                 if !manifold
                     .data
                     .solver_flags
-                    .contains(SolverFlags::COMPUTE_IMPULSES)
+                    .contains(SolverFlags::COMPUTE_RIGID_IMPULSES)
                     || manifold.data.num_active_contacts() == 0
                 {
                     continue;

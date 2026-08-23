@@ -19,10 +19,9 @@ use super::sweeps::{
 /// and `next_position` is clamped to the earliest impact — velocities untouched, no re-solve; the
 /// residual approach resolves next step via speculative contacts.
 ///
-/// Fast dynamic bodies automatically sweep against **fixed** colliders; `ccd_enabled` upgrades to
-/// a *bullet* that also sweeps kinematic/dynamic bodies (never other bullets). Mesh-like colliders
-/// are never swept as the *moving* shape (targets are fine), compounds sweep per
-/// convex child, and [`IntegrationParameters::max_ccd_substeps`] `= 0` disables CCD entirely.
+/// Fast dynamic bodies sweep against fixed colliders and soft-body meshes; `ccd_enabled` makes a
+/// bullet that also sweeps kinematic/dynamic bodies (never other bullets); mesh-like colliders are
+/// never the moving shape; compounds sweep per convex child; `max_ccd_substeps = 0` disables CCD.
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct CCDSolver {
@@ -156,8 +155,9 @@ impl CCDSolver {
     }
 
     /// Runs the continuous-collision pass on all fast bodies and clamps their `next_position`
-    /// to their earliest time of impact: non-bullets sweep fixed colliders first, then bullets
-    /// sweep every (possibly already clamped) body; velocities are never modified. Sensor
+    /// to their earliest time of impact: non-bullets sweep the automatic targets (fixed
+    /// colliders and soft-body collision meshes) first, then bullets sweep every (possibly
+    /// already clamped) body; velocities are never modified. Sensor
     /// crossings the narrow phase would miss entirely emit paired `Started`/`Stopped`
     /// intersection events.
     #[profiling::function]

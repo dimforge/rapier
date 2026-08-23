@@ -1,4 +1,4 @@
-//! The intersection (sensor) pair update: filters and refreshes every
+//! The intersection (sensor) pair update: filters and updates every
 //! intersection pair involving a moved or user-modified collider.
 
 #[cfg(feature = "parallel")]
@@ -23,7 +23,7 @@ impl NarrowPhase {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        self.refresh_awake_body_mask(islands);
+        self.update_awake_body_mask(islands);
         let awake_body_mask = core::mem::take(&mut self.awake_body_mask);
 
         // Only iterate on pairs involving at least one changed collider instead of

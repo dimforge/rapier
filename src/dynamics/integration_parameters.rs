@@ -108,16 +108,27 @@ impl<N: SimdRealField<Element = Real> + Copy> SpringCoefficients<N> {
         let one = N::one();
         let erp = self.erp(dt);
         let erp_is_not_zero = erp.simd_ne(N::zero());
-        let inv_erp_minus_one = one / erp - one;
 
-        // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
-        //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
-        // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
-        //     / (dt * inv_erp_minus_one);
-        // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
-        // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
-        let result = inv_erp_minus_one * inv_erp_minus_one
-            / ((one + inv_erp_minus_one) * N::splat(4.0) * self.damping_ratio * self.damping_ratio);
+        let damped = {
+            let inv_erp_minus_one = one / erp - one;
+
+            // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
+            //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
+            // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
+            //     / (dt * inv_erp_minus_one);
+            // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
+            // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
+            inv_erp_minus_one * inv_erp_minus_one
+                / ((one + inv_erp_minus_one) * N::splat(4.0) * self.damping_ratio * self.damping_ratio)
+        };
+        let undamped = {
+            // Undamped version if the damping ratio is zero.
+            let dt_omega = dt * self.angular_frequency();
+            one / (dt_omega * (dt_omega + N::splat(2.0) * self.damping_ratio))
+        };
+
+        let damping_is_zero = self.damping_ratio.simd_eq(N::zero());
+        let result = undamped.select(damping_is_zero, damped);
         result.select(erp_is_not_zero, N::zero())
     }
 

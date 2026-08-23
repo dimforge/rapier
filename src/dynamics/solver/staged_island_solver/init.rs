@@ -10,7 +10,7 @@ use crate::dynamics::solver::reset_buffer_reusing;
 use crate::dynamics::solver::solver_contact_graph::{ContactRef, SolverContactGraph};
 use crate::dynamics::{
     IntegrationParameters, IslandManager, JointGraphEdge, JointIndex, MultibodyJointSet,
-    RigidBodySet,
+    RigidBodySet, SoftBodySet,
 };
 use crate::math::Real;
 use parry::math::SIMD_WIDTH;
@@ -32,6 +32,7 @@ impl StagedIslandSolver {
         num_workers: usize,
         island_id: usize,
         counters: &mut Counters,
+        gravity: crate::math::Vector,
         base_params: &IntegrationParameters,
         islands: &IslandManager,
         bodies: &mut RigidBodySet,
@@ -44,6 +45,10 @@ impl StagedIslandSolver {
         joint_indices: &[JointIndex],
         joint_assembly_epoch: u32,
         multibodies: &mut MultibodyJointSet,
+        soft_bodies: &mut SoftBodySet,
+        // The narrow phase and colliders: read-only, for the soft-body surface contacts.
+        narrow_phase: &crate::geometry::NarrowPhase,
+        colliders: &crate::geometry::ColliderSet,
         // The narrow-phase's per-body masks of persistent contact solver colors,
         // used to color the joints in the same color space as the contacts.
         contact_color_masks: &[u128],
@@ -66,6 +71,7 @@ impl StagedIslandSolver {
                 let num_substeps = base_params.num_solver_iterations + group.extra_iters as usize;
                 self.groups.push(GroupLayout {
                     bodies: group.body_range.clone(),
+                    soft_slots: 0..0,
                     chunks: 0..0,
                     colors: 0..0,
                     overflow: 0..0,
@@ -81,6 +87,7 @@ impl StagedIslandSolver {
             let num_substeps = base_params.num_solver_iterations + max_extra;
             self.groups.push(GroupLayout {
                 bodies: 0..island_bodies.len(),
+                soft_slots: 0..0,
                 chunks: 0..0,
                 colors: 0..0,
                 overflow: 0..0,
@@ -101,16 +108,60 @@ impl StagedIslandSolver {
         params.dt /= num_solver_iterations as Real;
 
         /*
-         * Serial pre-phase: solver buffers & multibodies, coloring, joint & generic
-         * constraints. (Plain solver bodies are initialized by the workers in the
-         * first parallel stage.)
+         * Serial pre-phase: soft-body rows and particle slots, solver buffers & multibodies,
+         * coloring, joint & generic constraints. (Plain solver bodies are initialized by the
+         * workers in the first parallel stage; the soft particles' solver bodies here.)
          */
+        // Soft-body constraints: assembled every step from the awake soft bodies' elements (the warm
+        // start impulses persist on the elements themselves). Their particles take the solver
+        // slots after the island's rigid bodies, group-major.
+        {
+            let groups = &self.groups;
+            let group_of_slot = |slot: u32| -> usize {
+                groups
+                    .iter()
+                    .position(|g| g.bodies.contains(&(slot as usize)))
+                    .unwrap_or(0)
+            };
+            let group_dt = |gi: usize| groups[gi].dt;
+            self.soft_constraints.assemble(
+                island_id,
+                island_bodies.len(),
+                groups.len(),
+                group_of_slot,
+                group_dt,
+                base_params.dt,
+                params.max_corrective_velocity(),
+                bodies,
+                soft_bodies,
+            );
+        }
+        for (g, sg) in self
+            .groups
+            .iter_mut()
+            .zip(self.soft_constraints.groups.iter())
+        {
+            g.soft_slots = sg.slots.clone();
+        }
+        let num_soft_slots = self.soft_constraints.slots.len();
         self.velocity_solver.init_solver_buffers_and_multibodies(
             &params,
             island_bodies,
+            num_soft_slots,
             bodies,
             multibodies,
         );
+        if num_soft_slots > 0 {
+            let groups = &self.groups;
+            let vs = &mut self.velocity_solver;
+            self.soft_constraints.init_solver_bodies(
+                &mut vs.solver_bodies,
+                &mut vs.solver_vels_increment,
+                gravity,
+                base_params.dt,
+                |gi| groups[gi].dt,
+            );
+        }
 
         // The persistent solver contact graph already holds two-body manifolds grouped by
         // (color, contact count) — colors touch pairwise-disjoint bodies, buckets slice straight
@@ -127,9 +178,38 @@ impl StagedIslandSolver {
             set.simd_velocity_coulomb_constraints.clear();
             set.simd_velocity_coulomb_constraints_builder.clear();
         }
+        // Soft-body contact and attachment constraints (group-major, after the constraint layout above).
+        if num_soft_slots > 0 {
+            let groups = &self.groups;
+            let group_of_slot = |slot: u32| -> usize {
+                groups
+                    .iter()
+                    .position(|g| {
+                        g.bodies.contains(&(slot as usize))
+                            || g.soft_slots.contains(&(slot as usize))
+                    })
+                    .unwrap_or(0)
+            };
+            let group_dt = |gi: usize| groups[gi].dt;
+            self.soft_constraints.assemble_contacts(
+                island_id,
+                &params,
+                narrow_phase,
+                colliders,
+                bodies,
+                soft_bodies,
+                group_of_slot,
+                group_dt,
+            );
+            self.soft_constraints
+                .assemble_attachments(island_id, bodies, group_dt);
+        }
+
         // Avoid spawning more workers than there is work to distribute.
         let num_two_body = graph.len() - graph.generic().len();
-        let approx_chunks = num_two_body / SIMD_WIDTH + joint_indices.len() / 4;
+        let approx_chunks = num_two_body / SIMD_WIDTH
+            + joint_indices.len() / 4
+            + (self.soft_constraints.rows.len() + self.soft_constraints.shape_rows.len()) / 8;
         let num_workers = num_workers.clamp(1, (approx_chunks / 16).max(1));
 
         // Joints: colored like contacts and laid out color by color (scalar
@@ -214,13 +294,13 @@ impl StagedIslandSolver {
                     // bodies; linear chunking would alias a dynamic body across SIMD lanes and the
                     // last-writer-wins scatter would drop an impulse. Body-mask grouping keeps each
                     // chunk's lanes disjoint (ungroupable => 1-lane chunks); worker 0 solves serially.
-                    self.overflow_scratch.clear();
-                    self.overflow_scratch.extend_from_slice(refs);
+                    self.overflow_workspace.clear();
+                    self.overflow_workspace.extend_from_slice(refs);
                     set.interaction_groups.clear_groups();
                     set.interaction_groups.group_manifold_refs(
                         island_bodies.len(),
                         store,
-                        &self.overflow_scratch,
+                        &self.overflow_workspace,
                     );
                     self.overflow_chunk_refs
                         .extend_from_slice(&set.interaction_groups.simd_ref_interactions);
@@ -295,22 +375,22 @@ impl StagedIslandSolver {
             let mut split: Vec<Vec<ContactRef>> = alloc::vec![Vec::new(); num_groups];
             for (color, refs) in graph.buckets() {
                 let is_overflow_color = (color as usize) == NUM_COLORS - 1;
-                for scratch in &mut split {
-                    scratch.clear();
+                for workspace in &mut split {
+                    workspace.clear();
                 }
                 for r in refs {
                     split[group_of(r)].push(*r);
                 }
-                for (gi, scratch) in split.iter().enumerate() {
-                    if scratch.is_empty() {
+                for (gi, workspace) in split.iter().enumerate() {
+                    if workspace.is_empty() {
                         continue;
                     }
                     if is_overflow_color {
-                        overflow_by_group[gi].extend_from_slice(scratch);
+                        overflow_by_group[gi].extend_from_slice(workspace);
                     } else {
                         let start = self.grouped_chunk_refs.len() as u32;
-                        self.grouped_chunk_refs.extend_from_slice(scratch);
-                        runs[gi].push((color, start, scratch.len() as u32));
+                        self.grouped_chunk_refs.extend_from_slice(workspace);
+                        runs[gi].push((color, start, workspace.len() as u32));
                     }
                 }
             }
@@ -483,6 +563,7 @@ impl StagedIslandSolver {
             velocity_solver: &mut self.velocity_solver as *mut _,
             joint_constraints: &mut self.joint_constraints as *mut _,
             contact_constraints: set as *mut _,
+            soft_constraints: &mut self.soft_constraints as *mut _,
             coulomb_builders: set.simd_velocity_coulomb_constraints_builder.as_mut_ptr(),
             coulomb_constraints: set.simd_velocity_coulomb_constraints.as_mut_ptr(),
             #[cfg(feature = "dim3")]

@@ -35,6 +35,8 @@ block-solver = []
 alloc = [
     "nalgebra/alloc",
     "parry2d/alloc",
+    # Needed by `SoftBodyBuilder::volumetric`, for the Delaunay refinement.
+    "parry2d/spade",
     "serde?/alloc",
 ]
 std = [

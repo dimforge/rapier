@@ -1,6 +1,7 @@
 use super::DebugColor;
 use crate::dynamics::{
     ImpulseJoint, ImpulseJointHandle, Multibody, MultibodyLink, RigidBody, RigidBodyHandle,
+    SoftBody, SoftBodyHandle,
 };
 use crate::geometry::{Aabb, Collider, ContactPair};
 use crate::math::{Pose, Vector};
@@ -21,6 +22,8 @@ pub enum DebugRenderObject<'a> {
     MultibodyJoint(MultibodyJointHandle, &'a Multibody, &'a MultibodyLink),
     /// The contacts of a contact-pair are being rendered.
     ContactPair(&'a ContactPair, &'a Collider, &'a Collider),
+    /// A soft body's elements and edge-vs-edge contacts are being rendered.
+    SoftBody(SoftBodyHandle, &'a SoftBody),
 }
 
 /// Trait implemented by graphics backends responsible for rendering the physics scene.

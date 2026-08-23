@@ -157,7 +157,7 @@ struct BoneDef {
     cap_a: [f32; 2],
     cap_b: [f32; 2],
     cap_r: f32,
-    /// Whether this bone carries the shared foot polygon (lower legs).
+    /// Whether this bone has the shared foot polygon (lower legs).
     has_foot: bool,
     /// Joint pivot Y (world offset from origin); joint to the parent.
     pivot_y: f32,

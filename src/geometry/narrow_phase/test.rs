@@ -11,7 +11,7 @@ use std::println;
 
 use super::*;
 
-use crate::dynamics::{ImpulseJointSet, MultibodyJointSet};
+use crate::dynamics::{ImpulseJointSet, MultibodyJointSet, SoftBodySet};
 
 /// Test for https://github.com/dimforge/rapier/issues/734.
 #[test]
@@ -55,6 +55,7 @@ pub fn collider_set_parent_depenetration() {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joint_set = ImpulseJointSet::new();
     let mut multibody_joint_set = MultibodyJointSet::new();
+    let mut soft_body_set = SoftBodySet::new();
     let mut ccd_solver = CCDSolver::new();
     let physics_hooks = ();
     let event_handler = ();
@@ -69,6 +70,7 @@ pub fn collider_set_parent_depenetration() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -83,7 +85,7 @@ pub fn collider_set_parent_depenetration() {
     assert!(
         narrow_phase
             .contact_pair(collider_1_handle, collider_2_handle)
-            .is_none_or(|pair| pair.manifolds.is_empty()),
+            .is_none_or(|pair| pair.manifolds().is_empty()),
         "No contact should be simulated between same-parent colliders."
     );
     assert!(
@@ -105,6 +107,7 @@ pub fn collider_set_parent_depenetration() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -113,7 +116,7 @@ pub fn collider_set_parent_depenetration() {
     let contact_pair = narrow_phase
         .contact_pair(collider_1_handle, collider_2_handle)
         .expect("The contact pair should exist.");
-    assert_eq!(contact_pair.manifolds.len(), 1);
+    assert_eq!(contact_pair.manifolds().len(), 1);
     assert!(
         narrow_phase
             .intersection_pair(collider_1_handle, collider_2_handle)
@@ -133,6 +136,7 @@ pub fn collider_set_parent_depenetration() {
             &mut collider_set,
             &mut impulse_joint_set,
             &mut multibody_joint_set,
+            &mut soft_body_set,
             &mut ccd_solver,
             &physics_hooks,
             &event_handler,
@@ -198,6 +202,7 @@ pub fn collider_set_parent_no_self_intersection() {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joint_set = ImpulseJointSet::new();
     let mut multibody_joint_set = MultibodyJointSet::new();
+    let mut soft_body_set = SoftBodySet::new();
     let mut ccd_solver = CCDSolver::new();
     let physics_hooks = ();
     let event_handler = ();
@@ -212,6 +217,7 @@ pub fn collider_set_parent_no_self_intersection() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -221,7 +227,7 @@ pub fn collider_set_parent_no_self_intersection() {
         .contact_pair(collider_1_handle, collider_2_handle)
         .expect("The contact pair should exist.");
     assert_eq!(
-        contact_pair.manifolds.len(),
+        contact_pair.manifolds().len(),
         1,
         "There should be a contact manifold."
     );
@@ -242,6 +248,7 @@ pub fn collider_set_parent_no_self_intersection() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -251,7 +258,7 @@ pub fn collider_set_parent_no_self_intersection() {
         .contact_pair(collider_1_handle, collider_2_handle)
         .expect("The contact pair should no longer exist.");
     assert_eq!(
-        contact_pair.manifolds.len(),
+        contact_pair.manifolds().len(),
         0,
         "Colliders with same parent should not be in contact together."
     );
@@ -268,6 +275,7 @@ pub fn collider_set_parent_no_self_intersection() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -277,7 +285,7 @@ pub fn collider_set_parent_no_self_intersection() {
         .contact_pair(collider_1_handle, collider_2_handle)
         .expect("The contact pair should exist.");
     assert_eq!(
-        contact_pair.manifolds.len(),
+        contact_pair.manifolds().len(),
         1,
         "There should be a contact manifold."
     );

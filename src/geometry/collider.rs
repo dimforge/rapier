@@ -59,6 +59,9 @@ pub struct Collider {
     pub(crate) flags: ColliderFlags,
     contact_skin: Real,
     contact_force_event_threshold: Real,
+    /// Reference to the soft body associated to this collider's shape if it is deformable; the soft
+    /// body keeps its mesh (automatic skinning, tearing) and syncs it into the shape each frame.
+    pub(crate) deformable_mesh_ref: Option<crate::dynamics::SoftMeshRef>,
     /// User-defined data associated to this collider.
     pub user_data: u128,
 }
@@ -66,6 +69,41 @@ pub struct Collider {
 impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
         self.changes = ColliderChanges::all();
+        self.deformable_mesh_ref = None;
+    }
+
+    /// The soft-body collision mesh this collider is associated to, if any.
+    pub fn deformable_mesh_ref(&self) -> Option<crate::dynamics::SoftMeshRef> {
+        self.deformable_mesh_ref
+    }
+
+    /// Whether this collider is associated to a soft body's deformable collision mesh.
+    pub(crate) fn is_deformable_collider(&self) -> bool {
+        self.deformable_mesh_ref.is_some()
+    }
+
+    /// Deforms the shape of a soft-body surface collider in place through `f` without
+    /// invalidating the narrow-phase pair workspaces (its topology and identity are unchanged).
+    pub(crate) fn deform_shape(&mut self, f: impl FnOnce(&mut dyn Shape)) {
+        f(self.shape.make_mut());
+        self.changes.insert(ColliderChanges::DEFORMED);
+    }
+
+    /// Replaces the shape of a soft-body surface collider whose topology changed (a tear), as a
+    /// deformation: no narrow-phase pair workspace invalidation, no wake-up.
+    pub(crate) fn replace_deformed_shape(&mut self, shape: SharedShape) {
+        self.shape = shape;
+        self.changes.insert(ColliderChanges::DEFORMED);
+    }
+
+    /// Moves a soft-body particle ball to its particle's world position (a simulation-driven
+    /// motion, like a deformation: no wake-up, no narrow-phase workspace invalidation). `frame`
+    /// is the parent proxy's pose: the ball's local pose is kept consistent with it.
+    pub(crate) fn deform_position(&mut self, position: Vector) {
+        if let Some(parent) = self.parent.as_mut() {
+            parent.pos_wrt_parent = Pose::from_translation(position);
+        }
+        self.pos = ColliderPosition(Pose::from_translation(position));
     }
 
     pub(crate) fn effective_contact_force_event_threshold(&self) -> Real {
@@ -130,6 +168,7 @@ impl Collider {
             contact_force_event_threshold,
             user_data,
             contact_skin,
+            deformable_mesh_ref: _soft_mesh, // The soft-body markers belong to the collider's identity.
         } = other;
 
         if self.parent.is_none() {
@@ -574,9 +613,11 @@ impl Collider {
         params: &IntegrationParameters,
         bodies: &RigidBodySet,
     ) -> Aabb {
+        let parent = self
+            .parent
+            .and_then(|p| Some((p, bodies.get(p.handle)?)));
         // Take soft-ccd into account by growing the aabb.
-        let next_pose = self.parent.and_then(|p| {
-            let parent = bodies.get(p.handle)?;
+        let next_pose = parent.and_then(|(p, parent)| {
             (parent.soft_ccd_prediction() > 0.0).then(|| {
                 parent.predict_position_using_velocity_and_forces_with_max_dist(
                     params.dt,
@@ -584,9 +625,11 @@ impl Collider {
                 ) * p.pos_wrt_parent
             })
         });
+        let soft_motion_margin = parent.map_or(0.0, |(_, parent)| parent.soft_motion_margin);
 
         let prediction_distance = params.prediction_distance();
-        let mut aabb = self.compute_collision_aabb(prediction_distance / 2.0);
+        let mut aabb =
+            self.compute_collision_aabb(prediction_distance / 2.0 + soft_motion_margin);
         if let Some(next_pose) = next_pose {
             let next_aabb = self
                 .shape
@@ -894,6 +937,18 @@ impl ColliderBuilder {
     /// Initializes a collider builder with a polyline shape defined by its vertex and index buffers.
     pub fn polyline(vertices: Vec<Vector>, indices: Option<Vec<[u32; 2]>>) -> Self {
         Self::new(SharedShape::polyline(vertices, indices))
+    }
+
+    /// Initializes a collider builder with a polyline shape defined by its vertex and index
+    /// buffers and the flags controlling its optional data (orientation, deformability).
+    pub fn polyline_with_flags(
+        vertices: Vec<Vector>,
+        indices: Option<Vec<[u32; 2]>>,
+        flags: parry::shape::PolylineFlags,
+    ) -> Self {
+        Self::new(SharedShape::new(parry::shape::Polyline::with_flags(
+            vertices, indices, flags,
+        )))
     }
 
     /// Initializes a collider builder with an **oriented** (one-sided) polyline shape.
@@ -1450,6 +1505,7 @@ impl ColliderBuilder {
             coll_type,
             contact_force_event_threshold: self.contact_force_event_threshold,
             contact_skin: self.contact_skin,
+            deformable_mesh_ref: None,
             user_data: self.user_data,
         }
     }

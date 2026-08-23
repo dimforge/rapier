@@ -32,7 +32,8 @@ pub(super) fn is_bullet(rb: &RigidBody) -> bool {
 }
 
 /// The target-selection rule for a fast body `rb1`: a non-bullet fast body only sweeps
-/// against **fixed** targets; a bullet sweeps against every body type except other bullets.
+/// against automatic targets (fixed geometry and soft-body meshes); a bullet sweeps against
+/// every body type except other bullets.
 fn tier_allows(rb1: &RigidBody, rb2: Option<&RigidBody>) -> bool {
     if is_bullet(rb1) {
         !rb2.map(is_bullet).unwrap_or(false)
@@ -125,12 +126,12 @@ fn intersect_swept_aabb<'a>(
         })
 }
 
-/// The candidate targets a fast body sweeps against. Non-bullets only ever hit **fixed** targets:
-/// a flat AABB list skips walking the shared BVH past the dynamic neighbours (costly in dense
-/// piles). Bullets and fixed-heavy worlds fall back to the full BVH.
+/// The targets a fast body sweeps against. Non-bullets only hit automatic targets, so flat AABB
+/// lists skip walking the shared BVH; bullets and fixed-heavy worlds use the full BVH.
 #[derive(Copy, Clone)]
 pub(super) enum CcdTargets<'a> {
-    /// Flat list of the fixed colliders and their (slightly fattened) AABBs.
+    /// Flat lists of the automatic targets and their (slightly fattened) AABBs: the cached
+    /// fixed colliders, and the soft-body collision meshes (rebuilt every step, as they deform).
     FixedList(&'a [(ColliderHandle, Aabb)]),
     /// The full broad-phase BVH.
     FullBvh(&'a Bvh),
@@ -571,7 +572,6 @@ pub(super) fn sweep_fast_body(
             ) {
                 return;
             }
-
             if let Some(hit_fraction) = cast_collider_pair(
                 dispatcher,
                 &fast,

@@ -55,7 +55,7 @@ impl StagedIslandSolver {
             // written-back impulses) go stale, and only matter with joint warm-starting on.
             if warmstart_joints {
                 let joints = &mut self.joint_constraints;
-                // Joint-heavy scenes refresh thousands of independent builders:
+                // Joint-heavy scenes update thousands of independent builders:
                 // run in parallel (this is the dominant serial-assembly cost on
                 // the rain benchmark, ~0.23ms/step of ragdoll joints).
                 #[cfg(feature = "parallel")]

@@ -39,6 +39,7 @@ fn cartpole_loads_and_steps() {
     assert_eq!(impulse_joints.len(), 2);
 
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut ccd = CCDSolver::new();
     let mut pipeline = PhysicsPipeline::new();
     let integration_parameters = IntegrationParameters::default();
@@ -60,6 +61,7 @@ fn cartpole_loads_and_steps() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &physics_hooks,
             &event_handler,

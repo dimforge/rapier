@@ -325,7 +325,7 @@ pub struct RigidBodyMassProps {
     pub additional_local_mprops: Option<Box<RigidBodyAdditionalMassProps>>,
     /// Conservative bound on the distance of any shape point from the local center of mass;
     /// the sleep metric and the CCD fast-body criterion use it to turn angular velocity into
-    /// a farthest-point speed. Refreshed with the mass properties; `0` for collider-less bodies.
+    /// a farthest-point speed. Updated with the mass properties; `0` for collider-less bodies.
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub(crate) max_extent: Real,
 }
@@ -488,7 +488,7 @@ impl RigidBodyMassProps {
         self.update_world_mass_properties(body_type, position);
     }
 
-    /// Refreshes [`Self::max_extent`] from the attached colliders' bounding
+    /// Updates [`Self::max_extent`] from the attached colliders' bounding
     /// spheres, measured about the local center of mass.
     pub(crate) fn recompute_max_extent(
         &mut self,

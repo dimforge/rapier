@@ -36,21 +36,21 @@ pub struct BroadPhaseBvh {
     /// stale-pair detection examine only pairs adjacent to changed colliders instead of
     /// re-scanning the whole `pairs` map (a pair can only stop overlapping if one side changed).
     pair_adjacency: Coarena<Vec<ColliderHandle>>,
-    /// Scratch buffer holding the colliders whose AABB was updated in the tree
+    /// Workspace buffer holding the colliders whose AABB was updated in the tree
     /// during the last `update` call.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     updated_colliders: Vec<ColliderHandle>,
-    /// Scratch buffer holding the leaf pairs reported by the tree traversal. Only the
+    /// Workspace buffer holding the leaf pairs reported by the tree traversal. Only the
     /// sequential traversal needs it (it reports through a closure); the parallel one
     /// returns its own vector.
     #[cfg(not(feature = "parallel"))]
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    candidates_scratch: Vec<(u32, u32)>,
-    /// Scratch: per-collider "was updated this step" bit (collider arena index), so the
+    candidates_workspace: Vec<(u32, u32)>,
+    /// Workspace: per-collider "was updated this step" bit (collider arena index), so the
     /// stale-pair scan can visit a pair from one side only when both sides moved.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     updated_mask: Vec<bool>,
-    /// Scratch buffer holding the stale pairs detected during `update`.
+    /// Workspace buffer holding the stale pairs detected during `update`.
     ///
     /// The boolean indicates if a `DeletePair` event must be emitted for the pair.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
@@ -75,14 +75,14 @@ pub struct BroadPhaseBvh {
     /// SAH re-insertion (tree quality without an O(tree) optimizer/refit pass); bulk regimes keep cheaper
     /// in-place updates + the periodic optimizer. One step of hysteresis: `set_aabb` runs between updates.
     reinsert_leaf_updates: bool,
-    /// Scratch buffer for the precomputed leaf updates of [`Self::update`].
+    /// Workspace buffer for the precomputed leaf updates of [`Self::update`].
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    update_scratch: Vec<(ColliderHandle, Aabb, Real)>,
+    update_workspace: Vec<(ColliderHandle, Aabb, Real)>,
     /// Workspace of the parallel leaf-update batches (the tree API takes raw
     /// leaf indices).
     #[cfg(feature = "parallel")]
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    update_batch_scratch: Vec<(Aabb, u32, Real)>,
+    update_batch_workspace: Vec<(Aabb, u32, Real)>,
     #[cfg(feature = "parallel")]
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     update_batch_statuses: Vec<BvhLeafUpdateStatus>,
@@ -272,12 +272,12 @@ mod test {
     use crate::prelude::{
         CCDSolver, ColliderBuilder, ColliderSet, DefaultBroadPhase, ImpulseJointSet,
         IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
-        RigidBodyBuilder, RigidBodySet,
+        RigidBodyBuilder, RigidBodySet, SoftBodySet,
     };
 
     /// With the adaptive change-detection margin enabled, collisions must still be
     /// detected and resolved like with the fixed margin (the margin only affects how
-    /// often tree leaves are refreshed, not which pairs eventually collide).
+    /// often tree leaves are updated, not which pairs eventually collide).
     #[test]
     fn adaptive_change_detection_margin_smoke() {
         let mut final_ys = [0.0; 2];
@@ -287,6 +287,7 @@ mod test {
             let mut colliders = ColliderSet::new();
             let mut impulse_joints = ImpulseJointSet::new();
             let mut multibody_joints = MultibodyJointSet::new();
+            let mut soft_bodies = SoftBodySet::new();
             let mut pipeline = PhysicsPipeline::new();
             let mut islands = IslandManager::new();
             let mut broad_phase = DefaultBroadPhase::new();
@@ -311,6 +312,7 @@ mod test {
                     &mut colliders,
                     &mut impulse_joints,
                     &mut multibody_joints,
+                    &mut soft_bodies,
                     &mut ccd,
                     &(),
                     &(),

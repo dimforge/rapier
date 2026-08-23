@@ -108,7 +108,7 @@ impl JointConstraintBuilder {
 
         let out_rows = &mut out[self.constraint_id..];
 
-        // When warm-starting, carry the impulses accumulated by the previous substep
+        // When warm-starting, keep the impulses accumulated by the previous substep
         // across the row rebuild (the row layout only depends on the static joint
         // configuration, so it is stable across the substeps of a step).
         const MAX_ROWS: usize = 4 * SPATIAL_DIM;
@@ -200,7 +200,7 @@ pub struct JointConstraintBuilderSimd {
     /// Like `prev_dof_impulses`, for the limit rows.
     prev_limit_impulses: [SimdReal; SPATIAL_DIM],
     /// The bodies' effective inverse masses/angular inertias, cached by the substep-0 update.
-    /// Step-constant (solver-body mass properties refresh once per step), so later substeps
+    /// Step-constant (solver-body mass properties are updated once per step), so later substeps
     /// only gather the transform part of the solver poses — about half the transposition work.
     im1: <SimdReal as ScalarType>::Vector,
     ii1: <SimdReal as ScalarType>::AngInertia,
@@ -442,7 +442,7 @@ impl JointConstraintBuilderSimd {
         #[cfg(feature = "dim3")]
         let ang_motor_params: Option<MotorParameters<SimdReal>> = None;
 
-        // See the scalar builder: carry impulses across the row rebuild when warm-starting.
+        // See the scalar builder: keep impulses across the row rebuild when warm-starting.
         // The SIMD builder emits at most one motor row, one row per locked axis and one per
         // (uncoupled) limited axis; the masks are disjoint.
         const MAX_WIDE_ROWS: usize = SPATIAL_DIM + 1;

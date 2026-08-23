@@ -2,10 +2,22 @@
 
 use crate::testbed::TestbedStateFlags;
 use kiss3d::prelude::*;
-use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
+use rapier::dynamics::{RigidBodyHandle, RigidBodySet, SoftBodySet};
 use rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType, SharedShape};
 use std::collections::HashMap;
 use std::path::Path;
+
+use graphics_polyline::polyline_geometry;
+#[cfg(feature = "dim2")]
+use graphics_polyline::stroked_polyline;
+#[cfg(feature = "dim3")]
+use graphics_polyline::tube_polyline;
+use graphics_soft_bodies::SoftBodyGraphics;
+#[cfg(feature = "dim3")]
+use graphics_soft_bodies::is_hidden_by_skin;
+
+mod graphics_polyline;
+mod graphics_soft_bodies;
 
 #[cfg(feature = "dim2")]
 pub use kiss3d::prelude::SceneNode2d as SceneNode;
@@ -167,6 +179,8 @@ pub struct GraphicsManager {
     individual_nodes: Vec<IndividualNode>,
     /// Body-attached render-only meshes (no physics counterpart).
     body_attached_nodes: Vec<BodyAttachedNode>,
+    /// Soft-body colors and the render nodes of the meshes soft bodies only draw.
+    soft_graphics: SoftBodyGraphics,
     /// Per-channel visibility — `false` hides every collider-derived node
     /// (instanced + individual). Composed with the global `DRAW_SURFACES`
     /// flag, which still wins when off.
@@ -174,11 +188,14 @@ pub struct GraphicsManager {
     /// Per-channel visibility for body-attached render-only meshes
     /// (e.g. MJCF visual meshes added via [`Self::add_body_render_mesh`]).
     body_render_meshes_visible: bool,
-    /// Last-known state of the global `DRAW_SURFACES` flag, refreshed on every
+    /// Last-known state of the global `DRAW_SURFACES` flag, updated on every
     /// [`Self::draw`]. Nodes created between two `draw` calls (e.g. during a
     /// scene reset) are spawned with this visibility so they don't flash for
     /// one frame when surface rendering is disabled (see #843).
     draw_surfaces: bool,
+    /// Mesh colliders drawn with shared vertices (smooth normals) instead of flat shading
+    /// (3D only: a 2D mesh collider is a polyline).
+    smooth_mesh_colliders: bool,
     /// Map from collider to its render nodes
     c2nodes: HashMap<ColliderHandle, NodeLocation>,
     /// Colliders attached to a particular body, used to identify the
@@ -251,6 +268,7 @@ impl GraphicsManager {
             colliders_visible: true,
             body_render_meshes_visible: true,
             draw_surfaces: true,
+            smooth_mesh_colliders: false,
             c2nodes: HashMap::new(),
             b2colliders: HashMap::new(),
             b2color: HashMap::new(),
@@ -264,9 +282,12 @@ impl GraphicsManager {
 
     pub fn clear(&mut self) {
         self.scene = SceneNode::empty();
+        self.curr_color_index = 0;
         #[cfg(feature = "dim3")]
         {
-            // Setup lights.
+            // A key light off the (1, 1, 1) diagonal, so the three faces of a box seen from the
+            // usual eye get three different shades, and a weak fill from the other side so the
+            // faces it misses are not flat ambient.
             let mut light = self
                 .scene
                 .add_light(Light::directional(Vec3::new(-1.0, -1.0, -1.0)));
@@ -336,7 +357,7 @@ impl GraphicsManager {
             if matches!(shape.shape_type(), ShapeType::TriMesh) {
                 // Build the kiss3d mesh ourselves so we can plumb the
                 // authored UVs *and* normals straight through. The standard
-                // `create_individual_node` path carries neither and always
+                // `create_individual_node` path handles neither and always
                 // recomputes flat per-face normals — for a visual mesh
                 // that replaces the default collider render we instead want
                 // to match the source asset exactly.
@@ -381,7 +402,7 @@ impl GraphicsManager {
                 );
                 if !have_normals {
                     // No usable authored normals (e.g. an STL/OBJ that
-                    // carried none): fall back to flat shading so the mesh
+                    // had none): fall back to flat shading so the mesh
                     // still lights. This splits shared vertices, so it must
                     // run *only* when we didn't supply normals above —
                     // never on the smooth path.
@@ -448,6 +469,8 @@ impl GraphicsManager {
             color,
             shape: shape.clone(),
         });
+    }
+
     }
 
     pub fn scene(&self) -> &SceneNode {
@@ -1139,6 +1162,7 @@ impl GraphicsManager {
         colliders: &ColliderSet,
     ) {
         self.draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
+        self.smooth_mesh_colliders = flags.contains(TestbedStateFlags::SMOOTH_MESH_COLLIDERS);
         let show_colliders = self.draw_surfaces && self.colliders_visible;
         let show_body_meshes = self.draw_surfaces && self.body_render_meshes_visible;
 

@@ -79,7 +79,7 @@ pub fn try_normalize_and_get_length(v: Vector, threshold: Real) -> Option<(Vecto
 /// Forces a negative-zero float (or any negative-zero component) to positive zero via
 /// `x + 0.0`, leaving every other value untouched.
 ///
-/// Serialized solver state must not carry `-0.0`: whether a min/max/clamp returns `+0.0`
+/// Serialized solver state must not contain `-0.0`: whether a min/max/clamp returns `+0.0`
 /// or `-0.0` for a signed-zero tie is platform-specific (SSE returns one of the operands
 /// picked by argument order, NEON's `fminnm`/`fmaxnm` order the zeros), so a stored
 /// signed zero breaks cross-platform snapshot determinism even though `-0.0 == +0.0`

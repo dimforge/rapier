@@ -57,6 +57,8 @@ pub struct DebugRenderStyle {
     pub contact_normal_color: DebugColor,
     /// The length of the contact normals.
     pub contact_normal_length: Real,
+    /// The color of the soft bodies' elements (structural edges, cell edges).
+    pub soft_body_element_color: DebugColor,
     /// The color of the colliders' [`Aabb`](crate::geometry::Aabb)s.
     pub collider_aabb_color: DebugColor,
 }
@@ -83,6 +85,7 @@ impl Default for DebugRenderStyle {
             contact_depth_color: [120.0, 1.0, 0.4, 1.0],
             contact_normal_color: [0.0, 1.0, 1.0, 1.0],
             contact_normal_length: 0.3,
+            soft_body_element_color: [200.0, 0.8, 0.5, 1.0],
             collider_aabb_color: [124.0, 1.0, 0.4, 1.0],
         }
     }

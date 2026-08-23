@@ -1,8 +1,8 @@
 //! `ContactForceEvent` must report the forces the solver actually applied.
 //!
 //! With contact clustering (on by default in 3D for pairs with several manifolds) the
-//! solver writes its impulses back into `pair.solver_clusters`, so an event built from
-//! `pair.manifolds` reports a zero `total_force` and a degenerate `max_force_*`.
+//! solver writes its impulses back into `pair.rigid().unwrap().solver_clusters`, so an event built from
+//! `pair.manifolds()` reports a zero `total_force` and a degenerate `max_force_*`.
 
 use std::sync::Mutex;
 
@@ -39,6 +39,8 @@ impl EventHandler for ForceEvents {
                 total_force_magnitude,
             ));
     }
+
+    fn handle_soft_body_tear_event(&self, _: &SoftBodySet, _: &SoftBodyTearEvent) {}
 }
 
 #[test]
@@ -47,7 +49,7 @@ fn contact_force_event_is_populated_under_contact_clustering() {
     let mut world = PhysicsWorld::new();
 
     // A two-triangle quad: a box resting across the diagonal touches both triangles,
-    // so the pair carries two manifolds and clustering applies to it.
+    // so the pair has two manifolds and clustering applies to it.
     let vertices = vec![
         Vector::new(-2.0, 0.0, -2.0),
         Vector::new(2.0, 0.0, -2.0),
@@ -79,12 +81,12 @@ fn contact_force_event_is_populated_under_contact_clustering() {
         .contact_pair(ground_collider, box_collider)
         .expect("no contact pair between the box and the ground");
     assert!(
-        pair.manifolds.len() > 1,
+        pair.manifolds().len() > 1,
         "expected several manifolds on the trimesh pair, got {}",
-        pair.manifolds.len()
+        pair.manifolds().len()
     );
     assert!(
-        !pair.solver_clusters.is_empty(),
+        !pair.rigid().unwrap().solver_clusters.is_empty(),
         "contact clustering did not apply to the pair"
     );
 

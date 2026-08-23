@@ -509,7 +509,7 @@ impl GenericContactConstraintBuilder {
 
     /// End-of-step restitution pass (box2d-style): after all substeps, drive each bouncy
     /// point's normal velocity to its prepare-time `restitution * approach_velocity`, gated
-    /// on the point having carried an impulse. Implemented by re-running the normal solve
+    /// on the point having applied an impulse. Implemented by re-running the normal solve
     /// with `rhs = seed` on those points and a zeroed effective mass on the others.
     pub fn apply_restitution(
         &self,

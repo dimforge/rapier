@@ -62,12 +62,9 @@ fn leaf_joint_inverse_inertia_is_link_inertia() {
 
 #[test]
 fn parent_joint_inverse_inertia_accounts_for_children() {
-    // Base→link1(hinge Z)→link2(hinge Z), all rotating about the same world Z
-    // through the origin so the joint-space inertia is diagonal and easy to
-    // reason about: M[0,0] = Izz1 + Izz2 (link1's DoF carries both links),
-    // M[1,1] = Izz2. The off-diagonal is Izz2 (shared axis), so M is NOT
-    // diagonal and diag(M⁻¹) differs from 1/diag(M) — this is the articulated
-    // coupling we want.
+    // Base→link1(hinge Z)→link2(hinge Z), all about the same world Z through the origin, so
+    // M[0,0] = Izz1 + Izz2, M[1,1] = Izz2, off-diagonal Izz2: M is not diagonal and diag(M⁻¹)
+    // differs from 1/diag(M), the articulated coupling under test.
     let mut bodies = RigidBodySet::new();
     let mut multibody_joints = MultibodyJointSet::new();
     let base = bodies.insert(RigidBodyBuilder::fixed());

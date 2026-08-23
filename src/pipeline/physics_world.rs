@@ -1,9 +1,6 @@
 use crate::alloc_prelude::*;
-use crate::dynamics::{
-    CCDSolver, GenericJoint, ImpulseJoint, ImpulseJointHandle, ImpulseJointSet,
-    IntegrationParameters, IslandManager, Multibody, MultibodyJointHandle, MultibodyJointSet,
-    MultibodyLink, MultibodyLinkId, RigidBody, RigidBodyHandle, RigidBodySet,
-};
+use crate::dynamics::{CCDSolver, GenericJoint, ImpulseJoint, ImpulseJointHandle, ImpulseJointSet, IntegrationParameters, IslandManager, Multibody, MultibodyJointHandle, MultibodyJointSet, MultibodyLink, MultibodyLinkId, RigidBody, RigidBodyHandle, RigidBodySet, SoftBindingError, SoftBody, SoftBodyBuilder, SoftBodyHandle, SoftBodySet,
+    SoftClusterRemoval, SoftMeshBinding};
 use crate::geometry::{
     BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, ContactPair, DefaultBroadPhase,
     NarrowPhase,
@@ -80,6 +77,8 @@ pub struct PhysicsWorld {
     pub impulse_joints: ImpulseJointSet,
     /// All multibody joints (kinematic chains, articulations).
     pub multibody_joints: MultibodyJointSet,
+    /// All soft bodies (deformable particle bodies).
+    pub soft_bodies: SoftBodySet,
     /// The continuous collision detection solver.
     ///
     /// Workspace only: not part of a snapshot (see the type docs).
@@ -100,6 +99,7 @@ impl Default for PhysicsWorld {
             colliders: ColliderSet::new(),
             impulse_joints: ImpulseJointSet::new(),
             multibody_joints: MultibodyJointSet::new(),
+            soft_bodies: SoftBodySet::new(),
             ccd_solver: CCDSolver::new(),
         }
     }
@@ -130,7 +130,9 @@ impl PhysicsWorld {
     /// # use std::sync::mpsc::channel;
     /// let (collision_send, collision_recv) = channel();
     /// let (contact_force_send, contact_force_recv) = channel();
-    /// let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+    /// let (soft_body_tear_send, soft_body_tear_recv) = channel();
+    /// let event_handler =
+    ///     ChannelEventCollector::new(collision_send, contact_force_send, soft_body_tear_send);
     ///
     /// world.step_with_events(&(), &event_handler);
     ///
@@ -149,6 +151,7 @@ impl PhysicsWorld {
             &mut self.colliders,
             &mut self.impulse_joints,
             &mut self.multibody_joints,
+            &mut self.soft_bodies,
             &mut self.ccd_solver,
             hooks,
             events,
@@ -381,6 +384,35 @@ impl PhysicsWorld {
         body: RigidBodyHandle,
     ) -> impl Iterator<Item = (RigidBodyHandle, RigidBodyHandle, MultibodyJointHandle)> + '_ {
         self.multibody_joints.attached_joints(body)
+    }
+
+    // ── Soft bodies ─────────────────────────────────────────────────────
+
+    /// Insert a soft body and return its handle.
+    ///
+    /// This creates the soft body's hidden root rigid body and its colliders (a deformable
+    /// surface, or one ball per surface particle); they are removed by
+    /// [`Self::remove_soft_body`].
+    pub fn insert_soft_body(&mut self, soft_body: SoftBodyBuilder) -> SoftBodyHandle {
+        self.soft_bodies
+            .insert(soft_body, &mut self.bodies, &mut self.colliders)
+    }
+
+    /// Remove a soft body, its root rigid body and its colliders.
+    pub fn remove_soft_body(&mut self, handle: SoftBodyHandle) -> Option<SoftBody> {
+        self.soft_bodies.remove(
+            handle,
+            &mut self.islands,
+            &mut self.bodies,
+            &mut self.colliders,
+            &mut self.impulse_joints,
+            &mut self.multibody_joints,
+        )
+    }
+
+    /// Iterate over every soft body in the world.
+    pub fn soft_bodies(&self) -> impl Iterator<Item = (SoftBodyHandle, &SoftBody)> {
+        self.soft_bodies.iter()
     }
 
     // ── Scene queries ───────────────────────────────────────────────────
@@ -793,6 +825,7 @@ impl PhysicsWorld {
             &self.impulse_joints,
             &self.multibody_joints,
             &self.narrow_phase,
+            &self.soft_bodies,
         );
     }
 }

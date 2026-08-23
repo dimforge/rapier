@@ -103,6 +103,7 @@ fn run_sim(num_threads: usize, num_steps: usize) -> Vec<StepRecord> {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut bf = BroadPhaseBvh::new();
     let mut nf = NarrowPhase::new();
@@ -167,6 +168,26 @@ fn run_sim(num_threads: usize, num_steps: usize) -> Vec<StepRecord> {
             .active_events(ActiveEvents::COLLISION_EVENTS),
     );
 
+    // Soft bodies falling on the pile: a cloth, a corotational jelly cube and a pressurized
+    // balloon (colored soft constraints, shape/volume prepare stages, serial volume constraint).
+    let cloth = SoftBodyBuilder::cloth(
+        Vector::new(-2.0, 4.0, -2.0),
+        Vector::X * 0.2,
+        Vector::Z * 0.2,
+        20,
+        20,
+    )
+    .particle_mass(0.05);
+    soft_bodies.insert(cloth, &mut bodies, &mut colliders);
+    let jelly = SoftBodyBuilder::cuboid(Vector::new(4.0, 5.0, 4.0), Vector::splat(0.6), 4, 4, 4)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .particle_mass(0.2);
+    soft_bodies.insert(jelly, &mut bodies, &mut colliders);
+    let balloon = SoftBodyBuilder::sphere(Vector::new(-4.0, 5.0, 4.0), 0.8, 2)
+        .shape_matching(true)
+        .particle_mass(0.05);
+    soft_bodies.insert(balloon, &mut bodies, &mut colliders);
+
     let events = EventLog::default();
     let mut snapshots = Vec::new();
     for step in 0..num_steps {
@@ -197,6 +218,7 @@ fn run_sim(num_threads: usize, num_steps: usize) -> Vec<StepRecord> {
                 &mut colliders,
                 &mut impulse_joints,
                 &mut multibody_joints,
+                &mut soft_bodies,
                 &mut ccd,
                 &(),
                 &events,

@@ -31,6 +31,10 @@ bitflags::bitflags! {
         const PARENT_EFFECTIVE_DOMINANCE = 1 << 7; // NF update.
         /// Flag indicating that whether or not the collider is enabled was changed.
         const ENABLED_OR_DISABLED = 1 << 8; // BF & NF updates.
+        /// Flag indicating that the collider's shape was deformed in place (a soft-body surface
+        /// following its particles): BF & NF updates, no NF pair workspace invalidation, never
+        /// recycled.
+        const DEFORMED = 1 << 9;
     }
 }
 
@@ -47,7 +51,8 @@ impl ColliderChanges {
             ColliderChanges::PARENT
                 | ColliderChanges::POSITION
                 | ColliderChanges::SHAPE
-                | ColliderChanges::ENABLED_OR_DISABLED,
+                | ColliderChanges::ENABLED_OR_DISABLED
+                | ColliderChanges::DEFORMED,
         )
     }
 

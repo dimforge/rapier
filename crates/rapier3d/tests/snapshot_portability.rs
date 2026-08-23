@@ -31,7 +31,7 @@ use rapier3d::prelude::*;
 /// Snapshot size in bytes, and its FNV-1a digest. Both, because the size alone localizes a
 /// failure: a differing size means a container's *encoding* changed, an equal size with a
 /// differing digest means the values did.
-const GOLDEN: (usize, u64) = (481_608, 0xedfe_b12c_c030_e444);
+const GOLDEN: (usize, u64) = (488_334, 0x50d4_0720_b93e_831b);
 
 const STEPS: usize = 60;
 

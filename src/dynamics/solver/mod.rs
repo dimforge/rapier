@@ -11,6 +11,7 @@ mod contact_constraint;
 mod interaction_groups;
 mod joint_constraint;
 pub(crate) mod manifold_store;
+mod soft_constraint;
 mod solver_body;
 pub(crate) mod solver_contact_graph;
 mod staged_island_solver;

@@ -9,13 +9,14 @@ use crate::geometry::{BroadPhaseBvh, ColliderBuilder, ColliderSet, NarrowPhase};
 use crate::math::Rotation;
 use crate::math::Vector;
 use crate::pipeline::PhysicsPipeline;
-use crate::prelude::{MultibodyJointSet, RevoluteJointBuilder, RigidBodyType};
+use crate::prelude::{MultibodyJointSet, RevoluteJointBuilder, RigidBodyType, SoftBodySet};
 
 #[test]
 fn kinematic_and_fixed_contact_crash() {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut bf = BroadPhaseBvh::new();
     let mut nf = NarrowPhase::new();
@@ -42,6 +43,7 @@ fn kinematic_and_fixed_contact_crash() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -53,6 +55,7 @@ fn rigid_body_removal_before_step() {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut bf = BroadPhaseBvh::new();
     let mut nf = NarrowPhase::new();
@@ -97,6 +100,7 @@ fn rigid_body_removal_before_step() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -187,6 +191,7 @@ fn ccd_respects_filter_contact_pair_hook() {
     let mut ccd = CCDSolver::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut islands = IslandManager::new();
     let hooks = RejectAllHooks {
         calls: AtomicUsize::new(0),
@@ -232,6 +237,7 @@ fn ccd_respects_filter_contact_pair_hook() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &hooks,
             &event_handler,
@@ -268,6 +274,7 @@ fn collider_removal_before_step() {
     let mut ccd = CCDSolver::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut islands = IslandManager::new();
     let physics_hooks = ();
     let event_handler = ();
@@ -297,6 +304,7 @@ fn collider_removal_before_step() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &physics_hooks,
             &event_handler,
@@ -309,6 +317,7 @@ fn rigid_body_type_changed_dynamic_is_in_active_set() {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut bf = BroadPhaseBvh::new();
     let mut nf = NarrowPhase::new();
@@ -334,6 +343,7 @@ fn rigid_body_type_changed_dynamic_is_in_active_set() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -356,6 +366,7 @@ fn rigid_body_type_changed_dynamic_is_in_active_set() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -376,6 +387,7 @@ fn joint_step_delta_time_0() {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut bf = BroadPhaseBvh::new();
     let mut nf = NarrowPhase::new();
@@ -416,6 +428,7 @@ fn joint_step_delta_time_0() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -464,6 +477,7 @@ fn test_multi_sap_disable_body() {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joint_set = ImpulseJointSet::new();
     let mut multibody_joint_set = MultibodyJointSet::new();
+    let mut soft_body_set = SoftBodySet::new();
     let mut ccd_solver = CCDSolver::new();
     let physics_hooks = ();
     let event_handler = ();
@@ -478,6 +492,7 @@ fn test_multi_sap_disable_body() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -503,6 +518,7 @@ fn test_multi_sap_disable_body() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -528,6 +544,7 @@ fn test_multi_sap_disable_body() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -541,6 +558,7 @@ fn user_force_persists_across_steps() {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut bf = BroadPhaseBvh::new();
     let mut nf = NarrowPhase::new();
@@ -562,6 +580,7 @@ fn user_force_persists_across_steps() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -579,6 +598,7 @@ fn user_force_persists_across_steps() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -608,6 +628,7 @@ fn user_force_persists_across_steps() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -645,6 +666,12 @@ fn contact_force_events_follow_runtime_active_events_flips() {
             _: crate::math::Real,
         ) {
             self.0.fetch_add(1, Ordering::Relaxed);
+        }
+        fn handle_soft_body_tear_event(
+            &self,
+            _: &crate::dynamics::SoftBodySet,
+            _: &crate::dynamics::SoftBodyTearEvent,
+        ) {
         }
     }
 

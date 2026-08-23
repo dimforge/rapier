@@ -63,6 +63,7 @@ fn run(steps: usize) -> u64 {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut broad_phase = BroadPhaseBvh::new();
     let mut narrow_phase = NarrowPhase::new();
@@ -128,6 +129,7 @@ fn run(steps: usize) -> u64 {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

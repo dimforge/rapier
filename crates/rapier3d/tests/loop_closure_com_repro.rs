@@ -30,6 +30,7 @@ struct World {
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
+    soft_bodies: SoftBodySet,
     link1: RigidBodyHandle,
     link2: RigidBodyHandle,
 }
@@ -90,6 +91,7 @@ fn build(use_multibody: bool, closure_anchor1: Vector) -> World {
         colliders,
         impulse_joints,
         multibody_joints,
+        soft_bodies: SoftBodySet::new(),
         link1,
         link2,
     }
@@ -120,6 +122,7 @@ fn simulate(w: &mut World, closure_anchor1: Vector) -> (Real, Real) {
             &mut w.colliders,
             &mut w.impulse_joints,
             &mut w.multibody_joints,
+            &mut w.soft_bodies,
             &mut ccd,
             &(),
             &(),

@@ -237,7 +237,12 @@ impl NarrowPhase {
                     // so that the narrow-phase properly takes into account the change in, e.g.,
                     // collision groups. Waking up the modified collider's parent isn't enough because
                     // it could be a fixed or kinematic body which don't propagate the wake-up state.
-                    if let Some(islands) = islands.as_deref_mut() {
+                    // A pure in-place deformation (soft-body surface) is simulation-driven, not a
+                    // user change: it must not keep its island awake.
+                    let deformed_only = (co.changes
+                        & !(ColliderChanges::IN_MODIFIED_SET | ColliderChanges::DEFORMED))
+                        .is_empty();
+                    if let Some(islands) = islands.as_deref_mut().filter(|_| !deformed_only) {
                         if let Some(co_parent) = &co.parent {
                             islands.wake_up(bodies, co_parent.handle, true);
                         }
@@ -295,7 +300,7 @@ impl NarrowPhase {
 
                             // Persistent islands: after re-parenting or a body type change,
                             // a link recorded with the old endpoints may no longer describe
-                            // connectivity (a link to a fixed body doesn't connect). Refresh it.
+                            // connectivity (a link to a fixed body doesn't connect). Update it.
                             if let Some(islands) = islands.as_deref_mut() {
                                 let parent = |co: ColliderHandle| {
                                     colliders.get(co).and_then(|c| c.parent.map(|p| p.handle))

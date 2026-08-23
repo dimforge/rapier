@@ -116,10 +116,9 @@ impl JointGenericExternalConstraintBuilder {
             return;
         }
 
-        // Each constraint row appends the jacobian and the weighted jacobian for
-        // both sides, i.e. `2 * multibodies_ndof` entries. Reserve exactly the
-        // rows this joint emits: an axis carrying both a motor and a limit
-        // produces two rows, so a joint can exceed `SPATIAL_DIM` of them.
+        // Each row appends `2 * multibodies_ndof` entries (jacobian and weighted jacobian, both
+        // sides); reserve exactly the rows this joint emits (motor plus limit on an axis gives two,
+        // so more than `SPATIAL_DIM`), counted after `strip_soft_frame_angular_axes` runs.
         let num_rows = joint_num_constraints(joint);
         let required_jacobian_len = *j_id + multibodies_ndof * 2 * num_rows;
         *j_id += multibodies_ndof * 2 * num_rows;

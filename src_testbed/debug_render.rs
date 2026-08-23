@@ -1,5 +1,7 @@
 #![allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
 
+#[cfg(feature = "dim3")]
+use kiss3d::renderer::Polyline3d;
 use kiss3d::window::Window;
 use rapier::math::Vector;
 use rapier::pipeline::{
@@ -17,16 +19,36 @@ impl Default for DebugRenderPipelineResource {
         Self {
             pipeline: DebugRenderPipeline::new(
                 Default::default(),
-                !DebugRenderMode::RIGID_BODY_AXES & !DebugRenderMode::COLLIDER_AABBS,
+                !(DebugRenderMode::COLLIDER_AABBS | DebugRenderMode::PSEUDO_NORMALS),
             ),
             enabled: false,
         }
     }
 }
 
+/// Slight depth bias to avoid z-fighting with other lines (like mesh geometry).
+#[cfg(feature = "dim3")]
+const SOFT_BODY_DEPTH_BIAS: f32 = 1.0e-6;
+
 /// Kiss3d-based debug render backend
 pub struct Kiss3dLinesRenderBackend<'a> {
     pub window: &'a mut Window,
+    /// Reused from line to line: a depth-biased line goes through a polyline, and rebuilding one
+    /// per line would allocate thousands of times per frame.
+    #[cfg(feature = "dim3")]
+    biased: Polyline3d,
+}
+
+impl<'a> Kiss3dLinesRenderBackend<'a> {
+    pub fn new(window: &'a mut Window) -> Self {
+        Self {
+            window,
+            #[cfg(feature = "dim3")]
+            biased: Polyline3d::new(vec![glamx::Vec3::ZERO; 2])
+                .with_width(4.0)
+                .with_depth_bias(SOFT_BODY_DEPTH_BIAS),
+        }
+    }
 }
 
 impl<'a> DebugRenderBackend for Kiss3dLinesRenderBackend<'a> {
@@ -43,16 +65,23 @@ impl<'a> DebugRenderBackend for Kiss3dLinesRenderBackend<'a> {
     }
 
     #[cfg(feature = "dim3")]
-    fn draw_line(&mut self, _: DebugRenderObject, a: Vector, b: Vector, color: DebugColor) {
+    fn draw_line(&mut self, object: DebugRenderObject, a: Vector, b: Vector, color: DebugColor) {
         // Convert HSLA to RGB
         let rgb = hsla_to_rgb(color[0], color[1], color[2], color[3]);
-        self.window.draw_line(
-            glamx::Vec3::new(a.x as f32, a.y as f32, a.z as f32),
-            glamx::Vec3::new(b.x as f32, b.y as f32, b.z as f32),
-            rgb.into(),
-            4.0,
-            false,
-        );
+        let a = glamx::Vec3::new(a.x as f32, a.y as f32, a.z as f32);
+        let b = glamx::Vec3::new(b.x as f32, b.y as f32, b.z as f32);
+
+        // A soft body's cage is inside the surface the body is drawn as, so it is drawn in front
+        // of it instead of behind. Nothing else is biased: it would only hide what it overlaps.
+        if matches!(object, DebugRenderObject::SoftBody(..)) {
+            let Self { window, biased } = self;
+            biased.vertices[0] = a;
+            biased.vertices[1] = b;
+            biased.color = rgb.into();
+            window.draw_polyline(biased);
+        } else {
+            self.window.draw_line(a, b, rgb.into(), 4.0, false);
+        }
     }
 }
 
@@ -63,7 +92,7 @@ pub fn debug_render_scene(
     world: &PhysicsWorld,
 ) {
     if debug_render.enabled {
-        let mut backend = Kiss3dLinesRenderBackend { window };
+        let mut backend = Kiss3dLinesRenderBackend::new(window);
         debug_render.pipeline.render(
             &mut backend,
             &world.bodies,
@@ -71,6 +100,7 @@ pub fn debug_render_scene(
             &world.impulse_joints,
             &world.multibody_joints,
             &world.narrow_phase,
+            &world.soft_bodies,
         );
     }
 }

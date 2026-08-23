@@ -13,6 +13,7 @@ fn run_coupling(coeff: Real, offset: Real, target: Real) -> (Real, Real) {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
 
     let inertia = Vector::new(0.1, 0.1, 0.1);
     let base = bodies.insert(RigidBodyBuilder::fixed());
@@ -79,6 +80,7 @@ fn run_coupling(coeff: Real, offset: Real, target: Real) -> (Real, Real) {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

@@ -27,7 +27,7 @@
 use kiss3d::color::Color;
 use kiss3d::event::{Action, Key, WindowEvent};
 use kiss3d::window::Window;
-use rapier::dynamics::{RigidBodyActivation, RigidBodyHandle};
+use rapier::dynamics::{RigidBodyActivation, RigidBodyHandle, SoftBodyHandle};
 use rapier::geometry::{ColliderHandle, SharedShape};
 use rapier::pipeline::PhysicsWorld;
 
@@ -158,8 +158,8 @@ impl TestbedViewer {
         self.autosave();
 
         highlight_hovered_body(&mut self.graphics, &self.scene_mouse, world);
-        self.graphics
-            .draw(self.state.flags, &world.bodies, &world.colliders);
+        self.graphics.draw(
+        );
         debug_render_scene(&mut self.window, &mut self.debug_render, world);
 
         // Snapshot flags before the UI runs (`draw_ui` mutates `state.flags`) so next frame's
@@ -290,7 +290,8 @@ impl TestbedViewer {
         }
     }
 
-    /// Camera orientation as a unit quaternion (3D only).
+    /// Camera orientation as a unit quaternion (3D only). OpenGL convention: the camera looks
+    /// down its local -z, so `rot * z` points from the scene back toward the eye.
     #[cfg(feature = "dim3")]
     pub fn camera_rotation(&self) -> na::UnitQuaternion<f32> {
         let rot_x = na::UnitQuaternion::from_axis_angle(&na::Vector3::y_axis(), self.camera.at().x);
@@ -299,7 +300,7 @@ impl TestbedViewer {
         rot_x * rot_y
     }
 
-    /// Camera forward direction (3D only).
+    /// Camera forward direction, from the eye toward the look-at point (3D only).
     #[cfg(feature = "dim3")]
     pub fn camera_fwd_dir(&self) -> na::Vector3<f32> {
         self.camera_rotation() * na::Vector3::z()
@@ -321,6 +322,10 @@ impl TestbedViewer {
 
     pub fn set_initial_collider_color(&mut self, collider: ColliderHandle, color: Color) {
         self.graphics.set_initial_collider_color(collider, color);
+    }
+
+    pub fn set_initial_soft_body_color(&mut self, soft_body: SoftBodyHandle, color: Color) {
+        self.graphics.set_initial_soft_body_color(soft_body, color);
     }
 
     pub fn set_body_wireframe(&mut self, body: RigidBodyHandle, wireframe_enabled: bool) {
@@ -394,7 +399,7 @@ impl TestbedViewer {
         self.graphics.remove_collider_nodes(handle);
     }
 
-    /// Refreshes a collider's render nodes after its shape was modified in place.
+    /// Updates a collider's render nodes after its shape was modified in place.
     pub fn update_collider(&mut self, handle: ColliderHandle, world: &PhysicsWorld) {
         self.graphics.remove_collider_nodes(handle);
         self.graphics
@@ -444,7 +449,7 @@ impl TestbedViewer {
     // ───────────────────────────── registry / loop ──────────────────────────
 
     /// Display index of the example the UI currently has selected, clamped to a
-    /// valid range (a stale autosave may carry an index past the current list).
+    /// valid range (a stale autosave may hold an index past the current list).
     pub fn selected(&self) -> usize {
         self.state
             .selected_display_index
@@ -557,6 +562,14 @@ impl TestbedViewer {
             self.state
                 .action_flags
                 .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, false);
+            // Soft bodies: one color per soft body, worn by every one of its cluster proxies so
+            // its collision meshes (colliders like any other) come out in that color.
+            for (sb_handle, sb) in world.soft_bodies.iter() {
+                let color = self.graphics.soft_body_color(sb_handle);
+                for (_, cluster) in sb.live_clusters() {
+                    self.graphics.set_initial_body_color(cluster.proxy(), color);
+                }
+            }
             for (handle, _) in world.bodies.iter() {
                 self.graphics.add_body_colliders(
                     &mut self.window,

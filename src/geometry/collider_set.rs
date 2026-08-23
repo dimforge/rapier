@@ -322,11 +322,13 @@ impl ColliderSet {
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut islands = IslandManager::new();
     /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let mut soft_bodies = SoftBodySet::new();
     /// # let handle = colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), body_handle, &mut bodies);
     /// if let Some(collider) = colliders.remove(
     ///     handle,
     ///     &mut islands,
     ///     &mut bodies,
+    ///     &mut soft_bodies,
     ///     true  // Wake up the parent body
     /// ) {
     ///     println!("Removed collider with shape: {:?}", collider.shared_shape());

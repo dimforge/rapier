@@ -45,6 +45,7 @@ pub fn restore_world(world: &mut PhysicsWorld, snapshot: &PhysicsSnapshot) -> us
         colliders,
         impulse_joints,
         multibody_joints,
+        soft_bodies,
         ccd_solver: _,
     } = restored;
     world.gravity = gravity;
@@ -56,6 +57,7 @@ pub fn restore_world(world: &mut PhysicsWorld, snapshot: &PhysicsSnapshot) -> us
     world.colliders = colliders;
     world.impulse_joints = impulse_joints;
     world.multibody_joints = multibody_joints;
+    world.soft_bodies = soft_bodies;
     timestep_id
 }
 

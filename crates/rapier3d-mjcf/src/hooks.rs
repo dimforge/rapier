@@ -71,16 +71,16 @@ impl PhysicsHooks for MjcfContactHooks {
         if self.exclude.contains(&(ctx.collider1, ctx.collider2)) {
             None
         } else {
-            Some(SolverFlags::COMPUTE_IMPULSES)
+            Some(SolverFlags::COMPUTE_RIGID_IMPULSES)
         }
     }
 
     fn modify_solver_contacts(&self, ctx: &mut ContactModificationContext) {
         let key = (ctx.collider1, ctx.collider2);
         if let Some(ov) = self.overrides.get(&key) {
-            if let Some(f) = ov.friction {
+            if let (Some(f), Some(rigid)) = (ov.friction, ctx.rigid_mut()) {
                 // Contact materials are per-manifold since the solver-contact slimming.
-                *ctx.friction = f;
+                *rigid.friction = f;
             }
         }
     }
