@@ -447,6 +447,14 @@ impl NarrowPhase {
         }
     }
 
+    /// Replaces the query dispatcher used by this narrow-phase.
+    pub fn set_query_dispatcher<D>(&mut self, d: D)
+    where
+        D: 'static + PersistentQueryDispatcher<ContactManifoldData, ContactData>,
+    {
+        self.query_dispatcher = Arc::new(d);
+    }
+
     fn refresh_awake_body_mask(&mut self, islands: &IslandManager) {
         self.awake_body_mask.clear();
         let len = islands
