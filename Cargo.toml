@@ -45,7 +45,7 @@ exclude = ["typescript"]
 resolver = "2"
 
 [workspace.package]
-version = "0.35.2"
+version = "0.35.3"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 homepage = "https://rapier.rs"
 repository = "https://github.com/dimforge/rapier"
