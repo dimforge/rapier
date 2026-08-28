@@ -76,6 +76,18 @@ mod primitives3;
 mod restitution3;
 mod rope_joints3;
 mod sensor3;
+mod soft_bodies3;
+mod soft_cloth3;
+mod soft_cloth_stress3;
+mod soft_dress3;
+mod soft_jelly3;
+mod soft_pile3;
+mod soft_plasticity3;
+mod soft_surface3;
+mod soft_tearing3;
+mod soft_thin_features3;
+#[cfg(not(target_arch = "wasm32"))]
+mod soft_trimesh3;
 mod spring_joints3;
 mod stress_tests;
 mod trimesh3;
@@ -109,6 +121,7 @@ pub async fn main() {
     const DYNAMICS: &str = "Dynamics";
     const JOINTS: &str = "Joints";
     const CONTROLS: &str = "Controls";
+    const SOFT: &str = "Soft bodies";
     const DEBUG: &str = "Debug";
     const ROBOTICS: &str = "Robotics";
     const STRESS: &str = "Stress tests";
@@ -149,6 +162,19 @@ pub async fn main() {
         JOINTS, "Spring Joints", spring_joints3::run;
         JOINTS, "Joint Motor Position", joint_motor_position3::run;
         JOINTS, "Inverse kinematics", inverse_kinematics3::run;
+        // ── Soft bodies ─────────────────────────────────────────────────────
+        SOFT, "Soft bodies", soft_bodies3::run;
+        SOFT, "Cloth", soft_cloth3::run;
+        SOFT, "Jelly", soft_jelly3::run;
+        SOFT, "Deformable trimeshes", soft_surface3::run;
+        SOFT, "Soft pile", soft_pile3::run;
+        SOFT, "Thin features", soft_thin_features3::run;
+        SOFT, "Cloth stress", soft_cloth_stress3::run;
+        SOFT, "Plasticity", soft_plasticity3::run;
+        SOFT, "Tearing", soft_tearing3::run;
+        SOFT, "Dancing dress", soft_dress3::run;
+        #[cfg(not(target_arch = "wasm32"))]
+        SOFT, "Soft trimeshes", soft_trimesh3::run;
         // ── Controls ────────────────────────────────────────────────────────
         CONTROLS, "Character controller", character_controller3::run;
         CONTROLS, "Vehicle controller", vehicle_controller3::run;

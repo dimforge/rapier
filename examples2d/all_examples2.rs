@@ -55,6 +55,17 @@ mod s2d_high_mass_ratio_3;
 mod s2d_joint_grid;
 mod s2d_pyramid;
 mod sensor2;
+mod soft_blobs2;
+mod soft_bodies2;
+mod soft_jelly2;
+// The letters come from a tessellated SVG (usvg), which doesn't build for wasm.
+#[cfg(not(target_arch = "wasm32"))]
+mod soft_letters2;
+mod soft_pile2;
+mod soft_plasticity2;
+mod soft_surface2;
+mod soft_tearing2;
+mod soft_thin_features2;
 mod stress_tests;
 // Tessellates an SVG with usvg, which doesn't build for wasm.
 #[cfg(not(target_arch = "wasm32"))]
@@ -87,6 +98,7 @@ pub async fn main() {
     const DYNAMICS: &str = "Dynamics";
     const JOINTS: &str = "Joints";
     const CONTROLS: &str = "Controls";
+    const SOFT: &str = "Soft bodies";
     const DEBUG: &str = "Debug";
     const S2D: &str = "Inspired by Solver 2D";
     const STRESS: &str = "Stress tests";
@@ -122,6 +134,17 @@ pub async fn main() {
         JOINTS, "Joint motor position", joint_motor_position2::run;
         JOINTS, "Inverse kinematics", inverse_kinematics2::run;
         JOINTS, "Multi Pendulum", multi_pendulum2::run;
+        // ── Soft bodies ─────────────────────────────────────────────────────
+        SOFT, "Soft bodies", soft_bodies2::run;
+        SOFT, "Blobs", soft_blobs2::run;
+        SOFT, "Jelly", soft_jelly2::run;
+        SOFT, "Deformable polylines", soft_surface2::run;
+        SOFT, "Soft pile", soft_pile2::run;
+        SOFT, "Thin features", soft_thin_features2::run;
+        #[cfg(not(target_arch = "wasm32"))]
+        SOFT, "Soft letters", soft_letters2::run;
+        SOFT, "Plasticity", soft_plasticity2::run;
+        SOFT, "Tearing", soft_tearing2::run;
         // ── Controls ────────────────────────────────────────────────────────
         CONTROLS, "Character controller", character_controller2::run;
         // ── Debug ───────────────────────────────────────────────────────────
