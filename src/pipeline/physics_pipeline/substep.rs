@@ -356,7 +356,7 @@ impl PhysicsPipeline {
         }
 
         // Persistent islands: apply the joint connectivity edits (in order).
-        let joint_island_events: Vec<_> = impulse_joints.island_events.drain(..).collect();
+        let joint_island_events: Vec<_> = core::mem::take(&mut impulse_joints.island_events);
         for event in joint_island_events {
             islands.apply_impulse_joint_island_event(bodies, event);
         }

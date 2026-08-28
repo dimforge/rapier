@@ -179,49 +179,45 @@ impl JointGenericExternalConstraintBuilder {
         //       constraints. Could we make this more incremental?
         let pos1;
         let pos2;
-        let mb1;
-        let mb2;
 
-        let world_com1;
-        let world_com2;
-
-        match self.link1 {
+        let (world_com1, mb1) = match self.link1 {
             LinkOrBody::Link(link) => {
                 let mb = &multibodies[link.multibody];
                 pos1 = mb.link(link.id).unwrap().local_to_world;
                 // The link pose is origin-centered; the link’s body jacobian
                 // measures linear velocities at its center-of-mass, so the
                 // lever arms must be taken relative to the world com.
-                world_com1 = pos1 * self.local_body1.world_com;
-                mb1 = LinkOrBodyRef::Link(mb, link.id);
+                (
+                    pos1 * self.local_body1.world_com,
+                    LinkOrBodyRef::Link(mb, link.id),
+                )
             }
             LinkOrBody::Body(body1) => {
                 pos1 = bodies.get_pose(body1).pose();
-                world_com1 = pos1.translation; // the solver body pose is at the center of mass.
-                mb1 = LinkOrBodyRef::Body(body1);
+                (pos1.translation, LinkOrBodyRef::Body(body1))
             }
             LinkOrBody::Fixed => {
                 pos1 = Pose::IDENTITY;
-                world_com1 = pos1.translation;
-                mb1 = LinkOrBodyRef::Fixed;
+                (pos1.translation, LinkOrBodyRef::Fixed)
             }
         };
-        match self.link2 {
+        let (world_com2, mb2) = match self.link2 {
             LinkOrBody::Link(link) => {
                 let mb = &multibodies[link.multibody];
                 pos2 = mb.link(link.id).unwrap().local_to_world;
-                world_com2 = pos2 * self.local_body2.world_com;
-                mb2 = LinkOrBodyRef::Link(mb, link.id);
+                (
+                    pos2 * self.local_body2.world_com,
+                    LinkOrBodyRef::Link(mb, link.id),
+                )
             }
             LinkOrBody::Body(body2) => {
                 pos2 = bodies.get_pose(body2).pose();
-                world_com2 = pos2.translation; // the solver body pose is at the center of mass.
-                mb2 = LinkOrBodyRef::Body(body2);
+                // The solver body pose is at the center of mass.
+                (pos2.translation, LinkOrBodyRef::Body(body2))
             }
             LinkOrBody::Fixed => {
                 pos2 = Pose::IDENTITY;
-                world_com2 = pos2.translation;
-                mb2 = LinkOrBodyRef::Fixed;
+                (pos2.translation, LinkOrBodyRef::Fixed)
             }
         };
 

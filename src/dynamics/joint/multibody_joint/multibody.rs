@@ -1099,9 +1099,6 @@ impl Multibody {
         &self.couplings
     }
 
-    /// Number of coupling constraints "owned" by `owner_link` — couplings whose first joint
-    /// (`link1`) is that link. Each coupling is generated once, by `link1` (which always has a
-    /// free DoF and so is an active link in the solver island, unlike a possibly-fixed root).
     /// The number of dry-friction rows `link_id`'s joint will emit: one per
     /// free DoF whose `frictionloss` entry is non-zero.
     pub(crate) fn num_friction_constraints(&self, link_id: usize) -> usize {
@@ -1114,6 +1111,9 @@ impl Multibody {
             .count()
     }
 
+    /// Number of coupling constraints "owned" by `owner_link` — couplings whose first joint
+    /// (`link1`) is that link. Each coupling is generated once, by `link1` (which always has a
+    /// free DoF and so is an active link in the solver island, unlike a possibly-fixed root).
     pub(crate) fn num_couplings_owned_by(&self, owner_link: usize) -> usize {
         self.couplings
             .iter()
