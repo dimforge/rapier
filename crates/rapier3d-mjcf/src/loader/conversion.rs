@@ -257,6 +257,7 @@ impl<'a> Conversion<'a> {
                     joint,
                     damping_per_dof: 0.0,
                     armature_per_dof: 0.0,
+                    frictionloss_per_dof: 0.0,
                     spring_stiffness_per_dof: 0.0,
                     spring_ref: 0.0,
                     springdamper: None,
@@ -322,6 +323,10 @@ impl<'a> Conversion<'a> {
             // generalized mass matrix at insertion time rather than baked into
             // the link's spatial inertia — see `MjcfJoint::armature_per_dof`.
             let armature_per_dof = j.armature.max(0.0) as Real;
+            // Dry joint friction, routed into the multibody's per-DoF
+            // `frictionloss` vector at insertion time — see
+            // `MjcfJoint::frictionloss_per_dof`.
+            let frictionloss_per_dof = j.frictionloss.max(0.0) as Real;
             // Passive spring carried so the multibody path can integrate it
             // implicitly (a valid `springdamper` overrides `<joint stiffness>`,
             // leaving this 0 and supplying the stiffness post-assembly). A
@@ -341,6 +346,7 @@ impl<'a> Conversion<'a> {
                 joint,
                 damping_per_dof,
                 armature_per_dof,
+                frictionloss_per_dof,
                 spring_stiffness_per_dof,
                 spring_ref,
                 springdamper,

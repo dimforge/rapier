@@ -140,6 +140,7 @@ impl JointConstraintBuilder {
                         WritebackId::Dof(i) => self.prev_dof_impulses[i],
                         WritebackId::Limit(i) => self.joint.limits[i].impulse,
                         WritebackId::Motor(i) => self.joint.motors[i].impulse,
+                        WritebackId::Friction(_) => 0.0,
                     };
                     row.impulse = seed * coeff;
                 }
@@ -484,6 +485,9 @@ impl JointConstraintBuilderSimd {
                         }
                         #[cfg(feature = "dim3")]
                         WritebackId::Motor(_) => {}
+                        // Impulse-joint rows only; friction rows are
+                        // multibody-internal and are never built here.
+                        WritebackId::Friction(_) => {}
                     }
                 }
             } else {

@@ -15,8 +15,8 @@ use super::handles::{
     MjcfActuatorHandle, MjcfBodyHandle, MjcfColliderHandle, MjcfJointHandle, MjcfRobotHandles,
 };
 use super::mass::{
-    add_armature_to_multibody, add_joint_coupling_to_multibody, add_spring_to_multibody,
-    add_springdamper_to_multibody, move_motor_damping_to_multibody,
+    add_armature_to_multibody, add_frictionloss_to_multibody, add_joint_coupling_to_multibody,
+    add_spring_to_multibody, add_springdamper_to_multibody, move_motor_damping_to_multibody,
 };
 use super::options::MjcfMultibodyOptions;
 use super::types::MjcfRobot;
@@ -161,6 +161,7 @@ impl MjcfRobot {
             };
             let damping_per_dof = j.damping_per_dof;
             let armature_per_dof = j.armature_per_dof;
+            let frictionloss_per_dof = j.frictionloss_per_dof;
             let spring_stiffness_per_dof = j.spring_stiffness_per_dof;
             let spring_ref = j.spring_ref;
             let springdamper = j.springdamper;
@@ -210,6 +211,14 @@ impl MjcfRobot {
                 // baking it into the link's spatial inertia tensor.
                 if armature_per_dof > 0.0 {
                     add_armature_to_multibody(multibody_joints, h, armature_per_dof);
+                }
+                // Route MJCF `<joint frictionloss>` into the multibody's
+                // per-DoF friction vector, where the solver turns it into a
+                // box-bounded constraint row. The serial-joint path has no
+                // such vector, so it keeps the motor approximation built by
+                // the joint builder.
+                if frictionloss_per_dof > 0.0 {
+                    add_frictionloss_to_multibody(multibody_joints, h, frictionloss_per_dof);
                 }
                 // Integrate MJCF `<joint stiffness>` springs implicitly on the
                 // multibody (stable for stiff springs on low-inertia links),

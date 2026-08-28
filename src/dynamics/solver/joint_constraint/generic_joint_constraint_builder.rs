@@ -267,9 +267,11 @@ impl JointGenericInternalConstraintBuilder {
     pub fn num_constraints(multibodies: &MultibodyJointSet, link_id: &MultibodyLinkId) -> usize {
         let multibody = &multibodies[link_id.multibody];
         let link = multibody.link(link_id.id).unwrap();
-        // This link's own motor/limit constraints, plus the DoF couplings it
-        // owns (a coupling is owned by its first joint's link).
-        link.joint().num_velocity_constraints() + multibody.num_couplings_owned_by(link_id.id)
+        // This link's own motor/limit/friction constraints, plus the DoF
+        // couplings it owns (a coupling is owned by its first joint's link).
+        link.joint().num_velocity_constraints()
+            + multibody.num_friction_constraints(link_id.id)
+            + multibody.num_couplings_owned_by(link_id.id)
     }
 
     pub fn generate(
@@ -282,8 +284,9 @@ impl JointGenericInternalConstraintBuilder {
     ) {
         let multibody = &multibodies[link_id.multibody];
         let link = multibody.link(link_id.id).unwrap();
-        let num_constraints =
-            link.joint().num_velocity_constraints() + multibody.num_couplings_owned_by(link_id.id);
+        let num_constraints = link.joint().num_velocity_constraints()
+            + multibody.num_friction_constraints(link_id.id)
+            + multibody.num_couplings_owned_by(link_id.id);
 
         if num_constraints == 0 {
             return;

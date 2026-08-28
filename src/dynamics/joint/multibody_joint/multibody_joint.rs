@@ -361,6 +361,24 @@ impl MultibodyJoint {
                         self.data.softness,
                     );
                 }
+                // Dry joint friction (MuJoCo `frictionloss`), keyed per-DoF on
+                // the multibody rather than per-axis on the joint. Zero (the
+                // default) emits nothing.
+                let friction = multibody.frictions()[link.assembly_id + curr_free_dof];
+                if friction > 0.0 {
+                    joint::unit_joint_friction_constraint(
+                        params,
+                        multibody,
+                        link,
+                        friction,
+                        curr_free_dof,
+                        j_id,
+                        jacobians,
+                        constraints,
+                        &mut num_constraints,
+                        self.data.softness,
+                    );
+                }
                 curr_free_dof += 1;
             }
         }
@@ -414,6 +432,25 @@ impl MultibodyJoint {
                         jacobians,
                         constraints,
                         &mut num_constraints,
+                    );
+                }
+
+                // Dry joint friction (MuJoCo `frictionloss`), keyed per-DoF on
+                // the multibody rather than per-axis on the joint. Zero (the
+                // default) emits nothing.
+                let friction = multibody.frictions()[link.assembly_id + curr_free_dof];
+                if friction > 0.0 {
+                    joint::unit_joint_friction_constraint(
+                        params,
+                        multibody,
+                        link,
+                        friction,
+                        curr_free_dof,
+                        j_id,
+                        jacobians,
+                        constraints,
+                        &mut num_constraints,
+                        self.data.softness,
                     );
                 }
                 curr_free_dof += 1;

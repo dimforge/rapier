@@ -39,6 +39,7 @@ pub enum WritebackId {
     Dof(usize),
     Limit(usize),
     Motor(usize),
+    Friction(usize),
 }
 
 // TODO: right now we only use this for impulse_joints.
@@ -382,6 +383,7 @@ impl JointConstraint<Real, 1> {
             WritebackId::Dof(i) => joint.impulses[i] = self.impulse,
             WritebackId::Limit(i) => joint.data.limits[i].impulse = self.impulse,
             WritebackId::Motor(i) => joint.data.motors[i].impulse = self.impulse,
+            WritebackId::Friction(_) => {}
         }
     }
 }
@@ -534,6 +536,7 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
                 WritebackId::Dof(i) => joint.impulses[i] = impulses[ii],
                 WritebackId::Limit(i) => joint.data.limits[i].impulse = impulses[ii],
                 WritebackId::Motor(i) => joint.data.motors[i].impulse = impulses[ii],
+                WritebackId::Friction(_) => {}
             }
         }
     }

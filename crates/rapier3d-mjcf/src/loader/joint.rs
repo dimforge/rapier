@@ -143,8 +143,20 @@ impl<'a> Conversion<'a> {
                 }
             }
 
-            // Friction loss (lossy approximation): use a velocity motor
-            // capped at `frictionloss`.
+            // Friction loss, for the *impulse-joint* path only: a zero-target
+            // velocity motor capped at `frictionloss`. That is the same row the
+            // multibody path builds properly (zero target velocity, impulse
+            // bounded by `frictionloss·dt`), but squeezed into the joint's one
+            // motor slot. The multibody path instead routes the value through
+            // `Multibody::frictionloss` (`add_frictionloss_to_multibody`) and
+            // clears this motor, so the two never coexist.
+            //
+            // Skipped when a spring already owns the slot: `motor_velocity`
+            // zeroes the motor's stiffness and damping, which would silently
+            // delete the `<joint stiffness>` / `<joint springdamper>` spring
+            // installed just above. A spring is the more load-bearing of the
+            // two, and on the multibody path (where both are wanted together)
+            // friction no longer needs the slot at all.
             if joint.frictionloss > 0.0 {
                 let axis = match joint.type_ {
                     mb::JointType::Hinge | mb::JointType::Ball => Some(JointAxis::AngX),
@@ -152,8 +164,15 @@ impl<'a> Conversion<'a> {
                     _ => None,
                 };
                 if let Some(ax) = axis {
-                    builder = builder.motor_velocity(ax, 0.0, 0.0);
-                    builder = builder.motor_max_force(ax, joint.frictionloss as Real);
+                    if stiffness.is_some() {
+                        log::warn!(
+                            "<joint name={:?}>: `frictionloss` is not applied on the impulse-joint path because the joint also has a spring, and both need the single motor slot. The multibody path applies both.",
+                            joint.name,
+                        );
+                    } else {
+                        builder = builder.motor_velocity(ax, 0.0, 0.0);
+                        builder = builder.motor_max_force(ax, joint.frictionloss as Real);
+                    }
                 }
             }
         }

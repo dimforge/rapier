@@ -138,6 +138,18 @@ pub struct MjcfJoint {
     /// (huge along the joint axis, ~0 across it) and the multibody mass
     /// matrix ill-conditioned.
     pub armature_per_dof: Real,
+    /// MJCF `<joint frictionloss>` value (dry joint friction, N or N·m). On
+    /// the multibody insertion path this becomes a per-DoF entry of the
+    /// multibody's `frictionloss` vector, which the solver turns into one
+    /// box-bounded constraint row per DoF.
+    ///
+    /// It is deliberately **not** a motor: MuJoCo's friction loss is a bound on
+    /// the force friction may generate, not a `-f·sign(q̇)` force, and a joint
+    /// commonly carries both a position servo and a friction loss. Routing it
+    /// through the joint's single motor slot (as this loader used to) made the
+    /// two fight: the servo's `forcerange` overwrote the friction bound, and
+    /// the friction entry wiped a `<joint stiffness>` spring's coefficients.
+    pub frictionloss_per_dof: Real,
     /// MJCF `<joint stiffness>` (passive spring). On the multibody path this
     /// can be integrated implicitly in the generalized dynamics (added to the
     /// mass-matrix diagonal as `dt²·k` with a force `-k·(q − ref)`), which is

@@ -100,6 +100,8 @@ pub struct Multibody {
     pub(crate) damping: DVector,
     /// Per-DoF reflected rotor inertia (matches MuJoCo’s concept of `armature`).
     pub(crate) armature: DVector,
+    /// Per-DoF dry joint friction (matches MuJoCo’s `frictionloss`).
+    pub(crate) frictions: DVector,
     pub(crate) accelerations: DVector,
 
     body_jacobians: Vec<Jacobian<Real>>,
@@ -151,6 +153,7 @@ impl Multibody {
             velocities: DVector::zeros(0),
             damping: DVector::zeros(0),
             armature: DVector::zeros(0),
+            frictions: DVector::zeros(0),
             accelerations: DVector::zeros(0),
             body_jacobians: Vec::new(),
             augmented_mass: DMatrix::zeros(0, 0),
@@ -231,6 +234,9 @@ impl Multibody {
                 mb.armature
                     .rows_mut(assembly_id, link_ndofs)
                     .copy_from(&self.armature.rows(link.assembly_id, link_ndofs));
+                mb.frictions
+                    .rows_mut(assembly_id, link_ndofs)
+                    .copy_from(&self.frictions.rows(link.assembly_id, link_ndofs));
                 mb.accelerations
                     .rows_mut(assembly_id, link_ndofs)
                     .copy_from(&self.accelerations.rows(link.assembly_id, link_ndofs));
@@ -292,6 +298,9 @@ impl Multibody {
             self.armature
                 .rows_mut(rhs_copy_shift, rhs_copy_ndofs)
                 .copy_from(&rhs.armature.rows(rhs_root_ndofs, rhs_copy_ndofs));
+            self.frictions
+                .rows_mut(rhs_copy_shift, rhs_copy_ndofs)
+                .copy_from(&rhs.frictions.rows(rhs_root_ndofs, rhs_copy_ndofs));
             self.accelerations
                 .rows_mut(rhs_copy_shift, rhs_copy_ndofs)
                 .copy_from(&rhs.accelerations.rows(rhs_root_ndofs, rhs_copy_ndofs));
@@ -401,6 +410,19 @@ impl Multibody {
         &mut self.armature
     }
 
+    /// The vector of per-DoF dry joint friction (MuJoCo's `frictionloss`, in N
+    /// or N·m): the largest force friction may generate on that DoF.
+    #[inline]
+    pub fn frictions(&self) -> &DVector {
+        &self.frictions
+    }
+
+    /// Mutable vector of per-DoF dry joint friction of this multibody.
+    #[inline]
+    pub fn frictions_mut(&mut self) -> &mut DVector {
+        &mut self.frictions
+    }
+
     pub(crate) fn add_link(
         &mut self,
         parent: Option<usize>, // TODO: should be a RigidBodyHandle?
@@ -467,6 +489,7 @@ impl Multibody {
         self.velocities.resize_vertically_mut(len + ndofs, 0.0);
         self.damping.resize_vertically_mut(len + ndofs, 0.0);
         self.armature.resize_vertically_mut(len + ndofs, 0.0);
+        self.frictions.resize_vertically_mut(len + ndofs, 0.0);
         self.accelerations.resize_vertically_mut(len + ndofs, 0.0);
         self.body_jacobians
             .extend((0..num_jacobians).map(|_| Jacobian::zeros(0)));
@@ -1079,6 +1102,18 @@ impl Multibody {
     /// Number of coupling constraints "owned" by `owner_link` — couplings whose first joint
     /// (`link1`) is that link. Each coupling is generated once, by `link1` (which always has a
     /// free DoF and so is an active link in the solver island, unlike a possibly-fixed root).
+    /// The number of dry-friction rows `link_id`'s joint will emit: one per
+    /// free DoF whose `frictionloss` entry is non-zero.
+    pub(crate) fn num_friction_constraints(&self, link_id: usize) -> usize {
+        let Some(link) = self.link(link_id) else {
+            return 0;
+        };
+        let ndofs = link.joint().ndofs();
+        (0..ndofs)
+            .filter(|i| self.frictions[link.assembly_id + i] > 0.0)
+            .count()
+    }
+
     pub(crate) fn num_couplings_owned_by(&self, owner_link: usize) -> usize {
         self.couplings
             .iter()
@@ -1220,6 +1255,7 @@ impl Multibody {
                     self.velocities = self.velocities.clone().insert_rows(0, SPATIAL_DIM, 0.0);
                     self.damping = self.damping.clone().insert_rows(0, SPATIAL_DIM, 0.0);
                     self.armature = self.armature.clone().insert_rows(0, SPATIAL_DIM, 0.0);
+                    self.frictions = self.frictions.clone().insert_rows(0, SPATIAL_DIM, 0.0);
                     self.accelerations =
                         self.accelerations.clone().insert_rows(0, SPATIAL_DIM, 0.0);
 
@@ -1230,6 +1266,7 @@ impl Multibody {
                     assert!(self.velocities.len() >= SPATIAL_DIM);
                     assert!(self.damping.len() >= SPATIAL_DIM);
                     assert!(self.armature.len() >= SPATIAL_DIM);
+                    assert!(self.frictions.len() >= SPATIAL_DIM);
                     assert!(self.accelerations.len() >= SPATIAL_DIM);
 
                     let fixed_joint = MultibodyJoint::fixed(root_pose);
@@ -1242,12 +1279,14 @@ impl Multibody {
                         self.velocities = DVector::zeros(0);
                         self.damping = DVector::zeros(0);
                         self.armature = DVector::zeros(0);
+                        self.frictions = DVector::zeros(0);
                         self.accelerations = DVector::zeros(0);
                     } else {
                         self.velocities =
                             self.velocities.index((prev_root_ndofs.., 0)).into_owned();
                         self.damping = self.damping.index((prev_root_ndofs.., 0)).into_owned();
                         self.armature = self.armature.index((prev_root_ndofs.., 0)).into_owned();
+                        self.frictions = self.frictions.index((prev_root_ndofs.., 0)).into_owned();
                         self.accelerations = self
                             .accelerations
                             .index((prev_root_ndofs.., 0))

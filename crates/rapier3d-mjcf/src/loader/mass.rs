@@ -171,6 +171,7 @@ pub(super) fn move_motor_damping_to_multibody(
     handle: MultibodyJointHandle,
     damping: Real,
 ) {
+    use rapier3d::dynamics::JointAxesMask;
     use rapier3d::math::SPATIAL_DIM;
     let Some((multibody, link_id)) = multibody_joints.get_mut(handle) else {
         return;
@@ -194,7 +195,19 @@ pub(super) fn move_motor_damping_to_multibody(
     let motor_bits = link.joint.data.motor_axes.bits();
     for i in 0..SPATIAL_DIM {
         if (motor_bits & (1 << i)) != 0 {
-            link.joint.data.motors[i].damping = 0.0;
+            let motor = &mut link.joint.data.motors[i];
+            motor.damping = 0.0;
+            // Damping was this motor's only contribution: what is left is a
+            // zero-target row with no gains, i.e. a rigid velocity lock with
+            // unlimited force. Drop the axis (like `add_spring_to_multibody`
+            // does); actuators re-enable it on the axes they drive.
+            if motor.stiffness == 0.0
+                && motor.target_vel == 0.0
+                && motor.max_force == Real::MAX
+                && let Some(flag) = JointAxesMask::from_bits(1u8 << i)
+            {
+                link.joint.data.motor_axes.remove(flag);
+            }
         }
     }
     // Drop the &mut MultibodyLink borrow before reborrowing the multibody.
@@ -252,6 +265,74 @@ pub(super) fn add_armature_to_multibody(
                 armature_vec[idx] = armature;
             }
             local_dof += 1;
+        }
+    }
+}
+
+/// After a joint has been inserted into a multibody, add the MJCF
+/// `<joint frictionloss>` to the multibody's per-DoF friction vector. The
+/// solver emits one box-bounded constraint row per DoF with a non-zero entry,
+/// driving that DoF's velocity to zero with the impulse capped at
+/// `frictionloss · dt`.
+///
+/// Applied uniformly to every free DoF of the joint, matching MJCF semantics
+/// (a ball joint with `frictionloss=f` gets `f` on each of its angular DoFs).
+///
+/// Also clears the zero-velocity motor the serial-joint builder installs as the
+/// impulse path's approximation, so the two do not stack. Unlike that motor,
+/// the constraint rows cover every free DoF and leave the motor slot free for
+/// a spring or an actuator.
+pub(super) fn add_frictionloss_to_multibody(
+    multibody_joints: &mut MultibodyJointSet,
+    handle: MultibodyJointHandle,
+    frictionloss: Real,
+) {
+    use rapier3d::dynamics::JointAxesMask;
+    use rapier3d::math::SPATIAL_DIM;
+    let Some((multibody, link_id)) = multibody_joints.get_mut(handle) else {
+        return;
+    };
+    // Reconstruct this link's DoF offset in the multibody's flat vector
+    // (assembly_id isn't public), same as the armature helper above.
+    let mut offset = 0;
+    for (i, link) in multibody.links().enumerate() {
+        if i == link_id {
+            break;
+        }
+        offset += link.joint().ndofs();
+    }
+    let Some(link) = multibody.links().nth(link_id) else {
+        return;
+    };
+    let locked_bits = link.joint.data.locked_axes.bits();
+    let fl_vec = multibody.frictions_mut();
+    let mut local_dof = 0;
+    for i in 0..SPATIAL_DIM {
+        if (locked_bits & (1 << i)) == 0 {
+            let idx = offset + local_dof;
+            if idx < fl_vec.len() {
+                fl_vec[idx] = frictionloss;
+            }
+            local_dof += 1;
+        }
+    }
+
+    // Drop the impulse-path motor approximation. Only when it is the friction
+    // one: a motor carrying a spring (non-zero stiffness or damping) or an
+    // actuator target belongs to something else.
+    let Some(link) = multibody.links_mut().nth(link_id) else {
+        return;
+    };
+    for axis in 0..SPATIAL_DIM {
+        if (locked_bits & (1 << axis)) == 0 {
+            let motor = &link.joint.data.motors[axis];
+            let is_friction_motor = motor.stiffness == 0.0
+                && motor.damping == 0.0
+                && motor.target_vel == 0.0
+                && motor.max_force == frictionloss;
+            if is_friction_motor && let Some(flag) = JointAxesMask::from_bits(1u8 << axis) {
+                link.joint.data.motor_axes.remove(flag);
+            }
         }
     }
 }
