@@ -62,7 +62,6 @@ impl PhysicsPipeline {
         ccd_solver: &mut CCDSolver,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
-        scene_changed: bool,
     ) {
         self.counters.ccd.toi_computation_time.start();
         // Handle CCD: sweep the fast bodies and clamp their `next_position` to their
@@ -76,7 +75,6 @@ impl PhysicsPipeline {
             narrow_phase,
             hooks,
             events,
-            scene_changed,
         );
         self.counters.ccd.toi_computation_time.pause();
     }
@@ -333,12 +331,15 @@ impl PhysicsPipeline {
                 .filter(|h| colliders.get(*h).map(|c| !c.is_enabled()).unwrap_or(false)),
         );
 
-        // Whether any user change could have added, removed or moved a FIXED
-        // collider this step — the CCD fixed-target cache invalidation signal
+        // If a user change could have added, removed, or moved a FIXED
+        // collider this step, invalidate the cache.
         // (internal motion never touches fixed colliders nor these lists).
-        let ccd_scene_changed = !modified_colliders.is_empty()
+        if !modified_colliders.is_empty()
             || !removed_colliders.is_empty()
-            || !modified_bodies.is_empty();
+            || !modified_bodies.is_empty()
+        {
+            ccd_solver.invalidate_fixed_targets_cache();
+        }
 
         // Join islands based on new joints.
         #[cfg(feature = "enhanced-determinism")]
@@ -514,7 +515,6 @@ impl PhysicsPipeline {
                         ccd_solver,
                         hooks,
                         events,
-                        ccd_scene_changed,
                     );
                 }
             }

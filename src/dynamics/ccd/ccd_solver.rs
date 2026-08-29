@@ -43,6 +43,13 @@ impl CCDSolver {
         Self::default()
     }
 
+    /// Discards the cached fixed-target list used by the non-bullet continuous pass.
+    /// This must be called any time the fixed targets change. If using the physics pipeline,
+    /// it is called for you. If not, it must be called manually.
+    pub fn invalidate_fixed_targets_cache(&mut self) {
+        self.fixed_targets_cache = None;
+    }
+
     /// Updates the set of bodies that needs CCD to be resolved.
     ///
     /// Returns `true` if any rigid-body must have CCD resolved.
@@ -165,10 +172,6 @@ impl CCDSolver {
         narrow_phase: &NarrowPhase,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
-        // `true` when colliders/bodies were added, removed or modified by the
-        // user since the last step: the only ways a fixed target can appear,
-        // vanish or move, hence the fixed-target cache invalidation signal.
-        scene_changed: bool,
     ) {
         let dt = params.dt;
         let linear_slop = params.allowed_linear_error();
@@ -194,14 +197,12 @@ impl CCDSolver {
             );
             let (bvh, dispatcher) = (query_pipeline.bvh, query_pipeline.dispatcher);
             // Non-bullet fast bodies only hit fixed targets: sweep against the (small) cached
-            // fixed-collider list instead of the full BVH. Rebuilt — a full collider scan —
-            // only on scene changes, since fixed targets can't move otherwise.
+            // fixed-collider list instead of the full BVH.
             let prediction = params.prediction_distance();
-            let cache_valid = !scene_changed
-                && self
-                    .fixed_targets_cache
-                    .as_ref()
-                    .is_some_and(|(p, _)| *p == prediction);
+            let cache_valid = self
+                .fixed_targets_cache
+                .as_ref()
+                .is_some_and(|(p, _)| *p == prediction);
             if !cache_valid {
                 self.fixed_targets_cache = Some((
                     prediction,
