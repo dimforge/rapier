@@ -339,6 +339,11 @@ impl PhysicsPipeline {
         let ccd_scene_changed = !modified_colliders.is_empty()
             || !removed_colliders.is_empty()
             || !modified_bodies.is_empty();
+        if ccd_scene_changed {
+            // This step may have no fast body, so invalidate now instead of relying on
+            // the next motion-clamping pass to observe this per-step signal.
+            ccd_solver.invalidate_fixed_targets_cache();
+        }
 
         // Join islands based on new joints.
         #[cfg(feature = "enhanced-determinism")]
