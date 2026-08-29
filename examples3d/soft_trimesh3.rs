@@ -94,6 +94,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         settings.remove("Skin collisions");
         false
     };
+    // The FEM path is opt-in: without the `fem` feature the switch is hidden and every body
+    // runs the constraint solver.
+    let fem_solver = settings.get_or_set_bool("FEM solver", false);
     let cell_model = settings.get_or_set_string(
         "Cell model",
         0,
@@ -187,6 +190,11 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             .particle_radius(meshing.boundary_cell() * 0.25)
             .self_contacts(self_contacts)
             .surface_collider(ColliderBuilder::ball(0.1).friction(0.6));
+        let model = model.solver(if fem_solver {
+            SoftBodySolver::Fem
+        } else {
+            SoftBodySolver::Constraints
+        });
 
         total_cells += model.cells.len();
         total_bodies += 1;
@@ -409,6 +417,14 @@ mod tests {
                 (igeom / width) as f32 * 8.0 + 7.0,
                 0.0,
             );
+            // With the FEM path compiled in, alternate the solver over the models so the
+            // demo's switch is exercised by the same settle run.
+            let filled = filled.solver(if igeom % 2 == 1 {
+                SoftBodySolver::Fem
+            } else {
+                SoftBodySolver::Constraints
+            });
+
             labels.push(obj_path.clone());
             handles.push(
                 world.insert_soft_body(

@@ -252,6 +252,13 @@ impl SoftBodyBuilder {
         self
     }
 
+    /// Selects the solver simulating the body's elasticity (see [`super::SoftBodySolver`]).
+    #[cfg(feature = "fem")]
+    pub fn solver(mut self, solver: super::SoftBodySolver) -> Self {
+        self.solver = solver;
+        self
+    }
+
     /// Enables area/volume preservation: one constraint per piece of material enclosed by a
     /// closed surface (see [`crate::dynamics::SoftBody::volume_pieces`]).
     pub fn volume_preservation(mut self, enabled: bool) -> Self {

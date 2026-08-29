@@ -35,6 +35,8 @@ impl EventHandler for EventLog {
         _total_force_magnitude: Real,
     ) {
     }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
 }
 
 /// One bit-faithful snapshot per body, sorted by handle. Float `Debug` output is
@@ -58,6 +60,22 @@ fn snapshot(bodies: &RigidBodySet) -> Vec<(u32, String)> {
         })
         .collect();
     out.sort_by_key(|e| e.0);
+    out
+}
+
+/// One bit-faithful snapshot per soft-body particle, in soft-body then particle order.
+fn soft_snapshot(soft_bodies: &SoftBodySet) -> Vec<String> {
+    let mut out = Vec::new();
+    for (h, sb) in soft_bodies.iter() {
+        for (i, p) in sb.particles().iter().enumerate() {
+            out.push(format!(
+                "{:?}/{i} {:?} {:?}",
+                h.into_raw_parts().0,
+                p.position(),
+                p.velocity()
+            ));
+        }
+    }
     out
 }
 
@@ -91,7 +109,7 @@ fn phase_checksum(_bf: &BroadPhaseBvh, _nf: &NarrowPhase) -> u64 {
 /// collider removal and wake impulse, to exercise pair creation/deletion,
 /// touching transitions, sleeping and island edits) and records a snapshot
 /// after every step.
-type StepRecord = (Vec<(u32, String)>, Vec<String>, u64);
+type StepRecord = (Vec<(u32, String)>, Vec<String>, u64, Vec<String>);
 
 fn run_sim(num_threads: usize, num_steps: usize) -> Vec<StepRecord> {
     let pool = rapier3d::rayon::ThreadPoolBuilder::new()
@@ -187,6 +205,17 @@ fn run_sim(num_threads: usize, num_steps: usize) -> Vec<StepRecord> {
         .shape_matching(true)
         .particle_mass(0.05);
     soft_bodies.insert(balloon, &mut bodies, &mut colliders);
+    // A FEM-solved jelly cube: the FEM stages (predict, snapshot, propagate, writeback) are
+    // claimed per body, so their results must not depend on the worker that ran them.
+    #[cfg(feature = "fem")]
+    {
+        let fem_jelly =
+            SoftBodyBuilder::cuboid(Vector::new(4.0, 5.0, -4.0), Vector::splat(0.6), 4, 4, 4)
+                .cell_model(SoftBodyCellModel::Corotational)
+                .solver(SoftBodySolver::Fem)
+                .particle_mass(0.2);
+        soft_bodies.insert(fem_jelly, &mut bodies, &mut colliders);
+    }
 
     let events = EventLog::default();
     let mut snapshots = Vec::new();
@@ -230,7 +259,12 @@ fn run_sim(num_threads: usize, num_steps: usize) -> Vec<StepRecord> {
         } else {
             0
         };
-        snapshots.push((snapshot(&bodies), step_events, checksum));
+        snapshots.push((
+            snapshot(&bodies),
+            step_events,
+            checksum,
+            soft_snapshot(&soft_bodies),
+        ));
     }
     snapshots
 }
@@ -242,8 +276,14 @@ fn identical_results_for_any_worker_count() {
     for num_threads in [2, 8] {
         let run = run_sim(num_threads, STEPS);
         for step in 0..STEPS {
-            let ((base_state, base_events, base_sum), (run_state, run_events, run_sum)) =
-                (&base[step], &run[step]);
+            let (
+                (base_state, base_events, base_sum, base_soft),
+                (run_state, run_events, run_sum, run_soft),
+            ) = (&base[step], &run[step]);
+            assert_eq!(
+                base_soft, run_soft,
+                "soft-body particle divergence at step {step}, {num_threads} threads vs 1"
+            );
             assert_eq!(
                 base_events, run_events,
                 "event-sequence divergence at step {step}, {num_threads} threads vs 1"

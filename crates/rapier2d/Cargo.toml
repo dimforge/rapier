@@ -50,6 +50,13 @@ std = [
     "wide/std",
     "serde?/std",
 ]
+# Adds an alternative FEM solver for soft bodies, selected per body with
+# `SoftBodyBuilder::solver(SoftBodySolver::Fem)`. Instead of resolving elasticity
+# as sequential impulse rows, the FEM path assembles the element forces and
+# tangent stiffness of a strain-energy density and takes one implicit Euler step
+# per substep, solving `(M + h D + h^2 K) dv = b` over the whole body. Off by
+# default: it adds per-body solver state and is still experimental.
+fem = []
 parallel = ["dep:rayon", "std", "parry2d/parallel"]
 # Drops the `Sync` requirement from callbacks (`PhysicsHooks`, `EventHandler`).
 # As a side effect, this also removes the dedicated threadpool API from the physics world

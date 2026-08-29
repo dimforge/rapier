@@ -490,19 +490,22 @@ impl SoftConstraintsSet {
         let (edges, dihedrals, cells) = element_ranges(sb, range);
         #[cfg(feature = "dim2")]
         let _ = dihedrals;
-        for e in &sb.edges {
-            counts[e.color as usize] += 1;
-        }
-        #[cfg(feature = "dim3")]
-        for d in &sb.dihedrals {
-            counts[d.color as usize] += 1;
+        // The FEM solver integrates the distance and bending elements itself; they get no constraint.
+        if !sb.uses_fem() {
+            for e in &sb.edges[edges] {
+                counts[e.color as usize] += 1;
+            }
+            #[cfg(feature = "dim3")]
+            for d in &sb.dihedrals[dihedrals] {
+                counts[d.color as usize] += 1;
+            }
         }
         let (mu, _) = sb.material.lame_parameters();
         for c in &sb.cells[cells] {
             match sb.cell_model {
                 SoftBodyCellModel::Volume => counts[c.color as usize] += 1,
                 SoftBodyCellModel::Corotational | SoftBodyCellModel::NeoHookean => {
-                    if mu > 0.0 && elastic_cell_terms(sb, slots, c).2 > 0.0 {
+                    if !sb.uses_fem() && mu > 0.0 && elastic_cell_terms(sb, slots, c).2 > 0.0 {
                     }
                 }
             }
@@ -599,7 +602,35 @@ impl SoftConstraintsSet {
             }
         };
 
-        for (ei, e) in sb.edges.iter().enumerate() {
+        let element_constraints = !sb.uses_fem();
+        for (ei, e) in sb
+            .edges
+            .iter()
+            .enumerate()
+            .take(edges.end)
+            .skip(edges.start)
+            .filter(|_| element_constraints)
+        {
+            let (erp, cfm) = match (e.softness, e.kind) {
+                (Some(softness), _) => coeffs_of(&softness),
+                (None, SoftBodyEdgeKind::Structural) => (edge_erp, edge_cfm),
+                (None, SoftBodyEdgeKind::Bend) => (bend_erp, bend_cfm),
+            };
+            let mut constraint = base_constraint(
+                SoftScalarConstraintKind::Distance,
+                SoftScalarConstraintWriteback::Edge,
+                ei,
+                &e.vertices,
+                e.rest_length,
+                erp,
+                cfm,
+                e.impulse,
+            );
+            if e.tension_only {
+                constraint.impulse_bounds = [0.0, Real::MAX];
+                constraint.impulse = constraint.impulse.max(0.0);
+            }
+            out.push_constraint(e.color, constraint);
         }
 
         #[cfg(feature = "dim3")]
@@ -640,6 +671,10 @@ impl SoftConstraintsSet {
                     out.push_constraint(c.color, constraint);
                 }
                 SoftBodyCellModel::Corotational | SoftBodyCellModel::NeoHookean => {
+                    if sb.uses_fem() {
+                        // Integrated implicitly by the FEM solver instead (see `soft_fem`).
+                        continue;
+                    }
                     let neo_hookean = sb.cell_model == SoftBodyCellModel::NeoHookean;
                     // Constraint-space stiffnesses 2μV₀ / 4μV₀ (diagonal / shear rows) and λV₀
                     // (volumetric, at rest) map to natural frequencies via the effective masses,

@@ -35,6 +35,8 @@ impl SoftBodyBuilder {
             surface: Vec::new(),
             material: SoftBodyMaterial::default(),
             cell_model: SoftBodyCellModel::default(),
+            #[cfg(feature = "fem")]
+            solver: super::SoftBodySolver::default(),
             volume_preservation: false,
             volume_factor: 1.0,
             shape_matching: false,

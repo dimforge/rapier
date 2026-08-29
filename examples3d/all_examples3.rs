@@ -80,6 +80,7 @@ mod soft_bodies3;
 mod soft_cloth3;
 mod soft_cloth_stress3;
 mod soft_dress3;
+mod soft_fem3;
 mod soft_jelly3;
 mod soft_pile3;
 mod soft_plasticity3;
@@ -173,6 +174,7 @@ pub async fn main() {
         SOFT, "Plasticity", soft_plasticity3::run;
         SOFT, "Tearing", soft_tearing3::run;
         SOFT, "Dancing dress", soft_dress3::run;
+        SOFT, "Soft FEM", soft_fem3::run;
         #[cfg(not(target_arch = "wasm32"))]
         SOFT, "Soft trimeshes", soft_trimesh3::run;
         // ── Controls ────────────────────────────────────────────────────────

@@ -201,6 +201,9 @@ impl SoftElasticConstraint {
     }
 
     pub fn max_tensile_strain(&self) -> Real {
+        max_tensile_strain(&self.strain)
+    }
+
     /// Deviatoric coefficients of a cell from its inverse rest matrix.
     pub fn coefficients(inv_rest_matrix: &Matrix) -> [Vector; MAX_CONSTRAINT_PARTICLES] {
         let constraints = inv_rest_matrix.transpose();
@@ -215,6 +218,20 @@ impl SoftElasticConstraint {
     /// Gradient of strain row `r` w.r.t. particle `p`'s velocity, in the cell frame:
     /// `½ (coeffs[p][b] e_a + coeffs[p][a] e_b)`.
     #[inline]
+    pub(crate) fn strain_gradient(
+        coeffs: &[Vector; MAX_CONSTRAINT_PARTICLES],
+        r: usize,
+        p: usize,
+    ) -> Vector {
+        let (a, b) = strain_pairs()[r];
+        let mut g = Vector::ZERO;
+        if a == b {
+            g[a] = coeffs[p][a];
+        } else {
+            g[a] = 0.5 * coeffs[p][b];
+            g[b] = 0.5 * coeffs[p][a];
+        }
+        g
     }
 
     /// The strain-constraint gradients of particle `p` rotated by `rotation`: the columns `R gᵣ[p]`.

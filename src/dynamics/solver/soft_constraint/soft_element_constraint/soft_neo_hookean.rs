@@ -28,17 +28,18 @@ pub(crate) struct NeoHookeanConstraint {
     pub dt_grad: StrainVector,
 }
 
-/// Strain change (any component) past which a Neo-Hookean row recomputes its tangent stiffness.
+/// Strain change (any component) past which a Neo-Hookean constraint recomputes its tangent stiffness.
+pub(crate) const STIFFNESS_UPDATE_STRAIN: Real = 0.02;
+
 impl NeoHookeanConstraint {
-    /// Rest stiffness of strain row `r` per unit rest volume: `2μ + λ` on the diagonal rows,
-    /// `4μ` on the shear rows (the linear-elastic block, which the Neo-Hookean Hessian
-    /// reproduces at rest).
+    /// Rest stiffness of strain row `r` per unit rest volume: `2μ + λ` on the diagonal rows, `4μ`
+    /// on the shear rows (the linear-elastic block, reproduced by the Neo-Hookean Hessian at rest).
     #[inline]
     pub fn rest_stiffness(mu: Real, lambda: Real, r: usize) -> Real {
         if r < DIM { 2.0 * mu + lambda } else { 4.0 * mu }
     }
 
-    /// Refreshes `M = dt (dt K + D)` and the gradient `dt g` at `strain`, and the block inverse
+    /// Updates `M = dt (dt K + D)`, the gradient `dt g` at `strain`, and the block inverse
     /// `(M A + I)⁻¹` into `inv_a`.
     pub(super) fn update(
         &mut self,
@@ -99,6 +100,7 @@ impl NeoHookeanConstraint {
     }
 
     /// `S = I + ε`, `κ = λ'(J - 1) - μ` and the gradient `V₀ ∂Ψ/∂ε` at the strain `ε`.
+    pub(crate) fn gradient(
         mu: Real,
         lambda: Real,
         strain: &StrainVector,

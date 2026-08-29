@@ -28,4 +28,48 @@ pub struct SoftBodiesSettings {
     /// contact softness natural frequencies for the soft-body contacts (default: `4.0`); they run
     /// stiffer because a contact's effective mass is a few particles' worth, not the whole body's.
     pub contact_stiffening: Real,
+    /// Tuning of the FEM soft-body solver (see
+    /// [`SoftBodySolver::Fem`](crate::dynamics::SoftBodySolver::Fem)); only read by the soft
+    /// bodies that select it.
+    #[cfg(feature = "fem")]
+    pub fem: SoftFemParameters,
+}
+
+impl Default for SoftBodiesSettings {
+    fn default() -> Self {
+        Self {
+            recovery: SoftRecoverySettings::default(),
+            resweep_strain: 0.75,
+            max_extra_substeps: 4,
+            contact_stiffening: 4.0,
+            #[cfg(feature = "fem")]
+            fem: SoftFemParameters::default(),
+        }
+    }
+}
+
+/// Tuning of the FEM soft-body solver (see
+/// [`SoftBodySolver::Fem`](crate::dynamics::SoftBodySolver::Fem)), which solves a linear system
+/// per substep by conjugate gradient and factorizes it once per step (see `max_dense_dofs`).
+#[cfg(feature = "fem")]
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub struct SoftFemParameters {
+    /// Relative residual at which the conjugate gradient stops (default: `1.0e-5`).
+    pub linear_tolerance: Real,
+    /// Hard cap on the conjugate-gradient iterations, whatever the residual (default: `256`).
+    ///
+    /// A very stiff, finely meshed body can need several hundred iterations to converge; the
+    /// truncated step it gets instead is under-relaxed (safe), only slower to settle.
+    pub max_linear_iterations: usize,
+    ///
+}
+#[cfg(feature = "fem")]
+impl Default for SoftFemParameters {
+    fn default() -> Self {
+        Self {
+            linear_tolerance: 1.0e-5,
+            max_linear_iterations: 20,
+        }
+    }
 }

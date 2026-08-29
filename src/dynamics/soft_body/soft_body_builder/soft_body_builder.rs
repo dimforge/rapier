@@ -73,6 +73,9 @@ pub struct SoftBodyBuilder {
     pub material: SoftBodyMaterial,
     /// The constitutive model of the cells.
     pub cell_model: SoftBodyCellModel,
+    /// Which solver simulates the body's elasticity.
+    #[cfg(feature = "fem")]
+    pub solver: super::SoftBodySolver,
     /// Whether area/volume preservation is enabled (one constraint per piece of material enclosed
     /// by a closed surface).
     pub volume_preservation: bool,

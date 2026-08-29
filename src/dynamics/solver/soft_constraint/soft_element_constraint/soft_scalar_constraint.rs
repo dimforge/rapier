@@ -65,6 +65,43 @@ pub(crate) struct SoftScalarConstraint {
     pub impulse_bounds: [Real; 2],
 }
 
+/// Gradients of the dihedral angle between the triangles `(p0, p1, p2)` and `(p0, p1, p3)`
+/// (Müller et al., 2007); returns the angle minus `rest`.
+#[cfg(feature = "dim3")]
+pub(crate) fn dihedral_gradients(pos: &[Vector; 4], rest: Real, grad: &mut [Vector; 4]) -> Real {
+    let p1 = pos[1] - pos[0];
+    let p2 = pos[2] - pos[0];
+    let p3 = pos[3] - pos[0];
+    let n1_raw = p1.cross(p2);
+    let n2_raw = p1.cross(p3);
+    let (l1, l2) = (n1_raw.length(), n2_raw.length());
+    if l1 < 1.0e-9 || l2 < 1.0e-9 {
+        *grad = [Vector::ZERO; 4];
+        return 0.0;
+    }
+    let n1 = n1_raw / l1;
+    let n2 = n2_raw / l2;
+    let d = n1.dot(n2).clamp(-1.0, 1.0);
+    let angle = d.acos();
+    let sin = (1.0 - d * d).sqrt();
+    if sin < 1.0e-6 {
+        // Flat configuration: the angle is stationary, no useful gradient.
+        *grad = [Vector::ZERO; 4];
+        return angle - rest;
+    }
+    // The q_i are minus the gradients of d = n1·n2, so ∇C = q / sin (C = acos(d) - rest).
+    let q3 = (p1.cross(n2) + n1.cross(p1) * d) / l1;
+    let q4 = (p1.cross(n1) + n2.cross(p1) * d) / l2;
+    let q2 = -(p2.cross(n2) + n1.cross(p2) * d) / l1 - (p3.cross(n1) + n2.cross(p3) * d) / l2;
+    let q1 = -q2 - q3 - q4;
+    let scale = 1.0 / sin;
+    grad[0] = q1 * scale;
+    grad[1] = q2 * scale;
+    grad[2] = q3 * scale;
+    grad[3] = q4 * scale;
+    angle - rest
+}
+
 impl SoftScalarConstraint {
     /// Whether this constraint is strained beyond `min_strain` (relative error of a distance constraint; the
     /// other kinds never are): the criterion of the re-sweep after the contacts.
@@ -127,8 +164,16 @@ impl SoftScalarConstraint {
         }
     }
 
+    /// Gradients of the dihedral angle of this constraint's four particles.
     #[cfg(feature = "dim3")]
     fn dihedral_gradients(&mut self) -> Real {
+        let pos = [self.pos[0], self.pos[1], self.pos[2], self.pos[3]];
+        let mut grad = [Vector::ZERO; 4];
+        let c = dihedral_gradients(&pos, self.rest, &mut grad);
+        self.grad[..4].copy_from_slice(&grad);
+        c
+    }
+
     /// Applies the accumulated impulse to the particle velocities.
     #[inline]
     pub fn warmstart(&self, bodies: &mut SolverBodies) {

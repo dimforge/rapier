@@ -69,6 +69,18 @@ pub(crate) fn max_symmetric_eigenvalue(m: &Matrix) -> Real {
     m.symmetric_eigenvalues().max_element()
 }
 
+/// The outer product `a bᵀ`.
+#[inline]
+pub(crate) fn outer_product(a: Vector, b: Vector) -> Matrix {
+    #[cfg(feature = "dim2")]
+    {
+        Matrix::from_cols(a * b.x, a * b.y)
+    }
+    #[cfg(feature = "dim3")]
+    {
+        Matrix::from_cols(a * b.x, a * b.y, a * b.z)
+    }
+}
 
 /// The cofactor matrix `∂det(F)/∂F`.
 #[inline]

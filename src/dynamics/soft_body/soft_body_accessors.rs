@@ -122,6 +122,32 @@ impl SoftBody {
         self.cell_model
     }
 
+    /// Which solver simulates this soft body's elasticity.
+    #[cfg(feature = "fem")]
+    pub fn solver(&self) -> SoftBodySolver {
+        self.solver
+    }
+
+    /// Selects the solver simulating this soft body's elasticity (see [`SoftBodySolver`]).
+    #[cfg(feature = "fem")]
+    pub fn set_solver(&mut self, solver: SoftBodySolver) {
+        self.solver = solver;
+        self.modified = true;
+    }
+
+    /// Whether this soft body's elasticity is solved by the FEM path.
+    #[inline]
+    pub(crate) fn uses_fem(&self) -> bool {
+        #[cfg(feature = "fem")]
+        {
+            self.solver == SoftBodySolver::Fem
+        }
+        #[cfg(not(feature = "fem"))]
+        {
+            false
+        }
+    }
+
     /// Whether the global area/volume preservation row is enabled.
     pub fn volume_preservation_enabled(&self) -> bool {
         self.volume_preservation

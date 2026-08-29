@@ -193,6 +193,10 @@ struct SharedCtx<'a> {
     /// The soft-body constraints of the awake soft bodies (empty when the step has none: every soft
     /// stage is then skipped, identically on every worker).
     soft_constraints: *mut SoftConstraintsSet,
+    /// The FEM systems of the awake soft bodies that selected the FEM solver (empty when the
+    /// step has none: every FEM stage is then skipped, identically on every worker).
+    #[cfg(feature = "fem")]
+    soft_fem: *const crate::dynamics::solver::soft_fem::SoftFemSet,
 
     coulomb_builders: *mut ContactWithCoulombFrictionBuilder,
     coulomb_constraints: *mut ContactWithCoulombFriction<SimdReal>,
@@ -225,6 +229,8 @@ pub(crate) struct StagedIslandSolver {
     pub contact_constraints: ContactConstraintsSet,
     pub joint_constraints: JointConstraintsSet,
     pub soft_constraints: SoftConstraintsSet,
+    #[cfg(feature = "fem")]
+    pub soft_fem: crate::dynamics::solver::soft_fem::SoftFemSet,
     pub velocity_solver: VelocitySolver,
     /// The SIMD chunk layout: segments over the persistent bucket slices (and
     /// over `overflow_chunk_refs`), in global chunk-id order.
@@ -256,11 +262,11 @@ pub(crate) struct StagedIslandSolver {
     /// Constraint-row range of each SIMD joint chunk.
     joint_chunk_rows: Vec<Range<usize>>,
     /// Workspace: (row signature, joint index) of a color's SIMD-eligible joints.
-    joint_sig_scratch: Vec<(u32, JointIndex)>,
+    joint_sig_workspace: Vec<(u32, JointIndex)>,
     /// Scalar joints solved by worker 0: joints without a wide row formulation
     /// (motors, coupled limits), extra-solver-iterations joints, and the joints
     /// of colors too small to parallelize.
-    joint_overflow_scratch: Vec<JointIndex>,
+    joint_overflow_workspace: Vec<JointIndex>,
     /// Joint builders from colors too small to parallelize: solved by worker 0.
     joint_overflow_range: Range<usize>,
     /// Workspace: the overflow-color manifolds handed to the greedy body-mask
@@ -305,19 +311,21 @@ impl StagedIslandSolver {
             contact_constraints: ContactConstraintsSet::new(),
             joint_constraints: JointConstraintsSet::new(),
             soft_constraints: SoftConstraintsSet::new(),
+            #[cfg(feature = "fem")]
+            soft_fem: crate::dynamics::solver::soft_fem::SoftFemSet::new(),
             velocity_solver: VelocitySolver::new(),
             chunk_segments: Vec::new(),
             overflow_chunk_refs: Vec::new(),
             color_ranges: Vec::new(),
             groups: Vec::new(),
             grouped_chunk_refs: Vec::new(),
-            overflow_scratch: Vec::new(),
+            overflow_workspace: Vec::new(),
             joint_colors: ParallelInteractionGroups::new(),
             joint_color_ranges: Vec::new(),
             joint_chunk_lanes: Vec::new(),
             joint_chunk_rows: Vec::new(),
-            joint_sig_scratch: Vec::new(),
-            joint_overflow_scratch: Vec::new(),
+            joint_sig_workspace: Vec::new(),
+            joint_overflow_workspace: Vec::new(),
             joint_overflow_range: 0..0,
             joint_rows: Vec::new(),
             staged_joints_valid: false,

@@ -2868,3 +2868,748 @@ fn volumetric_subdivision_costs_fewer_cells() {
         assert!(lowest > -0.1 && lowest < 0.6, "the ball ended at {lowest}");
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// The FEM soft-body solver (`fem` cargo feature, `SoftBodySolver::Fem`).
+// ---------------------------------------------------------------------------------------------
+
+/// A corotational bar built as a soft body, optionally FEM-solved, cantilevered from its `x = 0`
+/// face. Returns the builder and the particles of its free end.
+#[cfg(feature = "fem")]
+fn fem_cantilever(
+    solver: SoftBodySolver,
+    young: Real,
+    length: Real,
+    thickness: Real,
+    nx: usize,
+    nt: usize,
+) -> (SoftBodyBuilder, Vec<usize>) {
+    let half = Vector::new(length * 0.5, thickness * 0.5, thickness * 0.5);
+    let builder = SoftBodyBuilder::cuboid(Vector::new(length * 0.5, 0.0, 0.0), half, nx, nt, nt)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: young,
+            poisson_ratio: 0.0,
+            elastic_damping_ratio: 1.0,
+            ..Default::default()
+        })
+        .solver(solver)
+        .without_colliders()
+        .can_sleep(false);
+    // Pin every particle of the root face.
+    let pinned: Vec<u32> = builder
+        .particle_positions()
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.x < 1.0e-4)
+        .map(|(i, _)| i as u32)
+        .collect();
+    let tip: Vec<usize> = builder
+        .particle_positions()
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.x > length - 1.0e-4)
+        .map(|(i, _)| i)
+        .collect();
+    (builder.pinned_particles(pinned), tip)
+}
+
+/// The mean height of a cantilever's free end (it starts flat at `y = 0`).
+#[cfg(feature = "fem")]
+fn cantilever_tip(world: &PhysicsWorld, handle: SoftBodyHandle, tip: &[usize]) -> Real {
+    let sb = &world.soft_bodies[handle];
+    tip.iter().map(|&i| sb.particle_position(i).y).sum::<Real>() / tip.len() as Real
+}
+
+/// A FEM soft body with no elements and no contacts must fall exactly like a point mass: the
+/// implicit elastic step must not disturb free fall.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_free_fall_is_exact() {
+    let mut world = PhysicsWorld::new();
+    world.integration_parameters.num_solver_iterations = 1;
+    let builder = SoftBodyBuilder::cuboid(Vector::new(0.0, 10.0, 0.0), Vector::splat(0.5), 3, 3, 3)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .solver(SoftBodySolver::Fem)
+        .without_colliders()
+        .can_sleep(false);
+    let handle = world.insert_soft_body(builder);
+    let start = world.soft_bodies[handle].particle_position(0);
+    let steps = 60;
+    for _ in 0..steps {
+        world.step();
+    }
+    let dt = world.integration_parameters.dt;
+    // Semi-implicit Euler over `steps` steps: Δy = g Σ_{k=1..n} k dt² = g dt² n(n+1)/2.
+    let expected = world.gravity.y * dt * dt * (steps * (steps + 1) / 2) as Real;
+    let sb = &world.soft_bodies[handle];
+    let drop = sb.particle_position(0).y - start.y;
+    assert!(
+        (drop - expected).abs() < 1.0e-4 * expected.abs(),
+        "free fall {drop} vs expected {expected}"
+    );
+    // And no internal motion at all.
+    for i in 0..sb.num_particles() {
+        let v = sb.particle_velocity(i) - sb.particle_velocity(0);
+        assert!(v.length() < 1.0e-4, "particle {i} drifted at {v:?}");
+    }
+}
+
+/// A cantilever's tip deflection under its own weight must match the Euler-Bernoulli value
+/// `δ = q L⁴ / (8 E I)` within the discretization error of a coarse mesh.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_cantilever_matches_euler_bernoulli() {
+    let (length, thickness, young) = (2.0, 0.2, 1.2e7);
+    let density = 100.0;
+    let mut world = PhysicsWorld::new();
+    world.integration_parameters.num_solver_iterations = 4;
+    let mass = density * length * thickness * thickness;
+    let (builder, tip_particles) =
+        fem_cantilever(SoftBodySolver::Fem, young, length, thickness, 9, 3);
+    let handle = world.insert_soft_body(builder.mass(mass));
+    for _ in 0..1200 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let tip = cantilever_tip(&world, handle, &tip_particles);
+    // q = weight per unit length, I = b h³ / 12.
+    let q = mass * -world.gravity.y / length;
+    let inertia = thickness * thickness * thickness * thickness / 12.0;
+    let expected = -q * length * length * length * length / (8.0 * young * inertia);
+    // Linear tetrahedra lock in bending, so a mesh three elements thick reads stiffer than the
+    // analytic beam; the point of the test is the order of magnitude and the scaling, not an
+    // exact match.
+    let ratio = tip / expected;
+    assert!(
+        (0.2..1.1).contains(&ratio),
+        "tip deflection {tip} vs Euler-Bernoulli {expected} (ratio {ratio})"
+    );
+}
+
+/// A stiff FEM cube dropped on the ground settles without exploding, and keeps its volume.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_stiff_cube_is_stable() {
+    for young in [3.0e4, 3.0e6, 1.0e8] {
+        let mut world = world_with_ground();
+        let cube =
+            SoftBodyBuilder::cuboid(Vector::new(0.0, 3.0, 0.0), Vector::splat(0.75), 4, 4, 4)
+                .cell_model(SoftBodyCellModel::Corotational)
+                .material(SoftBodyMaterial {
+                    young_modulus: young,
+                    poisson_ratio: 0.4,
+                    elastic_damping_ratio: 0.5,
+                    ..Default::default()
+                })
+                .solver(SoftBodySolver::Fem)
+                .particle_mass(0.1);
+        let handle = world.insert_soft_body(cube);
+        for _ in 0..500 {
+            world.step();
+        }
+        assert_finite(&world, handle);
+        let sb = &world.soft_bodies[handle];
+        let max_vel = sb
+            .particles()
+            .iter()
+            .map(|p| p.velocity().length())
+            .fold(0.0, Real::max);
+        assert!(
+            max_vel < 0.2,
+            "E = {young}: cube still moving at {max_vel} m/s"
+        );
+        let volume = sb.volume();
+        assert!(
+            (volume - sb.rest_volume()).abs() < 0.1 * sb.rest_volume(),
+            "E = {young}: volume {volume} vs rest {}",
+            sb.rest_volume()
+        );
+    }
+}
+
+/// The FEM path's static deflection must not depend on the substep count: elasticity is solved
+/// globally, not relaxed. The constraint path's does (it converges toward the same answer as the
+/// sweeps pile up), which is the whole point of the FEM solver.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_deflection_is_substep_invariant() {
+    let (length, thickness) = (2.0, 0.2);
+    let mass = 8.0;
+    let settle = |solver: SoftBodySolver, substeps: usize, young: Real| -> Real {
+        let mut world = PhysicsWorld::new();
+        world.integration_parameters.num_solver_iterations = substeps;
+        let (builder, tip) = fem_cantilever(solver, young, length, thickness, 9, 3);
+        let handle = world.insert_soft_body(builder.mass(mass));
+        for _ in 0..1500 {
+            world.step();
+        }
+        cantilever_tip(&world, handle, &tip)
+    };
+
+    // A stiff beam: the FEM deflection must be the same at 1, 2 and 8 substeps.
+    let fem: Vec<Real> = [1, 2, 8]
+        .iter()
+        .map(|s| settle(SoftBodySolver::Fem, *s, 1.2e7))
+        .collect();
+    let reference = fem[2];
+    for (k, d) in fem.iter().enumerate() {
+        assert!(
+            (d - reference).abs() < 0.05 * reference.abs(),
+            "FEM deflection depends on the substep count: {fem:?} (case {k})"
+        );
+    }
+
+    // The same comparison on the constraint path, at a modulus it survives at one substep: it
+    // is much softer there than at eight substeps. This is the gap the FEM path closes, asserted
+    // so the comparison does not silently rot.
+    let constraints_1 = settle(SoftBodySolver::Constraints, 1, 3.0e5);
+    let constraints_8 = settle(SoftBodySolver::Constraints, 8, 3.0e5);
+    assert!(
+        (constraints_1 - constraints_8).abs() > 0.2 * constraints_8.abs(),
+        "the constraint path became substep-invariant: {constraints_1} vs {constraints_8}"
+    );
+    let fem_1 = settle(SoftBodySolver::Fem, 1, 3.0e5);
+    let fem_8 = settle(SoftBodySolver::Fem, 8, 3.0e5);
+    assert!(
+        (fem_1 - fem_8).abs() < 0.05 * fem_8.abs(),
+        "FEM deflection depends on the substep count: {fem_1} vs {fem_8}"
+    );
+}
+
+/// Contacts against a FEM soft body: a rigid box dropped on it settles on the surface and both
+/// come to rest. The contact impulses reach the whole body through the propagate stage.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_box_rests_on_soft_body() {
+    let mut world = world_with_ground();
+    let cube = SoftBodyBuilder::cuboid(Vector::new(0.0, 0.6, 0.0), Vector::splat(0.6), 5, 5, 5)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: 5.0e3,
+            poisson_ratio: 0.35,
+            ..Default::default()
+        })
+        .solver(SoftBodySolver::Fem)
+        .particle_mass(0.2);
+    let handle = world.insert_soft_body(cube);
+    let (rb, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.1, 2.0, 0.1)),
+        ColliderBuilder::cuboid(0.2, 0.2, 0.2).density(2.0),
+    );
+    for _ in 0..600 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let box_pos = world.bodies[rb].translation();
+    assert!(box_pos.y > 1.2, "box sank into the soft cube: {box_pos:?}");
+    assert!(
+        box_pos.y < 1.7,
+        "box floats above the soft cube: {box_pos:?}"
+    );
+    for p in world.soft_bodies[handle].particles() {
+        let v = p.velocity().length();
+        assert!(v < 0.05, "residual particle velocity {v}");
+    }
+    assert!(world.bodies[rb].linvel().length() < 0.05);
+    let com = world.soft_bodies[handle].center_of_mass();
+    assert!(
+        com.x.abs() < 0.05 && com.z.abs() < 0.05,
+        "soft cube crept: {com:?}"
+    );
+}
+
+/// A FEM soft body attached to a kinematic rigid body follows it, and the whole body comes along
+/// through its elasticity.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_attachment_follows_its_body() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let (anchor, _) = world.insert(
+        RigidBodyBuilder::kinematic_position_based().translation(Vector::new(0.0, 0.0, 0.0)),
+        ColliderBuilder::ball(0.05).density(0.0),
+    );
+    let cube = SoftBodyBuilder::cuboid(Vector::new(0.5, 0.0, 0.0), Vector::splat(0.5), 4, 4, 4)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: 1.0e5,
+            ..Default::default()
+        })
+        .solver(SoftBodySolver::Fem)
+        .without_colliders()
+        .can_sleep(false)
+        .particle_mass(0.05);
+    let handle = world.insert_soft_body(cube);
+    // Attach every particle of the near face.
+    let attached: Vec<usize> = (0..world.soft_bodies[handle].num_particles())
+        .filter(|&i| world.soft_bodies[handle].particle_position(i).x < 1.0e-4)
+        .collect();
+    assert!(!attached.is_empty());
+    for &i in &attached {
+        let bodies = &world.bodies;
+        world.soft_bodies[handle].attach_particle(i, anchor, bodies);
+    }
+    // Drag the anchor along +y.
+    for step in 0..400 {
+        let y = (step + 1) as Real * 0.005;
+        world.bodies[anchor].set_next_kinematic_translation(Vector::new(0.0, y, 0.0));
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let anchor_y = world.bodies[anchor].translation().y;
+    let com = world.soft_bodies[handle].center_of_mass();
+    assert!(
+        (com.y - anchor_y).abs() < 0.2,
+        "the soft body did not follow its anchor: com {com:?}, anchor y {anchor_y}"
+    );
+}
+
+/// Two-way coupling: a free-floating FEM soft body hit by a rigid body conserves the total
+/// linear momentum of the pair.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_coupling_conserves_momentum() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let cube = SoftBodyBuilder::cuboid(Vector::new(0.0, 0.0, 0.0), Vector::splat(0.5), 4, 4, 4)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: 2.0e4,
+            elastic_damping_ratio: 0.2,
+            ..Default::default()
+        })
+        .solver(SoftBodySolver::Fem)
+        .can_sleep(false)
+        .particle_mass(0.05);
+    let handle = world.insert_soft_body(cube);
+    let (rb, _) = world.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(-2.0, 0.0, 0.0))
+            .linvel(Vector::new(4.0, 0.0, 0.0))
+            .gravity_scale(0.0),
+        ColliderBuilder::ball(0.2).density(1.0),
+    );
+    let momentum = |world: &PhysicsWorld| {
+        let sb = &world.soft_bodies[handle];
+        let soft: Vector = sb
+            .particles()
+            .iter()
+            .map(|p| p.velocity() * p.mass())
+            .fold(Vector::ZERO, |a, b| a + b);
+        soft + world.bodies[rb].linvel() * world.bodies[rb].mass()
+    };
+    world.step();
+    let p0 = momentum(&world);
+    for _ in 0..400 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let p1 = momentum(&world);
+    assert!(
+        (p1 - p0).length() < 0.1 * p0.length(),
+        "momentum drifted: {p0:?} -> {p1:?}"
+    );
+}
+
+/// An impact on a stiff FEM body is absorbed by the whole body, not bounced off the few
+/// particles the contacts touch: the constraints see the body through its augmented mass and
+/// its elastic response; with lumped particle masses the same box rebounds at 19.9 of 20 m/s.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_impact_is_absorbed_by_the_whole_body() {
+    let mut world = PhysicsWorld::new();
+    let plank = SoftBodyBuilder::cuboid(
+        Vector::new(0.0, 1.0, 0.0),
+        Vector::new(1.5, 0.1, 0.4),
+        13,
+        3,
+        5,
+    )
+    .cell_model(SoftBodyCellModel::Corotational)
+    .material(SoftBodyMaterial {
+        young_modulus: 5.0e6,
+        poisson_ratio: 0.3,
+        elastic_damping_ratio: 1.0,
+        ..Default::default()
+    })
+    .solver(SoftBodySolver::Fem)
+    .can_sleep(false)
+    .particle_mass(0.02);
+    // Pinned at both ends.
+    let pinned: Vec<u32> = plank
+        .particle_positions()
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.x.abs() > 1.4)
+        .map(|(i, _)| i as u32)
+        .collect();
+    let handle = world.insert_soft_body(plank.pinned_particles(pinned));
+    let impact_speed = 20.0;
+    let (rb, _) = world.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(0.0, 1.6, 0.0))
+            .linvel(Vector::new(0.0, -impact_speed, 0.0))
+            .gravity_scale(0.0),
+        ColliderBuilder::cuboid(0.25, 0.25, 0.25).density(8.0),
+    );
+    let mut rebound: Real = 0.0;
+    for _ in 0..120 {
+        world.step();
+        rebound = rebound.max(world.bodies[rb].linvel().y);
+    }
+    assert_finite(&world, handle);
+    assert!(
+        rebound < 0.4 * impact_speed,
+        "the box bounced off the FEM plank at {rebound} m/s (impact {impact_speed})"
+    );
+    assert!(rebound > 0.0, "the box went through the plank");
+}
+
+/// The FEM path's distance elements reproduce the constraint path's springs: the period of a
+/// mass-spring pair is still set by the material's natural frequency, whatever the substep
+/// count.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_edge_period_is_substep_invariant() {
+    let natural_frequency = 2.0; // Hz
+    let mut periods = Vec::new();
+    for substeps in [1usize, 4, 16] {
+        let mut world = PhysicsWorld::new();
+        world.gravity = Vector::ZERO;
+        world.integration_parameters.num_solver_iterations = substeps;
+        world.integration_parameters.dt = 1.0 / 240.0;
+        let builder = SoftBodyBuilder::new(vec![Vector::ZERO, Vector::new(1.0, 0.0, 0.0)])
+            .edges(vec![[0, 1]])
+            .pinned_particles([0])
+            .softness(SpringCoefficients::new(natural_frequency, 0.0))
+            .solver(SoftBodySolver::Fem)
+            .without_colliders()
+            .can_sleep(false);
+        let handle = world.insert_soft_body(builder);
+        world.soft_bodies[handle].set_particle_position(1, Vector::new(1.2, 0.0, 0.0));
+
+        let mut crossings = Vec::new();
+        let mut prev_len = 1.2;
+        for step in 0..2000 {
+            world.step();
+            let len = world.soft_bodies[handle].particle_position(1).x;
+            if prev_len > 1.0 && len <= 1.0 {
+                crossings.push(step as Real * world.integration_parameters.dt);
+                if crossings.len() == 2 {
+                    break;
+                }
+            }
+            prev_len = len;
+        }
+        assert_eq!(
+            crossings.len(),
+            2,
+            "no oscillation with {substeps} substeps"
+        );
+        periods.push(crossings[1] - crossings[0]);
+    }
+    let expected = 1.0 / natural_frequency;
+    for (i, period) in periods.iter().enumerate() {
+        assert!(
+            (period - expected).abs() < 0.08 * expected,
+            "period {period} (substeps case {i}) too far from {expected}"
+        );
+    }
+}
+
+/// A FEM rope pinned at one end hangs from its anchor without stretching much: the distance
+/// elements bear the load.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_rope_hangs_from_anchor() {
+    let mut world = PhysicsWorld::new();
+    let rope = SoftBodyBuilder::rope(Vector::ZERO, Vector::new(2.0, 0.0, 0.0), 21)
+        .pinned_particles([0])
+        .softness(SpringCoefficients::new(300.0, 1.0))
+        .solver(SoftBodySolver::Fem)
+        .without_colliders()
+        .can_sleep(false);
+    let handle = world.insert_soft_body(rope);
+    for _ in 0..600 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let sb = &world.soft_bodies[handle];
+    let mut length = 0.0;
+    for i in 1..sb.num_particles() {
+        length += (sb.particle_position(i) - sb.particle_position(i - 1)).length();
+    }
+    assert!(
+        (length - 2.0).abs() < 0.1,
+        "the FEM rope stretched to {length}"
+    );
+    let tip = sb.particle_position(sb.num_particles() - 1);
+    assert!(tip.y < -1.5, "the rope did not hang: tip {tip:?}");
+}
+
+/// A FEM cloth (distance elements plus dihedral bending) pinned at two corners drapes without
+/// over-stretching.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_cloth_drapes() {
+    let mut world = PhysicsWorld::new();
+    let n = 10;
+    let cloth = SoftBodyBuilder::cloth(
+        Vector::new(0.0, 2.0, 0.0),
+        Vector::new(0.1, 0.0, 0.0),
+        Vector::new(0.0, 0.0, 0.1),
+        n,
+        n,
+    )
+    .pinned_particles([0, (n - 1) as u32])
+    .softness(SpringCoefficients::new(100.0, 1.0))
+    .solver(SoftBodySolver::Fem);
+    let handle = world.insert_soft_body(cloth);
+    for _ in 0..300 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let sb = &world.soft_bodies[handle];
+    let far = sb.particle_position(n * n - 1);
+    assert!(far.y < 1.5, "the FEM cloth did not drape: {far:?}");
+    for e in sb.edges() {
+        if e.kind != SoftBodyEdgeKind::Structural {
+            continue;
+        }
+        let len = (sb.particle_position(e.vertices[0] as usize)
+            - sb.particle_position(e.vertices[1] as usize))
+        .length();
+        assert!(
+            len < e.rest_length * 1.2,
+            "edge over-stretched: {len} vs {}",
+            e.rest_length
+        );
+    }
+}
+
+/// The FEM path uses the stable Neo-Hookean energy too: a stiff cube dropped on the ground
+/// settles and keeps its volume, and one squeezed to a fraction of its rest size recovers.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_neo_hookean_cube_is_stable() {
+    for young in [1.0e4, 1.0e6, 1.0e8] {
+        let mut world = world_with_ground();
+        let cube =
+            SoftBodyBuilder::cuboid(Vector::new(0.0, 3.0, 0.0), Vector::splat(0.75), 4, 4, 4)
+                .cell_model(SoftBodyCellModel::NeoHookean)
+                .material(SoftBodyMaterial {
+                    young_modulus: young,
+                    poisson_ratio: 0.4,
+                    elastic_damping_ratio: 0.5,
+                    ..Default::default()
+                })
+                .solver(SoftBodySolver::Fem)
+                .particle_mass(0.1);
+        let handle = world.insert_soft_body(cube);
+        for _ in 0..500 {
+            world.step();
+        }
+        assert_finite(&world, handle);
+        let sb = &world.soft_bodies[handle];
+        let max_vel = sb
+            .particles()
+            .iter()
+            .map(|p| p.velocity().length())
+            .fold(0.0, Real::max);
+        assert!(
+            max_vel < 0.2,
+            "E = {young}: cube still moving at {max_vel} m/s"
+        );
+        let volume = sb.volume();
+        assert!(
+            (volume - sb.rest_volume()).abs() < 0.1 * sb.rest_volume(),
+            "E = {young}: volume {volume} vs rest {}",
+            sb.rest_volume()
+        );
+    }
+}
+
+/// A FEM Neo-Hookean cube crushed to a fifth of its height recovers its rest shape: the energy
+/// is defined past the collapse, so no cell stays inverted.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_neo_hookean_cube_survives_large_compression() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let cube = SoftBodyBuilder::cuboid(Vector::ZERO, Vector::splat(0.5), 4, 4, 4)
+        .cell_model(SoftBodyCellModel::NeoHookean)
+        .material(SoftBodyMaterial {
+            young_modulus: 1.0e5,
+            poisson_ratio: 0.3,
+            elastic_damping_ratio: 0.5,
+            ..Default::default()
+        })
+        .solver(SoftBodySolver::Fem)
+        .without_colliders()
+        .can_sleep(false)
+        .particle_mass(0.1);
+    let handle = world.insert_soft_body(cube);
+    let rest_volume = world.soft_bodies[handle].rest_volume();
+    {
+        let sb = &mut world.soft_bodies[handle];
+        for i in 0..sb.num_particles() {
+            let mut p = sb.particle_position(i);
+            p.y *= 0.2;
+            sb.set_particle_position(i, p);
+        }
+    }
+    for _ in 0..1500 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let sb = &world.soft_bodies[handle];
+    let volume = sb.volume();
+    assert!(
+        (volume - rest_volume).abs() < 0.1 * rest_volume,
+        "the crushed cube did not recover: volume {volume} vs rest {rest_volume}"
+    );
+    // No cell left inverted.
+    for c in sb.cells() {
+        let x: [Vector; 4] = core::array::from_fn(|k| sb.particle_position(c.vertices[k] as usize));
+        let volume = (x[1] - x[0]).dot((x[2] - x[0]).cross(x[3] - x[0])) / 6.0;
+        assert!(
+            volume * c.rest_volume > 0.0,
+            "a cell stayed inverted: {volume} vs rest {}",
+            c.rest_volume
+        );
+    }
+}
+
+/// Plasticity on the FEM path: a block sheared past its yield keeps its lean, an elastic one
+/// springs back.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_plastic_cells_keep_their_deformation() {
+    let lean_after = |plastic_yield: Real| {
+        let mut world = world_with_ground();
+        let block =
+            SoftBodyBuilder::cuboid(Vector::new(0.0, 0.75, 0.0), Vector::splat(0.75), 4, 4, 4)
+                .cell_model(SoftBodyCellModel::Corotational)
+                .material(SoftBodyMaterial {
+                    young_modulus: 2.0e4,
+                    poisson_ratio: 0.3,
+                    elastic_damping_ratio: 1.0,
+                    plastic_yield,
+                    plastic_creep: 100.0,
+                    deformation_damping: 5.0,
+                    ..Default::default()
+                })
+                .solver(SoftBodySolver::Fem)
+                .particle_mass(0.1)
+                .collider_template(ColliderBuilder::ball(0.15).friction(2.0));
+        let handle = world.insert_soft_body(block);
+        let sb = &world.soft_bodies[handle];
+        let bottom: Vec<usize> = (0..sb.num_particles())
+            .filter(|&i| sb.particle_position(i).y < 0.01)
+            .collect();
+        let top: Vec<usize> = (0..sb.num_particles())
+            .filter(|&i| sb.particle_position(i).y > 1.49)
+            .collect();
+        for &i in bottom.iter().chain(top.iter()) {
+            world.soft_bodies[handle].set_particle_pinned(i, true);
+        }
+        let rest: Vec<Vector> = top
+            .iter()
+            .map(|&i| world.soft_bodies[handle].particle_position(i))
+            .collect();
+        for step in 0..120 {
+            let shift = 0.9 * (step as Real / 60.0).min(1.0);
+            for (&i, p) in top.iter().zip(rest.iter()) {
+                world.soft_bodies[handle]
+                    .set_particle_kinematic_target(i, *p + Vector::new(shift, 0.0, 0.0));
+            }
+            world.step();
+        }
+        for &i in &top {
+            world.soft_bodies[handle].set_particle_pinned(i, false);
+        }
+        for _ in 0..240 {
+            world.step();
+        }
+        assert_finite(&world, handle);
+        let sb = &world.soft_bodies[handle];
+        let top_x: Real =
+            top.iter().map(|&i| sb.particle_position(i).x).sum::<Real>() / top.len() as Real;
+        let bottom_x: Real = bottom
+            .iter()
+            .map(|&i| sb.particle_position(i).x)
+            .sum::<Real>()
+            / bottom.len() as Real;
+        top_x - bottom_x
+    };
+    let elastic = lean_after(0.0);
+    let plastic = lean_after(0.05);
+    assert!(
+        elastic.abs() < 0.15,
+        "the elastic block did not spring back: lean {elastic}"
+    );
+    assert!(
+        plastic > 0.4,
+        "the plastic block did not keep its lean: {plastic} (elastic {elastic})"
+    );
+}
+
+/// Tearing on the FEM path: a pinned FEM cloth pulled apart tears, and the topology change is
+/// picked up by the solver (the sparsity pattern is rebuilt).
+#[cfg(feature = "fem")]
+#[test]
+fn fem_cloth_tears_when_pulled_apart() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let n = 12;
+    let cloth = SoftBodyBuilder::cloth(
+        Vector::new(0.0, 0.0, 0.0),
+        Vector::new(0.1, 0.0, 0.0),
+        Vector::new(0.0, 0.0, 0.1),
+        n,
+        n,
+    )
+    .softness(SpringCoefficients::new(200.0, 1.0))
+    .tear_strain(0.15)
+    .solver(SoftBodySolver::Fem)
+    .without_colliders()
+    .can_sleep(false);
+    let handle = world.insert_soft_body(cloth);
+    let left: Vec<usize> = (0..n).map(|k| k * n).collect();
+    let right: Vec<usize> = (0..n).map(|k| k * n + n - 1).collect();
+    for &i in left.iter().chain(right.iter()) {
+        world.soft_bodies[handle].set_particle_pinned(i, true);
+    }
+    let rest_left: Vec<Vector> = left
+        .iter()
+        .map(|&i| world.soft_bodies[handle].particle_position(i))
+        .collect();
+    let rest_right: Vec<Vector> = right
+        .iter()
+        .map(|&i| world.soft_bodies[handle].particle_position(i))
+        .collect();
+    let triangles_before = world.soft_bodies[handle].boundary().len();
+    let version_before = world.soft_bodies[handle].topology_version();
+    for step in 0..400 {
+        let pull = 0.004 * step as Real;
+        for (&i, p) in left.iter().zip(&rest_left) {
+            world.soft_bodies[handle]
+                .set_particle_kinematic_target(i, *p - Vector::new(pull, 0.0, 0.0));
+        }
+        for (&i, p) in right.iter().zip(&rest_right) {
+            world.soft_bodies[handle]
+                .set_particle_kinematic_target(i, *p + Vector::new(pull, 0.0, 0.0));
+        }
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let sb = &world.soft_bodies[handle];
+    assert!(
+        "the FEM cloth did not tear: no particle split"
+    );
+    assert!(
+        sb.topology_version() > version_before,
+        "the topology version was not bumped"
+    );
+}

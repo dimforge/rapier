@@ -66,6 +66,10 @@ pub struct SoftBody {
     pub(crate) boundary_element_cells: Vec<u32>,
     pub(crate) material: SoftBodyMaterial,
     pub(crate) cell_model: SoftBodyCellModel,
+    /// Which solver simulates this body's elasticity.
+    #[cfg(feature = "fem")]
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) solver: SoftBodySolver,
     /// Whether the volume pieces are constrained (only set while there is at least one piece).
     pub(crate) volume_preservation: bool,
     /// The pieces of material enclosed by a closed boundary, each with its own volume constraint

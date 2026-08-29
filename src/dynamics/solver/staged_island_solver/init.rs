@@ -163,6 +163,17 @@ impl StagedIslandSolver {
             );
         }
 
+        // FEM soft bodies: their systems are updated once the particle slots exist (the
+        // sparsity pattern and the element tables persist across steps).
+        #[cfg(feature = "fem")]
+        {
+            let groups = &self.groups;
+            self.soft_fem
+                .assemble(&self.soft_constraints, soft_bodies, groups.len(), |gi| {
+                    groups[gi].dt
+                });
+        }
+
         // The persistent solver contact graph already holds two-body manifolds grouped by
         // (color, contact count) — colors touch pairwise-disjoint bodies, buckets slice straight
         // into SIMD chunks — and multibody manifolds apart; nothing to categorize/sort per step.
@@ -564,6 +575,8 @@ impl StagedIslandSolver {
             joint_constraints: &mut self.joint_constraints as *mut _,
             contact_constraints: set as *mut _,
             soft_constraints: &mut self.soft_constraints as *mut _,
+            #[cfg(feature = "fem")]
+            soft_fem: &self.soft_fem as *const _,
             coulomb_builders: set.simd_velocity_coulomb_constraints_builder.as_mut_ptr(),
             coulomb_constraints: set.simd_velocity_coulomb_constraints.as_mut_ptr(),
             #[cfg(feature = "dim3")]

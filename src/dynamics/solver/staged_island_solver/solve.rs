@@ -335,6 +335,7 @@ pub(super) unsafe fn solve_pass(
         }
         stage = sync.sync(stage, 1);
     }
+
     stage
 }
 

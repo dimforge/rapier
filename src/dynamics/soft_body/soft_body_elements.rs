@@ -143,6 +143,22 @@ pub struct SoftBodyDihedral {
     pub(crate) color: u8,
 }
 
+/// Which solver simulates a soft body's elasticity (requires the `fem` cargo feature).
+#[cfg(feature = "fem")]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+pub enum SoftBodySolver {
+    /// Every elastic element becomes constraints, warm-started and swept Gauss-Seidel by color once
+    /// per substep with the contacts and joints. Cheap and robust, but converged only as far as the
+    /// sweep count: a stiff body keeps a residual compliance, a load crosses a long body slowly.
+    #[default]
+    Constraints,
+    /// Implicit Euler elasticity: forces and tangent stiffness from the strain-energy density,
+    /// `(M + h D + h² K) Δv = b` solved over the whole body once per substep; constraints see the
+    /// body through its augmented mass. Costs a factorization per step and a solve per constraint.
+    Fem,
+}
+
 /// The constitutive model of a soft body's cells (triangles in 2D, tetrahedra in 3D).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

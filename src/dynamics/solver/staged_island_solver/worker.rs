@@ -205,6 +205,11 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
     // case) skip the end-of-step restitution stages entirely.
     let has_bouncy = unsafe { &*ctx.any_bouncy }.load(Ordering::Relaxed);
     let has_soft = !unsafe { &*ctx.soft_constraints }.is_empty();
+    // Soft bodies solved by the FEM path: their implicit elastic step is one stage per substep,
+    // and their pass stages live in `solve_pass`. Read-only during the solve, so every worker
+    // takes the same branches.
+    #[cfg(feature = "fem")]
+    let has_fem = !unsafe { &*ctx.soft_fem }.is_empty();
     for (group_index, group) in ctx.groups.iter().enumerate() {
         // This group's substep parameters: identical to `base_params` except
         // for the substep dt. Everything dt-derived downstream (soft erp/cfm,
@@ -293,6 +298,33 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                     vs.generic_solver_vels_increment = incr;
                     sync.complete(stage, 1, stage_work);
                 }
+                stage = sync.sync(stage, stage_work);
+            }
+
+            /*
+             * Stage: the FEM soft bodies' implicit elastic step (parallel over the group's FEM
+             * bodies): assemble `A = M + h D + h² K` and solve `A Δv = h f - (A - M) v`. One body
+             * per claim; nothing else touches its system or particle slots during this stage.
+             */
+            #[cfg(feature = "fem")]
+            if has_fem {
+                let soft_fem = unsafe { &*ctx.soft_fem };
+                let fem_bodies = soft_fem.group(group_index);
+                let stage_work = fem_bodies.len();
+                let mut done = 0;
+                while let Some(claimed) = sync.claim(stage, &fem_bodies, 1, worker_id) {
+                    let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
+                    let claimed_len = claimed.len();
+                    for index in claimed {
+                        // SAFETY: one worker per claimed index; a body writes only its own
+                        // particles (soft bodies share no particle).
+                        unsafe {
+                            soft_fem.predict(index, solver_bodies, &params.soft_bodies.fem);
+                        }
+                    }
+                    done += claimed_len;
+                }
+                sync.complete(stage, done, stage_work);
                 stage = sync.sync(stage, stage_work);
             }
 
@@ -858,6 +890,28 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
             soft.writeback_bodies();
             sync.complete(stage, 1, stage_work);
         }
+        stage = sync.sync(stage, stage_work);
+    }
+
+    /*
+     * Stage: write the FEM soft bodies' per-cell state back (the warm-started polar rotation,
+     * the plastic flow and the tearing marks), parallel over the FEM bodies.
+     */
+    #[cfg(feature = "fem")]
+    if has_fem {
+        let set = unsafe { &*ctx.soft_fem };
+        let all_bodies = 0..set.num_active();
+        let stage_work = all_bodies.len();
+        let mut done = 0;
+        while let Some(claimed) = sync.claim(stage, &all_bodies, 1, worker_id) {
+            let claimed_len = claimed.len();
+            for index in claimed {
+                // SAFETY: one worker per claimed index; a body writes only its own cells.
+                unsafe { set.writeback(index, ctx.base_params.dt) };
+            }
+            done += claimed_len;
+        }
+        sync.complete(stage, done, stage_work);
         stage = sync.sync(stage, stage_work);
     }
 

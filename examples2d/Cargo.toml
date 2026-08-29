@@ -22,10 +22,11 @@ usvg.workspace = true
 
 [dependencies.rapier_testbed2d]
 workspace = true
-#features = ["profiler_ui"]
+features = ["fem"]
 
 [dependencies.rapier2d]
 workspace = true
+features = ["fem"]
 
 [[bin]]
 name = "all_examples2"

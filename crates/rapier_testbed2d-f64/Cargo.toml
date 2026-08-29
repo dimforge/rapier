@@ -29,6 +29,9 @@ clippy = { needless_lifetimes = "allow" }
 default = ["dim2"]
 dim2 = []
 parallel = ["rapier/parallel", "num_cpus"]
+# Enables the experimental FEM soft-body solver, selected per body with
+# `SoftBodyBuilder::solver(SoftBodySolver::Fem)`.
+fem = ["rapier/fem"]
 profiler_ui = ["dep:puffin_egui", "profiling/profile-with-puffin"]
 # See https://github.com/dimforge/rapier/issues/760.
 unstable-puffin-pr-235 = []

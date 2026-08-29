@@ -1372,3 +1372,171 @@ fn polyline_soft_body() {
         "the strip did not fall flat: {strip_y}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// The FEM soft-body solver (`fem` cargo feature, `SoftBodySolver::Fem`).
+// ---------------------------------------------------------------------------------------------
+
+/// A FEM soft body with no contacts falls exactly like a point mass, and does not deform.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_free_fall_is_exact() {
+    let mut world = PhysicsWorld::new();
+    world.integration_parameters.num_solver_iterations = 1;
+    let builder = SoftBodyBuilder::grid(Vector::new(0.0, 10.0), Vector::splat(0.5), 4, 4)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .solver(SoftBodySolver::Fem)
+        .without_colliders()
+        .can_sleep(false);
+    let handle = world.insert_soft_body(builder);
+    let start = world.soft_bodies[handle].particle_position(0);
+    let steps = 60;
+    for _ in 0..steps {
+        world.step();
+    }
+    let dt = world.integration_parameters.dt;
+    let expected = world.gravity.y * dt * dt * (steps * (steps + 1) / 2) as Real;
+    let sb = &world.soft_bodies[handle];
+    let drop = sb.particle_position(0).y - start.y;
+    assert!(
+        (drop - expected).abs() < 1.0e-4 * expected.abs(),
+        "free fall {drop} vs expected {expected}"
+    );
+    for i in 0..sb.num_particles() {
+        let v = sb.particle_velocity(i) - sb.particle_velocity(0);
+        assert!(v.length() < 1.0e-4, "particle {i} drifted at {v:?}");
+    }
+}
+
+/// A stiff FEM square dropped on the ground settles, keeps its area and does not explode, at any
+/// Young's modulus.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_stiff_square_is_stable() {
+    for young in [3.0e4, 3.0e6, 1.0e8] {
+        let mut world = world_with_ground();
+        let square = SoftBodyBuilder::grid(Vector::new(0.0, 3.0), Vector::splat(0.75), 5, 5)
+            .cell_model(SoftBodyCellModel::Corotational)
+            .material(SoftBodyMaterial {
+                young_modulus: young,
+                poisson_ratio: 0.4,
+                elastic_damping_ratio: 0.5,
+                ..Default::default()
+            })
+            .solver(SoftBodySolver::Fem)
+            .particle_mass(0.1);
+        let handle = world.insert_soft_body(square);
+        for _ in 0..500 {
+            world.step();
+        }
+        assert_finite(&world, handle);
+        let sb = &world.soft_bodies[handle];
+        let max_vel = sb
+            .particles()
+            .iter()
+            .map(|p| p.velocity().length())
+            .fold(0.0, Real::max);
+        assert!(
+            max_vel < 0.2,
+            "E = {young}: square still moving at {max_vel} m/s"
+        );
+        let area = sb.volume();
+        assert!(
+            (area - sb.rest_volume()).abs() < 0.1 * sb.rest_volume(),
+            "E = {young}: area {area} vs rest {}",
+            sb.rest_volume()
+        );
+    }
+}
+
+/// The FEM path's static deflection does not depend on the substep count.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_deflection_is_substep_invariant() {
+    let (length, thickness, young) = (2.0, 0.2, 2.0e6);
+    let settle = |substeps: usize| -> Real {
+        let mut world = PhysicsWorld::new();
+        world.integration_parameters.num_solver_iterations = substeps;
+        let builder = SoftBodyBuilder::grid(
+            Vector::new(length * 0.5, 0.0),
+            Vector::new(length * 0.5, thickness * 0.5),
+            13,
+            3,
+        )
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: young,
+            poisson_ratio: 0.0,
+            elastic_damping_ratio: 1.0,
+            ..Default::default()
+        })
+        .solver(SoftBodySolver::Fem)
+        .mass(2.0)
+        .without_colliders()
+        .can_sleep(false);
+        let pinned: Vec<u32> = builder
+            .particle_positions()
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.x < 1.0e-4)
+            .map(|(i, _)| i as u32)
+            .collect();
+        let tip: Vec<usize> = builder
+            .particle_positions()
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.x > length - 1.0e-4)
+            .map(|(i, _)| i)
+            .collect();
+        let handle = world.insert_soft_body(builder.pinned_particles(pinned));
+        for _ in 0..1500 {
+            world.step();
+        }
+        let sb = &world.soft_bodies[handle];
+        tip.iter().map(|&i| sb.particle_position(i).y).sum::<Real>() / tip.len() as Real
+    };
+    let deflections: Vec<Real> = [1usize, 2, 8].iter().map(|s| settle(*s)).collect();
+    let reference = deflections[2];
+    assert!(reference < -1.0e-3, "the beam did not deflect: {reference}");
+    for (k, d) in deflections.iter().enumerate() {
+        assert!(
+            (d - reference).abs() < 0.05 * reference.abs(),
+            "FEM deflection depends on the substep count: {deflections:?} (case {k})"
+        );
+    }
+}
+
+/// Contacts against a FEM soft body: a rigid box dropped on one settles on its surface.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_box_rests_on_soft_body() {
+    let mut world = world_with_ground();
+    let square = SoftBodyBuilder::grid(Vector::new(0.0, 0.6), Vector::splat(0.6), 6, 6)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: 5.0e3,
+            poisson_ratio: 0.35,
+            ..Default::default()
+        })
+        .solver(SoftBodySolver::Fem)
+        .particle_mass(0.2);
+    let handle = world.insert_soft_body(square);
+    let (rb, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.05, 2.0)),
+        ColliderBuilder::cuboid(0.2, 0.2).density(2.0),
+    );
+    for _ in 0..600 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let box_pos = world.bodies[rb].translation();
+    assert!(
+        box_pos.y > 1.1,
+        "box sank into the soft square: {box_pos:?}"
+    );
+    assert!(
+        box_pos.y < 1.7,
+        "box floats above the soft square: {box_pos:?}"
+    );
+    assert!(world.bodies[rb].linvel().length() < 0.05);
+}

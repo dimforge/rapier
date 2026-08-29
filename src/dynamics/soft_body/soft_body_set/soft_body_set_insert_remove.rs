@@ -41,6 +41,8 @@ impl SoftBodySet {
             boundary_element_cells: Vec::new(),
             material: soft_body.material,
             cell_model: soft_body.cell_model,
+            #[cfg(feature = "fem")]
+            solver: soft_body.solver,
             volume_preservation: false,
             volume_factor: 1.0,
             rest_com: soft_body.rest_com,
