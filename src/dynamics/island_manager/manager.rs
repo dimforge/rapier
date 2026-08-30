@@ -209,9 +209,29 @@ impl IslandManager {
             for attachment in sb.particle_attachments() {
                 self.wake_for_link(bodies, root, attachment.body);
             }
+            let mut any_awake = false;
+            let mut sleeping = Vec::new();
+            for (_, cluster) in sb.live_clusters() {
+                if let Some(rb) = bodies.get(cluster.proxy()) {
+                    if rb.is_enabled() {
+                        if rb.activation().sleeping {
+                            sleeping.push(cluster.proxy());
+                        } else {
+                            any_awake = true;
+                        }
+                    }
+                }
+            }
+            if any_awake {
+                for proxy in sleeping {
+                    self.wake_up(bodies, proxy, true);
+                }
+            }
         }
         self.persistent
             .update_soft_body_attachments(bodies, soft_bodies, handle);
+        self.persistent
+            .update_soft_body_proxy_chain(bodies, soft_bodies, handle);
     }
 
     /// Wakes the sleeping side of a new link when the other side is awake.

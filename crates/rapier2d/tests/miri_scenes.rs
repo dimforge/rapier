@@ -219,6 +219,7 @@ fn body_removal_midrun() {
         &mut w.colliders,
         &mut w.impulse_joints,
         &mut w.multibody_joints,
+        &mut w.soft_bodies,
         true,
     );
     w.run(60);

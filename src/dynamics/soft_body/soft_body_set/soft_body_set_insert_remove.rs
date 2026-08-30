@@ -26,6 +26,8 @@ impl SoftBodySet {
         // Reserve the handle first: the root body stores it.
         let handle = SoftBodyHandle(self.bodies.insert_with(|_| SoftBody {
             particles: Vec::new(),
+            clusters: Vec::new(),
+            cluster_refs: Vec::new(),
             root_body: RigidBodyHandle::invalid(),
             attachments: Vec::new(),
             sleeping: false,
@@ -61,6 +63,27 @@ impl SoftBodySet {
             user_data: 0,
         }));
 
+        soft_body.root_body =
+            spawn_proxy(&soft_body.particle_settings, soft_body.user_data, handle, 0, bodies);
+        soft_body.clusters = alloc::vec![SoftBodyCluster {
+            particles: (0..soft_body.particles.len() as u32).collect(),
+            proxy: soft_body.root_body,
+            rotation: Rotation::IDENTITY,
+            cell: u32::MAX,
+            shape_matching: soft_body_builder.shape_matching,
+            shape_matching_target: None,
+            prev_shape_matching_target: None,
+            last_gather: Default::default(),
+            shape_impulses: Vec::new(),
+        }];
+        soft_body.cluster_refs = alloc::vec![1; soft_body.particles.len()];
+        // The whole-body frame first: the colliders are expressed in it.
+        Self::update_cluster_proxies(&mut soft_body, bodies, colliders);
+        let frame = bodies
+            .get(soft_body.root_body)
+            .map(|rb| rb.pos.position)
+            .unwrap_or(Pose::IDENTITY);
+
         // The deformable meshes' colliders attach to the root body (so they link islands and wake
         // the soft body), with vertices in the whole-body cluster's frame (the proxy's pose holds
         // the rigid motion). They collide with everything, fixed and kinematic colliders included.
@@ -81,7 +104,24 @@ impl SoftBodySet {
         multibody_joints: &mut MultibodyJointSet,
     ) -> Option<SoftBody> {
         let soft_body = self.bodies.remove(handle.0)?;
+        // Unlink the attachment and proxy-chain links while the proxies still exist.
         islands.persistent.unlink_soft_body_attachments(handle);
+        islands.persistent.unlink_soft_body_proxy_chain(handle);
         self.attached_to_stale |= !soft_body.attachments.is_empty();
+        for cluster in &soft_body.clusters {
+            if cluster.is_live() {
+                // The soft body is out of the arena already, so the proxy-removal hook no-ops.
+                bodies.remove(
+                    cluster.proxy,
+                    islands,
+                    colliders,
+                    impulse_joints,
+                    multibody_joints,
+                    self,
+                    true,
+                );
+            }
+        }
+        Some(soft_body)
     }
 }

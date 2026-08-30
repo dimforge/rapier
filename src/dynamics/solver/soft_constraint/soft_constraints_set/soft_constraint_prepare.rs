@@ -40,6 +40,159 @@ impl SoftConstraintsSet {
             }
         };
 
+        // Per-cluster shape matching: each shape-matched cluster gets its own best-fit frame
+        // and pulls only its particles toward it.
+        if !awake.awake_clusters.is_empty() {
+            let vel = |i: usize| -> Vector {
+                let s = slots[i];
+                if s == u32::MAX {
+                    sb.particles[i].velocity
+                } else {
+                    bodies.get_vel(s).linear
+                }
+            };
+            let constraints = &mut shape_constraints[awake.shape_constraints.clone()];
+            for k in 0..awake.awake_clusters.len() {
+                let awake_cluster = &mut awake.awake_clusters[k];
+                let cluster = &sb.clusters[awake_cluster.cluster as usize];
+
+                if let Some(target_pose) = cluster.shape_matching_target {
+                    // The shape-matching follows a kinematic path (step-constant: set once).
+                    if !update {
+                        continue;
+                    }
+                    // The mid-pose converges measurably faster toward the target; the target
+                    // or the previous pose alone over-shoots or undershoots.
+                    let mid_pose = cluster
+                        .prev_shape_matching_target
+                        .map(|prev| prev.lerp(&target_pose, 0.5))
+                        .unwrap_or(target_pose);
+                    awake_cluster.rotation = target_pose.rotation;
+
+                    for constraint in constraints.iter_mut() {
+                        if constraint.cluster != awake_cluster.cluster {
+                            continue;
+                        }
+                        let particle = constraint.particle as usize;
+                        constraint.goal = mid_pose * sb.particles[particle].rest_position;
+                        constraint.goal_vel = awake_cluster.target_linvel
+                            + awake_cluster
+                                .target_angvel
+                                .gcross(constraint.goal - mid_pose.translation);
+                    }
+                    continue;
+                }
+
+                if update {
+                    // The fit of the poses: rotation and centroids, then the inertia of the
+                    // free particles about their own center of mass (the velocity fit below
+                    // reads it every pass).
+                    let mut mass = 0.0;
+                    let mut rest_com = Vector::ZERO;
+                    let mut com = Vector::ZERO;
+                    for &v in cluster.particles() {
+                        let p = &sb.particles[v as usize];
+                        mass += p.mass;
+                        rest_com += p.rest_position * p.mass;
+                        com += pos(v as usize) * p.mass;
+                    }
+                    if mass > 0.0 {
+                        rest_com /= mass;
+                        com /= mass;
+                    }
+                    let mut a = Matrix::ZERO;
+                    for &v in cluster.particles() {
+                        let p = &sb.particles[v as usize];
+                        a += outer((pos(v as usize) - com) * p.mass, p.rest_position - rest_com);
+                    }
+                    let rot = crate::dynamics::soft_body::soft_body_shape_matching::extract_rotation(
+                        a,
+                        awake_cluster.rotation,
+                    );
+                    let mut dyn_mass = 0.0;
+                    let mut dyn_com = Vector::ZERO;
+                    for &v in cluster.particles() {
+                        let p = &sb.particles[v as usize];
+                        if p.inv_mass > 0.0 {
+                            dyn_mass += p.mass;
+                            dyn_com += pos(v as usize) * p.mass;
+                        }
+                    }
+                    dyn_com *= crate::utils::inv(dyn_mass);
+                    #[cfg(feature = "dim2")]
+                    let mut inertia: crate::math::AngularInertia = 0.0;
+                    #[cfg(feature = "dim3")]
+                    let mut inertia = parry::utils::SdpMatrix3::zero();
+                    for &v in cluster.particles() {
+                        let p = &sb.particles[v as usize];
+                        if p.inv_mass > 0.0 {
+                            let r = pos(v as usize) - dyn_com;
+                            #[cfg(feature = "dim2")]
+                            {
+                                inertia += p.mass * r.length_squared();
+                            }
+                            #[cfg(feature = "dim3")]
+                            {
+                                let d = p.mass * r.length_squared();
+                                inertia = parry::utils::SdpMatrix3 {
+                                    m11: inertia.m11 + d - p.mass * r.x * r.x,
+                                    m12: inertia.m12 - p.mass * r.x * r.y,
+                                    m13: inertia.m13 - p.mass * r.x * r.z,
+                                    m22: inertia.m22 + d - p.mass * r.y * r.y,
+                                    m23: inertia.m23 - p.mass * r.y * r.z,
+                                    m33: inertia.m33 + d - p.mass * r.z * r.z,
+                                };
+                            }
+                        }
+                    }
+                    let floor = crate::dynamics::soft_body::inertia_noise_floor(dyn_mass, dyn_com);
+                    awake_cluster.rotation = rot;
+                    awake_cluster.com = com;
+                    awake_cluster.rest_com = rest_com;
+                    awake_cluster.dyn_com = dyn_com;
+                    awake_cluster.inv_inertia =
+                        crate::dynamics::soft_body::pseudo_inverse_inertia(inertia, floor);
+                    for constraint in constraints.iter_mut() {
+                        if constraint.cluster != awake_cluster.cluster {
+                            continue;
+                        }
+                        let particle = constraint.particle as usize;
+                        constraint.goal =
+                            com + rot * (sb.particles[particle].rest_position - rest_com);
+                    }
+                }
+
+                // Rigid-fit velocity of the cluster (free particles): the constraints damp relative
+                // to it, not to the world. The angular momentum is taken about the free particles'
+                // center of mass, so the linear part drops out of it.
+                let dyn_com = awake_cluster.dyn_com;
+                let mut dyn_mass = 0.0;
+                let mut vcom = Vector::ZERO;
+                let mut angmom = crate::math::AngVector::default();
+                for &v in cluster.particles() {
+                    let p = &sb.particles[v as usize];
+                    if p.inv_mass > 0.0 {
+                        let velocity = vel(v as usize);
+                        dyn_mass += p.mass;
+                        vcom += velocity * p.mass;
+                        angmom += (pos(v as usize) - dyn_com).gcross(velocity * p.mass);
+                    }
+                }
+                vcom *= crate::utils::inv(dyn_mass);
+                let omega = awake_cluster.inv_inertia.transform_vector(angmom);
+                for constraint in constraints.iter_mut() {
+                    if constraint.cluster != awake_cluster.cluster {
+                        continue;
+                    }
+                    let particle = constraint.particle as usize;
+                    constraint.goal_vel = vcom + omega.gcross(pos(particle) - dyn_com);
+                }
+            }
+        }
+
+        if !update {
+            return;
+        }
         if let Some(vi) = awake.volume_constraint {
             let vc = &mut volume_constraints[vi];
             let grads = &mut volume_grads[vc.grads.clone()];

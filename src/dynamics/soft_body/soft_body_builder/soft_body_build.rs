@@ -91,6 +91,7 @@ impl SoftBodyBuilder {
                 plastic_stretch: Matrix::IDENTITY,
                 impulses: [0.0; super::super::CELL_IMPULSES],
                 rotation: Rotation::IDENTITY,
+                stiffness_scale: 1.0,
                 color: 0,
                 torn: false,
         // Surface: given, or the boundary of the cells.

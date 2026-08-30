@@ -950,7 +950,9 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                 // NOTE: if it's a position-based kinematic body, don't writeback as we want
                 //       to preserve exactly the value given by the user (it might not be
                 //       exactly equal to the integrated position because of rounding errors).
-                if rb.body_type != RigidBodyType::KinematicPositionBased {
+                // A soft-frame proxy's pose is not integrated either: the soft-body sync
+                // re-derives it exactly from the particles at the end of the step.
+                if rb.body_type != RigidBodyType::KinematicPositionBased && !rb.is_soft_frame() {
                     let local_com = -rb.mprops.local_mprops.local_com;
                     rb.pos.next_position = solver_poses.pose().prepend_translation(local_com);
                 }
@@ -958,7 +960,7 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                 // Capture the post-solve velocity used by the CCD sweep — for *every* dynamic
                 // body (fast bodies get CCD vs fixed colliders by default), skipped entirely
                 // when CCD is globally off (`max_ccd_substeps == 0`) so those users pay nothing.
-                if base_params.max_ccd_substeps != 0 && rb.is_dynamic() {
+                if base_params.max_ccd_substeps != 0 && rb.is_dynamic() && !rb.is_soft_frame() {
                     rb.ccd_vels = rb
                         .pos
                         .interpolate_velocity(base_params.inv_dt(), rb.local_center_of_mass());

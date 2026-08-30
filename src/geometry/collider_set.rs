@@ -1,7 +1,7 @@
 use crate::alloc_prelude::*;
 use crate::data::arena::Arena;
 use crate::data::{HasModifiedFlag, ModifiedObjects};
-use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet, SoftBodySet};
 use crate::geometry::{Collider, ColliderChanges, ColliderHandle, ColliderParent};
 use crate::math::Pose;
 use core::ops::{Index, IndexMut};
@@ -335,6 +335,27 @@ impl ColliderSet {
     /// }
     /// ```
     pub fn remove(
+        &mut self,
+        handle: ColliderHandle,
+        islands: &mut IslandManager,
+        bodies: &mut RigidBodySet,
+        soft_bodies: &mut SoftBodySet,
+        wake_up: bool,
+    ) -> Option<Collider> {
+        let collider = self.remove_internal(handle, islands, bodies, wake_up)?;
+        // A removed deformable collider takes its mesh with it: the soft body keeps simulating,
+        // without that mesh's collisions.
+        if let Some(sb_handle) = collider.soft_body_surface() {
+            if let Some(sb) = soft_bodies.get_mut(sb_handle) {
+                sb.clear_mesh_collider(handle);
+            }
+        }
+        Some(collider)
+    }
+
+    /// Like [`Self::remove`], for internal callers that maintain the soft-body back-references
+    /// themselves.
+    pub(crate) fn remove_internal(
         &mut self,
         handle: ColliderHandle,
         islands: &mut IslandManager,

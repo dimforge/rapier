@@ -59,6 +59,22 @@ pub(super) unsafe fn solve_pass(
         stage = sync.sync(stage, stage_work);
     }
 
+    /*
+     * Stage: gather the active soft-body clusters (worker 0, serial): each cluster's proxy slot is
+     * updated from its particles' velocities (keeping unscattered impulses) so the joints below
+     * pull on the cluster's true rigid state. Runs in both passes, like the joints.
+     */
+    let has_clusters = !soft_ref.is_empty() && soft_ref.group_has_clusters(group_index);
+    if has_clusters {
+        if worker_id == 0 {
+            let soft = unsafe { &mut *ctx.soft_constraints };
+            let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
+            soft.gather_clusters(group_index, solver_bodies);
+            sync.complete(stage, 1, 1);
+        }
+        stage = sync.sync(stage, 1);
+    }
+
     // Optionally, friction can be solved only in the unbiased pass
     // ("no friction when applying bias"), unless there is no unbiased pass.
     let solve_friction = wo_bias
@@ -336,6 +352,21 @@ pub(super) unsafe fn solve_pass(
         stage = sync.sync(stage, 1);
     }
 
+    /*
+     * Stage: scatter the active clusters' proxy velocity changes (this pass's joint impulses and
+     * any external impulse) onto their particles as a rigid field (worker 0, serial: overlapping
+     * clusters share particles).
+     */
+    if has_clusters {
+        if worker_id == 0 {
+            let soft = unsafe { &mut *ctx.soft_constraints };
+            let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
+            soft.scatter_clusters(group_index, solver_bodies);
+            sync.complete(stage, 1, 1);
+        }
+        stage = sync.sync(stage, 1);
+    }
+
     stage
 }
 
@@ -383,7 +414,7 @@ unsafe fn solve_soft_constraints(
         stage = sync.sync(stage, virt.end);
     }
 
-    if !sg.shape_rows.is_empty() {
+    if !sg.shape_constraints.is_empty() && !sg.shape_serial {
         let mut done = 0;
         while let Some(claimed) = sync.claim(
             stage,
@@ -402,6 +433,17 @@ unsafe fn solve_soft_constraints(
         }
         sync.complete(stage, done, sg.shape_constraints.len());
         stage = sync.sync(stage, sg.shape_constraints.len());
+    } else if !sg.shape_constraints.is_empty() {
+        // Per-cluster shape matching can give one particle several constraints: solved serially by
+        // worker 0 (cluster shape constraints are few).
+        if worker_id == 0 {
+            let soft = unsafe { &mut *ctx.soft_constraints };
+            let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
+            for constraint_id in sg.shape_constraints.clone() {
+            }
+            sync.complete(stage, 1, 1);
+        }
+        stage = sync.sync(stage, 1);
     }
 
     if sg.serial.len() > 0 || !sg.volume_rows.is_empty() {

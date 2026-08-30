@@ -76,6 +76,7 @@ impl EdgeScan<'_> {
         for &v in element {
             aabb.take_point(mesh.cached_vertex(v as usize));
         }
+        let aabb = aabb.loosened(self.reach).transform_by(&self.other_inv_pose);
         for j in self.other_bvh.intersect_aabb(&aabb) {
             let i = i as u32;
             if self.is_self {

@@ -125,6 +125,11 @@ impl IslandManager {
                     ws.uf.union(root, s);
                 }
             }
+            for (_, cluster) in sb.live_clusters() {
+                if let Some(s) = slot(cluster.proxy()) {
+                    ws.uf.union(root, s);
+                }
+            }
         }
 
         // Effective counts per body = max of each over its component; non-dynamic awake bodies

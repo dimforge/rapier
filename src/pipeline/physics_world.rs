@@ -223,6 +223,7 @@ impl PhysicsWorld {
             &mut self.colliders,
             &mut self.impulse_joints,
             &mut self.multibody_joints,
+            &mut self.soft_bodies,
             true,
         )
     }
@@ -286,7 +287,13 @@ impl PhysicsWorld {
     /// Returns the removed collider, or `None` if the handle was invalid.
     pub fn remove_collider(&mut self, handle: ColliderHandle) -> Option<Collider> {
         self.colliders
-            .remove(handle, &mut self.islands, &mut self.bodies, true)
+            .remove(
+                handle,
+                &mut self.islands,
+                &mut self.bodies,
+                &mut self.soft_bodies,
+                true,
+            )
     }
 
     // ── Impulse joints ──────────────────────────────────────────────────
@@ -402,6 +409,37 @@ impl PhysicsWorld {
     pub fn remove_soft_body(&mut self, handle: SoftBodyHandle) -> Option<SoftBody> {
         self.soft_bodies.remove(
             handle,
+            &mut self.islands,
+            &mut self.bodies,
+            &mut self.colliders,
+            &mut self.impulse_joints,
+            &mut self.multibody_joints,
+        )
+    }
+
+    /// Adds a cluster to a soft body: a set of its particles backed by a fresh proxy rigid
+    /// body ([`RigidBodyType::SoftFrame`]) that impulse joints and colliders can attach to.
+    /// Returns the cluster's index (see [`SoftBodySet::add_cluster`]).
+    pub fn add_soft_body_cluster(
+        &mut self,
+        handle: SoftBodyHandle,
+        particles: &[u32],
+    ) -> Option<u32> {
+        self.soft_bodies
+            .add_cluster(handle, particles, &mut self.bodies, &mut self.colliders)
+    }
+
+    /// Removes a soft body's cluster, its proxy rigid body, and the particles only that
+    /// cluster covered (see [`SoftBodySet::remove_cluster`]). Removing the proxy from the
+    /// [`RigidBodySet`] is equivalent.
+    pub fn remove_soft_body_cluster(
+        &mut self,
+        handle: SoftBodyHandle,
+        cluster: u32,
+    ) -> Option<SoftClusterRemoval> {
+        self.soft_bodies.remove_cluster(
+            handle,
+            cluster,
             &mut self.islands,
             &mut self.bodies,
             &mut self.colliders,

@@ -1,6 +1,8 @@
 //! Soft bodies: deformable bodies made of particles linked by elastic constraints, solved
 //! together with rigid bodies, contacts and joints.
 
+pub use self::soft_body_cluster::{SoftBodyCluster, SoftClusterRemoval};
+pub(crate) use self::soft_body_cluster::{inertia_noise_floor, pseudo_inverse_inertia};
 pub use self::collision_mesh::{
     SoftBindingError, SoftCollisionMesh, SoftMeshBinding, SoftMeshBindingMode, SoftMeshCellBinding,
     SoftMeshId, SoftMeshMapping, SoftMeshRef,
@@ -26,11 +28,12 @@ pub(crate) use self::soft_body_contacts::{SoftEdgeContact, SoftVertexContact};
 #[allow(unused_imports)]
 use self::soft_body_elements::{CELL_IMPULSES};
 #[allow(unused_imports)]
-use self::soft_body_material::{default_true};
+use self::soft_body_material::{default_true, one};
 pub(crate) mod collision_mesh;
 mod soft_body;
 mod soft_body_accessors;
 mod soft_body_builder;
+mod soft_body_cluster;
 mod soft_body_coloring;
 mod soft_body_contacts;
 mod soft_body_elements;

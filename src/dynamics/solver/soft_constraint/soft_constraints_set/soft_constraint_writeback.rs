@@ -101,6 +101,21 @@ impl SoftConstraintsSet {
         for awake in &self.awake {
             // SAFETY: serial stage, exclusive access.
             let sb = unsafe { &mut *awake.ptr };
+            if !awake.awake_clusters.is_empty() {
+                for awake_cluster in &awake.awake_clusters {
+                    let cluster = &mut sb.clusters[awake_cluster.cluster as usize];
+                    cluster.rotation = awake_cluster.rotation;
+                    cluster
+                        .shape_impulses
+                        .resize(cluster.particles.len(), Vector::ZERO);
+                }
+                for constraint in &self.shape_constraints[awake.shape_constraints.clone()] {
+                    let cluster = &mut sb.clusters[constraint.cluster as usize];
+                    if let Ok(k) = cluster.particles.binary_search(&constraint.particle) {
+                        cluster.shape_impulses[k] = constraint.impulse;
+                    }
+                }
+            }
             if let Some(vi) = awake.volume_constraint {
                 sb.volume_impulse = crate::utils::canonicalize_zero(self.volume_constraints[vi].impulse);
             }

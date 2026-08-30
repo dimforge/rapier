@@ -58,14 +58,18 @@ impl JointConstraintBuilder {
         // Since solver body poses are given in center-of-mass space,
         // we need to transform the anchors to that space.
         out_builder.joint.transform_to_solver_body_space(rb1, rb2);
+        // A rank-deficient soft-frame side has no orientation: its angular axes are
+        // stripped (the reserved row count must match the stripped lowering).
+        super::strip_soft_frame_angular_axes(&mut out_builder.joint, rb1, rb2);
 
-        *out_constraint_id += joint_num_constraints(joint);
+        *out_constraint_id +=
+            crate::dynamics::solver::joint_data_num_constraints(&out_builder.joint);
     }
 
-    /// Refreshes the warm-start seeds (the impulses written back at the end of
+    /// Updates the warm-start seeds (the impulses written back at the end of
     /// the previous step) of a builder recycled across steps by the persistent
     /// joint assembly.
-    pub fn refresh_warmstart_seeds(&mut self, joints_all: &[crate::dynamics::JointGraphEdge]) {
+    pub fn update_warmstart_seeds(&mut self, joints_all: &[crate::dynamics::JointGraphEdge]) {
         let joint = &joints_all[self.joint_id].weight;
         self.prev_dof_impulses = joint.impulses;
         for i in 0..SPATIAL_DIM {
@@ -329,10 +333,10 @@ impl JointConstraintBuilderSimd {
         *out_constraint_id += joint_num_constraints(joint[0]);
     }
 
-    /// Refreshes the warm-start seeds (the impulses written back at the end of
+    /// Updates the warm-start seeds (the impulses written back at the end of
     /// the previous step) of a builder recycled across steps by the persistent
     /// joint assembly.
-    pub fn refresh_warmstart_seeds(&mut self, joints_all: &[crate::dynamics::JointGraphEdge]) {
+    pub fn update_warmstart_seeds(&mut self, joints_all: &[crate::dynamics::JointGraphEdge]) {
         let joint = array![|ii| &joints_all[self.joint_id[ii]].weight];
         self.prev_dof_impulses =
             core::array::from_fn(|axis| array![|ii| joint[ii].impulses[axis]].into());

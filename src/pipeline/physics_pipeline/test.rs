@@ -86,6 +86,7 @@ fn rigid_body_removal_before_step() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             true,
         );
     }
@@ -111,6 +112,7 @@ fn rigid_body_removal_before_step() {
 #[test]
 fn rigid_body_removal_snapshot_handle_determinism() {
     let mut colliders = ColliderSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
     let mut islands = IslandManager::new();
@@ -127,6 +129,7 @@ fn rigid_body_removal_snapshot_handle_determinism() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         true,
     );
     bodies.remove(
@@ -135,6 +138,7 @@ fn rigid_body_removal_snapshot_handle_determinism() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         true,
     );
     bodies.remove(
@@ -143,6 +147,7 @@ fn rigid_body_removal_snapshot_handle_determinism() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         true,
     );
 
@@ -283,13 +288,14 @@ fn collider_removal_before_step() {
     let b_handle = bodies.insert(body);
     let collider = ColliderBuilder::ball(1.0).build();
     let c_handle = colliders.insert_with_parent(collider, b_handle, &mut bodies);
-    colliders.remove(c_handle, &mut islands, &mut bodies, true);
+    colliders.remove(c_handle, &mut islands, &mut bodies, &mut soft_bodies, true);
     bodies.remove(
         b_handle,
         &mut islands,
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         true,
     );
 

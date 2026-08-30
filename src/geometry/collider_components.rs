@@ -336,6 +336,10 @@ impl ActiveCollisionTypes {
         //
         //       Because that test must be symmetric, we perform two similar tests by swapping
         //       rb_type1 and rb_type2.
+
+        // Soft-frame proxies collide as dynamic bodies.
+        let rb_type1 = if rb_type1.is_soft_frame() { RigidBodyType::Dynamic } else { rb_type1 };
+        let rb_type2 = if rb_type2.is_soft_frame() { RigidBodyType::Dynamic } else { rb_type2 };
         ((self.bits() >> (rb_type1 as u32 * 4)) & 0b0000_1111) & (1 << rb_type2 as u32) != 0
             || ((self.bits() >> (rb_type2 as u32 * 4)) & 0b0000_1111) & (1 << rb_type1 as u32) != 0
     }

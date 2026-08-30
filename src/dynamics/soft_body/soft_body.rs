@@ -31,6 +31,12 @@ pub struct SoftBody {
     /// colliders (invalid until the soft body is inserted in a set): the whole-body cluster's
     /// proxy, re-pointed to another live cluster's proxy if that cluster is removed.
     pub(crate) root_body: RigidBodyHandle,
+    /// The clusters of this soft body (index 0: the whole-body cluster, created at insertion).
+    /// Removed clusters leave a dead slot so indices stay stable.
+    pub(crate) clusters: Vec<super::SoftBodyCluster>,
+    /// Number of live clusters referencing each particle: a particle is removed when it drops
+    /// to zero.
+    pub(crate) cluster_refs: Vec<u32>,
     /// The particles attached to rigid bodies.
     pub(crate) attachments: Vec<SoftParticleAttachment>,
     /// Whether the soft body is currently asleep (mirrors the root body's state at the end of

@@ -46,6 +46,9 @@ pub(crate) struct AwakeSoftBody {
     /// Largest normal approach speed of the rigid bodies met by the surface this step (`None`:
     /// no contact row at all), set by the contact assembly.
     pub contact_approach_speed: Option<Real>,
+    /// The body's shape-matched clusters this step, with their warm-started fit rotation:
+    /// `(cluster index, rotation)`, refreshed by the per-pass prepare.
+    pub awake_clusters: Vec<AwakeCluster>,
 }
 // SAFETY: the raw pointer is only dereferenced under the staged solver's stage discipline.
 unsafe impl Send for AwakeSoftBody {}
@@ -94,6 +97,8 @@ pub(crate) struct SoftGroupLayout {
     pub slots: Range<usize>,
     /// Range into `attachments`.
     pub attachments: Range<usize>,
+    /// Range into `clusters`.
+    pub clusters: Range<usize>,
     /// Index range into `color_ranges`.
     pub colors: Range<usize>,
     /// Constraints solved serially by worker 0 (overflow color).
@@ -111,7 +116,31 @@ pub(crate) struct SoftGroupLayout {
     pub contact_serial: Range<usize>,
     /// Whether an awake body of the group damps its deformation.
     pub damping: bool,
+    /// Whether the group's shape constraints must be solved serially: per-cluster shape matching can
+    /// give one particle several constraints (whole body + clusters), which must not be claimed by
+    /// different workers.
+    pub shape_serial: bool,
 }
+
+/// One active soft-body cluster for the step: its proxy's solver slot is a virtual rigid body whose
+/// velocity is gathered from the cluster's particles before the joints solve and whose velocity
+/// change is scattered back after. A cluster is active when a joint, impulse or force acts on it.
+#[derive(Copy, Clone)]
+pub(crate) struct SoftClusterRecord {
+    /// Index of the cluster's soft body in `awake`.
+    pub awake: u32,
+    /// Index of the cluster in its soft body's cluster list.
+    pub cluster: u32,
+    /// The proxy's solver-body slot.
+    pub slot: u32,
+    /// Weighted centroid of the free particles at the last gather (the scatter's torque
+    /// reference).
+    pub com: Vector,
+    /// The proxy-slot velocity already accounted in the particles: the scatter distributes
+    /// `slot velocity - ref_vel`, the gather re-derives it.
+    pub ref_vel: SolverVel<Real>,
+}
+
 /// The soft-body constraints of one step.
 #[derive(Default)]
 pub(crate) struct SoftConstraintsSet {
@@ -132,6 +161,8 @@ pub(crate) struct SoftConstraintsSet {
     pub contacts: Vec<SoftContact>,
     /// The particle attachments of the awake soft bodies, group-major.
     pub attachments: Vec<super::soft_attachment::SoftAttachmentConstraint>,
+    /// The active clusters (a joint or an external impulse acts on their proxy), group-major.
+    pub clusters: Vec<SoftClusterRecord>,
     /// The contact rows chunked by body pair (see `soft_contact_chunks`): row indices into
     /// `contacts` chunk by chunk, the chunks' ranges into them (group-major, parallel colors
     /// then the serial tail), and the chunk ranges of the parallel colors.

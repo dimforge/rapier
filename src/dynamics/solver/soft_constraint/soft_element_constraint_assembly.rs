@@ -246,6 +246,9 @@ impl SoftConstraintsSet {
             };
             g.colors = colors_start..self.color_ranges.len();
             g.shape_constraints = shape_start..shape_cursor;
+            g.shape_serial = self.awake[awake_start..awake_cursor]
+                .iter()
+                .any(|a| !a.awake_clusters.is_empty());
             g.volume_constraints = volume_start..self.volume_constraints.len();
             g.damping = damping;
         }
@@ -465,6 +468,7 @@ impl SoftConstraintsSet {
                 plastic_flow: AtomicBool::new(false),
                 torn: AtomicBool::new(false),
                 contact_approach_speed: None,
+                awake_clusters,
             });
         }
     }
@@ -505,7 +509,11 @@ impl SoftConstraintsSet {
             match sb.cell_model {
                 SoftBodyCellModel::Volume => counts[c.color as usize] += 1,
                 SoftBodyCellModel::Corotational | SoftBodyCellModel::NeoHookean => {
-                    if !sb.uses_fem() && mu > 0.0 && elastic_cell_terms(sb, slots, c).2 > 0.0 {
+                    if !sb.uses_fem()
+                        && mu * c.stiffness_scale > 0.0
+                        && elastic_cell_terms(sb, slots, c).2 > 0.0
+                    {
+                        elastic_counts[c.color as usize] += 1;
                     }
                 }
             }
@@ -524,6 +532,17 @@ impl SoftConstraintsSet {
         let sb = unsafe { &*awake.ptr };
         let slots = &self.slots[awake.slot_start..awake.slot_start + awake.num_particles];
         let mut count = 0;
+        for cluster in &sb.clusters {
+            if cluster.is_live() && cluster.shape_matching {
+                count += cluster
+                    .particles()
+                    .iter()
+                    .filter(|&&v| {
+                        slots[v as usize] != u32::MAX && sb.particles[v as usize].inv_mass != 0.0
+                    })
+                    .count();
+            }
+        }
         count
     }
 
@@ -681,6 +700,8 @@ impl SoftConstraintsSet {
                     // ω² = k · Σ w |∇C|²; Neo-Hookean damping/snap-back caps use (2μ + λ)V₀ / 4μV₀.
                     let vol = c.rest_volume.abs();
                     let (coeffs, im, w_vol) = elastic_cell_terms(sb, slots, c);
+                    // Per-cell stiffness scale (regional materials through the clusters).
+                    let (mu, lambda) = (mu * c.stiffness_scale, lambda * c.stiffness_scale);
                     if w_vol <= 0.0 || mu <= 0.0 {
                         // Every particle pinned, a degenerate cell, or no material.
                         continue;
@@ -805,6 +826,34 @@ impl SoftConstraintsSet {
         let slots = &self.slots[awake.slot_start..awake.slot_start + awake.num_particles];
         let coeffs_of = |c: &SpringCoefficients<Real>| (c.erp_inv_dt(dt), c.cfm_coeff(dt));
         let (shape_erp, shape_cfm) = coeffs_of(&sb.material.shape_matching_softness);
+        // Per-cluster shape-matching constraints, in cluster order (warm-started from the cluster's
+        // own impulse store).
+        for (ci, cluster) in sb.clusters.iter().enumerate() {
+            if !cluster.is_live() || !cluster.shape_matching {
+                continue;
+            }
+            for (k, &v) in cluster.particles().iter().enumerate() {
+                let pi = v as usize;
+                let p = &sb.particles[pi];
+                let s = slots[pi];
+                if s == u32::MAX || p.inv_mass == 0.0 {
+                    continue;
+                }
+                out.push_shape_constraint(SoftShapeConstraint {
+                    particle: v,
+                    cluster: ci as u32,
+                    solver_id: s,
+                    im: Vector::splat(p.inv_mass),
+                    goal: p.position,
+                    goal_vel: Vector::ZERO,
+                    erp_inv_dt: shape_erp,
+                    cfm_coeff: shape_cfm,
+                    inv_lhs: Vector::ZERO,
+                    cfm_gain: Vector::ZERO,
+                    rhs: Vector::ZERO,
+                    impulse: cluster.shape_impulses.get(k).copied().unwrap_or(Vector::ZERO),
+                });
+            }
         }
     }
 }

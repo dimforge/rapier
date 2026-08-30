@@ -280,6 +280,7 @@ fn body_removal_midrun() {
         &mut w.colliders,
         &mut w.impulse_joints,
         &mut w.multibody_joints,
+        &mut w.soft_bodies,
         true,
     );
     w.run(60);
@@ -294,7 +295,7 @@ fn body_removal_midrun() {
 
 /// Kinematic solver bodies: a dynamic box riding a velocity-based kinematic platform.
 #[test]
-fn kinematic_platform_carries_box() {
+fn kinematic_platform_transports_box() {
     let mut w = World::new();
     let platform = w
         .bodies

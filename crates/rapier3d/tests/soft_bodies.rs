@@ -156,9 +156,16 @@ fn cloth_drapes() {
             e.rest_length
         );
     }
+    // The root body is the whole-body cluster's proxy: a soft frame whose pose and mass are
+    // derived from the particles (its pose tracks the cloth's best-fit frame).
     let root = &world.bodies[sb.root_body()];
-    assert!(root.is_rotation_locked().iter().all(|l| *l));
-    assert!(root.is_translation_locked());
+    assert!(root.is_soft_frame());
+    // The frame's origin is the free particles' centroid (the two pinned corners are left
+    // out), near but not equal to the full center of mass.
+    assert!(
+        (root.position().translation - sb.center_of_mass()).length() < 0.5,
+        "the root frame does not track the cloth"
+    );
 }
 
 /// A hollow sphere with volume preservation dropped on the ground keeps its volume, and a

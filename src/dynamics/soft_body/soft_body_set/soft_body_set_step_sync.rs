@@ -1,4 +1,6 @@
     /// refreshes the attachment index and island links of the bodies whose attachments changed.
+    /// Refreshes every live cluster's proxy rigid body from the current particles: its pose is
+            // Dead zone: the frame fit carries a little noise even at rest (the least-squares
         // so a one-refresh-stale proxy pose is fine.
     /// Refreshes every soft body's derived state at the end of a step: the surface orientation,
         // Every body reads its own particles and writes only itself: updated in parallel, then

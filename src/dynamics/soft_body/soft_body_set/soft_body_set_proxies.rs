@@ -77,8 +77,19 @@ pub(super) fn rebuilt_surface_shape(
         .additional_solver_iterations(settings.additional_solver_iterations)
         .can_sleep(settings.can_sleep)
         .dominance_group(settings.dominance_group)
+        .user_data(user_data)
         .build();
     let rb_handle = bodies.insert(rb);
+    // Stamped after insertion: `insert` resets the internal references. The body type is set
+    // directly: `SoftFrame` cannot be built or converted to through the public API.
+    let rb = bodies.index_mut_internal(rb_handle);
+    rb.body_type = crate::dynamics::RigidBodyType::SoftFrame;
+    rb.soft_body = handle;
+    rb.soft_cluster = cluster;
+    #[cfg(feature = "dim3")]
+    {
+        rb.forces.gyroscopic_forces_enabled = false;
+    }
     rb_handle
 }
 

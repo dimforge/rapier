@@ -228,6 +228,7 @@ fn run_sim(num_threads: usize, num_steps: usize) -> Vec<StepRecord> {
                 &mut colliders,
                 &mut impulse_joints,
                 &mut multibody_joints,
+                &mut soft_bodies,
                 true,
             );
         }

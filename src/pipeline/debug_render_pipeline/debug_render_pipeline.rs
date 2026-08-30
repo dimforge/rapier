@@ -418,7 +418,9 @@ impl DebugRenderPipeline {
                         let coeff = self.body_color_multiplier(parent, co.is_enabled(), true);
                         let c = match parent.body_type {
                             RigidBodyType::Fixed => self.style.collider_fixed_color,
-                            RigidBodyType::Dynamic => self.style.collider_dynamic_color,
+                            RigidBodyType::Dynamic | RigidBodyType::SoftFrame => {
+                                self.style.collider_dynamic_color
+                            }
                             RigidBodyType::KinematicPositionBased
                             | RigidBodyType::KinematicVelocityBased => {
                                 self.style.collider_kinematic_color

@@ -1540,3 +1540,149 @@ fn fem_box_rests_on_soft_body() {
     );
     assert!(world.bodies[rb].linvel().length() < 0.05);
 }
+
+/// 2D twin of `violently_dragged_one_particle_cluster_stays_bounded` (rapier3d's
+/// soft_body_joints.rs): the 2D reduced inertia is a scalar whose plain inverse exploded the
+/// same way on a one-particle cluster's roundoff inertia.
+#[test]
+fn violently_dragged_one_particle_cluster_stays_bounded() {
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5)),
+        ColliderBuilder::cuboid(30.0, 0.5),
+    );
+    let h = world.insert_soft_body(
+        SoftBodyBuilder::grid(Vector::new(0.0, 1.11), Vector::splat(0.5), 5, 5)
+            .cell_model(SoftBodyCellModel::Corotational)
+            .material(SoftBodyMaterial {
+                young_modulus: 5.0e3,
+                poisson_ratio: 0.35,
+                elastic_damping_ratio: 0.8,
+                ..Default::default()
+            })
+            .particle_mass(0.08),
+    );
+    let corner = Vector::new(0.5, 1.61);
+    let nearest = (0..world.soft_bodies[h].num_particles())
+        .min_by(|&a, &b| {
+            let body = &world.soft_bodies[h];
+            let da = (body.particle_position(a) - corner).length_squared();
+            let db = (body.particle_position(b) - corner).length_squared();
+            da.partial_cmp(&db).unwrap()
+        })
+        .unwrap() as u32;
+    let anchor = world.soft_bodies[h].particle_position(nearest as usize);
+    let cluster = world.add_soft_body_cluster(h, &[nearest]).unwrap();
+    let proxy = world.soft_bodies[h].cluster_proxy(cluster).unwrap();
+    let mouse_body =
+        world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
+    let joint: GenericJoint = GenericJointBuilder::new(JointAxesMask::empty())
+        .motor_position(JointAxis::LinX, 0.0, 1000.0, 50.0)
+        .motor_position(JointAxis::LinY, 0.0, 1000.0, 50.0)
+        .into();
+    world.insert_impulse_joint(mouse_body, proxy, joint);
+
+    let mut t: Real = 0.0;
+    let mut peak: Real = 0.0;
+    for _ in 0..150 {
+        t += world.integration_parameters.dt;
+        let target = anchor + Vector::new(3.0 * (15.0 * t).cos(), 1.5 + 1.5 * (15.0 * t).sin());
+        world.bodies[mouse_body].set_next_kinematic_translation(target);
+        world.bodies[proxy].wake_up(true);
+        world.step();
+        let body = &world.soft_bodies[h];
+        let v = (0..body.num_particles())
+            .map(|i| body.particle_velocity(i).length())
+            .fold(0.0, Real::max);
+        peak = peak.max(v);
+    }
+    assert!(world.quarantine().is_empty());
+    assert!(peak < 500.0, "particle speeds diverged: peak {peak}");
+}
+
+/// With self-contacts a pressurized blob cannot be squeezed through itself into a crossed
+/// figure-8 loop: it survives a grab-crush against the floor and re-inflates once released.
+#[test]
+fn self_contact_blob_survives_grab_crush() {
+    let area_ratio = |world: &PhysicsWorld, sb: SoftBodyHandle| -> Real {
+        let body = &world.soft_bodies[sb];
+        let mut area = 0.0;
+        let mut rest = 0.0;
+        for seg in body.boundary() {
+            let a = body.particle_position(seg[0] as usize);
+            let b = body.particle_position(seg[1] as usize);
+            area += 0.5 * (a.x * b.y - a.y * b.x);
+            let ra = body.particles()[seg[0] as usize].rest_position();
+            let rb = body.particles()[seg[1] as usize].rest_position();
+            rest += 0.5 * (ra.x * rb.y - ra.y * rb.x);
+        }
+        area / rest
+    };
+
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5)),
+        ColliderBuilder::cuboid(4.0, 0.5),
+    );
+    let mut blobs = Vec::new();
+    for j in 0..3 {
+        for i in 0..3 {
+            let x = -1.2 + i as Real * 1.2 + (j % 2) as Real * 0.3;
+            let y = 0.6 + j as Real * 1.1;
+            blobs.push(
+                world.insert_soft_body(
+                    SoftBodyBuilder::disk(Vector::new(x, y), 0.5, 20)
+                        .softness(SpringCoefficients::new(20.0, 1.0))
+                        .volume_factor(1.05)
+                        .self_contacts(true)
+                        .particle_mass(0.05),
+                ),
+            );
+        }
+    }
+    for _ in 0..240 {
+        world.step();
+    }
+
+    // Grab a bottom-row blob's particle like the testbed mouse does, and park the target far
+    // underground: the position-error-scaled motor crushes the blob against the floor.
+    let victim = blobs[1];
+    let grabbed = 0u32;
+    let anchor = world.soft_bodies[victim].particle_position(grabbed as usize);
+    let cluster = world.add_soft_body_cluster(victim, &[grabbed]).unwrap();
+    let proxy = world.soft_bodies[victim].cluster_proxy(cluster).unwrap();
+    let mouse =
+        world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
+    let joint: GenericJoint = GenericJointBuilder::new(JointAxesMask::empty())
+        .motor_position(JointAxis::LinX, 0.0, 1000.0, 50.0)
+        .motor_position(JointAxis::LinY, 0.0, 1000.0, 50.0)
+        .into();
+    world.insert_impulse_joint(mouse, proxy, joint);
+    for step in 0..900 {
+        let tt = step as Real / 60.0;
+        world.bodies[mouse].set_next_kinematic_translation(Vector::new(
+            anchor.x + 1.5 * (3.0 * tt).sin(),
+            -8.0,
+        ));
+        world.bodies[proxy].wake_up(true);
+        world.step();
+    }
+    // The crush itself must never cross the loop (the signed area keeps its sign).
+    assert!(
+        area_ratio(&world, victim) > 0.0,
+        "the loop crossed despite self-contacts: ratio {}",
+        area_ratio(&world, victim)
+    );
+
+    world.remove_body(mouse);
+    world.remove_soft_body_cluster(victim, cluster);
+    for _ in 0..600 {
+        world.step();
+    }
+    assert!(world.quarantine().is_empty());
+    // Every blob re-inflates: no stuck figure-8, no permanently crushed neighbor.
+    for &b in &blobs {
+        let r = area_ratio(&world, b);
+        assert!(r > 0.6, "a blob stayed crushed after release: ratio {r}");
+    }
+}

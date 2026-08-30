@@ -82,6 +82,11 @@ pub(super) fn default_true() -> bool {
     true
 }
 
+#[cfg(feature = "serde-serialize")]
+pub(super) fn one() -> Real {
+    1.0
+}
+
 impl Default for SoftBodyMaterial {
     fn default() -> Self {
         Self {

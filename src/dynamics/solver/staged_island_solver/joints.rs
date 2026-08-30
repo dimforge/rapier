@@ -12,6 +12,7 @@ use crate::dynamics::solver::reset_buffer;
 use crate::dynamics::{
     JointGraphEdge, JointIndex, MultibodyJointSet, RigidBodyHandle, RigidBodySet,
 };
+use crate::dynamics::solver::joint_constraint::{joint_uses_angular_axes, soft_frame_angular_degenerate};
 use parry::math::SIMD_WIDTH;
 
 use super::{GroupJointRanges, JOINT_BATCH, LAYOUT_REF_WORKERS, StagedIslandSolver};
@@ -65,20 +66,20 @@ impl StagedIslandSolver {
                         .velocity_constraints_builder
                         .par_iter_mut()
                         .with_min_len(64)
-                        .for_each(|builder| builder.refresh_warmstart_seeds(impulse_joints));
+                        .for_each(|builder| builder.update_warmstart_seeds(impulse_joints));
                     joints
                         .simd_velocity_constraints_builder
                         .par_iter_mut()
                         .with_min_len(16)
-                        .for_each(|builder| builder.refresh_warmstart_seeds(impulse_joints));
+                        .for_each(|builder| builder.update_warmstart_seeds(impulse_joints));
                 }
                 #[cfg(not(feature = "parallel"))]
                 {
                     for builder in &mut joints.velocity_constraints_builder {
-                        builder.refresh_warmstart_seeds(impulse_joints);
+                        builder.update_warmstart_seeds(impulse_joints);
                     }
                     for builder in &mut joints.simd_velocity_constraints_builder {
-                        builder.refresh_warmstart_seeds(impulse_joints);
+                        builder.update_warmstart_seeds(impulse_joints);
                     }
                 }
             }
@@ -116,7 +117,7 @@ impl StagedIslandSolver {
             self.joint_color_ranges.clear();
             self.joint_chunk_lanes.clear();
             self.joint_chunk_rows.clear();
-            self.joint_overflow_scratch.clear();
+            self.joint_overflow_workspace.clear();
             self.staged_group_joint_layout.clear();
 
             // Calibrated for LAYOUT_REF_WORKERS, NOT the pool size (see that constant's docs).
@@ -181,30 +182,36 @@ impl StagedIslandSolver {
                     let colors_start = self.joint_color_ranges.len();
                     let chunks_start = self.joint_chunk_lanes.len();
                     for (color_bit, subset) in &parallel_by_group[gi] {
-                        self.joint_sig_scratch.clear();
+                        self.joint_sig_workspace.clear();
                         for joint_i in subset {
                             let joint = &impulse_joints[*joint_i].weight;
-                            if joint.data.supports_simd_constraints() {
-                                self.joint_sig_scratch
+
+                            // No SIMD for joints whose angular part may be masked out; rare enough.
+                            let ang_maskable = joint_uses_angular_axes(
+                                &joint.data,
+                            ) && (soft_frame_angular_degenerate(&bodies[joint.body1])
+                                || soft_frame_angular_degenerate(&bodies[joint.body2]));
+                            if joint.data.supports_simd_constraints() && !ang_maskable {
+                                self.joint_sig_workspace
                                     .push((joint.data.simd_row_signature(), *joint_i));
                             } else {
                                 scalar_by_group[gi].push(*joint_i);
                             }
                         }
-                        self.joint_sig_scratch.sort_by_key(|(sig, _)| *sig);
+                        self.joint_sig_workspace.sort_by_key(|(sig, _)| *sig);
 
                         let chunk_start = self.joint_chunk_lanes.len();
                         let mut run_start = 0;
-                        while run_start < self.joint_sig_scratch.len() {
-                            let sig = self.joint_sig_scratch[run_start].0;
+                        while run_start < self.joint_sig_workspace.len() {
+                            let sig = self.joint_sig_workspace[run_start].0;
                             let mut run_end = run_start + 1;
-                            while run_end < self.joint_sig_scratch.len()
-                                && self.joint_sig_scratch[run_end].0 == sig
+                            while run_end < self.joint_sig_workspace.len()
+                                && self.joint_sig_workspace[run_end].0 == sig
                             {
                                 run_end += 1;
                             }
                             for chunk in
-                                self.joint_sig_scratch[run_start..run_end].chunks(SIMD_WIDTH)
+                                self.joint_sig_workspace[run_start..run_end].chunks(SIMD_WIDTH)
                             {
                                 let mut lanes = [chunk[0].1; SIMD_WIDTH];
                                 for (l, (_, joint_i)) in chunk.iter().enumerate() {
@@ -334,7 +341,7 @@ impl StagedIslandSolver {
         self.joint_color_ranges.clear();
         self.joint_chunk_lanes.clear();
         self.joint_chunk_rows.clear();
-        self.joint_overflow_scratch.clear();
+        self.joint_overflow_workspace.clear();
 
         // Calibrated for LAYOUT_REF_WORKERS, NOT the pool size (see that constant's docs).
         let min_color_joints = JOINT_BATCH * LAYOUT_REF_WORKERS / 2;
@@ -350,34 +357,39 @@ impl StagedIslandSolver {
             // Color 128 is the "couldn't color" bucket: always serial overflow.
             let parallel = color_bit < 128 && color.len() >= min_color_joints;
             if !parallel {
-                self.joint_overflow_scratch.extend_from_slice(color);
+                self.joint_overflow_workspace.extend_from_slice(color);
                 continue;
             }
 
             {
-                self.joint_sig_scratch.clear();
+                self.joint_sig_workspace.clear();
                 for joint_i in color {
                     let joint = &impulse_joints[*joint_i].weight;
-                    if joint.data.supports_simd_constraints() {
-                        self.joint_sig_scratch
+                    // No SIMD for joints whose angular part may be masked out; rare enough.
+                    let ang_maskable = joint_uses_angular_axes(
+                                &joint.data,
+                            ) && (soft_frame_angular_degenerate(&bodies[joint.body1])
+                                || soft_frame_angular_degenerate(&bodies[joint.body2]));
+                            if joint.data.supports_simd_constraints() && !ang_maskable {
+                        self.joint_sig_workspace
                             .push((joint.data.simd_row_signature(), *joint_i));
                     } else {
-                        self.joint_overflow_scratch.push(*joint_i);
+                        self.joint_overflow_workspace.push(*joint_i);
                     }
                 }
-                self.joint_sig_scratch.sort_by_key(|(sig, _)| *sig);
+                self.joint_sig_workspace.sort_by_key(|(sig, _)| *sig);
 
                 let chunk_start = self.joint_chunk_lanes.len();
                 let mut run_start = 0;
-                while run_start < self.joint_sig_scratch.len() {
-                    let sig = self.joint_sig_scratch[run_start].0;
+                while run_start < self.joint_sig_workspace.len() {
+                    let sig = self.joint_sig_workspace[run_start].0;
                     let mut run_end = run_start + 1;
-                    while run_end < self.joint_sig_scratch.len()
-                        && self.joint_sig_scratch[run_end].0 == sig
+                    while run_end < self.joint_sig_workspace.len()
+                        && self.joint_sig_workspace[run_end].0 == sig
                     {
                         run_end += 1;
                     }
-                    for chunk in self.joint_sig_scratch[run_start..run_end].chunks(SIMD_WIDTH) {
+                    for chunk in self.joint_sig_workspace[run_start..run_end].chunks(SIMD_WIDTH) {
                         let mut lanes = [chunk[0].1; SIMD_WIDTH];
                         for (l, (_, joint_i)) in chunk.iter().enumerate() {
                             lanes[l] = *joint_i;
@@ -459,12 +471,12 @@ impl StagedIslandSolver {
         unsafe {
             reset_buffer(
                 &mut joints.velocity_constraints_builder,
-                self.joint_overflow_scratch.len(),
+                self.joint_overflow_workspace.len(),
             );
         }
 
         let overflow_start = num_builders;
-        for joint_i in &self.joint_overflow_scratch {
+        for joint_i in &self.joint_overflow_workspace {
             let joint = &impulse_joints[*joint_i].weight;
             let row_start = num_rows;
             JointConstraintBuilder::generate(

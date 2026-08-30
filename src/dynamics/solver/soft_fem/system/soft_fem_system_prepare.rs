@@ -61,6 +61,7 @@ impl SoftFemSystem {
             } else {
                 0.0
             };
+            let (mu, lambda) = (mu * c.stiffness_scale, lambda * c.stiffness_scale);
             let coeffs = SoftElasticConstraint::coefficients(&c.inv_rest_matrix);
             let inv_mass: [Real; MAX_CONSTRAINT_PARTICLES] =
                 core::array::from_fn(|k| sb.particles[c.vertices[k] as usize].inv_mass);

@@ -202,6 +202,10 @@ pub struct SoftBodyCell {
     /// Rotation of the polar decomposition of the cell's deformation gradient at the last step
     /// (warm start of the corotational rows' rotation extraction).
     pub(crate) rotation: Rotation,
+    /// Multiplier of the material's Young modulus for this cell (default `1.0`): per-region
+    /// stiffness, usually set through [`crate::dynamics::SoftBody::set_cluster_stiffness_scale`].
+    #[cfg_attr(feature = "serde-serialize", serde(default = "one"))]
+    pub stiffness_scale: Real,
     /// Parallel solve color.
     pub(crate) color: u8,
     /// Set when the cell was strained past the material's `tear_strain` during the last step

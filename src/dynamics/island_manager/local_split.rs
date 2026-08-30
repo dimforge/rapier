@@ -118,6 +118,11 @@ impl IslandGraph<'_> {
             for attachment in sb.particle_attachments() {
                 visit(attachment.body);
             }
+            for (_, cluster) in sb.live_clusters() {
+                if cluster.proxy() != body {
+                    visit(cluster.proxy());
+                }
+            }
         }
         for (sb_handle, _) in self.soft_bodies.attached_to(body) {
             if let Some(sb) = self.soft_bodies.get(*sb_handle) {
@@ -171,6 +176,16 @@ impl IslandGraph<'_> {
                 let soft_body = soft_body_key(sb_handle);
                 for ordinal in 0..sb.particle_attachments().len() as u32 {
                     f(IncidentLink::Joint(JointLinkKey::SoftAttachment {
+                        soft_body,
+                        ordinal,
+                    }));
+                }
+                let members = sb
+                    .live_clusters()
+                    .filter(|(_, c)| self.is_member(c.proxy()))
+                    .count();
+                for ordinal in 0..members.saturating_sub(1) as u32 {
+                    f(IncidentLink::Joint(JointLinkKey::SoftProxyChain {
                         soft_body,
                         ordinal,
                     }));

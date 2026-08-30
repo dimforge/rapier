@@ -214,6 +214,23 @@ impl StagedIslandSolver {
             );
             self.soft_constraints
                 .assemble_attachments(island_id, bodies, group_dt);
+
+            // Active clusters: the proxies with a joint this step (or a pending external
+            // impulse) get the per-pass gather/scatter stages.
+            let mut jointed_proxies: parry::utils::hashmap::HashMap<u32, ()> = Default::default();
+            for ji in joint_indices {
+                let joint = &impulse_joints[*ji].weight;
+                for handle in [joint.body1, joint.body2] {
+                    if let Some(rb) = bodies.get(handle) {
+                        if rb.is_soft_frame() && rb.ids.active_set_id != u32::MAX {
+                            jointed_proxies.insert(rb.ids.active_set_id, ());
+                        }
+                    }
+                }
+            }
+            let vs = &self.velocity_solver;
+            self.soft_constraints
+                .assemble_clusters(bodies, colliders, &vs.solver_bodies, &jointed_proxies);
         }
 
         // Avoid spawning more workers than there is work to distribute.

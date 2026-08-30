@@ -15,6 +15,7 @@ use super::super::soft_attachment::FemAttachment;
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct SoftShapeConstraint {
     pub particle: u32,
+    pub cluster: u32,
     pub solver_id: u32,
     pub im: Vector,
     pub goal: Vector,

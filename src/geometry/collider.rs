@@ -99,11 +99,25 @@ impl Collider {
     /// Moves a soft-body particle ball to its particle's world position (a simulation-driven
     /// motion, like a deformation: no wake-up, no narrow-phase workspace invalidation). `frame`
     /// is the parent proxy's pose: the ball's local pose is kept consistent with it.
-    pub(crate) fn deform_position(&mut self, position: Vector) {
+    pub(crate) fn deform_position(&mut self, frame: &Pose, position: Vector) {
+        let world = Pose::from_translation(position);
         if let Some(parent) = self.parent.as_mut() {
-            parent.pos_wrt_parent = Pose::from_translation(position);
+            parent.pos_wrt_parent = frame.inverse() * world;
         }
-        self.pos = ColliderPosition(Pose::from_translation(position));
+        self.pos = ColliderPosition(world);
+        self.changes.insert(ColliderChanges::DEFORMED);
+    }
+
+    /// Moves a soft-body surface collider along with its cluster proxy (`frame` is the proxy's
+    /// pose, the collider keeps its pose relative to it), as a deformation: no wake-up, no
+    /// workspace invalidation. The shape's vertices are expressed in the resulting frame.
+    pub(crate) fn deform_pose(&mut self, frame: Pose) {
+        let pos_wrt_parent = self
+            .parent
+            .as_ref()
+            .map_or(Pose::IDENTITY, |parent| parent.pos_wrt_parent);
+        self.pos = ColliderPosition(frame * pos_wrt_parent);
+        self.changes.insert(ColliderChanges::DEFORMED);
     }
 
     pub(crate) fn effective_contact_force_event_threshold(&self) -> Real {
