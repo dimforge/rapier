@@ -106,7 +106,7 @@ pub fn debug_render_scene(
 }
 
 /// Convert HSLA color to RGB
-fn hsla_to_rgb(h: f32, s: f32, l: f32, a: f32) -> [f32; 4] {
+pub(crate) fn hsla_to_rgb(h: f32, s: f32, l: f32, a: f32) -> [f32; 4] {
     if s == 0.0 {
         return [l, l, l, a];
     }
@@ -142,5 +142,71 @@ fn hue_to_rgb(p: f32, q: f32, t: f32) -> f32 {
         p + (q - p) * (2.0 / 3.0 - t) * 6.0
     } else {
         p
+    }
+}
+
+/// The inverse of [`hsla_to_rgb`]: an RGBA color as the HSLA the debug-render style stores (hue
+/// in degrees, the rest in `0..=1`).
+pub(crate) fn rgb_to_hsla(rgba: [f32; 4]) -> DebugColor {
+    let [r, g, b, a] = rgba;
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+    let delta = max - min;
+
+    if delta <= f32::EPSILON {
+        return [0.0, 0.0, l, a];
+    }
+
+    let s = if l < 0.5 {
+        delta / (max + min)
+    } else {
+        delta / (2.0 - max - min)
+    };
+    let h = if max == r {
+        ((g - b) / delta).rem_euclid(6.0)
+    } else if max == g {
+        (b - r) / delta + 2.0
+    } else {
+        (r - g) / delta + 4.0
+    };
+
+    // Hue is an angle: a value a rounding error short of a full turn is zero, not 359.999.
+    let h = (h * 60.0).rem_euclid(360.0);
+    let h = if h > 360.0 - 1.0e-3 { 0.0 } else { h };
+    [h, s, l, a]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{hsla_to_rgb, rgb_to_hsla};
+
+    /// The color picker shows a style color as RGB and writes it back as HSLA: the pair must
+    /// round-trip, or editing one color would drift every time the tab is opened.
+    #[test]
+    fn hsla_round_trips_through_rgb() {
+        for hsla in [
+            [340.0, 1.0, 0.3, 1.0],
+            [20.0, 1.0, 0.3, 1.0],
+            [30.0, 1.0, 0.4, 0.5],
+            [0.0, 1.0, 0.5, 1.0],
+            [120.0, 0.5, 0.75, 1.0],
+            [240.0, 0.25, 0.5, 0.25],
+            [359.0, 0.9, 0.1, 1.0],
+        ] {
+            let rgba = hsla_to_rgb(hsla[0], hsla[1], hsla[2], hsla[3]);
+            assert!(
+                rgba.iter().all(|c| (0.0..=1.0).contains(c)),
+                "{hsla:?} left the unit cube: {rgba:?}"
+            );
+            let back = rgb_to_hsla(rgba);
+            assert!(
+                (back[0] - hsla[0]).abs() < 0.1
+                    && (back[1] - hsla[1]).abs() < 1.0e-3
+                    && (back[2] - hsla[2]).abs() < 1.0e-3
+                    && (back[3] - hsla[3]).abs() < 1.0e-6,
+                "{hsla:?} came back as {back:?}"
+            );
+        }
     }
 }

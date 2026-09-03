@@ -127,6 +127,7 @@ pub(crate) fn update_ui(
                 ui.selectable_value(&mut state.selected_tab, UiTab::Examples, "Examples");
                 ui.selectable_value(&mut state.selected_tab, UiTab::Settings, "Settings");
                 ui.selectable_value(&mut state.selected_tab, UiTab::Performance, "Performance");
+                ui.selectable_value(&mut state.selected_tab, UiTab::DebugRender, "Debug");
             });
 
             ui.separator();
@@ -141,10 +142,13 @@ pub(crate) fn update_ui(
                         examples_tab(ui, state);
                     }
                     UiTab::Settings => {
-                        settings_tab(ui, state, world, debug_render);
+                        settings_tab(ui, state, world);
                     }
                     UiTab::Performance => {
                         performance_tab(ui, state, world);
+                    }
+                    UiTab::DebugRender => {
+                        debug_render_tab(ui, debug_render);
                     }
                 });
 
@@ -300,12 +304,7 @@ fn examples_tab(ui: &mut Ui, state: &mut TestbedState) {
     }
 }
 
-fn settings_tab(
-    ui: &mut Ui,
-    state: &mut TestbedState,
-    world: &mut PhysicsWorld,
-    debug_render: &mut DebugRenderPipelineResource,
-) {
+fn settings_tab(ui: &mut Ui, state: &mut TestbedState, world: &mut PhysicsWorld) {
     let integration_parameters = &mut world.integration_parameters;
 
     // ─────────────────────────────────────────────────────────────────
@@ -325,8 +324,19 @@ fn settings_tab(
             .set(TestbedStateFlags::DRAW_SURFACES, draw_surfaces);
     }
 
-    ui.checkbox(&mut debug_render.enabled, "Debug render")
-        .on_hover_text("Show debug wireframes and contacts.");
+    #[cfg(feature = "dim3")]
+    {
+        let mut smooth = state
+            .flags
+            .contains(TestbedStateFlags::SMOOTH_MESH_COLLIDERS);
+        if ui
+            .changed()
+        {
+            state
+                .flags
+                .set(TestbedStateFlags::SMOOTH_MESH_COLLIDERS, smooth);
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────
     // SIMULATION
@@ -561,6 +571,182 @@ fn settings_tab(
     }
 }
 
+/// One of the debug renderer's colors, as a color picker. The style stores HSLA; the picker
+/// works in sRGB, so the value round-trips through [`crate::debug_render::rgb_to_hsla`].
+fn debug_color_picker(ui: &mut Ui, label: &str, color: &mut rapier::pipeline::DebugColor) {
+    let rgba = crate::debug_render::hsla_to_rgb(color[0], color[1], color[2], color[3]);
+    let mut srgba = rgba.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
+    ui.horizontal(|ui| {
+        if ui.color_edit_button_srgba_unmultiplied(&mut srgba).changed() {
+            *color = crate::debug_render::rgb_to_hsla(srgba.map(|c| c as f32 / 255.0));
+        }
+        ui.label(label);
+    });
+}
+
+/// One of the debug renderer's color multipliers (a per-HSLA-component scale, not a color).
+fn debug_multiplier_row(ui: &mut Ui, label: &str, color: &mut rapier::pipeline::DebugColor) {
+    ui.horizontal(|ui| {
+        for (component, prefix) in color.iter_mut().zip(["h ", "s ", "l ", "a "]) {
+            ui.add(
+                egui::DragValue::new(component)
+                    .speed(0.01)
+                    .range(0.0..=1.0)
+                    .prefix(prefix),
+            );
+        }
+        ui.label(label);
+    });
+}
+
+/// What the debug renderer draws, and how it draws it.
+fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource) {
+    use rapier::pipeline::DebugRenderMode;
+
+    ui.checkbox(&mut debug_render.enabled, "Debug render")
+        .on_hover_text("Draw the physics state over the scene (wireframes, joints, contacts).");
+    ui.add_space(8.0);
+
+    // ─────────────────────────────────────────────────────────────────
+    // WHAT TO DRAW
+    // ─────────────────────────────────────────────────────────────────
+    ui.label(RichText::new("What to draw").strong());
+    ui.add_space(2.0);
+
+    {
+        // The composite `JOINTS` flag is left out: its two halves are here.
+        const FLAGS: &[(DebugRenderMode, &str, &str)] = &[
+            (
+                DebugRenderMode::COLLIDER_SHAPES,
+                "Collider shapes",
+                "The colliders' outlines, colored by their body type.",
+            ),
+            (
+                DebugRenderMode::COLLIDER_AABBS,
+                "Collider AABBs",
+                "The bounding boxes the broad phase sees.",
+            ),
+            (
+                DebugRenderMode::RIGID_BODY_AXES,
+                "Rigid-body axes",
+                "The local frame of every rigid body, at its center of mass.",
+            ),
+            (
+                DebugRenderMode::IMPULSE_JOINTS,
+                "Impulse joints",
+                "The anchors of the impulse joints, and their separation.",
+            ),
+            (
+                DebugRenderMode::MULTIBODY_JOINTS,
+                "Multibody joints",
+                "The anchors of the multibody joints, and their separation.",
+            ),
+            (
+                DebugRenderMode::CONTACTS,
+                "Contacts",
+                "The geometric contact points and their normals.",
+            ),
+            (
+                DebugRenderMode::SOLVER_CONTACTS,
+                "Solver contacts",
+                "The contact points the solver actually used this step.",
+            ),
+            (
+                DebugRenderMode::SOFT_BODIES,
+                "Soft bodies",
+                "The soft bodies' elements (structural and cell edges), their cluster frames, \
+                 and their soft-vs-soft contacts.",
+            ),
+        ];
+
+        for (flag, label, hover) in FLAGS {
+            let mut on = debug_render.pipeline.mode.contains(*flag);
+            if ui.checkbox(&mut on, *label).on_hover_text(*hover).changed() {
+                debug_render.pipeline.mode.set(*flag, on);
+            }
+        }
+
+        ui.horizontal(|ui| {
+            if ui.button("All").clicked() {
+                debug_render.pipeline.mode = DebugRenderMode::all();
+            }
+            if ui.button("None").clicked() {
+                debug_render.pipeline.mode = DebugRenderMode::empty();
+            }
+            if ui.button("Default").clicked() {
+                debug_render.pipeline.mode = DebugRenderMode::default();
+            }
+        });
+
+        ui.add_space(8.0);
+
+        // ─────────────────────────────────────────────────────────────
+        // STYLE
+        // ─────────────────────────────────────────────────────────────
+        ui.label(RichText::new("Style").strong());
+        ui.add_space(2.0);
+
+        let style = &mut debug_render.pipeline.style;
+        ui.add(Slider::new(&mut style.subdivisions, 2..=64).text("Subdivisions"))
+            .on_hover_text("Segments approximating a curved shape (balls, capsules, cones).");
+        ui.add(Slider::new(&mut style.border_subdivisions, 1..=32).text("Border subdivisions"))
+            .on_hover_text("Segments approximating the rounded border of a round shape.");
+        ui.add(
+            Slider::new(&mut style.rigid_body_axes_length, 0.0..=2.0).text("Axes length"),
+        )
+        .on_hover_text("Length of the rigid-body axes.");
+        ui.add(
+            Slider::new(&mut style.contact_normal_length, 0.0..=1.0).text("Normal length"),
+        )
+        .on_hover_text("Length of the contact normals.");
+
+        ui.collapsing("Colors", |ui| {
+            debug_color_picker(ui, "Dynamic colliders", &mut style.collider_dynamic_color);
+            debug_color_picker(ui, "Fixed colliders", &mut style.collider_fixed_color);
+            debug_color_picker(ui, "Kinematic colliders", &mut style.collider_kinematic_color);
+            debug_color_picker(ui, "Parentless colliders", &mut style.collider_parentless_color);
+            debug_color_picker(ui, "Collider AABBs", &mut style.collider_aabb_color);
+            debug_color_picker(ui, "Impulse joint anchors", &mut style.impulse_joint_anchor_color);
+            debug_color_picker(
+                ui,
+                "Impulse joint separation",
+                &mut style.impulse_joint_separation_color,
+            );
+            debug_color_picker(
+                ui,
+                "Multibody joint anchors",
+                &mut style.multibody_joint_anchor_color,
+            );
+            debug_color_picker(
+                ui,
+                "Multibody joint separation",
+                &mut style.multibody_joint_separation_color,
+            );
+            debug_color_picker(ui, "Contact depth", &mut style.contact_depth_color);
+            debug_color_picker(ui, "Contact normals", &mut style.contact_normal_color);
+            debug_color_picker(ui, "Soft-body elements", &mut style.soft_body_element_color);
+            debug_color_picker(ui, "Soft-body frames", &mut style.soft_body_frame_color);
+
+            ui.add_space(4.0);
+            ui.label("Multipliers (per HSLA component)");
+            debug_multiplier_row(ui, "Sleeping", &mut style.sleep_color_multiplier);
+            debug_multiplier_row(ui, "Sleep-ready", &mut style.sleep_eligible_color_multiplier);
+            debug_multiplier_row(ui, "Disabled", &mut style.disabled_color_multiplier);
+            if ui.button("Reset colors").clicked() {
+                let default = rapier::pipeline::DebugRenderStyle::default();
+                // The scalars above are edited separately: only the colors are reset.
+                *style = rapier::pipeline::DebugRenderStyle {
+                    subdivisions: style.subdivisions,
+                    border_subdivisions: style.border_subdivisions,
+                    rigid_body_axes_length: style.rigid_body_axes_length,
+                    contact_normal_length: style.contact_normal_length,
+                    ..default
+                };
+            }
+        });
+    }
+}
+
 fn performance_tab(ui: &mut Ui, state: &TestbedState, world: &PhysicsWorld) {
     // ─────────────────────────────────────────────────────────────────
     // SCENE INFO
@@ -571,7 +757,7 @@ fn performance_tab(ui: &mut Ui, state: &TestbedState, world: &PhysicsWorld) {
     let num_contacts: usize = world
         .narrow_phase
         .contact_pairs()
-        .map(|pair| pair.manifolds.iter().map(|m| m.points.len()).sum::<usize>())
+        .map(|pair| pair.manifolds().iter().map(|m| m.points.len()).sum::<usize>())
         .sum();
 
     let num_sleeping = world

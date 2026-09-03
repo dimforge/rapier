@@ -78,6 +78,8 @@ pub enum UiTab {
     Examples,
     Settings,
     Performance,
+    /// What the debug renderer draws, and how.
+    DebugRender,
 }
 
 /// Information about an example for UI display.

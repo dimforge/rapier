@@ -82,6 +82,7 @@ mod soft_cloth_stress3;
 mod soft_dress3;
 mod soft_fem3;
 mod soft_jelly3;
+mod soft_joints3;
 mod soft_pile3;
 mod soft_plasticity3;
 mod soft_surface3;
@@ -167,6 +168,7 @@ pub async fn main() {
         SOFT, "Soft bodies", soft_bodies3::run;
         SOFT, "Cloth", soft_cloth3::run;
         SOFT, "Jelly", soft_jelly3::run;
+        SOFT, "Soft joints", soft_joints3::run;
         SOFT, "Deformable trimeshes", soft_surface3::run;
         SOFT, "Soft pile", soft_pile3::run;
         SOFT, "Thin features", soft_thin_features3::run;

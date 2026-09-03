@@ -36,6 +36,7 @@ use glamx::Vec3;
 
 use crate::Camera;
 use crate::debug_render::{DebugRenderPipelineResource, debug_render_scene};
+use crate::grab::MouseGrab;
 use crate::graphics::{GraphicsManager, RenderMaterial};
 use crate::mouse::SceneMouse;
 use crate::physics::{restore_world, snapshot_world};
@@ -58,6 +59,7 @@ pub struct TestbedViewer {
     graphics: GraphicsManager,
     camera: Camera,
     scene_mouse: SceneMouse,
+    grab: MouseGrab,
     keys: KeysState,
     debug_render: DebugRenderPipelineResource,
     state: TestbedState,
@@ -116,6 +118,7 @@ impl TestbedViewer {
             graphics: GraphicsManager::new(),
             camera,
             scene_mouse: SceneMouse::new(),
+            grab: MouseGrab::default(),
             keys: KeysState::default(),
             debug_render: DebugRenderPipelineResource::default(),
             state,
@@ -147,11 +150,12 @@ impl TestbedViewer {
             return false;
         }
 
-        self.handle_events();
-
         let cursor_pos = self.window.cursor_pos();
         self.scene_mouse
             .update_from_window(cursor_pos, self.window.size().into(), &self.camera);
+
+        self.handle_events(world);
+        self.update_grab(world);
 
         self.handle_action_flags(world);
         self.handle_sleep_settings(world);
@@ -234,6 +238,8 @@ impl TestbedViewer {
     /// between examples). A restart / backend / solver-parameter switch preserves the camera
     /// and the user's setting edits; selecting a different example resets both.
     pub fn clear_scene(&mut self) {
+        // The grabbed handles belong to the world being discarded.
+        self.grab.forget();
         self.graphics.clear();
         self.state.transition = None;
         self.state.snapshot = None;
@@ -294,16 +300,37 @@ impl TestbedViewer {
     /// down its local -z, so `rot * z` points from the scene back toward the eye.
     #[cfg(feature = "dim3")]
     pub fn camera_rotation(&self) -> na::UnitQuaternion<f32> {
-        let rot_x = na::UnitQuaternion::from_axis_angle(&na::Vector3::y_axis(), self.camera.at().x);
-        let rot_y =
-            na::UnitQuaternion::from_axis_angle(&(-na::Vector3::x_axis()), self.camera.at().y);
-        rot_x * rot_y
+        use kiss3d::camera::Camera3d;
+        let eye = self.camera.eye();
+        let at = self.camera.at();
+        let backward = na::Vector3::new(eye.x - at.x, eye.y - at.y, eye.z - at.z);
+        let Some(backward) = na::Unit::try_new(backward, 1.0e-6) else {
+            return na::UnitQuaternion::identity();
+        };
+        let backward = backward.into_inner();
+        let up = na::Vector3::new(
+            self.state.up_axis.x as f32,
+            self.state.up_axis.y as f32,
+            self.state.up_axis.z as f32,
+        );
+        // Degenerate up (looking straight along it): substitute any non-parallel axis.
+        let up = if up.dot(&backward).abs() > 0.999 {
+            let alt = na::Vector3::x();
+            if alt.dot(&backward).abs() > 0.999 {
+                na::Vector3::y()
+            } else {
+                alt
+            }
+        } else {
+            up
+        };
+        na::UnitQuaternion::face_towards(&backward, &up)
     }
 
     /// Camera forward direction, from the eye toward the look-at point (3D only).
     #[cfg(feature = "dim3")]
     pub fn camera_fwd_dir(&self) -> na::Vector3<f32> {
-        self.camera_rotation() * na::Vector3::z()
+        self.camera_rotation() * -na::Vector3::z()
     }
 
     /// Recenters the camera so the whole scene fills the viewport (deferred to
@@ -481,13 +508,48 @@ impl TestbedViewer {
 
     // ───────────────────────────── internals ────────────────────────────────
 
-    fn handle_events(&mut self) {
-        // Collect first so we can mutate `self` freely inside the loop.
-        let events: Vec<WindowEvent> = self.window.events().iter().map(|e| e.value).collect();
+    fn handle_events(&mut self, world: &mut PhysicsWorld) {
+        // Mouse events are handled live so a grab can inhibit them (an inhibited event never
+        // reaches the camera). Key events are collected and processed after the loop, since
+        // their handlers borrow `self` as a whole.
+        let egui_wants_pointer = {
+            let ctx = self.window.egui_context();
+            ctx.egui_wants_pointer_input() || ctx.is_pointer_over_egui()
+        };
 
-        for value in events {
-            match value {
-                WindowEvent::Key(key, Action::Press, _) => {
+        let mut key_events = Vec::new();
+        for mut event in self.window.events().iter() {
+            match event.value {
+                WindowEvent::MouseButton(kiss3d::event::MouseButton::Button1, action, _) => {
+                    match action {
+                        Action::Press => {
+                            if !egui_wants_pointer
+                                && self.grab.try_grab(&self.scene_mouse, world)
+                            {
+                                event.inhibited = true;
+                            }
+                        }
+                        Action::Release => {
+                            if self.grab.active() {
+                                self.grab.release(world);
+                                event.inhibited = true;
+                            }
+                        }
+                    }
+                }
+                // The cameras poll the button state on cursor moves, so freezing the camera
+                // during a grab means swallowing the cursor events themselves.
+                WindowEvent::CursorPos(..) if self.grab.active() => {
+                    event.inhibited = true;
+                }
+                WindowEvent::Key(key, action, _) => key_events.push((key, action)),
+                _ => {}
+            }
+        }
+
+        for (key, action) in key_events {
+            match action {
+                Action::Press => {
                     if !self.keys.pressed_keys.contains(&key) {
                         self.keys.pressed_keys.push(key);
                     }
@@ -498,7 +560,7 @@ impl TestbedViewer {
                         _ => {}
                     }
                 }
-                WindowEvent::Key(key, Action::Release, _) => {
+                Action::Release => {
                     self.keys.pressed_keys.retain(|k| *k != key);
                     match key {
                         Key::T => {
@@ -516,8 +578,38 @@ impl TestbedViewer {
                         _ => {}
                     }
                 }
-                _ => {}
             }
+        }
+    }
+
+    /// Retargets the mouse joint's kinematic anchor and draws the grab cue line.
+    fn update_grab(&mut self, world: &mut PhysicsWorld) {
+        #[cfg(feature = "dim3")]
+        {
+            let fwd = self.camera_fwd_dir();
+            let fwd = rapier::math::Vector::new(fwd.x as _, fwd.y as _, fwd.z as _);
+            self.grab.update(&self.scene_mouse, fwd, world);
+        }
+        #[cfg(feature = "dim2")]
+        self.grab.update(&self.scene_mouse, world);
+
+        if let Some((a, b)) = self.grab.cue_line(world) {
+            let color = Color::new(0.9, 0.4, 0.1, 1.0);
+            #[cfg(feature = "dim3")]
+            self.window.draw_line(
+                glamx::Vec3::new(a.x as f32, a.y as f32, a.z as f32),
+                glamx::Vec3::new(b.x as f32, b.y as f32, b.z as f32),
+                color,
+                4.0,
+                false,
+            );
+            #[cfg(feature = "dim2")]
+            self.window.draw_line_2d(
+                glamx::Vec2::new(a.x as f32, a.y as f32),
+                glamx::Vec2::new(b.x as f32, b.y as f32),
+                color,
+                4.0,
+            );
         }
     }
 

@@ -59,6 +59,7 @@ mod soft_blobs2;
 mod soft_bodies2;
 mod soft_fem2;
 mod soft_jelly2;
+mod soft_joints2;
 // The letters come from a tessellated SVG (usvg), which doesn't build for wasm.
 #[cfg(not(target_arch = "wasm32"))]
 mod soft_letters2;
@@ -147,6 +148,7 @@ pub async fn main() {
         SOFT, "Plasticity", soft_plasticity2::run;
         SOFT, "Tearing", soft_tearing2::run;
         SOFT, "Soft FEM", soft_fem2::run;
+        SOFT, "Soft joints", soft_joints2::run;
         // ── Controls ────────────────────────────────────────────────────────
         CONTROLS, "Character controller", character_controller2::run;
         // ── Debug ───────────────────────────────────────────────────────────
