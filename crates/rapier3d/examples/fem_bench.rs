@@ -78,7 +78,7 @@ fn cantilever(solver: SoftBodySolver, substeps: usize) {
         })
         .solver(solver)
         .mass(8.0)
-        .without_colliders()
+        .no_surface_collider()
         .can_sleep(false);
     let pinned: Vec<u32> = builder
         .particle_positions()

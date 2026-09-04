@@ -43,6 +43,8 @@ impl SoftBodyBuilder {
             self_contacts: false,
             particle_radius: 0.01,
             skin: None,
+            #[cfg(feature = "dim3")]
+            wire: Vec::new(),
             skin_collision: false,
             collider_template: Some(ColliderBuilder::ball(0.05).density(0.0)),
             particle_settings: SoftBodyParticleSettings::default(),
@@ -184,8 +186,11 @@ impl SoftBodyBuilder {
             .collect();
         let segment = (end - start).length() / (num_particles - 1) as Real;
         let builder = Self::new(positions).particle_radius(segment * 0.5);
+        // The rope collides through its own segments: a polyline surface in 2D, a wire in 3D.
         #[cfg(feature = "dim2")]
         let builder = builder.surface(edges.clone());
+        #[cfg(feature = "dim3")]
+        let builder = builder.wire(edges.clone());
         builder.edges(edges).bend_edges(bend_edges)
     }
 

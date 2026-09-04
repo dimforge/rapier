@@ -4,6 +4,7 @@
         // so a one-refresh-stale proxy pose is fine.
     /// Refreshes every soft body's derived state at the end of a step: the surface orientation,
         // Every body reads its own particles and writes only itself: updated in parallel, then
+                // Flagged as modified so the broad phase updates their AABBs with the new margin.
     /// Tears a soft body right away: removes the given edges and cells and everything spanning
     /// them, splits the particles the tear passes through (the velocity of the original kept, its
 

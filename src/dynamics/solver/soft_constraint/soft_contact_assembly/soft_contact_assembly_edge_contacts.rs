@@ -60,6 +60,7 @@ impl SoftConstraintsSet {
             other_co.friction_combine_rule(),
         );
 
+        let current_mesh = out.current_mesh;
         let workspace = out;
         workspace.previous.clear();
         for c in &mesh.edge_contacts {

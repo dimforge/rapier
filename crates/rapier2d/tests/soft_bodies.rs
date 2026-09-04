@@ -1386,7 +1386,7 @@ fn fem_free_fall_is_exact() {
     let builder = SoftBodyBuilder::grid(Vector::new(0.0, 10.0), Vector::splat(0.5), 4, 4)
         .cell_model(SoftBodyCellModel::Corotational)
         .solver(SoftBodySolver::Fem)
-        .without_colliders()
+        .no_surface_collider()
         .can_sleep(false);
     let handle = world.insert_soft_body(builder);
     let start = world.soft_bodies[handle].particle_position(0);
@@ -1472,7 +1472,7 @@ fn fem_deflection_is_substep_invariant() {
         })
         .solver(SoftBodySolver::Fem)
         .mass(2.0)
-        .without_colliders()
+        .no_surface_collider()
         .can_sleep(false);
         let pinned: Vec<u32> = builder
             .particle_positions()

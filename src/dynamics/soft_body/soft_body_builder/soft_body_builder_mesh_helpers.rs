@@ -40,7 +40,45 @@ pub(super) fn mean_edge_length(positions: &[Vector], edges: &[[u32; 2]]) -> Real
         / edges.len() as Real
 }
 
+/// An element's vertices: its slots up to the first unused one (`u32::MAX`), so a segment
+/// element of a wire mesh in 3D reads as the two vertices it has.
+pub(crate) fn element_vertices(element: &[u32; DIM]) -> &[u32] {
+    let used = element
+        .iter()
+        .position(|v| *v == u32::MAX)
+        .unwrap_or(element.len());
+    &element[..used]
+}
+
+pub(crate) fn surface_is_closed(surface: &[[u32; DIM]]) -> bool {
+    if surface.is_empty() {
+        return false;
+    }
+    // Only a mesh of full facets encloses anything: a wire (segments in 3D) is a curve.
+    if surface
+        .iter()
+        .any(|element| element_vertices(element).len() != DIM)
+    {
+        return false;
+    }
+    let mut counts: HashMap<[u32; DIM - 1], u32> = HashMap::default();
+    for element in surface {
+        for k in 0..DIM {
+            // The facet opposite to vertex k, as a sorted key.
+            let mut facet = [0u32; DIM - 1];
+            let mut n = 0;
+            for (j, &v) in element.iter().enumerate() {
+                if j != k {
+                    facet[n] = v;
+                    n += 1;
+                }
+            }
+            facet.sort_unstable();
+            *counts.entry(facet).or_insert(0) += 1;
+        }
+    }
     counts.values().all(|&c| c == 2)
+}
 
 /// The cell owning each surface element (`u32::MAX` when no cell contains its vertices).
 pub(crate) fn surface_element_cells(surface: &[[u32; DIM]], cells: &[SoftBodyCell]) -> Vec<u32> {
@@ -85,6 +123,20 @@ pub(crate) fn surface_edge_table(
     let mut element_edges = Vec::with_capacity(surface.len());
     for (ei, element) in surface.iter().enumerate() {
         let mut e = [u32::MAX; DIM];
+        // A segment element is its own single edge (2D, and a wire in 3D).
+        let arity = element_vertices(element).len();
+        if arity < DIM {
+            let (a, b) = (element[0], element[1]);
+            let key = [a.min(b), a.max(b)];
+            let id = *ids.entry(key).or_insert_with(|| {
+                edges.push(key);
+                owners.push(ei as u32);
+                edges.len() as u32 - 1
+            });
+            e[0] = id;
+            element_edges.push(e);
+            continue;
+        }
         for k in 0..DIM {
             let a = element[(k + 1) % DIM];
             let b = element[(k + 2) % DIM];
@@ -128,6 +180,7 @@ pub(crate) fn surface_vertex_elements(
 pub(crate) fn surface_rings(num_particles: usize, surface: &[[u32; DIM]]) -> (Vec<u32>, Vec<u32>) {
     let mut rings: Vec<Vec<u32>> = vec![Vec::new(); num_particles];
     for element in surface {
+        let element = element_vertices(element);
         for &a in element {
             for &b in element {
                 if a != b {

@@ -488,4 +488,75 @@ mod tests {
             assert!(min_y > -0.5, "{label} sank through the ground: {min_y}");
         }
     }
+
+    /// A model worn as a skin the body does not collide through is a drawn mesh (skinned, no
+    /// collider) drawn in place of the cells' boundary; a colliding skin gets a collider and
+    /// drops the boundary, and a body with no skin only has its boundary.
+    #[test]
+    fn a_worn_skin_is_a_drawn_mesh() {
+        let path = format!("{}/../{}", env!("CARGO_MANIFEST_DIR"), models()[0]);
+        let (vertices, indices) = load_obj(&path).unwrap_or_else(|| panic!("{path} missing"));
+        let meshing = Meshing::default();
+
+        // The three settings the demo offers, and what each leaves for the renderer:
+        // (wear the model as a skin, skin collisions) -> (drawn skins, colliding meshes).
+        for (wear_skin, skin_collision, drawn, colliding) in [
+            (true, false, 1, 1),
+            (true, true, 0, 1),
+            (false, false, 0, 1),
+        ] {
+            let mut world = PhysicsWorld::new();
+            let filled = fill_lattice(&vertices, &indices, &meshing).expect("filled");
+            let filled = if wear_skin {
+                filled
+                    .skin(vertices.clone(), indices.clone())
+                    .skin_collision(skin_collision)
+            } else {
+                filled
+            };
+            let handle = world.insert_soft_body(
+                filled
+                    .particle_mass(0.05)
+                    .particle_radius(meshing.boundary_cell() * 0.25)
+                    .surface_collider(ColliderBuilder::ball(0.1)),
+            );
+            let body = &world.soft_bodies[handle];
+            let label = format!("wear_skin={wear_skin}, skin_collision={skin_collision}");
+
+            let drawn_skins: Vec<_> = body
+                .meshes()
+                .filter(|mesh| mesh.is_skinned() && !mesh.collision_enabled())
+                .collect();
+            assert_eq!(drawn_skins.len(), drawn, "{label}: drawn skins");
+            for skin in &drawn_skins {
+                // What the renderer builds its node from: the model's own geometry, with no
+                // collider to pick it up through the collider pass.
+                assert_eq!(
+                    skin.collider(),
+                    ColliderSet::invalid_handle(),
+                    "{label}: the skin has a collider"
+                );
+                assert_eq!(
+                    skin.vertex_count(),
+                    vertices.len(),
+                    "{label}: skin vertices"
+                );
+                assert_eq!(
+                    skin.indices().len(),
+                    indices.len(),
+                    "{label}: skin triangles"
+                );
+                assert!(
+                    skin.vertex_positions(body).all(|v| v.is_finite()),
+                    "{label}: the skin is not positioned"
+                );
+            }
+
+            let with_collider = body
+                .meshes()
+                .filter(|mesh| mesh.collision_enabled())
+                .count();
+            assert_eq!(with_collider, colliding, "{label}: colliding meshes");
+        }
+    }
 }

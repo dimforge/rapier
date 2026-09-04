@@ -94,6 +94,8 @@ impl SoftBodyBuilder {
                 stiffness_scale: 1.0,
                 color: 0,
                 torn: false,
+            });
+        }
         // Surface: given, or the boundary of the cells.
         let surface = if !self.surface.is_empty() {
             self.surface.clone()
@@ -186,4 +188,45 @@ impl SoftBodyBuilder {
     }
 }
 
+impl SoftBodyBuilder {
+    /// The meshes of `body`, built at insertion once it has its whole-body cluster: its skin,
+    /// bound to the cells at the rest positions, and its boundary, kept only when the body collides
+    /// through it (a body with a collision skin collides through the skin alone).
+    pub(crate) fn build_meshes(&self, body: &SoftBody) -> Vec<SoftCollisionMesh> {
+        let has_collider = self.collider_template.is_some();
+        let skin = self.skin.as_ref().and_then(|(vertices, indices)| {
+            SoftCollisionMesh::skinned(
+                vertices,
+                indices,
+                &body.cells,
+                &self.positions,
+                self.self_contacts,
+                has_collider && self.skin_collision,
+            )
+        });
+        let skin_collides = skin.as_ref().is_some_and(|mesh| mesh.collision_enabled());
+        let mut meshes = Vec::new();
+        if let Some(skin) = skin {
+            meshes.push(skin);
+        }
+        // A wire replaces the boundary mesh: a body made of segments has no surface.
+        #[cfg(feature = "dim3")]
+        if !skin_collides && !self.wire.is_empty() {
+            meshes.push(SoftCollisionMesh::wire(
+                body,
+                &self.wire,
+                self.self_contacts,
+                has_collider,
+            ));
+            return meshes;
+        }
+        if !skin_collides {
+            meshes.push(SoftCollisionMesh::boundary(
+                body,
+                self.self_contacts,
+                has_collider,
+            ));
+        }
+        meshes
+    }
 }

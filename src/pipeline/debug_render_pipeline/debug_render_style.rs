@@ -63,6 +63,12 @@ pub struct DebugRenderStyle {
     pub soft_body_frame_color: DebugColor,
     /// The color of the colliders' [`Aabb`](crate::geometry::Aabb)s.
     pub collider_aabb_color: DebugColor,
+    /// The color of the vertex pseudo-normals of triangle-meshes and polylines.
+    pub vertex_pseudo_normal_color: DebugColor,
+    /// The color of the edge pseudo-normals of triangle-meshes (3D only).
+    pub edge_pseudo_normal_color: DebugColor,
+    /// The length of the pseudo-normals.
+    pub pseudo_normal_length: Real,
 }
 
 impl Default for DebugRenderStyle {
@@ -90,6 +96,9 @@ impl Default for DebugRenderStyle {
             soft_body_element_color: [200.0, 0.8, 0.5, 1.0],
             soft_body_frame_color: [40.0, 0.9, 0.6, 1.0],
             collider_aabb_color: [124.0, 1.0, 0.4, 1.0],
+            vertex_pseudo_normal_color: [180.0, 1.0, 0.6, 1.0],
+            edge_pseudo_normal_color: [280.0, 1.0, 0.6, 1.0],
+            pseudo_normal_length: 0.2,
         }
     }
 }

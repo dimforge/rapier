@@ -35,15 +35,19 @@ pub struct SoftBodyCluster {
     pub(crate) shape_matching_target: Option<Pose>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) prev_shape_matching_target: Option<Pose>,
-    /// The rigid velocity gathered from the particles when the proxy was last refreshed: the
+    /// The rigid velocity gathered from the particles when the proxy was last updated: the
     /// proxy's `rb.vels` was set to exactly this, so `rb.vels - last_gather` is the external
     /// impulse the user applied to the proxy since (scattered by the solver's first pass).
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub(crate) last_gather: (Vector, AngVector),
-    /// Warm-start impulses of this cluster's shape-matching rows, parallel to `particles`
+    /// Warm-start impulses of this cluster's shape-matching constraints, parallel to `particles`
     /// (empty until the cluster is shape-matched).
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub(crate) shape_impulses: Vec<Vector>,
+    /// The collision meshes this cluster owns (see [`super::SoftCollisionMesh`]). Removed
+    /// meshes leave a `None` slot so ids stay stable.
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) meshes: Vec<Option<super::SoftCollisionMesh>>,
 }
 
 #[cfg(feature = "serde-serialize")]
@@ -63,6 +67,7 @@ impl SoftBodyCluster {
             prev_shape_matching_target: None,
             last_gather: Default::default(),
             shape_impulses: vec![],
+            meshes: Vec::new(),
         }
     }
 
@@ -80,6 +85,16 @@ impl SoftBodyCluster {
     /// The cluster's proxy rigid body.
     pub fn proxy(&self) -> RigidBodyHandle {
         self.proxy
+    }
+
+    /// The collision meshes this cluster carries (dead slots skipped).
+    pub fn meshes(&self) -> impl Iterator<Item = &super::SoftCollisionMesh> {
+        self.meshes.iter().flatten()
+    }
+
+    /// The `i`-th mesh of this cluster, if it is live.
+    pub fn mesh(&self, i: u32) -> Option<&super::SoftCollisionMesh> {
+        self.meshes.get(i as usize).and_then(|mesh| mesh.as_ref())
     }
 
     /// Whether this cluster's particles are shape-matched toward its frame.
@@ -149,6 +164,24 @@ impl SoftBody {
     /// Number of live clusters.
     pub fn num_live_clusters(&self) -> usize {
         self.clusters.iter().filter(|c| c.is_live()).count()
+    }
+
+    /// Whether two of this body's clusters share no particle (a merge walk over their sorted
+    /// particle lists; a dead or missing cluster shares nothing).
+    pub(crate) fn clusters_are_disjoint(&self, a: u32, b: u32) -> bool {
+        let (Some(a), Some(b)) = (self.cluster(a), self.cluster(b)) else {
+            return true;
+        };
+        let (mut i, mut j) = (0, 0);
+        let (a, b) = (a.particles(), b.particles());
+        while i < a.len() && j < b.len() {
+            match a[i].cmp(&b[j]) {
+                core::cmp::Ordering::Less => i += 1,
+                core::cmp::Ordering::Greater => j += 1,
+                core::cmp::Ordering::Equal => return false,
+            }
+        }
+        true
     }
 
     /// Enables or disables shape matching of the `i`-th cluster's particles toward the cluster's
@@ -427,11 +460,14 @@ impl SoftBody {
 
         // The meshes follow the renumbered particles and cells; their contact caches hold stale
         // ids.
-        let mut meshes = core::mem::take(&mut self.meshes);
-        for mesh in &mut meshes {
-            mesh.remap_topology(self, &cell_remap);
-        }
-        self.meshes = meshes;
+        let remap_tables = super::collision_mesh::SoftTopologyRemap {
+            cells: &cell_remap,
+            particles: &remap,
+        };
+        self.for_each_mesh_mut(|body, mesh| {
+            mesh.remap_topology(body, &remap_tables);
+            mesh.clear_contacts();
+        });
 
         self.boundary_closed = super::soft_body_builder::surface_is_closed(&self.boundary);
         self.rebuild_mesh_tables();

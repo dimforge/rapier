@@ -95,6 +95,10 @@ pub struct SoftBodyBuilder {
     /// Mesh held by the cells, if any: `(vertices, elements)` in world space, bound to the
     /// cells at build time (see [`super::SoftBodySkin`]).
     pub skin: Option<(Vec<Vector>, Vec<[u32; DIM]>)>,
+    /// The segments the body collides through when it has no surface: a rope or a wire (3D
+    /// only; in 2D the surface is already made of segments).
+    #[cfg(feature = "dim3")]
+    pub wire: Vec<[u32; 2]>,
     /// Whether the body meets the world through its skin rather than through its cells' boundary
     /// (off by default, and no effect without a skin).
     pub skin_collision: bool,

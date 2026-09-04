@@ -140,6 +140,9 @@ pub struct IndividualNode {
     pub delta: rapier::math::Pose,
     pub color: Color,
     pub tmp_color: Option<Color>,
+    /// Whether the node's mesh shares its vertices between elements (smooth normals): how it
+    /// was built, and how a deformable collider's geometry is written back into it.
+    pub smooth: bool,
 }
 
 /// A render-only scene node anchored to a rigid body rather than to a
@@ -265,6 +268,7 @@ impl GraphicsManager {
             templates: HashMap::new(),
             individual_nodes: Vec::new(),
             body_attached_nodes: Vec::new(),
+            soft_graphics: SoftBodyGraphics::default(),
             colliders_visible: true,
             body_render_meshes_visible: true,
             draw_surfaces: true,
@@ -297,6 +301,7 @@ impl GraphicsManager {
         self.templates.clear();
         self.individual_nodes.clear();
         self.body_attached_nodes.clear();
+        self.soft_graphics.clear();
         self.c2nodes.clear();
         self.b2colliders.clear();
         self.c2color.clear();
@@ -411,14 +416,14 @@ impl GraphicsManager {
                 }
                 Some(self.scene.add_render_mesh(mesh, Vec3::ONE))
             } else {
-                Self::create_individual_node(&mut self.scene, &**shape, color, false)
+                Self::create_individual_node(&mut self.scene, &**shape, color, false, false)
             }
         };
         #[cfg(feature = "dim2")]
         let mut node = {
             // Custom UV/normal plumbing and PBR materials are unsupported in 2D.
             let _ = (uvs, normals, material);
-            Self::create_individual_node(&mut self.scene, &**shape, color, false)
+            Self::create_individual_node(&mut self.scene, &**shape, color, false, false)
         };
 
         if let Some(n) = node.as_mut() {
@@ -471,6 +476,26 @@ impl GraphicsManager {
         });
     }
 
+    /// Rebuilds the node of a collider whose shape was replaced (a tear), or whose shading
+    /// changed.
+    fn rebuild_individual_node(&mut self, index: usize, collider: &rapier::geometry::Collider) {
+        let smooth = self.smooth_mesh_colliders;
+        let visible = self.draw_surfaces && self.colliders_visible;
+        let node = &mut self.individual_nodes[index];
+        let color = node.color;
+        node.node.detach();
+        if let Some(mut fresh) = Self::create_individual_node(
+            &mut self.scene,
+            collider.shape(),
+            color,
+            collider.is_sensor(),
+            smooth,
+        ) {
+            fresh.set_visible(visible);
+            let node = &mut self.individual_nodes[index];
+            node.node = fresh;
+            node.smooth = smooth;
+        }
     }
 
     pub fn scene(&self) -> &SceneNode {
@@ -716,7 +741,7 @@ impl GraphicsManager {
         }
     }
 
-    pub fn set_body_color(&mut self, b: RigidBodyHandle, color: Color, tmp_color: bool) {
+    pub fn set_body_color(&mut self, b: RigidBodyHandle, mut color: Color, tmp_color: bool) {
         if !tmp_color {
             self.b2color.insert(b, color);
         }
@@ -726,7 +751,8 @@ impl GraphicsManager {
                 match &self.c2nodes[co] {
                     NodeLocation::Individual { index } => {
                         if tmp_color {
-                            self.individual_nodes[*index].tmp_color = Some(color);
+                            let alpha = self.individual_nodes[*index].color.a;
+                            self.individual_nodes[*index].tmp_color = Some(color.with_alpha(alpha));
                         } else {
                             self.individual_nodes[*index].color = color;
                         }
@@ -734,7 +760,8 @@ impl GraphicsManager {
                     NodeLocation::Instanced { template, index } => {
                         let instances = &mut self.templates.get_mut(template).unwrap();
                         if tmp_color {
-                            instances.colliders[*index].tmp_color = Some(color);
+                            let alpha = instances.colliders[*index].color.a;
+                            instances.colliders[*index].tmp_color = Some(color.with_alpha(alpha));
                         } else {
                             instances.colliders[*index].color = color;
                         }
@@ -908,7 +935,7 @@ impl GraphicsManager {
             return;
         }
 
-        let opacity = if sensor { 0.5 } else { color.a };
+        let opacity = if sensor { 0.3 } else { color.a };
 
         // Try to use instancing for primitive shapes
         if let Some(template_type) = Self::shape_template_type(shape) {
@@ -932,8 +959,9 @@ impl GraphicsManager {
             );
         } else {
             // Create individual node for complex shapes
+            let smooth = self.smooth_mesh_colliders;
             if let Some(mut node) =
-                Self::create_individual_node(&mut self.scene, shape, color, sensor)
+                Self::create_individual_node(&mut self.scene, shape, color, sensor, smooth)
             {
                 // Honor the current visibility flags immediately so the node
                 // doesn't flash for one frame before the next `draw` (see #843).
@@ -945,6 +973,7 @@ impl GraphicsManager {
                     delta,
                     color: color.with_alpha(opacity),
                     tmp_color: None,
+                    smooth,
                 });
                 self.c2nodes
                     .insert(handle, NodeLocation::Individual { index });
@@ -958,10 +987,11 @@ impl GraphicsManager {
         shape: &dyn Shape,
         color: Color,
         sensor: bool,
+        smooth: bool,
     ) -> Option<SceneNode3d> {
         use kiss3d::procedural::{IndexBuffer, RenderMesh};
 
-        fn to_render_mesh(trimesh: &rapier::geometry::TriMesh) -> RenderMesh {
+        fn to_render_mesh(trimesh: &rapier::geometry::TriMesh, smooth: bool) -> RenderMesh {
             let vtx = trimesh
                 .vertices()
                 .iter()
@@ -969,7 +999,9 @@ impl GraphicsManager {
                 .collect();
             let idx = trimesh.indices().to_vec();
             let mut mesh = RenderMesh::new(vtx, None, None, Some(IndexBuffer::Unified(idx)));
-            mesh.replicate_vertices();
+            if !smooth {
+                mesh.replicate_vertices();
+            }
             mesh.recompute_normals();
             mesh
         }
@@ -977,13 +1009,13 @@ impl GraphicsManager {
         let mut node = match shape.shape_type() {
             ShapeType::TriMesh => {
                 let trimesh = shape.as_trimesh().unwrap();
-                Some(scene.add_render_mesh(to_render_mesh(trimesh), Vec3::ONE))
+                Some(scene.add_render_mesh(to_render_mesh(trimesh, smooth), Vec3::ONE))
             }
             ShapeType::HeightField => {
                 let heightfield = shape.as_heightfield().unwrap();
                 let (vertices, indices) = heightfield.to_trimesh();
                 let trimesh = rapier::geometry::TriMesh::new(vertices, indices).unwrap();
-                Some(scene.add_render_mesh(to_render_mesh(&trimesh), Vec3::ONE))
+                Some(scene.add_render_mesh(to_render_mesh(&trimesh, smooth), Vec3::ONE))
             }
             ShapeType::ConvexPolyhedron | ShapeType::RoundConvexPolyhedron => {
                 let poly = shape
@@ -992,7 +1024,7 @@ impl GraphicsManager {
                 poly.map(|p| {
                     let (vertices, indices) = p.to_trimesh();
                     let trimesh = rapier::geometry::TriMesh::new(vertices, indices).unwrap();
-                    scene.add_render_mesh(to_render_mesh(&trimesh), Vec3::ONE)
+                    scene.add_render_mesh(to_render_mesh(&trimesh, smooth), Vec3::ONE)
                 })
             }
             ShapeType::Capsule => {
@@ -1009,7 +1041,7 @@ impl GraphicsManager {
                 let vertices = vec![tri.a, tri.b, tri.c];
                 let indices = vec![[0u32, 1, 2], [0u32, 2, 1]];
                 let trimesh = rapier::geometry::TriMesh::new(vertices, indices).unwrap();
-                Some(scene.add_render_mesh(to_render_mesh(&trimesh), Vec3::ONE))
+                Some(scene.add_render_mesh(to_render_mesh(&trimesh, smooth), Vec3::ONE))
             }
             ShapeType::HalfSpace => {
                 let mut parent = scene.add_group();
@@ -1017,20 +1049,37 @@ impl GraphicsManager {
                 let node = parent.add_quad(2000.0, 2000.0, 1, 1);
                 Some(node)
             }
+            ShapeType::Polyline => {
+                // A wire (a soft rope) is drawn as a tube: raw lines have no thickness to
+                // shade, and a deforming wire needs geometry it can follow.
+                let (vertices, segments) = polyline_geometry(shape)?;
+                let (vtx, idx) = tube_polyline(&vertices, &segments);
+                let mut mesh = RenderMesh::new(vtx, None, None, Some(IndexBuffer::Unified(idx)));
+                mesh.recompute_normals();
+                Some(scene.add_render_mesh(mesh, Vec3::ONE))
+            }
             ShapeType::Voxels => {
                 let voxels = shape.as_voxels().unwrap();
                 let (vertices, indices) = voxels.to_trimesh();
                 let trimesh = rapier::geometry::TriMesh::new(vertices, indices).unwrap();
-                Some(scene.add_render_mesh(to_render_mesh(&trimesh), Vec3::ONE))
+                Some(scene.add_render_mesh(to_render_mesh(&trimesh, smooth), Vec3::ONE))
             }
             _ => None,
         };
 
         if let Some(ref mut n) = node {
             n.set_color_recursive(color);
+            // Meshes are drawn from both sides: a soft body's surface is routinely seen from
+            // the inside (a crushed or inverted body), and an authored mesh's winding is not
+            // guaranteed either.
+            n.enable_backface_culling_recursive(false);
             if sensor {
-                n.set_surface_rendering_activation(false);
-                n.set_lines_width(1.0, false);
+                // Sensors are translucent, like their instanced counterparts: an explicit
+                // Blend mode routes the node to the transparency pass whatever its default
+                // (see `ShapeTemplate`), and its color includes the sensor opacity.
+                n.apply_to_objects_mut_recursive(&mut |o| {
+                    o.set_alpha_mode(kiss3d::scene::AlphaMode::Blend)
+                });
             }
         }
 
@@ -1043,6 +1092,7 @@ impl GraphicsManager {
         shape: &dyn Shape,
         color: Color,
         _sensor: bool,
+        _smooth: bool,
     ) -> Option<SceneNode2d> {
         let mut node = match shape.shape_type() {
             ShapeType::Triangle => {
@@ -1095,32 +1145,14 @@ impl GraphicsManager {
                 ];
                 Some(scene.add_polyline(vertices, None, 0.1))
             }
-            ShapeType::Polyline => {
-                // Render polyline as connected thin quads
-                let polyline = shape.as_polyline().unwrap();
-                let vertices: Vec<Vec2> = polyline
-                    .vertices()
-                    .iter()
-                    .map(|pt| Vec2::new(pt.x as f32, pt.y as f32))
-                    .collect();
-                Some(
-                    scene
-                        .add_polyline(vertices, Some(polyline.indices().to_vec()), 0.2)
-                        .set_lines_color(Some(GROUND_COLOR)),
-                )
-            }
-            ShapeType::HeightField => {
-                let hf = shape.as_heightfield().unwrap();
-                let (polyline_verts, indices) = hf.to_polyline();
-                let vertices: Vec<Vec2> = polyline_verts
-                    .iter()
-                    .map(|pt| Vec2::new(pt.x as f32, pt.y as f32))
-                    .collect();
-                Some(
-                    scene
-                        .add_polyline(vertices, Some(indices), 0.2)
-                        .set_lines_color(Some(GROUND_COLOR)),
-                )
+            ShapeType::Polyline | ShapeType::HeightField => {
+                // A stroked mesh rather than raw lines: the joins are covered, the stroke takes
+                // the collider's color like any other surface, and a deforming polyline can be
+                // followed by rewriting its vertices.
+                let (vertices, segments) = polyline_geometry(shape)?;
+                let (vtx, idx) = stroked_polyline(&vertices, &segments);
+                let mesh = GpuMesh2d::new(vtx, idx, None, false);
+                Some(scene.add_mesh(Rc::new(RefCell::new(mesh)), Vec2::ONE))
             }
             ShapeType::Voxels => {
                 let voxels = shape.as_voxels().unwrap();
@@ -1160,11 +1192,13 @@ impl GraphicsManager {
         flags: TestbedStateFlags,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        soft_bodies: &SoftBodySet,
     ) {
         self.draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
         self.smooth_mesh_colliders = flags.contains(TestbedStateFlags::SMOOTH_MESH_COLLIDERS);
         let show_colliders = self.draw_surfaces && self.colliders_visible;
         let show_body_meshes = self.draw_surfaces && self.body_render_meshes_visible;
+        self.update_soft_mesh_nodes(soft_bodies, show_colliders);
 
         // Update instance data for all templates
         for (template_type, template) in &mut self.templates {
@@ -1285,16 +1319,31 @@ impl GraphicsManager {
         // mirrored by a visual-only counterpart on the same body, so
         // "Render visual meshes" still shows the full geometry of
         // those models without conflating channels.
-        for node in &mut self.individual_nodes {
-            node.node.set_visible(show_colliders);
-
-            if let Some(co) = colliders.get(node.collider) {
-                let co_pos = *co.position() * node.delta;
-                node.node
-                    .set_pose(co_pos.append_translation(self.gfx_shift).into());
-                node.node
-                    .set_color_recursive(node.tmp_color.take().unwrap_or(node.color));
+        for index in 0..self.individual_nodes.len() {
+            let Some(co) = colliders.get(self.individual_nodes[index].collider) else {
+                self.individual_nodes[index]
+                    .node
+                    .set_visible(show_colliders);
+                continue;
+            };
+            let hidden_by_skin = is_hidden_by_skin(co, soft_bodies);
+            self.individual_nodes[index]
+                .node
+                .set_visible(show_colliders && !hidden_by_skin);
+            // The shading choice changed under a mesh: its vertices are shared or unshared, so
+            // the node is built anew.
+            if co.shape().as_trimesh().is_some()
+                && self.individual_nodes[index].smooth != self.smooth_mesh_colliders
+            {
+                self.rebuild_individual_node(index, co);
             }
+            self.update_deformable_collider(index, co);
+            let node = &mut self.individual_nodes[index];
+            let co_pos = *co.position() * node.delta;
+            node.node
+                .set_pose(co_pos.append_translation(self.gfx_shift).into());
+            node.node
+                .set_color_recursive(node.tmp_color.take().unwrap_or(node.color));
         }
 
         // Update body-attached render-only nodes (e.g. MJCF visual meshes).
@@ -1316,9 +1365,11 @@ impl GraphicsManager {
         flags: TestbedStateFlags,
         _bodies: &RigidBodySet,
         colliders: &ColliderSet,
+        soft_bodies: &SoftBodySet,
     ) {
         self.draw_surfaces = flags.contains(TestbedStateFlags::DRAW_SURFACES);
         let show_colliders = self.draw_surfaces && self.colliders_visible;
+        self.update_soft_mesh_nodes(soft_bodies, show_colliders);
 
         // Update instance data for all templates
         for (template_type, template) in &mut self.templates {
@@ -1403,19 +1454,24 @@ impl GraphicsManager {
         }
 
         // Update individual nodes
-        for node in &mut self.individual_nodes {
-            node.node.set_visible(show_colliders);
+        for index in 0..self.individual_nodes.len() {
+            self.individual_nodes[index]
+                .node
+                .set_visible(show_colliders);
 
-            if let Some(co) = colliders.get(node.collider) {
-                let co_pos = *co.position() * node.delta;
-                node.node.set_position(Vec2::new(
-                    (co_pos.translation.x + self.gfx_shift.x) as f32,
-                    (co_pos.translation.y + self.gfx_shift.y) as f32,
-                ));
-                node.node.set_rotation(co_pos.rotation.angle() as f32);
-                node.node
-                    .set_color_recursive(node.tmp_color.take().unwrap_or(node.color));
-            }
+            let Some(co) = colliders.get(self.individual_nodes[index].collider) else {
+                continue;
+            };
+            self.update_deformable_collider(index, co);
+            let node = &mut self.individual_nodes[index];
+            let co_pos = *co.position() * node.delta;
+            node.node.set_position(Vec2::new(
+                (co_pos.translation.x + self.gfx_shift.x) as f32,
+                (co_pos.translation.y + self.gfx_shift.y) as f32,
+            ));
+            node.node.set_rotation(co_pos.rotation.angle() as f32);
+            node.node
+                .set_color_recursive(node.tmp_color.take().unwrap_or(node.color));
         }
     }
 }

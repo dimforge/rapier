@@ -313,7 +313,7 @@ fn user_collider_on_a_proxy_rides_the_frame() {
             })
             .particle_mass(0.1)
             .particle_radius(0.05)
-            .collider_template(ColliderBuilder::ball(0.05)),
+            .surface_collider(ColliderBuilder::ball(0.05)),
     );
     let root = world.soft_bodies[h].root_body();
     // A small bracket embedded in the jelly (overlapping its own surface: the same-soft-body
@@ -409,7 +409,7 @@ fn cluster_stiffness_scale_stiffens_a_region() {
             })
             .particle_mass(0.1)
             .particle_radius(0.05)
-            .collider_template(ColliderBuilder::ball(0.05)),
+            .surface_collider(ColliderBuilder::ball(0.05)),
     );
     // A soft reference world with the identical body, unscaled.
     let mut soft_world = world_with_ground();
@@ -424,7 +424,7 @@ fn cluster_stiffness_scale_stiffens_a_region() {
             })
             .particle_mass(0.1)
             .particle_radius(0.05)
-            .collider_template(ColliderBuilder::ball(0.05)),
+            .surface_collider(ColliderBuilder::ball(0.05)),
     );
     // Stiffen the whole body through the whole-body cluster: it must sag less than the soft
     // reference under its own weight.
@@ -517,4 +517,126 @@ fn pinned_cluster_drives_its_region_kinematically() {
     for p in world.soft_bodies[h].particles() {
         assert!(p.position().is_finite());
     }
+}
+
+/// A jelly cube with a stiff corotational material, on the ground.
+fn jelly(world: &mut PhysicsWorld) -> SoftBodyHandle {
+    world.insert_soft_body(
+        SoftBodyBuilder::cuboid(Vector::new(0.0, 0.6, 0.0), Vector::splat(0.5), 3, 3, 3)
+            .cell_model(SoftBodyCellModel::Corotational)
+            .material(SoftBodyMaterial {
+                young_modulus: 5.0e4,
+                poisson_ratio: 0.3,
+                elastic_damping_ratio: 1.0,
+                ..Default::default()
+            })
+            .particle_mass(0.1)
+            .particle_radius(0.05)
+            .surface_collider(ColliderBuilder::ball(0.05)),
+    )
+}
+
+/// The particles of a soft body above `y`.
+fn particles_above(world: &PhysicsWorld, handle: SoftBodyHandle, y: Real) -> Vec<u32> {
+    world.soft_bodies[handle]
+        .particles()
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.position().y > y)
+        .map(|(i, _)| i as u32)
+        .collect()
+}
+
+#[test]
+fn a_rigid_collider_on_a_sub_cluster_does_not_fight_its_own_body() {
+    let mut world = world_with_ground();
+    let h = jelly(&mut world);
+    let top = particles_above(&world, h, 0.6);
+    assert!(!top.is_empty());
+    let cluster = world
+        .soft_bodies
+        .add_cluster(h, &top, &mut world.bodies, &mut world.colliders)
+        .unwrap();
+    let proxy = world.soft_bodies[h].cluster_proxy(cluster).unwrap();
+    // A bracket embedded in the jelly, on a proxy that is *not* the parent of its surface
+    // collider: only the same-soft-body filter can keep the two apart.
+    let bracket = world.colliders.insert_with_parent(
+        ColliderBuilder::cuboid(0.2, 0.2, 0.2).density(0.1),
+        proxy,
+        &mut world.bodies,
+    );
+    let surface = world.soft_bodies[h].collision_mesh().unwrap().collider();
+
+    for _ in 0..300 {
+        world.step();
+    }
+
+    assert!(
+        !world
+            .narrow_phase
+            .contact_pair(bracket, surface)
+            .is_some_and(|pair| pair.has_any_active_contact()),
+        "a body's own bracket collided with its surface"
+    );
+    let sb = &world.soft_bodies[h];
+    assert!(sb.particle_positions().all(|p| p.is_finite()));
+    let com = sb.center_of_mass();
+    assert!(
+        com.y > 0.2 && com.y < 0.8,
+        "the jelly did not settle (com {com:?})"
+    );
+}
+
+#[test]
+fn a_rigid_collider_on_a_cluster_brings_the_world_to_the_particles() {
+    let mut world = world_with_ground();
+    // A soft jelly, so the load's deflection is visible.
+    let h = world.insert_soft_body(
+        SoftBodyBuilder::cuboid(Vector::new(0.0, 0.6, 0.0), Vector::splat(0.5), 3, 3, 3)
+            .cell_model(SoftBodyCellModel::Corotational)
+            .material(SoftBodyMaterial {
+                young_modulus: 2.0e3,
+                poisson_ratio: 0.3,
+                elastic_damping_ratio: 1.0,
+                ..Default::default()
+            })
+            .particle_mass(0.1)
+            .particle_radius(0.05)
+            .surface_collider(ColliderBuilder::ball(0.05)),
+    );
+    let top = particles_above(&world, h, 0.6);
+    let cluster = world
+        .soft_bodies
+        .add_cluster(h, &top, &mut world.bodies, &mut world.colliders)
+        .unwrap();
+    let proxy = world.soft_bodies[h].cluster_proxy(cluster).unwrap();
+    // A plate on the jelly's top cluster, and a heavy box dropped on it.
+    world.colliders.insert_with_parent(
+        ColliderBuilder::cuboid(0.5, 0.05, 0.5).translation(Vector::new(0.0, 0.55, 0.0)),
+        proxy,
+        &mut world.bodies,
+    );
+    for _ in 0..100 {
+        world.step();
+    }
+    let before = world.soft_bodies[h].center_of_mass().y;
+
+    let (weight, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 2.5, 0.0)),
+        ColliderBuilder::cuboid(0.3, 0.3, 0.3).density(20.0),
+    );
+    for _ in 0..300 {
+        world.step();
+    }
+
+    let sb = &world.soft_bodies[h];
+    assert!(sb.particle_positions().all(|p| p.is_finite()));
+    let after = sb.center_of_mass().y;
+    assert!(
+        after < before - 0.02,
+        "the load on the plate did not reach the particles: {before} -> {after}"
+    );
+    // The weight rests on the plate rather than falling through the jelly.
+    let weight_y = world.bodies[weight].translation().y;
+    assert!(weight_y > 0.2, "the weight fell through: {weight_y}");
 }

@@ -330,6 +330,11 @@ fn settings_tab(ui: &mut Ui, state: &mut TestbedState, world: &mut PhysicsWorld)
             .flags
             .contains(TestbedStateFlags::SMOOTH_MESH_COLLIDERS);
         if ui
+            .checkbox(&mut smooth, "Smooth mesh colliders")
+            .on_hover_text(
+                "Shared vertices and per-vertex normals on mesh colliders, soft bodies included \
+                 (flat shading otherwise).",
+            )
             .changed()
         {
             state
@@ -657,6 +662,12 @@ fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource)
                 "The soft bodies' elements (structural and cell edges), their cluster frames, \
                  and their soft-vs-soft contacts.",
             ),
+            (
+                DebugRenderMode::PSEUDO_NORMALS,
+                "Pseudo-normals",
+                "The pseudo-normals of the oriented triangle-meshes and polylines, at their \
+                 vertices and edge midpoints.",
+            ),
         ];
 
         for (flag, label, hover) in FLAGS {
@@ -699,6 +710,10 @@ fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource)
             Slider::new(&mut style.contact_normal_length, 0.0..=1.0).text("Normal length"),
         )
         .on_hover_text("Length of the contact normals.");
+        ui.add(
+            Slider::new(&mut style.pseudo_normal_length, 0.0..=1.0).text("Pseudo-normal length"),
+        )
+        .on_hover_text("Length of the meshes' pseudo-normals.");
 
         ui.collapsing("Colors", |ui| {
             debug_color_picker(ui, "Dynamic colliders", &mut style.collider_dynamic_color);
@@ -726,6 +741,16 @@ fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource)
             debug_color_picker(ui, "Contact normals", &mut style.contact_normal_color);
             debug_color_picker(ui, "Soft-body elements", &mut style.soft_body_element_color);
             debug_color_picker(ui, "Soft-body frames", &mut style.soft_body_frame_color);
+            debug_color_picker(
+                ui,
+                "Vertex pseudo-normals",
+                &mut style.vertex_pseudo_normal_color,
+            );
+            debug_color_picker(
+                ui,
+                "Edge pseudo-normals",
+                &mut style.edge_pseudo_normal_color,
+            );
 
             ui.add_space(4.0);
             ui.label("Multipliers (per HSLA component)");

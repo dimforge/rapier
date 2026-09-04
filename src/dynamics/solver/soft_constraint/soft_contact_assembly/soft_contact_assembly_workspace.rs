@@ -57,7 +57,23 @@ pub(super) struct BodyContacts {
     /// vertex pass), by (vertex, element).
     pub(super) previous_vertex: HashMap<(u32, u32), (Real, Vector)>,
 }
+/// The contact state one collision mesh owns across steps: what the next step warm-starts from.
+#[derive(Default)]
+pub(super) struct MeshContacts {
+    pub(super) id: SoftMeshId,
+    pub(super) edge_contacts: Vec<SoftEdgeContact>,
+    pub(super) vertex_contacts: Vec<SoftVertexContact>,
+}
 impl BodyContacts {
+    /// Starts assembling the mesh `id`: its contacts go to a list of its own.
+    pub(super) fn begin_mesh(&mut self, id: SoftMeshId) {
+        self.current_mesh = self.meshes.len();
+        self.meshes.push(MeshContacts {
+            id,
+            ..Default::default()
+        });
+    }
+
 }
 /// The step-constant inputs of the per-body contact assembly.
 pub(super) struct AssemblyCtx<'a> {

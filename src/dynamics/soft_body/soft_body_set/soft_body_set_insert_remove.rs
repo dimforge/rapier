@@ -65,6 +65,7 @@ impl SoftBodySet {
 
         soft_body.root_body =
             spawn_proxy(&soft_body.particle_settings, soft_body.user_data, handle, 0, bodies);
+        let meshes = soft_body_builder.build_meshes(&soft_body);
         soft_body.clusters = alloc::vec![SoftBodyCluster {
             particles: (0..soft_body.particles.len() as u32).collect(),
             proxy: soft_body.root_body,
@@ -75,6 +76,7 @@ impl SoftBodySet {
             prev_shape_matching_target: None,
             last_gather: Default::default(),
             shape_impulses: Vec::new(),
+            meshes: meshes.into_iter().map(Some).collect(),
         }];
         soft_body.cluster_refs = alloc::vec![1; soft_body.particles.len()];
         // The whole-body frame first: the colliders are expressed in it.
@@ -88,6 +90,32 @@ impl SoftBodySet {
         // the soft body), with vertices in the whole-body cluster's frame (the proxy's pose holds
         // the rigid motion). They collide with everything, fixed and kinematic colliders included.
         if let Some(template) = soft_body_builder.collider_template.as_ref() {
+            let mut clusters = core::mem::take(&mut soft_body.clusters);
+            for (ci, cluster) in clusters.iter_mut().enumerate() {
+                for (mi, mesh) in cluster.meshes.iter_mut().enumerate() {
+                    let Some(mesh) = mesh else { continue };
+                    mesh.set_id(SoftMeshId {
+                        cluster: ci as u32,
+                        mesh: mi as u32,
+                    });
+                    if !mesh.collision_enabled() {
+                        continue;
+                    }
+                    let Some(co_handle) = spawn_mesh_collider(
+                        template, handle, mesh, &soft_body, cluster.proxy, &frame, bodies,
+                        colliders,
+                    ) else {
+                        // No shape to build (no element): the mesh collides through nothing,
+                        // and says so rather than holding an invalid collider.
+                        mesh.collision_enabled = false;
+                        continue;
+                    };
+                    mesh.collider = co_handle;
+                }
+            }
+            soft_body.clusters = clusters;
+        }
+
         *self.bodies.get_mut(handle.0).unwrap() = soft_body;
         self.island_events.push(SoftBodyIslandEvent { handle });
         handle

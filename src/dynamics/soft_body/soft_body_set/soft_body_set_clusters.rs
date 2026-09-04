@@ -35,6 +35,7 @@ impl SoftBodySet {
         sb.clusters.push(SoftBodyCluster {
             particles: list,
             proxy,
+            meshes: Vec::new(),
             rotation: Rotation::IDENTITY,
             cell,
             shape_matching: false,

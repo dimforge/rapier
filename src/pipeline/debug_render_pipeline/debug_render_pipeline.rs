@@ -41,6 +41,9 @@ bitflags::bitflags! {
         /// If this flag is set, the soft bodies' elements (structural edges and cell edges) and
         /// their soft-vs-soft contacts (vertex-vs-surface and edge-vs-edge) will be rendered.
         const SOFT_BODIES = 1 << 7;
+        /// If this flag is set, the pseudo-normals of the triangle-meshes (3D) and polylines (2D)
+        /// that have them will be rendered.
+        const PSEUDO_NORMALS = 1 << 8;
     }
 }
 
@@ -460,6 +463,118 @@ impl DebugRenderPipeline {
                     );
                 }
             }
+        }
+
+        if self.mode.contains(DebugRenderMode::PSEUDO_NORMALS) {
+            for (h, co) in colliders.iter() {
+                let object = DebugRenderObject::Collider(h, co);
+
+                if backend.filter_object(object) {
+                    self.render_shape_pseudo_normals(object, backend, co.shape(), co.position());
+                }
+            }
+        }
+    }
+
+    /// Renders the pseudo-normals of the polylines reachable from `shape`, if computed (polyline
+    /// `ORIENTED`), each starting at its vertex.
+    #[cfg(feature = "dim2")]
+    #[profiling::function]
+    fn render_shape_pseudo_normals(
+        &mut self,
+        object: DebugRenderObject,
+        backend: &mut impl DebugRenderBackend,
+        shape: &dyn Shape,
+        pos: &Pose,
+    ) {
+        let len = self.style.pseudo_normal_length;
+
+        match shape.as_typed_shape() {
+            TypedShape::Polyline(s) => {
+                let Some(pseudo_normals) = s.pseudo_normals() else {
+                    return;
+                };
+
+                for (vtx, n) in s.vertices().iter().zip(pseudo_normals) {
+                    let Some(n) = n.try_normalize() else {
+                        continue;
+                    };
+                    let a = *pos * *vtx;
+                    backend.draw_line(
+                        object,
+                        a,
+                        a + pos.rotation * n * len,
+                        self.style.vertex_pseudo_normal_color,
+                    );
+                }
+            }
+            TypedShape::Compound(s) => {
+                for (sub_pos, shape) in s.shapes() {
+                    self.render_shape_pseudo_normals(object, backend, &**shape, &(pos * sub_pos))
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Renders the pseudo-normals of the triangle meshes reachable from `shape`, if computed (mesh
+    /// `ORIENTED` or `FIX_INTERNAL_EDGES`), each from its feature: a vertex, or an edge's midpoint.
+    #[cfg(feature = "dim3")]
+    #[profiling::function]
+    fn render_shape_pseudo_normals(
+        &mut self,
+        object: DebugRenderObject,
+        backend: &mut impl DebugRenderBackend,
+        shape: &dyn Shape,
+        pos: &Pose,
+    ) {
+        let len = self.style.pseudo_normal_length;
+
+        match shape.as_typed_shape() {
+            TypedShape::TriMesh(s) => {
+                let Some(pseudo_normals) = s.pseudo_normals() else {
+                    return;
+                };
+                let vertices = s.vertices();
+
+                for (vtx, n) in vertices.iter().zip(&pseudo_normals.vertices_pseudo_normal) {
+                    let Some(n) = n.try_normalize() else {
+                        continue;
+                    };
+                    let a = *pos * *vtx;
+                    backend.draw_line(
+                        object,
+                        a,
+                        a + pos.rotation * n * len,
+                        self.style.vertex_pseudo_normal_color,
+                    );
+                }
+
+                // The per-triangle pseudo-normals are stored in the edge order [ab, bc, ca], as
+                // built by `TriMesh::compute_pseudo_normals`.
+                for (idx, normals) in s.indices().iter().zip(&pseudo_normals.edges_pseudo_normal) {
+                    for (k, n) in normals.iter().enumerate() {
+                        let Some(n) = n.try_normalize() else {
+                            continue;
+                        };
+                        let v0 = vertices[idx[k] as usize];
+                        let v1 = vertices[idx[(k + 1) % 3] as usize];
+                        let a = *pos * ((v0 + v1) * 0.5);
+                        backend.draw_line(
+                            object,
+                            a,
+                            a + pos.rotation * n * len,
+                            self.style.edge_pseudo_normal_color,
+                        );
+                    }
+                }
+            }
+            TypedShape::Compound(s) => {
+                for (sub_pos, shape) in s.shapes() {
+                    self.render_shape_pseudo_normals(object, backend, &**shape, &(pos * sub_pos))
+                }
+            }
+            _ => {}
         }
     }
 

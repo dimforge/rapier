@@ -40,6 +40,7 @@ impl SoftConstraintsSet {
             let sb = unsafe { &*awake.ptr };
             for mesh in sb.meshes().filter(|mesh| mesh.collision_enabled()) {
                 let surface_handle = mesh.collider();
+                out.begin_mesh(mesh.id());
                 let self_frozen = awake.frozen;
                 let slots = &self.slots[awake.slot_start..awake.slot_start + awake.num_particles];
                 // The other soft surfaces whose edge-vs-edge constraints this body owns: (awake
@@ -82,6 +83,22 @@ impl SoftConstraintsSet {
                         let Some(other_sb) = soft_bodies.get(other_sb_handle) else {
                             continue;
                         };
+                        // Two meshes of one body never collide within a cluster (a hull and a skin
+                        // describe the same particles); across clusters they do, if both opted in
+                        // and their clusters share no particle.
+                        if other_sb_handle == awake.handle {
+                            let Some(other_mesh) = other_sb.mesh(other_ref.id) else {
+                                continue;
+                            };
+                            let same_cluster = other_ref.id.cluster == mesh.id().cluster;
+                            if same_cluster
+                                || !mesh.self_contacts_enabled()
+                                || !other_mesh.self_contacts_enabled()
+                                || !sb.clusters_are_disjoint(mesh.id().cluster, other_ref.id.cluster)
+                            {
+                                continue;
+                            }
+                        }
                         let frozen = match other_ai {
                             Some(bi) => self.awake[bi].frozen,
                             None => other_sb.particles.iter().all(|p| p.inv_mass == 0.0),
@@ -115,6 +132,22 @@ impl SoftConstraintsSet {
                                 &[],
                                 out,
                             );
+                        }
+                        // The edge-vs-edge pass of a pair is owned by its lower
+                        // (awake index, cluster, mesh): exactly one side assembles it.
+                        let own_key = (ai, mesh.id().cluster, mesh.id().mesh);
+                        let other_key = (
+                            other_ai.unwrap_or(usize::MAX),
+                            other_ref.id.cluster,
+                            other_ref.id.mesh,
+                        );
+                        if own_key <= other_key {
+                            edge_tasks.push((
+                                other_ai,
+                                other_sb_handle,
+                                other_handle,
+                                detected.edges.as_ref(),
+                            ));
                         }
                         continue;
                     }
@@ -211,6 +244,13 @@ impl SoftConstraintsSet {
                             } else {
                                 (localized(sc.anchor2, &pose2), localized(sc.anchor1, &pose1))
                             };
+                            let positions: [Vector; DIM] = core::array::from_fn(|k| {
+                                element
+                                    .get(k)
+                                    .map_or(Vector::ZERO, |v| mesh.vertex(sb, *v as usize))
+                            });
+                            let weights =
+                                barycentric_weights(&positions[..element.len()], surface_anchor);
                             (positions, weights, other_anchor)
                         };
                     // Contacts whose point lies inside the element (vertex/edge contacts have

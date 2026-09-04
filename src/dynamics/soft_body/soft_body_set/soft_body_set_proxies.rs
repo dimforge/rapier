@@ -32,7 +32,11 @@ pub(crate) fn surface_shape(
         if super::soft_body_builder::element_vertices(&surface[0]).len() < DIM {
             let segments: Vec<[u32; 2]> = surface.iter().map(|e| [e[0], e[1]]).collect();
             return Some(SharedShape::new(Polyline::with_flags(
+                vertices,
                 Some(segments),
+                PolylineFlags::DEFORMABLE,
+            )));
+        }
         SharedShape::trimesh_with_flags(vertices, surface.to_vec(), TriMeshFlags::DEFORMABLE).ok()
     }
 }
@@ -71,6 +75,53 @@ pub(super) fn rebuilt_surface_shape(
     Some(shape)
 }
 
+/// Creates the collider holding a soft body's collision `mesh`, parented to its cluster's
+/// `proxy` and expressed in `frame` (the proxy's pose): the deformable shape follows the
+/// particles every step. `None` when the mesh has no shape to build.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn spawn_mesh_collider(
+    template: &ColliderBuilder,
+    handle: SoftBodyHandle,
+    mesh: &super::SoftCollisionMesh,
+    body: &SoftBody,
+    proxy: RigidBodyHandle,
+    frame: &Pose,
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+) -> Option<ColliderHandle> {
+    let shape = surface_shape(
+        mesh.local_vertices(body, frame),
+        mesh.indices(),
+        mesh.is_closed(),
+    )?;
+    let mut collider = template
+        .clone()
+        .density(0.0)
+        .contact_skin(body.particle_radius())
+        .build();
+    collider.set_shape(shape);
+    collider.set_position(Pose::IDENTITY);
+    let co_handle = colliders.insert_with_parent(collider, proxy, bodies);
+    // `insert_with_parent` resets the internal references; the collider's world pose is the
+    // frame (local pose identity).
+    let co = colliders.index_mut_internal(co_handle);
+    co.deformable_mesh_ref = Some(SoftMeshRef {
+        body: handle,
+        id: mesh.id(),
+    });
+    co.deform_pose(*frame);
+    Some(co_handle)
+}
+
+/// Creates the proxy rigid body of cluster `cluster` of soft body `handle`: a
+/// [`crate::dynamics::RigidBodyType::SoftFrame`] body standing for the cluster in the islands
+/// and joints and holding its colliders. Cluster 0's proxy is the soft body's root body.
+pub(super) fn spawn_proxy(
+    settings: &super::SoftBodyParticleSettings,
+    user_data: u128,
+    handle: SoftBodyHandle,
+    cluster: u32,
+    bodies: &mut RigidBodySet,
 ) -> RigidBodyHandle {
     let rb = RigidBodyBuilder::dynamic()
         .gravity_scale(0.0)

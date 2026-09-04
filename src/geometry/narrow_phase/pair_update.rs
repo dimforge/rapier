@@ -198,6 +198,24 @@ pub(super) fn process_pair(
         let soft_surface_pair = co1.deformable_mesh_ref.is_some() || co2.deformable_mesh_ref.is_some();
         let two_soft_surfaces = co1.deformable_mesh_ref.is_some() && co2.deformable_mesh_ref.is_some();
 
+        // Two colliders of one soft body: its collision meshes decide between themselves (see
+        // `soft_contacts::update_pair`), but a rigid collider hung on a cluster proxy must not
+        // collide with the body it rides; pairs between two clusters of the same body are allowed.
+        let soft_body_of = |co: &crate::geometry::Collider,
+                            rb: Option<&crate::dynamics::RigidBody>| {
+            co.deformable_mesh_ref
+                .map(|mesh| mesh.body)
+                .or_else(|| rb.and_then(|rb| rb.soft_body()))
+        };
+        if let (Some(sb1), Some(sb2)) = (soft_body_of(co1, rb1), soft_body_of(co2, rb2)) {
+            if sb1 == sb2 && !two_soft_surfaces {
+                if clear_filtered_pair(pair) {
+                    outcome = OUTCOME_CLEARED_IN_GRAPH;
+                }
+                break 'emit_events;
+            }
+        }
+
         // Deal with contacts disabled between bodies attached by joints.
         if let (Some(co_parent1), Some(co_parent2)) = (&co1.parent, &co2.parent) {
             for (_, joint) in impulse_joints.joints_between(co_parent1.handle, co_parent2.handle) {

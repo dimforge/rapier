@@ -224,6 +224,25 @@ const _: () = assert!(DIM + 1 == MAX_CONSTRAINT_PARTICLES);
 /// Barycentric weights of `p` on the surface element (segment in 2D, triangle in 3D),
 /// clamped to the element.
 pub(crate) fn barycentric_weights(x: &[Vector], p: Vector) -> [Real; DIM] {
+    // A segment element (2D, and a wire in 3D): the unused weights stay at zero.
+    #[cfg(feature = "dim3")]
+    if x.len() < DIM {
+        let mut weights = [0.0; DIM];
+        if x.len() == 2 {
+            let e = x[1] - x[0];
+            let l2 = e.length_squared();
+            let t = if l2 > 0.0 {
+                ((p - x[0]).dot(e) / l2).clamp(0.0, 1.0)
+            } else {
+                0.5
+            };
+            weights[0] = 1.0 - t;
+            weights[1] = t;
+        } else if x.len() == 1 {
+            weights[0] = 1.0;
+        }
+        return weights;
+    }
     #[cfg(feature = "dim2")]
     {
         let e = x[1] - x[0];

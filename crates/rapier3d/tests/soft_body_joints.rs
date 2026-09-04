@@ -35,7 +35,7 @@ fn jelly_at(world: &mut PhysicsWorld, center: Vector) -> SoftBodyHandle {
             })
             .particle_mass(0.1)
             .particle_radius(0.05)
-            .collider_template(ColliderBuilder::ball(0.05)),
+            .surface_collider(ColliderBuilder::ball(0.05)),
     )
 }
 
@@ -324,7 +324,7 @@ fn joint_on_a_fem_body_holds() {
             })
             .particle_mass(0.1)
             .particle_radius(0.05)
-            .collider_template(ColliderBuilder::ball(0.05)),
+            .surface_collider(ColliderBuilder::ball(0.05)),
     );
     let root = world.soft_bodies[h].root_body();
     let anchor = world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(0.0, 2.0, 0.0)));
@@ -426,7 +426,7 @@ fn violently_dragged_one_particle_cluster_stays_bounded() {
             })
             .particle_mass(0.08)
             .particle_radius(0.06)
-            .collider_template(ColliderBuilder::ball(0.06)),
+            .surface_collider(ColliderBuilder::ball(0.06)),
     );
     // Grab the top corner particle, like the testbed's mouse grab does.
     let corner = Vector::new(0.5, 1.1, 0.5);

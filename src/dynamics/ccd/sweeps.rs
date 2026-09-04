@@ -3,7 +3,7 @@
 //! and the per-body continuous solve.
 
 use crate::alloc_prelude::*;
-use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet, SoftBodySet};
 use crate::geometry::{Collider, ColliderHandle, ColliderSet};
 use crate::math::{Pose, Real, Vector};
 use crate::parry::bounding_volume::Aabb;
@@ -25,6 +25,13 @@ fn is_fixed_target(rb: Option<&RigidBody>) -> bool {
     rb.map(|b| b.is_fixed()).unwrap_or(true)
 }
 
+/// Is `co` a target of the automatic (non-bullet) tier: fixed geometry, plus the deformable
+/// collision meshes of soft bodies (surfaces of no thickness, never swept, taken at their
+/// start-of-step geometry).
+fn is_auto_target(rb: Option<&RigidBody>, co: &Collider) -> bool {
+    is_fixed_target(rb) || co.is_deformable_collider()
+}
+
 /// Is `rb` a bullet (a dynamic body with the full-CCD upgrade)? Bullets never sweep against
 /// other bullets.
 pub(super) fn is_bullet(rb: &RigidBody) -> bool {
@@ -34,11 +41,11 @@ pub(super) fn is_bullet(rb: &RigidBody) -> bool {
 /// The target-selection rule for a fast body `rb1`: a non-bullet fast body only sweeps
 /// against automatic targets (fixed geometry and soft-body meshes); a bullet sweeps against
 /// every body type except other bullets.
-fn tier_allows(rb1: &RigidBody, rb2: Option<&RigidBody>) -> bool {
+fn tier_allows(rb1: &RigidBody, rb2: Option<&RigidBody>, co2: &Collider) -> bool {
     if is_bullet(rb1) {
         !rb2.map(is_bullet).unwrap_or(false)
     } else {
-        is_fixed_target(rb2)
+        is_auto_target(rb2, co2)
     }
 }
 
@@ -132,7 +139,12 @@ fn intersect_swept_aabb<'a>(
 pub(super) enum CcdTargets<'a> {
     /// Flat lists of the automatic targets and their (slightly fattened) AABBs: the cached
     /// fixed colliders, and the soft-body collision meshes (rebuilt every step, as they deform).
-    FixedList(&'a [(ColliderHandle, Aabb)]),
+    Lists {
+        /// The fixed colliders.
+        fixed: &'a [(ColliderHandle, Aabb)],
+        /// The soft-body collision meshes.
+        soft: &'a [(ColliderHandle, Aabb)],
+    },
     /// The full broad-phase BVH.
     FullBvh(&'a Bvh),
 }
@@ -161,6 +173,28 @@ pub(super) fn collect_fixed_targets(
         }
     }
     Some(fixed)
+}
+
+/// Collects the enabled soft-body collision meshes and their AABBs, fattened by the prediction
+/// (speculative) distance. Rebuilt every step: unlike the fixed targets, a mesh deforms with its
+/// particles without any scene change.
+pub(super) fn collect_soft_targets(
+    soft_bodies: &SoftBodySet,
+    colliders: &ColliderSet,
+    prediction_distance: Real,
+) -> Vec<(ColliderHandle, Aabb)> {
+    let mut soft = Vec::new();
+    for (_, sb) in soft_bodies.iter() {
+        for mesh in sb.meshes() {
+            let ch = mesh.collider();
+            let Some(co) = colliders.get(ch).filter(|co| co.is_enabled()) else {
+                continue;
+            };
+            let aabb = co.shape.compute_aabb(&co.pos).loosened(prediction_distance);
+            soft.push((ch, aabb));
+        }
+    }
+    soft
 }
 
 /// A convex piece of the fast collider: its point-cloud proxy plus its own sweep (the
@@ -554,7 +588,7 @@ pub(super) fn sweep_fast_body(
                 return; // Skip same body.
             }
             let rb2 = bh2.and_then(|h| bodies.get(h));
-            if !tier_allows(rb1, rb2) {
+            if !tier_allows(rb1, rb2, co2) {
                 return;
             }
             if !co1.flags.collision_groups.test(co2.flags.collision_groups) {
@@ -595,8 +629,8 @@ pub(super) fn sweep_fast_body(
         };
 
         match targets {
-            CcdTargets::FixedList(fixed) => {
-                for (ch2, aabb2) in fixed {
+            CcdTargets::Lists { fixed, soft } => {
+                for (ch2, aabb2) in fixed.iter().chain(soft.iter()) {
                     if aabb2.intersects(&swept_aabb) {
                         handle_candidate(*ch2, &colliders[*ch2]);
                     }
@@ -632,7 +666,7 @@ impl PhysicsHooks for HookProbe {
     ) -> Option<crate::geometry::SolverFlags> {
         self.0.store(true, core::sync::atomic::Ordering::Relaxed);
         // Irrelevant: reaching this discards the whole pass in favour of the serial redo.
-        Some(crate::geometry::SolverFlags::COMPUTE_IMPULSES)
+        Some(crate::geometry::SolverFlags::COMPUTE_RIGID_IMPULSES)
     }
 }
 

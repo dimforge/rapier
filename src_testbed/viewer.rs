@@ -163,6 +163,10 @@ impl TestbedViewer {
 
         highlight_hovered_body(&mut self.graphics, &self.scene_mouse, world);
         self.graphics.draw(
+            self.state.flags,
+            &world.bodies,
+            &world.colliders,
+            &world.soft_bodies,
         );
         debug_render_scene(&mut self.window, &mut self.debug_render, world);
 
@@ -661,6 +665,12 @@ impl TestbedViewer {
                 for (_, cluster) in sb.live_clusters() {
                     self.graphics.set_initial_body_color(cluster.proxy(), color);
                 }
+            }
+            // The meshes a soft body only draws (its skin) have no collider to be picked up by
+            // the collider pass below.
+            for (sb_handle, _) in world.soft_bodies.iter() {
+                self.graphics
+                    .add_soft_body_meshes(sb_handle, &world.soft_bodies);
             }
             for (handle, _) in world.bodies.iter() {
                 self.graphics.add_body_colliders(

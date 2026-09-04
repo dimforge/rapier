@@ -1,5 +1,5 @@
 use crate::alloc_prelude::*;
-use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodySet, SoftBodySet};
 use crate::geometry::{
     BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, CollisionEvent, NarrowPhase,
 };
@@ -10,8 +10,8 @@ use crate::prelude::{ActiveEvents, CollisionEventFlags};
 use parry::query::sweep_toi::Sweep;
 
 use super::sweeps::{
-    BodyContinuousResult, CcdTargets, PseudoHitMode, collect_fixed_targets, is_bullet,
-    map_bodies_parallel, sweep_fast_body,
+    BodyContinuousResult, CcdTargets, PseudoHitMode, collect_fixed_targets, collect_soft_targets,
+    is_bullet, map_bodies_parallel, sweep_fast_body,
 };
 
 /// Continuous Collision Detection solver preventing fast objects from tunneling:
@@ -168,6 +168,7 @@ impl CCDSolver {
         islands: &IslandManager,
         bodies: &mut RigidBodySet,
         colliders: &ColliderSet,
+        soft_bodies: &SoftBodySet,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
         hooks: &dyn PhysicsHooks,
@@ -209,8 +210,11 @@ impl CCDSolver {
                     collect_fixed_targets(bodies, colliders, prediction),
                 ));
             }
+            // Soft-body meshes deform every step without any scene change, so they are
+            // gathered fresh (one AABB per mesh, not a collider scan).
+            let soft = collect_soft_targets(soft_bodies, colliders, prediction);
             let targets = match &self.fixed_targets_cache.as_ref().unwrap().1 {
-                Some(fixed) => CcdTargets::FixedList(fixed),
+                Some(fixed) => CcdTargets::Lists { fixed, soft: &soft },
                 None => CcdTargets::FullBvh(bvh),
             };
             let results = map_bodies_parallel(&non_bullets, hooks, |handle, hooks| {

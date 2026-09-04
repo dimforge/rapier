@@ -36,6 +36,14 @@ pub(crate) fn detect_edges(
     // In 2D two closed surfaces meet through their vertex constraints alone (point-vs-segment is
     // complete for first contact); in 3D two edge-leading closed bodies (slim bars crossing
     // corner-first) have no vertex near the other's surface and need the edge constraints.
+    #[cfg(feature = "dim2")]
+    if mesh.is_closed() && other_mesh.is_closed() {
+        return false;
+    }
+    #[cfg(feature = "dim3")]
+    if !params.soft_bodies.recovery.edge_speculation && mesh.is_closed() && other_mesh.is_closed() {
+        return false;
+    }
     let Some(other_bvh) = other_co.shape().as_composite_shape().map(|c| c.bvh()) else {
         return false;
     };

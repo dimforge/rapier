@@ -195,28 +195,28 @@ impl SoftBodyBuilder {
         self
     }
 
-    /// Sets the mesh the cells carry: the body's default collision mesh is then that mesh,
-    /// bound to the cells ([`crate::dynamics::SoftMeshMapping::Skinned`]), instead of the cells' boundary.
-    ///
-    /// The vertices are in world space, in the pose the cells are built in; each is bound to the
-    /// cell closest to it. The mesh adds no particle and no constraint row, so it can be as
-    /// detailed as wanted, and it can hold features the cells are far too coarse to resolve.
+    /// Sets the mesh the cells hold: the body's default collision mesh is then that mesh, bound to
+    /// the cells ([`crate::dynamics::SoftMeshMapping::Skinned`]) instead of the cells' boundary.
+    /// The vertices are in world space in the cells' build pose, each bound to the closest cell.
     pub fn skin(mut self, vertices: Vec<Vector>, indices: Vec<[u32; DIM]>) -> Self {
         self.skin = Some((vertices, indices));
         self
     }
 
     /// Whether the body's skin is its collision mesh rather than its cells' boundary (off by
-    /// default, and no effect without a skin). Further meshes, skinned or not, are added after
-    /// insertion with [`crate::geometry::ColliderSet::insert_deformable`].
-    ///
-    /// A skin is what the body looks like, so it is also what the body could collide as: the
-    /// contact is then resolved through the particles of the cell carrying the touched part of
-    /// the skin, and the skin needs to be at least as fine as the cells. Off, collisions stay on
-    /// the cells, which is coarser but is what the expulsion and internal-feature rules were
-    /// written for.
+    /// default, and no effect without a skin); on, a contact is resolved through the particles of
+    /// the cell holding the touched part of the skin, which must be at least as fine as the cells.
     pub fn skin_collision(mut self, enabled: bool) -> Self {
         self.skin_collision = enabled;
+        self
+    }
+
+    /// Sets the segments the body collides through: a rope or a wire, whose collision mesh is a
+    /// polyline rather than a surface (3D only; in 2D [`Self::surface`] already takes segments).
+    /// A wire encloses nothing, so its contacts are two-sided and it never expels anything.
+    #[cfg(feature = "dim3")]
+    pub fn wire(mut self, segments: Vec<[u32; 2]>) -> Self {
+        self.wire = segments;
         self
     }
 
@@ -293,6 +293,12 @@ impl SoftBodyBuilder {
         self
     }
 
+    /// Configures the collider of the body's default collision mesh (its cells' boundary, or its
+    /// skin under [`Self::skin_collision`]): friction, restitution, groups, events. The shape is
+    /// the mesh's own; the density is ignored (mass from [`Self::mass`] or [`Self::masses`]).
+    pub fn surface_collider(mut self, collider: ColliderBuilder) -> Self {
+        self.collider_template = Some(collider);
+        self
     }
 
     /// Gives the body no default collision mesh collider: it collides through the meshes added

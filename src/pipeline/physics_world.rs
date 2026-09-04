@@ -395,14 +395,30 @@ impl PhysicsWorld {
 
     // ── Soft bodies ─────────────────────────────────────────────────────
 
-    /// Insert a soft body and return its handle.
-    ///
-    /// This creates the soft body's hidden root rigid body and its colliders (a deformable
-    /// surface, or one ball per surface particle); they are removed by
-    /// [`Self::remove_soft_body`].
+    /// Insert a soft body and return its handle; this creates its hidden root rigid body and its
+    /// colliders (a deformable surface, or one ball per surface particle), which
+    /// [`Self::remove_soft_body`] removes.
     pub fn insert_soft_body(&mut self, soft_body: SoftBodyBuilder) -> SoftBodyHandle {
         self.soft_bodies
             .insert(soft_body, &mut self.bodies, &mut self.colliders)
+    }
+
+    /// Inserts a collider holding a soft body's deformable collision mesh, bound to the cluster
+    /// of `parent` (a cluster proxy: see
+    /// [`ColliderSet::insert_deformable`](crate::geometry::ColliderSet::insert_deformable)).
+    pub fn insert_deformable(
+        &mut self,
+        collider: impl Into<Collider>,
+        binding: SoftMeshBinding,
+        parent: RigidBodyHandle,
+    ) -> Result<ColliderHandle, SoftBindingError> {
+        self.colliders.insert_deformable(
+            collider,
+            binding,
+            parent,
+            &mut self.bodies,
+            &mut self.soft_bodies,
+        )
     }
 
     /// Remove a soft body, its root rigid body and its colliders.

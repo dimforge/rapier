@@ -2901,7 +2901,7 @@ fn fem_cantilever(
             ..Default::default()
         })
         .solver(solver)
-        .without_colliders()
+        .no_surface_collider()
         .can_sleep(false);
     // Pin every particle of the root face.
     let pinned: Vec<u32> = builder
@@ -2938,7 +2938,7 @@ fn fem_free_fall_is_exact() {
     let builder = SoftBodyBuilder::cuboid(Vector::new(0.0, 10.0, 0.0), Vector::splat(0.5), 3, 3, 3)
         .cell_model(SoftBodyCellModel::Corotational)
         .solver(SoftBodySolver::Fem)
-        .without_colliders()
+        .no_surface_collider()
         .can_sleep(false);
     let handle = world.insert_soft_body(builder);
     let start = world.soft_bodies[handle].particle_position(0);
@@ -3144,7 +3144,7 @@ fn fem_attachment_follows_its_body() {
             ..Default::default()
         })
         .solver(SoftBodySolver::Fem)
-        .without_colliders()
+        .no_surface_collider()
         .can_sleep(false)
         .particle_mass(0.05);
     let handle = world.insert_soft_body(cube);
@@ -3291,7 +3291,7 @@ fn fem_edge_period_is_substep_invariant() {
             .pinned_particles([0])
             .softness(SpringCoefficients::new(natural_frequency, 0.0))
             .solver(SoftBodySolver::Fem)
-            .without_colliders()
+            .no_surface_collider()
             .can_sleep(false);
         let handle = world.insert_soft_body(builder);
         world.soft_bodies[handle].set_particle_position(1, Vector::new(1.2, 0.0, 0.0));
@@ -3335,7 +3335,7 @@ fn fem_rope_hangs_from_anchor() {
         .pinned_particles([0])
         .softness(SpringCoefficients::new(300.0, 1.0))
         .solver(SoftBodySolver::Fem)
-        .without_colliders()
+        .no_surface_collider()
         .can_sleep(false);
     let handle = world.insert_soft_body(rope);
     for _ in 0..600 {
@@ -3453,7 +3453,7 @@ fn fem_neo_hookean_cube_survives_large_compression() {
             ..Default::default()
         })
         .solver(SoftBodySolver::Fem)
-        .without_colliders()
+        .no_surface_collider()
         .can_sleep(false)
         .particle_mass(0.1);
     let handle = world.insert_soft_body(cube);
@@ -3509,7 +3509,7 @@ fn fem_plastic_cells_keep_their_deformation() {
                 })
                 .solver(SoftBodySolver::Fem)
                 .particle_mass(0.1)
-                .collider_template(ColliderBuilder::ball(0.15).friction(2.0));
+                .surface_collider(ColliderBuilder::ball(0.15).friction(2.0));
         let handle = world.insert_soft_body(block);
         let sb = &world.soft_bodies[handle];
         let bottom: Vec<usize> = (0..sb.num_particles())
@@ -3580,7 +3580,7 @@ fn fem_cloth_tears_when_pulled_apart() {
     .softness(SpringCoefficients::new(200.0, 1.0))
     .tear_strain(0.15)
     .solver(SoftBodySolver::Fem)
-    .without_colliders()
+    .no_surface_collider()
     .can_sleep(false);
     let handle = world.insert_soft_body(cloth);
     let left: Vec<usize> = (0..n).map(|k| k * n).collect();

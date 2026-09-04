@@ -57,6 +57,7 @@ impl PhysicsPipeline {
         islands: &IslandManager,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
+        soft_bodies: &SoftBodySet,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
         ccd_solver: &mut CCDSolver,
@@ -71,6 +72,7 @@ impl PhysicsPipeline {
             islands,
             bodies,
             colliders,
+            soft_bodies,
             broad_phase,
             narrow_phase,
             hooks,
@@ -528,6 +530,7 @@ impl PhysicsPipeline {
                         islands,
                         bodies,
                         colliders,
+                        soft_bodies,
                         broad_phase,
                         narrow_phase,
                         ccd_solver,
@@ -549,10 +552,11 @@ impl PhysicsPipeline {
                 // re-running collision detection for the next CCD substep.
                 self.counters.stages.collision_detection_time.resume();
                 self.counters.cd.final_broad_phase_time.resume();
-                self.refresh_moved_collider_aabbs(&integration_parameters, broad_phase);
+                self.update_moved_collider_aabbs(&integration_parameters, broad_phase);
                 self.counters.cd.final_broad_phase_time.pause();
                 self.counters.stages.collision_detection_time.pause();
 
+                soft_bodies.refresh_vertex_caches();
                 self.detect_collisions(
                     &integration_parameters,
                     islands,

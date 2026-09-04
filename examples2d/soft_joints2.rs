@@ -24,7 +24,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             })
             .particle_mass(0.08)
             .particle_radius(0.06)
-            .collider_template(ColliderBuilder::ball(0.06).friction(0.6))
+            .surface_collider(ColliderBuilder::ball(0.06).friction(0.6))
     };
 
     /*
@@ -152,7 +152,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             })
             .particle_mass(0.08)
             .particle_radius(0.06)
-            .collider_template(ColliderBuilder::ball(0.06)),
+            .surface_collider(ColliderBuilder::ball(0.06)),
     );
     let (left_half, right_half): (Vec<u32>, Vec<u32>) = {
         let sb = &world.soft_bodies[bar];
