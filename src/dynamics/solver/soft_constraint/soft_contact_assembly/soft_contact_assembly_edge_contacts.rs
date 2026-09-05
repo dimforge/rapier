@@ -81,6 +81,12 @@ impl SoftConstraintsSet {
         }
         if detected.crossed {
             // The pair is recovery-owned: the crossing guard leaves it alone.
+            let mc = &mut workspace.meshes[current_mesh];
+            if !mc.crossed_partners.contains(&other_surface_handle) {
+                mc.crossed_partners.push(other_surface_handle);
+            }
+        }
+
         let inv_mass_of = |body: &SoftBody, slots: Option<&[u32]>, v: u32| -> (u32, Real) {
             match slots {
                 Some(slots) if slots[v as usize] != u32::MAX => {

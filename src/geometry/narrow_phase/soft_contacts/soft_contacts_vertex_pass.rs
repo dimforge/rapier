@@ -6,6 +6,7 @@ use crate::alloc_prelude::*;
 use crate::dynamics::soft_body_crossing_tests::segments_cross;
 use crate::dynamics::{SoftBody, SoftCollisionMesh};
 use crate::math::{DIM, Real, Vector};
+use crate::geometry::PointQueryWithLocation;
 use crate::utils::DotProduct;
 use parry::bounding_volume::BoundingVolume;
 #[cfg(not(feature = "std"))]
@@ -57,11 +58,143 @@ pub(crate) fn element_points(mesh: &SoftCollisionMesh, element: &[u32]) -> [Vect
     points
 }
 
-    // each other, the pair's keep-apart rows are wrong-sided by construction and freeze
-    // opened), so they stand down around it, like the self rows do around a
+/// An element's supporting plane: a point on it and its unit normal (`None` for a wire's
+/// element or a degenerate one), from the vertex positions `vertex` reads.
+pub(crate) fn element_plane(
+    eb_mesh: &SoftCollisionMesh,
+    element: usize,
+    vertex: impl Fn(usize) -> Vector,
+) -> Option<(Vector, Vector)> {
+    let el = eb_mesh.element(element);
+    let p0 = vertex(el[0] as usize);
+    #[cfg(feature = "dim2")]
+    let n = {
+        let d = vertex(el[1] as usize) - p0;
+        Vector::new(-d.y, d.x)
+    };
+    #[cfg(feature = "dim3")]
+    let n = {
+        if el.len() < 3 {
+            return None;
+        }
+        (vertex(el[1] as usize) - p0).cross(vertex(el[2] as usize) - p0)
+    };
+    Some((p0, n.try_normalize()?))
+}
+
+/// The vertex-vs-surface candidates of the vertices of `vb` against the surface of `eb`
+/// (`tangles`: the mesh's self-tangle signal for a self pass, `None` for a pair), with the
+/// crossings between the two surfaces and the per-vertex crossing classification.
+pub(crate) fn detect_vertex_pass(
+    out: &mut SoftVertexPass,
+    (eb, eb_mesh, surface_handle, eb_co): Side<'_>,
+    (vb, vb_mesh, vertices_handle, vb_co): Side<'_>,
+    tangles: Option<SelfTangles<'_>>,
+    ctx: &SoftDetectionCtx,
+) {
+    let params = ctx.params;
+    let step_dt = ctx.dt;
+    let is_self = tangles.is_some();
+    out.clear();
+    out.surface = surface_handle;
+    out.vertices_of = vertices_handle;
+    let Some(eb_bvh) = eb_co.shape().as_composite_shape().map(|c| c.bvh()) else {
+        return;
+    };
+    // Crossings between the two surfaces: where the boundaries already pass through each other,
+    // the pair's keep-apart constraints are wrong-sided, so they stand down around the crossing,
+    // like the self constraints do. 3D wires sit out (curve-curve crossings have measure zero).
+    if !is_self && params.soft_bodies.recovery.cross_body_detection {
+        if let Some(vb_bvh) = vb_co.shape().as_composite_shape().map(|c| c.bvh()) {
+            let vb_inv_pose = vb_co.position().inverse();
+            for e in 0..eb_mesh.indices().len() {
+                let ee = eb_mesh.element(e);
+                let pe = element_points(eb_mesh, ee);
+                let mut aabb = crate::geometry::Aabb::new_invalid();
+                for p in &pe[..ee.len()] {
+                    aabb.take_point(*p);
+                }
+                let aabb = aabb.transform_by(&vb_inv_pose);
+                for f in vb_bvh.intersect_aabb(&aabb) {
+                    let ef = vb_mesh.element(f as usize);
+                    let qf = element_points(vb_mesh, ef);
+                    if !elements_cross(&pe[..ee.len()], &qf[..ef.len()]) {
+                        continue;
+                    }
+                    if out.cross_tangled_elements.is_empty() {
+                        out.cross_tangled_elements
+                            .resize(eb_mesh.indices().len(), false);
+                        out.cross_tangled_vertices
+                            .resize(vb_mesh.vertex_count(), false);
+                    }
+                    out.cross_tangled_elements[e] = true;
+                    for &v in ef {
+                        out.cross_tangled_vertices[v as usize] = true;
+                    }
+                    {
+                        if out.cross_tangled_vb_elements.is_empty() {
+                            out.cross_tangled_vb_elements
+                                .resize(vb_mesh.indices().len(), false);
+                        }
+                        out.cross_tangled_vb_elements[f as usize] = true;
+                        let pair = (e as u32, f);
+                        if out.cross_pairs.len() < 256 && !out.cross_pairs.contains(&pair) {
+                            out.cross_pairs.push(pair);
+                        }
+                    }
+                }
+            }
+        }
+    }
     // The two contact skins (a soft surface's is its vertices' thickness; between two pieces of
     // one torn body, capped per pair by the gap at rest, see `rest_gap_skins`); the
-    // Crossing repulsion (see `repel_row`): the detected crossing pairs also get rows
+    // speculative reach grows with both bodies' motion over the step (see the narrow phase).
+    let skins = vb_co.contact_skin() + eb_co.contact_skin();
+    let prediction = params.prediction_distance();
+    let reach = prediction + skins + ctx.motion_margin(eb_co) + ctx.motion_margin(vb_co);
+    // A closed surface's reversed sightings mark a foreign vertex inside it.
+    let closed = eb_mesh.is_closed() && !is_self;
+
+    // Crossing repulsion (see `repel_constraint`): the detected crossing pairs also get their own
+    // constraints (the piercing element's vertices against the pierced element), so an edge-first
+    // crossing with no vertex within reach is repelled too. `targets[f]`: elements crossed by `f`.
+    let (tangled_vertices, tangled_elements, crossings): (&[bool], &[bool], &[(u32, u32)]) =
+        match &tangles {
+            Some(t) => (t.tangled_vertices, t.tangled_elements, t.crossings),
+            None => (&[], &[], &[]),
+        };
+    let repel = params.soft_bodies.recovery.crossing_repulsion
+        && !vb_mesh.is_wire()
+        && !eb_mesh.is_wire()
+        && if is_self {
+            !tangled_vertices.is_empty() || !tangled_elements.is_empty()
+        } else {
+            !out.cross_tangled_vertices.is_empty() || !out.cross_tangled_elements.is_empty()
+        };
+    let (targets, vertex_elements): (Vec<Vec<u32>>, Vec<Vec<u32>>) = if repel {
+        let mut targets = vec![Vec::new(); vb_mesh.indices().len()];
+        if is_self {
+            for &(i, j) in crossings {
+                targets[i as usize].push(j);
+                targets[j as usize].push(i);
+            }
+        } else {
+            for &(e, f) in &out.cross_pairs {
+                targets[f as usize].push(e);
+            }
+        }
+        let mut vertex_elements = vec![Vec::new(); vb_mesh.vertex_count()];
+        for f in 0..vb_mesh.indices().len() {
+            for &v in vb_mesh.element(f) {
+                vertex_elements[v as usize].push(f as u32);
+            }
+        }
+        (targets, vertex_elements)
+    } else {
+        (Vec::new(), Vec::new())
+    };
+}
+        // A tangled vertex (backed by inverted material, or part of a surface
             if len >= reach || len < 1.0e-6 {
             }
             let dist = len - skins;
@@ -69,6 +202,8 @@ pub(crate) fn element_points(mesh: &SoftCollisionMesh, element: &[u32]) -> [Vect
             // `params.dt` is the substep): the rest of the reach is the bodies' motion
             // margin, and a resting vertex must not carry rows (warm-started) against every
             // a ghost of that internal feature (the neighbor carries the actual contact);
+        // Crossing repulsion: the crossing pairs' constraints come before the self.reach test
+                // of a piercing edge): a constraint on a far vertex is a long-range hold that
         // Deterministic order, and one constraint per surface vertex touched: the elements sharing
 
         // A foreign vertex that crossed a closed surface: seen from behind (reversed

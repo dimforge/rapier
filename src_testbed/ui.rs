@@ -599,6 +599,12 @@ fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySett
             ui.checkbox(&mut r.self_crossing_detection, "Self-crossings");
             ui.checkbox(&mut r.detection_motion_gating, "Self-crossing sweep motion gating");
             ui.checkbox(&mut r.cross_body_detection, "Cross-body crossings");
+            ui.separator();
+            ui.label("Passive stand-down");
+            ui.checkbox(&mut r.self_stand_down, "Self stand-down");
+            ui.checkbox(&mut r.cross_body_expel_gate, "Cross expel-only gate");
+            ui.checkbox(&mut r.edge_stand_down, "Edge-pass stand-down");
+            ui.checkbox(&mut r.crossing_repulsion, "Crossing repulsion (repel, not drop)");
             if ui.button("Reset to defaults").clicked() {
                 *r = Default::default();
             }

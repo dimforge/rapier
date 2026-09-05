@@ -62,14 +62,65 @@ pub(crate) fn detect_edges(
         };
     let tangled_elements: &[bool] = tangles.as_ref().map_or(&[], |t| t.tangled_elements);
 
+    // Crossings between the two surfaces: where they already pass through each other, edge
+    // constraints are wrong-sided and would freeze the crossing, so element pairs touching a
+    // crossing stand down. Mixed arities cover a wire through a surface.
+    let mut crossed_own: Vec<bool> = Vec::new();
+    let mut crossed_other: Vec<bool> = Vec::new();
     let other_inv_pose = other_co.position().inverse();
     if !is_self && params.soft_bodies.recovery.cross_body_detection && params.soft_bodies.recovery.edge_stand_down
     {
+        for i in 0..mesh.indices().len() {
+            let element = mesh.element(i);
+            let pa = element_points(mesh, element);
+            let mut aabb = crate::geometry::Aabb::new_invalid();
+            for p in &pa[..element.len()] {
+                aabb.take_point(*p);
+            }
+            let aabb = aabb.transform_by(&other_inv_pose);
+            for j in other_bvh.intersect_aabb(&aabb) {
+                let ej = other_mesh.element(j as usize);
+                let pb = element_points(other_mesh, ej);
+                if !elements_cross(&pa[..element.len()], &pb[..ej.len()]) {
+                    continue;
+                }
+                if crossed_own.is_empty() {
+                    crossed_own.resize(mesh.indices().len(), false);
+                    crossed_other.resize(other_mesh.indices().len(), false);
+                }
+                crossed_own[i] = true;
+                crossed_other[j as usize] = true;
+            }
+        }
+        // The pair is recovery-owned: the crossing guard leaves it alone.
+        out.crossed = !crossed_own.is_empty();
+    }
+
+    // The candidate element pairs: every element of this surface against the other's BVH (in its
+    // cluster frame, so the world box is localized first), AABB grown by the contact reach; then
+    // their edge pairs. Chunked across threads for a large surface, candidates appended in order.
     let scan = EdgeScan {
+        sb,
+        mesh,
+        other,
+        other_mesh,
+        other_bvh,
+        other_inv_pose,
+        reach,
+        is_self,
+        tangled_elements,
+        crossed_own: &crossed_own,
+        crossed_other: &crossed_other,
+        speculation,
+        rest_gaps,
+        skins,
+        params,
+        step_dt,
     };
     let n_e = mesh.indices().len();
     #[cfg(feature = "parallel")]
     if n_e >= 2 * PARALLEL_CHUNK && rayon::current_num_threads() > 1 {
+        use rayon::prelude::*;
         let chunks: Vec<Vec<SoftEdgeCandidate>> = (0..n_e.div_ceil(PARALLEL_CHUNK))
             .into_par_iter()
             .map(|c| {
@@ -77,22 +128,42 @@ pub(crate) fn detect_edges(
                 for i in c * PARALLEL_CHUNK..((c + 1) * PARALLEL_CHUNK).min(n_e) {
                     scan.scan_element(i, &mut candidates);
                 }
+                candidates
             })
             .collect();
         for chunk in chunks {
             out.candidates.extend(chunk);
         }
+        return true;
     }
     for i in 0..n_e {
         scan.scan_element(i, &mut out.candidates);
     }
+    true
 }
+
+/// The read-only state of an edge pass's per-element enumeration (see [`EdgeScan::scan_element`]).
 struct EdgeScan<'a> {
+    sb: &'a SoftBody,
+    mesh: &'a SoftCollisionMesh,
+    other: &'a SoftBody,
+    other_mesh: &'a SoftCollisionMesh,
+    other_bvh: &'a parry::partitioning::Bvh,
+    other_inv_pose: crate::math::Pose,
+    reach: Real,
+    is_self: bool,
     tangled_elements: &'a [bool],
     crossed_own: &'a [bool],
     crossed_other: &'a [bool],
+    speculation: bool,
+    rest_gaps: bool,
+    skins: Real,
+    params: &'a crate::dynamics::IntegrationParameters,
+    step_dt: Real,
 }
+
 impl EdgeScan<'_> {
+    /// The edge candidates of the element `i` against the other surface, appended to `out`.
     fn scan_element(&self, i: usize, out: &mut Vec<SoftEdgeCandidate>) {
         let (mesh, other_mesh) = (self.mesh, self.other_mesh);
         let element = mesh.element(i);
@@ -111,6 +182,20 @@ impl EdgeScan<'_> {
                 if ei.iter().any(|v| ej.contains(v)) {
                     continue;
                 }
+                // Tangled elements (inverted cells, or part of a surface self-crossing):
+                // their self contacts stand down (see `detect_self_tangles`).
+                if self.tangled_elements.get(i as usize).copied().unwrap_or(false)
+                    || self.tangled_elements.get(j as usize).copied().unwrap_or(false)
+                {
+                    continue;
+                }
+            } else if self.crossed_own.get(i as usize).copied().unwrap_or(false)
+                || self.crossed_other.get(j as usize).copied().unwrap_or(false)
+            {
+                continue;
+            }
+            // The edges owned by each element (a segment is its own edge, in 2D and for a
+            // wire in 3D): a pair of edges is tested by exactly one element pair.
             for ea in self.mesh.element_edge_ids(i as usize) {
                 if self.mesh.edge_owner(ea) != i {
                     continue;

@@ -150,6 +150,12 @@ fn apply_preset(world: &mut PhysicsWorld) -> String {
         "reference" => {
             r.edge_speculation = false;
         }
+        // The reference settings with the crossing repulsion, unguided or guided by the
+        // pair's (and the fold's) volume normal (see `crossing_repulsion_guide`).
+        "reference+repel" | "reference+repel-guide" => {
+            r.edge_speculation = false;
+            r.crossing_repulsion = true;
+        }
         other => panic!("unknown SOFT_STACK_PRESET `{other}`"),
     }
     preset

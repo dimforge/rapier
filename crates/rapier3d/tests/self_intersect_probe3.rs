@@ -355,3 +355,52 @@ fn rope_through_ball_slides_out() {
     assert!(com.y < -1.0, "the rope hangs frozen at {:+.3}", com.y);
 }
 
+/// Crossing repulsion clears a static crossing nothing else resolves: an unstrained horizontal
+/// strip whose free end pokes through a vertical strip. With the crossing constraints dropped
+/// nothing moves; with repulsion the end vertices are pushed back to their neighbors' side.
+#[test]
+fn crossing_repulsion_clears_static_poke() {
+    for repulsion in [true, false] {
+        let mut world = PhysicsWorld::new();
+        world.gravity = Vector::ZERO;
+        let r = &mut world.integration_parameters.soft_bodies.recovery;
+        r.crossing_repulsion = repulsion;
+        let strip = |origin: Vector, du: Vector, dv: Vector| {
+            SoftBodyBuilder::cloth(origin, du, dv, 12, 2)
+                .material(SoftBodyMaterial::uniform(SpringCoefficients::new(40.0, 1.0)))
+                .softness(SpringCoefficients::new(40.0, 1.0))
+                .particle_mass(0.02)
+                .particle_radius(0.02)
+        };
+        // Horizontal, pinned at its left end, its right end (x = 1.2) 0.05 past the vertical
+        // strip's plane (x = 1.15).
+        let horizontal = world.insert_soft_body(
+            strip(
+                Vector::new(-1.0, 0.0, -0.1),
+                Vector::new(0.2, 0.0, 0.0),
+                Vector::new(0.0, 0.0, 0.2),
+            )
+            .pinned_particles([0, 1]),
+        );
+        let vertical = world.insert_soft_body(
+            strip(
+                Vector::new(1.15, -1.1, -0.1),
+                Vector::new(0.0, 0.2, 0.0),
+                Vector::new(0.0, 0.0, 0.2),
+            )
+            .pinned_particles([0, 1, 22, 23]),
+        );
+        let start = cross_crossings(&world, horizontal, vertical);
+        assert!(start > 0, "the strips were not authored crossed");
+        for _ in 0..120 {
+            world.step();
+        }
+        let end = cross_crossings(&world, horizontal, vertical);
+        println!("repulsion={repulsion}: {start} -> {end}");
+        if repulsion {
+            assert_eq!(end, 0, "crossing repulsion did not clear the poke");
+        } else {
+            assert!(end > 0, "the dropped constraints resolved the poke (the scene proves nothing)");
+        }
+    }
+}

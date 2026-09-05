@@ -361,6 +361,10 @@ fn recovery_toggles_are_wired() {
         self_crossing_detection: false,
         detection_motion_gating: false,
         cross_body_detection: false,
+        self_stand_down: false,
+        cross_body_expel_gate: false,
+        edge_stand_down: false,
+        crossing_repulsion: false,
     };
     for _ in 0..600 {
         world.step();
@@ -371,3 +375,37 @@ fn recovery_toggles_are_wired() {
     );
 }
 
+/// Crossing repulsion versus the freeze: with the self stand-down off, the self contacts
+/// of a strip vertex flicked through its bottom edge hold the crossing forever; with
+/// repulsion the same constraints push the vertex back to the side its neighbors are on.
+#[test]
+fn crossing_repulsion_recovers_flick() {
+    for repulsion in [true, false] {
+        let mut world = PhysicsWorld::new();
+        world.gravity = Vector::ZERO;
+        let r = &mut world.integration_parameters.soft_bodies.recovery;
+        r.authored_velocity_margin = false;
+        r.self_stand_down = false;
+        r.crossing_repulsion = repulsion;
+        let strip = SoftBodyBuilder::grid(Vector::ZERO, Vector::new(3.0, 0.15), 3, 2)
+            .pinned_particles([0, 1, 4, 5])
+            .softness(SpringCoefficients::new(3.0, 1.0))
+            .particle_radius(0.02)
+            .self_contacts(true);
+        let h = world.insert_soft_body(strip);
+        for _ in 0..5 {
+            world.step();
+        }
+        world.soft_bodies[h].set_particle_velocity(3, Vector::new(0.0, -600.0));
+        for _ in 0..120 {
+            world.step();
+        }
+        let end = probe(&world, h).0;
+        println!("repulsion={repulsion}: end={end}");
+        if repulsion {
+            assert_eq!(end, 0, "crossing repulsion did not push the vertex back");
+        } else {
+            assert!(end > 0, "the frozen constraints did not keep the strip crossed");
+        }
+    }
+}

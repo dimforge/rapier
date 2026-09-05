@@ -41,6 +41,27 @@ pub struct SoftRecoverySettings {
     /// (default: `true`)
     pub cross_body_detection: bool,
 
+    // --- Passive recovery (stand-down) ---
+    /// Self contacts of tangled features (inverted cells, self-crossings) stand down so
+    /// the elasticity can resolve the tangle instead of freezing it at skin distance.
+    /// (default: `true`)
+    pub self_stand_down: bool,
+    /// A vertex row touching a boundary crossing between two surfaces may only expel,
+    /// never hold (a keep-apart row there is wrong-sided by construction).
+    /// (default: `true`)
+    pub cross_body_expel_gate: bool,
+    /// Edge rows touching a cross-body boundary crossing stand down (thin open bodies
+    /// meet through their edge rows, so the vertex gate alone cannot free them).
+    /// (default: `true`)
+    pub edge_stand_down: bool,
+    /// Rows on crossing-flagged features repel instead of standing down: the row pushes
+    /// the vertex to the side of the element where its own neighbors lie (its one-ring
+    /// centroid), through to skin distance there. A shallow crossing returns where it came
+    /// from, a body already past halfway completes its passage, and adjacent vertices
+    /// agree; a neighborhood straddling the element (a genuine tangle) still stands down.
+    /// (default: `false`)
+    pub crossing_repulsion: bool,
+
 }
 
 impl Default for SoftRecoverySettings {
@@ -52,6 +73,10 @@ impl Default for SoftRecoverySettings {
             self_crossing_detection: true,
             detection_motion_gating: true,
             cross_body_detection: true,
+            self_stand_down: true,
+            cross_body_expel_gate: true,
+            edge_stand_down: true,
+            crossing_repulsion: false,
         }
     }
 }
