@@ -115,6 +115,10 @@ pub struct TestbedState {
     /// Currently selected position in the display order
     pub selected_display_index: usize,
     pub example_settings: ExampleSettings,
+    /// The soft-body recovery toggles (see `SoftRecoverySettings`): owned by the testbed
+    /// and stamped onto the running world every frame, so the panel's choices survive
+    /// demo restarts and switches.
+    pub soft_recovery: rapier::dynamics::SoftRecoverySettings,
     pub broad_phase_type: RapierBroadPhaseType,
     pub snapshot: Option<PhysicsSnapshot>,
     /// Number of physics steps run since the example was (re)started. Bumped by
@@ -153,6 +157,7 @@ impl Default for TestbedState {
             examples: Vec::new(),
             example_groups: Vec::new(),
             example_settings: ExampleSettings::default(),
+            soft_recovery: Default::default(),
             selected_display_index: 0,
             broad_phase_type: RapierBroadPhaseType::default(),
             camera_locked: false,

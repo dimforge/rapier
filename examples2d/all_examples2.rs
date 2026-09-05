@@ -42,6 +42,7 @@ mod platform2;
 mod polyline2;
 mod pyramid2;
 mod restitution2;
+mod debug_self_intersect2;
 mod rope_joints2;
 mod s2d_arch;
 mod s2d_ball_and_chain;
@@ -159,6 +160,7 @@ pub async fn main() {
         DEBUG, "Many colliders", debug_many_colliders2::run;
         DEBUG, "Total overlap", debug_total_overlap2::run;
         DEBUG, "Vertical column", debug_vertical_column2::run;
+        DEBUG, "Self intersect", debug_self_intersect2::run;
         // ── Inspired by Solver2D ────────────────────────────────────────────
         S2D, "High mass ratio 1", s2d_high_mass_ratio_1::run;
         S2D, "High mass ratio 2", s2d_high_mass_ratio_2::run;

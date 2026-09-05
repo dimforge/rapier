@@ -44,7 +44,15 @@ impl SoftConstraintsSet {
             return;
         };
         let is_self = other_ai == Some(ai);
+        // In 2D vertex constraints alone complete a first contact between closed surfaces, and
+        // crossing edges at dented corners would only add oblique constraints fighting them; in 3D
+        // edge-leading bodies (bars crossing corner-first) need them, filtered below.
+        #[cfg(feature = "dim2")]
         if mesh.is_closed() && other_mesh.is_closed() {
+            return;
+        }
+        #[cfg(feature = "dim3")]
+        if !params.soft_bodies.recovery.edge_speculation && mesh.is_closed() && other_mesh.is_closed() {
             return;
         }
         let other_handle = mesh_ref(other_co);

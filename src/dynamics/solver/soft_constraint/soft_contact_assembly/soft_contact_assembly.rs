@@ -142,6 +142,10 @@ impl SoftConstraintsSet {
                 };
                 core::mem::swap(&mut mesh.edge_contacts, &mut assembled.edge_contacts);
                 core::mem::swap(&mut mesh.vertex_contacts, &mut assembled.vertex_contacts);
+                mesh.crossing_sweep_travel = assembled.crossing_sweep_travel;
+                core::mem::swap(&mut mesh.crossed_partners, &mut assembled.crossed_partners);
+            }
+        }
         self.edge_workspace.per_body = per_body;
         self.chunk_contacts();
     }

@@ -195,6 +195,7 @@ impl SoftCollisionMesh {
     /// The particles a contact at the `i`-th vertex acts through, and their weights: the
     /// vertex's own particle for a direct mesh, the particles of the cell holding it for a
     /// skinned one.
+    pub fn vertex_anchors(
         &self,
         body: &SoftBody,
         i: usize,
@@ -282,4 +283,24 @@ impl SoftCollisionMesh {
         Some((cell.vertices, binding.weights, self.vertices[vertex]))
     }
 
+    /// The cell id backing each element, `u32::MAX` for none (empty when the elements are not
+    /// cell-backed at all: wires, skinned meshes).
+    pub(crate) fn element_cell_ids<'a>(&'a self, body: &'a SoftBody) -> &'a [u32] {
+        if self.follows_boundary {
+            &body.boundary_element_cells
+        } else {
+            &self.element_cells
+        }
+    }
+
+    /// The surface elements incident to `vertex`.
+    pub(crate) fn vertex_element_ids(&self, vertex: u32) -> &[u32] {
+        match (
+            self.vertex_elements_offsets.get(vertex as usize),
+            self.vertex_elements_offsets.get(vertex as usize + 1),
+        ) {
+            (Some(&start), Some(&end)) => &self.vertex_elements[start as usize..end as usize],
+            _ => &[],
+        }
+    }
 }

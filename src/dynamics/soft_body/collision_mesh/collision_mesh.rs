@@ -128,6 +128,14 @@ pub struct SoftCollisionMesh {
     /// Vertex-vs-surface contacts of the last step against this mesh (self contacts and the
     /// other soft bodies' vertices): warm-start state.
     pub(crate) vertex_contacts: Vec<SoftVertexContact>,
+    /// Surface travel accumulated since the last self-crossing sweep (the sweep is skipped
+    /// while this cannot have bridged half a skin).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) crossing_sweep_travel: Real,
+    /// The surface colliders whose pair with this mesh crosses this step (its own collider
+    /// for a self tangle, a partner it is tangled with): the pairs the recovery owns.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) crossed_partners: Vec<ColliderHandle>,
     /// Bumped whenever this mesh's elements change (a tear): renderers keying their mesh on it
     /// rebuild it on change.
     #[cfg_attr(feature = "serde-serialize", serde(default))]

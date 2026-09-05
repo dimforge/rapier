@@ -244,6 +244,13 @@ pub struct IntegrationParameters {
     /// with your chosen units.
     pub length_unit: Real,
 
+    /// Settings shared by every soft body: tangle recovery, strained-constraint re-sweep, impact
+    /// substeps, contact stiffening and FEM solver tuning (see [`SoftBodiesSettings`]).
+    ///
+    /// [`SoftBodiesSettings`]: crate::dynamics::SoftBodiesSettings
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub soft_bodies: crate::dynamics::SoftBodiesSettings,
+
     /// Geometric slop distance (default: `0.005`), e.g. the standoff kept
     /// by the CCD clamp. NOT a deadzone on the position-correction bias: penetrations are corrected
     /// all the way to zero; a deadzone would keep loaded piles wedging and creeping.
@@ -414,6 +421,7 @@ impl Default for IntegrationParameters {
             friction_in_bias_pass: false,
             warmstart_joints: false,
             length_unit: 1.0,
+            soft_bodies: Default::default(),
             #[cfg(feature = "dim3")]
             friction_model: FrictionModel::default(),
         }

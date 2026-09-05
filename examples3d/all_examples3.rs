@@ -46,6 +46,7 @@ mod debug_long_chain3;
 mod debug_multi_collider_body3;
 mod debug_multibody_ang_motor_pos3;
 mod debug_pop3;
+mod debug_self_intersect3;
 mod debug_prismatic3;
 mod debug_rollback3;
 mod debug_shape_modification3;
@@ -206,6 +207,7 @@ pub async fn main() {
         DEBUG, "Dyn. collider add", debug_dynamic_collider_add3::run;
         DEBUG, "Friction", debug_friction3::run;
         DEBUG, "Internal edges", debug_internal_edges3::run;
+        DEBUG, "Self intersect", debug_self_intersect3::run;
         DEBUG, "Long chain", debug_long_chain3::run;
         DEBUG, "High mass ratio: chain", debug_chain_high_mass_ratio3::run;
         DEBUG, "High mass ratio: cube", debug_cube_high_mass_ratio3::run;

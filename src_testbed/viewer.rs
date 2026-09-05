@@ -150,6 +150,11 @@ impl TestbedViewer {
             return false;
         }
 
+        // The testbed owns the soft-recovery settings: stamped onto the (possibly fresh)
+        // world every frame, so the panel's choices survive demo restarts and switches.
+        world.integration_parameters.soft_bodies.recovery = self.state.soft_recovery;
+
+        // Update the world-space cursor before the event pass: a mouse press picks with it.
         let cursor_pos = self.window.cursor_pos();
         self.scene_mouse
             .update_from_window(cursor_pos, self.window.size().into(), &self.camera);

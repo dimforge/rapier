@@ -1508,6 +1508,10 @@ fn creeping_body_stays_awake() {
     let mut world = world_with_ground();
     let mut handles = vec![];
     for (i, plastic_yield) in [0.0, 0.05].into_iter().enumerate() {
+        // Resting on the ground rather than authored into it, and the elastic twin squat enough
+        // not to buckle: overlap recovery is paced (see SoftPairBudget) and this test is about
+        // sleep gating. The creeping twin stays slender (it collapses either way).
+        let width = if plastic_yield > 0.0 { 0.3 } else { 0.45 };
         let column = SoftBodyBuilder::cuboid(
             Vector::new(i as Real * 3.0, 1.3, 0.0),
             Vector::new(width, 1.2, width),

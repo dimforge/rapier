@@ -56,6 +56,24 @@ pub(super) struct BodyContacts {
     /// The owner's vertex contacts of the last step with the current other body (and
     /// vertex pass), by (vertex, element).
     pub(super) previous_vertex: HashMap<(u32, u32), (Real, Vector)>,
+    /// Elements (and vertices) of the mesh being assembled whose self contacts stand down
+    /// this step: carried by inverted cells, or part of a self-crossing of the surface (empty
+    /// while the surface is healthy). Copied from the narrow phase's self detection.
+    pub(super) tangled_elements: Vec<bool>,
+    pub(super) tangled_vertices: Vec<bool>,
+    /// The crossing element pairs the narrow phase's sweep found on the mesh being assembled.
+    pub(super) crossings: Vec<(u32, u32)>,
+    /// Elements of the current pair's surface side, and vertices of its vertex side, taking
+    /// part in a crossing *between* the two surfaces (empty while the surfaces do not
+    /// cross). Rows touching them may only expel, never hold at skin distance: the
+    /// closed-surface expulsion still pushes a lens out, while nothing freezes the
+    /// crossing.
+    pub(super) cross_tangled_elements: Vec<bool>,
+    pub(super) cross_tangled_vertices: Vec<bool>,
+    /// Element-granularity crossing flags on the vertex-side mesh, and the recorded
+    /// (element-side, vertex-side) crossing element pairs.
+    pub(super) cross_tangled_vb_elements: Vec<bool>,
+    pub(super) cross_pairs: Vec<(u32, u32)>,
 }
 /// The contact state one collision mesh owns across steps: what the next step warm-starts from.
 #[derive(Default)]
@@ -63,7 +81,14 @@ pub(super) struct MeshContacts {
     pub(super) id: SoftMeshId,
     pub(super) edge_contacts: Vec<SoftEdgeContact>,
     pub(super) vertex_contacts: Vec<SoftVertexContact>,
+    /// Surface travel since the last self-crossing sweep (the owner's `crossing_sweep_travel` of the
+    /// next step).
+    pub(super) crossing_sweep_travel: Real,
+    /// The surfaces whose pair with this mesh crosses this step (the owner's
+    /// `crossed_partners`).
+    pub(super) crossed_partners: Vec<crate::geometry::ColliderHandle>,
 }
+
 impl BodyContacts {
     /// Starts assembling the mesh `id`: its contacts go to a list of its own.
     pub(super) fn begin_mesh(&mut self, id: SoftMeshId) {
@@ -74,6 +99,46 @@ impl BodyContacts {
         });
     }
 
+    /// The contact state of the mesh being assembled.
+    pub(super) fn mesh(&mut self) -> &mut MeshContacts {
+        &mut self.meshes[self.current_mesh]
+    }
+
+    /// Records the self pair as recovery-owned when this mesh has self tangles.
+    pub(super) fn exempt_self_tangles(&mut self, own_surface: crate::geometry::ColliderHandle) {
+        let mc = &mut self.meshes[self.current_mesh];
+        if (!self.tangled_elements.is_empty() || !self.tangled_vertices.is_empty())
+            && !mc.crossed_partners.contains(&own_surface)
+        {
+            mc.crossed_partners.push(own_surface);
+        }
+    }
+
+    /// Records the current pair as recovery-owned when the two boundaries cross.
+    pub(super) fn exempt_cross_tangles(&mut self, other_surface: crate::geometry::ColliderHandle) {
+        if self.cross_tangled_elements.is_empty() {
+            return;
+        }
+        let mc = &mut self.meshes[self.current_mesh];
+        if !mc.crossed_partners.contains(&other_surface) {
+            mc.crossed_partners.push(other_surface);
+        }
+    }
+
+    pub(super) fn clear(&mut self) {
+        self.contacts.clear();
+        self.meshes.clear();
+        self.current_mesh = 0;
+        self.max_approach_speed = 0.0;
+        self.previous.clear();
+        self.previous_vertex.clear();
+        self.tangled_elements.clear();
+        self.tangled_vertices.clear();
+        self.crossings.clear();
+        self.cross_tangled_elements.clear();
+        self.cross_tangled_vertices.clear();
+        self.cross_tangled_vb_elements.clear();
+        self.cross_pairs.clear();
 }
 /// The step-constant inputs of the per-body contact assembly.
 pub(super) struct AssemblyCtx<'a> {

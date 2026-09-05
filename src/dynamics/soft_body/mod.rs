@@ -24,11 +24,17 @@ pub use self::soft_body_plasticity::SoftEdgePlasticFlow;
 
 pub(crate) use self::soft_body::SOFT_BODY_OVERFLOW_COLOR;
 pub(crate) use self::soft_body_contacts::{SoftEdgeContact, SoftVertexContact};
-
 #[allow(unused_imports)]
 use self::soft_body_elements::{CELL_IMPULSES};
 #[allow(unused_imports)]
 use self::soft_body_material::{default_true, one};
+mod soft_recovery_settings;
+pub use soft_recovery_settings::{SoftPatchConstraints, SoftRecoverySettings};
+mod soft_body_settings;
+#[cfg(feature = "fem")]
+pub use soft_body_settings::SoftFemParameters;
+pub use soft_body_settings::SoftBodiesSettings;
+
 pub(crate) mod collision_mesh;
 mod soft_body;
 mod soft_body_accessors;
@@ -36,6 +42,7 @@ mod soft_body_builder;
 mod soft_body_cluster;
 mod soft_body_coloring;
 mod soft_body_contacts;
+pub(crate) mod soft_body_crossing_tests;
 mod soft_body_elements;
 mod soft_body_geometry;
 mod soft_body_handle;

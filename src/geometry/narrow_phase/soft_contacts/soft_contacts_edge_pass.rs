@@ -44,11 +44,27 @@ pub(crate) fn detect_edges(
     if !params.soft_bodies.recovery.edge_speculation && mesh.is_closed() && other_mesh.is_closed() {
         return false;
     }
+    let speculation = params.soft_bodies.recovery.edge_speculation;
     let Some(other_bvh) = other_co.shape().as_composite_shape().map(|c| c.bvh()) else {
         return false;
     };
     let skins = surface_co.contact_skin() + other_co.contact_skin();
+    // The motion margin only matters when the pair can skip the skin band in
+    // a step; a resting pair keeps the tight reach (candidate enumeration is the edge
+    // pass's cost).
     let motion = ctx.motion_margin(surface_co) + ctx.motion_margin(other_co);
+    let reach = params.prediction_distance()
+        + skins
+        + if speculation && motion > 0.25 * skins {
+            motion
+        } else {
+            0.0
+        };
+    let tangled_elements: &[bool] = tangles.as_ref().map_or(&[], |t| t.tangled_elements);
+
+    let other_inv_pose = other_co.position().inverse();
+    if !is_self && params.soft_bodies.recovery.cross_body_detection && params.soft_bodies.recovery.edge_stand_down
+    {
     let scan = EdgeScan {
     };
     let n_e = mesh.indices().len();
@@ -147,6 +163,26 @@ impl EdgeScan<'_> {
                     let sep = point_b - point_a;
                     let len = sep.length();
                     if len >= self.reach || len < 1.0e-6 {
+                let dist = len - skins;
+                        continue;
+                    }
+                    // Beyond the prediction distance, only a contact closing fast enough
+                    // to happen within the whole step is kept (the vertex pass's rule):
+                    // the rest of the self.reach is the bodies' motion margin.
+                    if dist >= self.params.prediction_distance() {
+                        if !self.speculation {
+                            continue;
+                        }
+                        let vel_a = self.mesh.vertex_velocity(self.sb, va[0] as usize) * ba[0]
+                            + self.mesh.vertex_velocity(self.sb, va[1] as usize) * ba[1];
+                        let (other, other_mesh) = (self.other, self.other_mesh);
+                        let vel_b = other_mesh.vertex_velocity(other, vb[0] as usize) * bb[0]
+                            + other_mesh.vertex_velocity(other, vb[1] as usize) * bb[1];
+                        let closing = (vel_a - vel_b).gdot(sep / len);
+                        if dist - closing * self.step_dt >= self.params.prediction_distance() {
+                            continue;
+                        }
+                    }
                     // Force direction on this body's edge (away from the self.other edge).
                     let dir = -sep / len;
                     out.push(SoftEdgeCandidate {

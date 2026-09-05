@@ -306,7 +306,12 @@ impl PhysicsPipeline {
         // Soft bodies whose settings changed must wake up for the change to take effect; the
         // colliders of the ones whose particles were moved follow them (picked up as modified
         // colliders below).
-        soft_bodies.apply_user_changes(bodies, colliders, &mut self.quarantine.soft_bodies);
+        soft_bodies.apply_user_changes(
+            bodies,
+            colliders,
+            &integration_parameters,
+            &mut self.quarantine.soft_bodies,
+        );
 
         // Apply modifications.
         let mut modified_colliders = colliders.take_modified();

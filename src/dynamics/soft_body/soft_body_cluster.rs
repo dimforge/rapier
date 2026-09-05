@@ -87,7 +87,12 @@ impl SoftBodyCluster {
         self.proxy
     }
 
-    /// The collision meshes this cluster carries (dead slots skipped).
+    /// The collision meshes this cluster owns mutably (dead slots skipped).
+    pub(crate) fn meshes_mut(&mut self) -> impl Iterator<Item = &mut super::SoftCollisionMesh> {
+        self.meshes.iter_mut().flatten()
+    }
+
+    /// The collision meshes this cluster owns (dead slots skipped).
     pub fn meshes(&self) -> impl Iterator<Item = &super::SoftCollisionMesh> {
         self.meshes.iter().flatten()
     }

@@ -32,6 +32,22 @@ impl SoftBody {
     }
 
     /// The mesh with the given id, mutably.
+    /// Iterates over all collision meshes mutably.
+    pub(crate) fn meshes_mut(&mut self) -> impl Iterator<Item = &mut SoftCollisionMesh> {
+        self.clusters.iter_mut().flat_map(|c| c.meshes_mut())
+    }
+
+    /// Refreshes every mesh's vertex cache from the particles (see
+    /// `SoftCollisionMesh::cached_vertex`).
+    pub(crate) fn refresh_vertex_caches(&mut self) {
+        let particles = &self.particles;
+        for cluster in &mut self.clusters {
+            for mesh in cluster.meshes_mut() {
+                mesh.refresh_vertex_cache(particles);
+            }
+        }
+    }
+
     pub(crate) fn mesh_mut(&mut self, id: SoftMeshId) -> Option<&mut SoftCollisionMesh> {
         self.clusters
             .get_mut(id.cluster as usize)?

@@ -62,6 +62,9 @@ impl SoftCollisionMesh {
             self_contacts,
             edge_contacts: Vec::new(),
             vertex_contacts: Vec::new(),
+            crossing_sweep_travel: Real::MAX,
+            crossed_partners: Vec::new(),
+            vertex_cache: Vec::new(),
             topology_version: 0,
         }
     }
@@ -124,6 +127,9 @@ impl SoftCollisionMesh {
             self_contacts,
             edge_contacts: Vec::new(),
             vertex_contacts: Vec::new(),
+            crossing_sweep_travel: Real::MAX,
+            crossed_partners: Vec::new(),
+            vertex_cache: Vec::new(),
             topology_version: 0,
         }
     }
@@ -199,6 +205,9 @@ impl SoftCollisionMesh {
             self_contacts,
             edge_contacts: Vec::new(),
             vertex_contacts: Vec::new(),
+            crossing_sweep_travel: Real::MAX,
+            crossed_partners: Vec::new(),
+            vertex_cache: Vec::new(),
             topology_version: 0,
         })
     }
@@ -371,5 +380,7 @@ impl SoftCollisionMesh {
     pub(crate) fn clear_contacts(&mut self) {
         self.edge_contacts.clear();
         self.vertex_contacts.clear();
+        self.crossing_sweep_travel = Real::MAX;
+        self.crossed_partners.clear();
     }
 }

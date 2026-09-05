@@ -1,4 +1,5 @@
     /// refreshes the attachment index and island links of the bodies whose attachments changed.
+                        // Flagged as modified so the broad phase updates their AABBs with the raised margin.
     /// Refreshes every live cluster's proxy rigid body from the current particles: its pose is
             // Dead zone: the frame fit carries a little noise even at rest (the least-squares
         // so a one-refresh-stale proxy pose is fine.

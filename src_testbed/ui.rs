@@ -546,6 +546,13 @@ fn settings_tab(ui: &mut Ui, state: &mut TestbedState, world: &mut PhysicsWorld)
         )
         .on_hover_text("Continuous collision detection substeps.");
 
+        if world.soft_bodies.iter().next().is_some() {
+            // Edits the testbed-owned copy, stamped onto the world every frame: the
+            // choices survive demo restarts and switches (and app relaunches, through the
+            // saved testbed state).
+            soft_recovery_section(ui, &mut state.soft_recovery);
+        }
+
         #[cfg(feature = "parallel")]
         {
             let max_threads = num_cpus::get();
@@ -574,6 +581,28 @@ fn settings_tab(ui: &mut Ui, state: &mut TestbedState, world: &mut PhysicsWorld)
 
         ui.add_space(8.0);
     }
+}
+
+/// The soft-body tangle detection and recovery toggles and knobs (see `SoftRecoverySettings`),
+/// edited live on the running world; shown whenever the world contains soft bodies. Re-enabling
+/// a mechanism does not wake bodies that fell asleep while it was off.
+fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySettings) {
+    egui::CollapsingHeader::new("Soft recovery")
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.label("Prevention");
+            ui.checkbox(&mut r.authored_velocity_margin, "Authored-velocity margin");
+            ui.checkbox(&mut r.edge_speculation, "Edge speculation (3D closed pairs)");
+            ui.separator();
+            ui.label("Detection");
+            ui.checkbox(&mut r.inverted_cell_detection, "Inverted cells");
+            ui.checkbox(&mut r.self_crossing_detection, "Self-crossings");
+            ui.checkbox(&mut r.detection_motion_gating, "Self-crossing sweep motion gating");
+            ui.checkbox(&mut r.cross_body_detection, "Cross-body crossings");
+            if ui.button("Reset to defaults").clicked() {
+                *r = Default::default();
+            }
+        });
 }
 
 /// One of the debug renderer's colors, as a color picker. The style stores HSLA; the picker

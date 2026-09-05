@@ -428,6 +428,7 @@ impl SoftConstraintsSet {
                         out.tangled_elements.clone_from(&detected.tangled_elements);
                         out.tangled_vertices.clone_from(&detected.tangled_vertices);
                         out.crossings.clone_from(&detected.crossings);
+                        out.exempt_self_tangles(surface_handle);
                         self.assemble_vertex_contacts(
                             ctx,
                             ai,
