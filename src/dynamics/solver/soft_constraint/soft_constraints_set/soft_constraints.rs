@@ -6,6 +6,8 @@ use core::ops::Range;
 use simba::scalar::{ComplexField as _, RealField as _};
 
 use crate::dynamics::solver::solver_body::SolverBodies;
+use crate::dynamics::soft_body::SoftMeshId;
+use crate::geometry::ColliderHandle;
 use crate::math::{AngVector, DIM, Matrix, Real, Rotation, Vector};
 use crate::utils::ComponentMul;
 
@@ -62,4 +64,46 @@ pub(crate) struct SoftVolumeConstraint {
     pub cfm_gain: Real,
     pub rhs: Real,
     pub impulse: Real,
+}
+/// An intersection-volume constraint (see `SoftRecoverySettings::overlap_constraints`): a scalar
+/// unilateral constraint retracting the part of a closed boundary inside another (or its own
+/// mirrored lobe) along the gradient of the enclosed area/volume. Solved serially, no warm start.
+#[derive(Clone, Debug)]
+pub(crate) struct SoftOverlapConstraint {
+    /// Range of this constraint's `(solver slot, inverse mass, gradient)` triples in `overlap_grads`.
+    pub grads: Range<usize>,
+    /// The overlap measure the constraint corrects (positive while overlapping).
+    pub rhs: Real,
+    pub erp_inv_dt: Real,
+    pub cfm_coeff: Real,
+    /// Cap on the velocity the bias may give any particle in one solve.
+    pub max_bias_velocity: Real,
+    pub impulse: Real,
+    /// A negative `rhs` is slack, allowed to close at this rate (the skin band of a hard
+    /// row may be consumed within the substep, never past it); `0.0` for the rows whose
+    /// `rhs` is an error.
+    pub speculative_inv_dt: Real,
+    /// The rigid side of an overlap row, when the other body is a simulated rigid body:
+    /// its solver slot, and the volume gradient with respect to its translation and its
+    /// rotation about its center of mass (the reaction to the soft patch, applied at the
+    /// patch's vertices).
+    pub rigid: Option<(u32, Vector, AngVector)>,
+    /// A hard row (the skin-volume rows, contacts in their own right): its impulse is not
+    /// bounded by the pace, and its right-hand side is refreshed every substep from the
+    /// current poses (the volume linearized with the frozen gradients from `rhs0`), so
+    /// its slack is consumed exactly, never several times over.
+    pub hard: bool,
+    /// The assembled right-hand side (see `hard`).
+    pub rhs0: Real,
+    /// The rigid side's center of mass and rotation at assembly (see `hard`).
+    pub rigid_pose0: (Vector, Rotation),
+    /// Where the row's impulses are carried to for the next step's warm start (see
+    /// `SoftOverlapWarm`): the awake body, its mesh and the other collider. The carried
+    /// impulse of every entry lives in `overlap_warm_impulses`, aligned with `grads`, and
+    /// the entries' particles in `overlap_particles`.
+    pub warm: Option<(u32, SoftMeshId, ColliderHandle)>,
+    /// The carried per-particle impulses are still to be applied (the first substep).
+    pub warm_pending: bool,
+    /// The rigid side's carried linear and angular impulse.
+    pub warm_rigid: (Vector, AngVector),
 }

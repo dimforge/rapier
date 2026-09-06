@@ -69,6 +69,10 @@ pub struct DebugRenderStyle {
     pub edge_pseudo_normal_color: DebugColor,
     /// The length of the pseudo-normals.
     pub pseudo_normal_length: Real,
+    /// Color of the soft bodies' volume constraints' normals.
+    pub volume_contact_normal_color: DebugColor,
+    /// Color of the volume gradients drawn at the particles of a volume constraint.
+    pub volume_gradient_color: DebugColor,
 }
 
 impl Default for DebugRenderStyle {
@@ -99,6 +103,8 @@ impl Default for DebugRenderStyle {
             vertex_pseudo_normal_color: [180.0, 1.0, 0.6, 1.0],
             edge_pseudo_normal_color: [280.0, 1.0, 0.6, 1.0],
             pseudo_normal_length: 0.2,
+            volume_contact_normal_color: [0.0, 0.9, 0.35, 1.0],
+            volume_gradient_color: [270.0, 0.8, 0.3, 1.0],
         }
     }
 }

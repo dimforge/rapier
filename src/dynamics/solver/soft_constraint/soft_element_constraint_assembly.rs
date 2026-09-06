@@ -118,6 +118,10 @@ impl SoftConstraintsSet {
         self.shape_constraints.clear();
         self.volume_constraints.clear();
         self.volume_grads.clear();
+        self.overlap_constraints.clear();
+        self.overlap_grads.clear();
+        self.overlap_warm_impulses.clear();
+        self.overlap_particles.clear();
         self.contacts.clear();
         self.attachments.clear();
         self.groups.clear();

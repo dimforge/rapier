@@ -131,6 +131,45 @@ impl SoftConstraintsSet {
                 (c.erp_inv_dt, c.cfm_factor) = if world_fixed { static_soft } else { dyn_soft };
             }
             self.groups[gi].contacts = start..self.contacts.len();
+            // The intersection-volume constraints of the group's bodies, with the contact softness.
+            let ostart = self.overlap_constraints.len();
+            for ai in self.groups[gi].awake.clone() {
+                let mesh_id = per_body[ai].meshes.get(per_body[ai].current_mesh).map(|m| m.id);
+                for constraint in per_body[ai].overlap_constraints.drain(..) {
+                    let gs = self.overlap_grads.len();
+                    let n = constraint.grads.len();
+                    self.overlap_grads.extend(constraint.grads);
+                    self.overlap_particles.extend(constraint.particles);
+                    if constraint.warm_impulses.len() == n {
+                        self.overlap_warm_impulses.extend(constraint.warm_impulses);
+                    } else {
+                        self.overlap_warm_impulses
+                            .extend(core::iter::repeat_n(Vector::ZERO, n));
+                    }
+                    let (impulse, warm) = match (constraint.warm, mesh_id) {
+                        (Some((other, impulse)), Some(mesh_id)) => {
+                            (impulse, Some((ai as u32, mesh_id, other)))
+                        }
+                        _ => (0.0, None),
+                    };
+                    self.overlap_constraints.push(SoftOverlapConstraint {
+                        grads: gs..self.overlap_grads.len(),
+                        rhs: constraint.rhs,
+                        rhs0: constraint.rhs,
+                        rigid_pose0: constraint.rigid_pose0,
+                        warm,
+                        warm_pending: warm.is_some(),
+                        warm_rigid: constraint.warm_rigid,
+                        erp_inv_dt: stiffen(&params.contact_softness).erp_inv_dt(group_dt(gi)),
+                        cfm_coeff: stiffen(&params.contact_softness).cfm_coeff(group_dt(gi)),
+                        max_bias_velocity: constraint.max_bias_velocity,
+                        impulse,
+                        // A hard constraint's slack is speculative: consumed within the substep,
+                        // never past it.
+                        speculative_inv_dt: if constraint.hard { 1.0 / group_dt(gi) } else { 0.0 },
+                        rigid: constraint.rigid,
+                        hard: constraint.hard,
+            self.groups[gi].overlap_constraints = ostart..self.overlap_constraints.len();
         }
         // Hand the new edge and vertex contacts to their owner bodies.
         // SAFETY: the assembly holds no other reference into the soft bodies any more.
@@ -142,6 +181,9 @@ impl SoftConstraintsSet {
                 };
                 core::mem::swap(&mut mesh.edge_contacts, &mut assembled.edge_contacts);
                 core::mem::swap(&mut mesh.vertex_contacts, &mut assembled.vertex_contacts);
+                core::mem::swap(&mut mesh.overlap_states, &mut assembled.overlap_states);
+                core::mem::swap(&mut mesh.volume_contacts, &mut assembled.volume_contacts);
+                mesh.overlap_warm.clear();
                 mesh.crossing_sweep_travel = assembled.crossing_sweep_travel;
                 core::mem::swap(&mut mesh.crossed_partners, &mut assembled.crossed_partners);
             }

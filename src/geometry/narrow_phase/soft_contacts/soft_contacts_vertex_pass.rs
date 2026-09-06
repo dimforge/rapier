@@ -193,6 +193,64 @@ pub(crate) fn detect_vertex_pass(
     } else {
         (Vec::new(), Vec::new())
     };
+    // The guiding volume normals (see `crossing_repulsion_guide`): the intersection patches of the
+    // two closed surfaces, binned like the volume contact, computed in every vertex pass and
+    // without any volume constraint; the vertices inside the surface side's patch come with them.
+    let patch_policy = params.soft_bodies.recovery.overlap_patch_constraints;
+    if ((repel && params.soft_bodies.recovery.crossing_repulsion_guide)
+        || patch_policy != crate::dynamics::SoftPatchConstraints::Keep)
+        && !is_self
+        && vb_mesh.is_closed()
+        && eb_mesh.is_closed()
+        && !out.cross_pairs.is_empty()
+    {
+        let mut inside_vb = Vec::new();
+        let mut inside_eb = Vec::new();
+        let mut depth_vb = Vec::new();
+        let mut depth_eb = Vec::new();
+        classify_inside(
+            vb_mesh,
+            vb,
+            &out.cross_tangled_vb_elements,
+            (eb_mesh, eb),
+            &mut inside_vb,
+        );
+        classify_inside(
+            eb_mesh,
+            eb,
+            &out.cross_tangled_elements,
+            (vb_mesh, vb),
+            &mut inside_eb,
+        );
+        let a1 = fill_depths(vb_mesh, vb, &inside_vb, eb_co, &mut depth_vb);
+        let a2 = fill_depths(eb_mesh, eb, &inside_eb, vb_co, &mut depth_eb);
+        if patch_policy != crate::dynamics::SoftPatchConstraints::Keep {
+            out.patch_inside_vb = inside_vb;
+        }
+        if a1 || a2 {
+            if a1 {
+                ring_depths(vb_mesh, vb, eb_co, 0.0, &mut depth_vb);
+            }
+            if a2 {
+                ring_depths(eb_mesh, eb, vb_co, 0.0, &mut depth_eb);
+            }
+            let own = VolumeSide {
+                body: eb,
+                mesh: eb_mesh,
+                vertices: patch_vertices(eb_mesh, eb, &depth_eb, 0.0),
+            };
+            let other = VolumeSide {
+                body: vb,
+                mesh: vb_mesh,
+                vertices: patch_vertices(vb_mesh, vb, &depth_vb, 0.0),
+            };
+            for bin in volume_bins(&own, Some(&other), volume_split(params)) {
+                if bin.normal != Vector::ZERO {
+                    out.repel_guides.push((bin.center, bin.normal));
+                }
+            }
+        }
+    }
 }
         // A tangled vertex (backed by inverted material, or part of a surface
             if len >= reach || len < 1.0e-6 {

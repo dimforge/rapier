@@ -146,19 +146,31 @@ fn apply_preset(world: &mut PhysicsWorld) -> String {
     let preset = std::env::var("SOFT_STACK_PRESET").unwrap_or_else(|_| "defaults".into());
     let r = &mut world.integration_parameters.soft_bodies.recovery;
     *r = Default::default();
+    // Per-feature policy of the volume-patch constraints (`SoftPatchConstraints`) on any preset:
+    // `SOFT_PATCH_CONSTRAINTS=stand|normal`.
+    match std::env::var("SOFT_PATCH_CONSTRAINTS").as_deref() {
+        Ok("stand") => r.overlap_patch_constraints = SoftPatchConstraints::StandDown,
+        Ok("normal") => r.overlap_patch_constraints = SoftPatchConstraints::AlongNormal,
+        _ => {}
+    }
     match preset.as_str() {
         "defaults" => {}
         // The user's reference settings (2026-09-04): prevention without edge speculation,
         // detection + stand-down, the intersection-volume constraints on.
         "reference" => {
             r.edge_speculation = false;
+            r.overlap_constraints = true;
         }
         // The reference settings with the crossing repulsion, unguided or guided by the
         // pair's (and the fold's) volume normal (see `crossing_repulsion_guide`).
         "reference+repel" | "reference+repel-guide" => {
             r.edge_speculation = false;
+            r.overlap_constraints = true;
             r.crossing_repulsion = true;
+            r.crossing_repulsion_guide = preset.ends_with("-guide");
         }
+        // The intersection-volume constraints on the defaults.
+        "overlap" => r.overlap_constraints = true,
         other => panic!("unknown SOFT_STACK_PRESET `{other}`"),
     }
     preset

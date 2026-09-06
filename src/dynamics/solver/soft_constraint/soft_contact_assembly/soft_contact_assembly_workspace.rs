@@ -39,6 +39,12 @@ pub(crate) struct EdgeContactWorkspace {
 /// warm start lives in the owner's `edge_contacts`) or a vertex-vs-surface row (`vertex_contacts`).
 pub(super) const SOURCE_EDGE_CONTACT: u32 = u32::MAX;
 pub(super) const SOURCE_VERTEX_CONTACT: u32 = u32::MAX - 1;
+/// The corrective pace deep recovery is allowed (demoted intruders, the volume rows):
+/// fast enough to visibly heal, slow enough that a correction cannot pump the material.
+pub(super) fn material_pace(params: &IntegrationParameters) -> Real {
+    params.soft_bodies.recovery.recovery_pace * params.length_unit
+}
+
 /// The contact rows of one awake soft body, and its new edge-vs-edge and vertex-vs-surface
 /// contacts (the rows' `point` indices are positions in those lists).
 #[derive(Default)]
@@ -74,13 +80,55 @@ pub(super) struct BodyContacts {
     /// (element-side, vertex-side) crossing element pairs.
     pub(super) cross_tangled_vb_elements: Vec<bool>,
     pub(super) cross_pairs: Vec<(u32, u32)>,
+    /// The intersection-volume rows this body assembled (see `SoftOverlapRow`).
+    pub(super) overlap_constraints: Vec<OverlapConstraintWorkspace>,
+    /// The current pair's volume normals guiding its crossing repulsion (see
+    /// `crossing_repulsion_guide`): per grid cell, its center and its normal from the
+    /// element side into the vertex side (for a self pair: the push direction of the fold's
+    /// vertices, the facing surface's vertices take the opposite).
+    pub(super) repel_guides: Vec<(Vector, Vector)>,
+    /// For the current pair, whether each vertex of the vertex side lies in the other
+    /// side's volume patch (see `overlap_patch_rows`).
+    pub(super) patch_inside_vb: Vec<bool>,
+    /// The rigid pairs of the current mesh with a volume constraint (see
+    /// `overlap_patch_rows`): the collider, the surface vertices' depths in its patch
+    /// (`NEG_INFINITY` outside), and the constraint's cells (center, normal).
+    pub(super) rigid_patches: Vec<(ColliderHandle, Vec<Real>, Vec<(Vector, Vector)>)>,
 }
+
+/// An intersection-volume row assembled by one body (see `SoftOverlapRow`): the gradient
+/// triples of every simulated particle of the pair, the rigid side if any, and the row's
+/// right-hand side (the signed volume estimate when the correction runs on the row, the
+/// slack alone otherwise).
+pub(super) struct OverlapConstraintWorkspace {
+    pub(super) grads: Vec<(u32, Real, Vector, Vector)>,
+    /// The `(side, particle)` of every gradient entry (see `SoftOverlapRow::warm`).
+    pub(super) particles: Vec<(u8, u32)>,
+    pub(super) rigid: Option<(u32, Vector, AngVector)>,
+    pub(super) rigid_pose0: (Vector, Rotation),
+    pub(super) rhs: Real,
+    /// A contact in its own right (see `SoftOverlapRow::hard`).
+    pub(super) hard: bool,
+    /// The carried impulses of a hard row (see `SoftOverlapWarm`): the other collider, the
+    /// fitted multiplier, the carried impulse per gradient entry, and the rigid side's.
+    pub(super) warm: Option<(ColliderHandle, Real)>,
+    pub(super) warm_impulses: Vec<Vector>,
+    pub(super) warm_rigid: (Vector, AngVector),
+    pub(super) max_bias_velocity: Real,
+    /// The pair's contact slot of the row's bin (see `SoftOverlapRow::report`).
+    pub(super) report: (ColliderHandle, ColliderHandle, u32),
+}
+
 /// The contact state one collision mesh owns across steps: what the next step warm-starts from.
 #[derive(Default)]
 pub(super) struct MeshContacts {
     pub(super) id: SoftMeshId,
     pub(super) edge_contacts: Vec<SoftEdgeContact>,
     pub(super) vertex_contacts: Vec<SoftVertexContact>,
+    /// The pairs' overlap progress states (the owner's `overlap_states` of the next step).
+    pub(super) overlap_states: Vec<SoftOverlapState>,
+    /// The volume constraints assembled this step (the owner's `volume_contacts`).
+    pub(super) volume_contacts: Vec<SoftVolumeContact>,
     /// Surface travel since the last self-crossing sweep (the owner's `crossing_sweep_travel` of the
     /// next step).
     pub(super) crossing_sweep_travel: Real,
@@ -93,6 +141,7 @@ impl BodyContacts {
     /// Starts assembling the mesh `id`: its contacts go to a list of its own.
     pub(super) fn begin_mesh(&mut self, id: SoftMeshId) {
         self.current_mesh = self.meshes.len();
+        self.rigid_patches.clear();
         self.meshes.push(MeshContacts {
             id,
             ..Default::default()
@@ -139,7 +188,10 @@ impl BodyContacts {
         self.cross_tangled_vertices.clear();
         self.cross_tangled_vb_elements.clear();
         self.cross_pairs.clear();
+        self.overlap_constraints.clear();
+    }
 }
+
 /// The step-constant inputs of the per-body contact assembly.
 pub(super) struct AssemblyCtx<'a> {
     pub(super) island_id: usize,

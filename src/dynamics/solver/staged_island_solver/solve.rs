@@ -25,16 +25,34 @@ pub(super) unsafe fn solve_pass(
 ) -> usize {
     let group = &ctx.groups[group_index];
     let sync = ctx.sync;
-    // Soft-body work of this group. The set is shared and immutable in shape during the solve, so
-    // every worker takes the same branches (identical stage sequences).
-    // Soft rows are springs solved once per substep, in the biased pass only: solving them
-    // again in the relax pass (with or without their bias) leaves the two passes fighting over
-    // the same impulse, and the velocity read out after the relax pass carries the difference.
+    // Soft-body work of this group: the set is shared and immutable in shape during the solve, so
+    // every worker takes the same branches. Soft constraints are springs solved once per substep,
+    // in the biased pass only; a relax-pass re-solve leaves both passes fighting over one impulse.
     let soft_ref = unsafe { &*ctx.soft_constraints };
     let has_soft = !soft_ref.is_empty() && !wo_bias;
     // Particle attachments are joints: solved in both passes, right after the joints.
     let has_attachments =
         !soft_ref.is_empty() && !soft_ref.groups[group_index].attachments.is_empty();
+    /*
+     * Stage: warm start the intersection-volume constraints (worker 0, serial): warm impulses go
+     * before the elastic constraints, so a resting patch's springs see the contact force instead of
+     * pushing the patch through it first (see `SoftOverlapWarm`).
+     */
+    if has_soft
+        && soft_warmstart.is_some()
+        && !soft_ref.groups[group_index].overlap_constraints.is_empty()
+    {
+        if worker_id == 0 {
+            let soft = unsafe { &mut *ctx.soft_constraints };
+            let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
+            for oi in soft.groups[group_index].overlap_constraints.clone() {
+                soft.warmstart_overlap_constraint(oi, solver_bodies);
+            }
+            sync.complete(stage, 1, 1);
+        }
+        stage = sync.sync(stage, 1);
+    }
+
     /*
      * Stage: soft-body prepare (parallel over the group's awake soft bodies): shape-matching
      * goals and global-volume gradients from the current poses.
@@ -446,7 +464,7 @@ unsafe fn solve_soft_constraints(
         stage = sync.sync(stage, 1);
     }
 
-    if sg.serial.len() > 0 || !sg.volume_rows.is_empty() {
+    if sg.serial.len() > 0 || !sg.volume_constraints.is_empty() || !sg.overlap_constraints.is_empty() {
         if worker_id == 0 {
             let soft = unsafe { &mut *ctx.soft_constraints };
             let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
@@ -462,6 +480,9 @@ unsafe fn solve_soft_constraints(
             }
             for vi in sg.volume_constraints.clone() {
                 soft.solve_volume_constraint(vi, solver_bodies, soft_warmstart);
+            }
+            for oi in sg.overlap_constraints.clone() {
+                soft.solve_overlap_constraint(oi, solver_bodies);
             }
             sync.complete(stage, 1, 1);
         }

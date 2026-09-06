@@ -26,8 +26,14 @@ fn repel_constraint(
     (eb, eb_mesh, element): (&SoftBody, &SoftCollisionMesh, usize),
     (vb, vb_mesh, vertex_pos, neighbors): (&SoftBody, &SoftCollisionMesh, Vector, &[u32]),
     skins: Real,
+    guide: Option<Vector>,
 ) -> Option<(Vector, Real)> {
     let (p0, n) = element_plane(eb_mesh, element, |v| eb_mesh.vertex(eb, v))?;
+    // Guided (see `crossing_repulsion_guide`): the vertex is pushed along the pair's volume
+    // normal, its separation measured along it from the element's plane point.
+    if let Some(push) = guide {
+        return Some((-push, (vertex_pos - p0).dot(push) - skins));
+    }
     if neighbors.is_empty() {
         return None;
     }
@@ -108,6 +114,10 @@ impl SoftConstraintsSet {
         if !is_self && !flipped {
             out.exempt_cross_tangles(other_surface_handle);
         }
+        // Intersection-volume contact (`SoftOverlapConstraint`, Allard et al. 2010): one coupled
+        // constraint per crossed closed pair over both intruding patches (none if self-tangled),
+        // built once per pair (lower surface handle, or this body if the other is not simulated).
+        let recovery = &params.soft_bodies.recovery;
         let friction = crate::dynamics::CoefficientCombineRule::combine(
             surface_co.friction(),
             other_co.friction(),
@@ -119,6 +129,48 @@ impl SoftConstraintsSet {
         if let Some(volume) = volume.filter(|_| {
             !flipped
                 && (!recovery.overlap_skip_self_tangled || out.tangled_elements.is_empty())
+                && (other_ai.is_none()
+                    || surface_handle.into_raw_parts() < other_surface_handle.into_raw_parts())
+        }) {
+            // The patches are binned from the pair's lower surface; consumed from the other
+            // side (an owner that is not simulated), their bins are mirrored.
+            let mirrored = (volume.own != surface_handle).then(|| mirrored_bins(&volume.bins));
+            let bins = mirrored.as_deref().unwrap_or(&volume.bins);
+            emit_volume_bins(
+                params,
+                out,
+                mesh,
+                other_surface_handle,
+                (eb, eb_slots),
+                Some((vb, vb_slots)),
+                None,
+                hard,
+                bins,
+                volume.slot_offset,
+            );
+        }
+        // Self-overlaps between distinct regions of one closed surface (see
+        // `overlap_self_regions`, detected by the narrow phase): each region gets a coupled
+        // constraint with the vertices of the elements it faces, like a pair of bodies would.
+        if is_self {
+            for bins in regions {
+                emit_volume_bins(
+                    params,
+                    out,
+                    mesh,
+                    surface_handle,
+                    (vb, vb_slots),
+                    Some((vb, vb_slots)),
+                    None,
+                    hard,
+                    bins,
+                    u32::MAX,
+                );
+            }
+        }
+        // The two contact skins (a soft surface's is its vertices' thickness).
+        let skins = vb_co.contact_skin() + eb_co.contact_skin();
+
         out.previous_vertex.clear();
         for c in &mesh.vertex_contacts {
             if c.other == other_handle && c.flipped == flipped {
@@ -140,12 +192,293 @@ impl SoftConstraintsSet {
         // Narrow-phase results: the guiding volume normals (see `crossing_repulsion_guide`), the
         // vertices inside the other side's volume patch (see `overlap_patch_constraints`) and, for
         // a self pair, the vertices in their own body's self-intersection region.
-            // boundary, the particles of the cell carrying it when it collides through a skin.
+        let patch_policy = params.soft_bodies.recovery.overlap_patch_constraints;
+        out.repel_guides.clone_from(&detected.repel_guides);
+        out.patch_inside_vb.clone_from(&detected.patch_inside_vb);
+        out.repel_inside.clone_from(&detected.repel_inside);
+        // The surface vertices with an element within reach (see `soft_contacts`).
+        for hit in &detected.hits {
+            let v = hit.vertex as usize;
+            let candidates = detected.candidates_of(hit);
+            // A vertex inside the other side's volume patch (see `overlap_patch_constraints`): its
+            // constraints disagreeing with the constraint are stood down or bent along its normal.
+            let in_patch = out.patch_inside_vb.get(v).copied().unwrap_or(false)
+                && patch_policy != SoftPatchConstraints::Keep;
+            let vertex_pos = vb_mesh.vertex(vb, v);
+            // The vertex side: its own solver body when the body collides through its cells'
+            // boundary, the particles of the cell holding it when it collides through a skin.
+            let (vertex_anchors, vertex_weights) = vb_mesh.vertex_anchors(vb, v);
+            let vertex_element = vb_mesh.is_skinned().then(|| {
+                let particles: [u32; CONTACT_ANCHORS] = core::array::from_fn(|k| {
+                    if vertex_anchors[k] == u32::MAX {
+                        u32::MAX
+                    } else {
+                        vb_slots
+                            .map(|s| s[vertex_anchors[k] as usize])
+                            .unwrap_or(u32::MAX)
+                    }
+                });
+                SoftContactElement {
+                    particles,
+                    weights: vertex_weights,
+                    im_particles: core::array::from_fn(|k| {
+                        if particles[k] == u32::MAX {
+                            0.0
+                        } else {
+                            vb.particles[vertex_anchors[k] as usize].inv_mass
+                        }
+                    }),
+                    frozen_pos: core::array::from_fn(|k| {
+                        if vertex_anchors[k] == u32::MAX {
+                            Vector::ZERO
+                        } else {
+                            vb.particles[vertex_anchors[k] as usize].position
+                        }
+                    }),
+                }
+            });
+            let vslot = match &vertex_element {
+                Some(_) => u32::MAX,
+                None => vb_slots.map(|s| s[v]).unwrap_or(u32::MAX),
+            };
+            // Whether the vertex side can move at all: its slot, or any of its cell's particles.
+            let vertex_free = match &vertex_element {
+                Some(e) => e.im_particles.iter().any(|im| *im > 0.0),
+                None => vslot != u32::MAX,
+            };
+            // A frozen surface against a vertex that is not simulated: no DOF on either side.
+            if self_frozen && !vertex_free {
+                continue;
+            }
+
+            // A foreign vertex that crossed a closed surface (see `soft_contacts`) hands its
+            // pair to the recovery (the pair is crossed).
+            if hit.crossed {
+                let mc = &mut out.meshes[current_mesh];
+                if !mc.crossed_partners.contains(&other_surface_handle) {
+                    mc.crossed_partners.push(other_surface_handle);
+                }
+            }
+            // The vertex's solver body (its contact point is tracked in that body's CoM frame).
+            // The vertex's solver body sits at the particle: the contact point is the origin of
+            // its frame.
+            let (body_local_point, body_arm) = (
+                if vslot != u32::MAX {
+                    Vector::ZERO
+                } else {
+                    vertex_pos
+                },
+                Vector::ZERO,
+            );
+            let (erp_inv_dt, cfm_factor) = if !vertex_free {
+                (static_erp, static_cfm)
+            } else {
+                (dyn_erp, dyn_cfm)
+            };
+
+            for (ci, c) in candidates.iter().enumerate() {
                 // A candidate the contact-modification hook disabled gets no constraint.
+                if !c.enabled {
+                    continue;
+                }
+                // The pair's contact slot of this candidate (none for a self contact).
+                let slot = if detected.slot_offset == u32::MAX {
+                    u32::MAX
+                } else {
+                    detected.slot_offset + hit.candidates.start + ci as u32
+                };
                 // Crossing repulsion (see `repel_constraint`): a flagged feature's constraint repels toward
-                // would pin the intruder inside; the volume rows and the elasticity
-                // A row touching a boundary crossing between the two surfaces may only
-                // expel, never hold: a keep-apart row there is wrong-sided by construction
+                // the vertex's neighborhood side instead of standing down or being dropped,
+                // and drops when the neighborhood straddles the element.
+                let flagged = if is_self {
+                    out.tangled_vertices.get(v).copied().unwrap_or(false)
+                        || out.tangled_elements.get(c.element as usize).copied().unwrap_or(false)
+                } else {
+                    out.cross_tangled_vertices.get(v).copied().unwrap_or(false)
+                        || out
+                            .cross_tangled_elements
+                            .get(c.element as usize)
+                            .copied()
+                            .unwrap_or(false)
+                };
+                // The nearest guiding cell's normal (the vertex's push direction), if any.
+                let patch_guide = if in_patch {
+                    out.repel_guides
+                        .iter()
+                        .min_by(|a, b| {
+                            let da = (a.0 - vertex_pos).length_squared();
+                            let db = (b.0 - vertex_pos).length_squared();
+                            da.partial_cmp(&db).unwrap_or(core::cmp::Ordering::Equal)
+                        })
+                        .map(|g| g.1)
+                        // Disagreeing: the constraint pushes the vertex (along minus its `dir`)
+                        // against the normal.
+                        .filter(|g| c.dir.gdot(*g) > 0.0)
+                } else {
+                    None
+                };
+                if patch_guide.is_some() && patch_policy == SoftPatchConstraints::StandDown {
+                    continue;
+                }
+                let along_patch_normal =
+                    patch_guide.is_some() && patch_policy == SoftPatchConstraints::AlongNormal;
+                let repelled = if repel && flagged || along_patch_normal {
+                    // The nearest guiding cell's normal, if the guide is on.
+                    let guide = out
+                        .repel_guides
+                        .iter()
+                        .min_by(|a, b| {
+                            let da = (a.0 - vertex_pos).length_squared();
+                            let db = (b.0 - vertex_pos).length_squared();
+                            da.partial_cmp(&db).unwrap_or(core::cmp::Ordering::Equal)
+                        })
+                        .map(|g| {
+                            // A self pair: the fold's vertices go one way, the facing
+                            // surface's the other.
+                            if is_self && !out.repel_inside.get(v).copied().unwrap_or(false) {
+                                -g.1
+                            } else {
+                                g.1
+                            }
+                        });
+                    if guide.is_none() && !(repel && flagged) {
+                        // A patch vertex with no cell to follow keeps its constraint as is.
+                        None
+                    } else {
+                        match repel_constraint(
+                            (eb, eb_mesh, c.element as usize),
+                            (
+                                vb,
+                                vb_mesh,
+                                vertex_pos,
+                                &vb_mesh.ring[vb_mesh.ring_offsets[v] as usize
+                                    ..vb_mesh.ring_offsets[v + 1] as usize],
+                            ),
+                            skins,
+                            guide,
+                        ) {
+                            Some((d, dd)) => Some((d, dd, true)),
+                            None => continue,
+                        }
+                    }
+                } else {
+                    None
+                };
+                // Reversed interior contacts of a closed surface are dropped: holding them
+                // would pin the intruder inside; the volume constraints and the elasticity
+                // resolve it.
+                let (dir, dist, expelling) = match c.outward {
+                    _ if repelled.is_some() => repelled.unwrap(),
+                    Some(outward) if c.interior && c.dir.gdot(outward) > 0.5 => continue,
+                    _ => (c.dir, c.dist, false),
+                };
+                // A constraint touching a boundary crossing between the surfaces may only expel,
+                // never hold: a keep-apart constraint there is wrong-sided and freezes it.
+                if !expelling
+                    && !is_self
+                    && params.soft_bodies.recovery.cross_body_expel_gate
+                    && (out.cross_tangled_vertices.get(v).copied().unwrap_or(false)
+                        || out
+                            .cross_tangled_elements
+                            .get(c.element as usize)
+                            .copied()
+                            .unwrap_or(false))
+                {
+                    continue;
+                }
+                let element = eb_mesh.element(c.element as usize);
+                let mut surface_point0 = Vector::ZERO;
+                for (k, v) in element.iter().enumerate() {
+                    surface_point0 += eb_mesh.vertex(eb, *v as usize) * c.weights[k];
+                }
+                let (anchors, anchor_weights, tracked) =
+                    eb_mesh.contact_anchors(eb, element, &c.weights, surface_point0);
+                let surface_point0 = tracked;
+                let particles: [u32; CONTACT_ANCHORS] = core::array::from_fn(|k| {
+                    if anchors[k] == u32::MAX {
+                        u32::MAX
+                    } else {
+                        eb_slots.map(|s| s[anchors[k] as usize]).unwrap_or(u32::MAX)
+                    }
+                });
+                let im_particles: [Real; CONTACT_ANCHORS] = core::array::from_fn(|k| {
+                    if particles[k] == u32::MAX {
+                        0.0
+                    } else {
+                        eb.particles[anchors[k] as usize].inv_mass
+                    }
+                });
+                let frozen_pos: [Vector; CONTACT_ANCHORS] = core::array::from_fn(|k| {
+                    if anchors[k] == u32::MAX {
+                        Vector::ZERO
+                    } else {
+                        eb.particles[anchors[k] as usize].position
+                    }
+                });
+                let tangents = SoftContact::tangent_basis(dir);
+                let (warm_normal, warm_tangent_world) = out
+                    .previous_vertex
+                    .get(&(v as u32, c.element))
+                    .copied()
+                    .unwrap_or((0.0, Vector::ZERO));
+                let warm_tangent: [Real; DIM - 1] =
+                    core::array::from_fn(|k| warm_tangent_world.gdot(tangents[k]));
+                let assembled = &mut out.meshes[current_mesh];
+                let point = assembled.vertex_contacts.len() as u32;
+                assembled.vertex_contacts.push(SoftVertexContact {
+                    other: other_handle,
+                    vertex: v as u32,
+                    element: c.element,
+                    flipped,
+                    impulse: warm_normal,
+                    tangent_impulse: warm_tangent_world,
+                });
+                out.contacts.push(SoftContact {
+                    source: SoftContactSource {
+                        collider1: surface_handle,
+                        collider2: other_surface_handle,
+                        manifold: SOURCE_VERTEX_CONTACT,
+                        point,
+                        slot,
+                    },
+                    support_body: ai as u32,
+                    support_particle: anchors,
+                    particles,
+                    weights: anchor_weights,
+                    im_particles,
+                    frozen_pos,
+                    body: vslot,
+                    other_body: other_ai.map_or(u32::MAX, |bi| bi as u32),
+                    element: vertex_element,
+                    body_im: Vector::ZERO,
+                    body_ii: Default::default(),
+                    body_local_point,
+                    body_arm,
+                    surface_point0,
+                    body_point0: vertex_pos,
+                    dir,
+                    tangents,
+                    dist0: dist,
+                    friction,
+                    soft_other: true,
+                    erp_inv_dt,
+                    cfm_factor,
+                    max_bias: Real::MAX,
+                    torque_dir: Default::default(),
+                    ii_torque_dir: Default::default(),
+                    r_normal: 0.0,
+                    rhs_normal: 0.0,
+                    cfm_normal: 1.0,
+                    impulse_normal: warm_normal,
+                    impulse_normal_acc: -warm_normal,
+                    torque_tangent: [Default::default(); DIM - 1],
+                    ii_torque_tangent: [Default::default(); DIM - 1],
+                    r_tangent: [0.0; DIM - 1],
+                    rhs_tangent: [0.0; DIM - 1],
+                    impulse_tangent: warm_tangent,
+                    impulse_tangent_acc: core::array::from_fn(|k| -warm_tangent[k]),
+                });
+            }
         }
     }
 }

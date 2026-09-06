@@ -54,6 +54,145 @@ impl SoftConstraintsSet {
         apply(bodies, delta);
     }
 
+    /// Applies an overlap constraint's warm impulses (see `SoftOverlapConstraint::warm`) at the
+    /// start of every substep, before the elastic constraints: the per-particle impulses of the
+    /// last step on the first substep, the constraint's own (fitted, then solved) on later ones.
+    pub fn warmstart_overlap_constraint(&mut self, oi: usize, bodies: &mut SolverBodies) {
+        let constraint = &mut self.overlap_constraints[oi];
+        if constraint.warm.is_none() {
+            return;
+        }
+        let num_bodies = bodies.len();
+        let live = |slot: u32| (slot as usize) < num_bodies;
+        let grads = &self.overlap_grads[constraint.grads.clone()];
+        let fem_sides = &self.overlap_fem_sides
+            [constraint.fem_sides.start as usize..constraint.fem_sides.end as usize];
+        if constraint.warm_pending {
+            constraint.warm_pending = false;
+            let warm_impulses = &self.overlap_warm_impulses[constraint.grads.clone()];
+            for (&(slot, im, _, _), &p) in grads.iter().zip(warm_impulses) {
+                if live(slot) {
+                    bodies.vels[slot as usize].linear += p * im;
+                }
+            }
+            if let Some((slot, ..)) = constraint.rigid.filter(|r| live(r.0)) {
+                let pose = bodies.get_pose(slot);
+                let (lin, ang) = constraint.warm_rigid;
+                let v = &mut bodies.vels[slot as usize];
+                v.linear += pose.im.component_mul(&lin);
+                v.angular += pose.ii.transform_vector(ang);
+            }
+            return;
+        }
+        let constraint = &self.overlap_constraints[oi];
+        for &(slot, im, g, _) in grads {
+            if live(slot) {
+                bodies.vels[slot as usize].linear -= g * (im * constraint.impulse);
+            }
+        }
+        if let Some((slot, g_lin, g_ang)) = constraint.rigid.filter(|r| live(r.0)) {
+            let pose = bodies.get_pose(slot);
+            let ii_g = pose.ii.transform_vector(g_ang);
+            let v = &mut bodies.vels[slot as usize];
+            v.linear -= pose.im.component_mul(&g_lin) * constraint.impulse;
+            v.angular -= ii_g * constraint.impulse;
+        }
+    }
+
+    pub fn solve_overlap_constraint(&mut self, oi: usize, bodies: &mut SolverBodies) {
+        let constraint = &mut self.overlap_constraints[oi];
+        let num_bodies = bodies.len();
+        let live = |slot: u32| (slot as usize) < num_bodies;
+        let grads: &[(u32, Real, Vector, Vector)] = &self.overlap_grads[constraint.grads.clone()];
+        let fem_sides = &self.overlap_fem_sides
+            [constraint.fem_sides.start as usize..constraint.fem_sides.end as usize];
+        let mut w = 0.0;
+        let mut g_max: Real = 0.0;
+        for &(slot, im, g, _) in grads {
+            if live(slot) {
+                w += im * g.length_squared();
+                g_max = g_max.max(g.length() * im);
+            }
+        }
+        // The rigid side's effective mass (its mass properties are step-constant, read from
+        // the solver body).
+        let rigid = constraint.rigid.filter(|r| live(r.0)).map(|(slot, g_lin, g_ang)| {
+            let pose = bodies.get_pose(slot);
+            let ii_g = pose.ii.transform_vector(g_ang);
+            (slot, g_lin, g_ang, pose.im, ii_g)
+        });
+        if let Some((_, g_lin, g_ang, im, ii_g)) = rigid {
+            w += g_lin.gdot(im.component_mul(&g_lin)) + ii_g.gdot(g_ang);
+            g_max = g_max.max(im.component_mul(&g_lin).length());
+        }
+        if w <= 0.0 {
+            return;
+        }
+        // A hard constraint's volume, updated from the substep's poses (see `hard`).
+        if constraint.hard {
+            let mut rhs = constraint.rhs0;
+            for &(slot, _, g, x0) in grads {
+                if live(slot) {
+                    rhs += g.gdot(bodies.get_pose(slot).translation - x0);
+                }
+            }
+            if let Some((slot, g_lin, g_ang, _, _)) = rigid {
+                let pose = bodies.get_pose(slot);
+                let (com0, rot0) = constraint.rigid_pose0;
+                let drot = pose.rotation * rot0.inverse();
+                #[cfg(feature = "dim2")]
+                let dtheta = drot.angle();
+                #[cfg(feature = "dim3")]
+                let dtheta = drot.to_scaled_axis();
+                rhs += g_lin.gdot(pose.translation - com0) + g_ang.gdot(dtheta);
+            }
+            constraint.rhs = rhs;
+        }
+        let cfm_gain = w * constraint.cfm_coeff;
+        let inv_lhs = crate::utils::inv(w + cfm_gain);
+        // Capped like the volume-piece constraints: no particle faster than the pace.
+        let max_bias = if g_max * inv_lhs > 0.0 {
+            constraint.max_bias_velocity / (g_max * inv_lhs)
+        } else {
+            Real::MAX
+        };
+        let rhs_bias = if constraint.rhs < 0.0 {
+            constraint.rhs * constraint.speculative_inv_dt
+        } else {
+            (constraint.rhs * constraint.erp_inv_dt).clamp(0.0, max_bias)
+        };
+        let mut dc = 0.0;
+        for &(slot, _, g, _) in grads {
+            if live(slot) {
+                dc += g.gdot(bodies.get_vel(slot).linear);
+            }
+        }
+        if let Some((slot, g_lin, g_ang, _, _)) = rigid {
+            let v = bodies.get_vel(slot);
+            dc += g_lin.gdot(v.linear) + g_ang.gdot(v.angular);
+        }
+        let mut total =
+            (constraint.impulse + inv_lhs * (dc + rhs_bias - cfm_gain * constraint.impulse)).max(0.0);
+        // A soft overlap constraint's accumulated impulse is bounded by the pace (released elastic
+        // energy is metered, not shot into the lighter side); a hard constraint keeps its velocity
+        // part, and one applying the correction itself (`rhs > 0`) bounds the bias instead.
+        if !constraint.hard && constraint.rhs <= 0.0 && g_max > 0.0 {
+            total = total.min(constraint.max_bias_velocity / g_max);
+        }
+        let delta = total - constraint.impulse;
+        constraint.impulse = total;
+        for &(slot, im, g, _) in grads {
+            if live(slot) {
+                bodies.vels[slot as usize].linear -= g * (im * delta);
+            }
+        }
+        if let Some((slot, g_lin, _, im, ii_g)) = rigid {
+            let v = &mut bodies.vels[slot as usize];
+            v.linear -= im.component_mul(&g_lin) * delta;
+            v.angular -= ii_g * delta;
+        }
+    }
+
     /// Total number of element constraints (scalar + elastic-cell blocks), the writeback stage's domain.
     #[inline]
     pub fn num_element_constraints(&self) -> usize {

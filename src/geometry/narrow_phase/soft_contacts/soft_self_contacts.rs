@@ -404,4 +404,140 @@ fn detect_self_regions(
     }
     let n_v = mesh.vertex_count();
     let n_e = mesh.indices().len();
+    let mut crossing = vec![false; n_e];
+    for &(i, j) in &out.crossings {
+        crossing[i as usize] = true;
+        crossing[j as usize] = true;
+    }
+    let mut vertex_elements: Vec<Vec<u32>> = vec![Vec::new(); n_v];
+    for (e, el) in mesh.indices().iter().enumerate() {
+        for &v in el {
+            vertex_elements[v as usize].push(e as u32);
+        }
+    }
+    let mut inside = Vec::new();
+    if !classify_inside_self(mesh, sb, co.contact_skin(), &crossing, &vertex_elements, &mut inside) {
+        return;
+    }
+    // Each inside vertex's facing element (the nearest one outside its neighborhood) and
+    // distance; a vertex in front of the surface it faces is a mirrored lobe's, not a
+    // region's.
+    let mut facing: Vec<Option<(usize, Real)>> = vec![None; n_v];
+    for v in 0..n_v {
+        if !inside[v] {
+            continue;
+        }
+        let p = mesh.vertex(sb, v);
+        let ring = &mesh.ring[mesh.ring_offsets[v] as usize..mesh.ring_offsets[v + 1] as usize];
+        let mut best: Option<(Real, usize, Vector)> = None;
+        for e in 0..n_e {
+            let el = mesh.element(e);
+            if el.iter().any(|&u| u as usize == v || ring.contains(&u)) {
+                continue;
+            }
+            let Some((q, _)) = project_on_element(mesh, sb, e, p) else {
+                continue;
+            };
+            let d2 = (q - p).length_squared();
+            if best.is_none_or(|b| d2 < b.0) {
+                best = Some((d2, e, q));
+            }
+        }
+        match best {
+            Some((d2, e, q))
+                if mesh
+                    .element_outward_normal(sb, e)
+                    .is_some_and(|n| (p - q).gdot(n) < 0.0) =>
+            {
+                facing[v] = Some((e, d2.sqrt()));
+            }
+            _ => inside[v] = false,
+        }
+    }
+    // The regions: the inside vertices flooded through their rings.
+    let mut parent: Vec<u32> = (0..n_v as u32).collect();
+    fn find(parent: &mut [u32], mut i: u32) -> u32 {
+        while parent[i as usize] != i {
+            parent[i as usize] = parent[parent[i as usize] as usize];
+            i = parent[i as usize];
+        }
+        i
+    }
+    for v in 0..n_v {
+        if !inside[v] {
+            continue;
+        }
+        for &u in &mesh.ring[mesh.ring_offsets[v] as usize..mesh.ring_offsets[v + 1] as usize] {
+            if inside[u as usize] {
+                let (a, b) = (find(&mut parent, v as u32), find(&mut parent, u));
+                if a != b {
+                    parent[a as usize] = b;
+                }
+            }
+        }
+    }
+    let region: Vec<u32> = (0..n_v as u32)
+        .map(|v| {
+            if inside[v as usize] {
+                find(&mut parent, v)
+            } else {
+                u32::MAX
+            }
+        })
+        .collect();
+    let mut roots: Vec<u32> = region.iter().copied().filter(|&r| r != u32::MAX).collect();
+    roots.sort_unstable();
+    roots.dedup();
+    // One constraint per region, against the vertices of the elements it faces; a pair of
+    // regions facing each other is emitted once, by the lower root.
+    let mut emitted: Vec<(u32, u32)> = Vec::new();
+    for &root in &roots {
+        let mut depth_own = vec![Real::NEG_INFINITY; n_v];
+        let mut depth_other = vec![Real::NEG_INFINITY; n_v];
+        let mut faced_roots: Vec<u32> = Vec::new();
+        for v in 0..n_v {
+            if region[v] != root {
+                continue;
+            }
+            let Some((e, d)) = facing[v] else {
+                continue;
+            };
+            depth_own[v] = d;
+            for &u in mesh.element(e) {
+                let u = u as usize;
+                if region[u] == root {
+                    continue;
+                }
+                depth_other[u] = facing[u].map_or(0.0, |f| f.1);
+                if region[u] != u32::MAX && !faced_roots.contains(&region[u]) {
+                    faced_roots.push(region[u]);
+                }
+            }
+        }
+        if faced_roots
+            .iter()
+            .any(|&r| emitted.contains(&(r.min(root), r.max(root))))
+        {
+            continue;
+        }
+        for &r in &faced_roots {
+            emitted.push((r.min(root), r.max(root)));
+        }
+        let own = VolumeSide {
+            body: sb,
+            mesh,
+            vertices: patch_vertices(mesh, sb, &depth_own, 0.0),
+        };
+        let other = VolumeSide {
+            body: sb,
+            mesh,
+            vertices: patch_vertices(mesh, sb, &depth_other, 0.0),
+        };
+        if own.vertices.is_empty() {
+            continue;
+        }
+        out.region_bins
+            .push(volume_bins(&own, Some(&other), volume_split(params)));
+    }
 }
+

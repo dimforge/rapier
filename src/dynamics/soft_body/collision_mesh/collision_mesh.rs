@@ -128,6 +128,15 @@ pub struct SoftCollisionMesh {
     /// Vertex-vs-surface contacts of the last step against this mesh (self contacts and the
     /// other soft bodies' vertices): warm-start state.
     pub(crate) vertex_contacts: Vec<SoftVertexContact>,
+    /// The overlap corrections' progress per pair (see `SoftOverlapState`).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) overlap_states: Vec<SoftOverlapState>,
+    /// The volume contacts' warm impulses (see `SoftOverlapWarm`).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) overlap_warm: Vec<SoftOverlapWarm>,
+    /// The volume constraints assembled at the last step (see `SoftVolumeContact`).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) volume_contacts: Vec<SoftVolumeContact>,
     /// Surface travel accumulated since the last self-crossing sweep (the sweep is skipped
     /// while this cannot have bridged half a skin).
     #[cfg_attr(feature = "serde-serialize", serde(skip))]

@@ -55,6 +55,23 @@ impl SoftConstraintsSet {
         if !params.soft_bodies.recovery.edge_speculation && mesh.is_closed() && other_mesh.is_closed() {
             return;
         }
+        // While a volume constraint owns a crossed closed-closed pair, its edge constraints stand down
+        // entirely: inside the overlap they are wrong-sided and freeze it (two overlapping
+        // balloons never de-overlapped through them).
+        #[cfg(feature = "dim3")]
+        if !is_self && mesh.is_closed() && other_mesh.is_closed() {
+            let crossed = out
+                .meshes
+                .get(out.current_mesh)
+                .is_some_and(|m| m.crossed_partners.contains(&other_surface_handle));
+            let recovery = &params.soft_bodies.recovery;
+            if recovery.overlap_constraints && recovery.overlap_edge_stand_down && crossed {
+                return;
+            }
+        }
+        let Some(detected) = detected else {
+            return;
+        };
         let other_handle = mesh_ref(other_co);
         let slots = &self.slots[awake.slot_start..awake.slot_start + awake.num_particles];
         let other_slots = other_ai.map(|bi| {

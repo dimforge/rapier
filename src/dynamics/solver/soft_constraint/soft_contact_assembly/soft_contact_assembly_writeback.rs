@@ -47,6 +47,74 @@ impl SoftConstraintsSet {
     /// Writes the soft contacts' impulses back to their narrow-phase manifold points (total
     /// impulse for the contact events, warm-start impulses for the next step).
     pub fn writeback_contacts(&self, narrow_phase: &mut NarrowPhase) {
+        // The volume contacts' warm impulses (see `SoftOverlapWarm`): each entry's last-substep
+        // normal and friction impulse, accumulated per pair; a bin's contact slot reports the
+        // impulse as the force put on the own side (the multiplier along the own gradients).
+        for constraint in &self.overlap_constraints {
+            let (c1, c2, slot) = constraint.report;
+            if slot != u32::MAX {
+                let mut own_grad = Vector::ZERO;
+                for (&(_, _, g, _), &(side, _)) in self.overlap_grads[constraint.grads.clone()]
+                    .iter()
+                    .zip(&self.overlap_particles[constraint.grads.clone()])
+                {
+                    if side == 0 {
+                        own_grad += g;
+                    }
+                }
+                if let Some(soft) = narrow_phase
+                    .contact_pair_mut(c1, c2)
+                    .and_then(|pair| pair.soft_mut())
+                {
+                    soft.report_impulse(
+                        slot,
+                        crate::utils::canonicalize_zero(constraint.impulse * own_grad.length()),
+                        Vector::ZERO,
+                    );
+                }
+            }
+            let Some((ai, mesh_id, other)) = constraint.warm else {
+                continue;
+            };
+            // SAFETY: the writeback stage is serial and owns the soft bodies.
+            let ptr = self.awake[ai as usize].ptr;
+            let sb = unsafe { &mut *ptr };
+            let Some(mesh) = sb.mesh_mut(mesh_id) else {
+                continue;
+            };
+            let idx = match mesh.overlap_warm.iter().position(|w| w.other == other) {
+                Some(i) => i,
+                None => {
+                    mesh.overlap_warm.push(SoftOverlapWarm {
+                        other,
+                        own: Vec::new(),
+                        other_soft: Vec::new(),
+                        rigid: (Vector::ZERO, AngVector::default()),
+                    });
+                    mesh.overlap_warm.len() - 1
+                }
+            };
+            let record = &mut mesh.overlap_warm[idx];
+            for (&(_, _, g, _), &(side, p)) in self.overlap_grads[constraint.grads.clone()]
+                .iter()
+                .zip(&self.overlap_particles[constraint.grads.clone()])
+            {
+                let impulse = -g * constraint.impulse;
+                let list = if side == 0 {
+                    &mut record.own
+                } else {
+                    &mut record.other_soft
+                };
+                match list.iter_mut().find(|e| e.0 == p) {
+                    Some(e) => e.1 += impulse,
+                    None => list.push((p, impulse)),
+                }
+            }
+            if let Some((_, g_lin, g_ang)) = constraint.rigid {
+                record.rigid.0 += -g_lin * constraint.impulse;
+                record.rigid.1 += -g_ang * constraint.impulse;
+            }
+        }
         // The constraints of a pair are contiguous: on entering a new pair, clear the reported impulses
         // of all its points first (points without a constraint this step, e.g. deduplicated vertex
         // contacts, must not keep reporting a stale force).

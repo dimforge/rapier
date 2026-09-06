@@ -44,6 +44,10 @@ bitflags::bitflags! {
         /// If this flag is set, the pseudo-normals of the triangle-meshes (3D) and polylines (2D)
         /// that have them will be rendered.
         const PSEUDO_NORMALS = 1 << 8;
+        /// If this flag is set, the soft bodies' volume constraints (the intersection-volume
+        /// rows) will be rendered: each constraint's normal at its patch center, and the
+        /// volume gradient at every particle it acts on.
+        const SOFT_VOLUME_CONTACTS = 1 << 9;
     }
 }
 
@@ -145,6 +149,9 @@ impl DebugRenderPipeline {
         backend: &mut B,
         soft_bodies: &SoftBodySet,
     ) {
+        if self.mode.contains(DebugRenderMode::SOFT_VOLUME_CONTACTS) {
+            self.render_soft_volume_contacts(backend, soft_bodies);
+        }
         if !self.mode.contains(DebugRenderMode::SOFT_BODIES) {
             return;
         }
@@ -203,6 +210,40 @@ impl DebugRenderPipeline {
         }
     }
 
+    /// Renders the soft bodies' volume constraints (`SoftVolumeContact`): each one's normal at its
+    /// patch center (owner body toward the other side) and the volume gradient at every particle it
+    /// acts on, scaled so the largest has the normal's length (the push goes the opposite way).
+    #[profiling::function]
+    pub fn render_soft_volume_contacts<B: DebugRenderBackend>(
+        &mut self,
+        backend: &mut B,
+        soft_bodies: &SoftBodySet,
+    ) {
+        let normal_color = self.style.volume_contact_normal_color;
+        let gradient_color = self.style.volume_gradient_color;
+        let length = self.style.contact_normal_length;
+        for (handle, sb) in soft_bodies.iter() {
+            let object = DebugRenderObject::SoftBody(handle, sb);
+            if !backend.filter_object(object) {
+                continue;
+            }
+            for c in sb.volume_contacts() {
+                backend.draw_line(object, c.center, c.center + c.normal * length, normal_color);
+                let g_max = c
+                    .gradients
+                    .iter()
+                    .map(|(_, g)| g.length())
+                    .fold(0.0, crate::math::Real::max);
+                if g_max <= 0.0 {
+                    continue;
+                }
+                for (p, g) in &c.gradients {
+                    backend.draw_line(object, *p, *p + *g * (length / g_max), gradient_color);
+                }
+            }
+        }
+    }
+
     /// Render contact.
     #[profiling::function]
     pub fn render_contacts(
@@ -219,7 +260,7 @@ impl DebugRenderPipeline {
                     let object = DebugRenderObject::ContactPair(pair, co1, co2);
 
                     if backend.filter_object(object) {
-                        for manifold in &pair.manifolds {
+                        for manifold in pair.manifolds() {
                             for contact in manifold.contacts() {
                                 let world_subshape_pos1 =
                                     manifold.subshape_pos1().prepend_to(co1.position());

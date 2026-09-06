@@ -587,6 +587,7 @@ fn settings_tab(ui: &mut Ui, state: &mut TestbedState, world: &mut PhysicsWorld)
 /// edited live on the running world; shown whenever the world contains soft bodies. Re-enabling
 /// a mechanism does not wake bodies that fell asleep while it was off.
 fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySettings) {
+    use rapier::dynamics::SoftPatchConstraints;
     egui::CollapsingHeader::new("Soft recovery")
         .default_open(false)
         .show(ui, |ui| {
@@ -605,6 +606,47 @@ fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySett
             ui.checkbox(&mut r.cross_body_expel_gate, "Cross expel-only gate");
             ui.checkbox(&mut r.edge_stand_down, "Edge-pass stand-down");
             ui.checkbox(&mut r.crossing_repulsion, "Crossing repulsion (repel, not drop)");
+            ui.checkbox(&mut r.crossing_repulsion_guide, "Repulsion guided by the volume normal");
+            ui.separator();
+            ui.label("Intersection-volume constraints (closed surfaces)");
+            ui.checkbox(&mut r.overlap_constraints, "Overlap constraints (master)");
+            ui.checkbox(&mut r.overlap_skin_volume, "Skin volume");
+            ui.add(
+                Slider::new(&mut r.overlap_kept_depth, 0.0..=1.0)
+                    .text("Kept skin overlap (fraction of skins)"),
+            );
+            ui.checkbox(&mut r.overlap_normal_push, "Push along the normal instead of the gradients");
+            ui.checkbox(&mut r.overlap_self_regions, "Self-overlaps between distinct regions");
+            ui.horizontal(|ui| {
+                ui.label("Per-point constraints on the patch's features");
+                for (policy, name) in [
+                    (SoftPatchConstraints::Keep, "Keep"),
+                    (SoftPatchConstraints::StandDown, "Stand down"),
+                    (SoftPatchConstraints::AlongNormal, "Along the normal"),
+                ] {
+                    ui.selectable_value(&mut r.overlap_patch_constraints, policy, name);
+                }
+            });
+            ui.checkbox(&mut r.overlap_multi_volume, "Multi-volume grid (section 5)");
+            ui.add(Slider::new(&mut r.overlap_split, 1..=8).text("Grid cells per tangent axis"));
+            ui.checkbox(&mut r.overlap_rigid, "Against rigid colliders");
+            ui.checkbox(&mut r.overlap_skip_self_tangled, "Skip self-crossed meshes");
+            ui.checkbox(&mut r.overlap_edge_stand_down, "Edge constraints stand down on owned pairs (3D)");
+            ui.add(
+                Slider::new(&mut r.recovery_pace, 0.05..=8.0)
+                    .logarithmic(true)
+                    .text("Recovery pace (length units / s)"),
+            );
+            ui.add(
+                Slider::new(&mut r.overlap_constraint_pace, 0.05..=64.0)
+                    .logarithmic(true)
+                    .text("Constraint impulse bound (x recovery pace)"),
+            );
+            ui.add(Slider::new(&mut r.overlap_patience, 10..=2000).text("Stall patience (steps)"));
+            ui.add(
+                Slider::new(&mut r.overlap_progress_margin, 0.0..=0.5)
+                    .text("Progress margin (fraction)"),
+            );
             if ui.button("Reset to defaults").clicked() {
                 *r = Default::default();
             }
@@ -702,6 +744,12 @@ fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource)
                 "Pseudo-normals",
                 "The pseudo-normals of the oriented triangle-meshes and polylines, at their \
                  vertices and edge midpoints.",
+            ),
+            (
+                DebugRenderMode::SOFT_VOLUME_CONTACTS,
+                "Soft volume constraints",
+                "The soft bodies' intersection-volume constraints: each one's normal at its \
+                 patch center, and the volume gradient at every particle it acts on.",
             ),
         ];
 

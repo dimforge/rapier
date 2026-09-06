@@ -12,6 +12,7 @@ pub use self::soft_body_elements::SoftBodyDihedral;
 #[cfg(feature = "fem")]
 pub use self::soft_body_elements::SoftBodySolver;
 pub use self::soft_body::{SOFT_BODY_MAX_CONSTRAINT_PARTICLES, SoftBody};
+pub use self::soft_body_contacts::SoftVolumeContact;
 pub use self::soft_body_elements::{
     SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyEdgeKind, SoftBodyParticle,
 };
@@ -23,11 +24,10 @@ pub use self::soft_body_set::SoftBodySet;
 pub use self::soft_body_plasticity::SoftEdgePlasticFlow;
 
 pub(crate) use self::soft_body::SOFT_BODY_OVERFLOW_COLOR;
-pub(crate) use self::soft_body_contacts::{SoftEdgeContact, SoftVertexContact};
-#[allow(unused_imports)]
-use self::soft_body_elements::{CELL_IMPULSES};
-#[allow(unused_imports)]
-use self::soft_body_material::{default_true, one};
+pub(crate) use self::soft_body_contacts::{
+    SoftEdgeContact, SoftOverlapState, SoftOverlapWarm, SoftVertexContact,
+};
+use self::soft_body_elements::CELL_IMPULSES;
 mod soft_recovery_settings;
 pub use soft_recovery_settings::{SoftPatchConstraints, SoftRecoverySettings};
 mod soft_body_settings;

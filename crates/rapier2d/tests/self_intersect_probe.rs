@@ -365,6 +365,22 @@ fn recovery_toggles_are_wired() {
         cross_body_expel_gate: false,
         edge_stand_down: false,
         crossing_repulsion: false,
+        crossing_repulsion_guide: false,
+        recovery_pace: 0.5,
+        overlap_constraints: false,
+        overlap_rigid: true,
+        overlap_skip_self_tangled: true,
+        overlap_edge_stand_down: true,
+        overlap_constraint_pace: 1.0,
+        overlap_patch_constraints: SoftPatchConstraints::Keep,
+        overlap_skin_volume: false,
+        overlap_kept_depth: 0.0,
+        overlap_normal_push: false,
+        overlap_self_regions: false,
+        overlap_multi_volume: false,
+        overlap_split: 3,
+        overlap_patience: 240,
+        overlap_progress_margin: 0.02,
     };
     for _ in 0..600 {
         world.step();

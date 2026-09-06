@@ -215,4 +215,13 @@ impl SoftCollisionMesh {
         })
     }
 
+    /// The sign turning this mesh's raw winding into its geometric orientation: `-1.0` for
+    /// a mesh oriented inward at rest or turned inside out (see `element_outward_normal`).
+    pub(crate) fn winding_sign(&self) -> Real {
+        if (self.rest_signed_volume < 0.0) != self.inverted {
+            -1.0
+        } else {
+            1.0
+        }
+    }
 }

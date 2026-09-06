@@ -107,6 +107,8 @@ pub(crate) struct SoftGroupLayout {
     pub shape_constraints: Range<usize>,
     /// Range into `volume_constraints`.
     pub volume_constraints: Range<usize>,
+    /// Range into `overlap_constraints`.
+    pub overlap_constraints: Range<usize>,
     /// Range into `contacts`.
     pub contacts: Range<usize>,
     /// Range into `contact_colors`: the parallel contact stages.
@@ -157,6 +159,14 @@ pub(crate) struct SoftConstraintsSet {
     pub shape_constraints: Vec<SoftShapeConstraint>,
     pub volume_constraints: Vec<SoftVolumeConstraint>,
     pub volume_grads: Vec<Vector>,
+    /// The intersection-volume rows (see `SoftOverlapRow`), group-major, and their gradients.
+    pub overlap_constraints: Vec<SoftOverlapConstraint>,
+    pub overlap_grads: Vec<(u32, Real, Vector, Vector)>,
+    /// The carried impulse of every overlap gradient entry (see `SoftOverlapRow::warm`).
+    pub overlap_warm_impulses: Vec<Vector>,
+    /// The `(side, particle)` of every overlap gradient entry (`0`: the owner body, `1`:
+    /// the other soft body), for the write-back of the carried impulses.
+    pub overlap_particles: Vec<(u8, u32)>,
     /// Contacts against the awake soft bodies' surface colliders, group-major.
     pub contacts: Vec<SoftContact>,
     /// The particle attachments of the awake soft bodies, group-major.
