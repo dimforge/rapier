@@ -584,6 +584,8 @@ impl DebugRenderPipeline {
                 let indices: Vec<_> = s
                     .edges()
                     .iter()
+                    // Coplanar triangles share a face after merging; skip their internal edges.
+                    .filter(|e| e.faces[0] != e.faces[1])
                     .map(|e| [e.vertices[0], e.vertices[1]])
                     .collect();
                 backend.draw_polyline(object, s.points(), &indices, pos, Vector::splat(1.0), color)
