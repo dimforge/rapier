@@ -47,6 +47,8 @@ jobs:
           - { runner: windows-latest, target: x86_64-pc-windows-msvc }
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Build wheel
         uses: PyO3/maturin-action@v1
         with:

@@ -22,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Check formatting
         run: cargo fmt -- --check
   doc:
@@ -30,6 +32,8 @@ jobs:
       RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - name: Cargo doc
         run: cargo doc --features parallel,serde-serialize,debug-render -p rapier3d -p rapier2d -p rapier3d-meshloader -p rapier3d-urdf && cargo doc -p mjcf-rs --features msh && cargo doc -p rapier3d-mjcf --features stl,wavefront,msh
@@ -42,6 +46,8 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get install -y cmake libxcb-composite0-dev
       # WORKAROUND: zune-core 0.5.2 made its `warn!` macro expand to nothing, which breaks
@@ -77,6 +83,8 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - name: Build rapier2d
         run: cargo build -p rapier2d;
@@ -103,6 +111,8 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - name: Test determinism (SIMD backend)
         run: cargo test -p rapier3d --release --features enhanced-determinism --test simd_backend_determinism
@@ -131,6 +141,8 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - name: Test snapshot portability (3D, aarch64)
         run: cargo test -p rapier3d --release --features enhanced-determinism,serde-serialize --test snapshot_portability
@@ -147,6 +159,8 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - name: Test thread-count determinism
         run: cargo test -p rapier3d --release --features parallel,serde-serialize --test thread_count_determinism
@@ -170,6 +184,8 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -211,6 +227,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install nightly Rust with Miri
         uses: dtolnay/rust-toolchain@master
         with:
@@ -227,6 +245,8 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - run: rustup target add wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: build rapier2d
@@ -246,6 +266,8 @@ jobs:
       CARGO_TARGET_WASM32_WASIP1_RUNNER: node ${{ github.workspace }}/.github/scripts/run-wasi.mjs
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install stable Rust with wasm32-wasip1
         uses: dtolnay/rust-toolchain@master
         with:
@@ -274,6 +296,8 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get install -y cmake libxcb-composite0-dev
       # See `clippy`: zune-core 0.5.2 breaks zune-jpeg, reached here through the
@@ -303,6 +327,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
       - uses: Swatinem/rust-cache@v2

@@ -74,6 +74,9 @@ pub struct RigidBodySet {
     // Could we avoid this?
     pub(crate) bodies: Arena<RigidBody>,
     pub(crate) modified_bodies: ModifiedRigidBodies,
+    /// Optional host-side journal, independent of the pipeline's modified list.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    spatial_changes: Option<alloc::vec::Vec<u32>>,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) default_fixed: RigidBody,
 }
@@ -87,6 +90,7 @@ impl RigidBodySet {
         RigidBodySet {
             bodies: Arena::new(),
             modified_bodies: ModifiedObjects::default(),
+            spatial_changes: None,
             default_fixed: RigidBodyBuilder::fixed().build(),
         }
     }
@@ -106,12 +110,32 @@ impl RigidBodySet {
         RigidBodySet {
             bodies: Arena::with_capacity(capacity),
             modified_bodies: ModifiedRigidBodies::with_capacity(capacity),
+            spatial_changes: None,
             default_fixed: RigidBodyBuilder::fixed().build(),
         }
     }
 
     pub(crate) fn take_modified(&mut self) -> ModifiedRigidBodies {
         core::mem::take(&mut self.modified_bodies)
+    }
+
+    /// Enables a host spatial-index journal of insertions, removals and mutable
+    /// access. Internal solver writes must additionally be synchronized after step.
+    pub fn enable_spatial_change_tracking(&mut self) {
+        self.spatial_changes
+            .get_or_insert_with(alloc::vec::Vec::new);
+    }
+
+    /// Arena indices that may have changed since the host last cleared the journal.
+    pub fn spatial_changes(&self) -> &[u32] {
+        self.spatial_changes.as_deref().unwrap_or(&[])
+    }
+
+    /// Call only after the host has synchronized its spatial index.
+    pub fn clear_spatial_changes(&mut self) {
+        if let Some(changes) = &mut self.spatial_changes {
+            changes.clear();
+        }
     }
 
     /// Returns how many rigid bodies are currently in this collection.
@@ -155,6 +179,9 @@ impl RigidBodySet {
         rb.changes.set(RigidBodyChanges::all(), true);
 
         let handle = RigidBodyHandle(self.bodies.insert(rb));
+        if let Some(changes) = &mut self.spatial_changes {
+            changes.push(handle.into_raw_parts().0);
+        }
         // Using push_unchecked because this is a brand new rigid-body with the MODIFIED
         // flags set but isn’t in the modified_bodies yet.
         self.modified_bodies
@@ -208,6 +235,9 @@ impl RigidBodySet {
         remove_attached_colliders: bool,
     ) -> Option<RigidBody> {
         let rb = self.bodies.remove(handle.0)?;
+        if let Some(changes) = &mut self.spatial_changes {
+            changes.push(handle.into_raw_parts().0);
+        }
         /*
          * Update active sets.
          */
@@ -262,6 +292,9 @@ impl RigidBodySet {
     pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut RigidBody, RigidBodyHandle)> {
         let (rb, handle) = self.bodies.get_unknown_gen_mut(i)?;
         let handle = RigidBodyHandle(handle);
+        if let Some(changes) = &mut self.spatial_changes {
+            changes.push(handle.into_raw_parts().0);
+        }
         self.modified_bodies.push_once(handle, rb);
         Some((rb, handle))
     }
@@ -294,6 +327,9 @@ impl RigidBodySet {
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn get_mut(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
         let result = self.bodies.get_mut(handle.0)?;
+        if let Some(changes) = &mut self.spatial_changes {
+            changes.push(handle.into_raw_parts().0);
+        }
         self.modified_bodies.push_once(handle, result);
         Some(result)
     }
@@ -327,6 +363,9 @@ impl RigidBodySet {
             (self.get_mut(handle1), None)
         } else {
             let (mut rb1, mut rb2) = self.bodies.get2_mut(handle1.0, handle2.0);
+            if let Some(changes) = &mut self.spatial_changes {
+                changes.extend([handle1.into_raw_parts().0, handle2.into_raw_parts().0]);
+            }
             if let Some(rb1) = rb1.as_deref_mut() {
                 self.modified_bodies.push_once(handle1, rb1);
             }
@@ -352,6 +391,9 @@ impl RigidBodySet {
         handle: RigidBodyHandle,
     ) -> Option<&mut RigidBody> {
         let result = self.bodies.get_mut(handle.0)?;
+        if let Some(changes) = &mut self.spatial_changes {
+            changes.push(handle.into_raw_parts().0);
+        }
         self.modified_bodies.push_once(handle, result);
         Some(result)
     }
@@ -395,7 +437,11 @@ impl RigidBodySet {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
         self.modified_bodies.clear();
         let modified_bodies = &mut self.modified_bodies;
+        let spatial_changes = &mut self.spatial_changes;
         self.bodies.iter_mut().map(move |(h, b)| {
+            if let Some(changes) = spatial_changes {
+                changes.push(RigidBodyHandle(h).into_raw_parts().0);
+            }
             // NOTE: using `push_unchecked` because we just cleared `modified_bodies`
             //       before iterating.
             modified_bodies.push_unchecked(RigidBodyHandle(h), b);
@@ -445,6 +491,9 @@ impl Index<crate::data::Index> for RigidBodySet {
 #[cfg(not(feature = "dev-remove-slow-accessors"))]
 impl IndexMut<RigidBodyHandle> for RigidBodySet {
     fn index_mut(&mut self, handle: RigidBodyHandle) -> &mut RigidBody {
+        if let Some(changes) = &mut self.spatial_changes {
+            changes.push(handle.into_raw_parts().0);
+        }
         let rb = &mut self.bodies[handle.0];
         self.modified_bodies.push_once(handle, rb);
         rb
