@@ -16,45 +16,53 @@ pub struct SoftBodyMaterial {
     pub edge_softness: SpringCoefficients<Real>,
     /// Softness of the bending edges and dihedral constraints.
     pub bend_softness: SpringCoefficients<Real>,
-    /// Softness of the per-cell volume rows ([`crate::dynamics::SoftBodyCellModel::Volume`]) and of the global
-    /// volume-preservation row.
+    /// Softness of the per-cell volume constraints ([`crate::dynamics::SoftBodyCellModel::Volume`]) and of the global
+    /// volume-preservation constraint.
     pub volume_softness: SpringCoefficients<Real>,
-    /// Softness of the shape-matching rows.
+    /// Softness of the shape-matching constraints.
     pub shape_matching_softness: SpringCoefficients<Real>,
-    /// Young's modulus of the elastic cells ([`crate::dynamics::SoftBodyCellModel::Corotational`] and
-    /// [`crate::dynamics::SoftBodyCellModel::NeoHookean`]), in force per unit area (3D) or per unit length (2D).
-    ///
-    /// Unlike the other families, the elastic cells are parameterized physically: their per-cell
-    /// natural frequency is derived from the modulus, the cell's rest volume and the particle
-    /// masses, so a finer mesh of the same material behaves like the coarser one (up to the
-    /// discretization) instead of getting stiffer.
+    /// Young's modulus of the elastic cells ([`crate::dynamics::SoftBodyCellModel::Corotational`]
+    /// and [`crate::dynamics::SoftBodyCellModel::NeoHookean`]), in force per unit area (3D) or
+    /// length (2D); their natural frequency derives from it, so a finer mesh does not get stiffer.
     pub young_modulus: Real,
     /// Poisson's ratio of the elastic cells, in `[0, 0.5)`.
     pub poisson_ratio: Real,
     /// Damping ratio of the elastic cells.
     pub elastic_damping_ratio: Real,
-    /// Plastic yield of the elastic cells (corotational and Neo-Hookean models): the strain
-    /// magnitude beyond which a cell's rest shape starts flowing toward its current shape
-    /// (default: `0.0`, meaning no plasticity). Strain here is the Frobenius norm of the
+    /// Plastic yield of the elastic cells: the strain (Frobenius norm of the deviatoric part of
+    /// `sym(RᵀF) - I`, read from stress by the constraint solver) beyond which a cell's
+    /// rest shape flows toward its current shape (default: `0.0`, no plasticity).
     pub plastic_yield: Real,
     /// Rate (per second) at which the strain in excess of the yield is absorbed into the rest
     /// shape (default: `1.0`); the flow is deviatoric (volume preserving).
     pub plastic_creep: Real,
-    /// Largest accumulated plastic deformation of a cell (default: `1.0`): the Frobenius norm of
-    /// `P - I`, `P` the plastic stretch of its rest shape (a cell flattened to 40% of its rest
-    /// thickness is at about `1.0`). Flow past it is discarded, which keeps a repeatedly crushed
-    /// cell from flowing toward a sliver (and from there to inversions and instability).
+    /// Largest accumulated plastic deformation of a cell, the Frobenius norm of `P - I` with `P`
+    /// its rest shape's plastic stretch (default: `1.0`). Flow past it is projected back onto the
+    /// bound, so a crushed cell cannot flow toward a sliver; an inverted cell never flows.
     pub plastic_max: Real,
-    /// Rate (per second) at which the particles' velocities are pulled toward the body's
-    /// best-fit rigid motion, damping every deformation mode without slowing the body down as a
-    /// whole (default: `0.0`, off).
-    ///
-    /// The material rows only damp their own strain rates: the residual bending of a stiff
-    /// slender body (a standing letter, a cantilever) is left by the solver's finite convergence
-    /// and is not damped by them, so such bodies sway for a long time. A rate of a few units per
-    /// second settles them within a second or two; soft jelly-like bodies keep it at zero (it
-    /// would damp their wobble too).
+    /// Rate (per second) at which the particles' velocities are pulled toward the body's best-fit
+    /// rigid motion, damping every deformation mode but not the whole-body motion; a few units per
+    /// second settle a stiff slender body's residual bending sway (default: `0.0`, off).
     pub deformation_damping: Real,
+    /// Plastic yield of the edges (structural and bending): the strain `|length / rest_length - 1|`
+    /// beyond which the rest length flows toward the current length (default: `0.0`, none), at the
+    /// rate [`Self::edge_plastic_creep`], up to `edge_plastic_max`; tears use the initial length.
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub edge_plastic_yield: Real,
+    /// Rate (per second) at which an edge's strain in excess of its yield is absorbed into its
+    /// rest length (default: `1.0`); `Real::INFINITY` (or anything above the step rate) sets it at
+    /// once.
+    #[cfg_attr(feature = "serde-serialize", serde(default = "one"))]
+    pub edge_plastic_creep: Real,
+    /// Largest permanent set an edge may accumulate, as a fraction of the length it was created
+    /// with (default: `1.0`): past it the edge stops yielding and stays elastic from where it
+    /// flowed to (a repeatedly crushed edge cannot flow to nothing).
+    #[cfg_attr(feature = "serde-serialize", serde(default = "half"))]
+    pub edge_plastic_max: Real,
+    /// Whether the edges take a permanent set under a squeeze, a stretch, or both (default:
+    /// both).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub edge_plastic_flow: SoftEdgePlasticFlow,
     /// Strain beyond which the elements break (default: `None`, unbreakable): a structural or
     /// cell whose largest tensile principal strain exceeds it, is torn at the end of the step
     /// (see [`crate::dynamics::SoftBody::tear_edge`] for what a tear removes). Cells of the volume model do not
@@ -121,6 +129,10 @@ impl Default for SoftBodyMaterial {
             plastic_creep: 1.0,
             plastic_max: 1.0,
             deformation_damping: 0.0,
+            edge_plastic_yield: 0.0,
+            edge_plastic_creep: 1.0,
+            edge_plastic_max: 0.5,
+            edge_plastic_flow: SoftEdgePlasticFlow::Both,
             tear_strain: None,
             tear_force: None,
             tear_smoothing: 0.0,

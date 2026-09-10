@@ -317,7 +317,14 @@ impl SoftFemSystem {
                 let d = self.position[spring.vertices[1] as usize]
                     - self.position[spring.vertices[0] as usize];
                 let length = d.length();
+                if edge.plastic_flow(length, &material, step_dt) {
+                    flowing = true;
+                }
+                if !material.tears() {
+                    continue;
+                }
                 // The elastic force of the implicit step's end state, resisting stretching; the
+                // stretch is measured against the initial rest length (plastic flow counts).
                 let force = spring.stiffness * (length - spring.rest_length).max(0.0);
                 let load = material.edge_tear_load(length, edge.initial_rest_length(), force)
                     * crate::utils::inv(edge_resistance[ei]);

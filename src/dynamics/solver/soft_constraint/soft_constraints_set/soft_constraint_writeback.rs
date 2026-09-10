@@ -36,6 +36,11 @@ impl SoftConstraintsSet {
                         };
                         let edge = &mut sb.edges[constraint.element as usize];
                         edge.impulse = impulse;
+                        // Length as seen at the last substep's update.
+                        let len = (constraint.pos[1] - constraint.pos[0]).length();
+                        if edge.plastic_flow(len, &material, dt) {
+                            awake.plastic_flow.store(true, Ordering::Relaxed);
+                        }
                         if material.tears() {
                             // The force is the step's peak substep impulse over the substep length
                             // (a spike must not hide behind the last substep); the stretch is

@@ -136,8 +136,13 @@ pub struct SoftBodyEdge {
     pub tear_resistance: Real,
     /// Accumulated impulse of the last step (warm-start state).
     pub(crate) impulse: Real,
+    /// Accumulated plastic strain: `rest_length = initial rest length * (1 + plastic_strain)`
+    /// (see [`Self::plastic_strain`]).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) plastic_strain: Real,
     /// Parallel solve color.
     pub(crate) color: u8,
+    /// Set when the edge was loaded past the material's tear threshold during the last step
     /// (or by [`crate::dynamics::SoftBody::tear_edge`]): removed by the tearing pass at the end of the step.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) torn: bool,
@@ -154,15 +159,14 @@ impl SoftBodyEdge {
         self.impulse
     }
 
-    /// The load this edge carries as a fraction of its tear threshold, smoothed over the
-    /// material's [`SoftBodyMaterial::tear_smoothing`]: `0.0` slack, `1.0` tearing. The larger of
-    /// the stretch over [`SoftBodyMaterial::tear_strain`] and the force over
-    /// [`SoftBodyMaterial::tear_force`]; stays `0.0` while the material has neither.
+    /// Load of this edge as a fraction of its tear threshold, smoothed over
+    /// [`SoftBodyMaterial::tear_smoothing`]: `0.0` slack, `1.0` tearing. The larger of the stretch
+    /// over `tear_strain` and the force over `tear_force`; `0.0` while the material has neither.
     pub fn stress(&self) -> Real {
         self.stress
     }
-
 }
+
 /// A dihedral bending constraint between two triangles sharing an edge (3D only).
 ///
 /// `vertices[0..2]` is the shared edge, `vertices[2]` and `vertices[3]` the two opposite

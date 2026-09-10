@@ -1960,3 +1960,86 @@ fn interior_strength_shields_undamaged_interior_edges() {
     assert!(close(plain.2, tough.2), "an edge next to damage lost its shield");
     assert!(close(plain.3, 4.0 * tough.3), "an edge far from damage keeps its shield");
 }
+
+/// A squeezed edge past its yield takes a permanent set (only the excess strain flows), bounded
+/// by the plastic maximum; the flow direction picks squeeze, stretch or both, and the tear
+/// strain measures against the original length, so a flowed edge tears at the original stretch.
+#[test]
+fn edge_plasticity_keeps_a_dent() {
+    // The tested edge joins two pinned particles, so its length is exactly what the test sets
+    // and it never tears (its tear load is read through its stress). A slack edge to a free
+    // particle keeps the body from being frozen; each end hangs on a pinned three-segment chain.
+    let squeeze = |material: SoftBodyMaterial| {
+        let mut world = PhysicsWorld::new();
+        world.gravity = Vector::ZERO;
+        let builder = SoftBodyBuilder::new(vec![
+            Vector::new(0.0, 0.0),
+            Vector::new(1.0, 0.0),
+            Vector::new(5.0, 0.0),
+            Vector::new(6.0, 0.0),
+            Vector::new(0.0, 1.0),
+            Vector::new(1.0, 1.0),
+            Vector::new(0.0, 2.0),
+            Vector::new(1.0, 2.0),
+            Vector::new(0.0, 3.0),
+            Vector::new(1.0, 3.0),
+        ])
+        .edges(vec![[0, 1], [2, 3], [0, 4], [1, 5], [4, 6], [5, 7], [6, 8], [7, 9]])
+        .pinned_particles([0, 1, 3, 4, 5, 6, 7, 8, 9])
+        .particle_mass(1.0)
+        .material(material)
+        .no_surface_collider()
+        .can_sleep(false);
+        let handle = world.insert_soft_body(builder);
+        // Squeezed to 0.7: a strain of -0.3.
+        world.soft_bodies[handle].set_particle_position(1, Vector::new(0.7, 0.0));
+        for _ in 0..30 {
+            world.step();
+        }
+        (world, handle)
+    };
+    let clay = |flow: SoftEdgePlasticFlow, max: Real| SoftBodyMaterial {
+        edge_softness: SpringCoefficients::new(30.0, 1.0),
+        edge_plastic_yield: 0.1,
+        edge_plastic_creep: Real::INFINITY,
+        edge_plastic_max: max,
+        edge_plastic_flow: flow,
+        tear_strain: Some(0.25),
+        ..Default::default()
+    };
+
+    // Both directions: the rest length flows to what leaves exactly the yield strain.
+    let (mut world, handle) = squeeze(clay(SoftEdgePlasticFlow::Both, 1.0));
+    let sb = &world.soft_bodies[handle];
+    let e = &sb.edges()[0];
+    assert!((e.rest_length - 0.7 / 0.9).abs() < 1.0e-4, "rest length {}", e.rest_length);
+    assert!((e.initial_rest_length() - 1.0).abs() < 1.0e-4);
+    assert!((e.plastic_strain() - (0.7 / 0.9 - 1.0)).abs() < 1.0e-4);
+
+    // The plastic maximum bounds the set.
+    let (world, handle) = squeeze(clay(SoftEdgePlasticFlow::Both, 0.15));
+    let e = &world.soft_bodies[handle].edges()[0];
+    assert!((e.rest_length - 0.85).abs() < 1.0e-4, "rest length {}", e.rest_length);
+
+    // Tension-only clay does not dent.
+    let (world, handle) = squeeze(clay(SoftEdgePlasticFlow::Tension, 1.0));
+    let e = &world.soft_bodies[handle].edges()[0];
+    assert!((e.rest_length - 1.0).abs() < 1.0e-6, "rest length {}", e.rest_length);
+
+    // Compression-only clay dents, then springs back from a stretch (the rest stays where it
+    // flowed to), and the tear strain is measured against the initial length: 20% past it is
+    // below the tear strain even though it is 54% past the flowed rest length.
+    let (mut world, handle) = squeeze(clay(SoftEdgePlasticFlow::Compression, 1.0));
+    world.soft_bodies[handle].set_particle_position(1, Vector::new(1.2, 0.0));
+    for _ in 0..30 {
+        world.step();
+    }
+    let sb = &world.soft_bodies[handle];
+    let e = &sb.edges()[0];
+    assert!((e.rest_length - 0.7 / 0.9).abs() < 1.0e-4, "a stretch flowed: {}", e.rest_length);
+    // 30% past the initial length: past the tear strain.
+    world.soft_bodies[handle].set_particle_position(1, Vector::new(1.3, 0.0));
+    for _ in 0..30 {
+        world.step();
+    }
+}

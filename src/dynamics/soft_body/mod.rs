@@ -11,8 +11,8 @@ pub use self::collision_mesh::{
 pub use self::soft_body_elements::SoftBodyDihedral;
 #[cfg(feature = "fem")]
 pub use self::soft_body_elements::SoftBodySolver;
-pub use self::soft_body::{SOFT_BODY_MAX_CONSTRAINT_PARTICLES, SoftBody};
 pub use self::soft_body_contacts::SoftVolumeContact;
+pub use self::soft_body::{SOFT_BODY_MAX_CONSTRAINT_PARTICLES, SoftBody, SoftVolumePiece};
 pub use self::soft_body_elements::{
     SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyEdgeKind, SoftBodyParticle,
 };

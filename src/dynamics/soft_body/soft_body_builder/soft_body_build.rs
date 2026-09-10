@@ -148,6 +148,7 @@ impl SoftBodyBuilder {
                 softness: None,
                 tear_resistance: 1.0,
                 impulse: 0.0,
+                plastic_strain: 0.0,
                 color: 0,
                 torn: false,
                 stress: 0.0,
