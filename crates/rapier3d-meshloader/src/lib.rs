@@ -119,7 +119,9 @@ pub fn load_from_slice(
     let loader = mesh_loader::Loader::default();
     // TODO: remove this path hack
     // requires mesh-loader to fix https://github.com/openrr/mesh-loader/issues/88
-    let path = PathBuf::new().with_extension(file_type.extension());
+    let path = PathBuf::new()
+        .with_file_name("FakeFile")
+        .with_extension(file_type.extension());
     let scene = loader.load_from_slice(bytes, path)?;
     load_from_scene(scene, converter, scale)
 }
