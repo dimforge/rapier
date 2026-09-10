@@ -138,6 +138,7 @@ impl SoftConstraintsSet {
         // particles' solver slots: contiguous per body, bodies in awake order.
         self.awake.sort_by_key(|a| a.group);
         for awake in &mut self.awake {
+            awake.substep_dt = group_dt(awake.group as usize);
             awake.slot_start = self.slots.len();
             let first = slot_base + self.slots.len();
             self.slots
@@ -466,6 +467,7 @@ impl SoftConstraintsSet {
                 ptr: sb as *mut SoftBody,
                 handle,
                 group,
+                substep_dt: step_dt,
                 frozen,
                 slot_start: 0,
                 num_particles: sb.particles.len(),
@@ -630,6 +632,7 @@ impl SoftConstraintsSet {
                 cfm_gain: 0.0,
                 rhs: 0.0,
                 impulse,
+                peak_impulse: 0.0,
                 impulse_bounds: [-Real::MAX, Real::MAX],
             }
         };

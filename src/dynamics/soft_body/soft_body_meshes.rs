@@ -204,6 +204,20 @@ impl SoftBody {
         self.clusters = clusters;
     }
 
+    /// Recomputes which particles are vertices of the surface.
+    pub(crate) fn update_surface_flags(&mut self) {
+        for p in &mut self.particles {
+            p.on_surface = false;
+        }
+        for element in &self.boundary {
+            for &v in element {
+                if let Some(p) = self.particles.get_mut(v as usize) {
+                    p.on_surface = true;
+                }
+            }
+        }
+    }
+
     /// Updates the meshes' cached vertices from the current particle positions.
     pub(crate) fn update_meshes(&mut self) {
         self.for_each_mesh_mut(|body, mesh| mesh.update(&body.cells, &body.particles));

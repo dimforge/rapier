@@ -278,6 +278,8 @@ impl SoftConstraintsSet {
             let i = range.scalar_constraints.start + idx;
             let constraint = &mut self.scalar_constraints[i];
             if update {
+                // A new substep begins: the impulse is the previous one's total.
+                constraint.peak_impulse = constraint.peak_impulse.max(constraint.impulse);
                 constraint.update(bodies);
                 self.strained[i] = constraint.is_strained(min_strain);
             }

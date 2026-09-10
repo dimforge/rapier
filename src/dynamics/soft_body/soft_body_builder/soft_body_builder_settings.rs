@@ -79,6 +79,11 @@ impl SoftBodyBuilder {
                 *i += shift;
             }
         }
+        for (i, _) in &mut self.edge_tear_resistance {
+            if *i >= first_bend {
+                *i += shift;
+            }
+        }
         self.edges.extend(inserted);
         self
     }
@@ -119,6 +124,9 @@ impl SoftBodyBuilder {
         for (i, _) in &mut self.edge_softness {
             *i = remap_self(*i);
         }
+        for (i, _) in &mut self.edge_tear_resistance {
+            *i = remap_self(*i);
+        }
         self.tension_only_edges
             .extend(other.tension_only_edges.iter().map(|&i| remap_other(i)));
         self.edge_softness.extend(
@@ -126,6 +134,12 @@ impl SoftBodyBuilder {
                 .edge_softness
                 .iter()
                 .map(|&(i, c)| (remap_other(i), c)),
+        );
+        self.edge_tear_resistance.extend(
+            other
+                .edge_tear_resistance
+                .iter()
+                .map(|&(i, r)| (remap_other(i), r)),
         );
         let _ = other_bends;
         let shift = |v: &[u32]| -> Vec<u32> { v.iter().map(|&i| i + offset).collect() };
@@ -243,6 +257,33 @@ impl SoftBodyBuilder {
     /// Sets the material's tear strain (see [`SoftBodyMaterial::tear_strain`]).
     pub fn tear_strain(mut self, strain: Real) -> Self {
         self.material.tear_strain = Some(strain);
+        self
+    }
+
+    /// Sets the material's tear force (see [`SoftBodyMaterial::tear_force`]).
+    pub fn tear_force(mut self, force: Real) -> Self {
+        self.material.tear_force = Some(force);
+        self
+    }
+
+    /// Sets the material's tear smoothing time constant (see
+    /// [`SoftBodyMaterial::tear_smoothing`]).
+    pub fn tear_smoothing(mut self, seconds: Real) -> Self {
+        self.material.tear_smoothing = seconds;
+        self
+    }
+
+    /// Sets the material's interior strength (see [`SoftBodyMaterial::interior_strength`]).
+    pub fn interior_strength(mut self, strength: Real) -> Self {
+        self.material.interior_strength = strength;
+        self
+    }
+
+    /// Sets the tear-threshold multiplier of some edges, as `(edge index, resistance)` pairs
+    /// indexing the concatenation of the structural then the bending edges (see
+    /// [`crate::dynamics::SoftBodyEdge::tear_resistance`]).
+    pub fn edge_tear_resistance(mut self, edges: impl IntoIterator<Item = (u32, Real)>) -> Self {
+        self.edge_tear_resistance.extend(edges);
         self
     }
 

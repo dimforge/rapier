@@ -62,6 +62,9 @@ pub(crate) struct SoftScalarConstraint {
     pub cfm_gain: Real,
     pub rhs: Real,
     pub impulse: Real,
+    /// The largest impulse the constraint had accumulated at the end of a substep of this step (the
+    /// force tear criterion reads the step's peak, not its last substep).
+    pub peak_impulse: Real,
     pub impulse_bounds: [Real; 2],
 }
 

@@ -61,6 +61,9 @@ pub struct SoftBodyBuilder {
     /// Per-edge softness overrides (indices into the concatenation of `edges` then
     /// `bend_edges`); the material's softness applies to the others.
     pub edge_softness: Vec<(u32, SpringCoefficients<Real>)>,
+    /// Per-edge tear-threshold multipliers (indices into the concatenation of `edges` then
+    /// `bend_edges`, see [`crate::dynamics::SoftBodyEdge::tear_resistance`]); `1.0` for the others.
+    pub edge_tear_resistance: Vec<(u32, Real)>,
     /// Dihedral bending constraints: shared edge then the two opposite vertices.
     #[cfg(feature = "dim3")]
     pub dihedrals: Vec<[u32; 4]>,

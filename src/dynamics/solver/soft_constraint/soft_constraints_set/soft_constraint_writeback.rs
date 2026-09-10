@@ -24,11 +24,32 @@ impl SoftConstraintsSet {
                 let constraint = &self.scalar_constraints[idx];
                 let awake = &self.awake[constraint.soft_body as usize];
                 let sb = unsafe { &mut *awake.ptr };
+                let material = sb.material;
                 let impulse = crate::utils::canonicalize_zero(constraint.impulse);
                 match constraint.writeback {
                     SoftScalarConstraintWriteback::Edge => {
+                        let resistance = if material.tears() {
+                            let e = &sb.edges[constraint.element as usize];
+                            sb.effective_tear_resistance(e.tear_resistance, &e.vertices)
+                        } else {
+                            1.0
+                        };
                         let edge = &mut sb.edges[constraint.element as usize];
                         edge.impulse = impulse;
+                        if material.tears() {
+                            // The force is the step's peak substep impulse over the substep length
+                            // (a spike must not hide behind the last substep); the stretch is
+                            // measured against the initial rest length, so plastic flow counts.
+                            let peak = constraint.peak_impulse.max(constraint.impulse);
+                            let force = peak * crate::utils::inv(awake.substep_dt);
+                            let load =
+                                material.edge_tear_load(len, edge.initial_rest_length(), force)
+                                    * crate::utils::inv(resistance);
+                            edge.stress = material.smooth_stress(edge.stress, load, dt);
+                            if edge.stress > 1.0 {
+                                edge.torn = true;
+                                awake.torn.store(true, Ordering::Relaxed);
+                            }
                         }
                     }
                     #[cfg(feature = "dim3")]
@@ -44,6 +65,12 @@ impl SoftConstraintsSet {
                 let awake = &self.awake[constraint.soft_body as usize];
                 let sb = unsafe { &mut *awake.ptr };
                 let material = sb.material;
+                let resistance = if material.tear_strain.is_some() {
+                    let c = &sb.cells[constraint.element as usize];
+                    sb.effective_tear_resistance(c.tear_resistance, &c.vertices)
+                } else {
+                    1.0
+                };
                 let cell = &mut sb.cells[constraint.element as usize];
                 let impulses =
                     (constraint.strain_impulse.iter()).chain(core::iter::once(&constraint.vol_impulse));
@@ -57,6 +84,12 @@ impl SoftConstraintsSet {
                 {
                     awake.plastic_flow.store(true, Ordering::Relaxed);
                 }
+                if material.tear_strain.is_some() {
+                    let load = material.cell_tear_load(tensile) * crate::utils::inv(resistance);
+                    cell.stress = material.smooth_stress(cell.stress, load, dt);
+                    if cell.stress > 1.0 {
+                        cell.torn = true;
+                        awake.torn.store(true, Ordering::Relaxed);
                     }
                 }
             }

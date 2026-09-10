@@ -64,6 +64,8 @@ impl SoftBodyBuilder {
                 inv_mass: if *pinned { 0.0 } else { crate::utils::inv(*m) },
                 force: Vector::ZERO,
                 next_position: None,
+                damaged: false,
+                on_surface: false,
             })
             .collect();
         let pos = |i: u32| self.positions[i as usize];
@@ -92,10 +94,13 @@ impl SoftBodyBuilder {
                 impulses: [0.0; super::super::CELL_IMPULSES],
                 rotation: Rotation::IDENTITY,
                 stiffness_scale: 1.0,
+                tear_resistance: 1.0,
                 color: 0,
                 torn: false,
+                stress: 0.0,
             });
         }
+
         // Surface: given, or the boundary of the cells.
         let surface = if !self.surface.is_empty() {
             self.surface.clone()
@@ -141,13 +146,21 @@ impl SoftBodyBuilder {
                 kind: *kind,
                 tension_only: false,
                 softness: None,
+                tear_resistance: 1.0,
                 impulse: 0.0,
                 color: 0,
                 torn: false,
+                stress: 0.0,
+            })
             .collect();
         for &i in &self.tension_only_edges {
             if let Some(e) = edges.get_mut(i as usize) {
                 e.tension_only = true;
+            }
+        }
+        for &(i, resistance) in &self.edge_tear_resistance {
+            if let Some(e) = edges.get_mut(i as usize) {
+                e.tear_resistance = resistance.max(0.0);
             }
         }
         for &(i, softness) in &self.edge_softness {
@@ -179,6 +192,15 @@ impl SoftBodyBuilder {
         let rest_volume = SoftBody::boundary_volume(&surface, pos);
         let boundary_closed = surface_is_closed(&surface);
         let boundary_element_cells = surface_element_cells(&surface, &cells);
+        let mut particles = particles;
+        for element in &surface {
+            for &v in element {
+                if let Some(p) = particles.get_mut(v as usize) {
+                    p.on_surface = true;
+                }
+            }
+        }
+
         SoftBody {
             volume_preservation: self.volume_preservation && !surface.is_empty(),
             boundary_inverted: false,

@@ -251,6 +251,34 @@ impl SoftBody {
         self.modified = true;
     }
 
+    /// Sets the tear-threshold multiplier of every edge and cell fully contained in the `i`-th
+    /// cluster (see [`super::SoftBodyEdge::tear_resistance`]): a tough region, or a perforation
+    /// line; `1.0` restores the material's thresholds.
+    pub fn set_cluster_tear_resistance(&mut self, i: u32, resistance: Real) {
+        let Some(cluster) = self.clusters.get(i as usize).filter(|c| c.is_live()) else {
+            return;
+        };
+        let resistance = resistance.max(0.0);
+        let inside = |vertices: &[u32]| {
+            vertices
+                .iter()
+                .all(|v| cluster.particles.binary_search(v).is_ok())
+        };
+        let edges: Vec<bool> = self.edges.iter().map(|e| inside(&e.vertices)).collect();
+        let cells: Vec<bool> = self.cells.iter().map(|c| inside(&c.vertices)).collect();
+        for (e, inside) in self.edges.iter_mut().zip(edges) {
+            if inside {
+                e.tear_resistance = resistance;
+            }
+        }
+        for (c, inside) in self.cells.iter_mut().zip(cells) {
+            if inside {
+                c.tear_resistance = resistance;
+            }
+        }
+        self.modified = true;
+    }
+
     /// Pins (or releases) every particle of the `i`-th cluster at once: the cluster becomes a
     /// fixed (kinematic) region dragging the rest of the body, driven along a path with
     /// [`Self::set_cluster_kinematic_target`]; particles keep their individual pinned semantics.
@@ -475,6 +503,7 @@ impl SoftBody {
         });
 
         self.boundary_closed = super::soft_body_builder::surface_is_closed(&self.boundary);
+        self.update_surface_flags();
         self.rebuild_mesh_tables();
         self.update_cluster_cells();
         self.recolor();

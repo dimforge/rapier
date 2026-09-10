@@ -63,6 +63,26 @@ pub struct SoftBodyMaterial {
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub tear_strain: Option<Real>,
     /// [`crate::dynamics::SoftBody::tear_edge`]). Unlike the strain, the force reports the load of an edge that
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub tear_force: Option<Real>,
+    /// Time constant, in seconds, over which an element's load is averaged before it is compared
+    /// to its tear threshold (default: `0.0`, none). At `0.0` one step past the threshold tears;
+    /// with a positive value the load is smoothed exponentially over about that long, so a brief
+    /// spike (an impact, a jerk) is shrugged off and only a sustained pull tears. Applies to the
+    /// strain and the force criteria alike; [`crate::dynamics::SoftBodyEdge::stress`] and [`crate::dynamics::SoftBodyCell::stress`]
+    /// read the smoothed load back.
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub tear_smoothing: Real,
+    /// How much tougher an element deep inside the body is than one at its surface (default:
+    /// `1.0`, no difference). An element whose particles are all interior (none on the surface)
+    /// and undamaged needs this many times its tear threshold; elements at the surface, or next
+    /// to a particle an earlier tear passed through, tear at the threshold itself. Tears then
+    /// start at the surface or at existing damage and run inward, where the material is
+    /// weakened, instead of anywhere a particle happens to be pulled. Multiplies the per-element
+    /// [`crate::dynamics::SoftBodyEdge::tear_resistance`] / [`crate::dynamics::SoftBodyCell::tear_resistance`].
+    #[cfg_attr(feature = "serde-serialize", serde(default = "one"))]
+    pub interior_strength: Real,
+    /// ones (see [`crate::dynamics::SoftBodyEdge::stress`]) go first, the others wait for the next step (edges
     /// projectile being caught like in a net while its rim tears one edge at a time; the
     /// default lets a puncture open at once.
     #[cfg_attr(
@@ -102,6 +122,9 @@ impl Default for SoftBodyMaterial {
             plastic_max: 1.0,
             deformation_damping: 0.0,
             tear_strain: None,
+            tear_force: None,
+            tear_smoothing: 0.0,
+            interior_strength: 1.0,
             max_tears_per_step: u32::MAX,
         }
     }
@@ -117,6 +140,47 @@ impl SoftBodyMaterial {
             volume_softness: softness,
             shape_matching_softness: softness,
             ..Default::default()
+        }
+    }
+
+    /// Whether some tear criterion is set (`tear_strain` or `tear_force`).
+    pub fn tears(&self) -> bool {
+        self.tear_strain.is_some() || self.tear_force.is_some()
+    }
+
+    /// Load of an edge as a fraction of its tear threshold: the larger of its stretch (`length`
+    /// over its initial rest length `rest`) over `tear_strain` and its `force` along its direction
+    /// (positive when resisting stretching) over `tear_force`; compression or no threshold: `0.0`.
+    pub(crate) fn edge_tear_load(&self, length: Real, rest: Real, force: Real) -> Real {
+        let mut load: Real = 0.0;
+        if let Some(tear) = self.tear_strain {
+            if rest > 0.0 {
+                load = (length / rest - 1.0).max(0.0) / tear.max(Real::EPSILON);
+            }
+        }
+        if let Some(tear) = self.tear_force {
+            load = load.max(force.max(0.0) / tear.max(Real::EPSILON));
+        }
+        load
+    }
+
+    /// The load of a cell whose largest tensile strain is `strain`, as a fraction of its tear
+    /// threshold (`0.0` without a `tear_strain`).
+    pub(crate) fn cell_tear_load(&self, strain: Real) -> Real {
+        match self.tear_strain {
+            Some(tear) => strain.max(0.0) / tear.max(Real::EPSILON),
+            None => 0.0,
+        }
+    }
+
+    /// Blends the load `load` measured over a step of length `dt` into the smoothed load
+    /// `stress`, over the `tear_smoothing` time constant (no smoothing: the load itself).
+    pub(crate) fn smooth_stress(&self, stress: Real, load: Real, dt: Real) -> Real {
+        if self.tear_smoothing <= 0.0 {
+            load
+        } else {
+            let blend = 1.0 - (-dt / self.tear_smoothing).exp();
+            stress + (load - stress) * blend
         }
     }
 

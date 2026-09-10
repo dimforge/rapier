@@ -23,6 +23,9 @@ pub(crate) struct AwakeSoftBody {
     pub handle: SoftBodyHandle,
     /// Substep solve-group of the body's particles.
     pub group: u16,
+    /// Length of the group's substeps (the edge impulses are per substep: this turns them into
+    /// forces for the tear criterion).
+    pub substep_dt: Real,
     /// No particle is a solver DOF this step (every one pinned, or the free ones asleep): the
     /// body only lends its surface to the contact constraints holding the awake bodies touching it.
     pub frozen: bool,

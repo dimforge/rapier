@@ -47,6 +47,7 @@ fn gradients_match_finite_differences() {
         cfm_gain: 0.0,
         rhs: 0.0,
         impulse: 0.0,
+        peak_impulse: 0.0,
         impulse_bounds: [-Real::MAX, Real::MAX],
     };
     #[cfg(feature = "dim2")]

@@ -274,6 +274,23 @@ impl SoftFemSystem {
         let mut flowing = false;
         let mut torn = false;
         // The interior strength reads the particles' flags: taken before the cells are borrowed.
+        let cell_resistance: Vec<Real> = if material.tear_strain.is_some() {
+            sb.cells
+                .iter()
+                .map(|c| sb.effective_tear_resistance(c.tear_resistance, &c.vertices))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let edge_resistance: Vec<Real> = if material.tears() {
+            sb.edges
+                .iter()
+                .map(|e| sb.effective_tear_resistance(e.tear_resistance, &e.vertices))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        for ((cell, out), ci) in self.cells.iter().zip(sb.cells.iter_mut()).zip(0..) {
             out.rotation = cell.rotation;
             if cell.mu <= 0.0 {
                 continue;
@@ -281,6 +298,34 @@ impl SoftFemSystem {
             if plastic && plastic_flow(out, &cell.strain, &material, step_dt) {
                 flowing = true;
             }
+            if material.tear_strain.is_some() {
+                let load =
+                    material.cell_tear_load(tensile) * crate::utils::inv(cell_resistance[ci]);
+                out.stress = material.smooth_stress(out.stress, load, step_dt);
+                if out.stress > 1.0 {
+                    out.torn = true;
+                    torn = true;
+                }
+            }
+        }
+        let edge_plasticity = material.edge_plastic_yield > 0.0 && material.edge_plastic_creep > 0.0;
+        if material.tears() || edge_plasticity {
+            for ((spring, edge), ei) in self.springs.iter().zip(sb.edges.iter_mut()).zip(0..) {
+                if spring.rest_length <= 0.0 {
+                    continue;
+                }
+                let d = self.position[spring.vertices[1] as usize]
+                    - self.position[spring.vertices[0] as usize];
+                let length = d.length();
+                // The elastic force of the implicit step's end state, resisting stretching; the
+                let force = spring.stiffness * (length - spring.rest_length).max(0.0);
+                let load = material.edge_tear_load(length, edge.initial_rest_length(), force)
+                    * crate::utils::inv(edge_resistance[ei]);
+                edge.stress = material.smooth_stress(edge.stress, load, step_dt);
+                if edge.stress > 1.0 {
+                    edge.torn = true;
+                    torn = true;
+                }
             }
         }
         sb.plastic_flowing |= flowing;

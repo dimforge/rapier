@@ -1809,3 +1809,154 @@ fn self_contact_blob_survives_grab_crush() {
         assert!(r > 0.6, "a blob stayed crushed after release: ratio {r}");
     }
 }
+
+}
+
+/// A stiff edge holding a weight barely stretches, yet it bears the weight: with a tear force
+/// below that weight it breaks, with one above it holds, and its `stress` reads the fraction of
+/// the threshold it bears.
+#[test]
+fn stiff_edge_tears_under_force_not_strain() {
+    let hang = |tear_force: Real| {
+        let mut world = PhysicsWorld::new();
+        let handle = world.insert_soft_body(hanging_weight(tear_force));
+        for _ in 0..60 {
+            world.step();
+        }
+        let sb = &world.soft_bodies[handle];
+        let tested = sb.edges().iter().find(|e| e.vertices == [3, 4]);
+        let particles: usize = bodies.iter().map(|&h| world.soft_bodies[h].num_particles()).sum();
+        (
+            bodies.len(),
+            tested.map(|e| e.stress()),
+            sb.edges().len(),
+        )
+    };
+    // The load is the weight, 9.81 N.
+    let (particles, pieces, stress, edges) = hang(30.0);
+    assert_eq!((particles, pieces, edges), (8, 1, 7), "the edge tore under a third of its threshold");
+    let stress = stress.unwrap();
+    assert!(
+        (stress - 9.81 / 30.0).abs() < 0.08,
+        "stress {stress} does not read the weight over the threshold"
+    );
+    let (particles, pieces, stress, edges) = hang(6.0);
+    assert_eq!((particles, pieces, edges), (9, 2, 4), "the edge held a load above its tear force");
+}
+
+/// Tear smoothing: a jerk that would snap an edge at once is shrugged off once the load is
+/// averaged over a time constant far longer than the spike.
+#[test]
+fn tear_smoothing_shrugs_off_a_spike() {
+    let jerk = |smoothing: Real| {
+        let mut world = PhysicsWorld::new();
+        world.gravity = Vector::ZERO;
+        let handle = world.insert_soft_body(hanging_weight(50.0).tear_smoothing(smoothing));
+        world.step();
+        // A velocity the edge must cancel within a substep: a force spike of hundreds of N.
+        for _ in 0..30 {
+            world.step();
+        }
+        // A tear splits a particle (it removes no edge), and the weight falls as its own body.
+        family(&world, handle).len()
+    };
+    assert_eq!(jerk(0.0), 2, "without smoothing the spike snaps the edge");
+    assert_eq!(jerk(1.0), 1, "smoothed over a second, the spike is shrugged off");
+}
+
+/// A per-edge tear resistance multiplies the edge's threshold: of two edges bearing the same
+/// weight past the material's tear force, the reinforced one holds (above the 14 N catch
+/// transient of a released chain). Each 1 kg weight is a reinforced chain of three segments.
+#[test]
+fn tear_resistance_scales_the_threshold() {
+    let mut world = PhysicsWorld::new();
+    let mut positions = vec![Vector::new(0.0, 2.0), Vector::new(1.0, 2.0)];
+    for k in 0..4 {
+        let y = 1.0 - k as Real / 3.0;
+        positions.extend([Vector::new(0.0, y), Vector::new(1.0, y)]);
+    }
+    let builder = SoftBodyBuilder::new(positions)
+    .edges(vec![[0, 1], [0, 2], [1, 3], [2, 4], [3, 5], [4, 6], [5, 7], [6, 8], [7, 9]])
+    .edge_tear_resistance([(2, 3.0), (3, 100.0), (4, 100.0), (5, 100.0), (6, 100.0), (7, 100.0), (8, 100.0)])
+    .pinned_particles([0, 1])
+    .particle_mass(0.25)
+    .softness(SpringCoefficients::new(120.0, 1.0))
+    .tear_force(6.0)
+    .no_surface_collider()
+    .can_sleep(false);
+    let handle = world.insert_soft_body(builder);
+    for _ in 0..60 {
+        world.step();
+    }
+    let sb = &world.soft_bodies[handle];
+    let reinforced = sb.edges().iter().find(|e| e.tear_resistance == 3.0);
+    let stress = reinforced.expect("the reinforced edge tore").stress();
+    assert!((stress - 9.81 / 18.0).abs() < 0.08, "stress {stress} ignores the resistance");
+}
+
+/// An edge whose particles are all interior and undamaged bears its load against
+/// `interior_strength` times the threshold, a surface edge against the threshold itself, and a
+/// tear through a particle removes the shield. Checked on two worlds differing by that alone.
+#[test]
+fn interior_strength_shields_undamaged_interior_edges() {
+    let n = 5usize;
+    let idx = |i: usize, j: usize| (i * n + j) as u32;
+    let run = |interior_strength: Real| {
+        let mut world = PhysicsWorld::new();
+        world.gravity = Vector::ZERO;
+        let grid = SoftBodyBuilder::grid(Vector::ZERO, Vector::splat(1.0), n, n)
+            .material(SoftBodyMaterial {
+                tear_strain: Some(1.0),
+                interior_strength,
+                ..Default::default()
+            })
+            .no_surface_collider()
+            .can_sleep(false);
+        let handle = world.insert_soft_body(grid);
+        let sb = &mut world.soft_bodies[handle];
+        for i in 0..sb.num_particles() {
+            let p = sb.particle_position(i);
+            sb.set_particle_position(i, p * 1.3);
+        }
+        world.step();
+        let find = |sb: &SoftBody, a: u32, b: u32| {
+            sb.edges()
+                .iter()
+                .position(|e| {
+                    (e.vertices == [a, b] || e.vertices == [b, a])
+                        && e.kind == SoftBodyEdgeKind::Structural
+                })
+                .unwrap()
+        };
+        let sb = &world.soft_bodies[handle];
+        assert_eq!(
+            sb.particles().iter().filter(|p| p.is_on_surface()).count(),
+            4 * (n - 1),
+            "the boundary ring is the surface"
+        );
+        let stress = |sb: &SoftBody, a, b| sb.edges()[find(sb, a, b)].stress();
+        let surface = stress(sb, idx(0, 0), idx(0, 1));
+        let inner = stress(sb, idx(1, 1), idx(1, 2));
+        // Tear the inner edge: its particles (and the cells' around it) become damaged.
+        let torn = find(sb, idx(1, 1), idx(1, 2));
+        world.soft_bodies[handle].tear_edge(torn);
+        // The tear applies at the end of the step; the next step's loads see the damage.
+        world.step();
+        world.step();
+        let sb = &world.soft_bodies[handle];
+        assert!(sb.particles()[idx(1, 1) as usize].is_damaged());
+        assert!(sb.particles()[idx(1, 2) as usize].is_damaged());
+        assert!(!sb.particles()[idx(3, 1) as usize].is_damaged());
+        let next_to_damage = stress(sb, idx(1, 2), idx(1, 3));
+        let far = stress(sb, idx(3, 1), idx(3, 2));
+        (surface, inner, next_to_damage, far)
+    };
+    let plain = run(1.0);
+    let tough = run(4.0);
+    assert!(plain.0 > 0.05 && plain.1 > 0.02, "the stretched grid reads a load: {plain:?}");
+    let close = |a: Real, b: Real| (a - b).abs() <= 1.0e-5 * a.abs().max(1.0);
+    assert!(close(plain.0, tough.0), "a surface edge is not shielded");
+    assert!(close(plain.1, 4.0 * tough.1), "an interior edge bears 4x the threshold");
+    assert!(close(plain.2, tough.2), "an edge next to damage lost its shield");
+    assert!(close(plain.3, 4.0 * tough.3), "an edge far from damage keeps its shield");
+}

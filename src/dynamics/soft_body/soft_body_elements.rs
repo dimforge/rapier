@@ -35,7 +35,14 @@ pub struct SoftBodyParticle {
     /// its velocity).
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub(crate) next_position: Option<Vector>,
+    /// Set once an element touching the particle tore (see [`Self::is_damaged`]).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) damaged: bool,
+    /// Whether some surface element has this particle as a vertex (updated with the boundary).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) on_surface: bool,
 }
+
 impl SoftBodyParticle {
     /// The world-space position of this particle.
     pub fn position(&self) -> Vector {
@@ -81,7 +88,20 @@ impl SoftBodyParticle {
     }
 
     /// Whether an element touching this particle has torn (or [`crate::dynamics::SoftBody::set_particle_damaged`]
+    /// marked it). The elements around a damaged particle lose the interior strength of
+    /// [`SoftBodyMaterial::interior_strength`]: a tear runs on from where it started.
+    pub fn is_damaged(&self) -> bool {
+        self.damaged
+    }
+
+    /// Whether this particle is a vertex of the body's surface (a boundary segment in 2D, a
+    /// boundary triangle in 3D). An element whose particles are all interior gets the material's
+    /// [`SoftBodyMaterial::interior_strength`].
+    pub fn is_on_surface(&self) -> bool {
+        self.on_surface
+    }
 }
+
 /// The role of a soft-body edge (distance constraint).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
@@ -109,6 +129,11 @@ pub struct SoftBodyEdge {
     /// Softness of this edge, overriding the material's (`edge_softness` / `bend_softness`)
     /// when set: anisotropic cloth (warp, weft and shear stiffness), stiffer seams...
     pub softness: Option<SpringCoefficients<Real>>,
+    /// Multiplier of the material's tear thresholds for this edge (default `1.0`): a seam that
+    /// holds, a perforation that gives. Usually set through [`crate::dynamics::SoftBody::set_edge_tear_resistance`]
+    /// or [`crate::dynamics::SoftBody::set_cluster_tear_resistance`].
+    #[cfg_attr(feature = "serde-serialize", serde(default = "one"))]
+    pub tear_resistance: Real,
     /// Accumulated impulse of the last step (warm-start state).
     pub(crate) impulse: Real,
     /// Parallel solve color.
@@ -116,12 +141,25 @@ pub struct SoftBodyEdge {
     /// (or by [`crate::dynamics::SoftBody::tear_edge`]): removed by the tearing pass at the end of the step.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) torn: bool,
+    /// The load of the edge as a fraction of its tear threshold, smoothed over the material's
+    /// `tear_smoothing` (see [`Self::stress`]).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) stress: Real,
 }
+
 impl SoftBodyEdge {
     /// The impulse this edge applied during the last substep, along the edge direction
     /// (positive when the edge was resisting stretching).
     pub fn impulse(&self) -> Real {
         self.impulse
+    }
+
+    /// The load this edge carries as a fraction of its tear threshold, smoothed over the
+    /// material's [`SoftBodyMaterial::tear_smoothing`]: `0.0` slack, `1.0` tearing. The larger of
+    /// the stretch over [`SoftBodyMaterial::tear_strain`] and the force over
+    /// [`SoftBodyMaterial::tear_force`]; stays `0.0` while the material has neither.
+    pub fn stress(&self) -> Real {
+        self.stress
     }
 
 }
@@ -206,10 +244,27 @@ pub struct SoftBodyCell {
     /// stiffness, usually set through [`crate::dynamics::SoftBody::set_cluster_stiffness_scale`].
     #[cfg_attr(feature = "serde-serialize", serde(default = "one"))]
     pub stiffness_scale: Real,
+    /// Multiplier of the material's tear strain for this cell (default `1.0`), see
+    /// [`crate::dynamics::SoftBody::set_cell_tear_resistance`].
+    #[cfg_attr(feature = "serde-serialize", serde(default = "one"))]
+    pub tear_resistance: Real,
     /// Parallel solve color.
     pub(crate) color: u8,
     /// Set when the cell was strained past the material's `tear_strain` during the last step
     /// (or by [`crate::dynamics::SoftBody::tear_cell`]): removed by the tearing pass at the end of the step.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) torn: bool,
+    /// The tensile strain of the cell as a fraction of its tear threshold, smoothed over the
+    /// material's `tear_smoothing` (see [`Self::stress`]).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) stress: Real,
+}
+
+impl SoftBodyCell {
+    /// The largest tensile strain of this cell as a fraction of its tear threshold, smoothed
+    /// over the material's [`SoftBodyMaterial::tear_smoothing`]: `0.0` slack, `1.0` tearing.
+    /// Stays `0.0` while the material has no `tear_strain` (cells only tear on their strain).
+    pub fn stress(&self) -> Real {
+        self.stress
+    }
 }
