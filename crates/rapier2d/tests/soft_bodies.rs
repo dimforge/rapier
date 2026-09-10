@@ -1541,6 +1541,129 @@ fn fem_box_rests_on_soft_body() {
     assert!(world.bodies[rb].linvel().length() < 0.05);
 }
 
+/// A stack of stiff FEM bodies rests on the ground without sinking: contacts see a FEM body
+/// through its augmented mass (`J A⁻¹Jᵀ`), not the anchors' lumped masses.
+#[cfg(feature = "fem")]
+#[test]
+fn fem_stiff_stack_rests_without_sinking() {
+    let mut world = PhysicsWorld::new();
+    let ground_top = 1.2;
+    world.insert(
+        RigidBodyBuilder::fixed(),
+        ColliderBuilder::cuboid(25.0, ground_top),
+    );
+    let (half, radius) = (3.0, 0.15);
+    let mut handles = Vec::new();
+    for row in 0..3 {
+        let center = Vector::new(0.0, ground_top + half + 0.5 + row as Real * (2.0 * half + 1.0));
+        let square = SoftBodyBuilder::grid(center, Vector::splat(half), 4, 4)
+            .cell_model(SoftBodyCellModel::Corotational)
+            .material(SoftBodyMaterial {
+                young_modulus: 1.0e6,
+                poisson_ratio: 0.4,
+                elastic_damping_ratio: 0.5,
+                deformation_damping: 25.0,
+                ..Default::default()
+            })
+            .particle_mass(0.1)
+            .particle_radius(radius)
+            .self_contacts(true)
+            .solver(SoftBodySolver::Fem)
+            .can_sleep(false);
+        handles.push(world.insert_soft_body(square));
+    }
+    for _ in 0..500 {
+        world.step();
+    }
+    let mut previous_top = ground_top;
+    for &h in &handles {
+        let sb = &world.soft_bodies[h];
+        assert_finite(&world, h);
+        let min_y = sb.particles().iter().map(|p| p.position().y).fold(Real::MAX, Real::min);
+        let max_y = sb.particles().iter().map(|p| p.position().y).fold(Real::MIN, Real::max);
+        let max_vel = sb.particles().iter().map(|p| p.velocity().length()).fold(0.0, Real::max);
+        let penetration = previous_top + radius - min_y;
+        assert!(penetration < 0.02, "a body sank by {penetration} into the one below");
+        assert!(max_vel < 0.1, "the stack did not settle: {max_vel} m/s");
+        previous_top = max_y + radius;
+    }
+}
+
+/// A `Volume` cell-model body on the FEM path keeps its area: its cells are volume elements
+/// of the implicit step (no constraint is left on a FEM body).
+#[cfg(feature = "fem")]
+#[test]
+fn fem_volume_cells_keep_their_area() {
+    let mut world = world_with_ground();
+    let square = SoftBodyBuilder::grid(Vector::new(0.0, 2.0), Vector::splat(0.75), 5, 5)
+        .cell_model(SoftBodyCellModel::Volume)
+        .solver(SoftBodySolver::Fem)
+        .particle_mass(0.1);
+    let handle = world.insert_soft_body(square);
+    for _ in 0..500 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let sb = &world.soft_bodies[handle];
+    let max_vel = sb
+        .particles()
+        .iter()
+        .map(|p| p.velocity().length())
+        .fold(0.0, Real::max);
+    assert!(max_vel < 0.2, "the square still moves at {max_vel} m/s");
+    let area = sb.volume();
+    assert!(
+        (area - sb.rest_volume()).abs() < 0.1 * sb.rest_volume(),
+        "area {area} vs rest {}",
+        sb.rest_volume()
+    );
+}
+
+/// A thin FEM feature (thinner than two skins) with self contacts on stays put: the permanent
+/// self contacts across its thickness are excluded (`SoftCollisionMesh::self_contact_excluded`).
+#[cfg(feature = "fem")]
+#[test]
+fn fem_thin_feature_self_contacts_stay_calm() {
+    let mut world = world_with_ground();
+    let bar = SoftBodyBuilder::grid(Vector::new(0.0, 2.0), Vector::new(2.0, 0.2), 11, 2)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: 1.0e6,
+            poisson_ratio: 0.4,
+            elastic_damping_ratio: 0.5,
+            ..Default::default()
+        })
+        .particle_mass(0.1)
+        .particle_radius(0.3)
+        .self_contacts(true)
+        .solver(SoftBodySolver::Fem)
+        .can_sleep(false);
+    let handle = world.insert_soft_body(bar);
+    let positions = |world: &PhysicsWorld| -> Vec<Vector> {
+        world.soft_bodies[handle]
+            .particles()
+            .iter()
+            .map(|p| p.position())
+            .collect()
+    };
+    for _ in 0..400 {
+        world.step();
+    }
+    let settled = positions(&world);
+    for _ in 0..800 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let drift = positions(&world)
+        .iter()
+        .zip(&settled)
+        .map(|(a, b)| (*a - *b).length())
+        .fold(0.0, Real::max);
+    let min_y = settled.iter().map(|p| p.y).fold(Real::MAX, Real::min);
+    assert!(drift < 1.0e-3, "the bar keeps moving: drift {drift} over 800 steps");
+    assert!(min_y > 0.3 - 0.02, "the bar sank into the ground: {min_y}");
+}
+
 /// 2D twin of `violently_dragged_one_particle_cluster_stays_bounded` (rapier3d's
 /// soft_body_joints.rs): the 2D reduced inertia is a scalar whose plain inverse exploded the
 /// same way on a one-particle cluster's roundoff inertia.

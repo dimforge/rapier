@@ -7,4 +7,4 @@ mod soft_fem_skyline;
 mod soft_fem_sparse;
 mod system;
 
-pub(crate) use soft_fem_set::SoftFemSet;
+pub(crate) use soft_fem_set::{AwakeFem, MAX_RESPONSE_AMPLIFICATION, SoftFemSet};

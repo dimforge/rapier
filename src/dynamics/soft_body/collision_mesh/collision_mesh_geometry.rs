@@ -77,7 +77,64 @@ impl SoftCollisionMesh {
         if element.contains(&vertex) {
             return true;
         }
+        if let Some(&start) = self.ring_offsets.get(vertex as usize) {
+            let end = self.ring_offsets[vertex as usize + 1];
+            let ring = &self.ring[start as usize..end as usize];
+            if element.iter().any(|v| ring.binary_search(v).is_ok()) {
+                return true;
+            }
+        }
+        self.self_contact_excluded_at_rest(body, vertex, element, skin)
     }
+
+    /// The neighborhood clause of [`Self::self_contact_excluded`] as a stamp table: writes `vertex`
+    /// into `stamps[e]` (one entry per element) for every element holding the vertex or one of its
+    /// surface neighbors.
+    pub(crate) fn mark_self_contact_exclusions(&self, vertex: u32, stamps: &mut [u32]) {
+        let ring = match self.ring_offsets.get(vertex as usize) {
+            Some(&start) => {
+                let end = self.ring_offsets[vertex as usize + 1];
+                &self.ring[start as usize..end as usize]
+            }
+            None => &[],
+        };
+        for &u in core::iter::once(&vertex).chain(ring) {
+            for &e in self.vertex_element_ids(u) {
+                stamps[e as usize] = vertex;
+            }
+        }
+    }
+
+    /// The rest-clearance clause of [`Self::self_contact_excluded`] (FEM bodies only).
+    pub(crate) fn self_contact_excluded_at_rest(
+        &self,
+        body: &SoftBody,
+        vertex: u32,
+        element: &[u32],
+        skin: Real,
+    ) -> bool {
+        if body.uses_fem() {
+            let clearance = 2.0 * skin * 1.05;
+            let p = self.rest_vertex(body, vertex as usize);
+            let mut rest = [Vector::ZERO; DIM];
+            for (k, v) in element.iter().enumerate().take(DIM) {
+                rest[k] = self.rest_vertex(body, *v as usize);
+            }
+            #[cfg(feature = "dim2")]
+            let dist = Segment::new(rest[0], rest[1]).distance_to_local_point(p, true);
+            // A 3D wire has segment elements; `solid` does not matter for a 3D triangle.
+            #[cfg(feature = "dim3")]
+            let dist = if element.len() == 2 {
+                Segment::new(rest[0], rest[1]).distance_to_local_point(p, true)
+            } else {
+                Triangle::new(rest[0], rest[1], rest[2]).distance_to_local_point(p, true)
+            };
+            if dist < clearance {
+            }
+        }
+        false
+    }
+
     /// Whether a contact on `element_id` at barycentric `weights`, with the other shape's point at
     /// `point`, is a ghost of an internal vertex/edge: the point projects inside a neighboring
     /// element, which reports the real contact, so this one only brings a spurious normal.

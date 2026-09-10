@@ -169,6 +169,11 @@ impl SoftConstraintsSet {
                         speculative_inv_dt: if constraint.hard { 1.0 / group_dt(gi) } else { 0.0 },
                         rigid: constraint.rigid,
                         hard: constraint.hard,
+                        fem_sides: 0..0,
+                        report: constraint.report,
+                    });
+                }
+            }
             self.groups[gi].overlap_constraints = ostart..self.overlap_constraints.len();
         }
         // Hand the new edge and vertex contacts to their owner bodies.

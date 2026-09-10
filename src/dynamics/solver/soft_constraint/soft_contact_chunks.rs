@@ -9,6 +9,7 @@ use super::soft_constraints_set::SoftConstraintsSet;
 use super::soft_contact::SoftContact;
 use crate::dynamics::IntegrationParameters;
 use crate::dynamics::solver::solver_body::SolverBodies;
+use crate::math::Vector;
 
 /// Colors tried before a chunk goes to the serial tail.
 const MAX_CONTACT_COLORS: usize = 16;
@@ -347,8 +348,18 @@ impl SoftConstraintsSet {
         update: bool,
         warmstart: bool,
     ) {
-        for &row in &self.contact_chunk_rows[self.contact_chunks[chunk].clone()] {
-            let c = &mut self.contacts[row as usize];
+        // Split borrows only: chunks of one color are solved by several workers at once, and
+        // every one of them reads the shared response pool.
+        let Self {
+            contacts,
+            contact_chunk_constraints,
+            contact_chunks,
+            fem_responses,
+            ..
+        } = self;
+        let pool: &[Vector] = fem_responses;
+        for &constraint in &contact_chunk_constraints[contact_chunks[chunk].clone()] {
+            let c = &mut contacts[constraint as usize];
             if wo_bias && c.soft_other && c.dist0 > 0.0 {
                 continue;
             }
@@ -356,9 +367,9 @@ impl SoftConstraintsSet {
                 c.update(bodies, params, wo_bias);
             }
             if warmstart {
-                c.warmstart(bodies);
+                c.warmstart(bodies, pool);
             }
-            c.solve(bodies);
+            c.solve(bodies, pool);
         }
     }
 }

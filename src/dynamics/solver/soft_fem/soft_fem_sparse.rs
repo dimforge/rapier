@@ -108,6 +108,16 @@ impl BlockMatrix {
         self.diagonal[row as usize]
     }
 
+    /// Calls `f(col, block)` for every stored block of row `row`.
+    #[inline]
+    pub fn for_each_block_of_row(&self, row: u32, mut f: impl FnMut(u32, &Matrix)) {
+        let start = self.row_offsets[row as usize] as usize;
+        let end = self.row_offsets[row as usize + 1] as usize;
+        for k in start..end {
+            f(self.cols[k], &self.blocks[k]);
+        }
+    }
+
     pub fn clear_values(&mut self) {
         self.blocks.fill(Matrix::ZERO);
     }

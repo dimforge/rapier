@@ -25,7 +25,8 @@ use crate::dynamics::{
     RigidBodyHandle, RigidBodySet, SoftBody, SoftBodyCellModel, SoftBodyEdgeKind, SoftBodyHandle,
     SoftBodySet, SpringCoefficients,
 };
-use crate::math::{AngVector, DIM, Real, Vector};
+use crate::math::{AngVector, DIM, Matrix, Real, Vector};
+use crate::utils::RotationOps;
 use na::SimdRealField;
 use super::soft_constraints_set::AwakeCluster;
 
@@ -215,6 +216,7 @@ impl SoftConstraintsSet {
                         inv_lhs: 0.0,
                         cfm_gain: 0.0,
                         rhs: 0.0,
+                        fem: None,
                     });
                 }
             }
@@ -250,9 +252,11 @@ impl SoftConstraintsSet {
             };
             g.colors = colors_start..self.color_ranges.len();
             g.shape_constraints = shape_start..shape_cursor;
-            g.shape_serial = self.awake[awake_start..awake_cursor]
-                .iter()
-                .any(|a| !a.awake_clusters.is_empty());
+            // Serial as well when a FEM body has shape constraints: each writes all of its particles.
+            g.shape_serial = self.awake[awake_start..awake_cursor].iter().any(|a| {
+                // SAFETY: read-only access during assembly.
+                !a.awake_clusters.is_empty() || unsafe { &*a.ptr }.uses_fem()
+            });
             g.volume_constraints = volume_start..self.volume_constraints.len();
             g.damping = damping;
         }
@@ -473,6 +477,8 @@ impl SoftConstraintsSet {
                 torn: AtomicBool::new(false),
                 contact_approach_speed: None,
                 awake_clusters,
+                #[cfg(feature = "fem")]
+                fem: None,
             });
         }
     }
@@ -511,8 +517,11 @@ impl SoftConstraintsSet {
         let (mu, _) = sb.material.lame_parameters();
         for c in &sb.cells[cells] {
             match sb.cell_model {
+                // The FEM solver integrates the volume cells itself; they get no constraint.
+                SoftBodyCellModel::Volume if sb.uses_fem() => {}
                 SoftBodyCellModel::Volume => counts[c.color as usize] += 1,
                 SoftBodyCellModel::Corotational | SoftBodyCellModel::NeoHookean => {
+                    // The FEM solver integrates the elastic cells itself; they get no constraint.
                     if !sb.uses_fem()
                         && mu * c.stiffness_scale > 0.0
                         && elastic_cell_terms(sb, slots, c).2 > 0.0
@@ -680,6 +689,8 @@ impl SoftConstraintsSet {
 
         for (ci, c) in sb.cells.iter().enumerate().take(cells.end).skip(cells.start) {
             match sb.cell_model {
+                // Integrated implicitly by the FEM solver instead (see `soft_fem`).
+                SoftBodyCellModel::Volume if sb.uses_fem() => continue,
                 SoftBodyCellModel::Volume => {
                     let constraint = base_constraint(
                         SoftScalarConstraintKind::CellVolume,
@@ -856,6 +867,9 @@ impl SoftConstraintsSet {
                     cfm_gain: Vector::ZERO,
                     rhs: Vector::ZERO,
                     impulse: cluster.shape_impulses.get(k).copied().unwrap_or(Vector::ZERO),
+                    fem: None,
+                    inv_lhs_block: Matrix::ZERO,
+                    cfm_gain_block: Matrix::ZERO,
                 });
             }
         }

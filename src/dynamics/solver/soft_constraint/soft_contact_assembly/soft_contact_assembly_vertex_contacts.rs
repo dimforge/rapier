@@ -461,6 +461,7 @@ impl SoftConstraintsSet {
                     dist0: dist,
                     friction,
                     soft_other: true,
+                    fem: [None, None],
                     erp_inv_dt,
                     cfm_factor,
                     max_bias: Real::MAX,

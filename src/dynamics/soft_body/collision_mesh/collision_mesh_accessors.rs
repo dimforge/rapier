@@ -283,6 +283,27 @@ impl SoftCollisionMesh {
         Some((cell.vertices, binding.weights, self.vertices[vertex]))
     }
 
+    /// The rest position of the `i`-th vertex (relative to the body's rest center of mass,
+    /// like `SoftBodyParticle::rest_position`).
+    pub(crate) fn rest_vertex(&self, body: &SoftBody, i: usize) -> Vector {
+        match &self.binding {
+            SoftMeshMapping::Direct { particles } => {
+                body.particles[particles[i] as usize].rest_position
+            }
+            SoftMeshMapping::Skinned { bindings } => {
+                let binding = &bindings[i];
+                let Some(cell) = body.cells.get(binding.cell as usize) else {
+                    return Vector::ZERO;
+                };
+                let mut position = Vector::ZERO;
+                for (vid, weight) in cell.vertices.iter().zip(&binding.weights) {
+                    position += body.particles[*vid as usize].rest_position * *weight;
+                }
+                position
+            }
+        }
+    }
+
     /// The cell id backing each element, `u32::MAX` for none (empty when the elements are not
     /// cell-backed at all: wires, skinned meshes).
     pub(crate) fn element_cell_ids<'a>(&'a self, body: &'a SoftBody) -> &'a [u32] {

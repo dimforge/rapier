@@ -160,8 +160,6 @@ impl<N: SimdRealField<Element = Real> + Copy> SpringCoefficients<N> {
     }
 }
 
-    pub propagate_in_relax_pass: bool,
-            propagate_in_relax_pass: true,
 /// Configuration parameters that control the physics simulation quality and behavior.
 ///
 /// These parameters affect how the physics engine advances time, resolves collisions, and

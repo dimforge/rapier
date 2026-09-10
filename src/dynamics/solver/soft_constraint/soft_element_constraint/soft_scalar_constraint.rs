@@ -159,6 +159,8 @@ impl SoftScalarConstraint {
             SoftScalarConstraintKind::CellVolume => {
                 let x: [Vector; DIM + 1] = core::array::from_fn(|k| self.pos[k]);
                 let vol = SoftBody::cell_volume(x);
+                let grad = SoftBody::cell_volume_gradients(x);
+                self.grad[..DIM + 1].copy_from_slice(&grad);
                 vol - self.rest
             }
         }

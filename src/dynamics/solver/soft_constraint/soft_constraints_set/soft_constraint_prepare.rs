@@ -22,7 +22,11 @@ impl SoftConstraintsSet {
             shape_constraints,
             volume_constraints,
             volume_grads,
+            fem_responses,
+            ..
         } = self;
+        #[cfg(not(feature = "fem"))]
+        let _ = &fem_responses;
         let awake = &mut awake[ai];
         // SAFETY: read-only access to the soft body's particles and surface.
         let sb = unsafe { &*awake.ptr };
@@ -204,6 +208,30 @@ impl SoftConstraintsSet {
             for (i, p) in sb.particles.iter().enumerate() {
                     w += p.inv_mass * grads[i].length_squared();
             }
+            // A FEM body answers the constraint through its augmented mass: the response to the
+            // fresh gradients, and the augmented gain in place of the lumped one.
+            #[cfg(feature = "fem")]
+            if let (Some(fem), Some(side)) = (&awake.fem, &mut vc.fem) {
+                // SAFETY: one worker per awake body per stage; the system is the body's own.
+                let system = unsafe { &mut *fem.system };
+                let n = sb.particles.len();
+                let out = &mut fem_responses[side.start as usize..side.start as usize + n];
+                let entries = sb
+                    .particles
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, p)| slots[*i] != u32::MAX && p.inv_mass > 0.0)
+                    .map(|(i, _)| (i as u32, grads[i]));
+                side.gain = system.response_into(entries, out, &fem.params);
+                side.u_max = out.iter().map(|u| u.length()).fold(0.0, Real::max);
+                w = if out.iter().any(|u| u.length() > super::soft_fem_amplification_cap() * side.gain) {
+                    // Ill-conditioned (see `MAX_RESPONSE_AMPLIFICATION`): under-relax with the
+                    // lumped gain, the response still spreads the impulse consistently.
+                    w
+                } else {
+                    side.gain
+                };
+            }
             vc.cfm_gain = w * vc.cfm_coeff;
             vc.inv_lhs = crate::utils::inv(w + vc.cfm_gain);
             // The position error, biased and capped at solve time. A piece turned inside out is
@@ -360,3 +388,16 @@ fn rigid_fit_velocity(
     (com, vcom, omega)
 }
 
+/// The response amplification past which a FEM constraint falls back to its lumped gain (see
+/// `soft_fem::MAX_RESPONSE_AMPLIFICATION`); the constraint path never asks (no FEM body).
+#[inline]
+pub(crate) fn soft_fem_amplification_cap() -> crate::math::Real {
+    #[cfg(feature = "fem")]
+    {
+        crate::dynamics::solver::soft_fem::MAX_RESPONSE_AMPLIFICATION
+    }
+    #[cfg(not(feature = "fem"))]
+    {
+        crate::math::Real::MAX
+    }
+}

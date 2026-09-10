@@ -34,8 +34,35 @@ pub(crate) struct SoftContactElement {
 }
 
 /// Number of particles the soft side of a contact is spread over: a surface element's, or a
-/// cell's when the body collides through a skin the cells carry.
+/// cell's when the body collides through a skin the cells hold.
 pub(crate) const CONTACT_ANCHORS: usize = DIM + 1;
+
+/// A contact side on a FEM soft body: the constraint acts through the body's augmented mass, not
+/// the anchors' lumped masses (see `soft_fem`). The responses `A⁻¹Jᵀ` (normal, then tangents)
+/// live in `SoftConstraintsSet::fem_responses`, one vector per particle, from `start`.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct FemContactSide {
+    /// Solver slot of the body's first particle (its particles' slots are contiguous).
+    pub first_slot: u32,
+    pub num_particles: u32,
+    pub start: u32,
+    /// Gains along the normal and the tangents: the augmented `J A⁻¹Jᵀ`, or the lumped ones when
+    /// those cannot drive the constraint (see `SoftFemSet::assemble_responses`).
+    pub gains: [Real; DIM],
+    /// Both sides of the constraint are on this body (a self contact): the response combines the
+    /// two sides' jacobians and is applied once.
+    pub covers_other: bool,
+}
+
+impl FemContactSide {
+    /// The response along direction `which` (`0`: the normal, `1 + j`: tangent `j`).
+    #[inline]
+    fn response<'a>(&self, pool: &'a [Vector], which: usize) -> &'a [Vector] {
+        let n = self.num_particles as usize;
+        let start = self.start as usize + which * n;
+        &pool[start..start + n]
+    }
+}
 
 /// One contact point between a soft surface element and a solver body.
 #[derive(Copy, Clone, Debug)]
@@ -73,9 +100,12 @@ pub(crate) struct SoftContact {
     /// Separation at build time (skins baked in), and its live value.
     pub dist0: Real,
     pub friction: Real,
-    /// The other side is a soft-body particle: the row is solved in the biased pass only, like
+    /// The other side is a soft-body particle: the constraint is solved in the biased pass only, like
     /// the springs driving both sides.
     pub soft_other: bool,
+    /// The sides belonging to a FEM soft body (the surface side, then the other side), see
+    /// [`FemContactSide`].
+    pub fem: [Option<FemContactSide>; 2],
     /// Static or dynamic contact softness.
     pub erp_inv_dt: Real,
     pub cfm_factor: Real,
@@ -166,35 +196,53 @@ impl SoftContact {
                 *im = [0.0; N];
             }
         }
-        freeze_levers(&self.weights, &mut self.im_particles);
-        if let Some(e) = &mut self.element {
+        // A FEM side answers through its body's augmented mass: its gain is step-constant
+        // (`fem.gains`), its lumped terms drop out.
+        let (support_fem, other_fem) = self.fem_sides();
+        if !support_fem {
+            freeze_levers(&self.weights, &mut self.im_particles);
+        }
+        if let (Some(e), false) = (&mut self.element, other_fem) {
             freeze_levers(&e.weights, &mut e.im_particles);
         }
         let mut w_particles = 0.0;
-        for k in 0..CONTACT_ANCHORS {
-            w_particles += self.weights[k] * self.weights[k] * self.im_particles[k];
+        if !support_fem {
+            for k in 0..CONTACT_ANCHORS {
+                w_particles += self.weights[k] * self.weights[k] * self.im_particles[k];
+            }
         }
-        if let Some(e) = &self.element {
+        if let (Some(e), false) = (&self.element, other_fem) {
             for k in 0..CONTACT_ANCHORS {
                 w_particles += e.weights[k] * e.weights[k] * e.im_particles[k];
             }
         }
+        let fem_gain = |which: usize| -> Real {
+            self.fem
+                .iter()
+                .flatten()
+                .map(|side| side.gains[which])
+                .sum()
+        };
+        // The rigid (or lumped soft particle) side, unless it is a FEM particle.
+        let body_terms = !other_fem || self.element.is_some();
         self.torque_dir = self.body_arm.gcross(-self.dir);
         self.ii_torque_dir = self.body_ii.transform_vector(self.torque_dir);
-        self.r_normal = crate::utils::inv(
-            w_particles
-                + self.dir.gdot(self.body_im.component_mul(&self.dir))
-                + self.ii_torque_dir.gdot(self.torque_dir),
-        );
+        let mut r_normal = w_particles + fem_gain(0);
+        if body_terms {
+            r_normal += self.dir.gdot(self.body_im.component_mul(&self.dir))
+                + self.ii_torque_dir.gdot(self.torque_dir);
+        }
+        self.r_normal = crate::utils::inv(r_normal);
         for j in 0..DIM - 1 {
             let t = self.tangents[j];
             self.torque_tangent[j] = self.body_arm.gcross(-t);
             self.ii_torque_tangent[j] = self.body_ii.transform_vector(self.torque_tangent[j]);
-            self.r_tangent[j] = crate::utils::inv(
-                w_particles
-                    + t.gdot(self.body_im.component_mul(&t))
-                    + self.ii_torque_tangent[j].gdot(self.torque_tangent[j]),
-            );
+            let mut r_tangent = w_particles + fem_gain(1 + j);
+            if body_terms {
+                r_tangent += t.gdot(self.body_im.component_mul(&t))
+                    + self.ii_torque_tangent[j].gdot(self.torque_tangent[j]);
+            }
+            self.r_tangent[j] = crate::utils::inv(r_tangent);
         }
 
         let rhs_wo_bias = dist.max(0.0) * inv_dt;
@@ -225,20 +273,56 @@ impl SoftContact {
 
     /// Which sides belong to a FEM body: `(surface side, other side)`.
     #[inline]
-    fn apply(&self, bodies: &mut SolverBodies, dir: Vector, ii_torque: AngVector, lambda: Real) {
-        for k in 0..CONTACT_ANCHORS {
-            let id = self.particles[k];
-            if id != u32::MAX && (id as usize) < bodies.len() {
-                bodies.vels[id as usize].linear +=
-                    dir * (self.weights[k] * self.im_particles[k] * lambda);
+    fn fem_sides(&self) -> (bool, bool) {
+        let support = self.fem[0].is_some();
+        let other = self.fem[1].is_some() || self.fem[0].is_some_and(|s| s.covers_other);
+        (support, other)
+    }
+
+    /// Applies an impulse `lambda` along `dir` (given with its torque terms) to both sides.
+    /// `which` selects the FEM sides' response (`0`: the normal, `1 + j`: tangent `j`).
+    #[inline]
+    pub(crate) fn apply(
+        &self,
+        bodies: &mut SolverBodies,
+        pool: &[Vector],
+        which: usize,
+        dir: Vector,
+        ii_torque: AngVector,
+        lambda: Real,
+    ) {
+        let (support_fem, other_fem) = self.fem_sides();
+        for side in self.fem.iter().flatten() {
+            let u = side.response(pool, which);
+            let first = side.first_slot as usize;
+            for (i, ui) in u.iter().enumerate() {
+                bodies.vels[first + i].linear += *ui * lambda;
+            }
+        }
+        if !support_fem {
             for k in 0..CONTACT_ANCHORS {
-                let id = e.particles[k];
+                let id = self.particles[k];
                 if id != u32::MAX && (id as usize) < bodies.len() {
-                    bodies.vels[id as usize].linear -=
-                        dir * (e.weights[k] * e.im_particles[k] * lambda);
+                    bodies.vels[id as usize].linear +=
+                        dir * (self.weights[k] * self.im_particles[k] * lambda);
                 }
             }
-        } else if self.body != u32::MAX && (self.body as usize) < bodies.len() {
+        }
+        if let Some(e) = &self.element {
+            if !other_fem {
+                for k in 0..CONTACT_ANCHORS {
+                    let id = e.particles[k];
+                    if id != u32::MAX && (id as usize) < bodies.len() {
+                        bodies.vels[id as usize].linear -=
+                            dir * (e.weights[k] * e.im_particles[k] * lambda);
+                    }
+                }
+            }
+        } else if !other_fem && self.body != u32::MAX && (self.body as usize) < bodies.len() {
+            let v = &mut bodies.vels[self.body as usize];
+            v.linear -= dir.component_mul(&self.body_im) * lambda;
+            v.angular += ii_torque * lambda;
+        }
     }
 
     /// Relative velocity of the surface point w.r.t. the other side's contact point, dotted
@@ -270,11 +354,13 @@ impl SoftContact {
     }
 
     /// Applies the accumulated (warm-start) impulses.
-    pub fn warmstart(&self, bodies: &mut SolverBodies) {
-        self.apply(bodies, self.dir, self.ii_torque_dir, self.impulse_normal);
+    pub fn warmstart(&self, bodies: &mut SolverBodies, pool: &[Vector]) {
+        self.apply(bodies, pool, 0, self.dir, self.ii_torque_dir, self.impulse_normal);
         for j in 0..DIM - 1 {
             self.apply(
                 bodies,
+                pool,
+                1 + j,
                 self.tangents[j],
                 self.ii_torque_tangent[j],
                 self.impulse_tangent[j],
@@ -283,13 +369,13 @@ impl SoftContact {
     }
 
     /// One Gauss-Seidel iteration: normal part then Coulomb friction.
-    pub fn solve(&mut self, bodies: &mut SolverBodies) {
+    pub fn solve(&mut self, bodies: &mut SolverBodies, pool: &[Vector]) {
         // Normal.
         let dvel = self.relative_velocity(bodies, self.dir, self.torque_dir) + self.rhs_normal;
         let new_impulse = (self.cfm_normal * (self.impulse_normal - self.r_normal * dvel)).max(0.0);
         let delta = new_impulse - self.impulse_normal;
         self.impulse_normal = new_impulse;
-        self.apply(bodies, self.dir, self.ii_torque_dir, delta);
+        self.apply(bodies, pool, 0, self.dir, self.ii_torque_dir, delta);
 
         // Friction: per-tangent update, then a clamp to the disc of radius μλ.
         let limit = self.friction * self.impulse_normal;
@@ -315,7 +401,14 @@ impl SoftContact {
         for j in 0..DIM - 1 {
             let delta = new_tangent[j] - self.impulse_tangent[j];
             self.impulse_tangent[j] = new_tangent[j];
-            self.apply(bodies, self.tangents[j], self.ii_torque_tangent[j], delta);
+            self.apply(
+                bodies,
+                pool,
+                1 + j,
+                self.tangents[j],
+                self.ii_torque_tangent[j],
+                delta,
+            );
         }
     }
 

@@ -44,12 +44,17 @@ pub(crate) struct AwakeSoftBody {
     /// strain (the tearing pass at the end of the step removes it).
     pub torn: AtomicBool,
     /// Largest normal approach speed of the rigid bodies met by the surface this step (`None`:
-    /// no contact row at all), set by the contact assembly.
+    /// no contact constraint at all), set by the contact assembly.
     pub contact_approach_speed: Option<Real>,
     /// The body's shape-matched clusters this step, with their warm-started fit rotation:
-    /// `(cluster index, rotation)`, refreshed by the per-pass prepare.
+    /// `(cluster index, rotation)`, updated by the per-pass prepare.
     pub awake_clusters: Vec<AwakeCluster>,
+    /// The body's FEM system when it is on the FEM path (set by `SoftFemSet::assemble`): the
+    /// per-substep constraints (the volume constraints) update their responses through it.
+    #[cfg(feature = "fem")]
+    pub fem: Option<crate::dynamics::solver::soft_fem::AwakeFem>,
 }
+
 // SAFETY: the raw pointer is only dereferenced under the staged solver's stage discipline.
 unsafe impl Send for AwakeSoftBody {}
 unsafe impl Sync for AwakeSoftBody {}
@@ -154,33 +159,39 @@ pub(crate) struct SoftConstraintsSet {
     /// past the re-sweep threshold at its last update: the re-sweep reads these flags instead
     /// of every constraint.
     pub strained: Vec<bool>,
-    /// Row ranges of the parallel colors, group-major then color ascending.
+    /// Constraint ranges of the parallel colors, group-major then color ascending.
     pub color_ranges: Vec<SoftColorRange>,
     pub shape_constraints: Vec<SoftShapeConstraint>,
     pub volume_constraints: Vec<SoftVolumeConstraint>,
     pub volume_grads: Vec<Vector>,
-    /// The intersection-volume rows (see `SoftOverlapRow`), group-major, and their gradients.
+    /// The intersection-volume constraints (see `SoftOverlapConstraint`), group-major, and their gradients.
     pub overlap_constraints: Vec<SoftOverlapConstraint>,
     pub overlap_grads: Vec<(u32, Real, Vector, Vector)>,
-    /// The carried impulse of every overlap gradient entry (see `SoftOverlapRow::warm`).
+    /// The warm impulse of every overlap gradient entry (see `SoftOverlapConstraint::warm`).
     pub overlap_warm_impulses: Vec<Vector>,
     /// The `(side, particle)` of every overlap gradient entry (`0`: the owner body, `1`:
-    /// the other soft body), for the write-back of the carried impulses.
+    /// the other soft body), for the write-back of the warm impulses.
     pub overlap_particles: Vec<(u8, u32)>,
     /// Contacts against the awake soft bodies' surface colliders, group-major.
     pub contacts: Vec<SoftContact>,
+    /// The responses `A⁻¹Jᵀ` of the constraints acting on FEM soft bodies (see
+    /// `soft_fem::SoftFemSet::assemble_responses`): a vector per particle, per constraint side and
+    /// direction, addressed by the constraints' `fem` records. Empty without FEM bodies.
+    pub fem_responses: Vec<Vector>,
+    /// The FEM sides of the intersection-volume constraints (see [`FemOverlapSide`]).
+    pub overlap_fem_sides: Vec<FemOverlapSide>,
     /// The particle attachments of the awake soft bodies, group-major.
     pub attachments: Vec<super::soft_attachment::SoftAttachmentConstraint>,
     /// The active clusters (a joint or an external impulse acts on their proxy), group-major.
     pub clusters: Vec<SoftClusterRecord>,
-    /// The contact rows chunked by body pair (see `soft_contact_chunks`): row indices into
+    /// The contact constraints chunked by body pair (see `soft_contact_chunks`): constraint indices into
     /// `contacts` chunk by chunk, the chunks' ranges into them (group-major, parallel colors
     /// then the serial tail), and the chunk ranges of the parallel colors.
     pub contact_chunk_constraints: Vec<u32>,
     pub contact_chunks: Vec<Range<usize>>,
     pub contact_colors: Vec<Range<usize>>,
     pub groups: Vec<SoftGroupLayout>,
-    /// Scratch of the element-constraint assembly (see `soft_element_constraint_assembly`).
+    /// Workspace of the element-constraint assembly (see `soft_element_constraint_assembly`).
     pub(crate) element_constraint_workspace:
         super::soft_element_constraint_assembly::ElementConstraintAssemblyWorkspace,
     /// Workspace of the edge-vs-edge contact assembly (see `soft_contact_assembly`).

@@ -62,14 +62,19 @@ pub struct SoftFemParameters {
     /// A very stiff, finely meshed body can need several hundred iterations to converge; the
     /// truncated step it gets instead is under-relaxed (safe), only slower to settle.
     pub max_linear_iterations: usize,
-    ///
+    /// Largest number of degrees of freedom (`DIM` per particle) for which the step-start
+    /// matrix `A` of a body is factorized directly (default: `600`). Each constraint on a FEM body
+    /// needs one solve against `A` per step; larger bodies fall back to a conjugate gradient.
+    pub max_dense_dofs: usize,
 }
+
 #[cfg(feature = "fem")]
 impl Default for SoftFemParameters {
     fn default() -> Self {
         Self {
             linear_tolerance: 1.0e-5,
             max_linear_iterations: 20,
+            max_dense_dofs: 600,
         }
     }
 }

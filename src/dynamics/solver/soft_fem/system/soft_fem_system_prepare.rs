@@ -46,6 +46,10 @@ impl SoftFemSystem {
         self.force.resize(n, Vector::ZERO);
         self.rhs.resize(n, Vector::ZERO);
         self.delta.resize(n, Vector::ZERO);
+        self.response_rhs.resize(n, Vector::ZERO);
+        self.response.resize(n, Vector::ZERO);
+        self.clear_columns();
+
         let (mu, lambda) = sb.material.lame_parameters();
         let zeta = sb.material.elastic_damping_ratio;
         let elastic = matches!(
@@ -84,6 +88,38 @@ impl SoftFemSystem {
         self.prepare_springs(sb);
         #[cfg(feature = "dim3")]
         self.prepare_dihedrals(sb);
+        self.prepare_volume_cells(sb);
+    }
+
+    /// Updates the volume elements of a `SoftBodyCellModel::Volume` body: `volume_softness`
+    /// normalized by the cell-volume constraint's rest effective mass `Σ m⁻¹ |∇V|²`, matching the
+    /// constraint path's softness exactly.
+    fn prepare_volume_cells(&mut self, sb: &SoftBody) {
+        self.volume_cells.clear();
+        if sb.cell_model != SoftBodyCellModel::Volume {
+            return;
+        }
+        let softness = sb.material.volume_softness;
+        for (ci, c) in sb.cells.iter().enumerate() {
+            if c.rest_volume == 0.0 {
+                continue;
+            }
+            let rest: [Vector; MAX_CONSTRAINT_PARTICLES] =
+                core::array::from_fn(|k| sb.particles[c.vertices[k] as usize].rest_position);
+            let grad = SoftBody::cell_volume_gradients(rest);
+            let w: Real = (0..MAX_CONSTRAINT_PARTICLES)
+                .map(|k| sb.particles[c.vertices[k] as usize].inv_mass * grad[k].length_squared())
+                .sum();
+            let (stiffness, beta) = Self::spring_stiffness(&softness, w);
+            self.volume_cells.push(FemVolumeCell {
+                cell: ci as u32,
+                rest_volume: c.rest_volume,
+                stiffness,
+                beta,
+            });
+        }
+    }
+
     /// Rebuilds the sparsity pattern from the element graph and caches every element's block
     /// slots.
     fn rebuild_pattern(&mut self, sb: &SoftBody) {

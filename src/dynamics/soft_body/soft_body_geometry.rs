@@ -82,6 +82,30 @@ impl SoftBody {
         }
     }
 
+    /// Gradients of [`Self::cell_volume`] with respect to the cell's vertices.
+    pub(crate) fn cell_volume_gradients(x: [Vector; DIM + 1]) -> [Vector; DIM + 1] {
+        let mut grad = [Vector::ZERO; DIM + 1];
+        #[cfg(feature = "dim2")]
+        {
+            let a = x[1] - x[0];
+            let b = x[2] - x[0];
+            grad[1] = Vector::new(b.y, -b.x) * 0.5;
+            grad[2] = Vector::new(-a.y, a.x) * 0.5;
+            grad[0] = -(grad[1] + grad[2]);
+        }
+        #[cfg(feature = "dim3")]
+        {
+            let a = x[1] - x[0];
+            let b = x[2] - x[0];
+            let c = x[3] - x[0];
+            grad[1] = b.cross(c) / 6.0;
+            grad[2] = c.cross(a) / 6.0;
+            grad[3] = a.cross(b) / 6.0;
+            grad[0] = -(grad[1] + grad[2] + grad[3]);
+        }
+        grad
+    }
+
     /// The edge matrix `[x1 - x0, x2 - x0, (x3 - x0)]` of a simplex cell.
     pub(crate) fn cell_edge_matrix(x: [Vector; DIM + 1]) -> Matrix {
         #[cfg(feature = "dim2")]

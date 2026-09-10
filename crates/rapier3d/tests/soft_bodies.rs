@@ -3277,6 +3277,77 @@ fn fem_impact_is_absorbed_by_the_whole_body() {
     assert!(rebound > 0.0, "the box went through the plank");
 }
 
+/// A `Volume` cell-model cube on the FEM path keeps its volume (its cells are volume
+/// elements of the implicit step, see the 2D twin `fem_volume_cells_keep_their_area`).
+#[cfg(feature = "fem")]
+#[test]
+fn fem_volume_cells_keep_their_volume() {
+    let mut world = world_with_ground();
+    let cube = SoftBodyBuilder::cuboid(Vector::new(0.0, 1.5, 0.0), Vector::splat(0.5), 4, 4, 4)
+        .cell_model(SoftBodyCellModel::Volume)
+        .solver(SoftBodySolver::Fem)
+        .particle_mass(0.05);
+    let handle = world.insert_soft_body(cube);
+    for _ in 0..400 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let sb = &world.soft_bodies[handle];
+    let max_vel = sb
+        .particles()
+        .iter()
+        .map(|p| p.velocity().length())
+        .fold(0.0, Real::max);
+    assert!(max_vel < 0.2, "the cube still moves at {max_vel} m/s");
+    let volume = sb.volume();
+    assert!(
+        (volume - sb.rest_volume()).abs() < 0.1 * sb.rest_volume(),
+        "volume {volume} vs rest {}",
+        sb.rest_volume()
+    );
+}
+
+/// A stack of stiff FEM cubes rests on the ground without sinking (see the 2D twin
+/// `fem_stiff_stack_rests_without_sinking`).
+#[cfg(feature = "fem")]
+#[test]
+fn fem_stiff_stack_rests_without_sinking() {
+    let mut world = world_with_ground();
+    let (half, radius) = (0.5, 0.1);
+    let mut handles = Vec::new();
+    for row in 0..3 {
+        let center = Vector::new(0.0, half + 0.2 + row as Real * (2.0 * half + 0.3), 0.0);
+        let cube = SoftBodyBuilder::cuboid(center, Vector::splat(half), 4, 4, 4)
+            .cell_model(SoftBodyCellModel::Corotational)
+            .material(SoftBodyMaterial {
+                young_modulus: 1.0e6,
+                poisson_ratio: 0.3,
+                elastic_damping_ratio: 0.5,
+                ..Default::default()
+            })
+            .particle_mass(0.05)
+            .particle_radius(radius)
+            .solver(SoftBodySolver::Fem)
+            .can_sleep(false);
+        handles.push(world.insert_soft_body(cube));
+    }
+    for _ in 0..400 {
+        world.step();
+    }
+    let mut previous_top = 0.0;
+    for &h in &handles {
+        let sb = &world.soft_bodies[h];
+        assert_finite(&world, h);
+        let min_y = sb.particles().iter().map(|p| p.position().y).fold(Real::MAX, Real::min);
+        let max_y = sb.particles().iter().map(|p| p.position().y).fold(Real::MIN, Real::max);
+        let max_vel = sb.particles().iter().map(|p| p.velocity().length()).fold(0.0, Real::max);
+        let penetration = previous_top + radius - min_y;
+        assert!(penetration < 0.02, "a cube sank by {penetration} into the one below");
+        assert!(max_vel < 0.1, "the stack did not settle: {max_vel} m/s");
+        previous_top = max_y + radius;
+    }
+}
+
 /// The FEM path's distance elements reproduce the constraint path's springs: the period of a
 /// mass-spring pair is still set by the material's natural frequency, whatever the substep
 /// count.

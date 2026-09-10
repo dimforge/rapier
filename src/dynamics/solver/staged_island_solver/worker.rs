@@ -210,6 +210,31 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
     // takes the same branches.
     #[cfg(feature = "fem")]
     let has_fem = !unsafe { &*ctx.soft_fem }.is_empty();
+
+    /*
+     * Stage: the FEM bodies' step factorization and the responses of the constraints acting on
+     * them (parallel over the FEM bodies, each writing its own system, response ranges and
+     * constraint-side gains). Runs before the substeps, whose constraint updates read the gains.
+     */
+    #[cfg(feature = "fem")]
+    if has_fem {
+        let soft_fem = unsafe { &*ctx.soft_fem };
+        let all_bodies = 0..soft_fem.num_active();
+        let stage_work = all_bodies.len();
+        let mut done = 0;
+        while let Some(claimed) = sync.claim(stage, &all_bodies, 1, worker_id) {
+            let claimed_len = claimed.len();
+            for index in claimed {
+                // SAFETY: one worker per claimed index; the body writes only its own system,
+                // pool ranges and constraint sides.
+                unsafe { soft_fem.compute_responses(index, ctx.soft_constraints) };
+            }
+            done += claimed_len;
+        }
+        sync.complete(stage, done, stage_work);
+        stage = sync.sync(stage, stage_work);
+    }
+
     for (group_index, group) in ctx.groups.iter().enumerate() {
         // This group's substep parameters: identical to `base_params` except
         // for the substep dt. Everything dt-derived downstream (soft erp/cfm,

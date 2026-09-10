@@ -3,7 +3,7 @@
 //! the body, solved like a locked joint (both passes, no bias in relax, softness, warm start).
 
 use crate::dynamics::solver::solver_body::SolverBodies;
-use crate::math::{AngVector, AngularInertia, Matrix, Real, Vector};
+use crate::math::{AngVector, AngularInertia, DIM, Matrix, Real, Vector};
 use crate::utils::{AngularInertiaOps, ComponentMul, CrossProduct};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -18,6 +18,9 @@ pub(crate) struct SoftAttachmentConstraint {
     /// The particle's solver slot and inverse mass.
     pub particle: u32,
     pub im_particle: Real,
+    /// The particle's body is on the FEM path: the constraint acts on it through the body's
+    /// augmented mass (see [`FemAttachment`]).
+    pub fem: Option<FemAttachment>,
     /// The rigid body's solver slot (`u32::MAX`: fixed or not simulated, the anchor stays at
     /// `anchor0`) and its attachment point in its CoM-local frame.
     pub body: u32,
@@ -31,11 +34,22 @@ pub(crate) struct SoftAttachmentConstraint {
     pub body_ii: AngularInertia,
     /// World lever arm of the anchor about the body's center of mass.
     pub arm: Vector,
-    /// The rows' effective-mass matrix and its (softened) inverse.
+    /// The constraints' effective-mass matrix and its (softened) inverse.
     pub lhs: Matrix,
     pub inv_lhs: Matrix,
     pub rhs: Vector,
     pub impulse: Vector,
+}
+
+/// The FEM side of an attachment: `DIM` responses `A⁻¹Jᵀ` (one per particle axis) in
+/// `SoftConstraintsSet::fem_responses` from `start`, and their values at the particle, the block
+/// `(A⁻¹)_pp` standing in for `im · I` in the constraint's effective mass.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct FemAttachment {
+    pub first_slot: u32,
+    pub num_particles: u32,
+    pub start: u32,
+    pub inv_mass: Matrix,
 }
 
 /// The matrix `-[r]× ii [r]×` (3D) or `ii perp(r) perp(r)ᵀ` (2D): the velocity change of the
@@ -73,7 +87,10 @@ impl SoftAttachmentConstraint {
     pub fn update(&mut self, bodies: &SolverBodies, wo_bias: bool) {
         let particle = bodies.get_pose(self.particle).translation;
         let anchor = self.anchor(bodies);
-        let mut lhs = Matrix::IDENTITY * self.im_particle;
+        let mut lhs = match &self.fem {
+            Some(fem) => fem.inv_mass,
+            None => Matrix::IDENTITY * self.im_particle,
+        };
         if self.body != u32::MAX {
             let pose = bodies.get_pose(self.body);
             self.body_im = pose.im;
@@ -101,8 +118,20 @@ impl SoftAttachmentConstraint {
     /// Applies `impulse` (positive along the constraint: the particle is pulled back, the body pulled
     /// toward it).
     #[inline]
-    fn apply(&self, bodies: &mut SolverBodies, impulse: Vector) {
-        if (self.particle as usize) < bodies.len() {
+    fn apply(&self, bodies: &mut SolverBodies, pool: &[Vector], impulse: Vector) {
+        if let Some(fem) = &self.fem {
+            let n = fem.num_particles as usize;
+            let first = fem.first_slot as usize;
+            for k in 0..DIM {
+                let u = &pool[fem.start as usize + k * n..fem.start as usize + (k + 1) * n];
+                let lambda = impulse[k];
+                if lambda != 0.0 {
+                    for (i, ui) in u.iter().enumerate() {
+                        bodies.vels[first + i].linear -= *ui * lambda;
+                    }
+                }
+            }
+        } else if (self.particle as usize) < bodies.len() {
             bodies.vels[self.particle as usize].linear -= impulse * self.im_particle;
         }
         if self.body != u32::MAX && (self.body as usize) < bodies.len() {
@@ -114,13 +143,13 @@ impl SoftAttachmentConstraint {
     }
 
     #[inline]
-    pub fn warmstart(&mut self, bodies: &mut SolverBodies, coeff: Real) {
+    pub fn warmstart(&mut self, bodies: &mut SolverBodies, pool: &[Vector], coeff: Real) {
         self.impulse *= coeff;
-        self.apply(bodies, self.impulse);
+        self.apply(bodies, pool, self.impulse);
     }
 
     #[inline]
-    pub fn solve(&mut self, bodies: &mut SolverBodies) {
+    pub fn solve(&mut self, bodies: &mut SolverBodies, pool: &[Vector]) {
         let vp = bodies.get_vel(self.particle).linear;
         let va = if self.body == u32::MAX {
             Vector::ZERO
@@ -133,6 +162,6 @@ impl SoftAttachmentConstraint {
             + self.inv_lhs * (dv + self.rhs - (self.lhs * self.impulse) * self.cfm_coeff);
         let delta = total - self.impulse;
         self.impulse = total;
-        self.apply(bodies, delta);
+        self.apply(bodies, pool, delta);
     }
 }

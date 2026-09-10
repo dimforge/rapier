@@ -168,10 +168,13 @@ impl StagedIslandSolver {
         #[cfg(feature = "fem")]
         {
             let groups = &self.groups;
-            self.soft_fem
-                .assemble(&self.soft_constraints, soft_bodies, groups.len(), |gi| {
-                    groups[gi].dt
-                });
+            self.soft_fem.assemble(
+                &mut self.soft_constraints,
+                soft_bodies,
+                groups.len(),
+                |gi| groups[gi].dt,
+                &params.soft_bodies.fem,
+            );
         }
 
         // The persistent solver contact graph already holds two-body manifolds grouped by
@@ -231,13 +234,26 @@ impl StagedIslandSolver {
             let vs = &self.velocity_solver;
             self.soft_constraints
                 .assemble_clusters(bodies, colliders, &vs.solver_bodies, &jointed_proxies);
+
+            // The FEM bodies' answers to the step's constraints, once every constraint exists: planned here,
+            // computed by the workers' first stage.
+            #[cfg(feature = "fem")]
+            self.soft_fem.plan_responses(&mut self.soft_constraints);
         }
 
-        // Avoid spawning more workers than there is work to distribute.
+        // Avoid spawning more workers than there is work: soft constraints count like element
+        // constraints (their chunks are the contact stages' claims), and each FEM body is a
+        // factorization and solves of its own (the response stage claims one body per worker).
         let num_two_body = graph.len() - graph.generic().len();
+        #[cfg(feature = "fem")]
+        let fem_chunks = self.soft_fem.num_active() * 16;
+        #[cfg(not(feature = "fem"))]
+        let fem_chunks = 0;
+        let soft = &self.soft_constraints;
         let approx_chunks = num_two_body / SIMD_WIDTH
             + joint_indices.len() / 4
-            + (self.soft_constraints.rows.len() + self.soft_constraints.shape_rows.len()) / 8;
+            + (soft.scalar_constraints.len() + soft.shape_constraints.len() + soft.contacts.len()) / 8
+            + fem_chunks;
         let num_workers = num_workers.clamp(1, (approx_chunks / 16).max(1));
 
         // Joints: colored like contacts and laid out color by color (scalar

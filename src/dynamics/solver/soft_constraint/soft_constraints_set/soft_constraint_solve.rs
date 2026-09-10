@@ -24,16 +24,46 @@ impl SoftConstraintsSet {
         let sb = unsafe { &*awake.ptr };
         let slots = &self.slots[awake.slot_start..awake.slot_start + awake.num_particles];
         let grads = &self.volume_grads[vc.grads.clone()];
+        let fem = vc.fem.map(|side| {
+            let n = sb.particles.len();
+            (
+                side,
+                &self.fem_responses[side.start as usize..side.start as usize + n],
+                slots.first().copied().unwrap_or(u32::MAX) as usize,
+            )
+        });
+
         // The bias is capped so that it pushes no particle faster than the max corrective
         // velocity: a crushed closed surface has a large volume error but near-cancelling
         // gradients, and the uncapped correction would fling its particles.
         let mut g_max: Real = 0.0;
+        match &fem {
+            Some((side, _, _)) => g_max = side.u_max,
+            None => {
+                for (i, p) in sb.particles.iter().enumerate() {
+                        g_max = g_max.max(grads[i].length() * p.inv_mass);
+                }
+            }
+        }
         let max_bias = if g_max * vc.inv_lhs > 0.0 {
             vc.max_bias_velocity / (g_max * vc.inv_lhs)
         } else {
             Real::MAX
         };
         let rhs_bias = (vc.rhs * vc.erp_inv_dt).clamp(-max_bias, max_bias);
+
+        let apply = |bodies: &mut SolverBodies, impulse: Real| match &fem {
+            Some((_, u, first)) => {
+                for (i, ui) in u.iter().enumerate() {
+                    bodies.vels[first + i].linear -= *ui * impulse;
+                }
+            }
+            None => {
+                for (i, p) in sb.particles.iter().enumerate() {
+                        bodies.vels[s as usize].linear -= grads[i] * (p.inv_mass * impulse);
+                }
+            }
+        };
 
         if let Some(coeff) = warmstart {
             vc.impulse *= coeff;
@@ -67,12 +97,23 @@ impl SoftConstraintsSet {
         let grads = &self.overlap_grads[constraint.grads.clone()];
         let fem_sides = &self.overlap_fem_sides
             [constraint.fem_sides.start as usize..constraint.fem_sides.end as usize];
+        let pool = &self.fem_responses;
         if constraint.warm_pending {
             constraint.warm_pending = false;
             let warm_impulses = &self.overlap_warm_impulses[constraint.grads.clone()];
             for (&(slot, im, _, _), &p) in grads.iter().zip(warm_impulses) {
                 if live(slot) {
                     bodies.vels[slot as usize].linear += p * im;
+                }
+            }
+            for side in fem_sides {
+                if side.warm != u32::MAX {
+                    let n = side.num_particles as usize;
+                    let u = &pool[side.warm as usize..side.warm as usize + n];
+                    let first = side.first_slot as usize;
+                    for (i, ui) in u.iter().enumerate() {
+                        bodies.vels[first + i].linear += *ui;
+                    }
                 }
             }
             if let Some((slot, ..)) = constraint.rigid.filter(|r| live(r.0)) {
@@ -88,6 +129,14 @@ impl SoftConstraintsSet {
         for &(slot, im, g, _) in grads {
             if live(slot) {
                 bodies.vels[slot as usize].linear -= g * (im * constraint.impulse);
+            }
+        }
+        for side in fem_sides {
+            let n = side.num_particles as usize;
+            let u = &pool[side.start as usize..side.start as usize + n];
+            let first = side.first_slot as usize;
+            for (i, ui) in u.iter().enumerate() {
+                bodies.vels[first + i].linear -= *ui * constraint.impulse;
             }
         }
         if let Some((slot, g_lin, g_ang)) = constraint.rigid.filter(|r| live(r.0)) {
@@ -106,6 +155,7 @@ impl SoftConstraintsSet {
         let grads: &[(u32, Real, Vector, Vector)] = &self.overlap_grads[constraint.grads.clone()];
         let fem_sides = &self.overlap_fem_sides
             [constraint.fem_sides.start as usize..constraint.fem_sides.end as usize];
+        let pool = &self.fem_responses;
         let mut w = 0.0;
         let mut g_max: Real = 0.0;
         for &(slot, im, g, _) in grads {
@@ -113,6 +163,10 @@ impl SoftConstraintsSet {
                 w += im * g.length_squared();
                 g_max = g_max.max(g.length() * im);
             }
+        }
+        for side in fem_sides {
+            w += side.gain;
+            g_max = g_max.max(side.u_max);
         }
         // The rigid side's effective mass (its mass properties are step-constant, read from
         // the solver body).
@@ -184,6 +238,14 @@ impl SoftConstraintsSet {
         for &(slot, im, g, _) in grads {
             if live(slot) {
                 bodies.vels[slot as usize].linear -= g * (im * delta);
+            }
+        }
+        for side in fem_sides {
+            let n = side.num_particles as usize;
+            let u = &pool[side.start as usize..side.start as usize + n];
+            let first = side.first_slot as usize;
+            for (i, ui) in u.iter().enumerate() {
+                bodies.vels[first + i].linear -= *ui * delta;
             }
         }
         if let Some((slot, g_lin, _, im, ii_g)) = rigid {
@@ -268,6 +330,28 @@ impl SoftConstraintsSet {
         }
     }
 
+    /// Solves one shape-matching constraint: updated from the current poses when `update`,
+    /// warm-started with `Some(coefficient)`.
+    #[inline]
+    pub fn solve_shape_constraint(
+        &mut self,
+        constraint_id: usize,
+        bodies: &mut SolverBodies,
+        update: bool,
+        warmstart: Option<Real>,
+    ) {
+        let constraint = &mut self.shape_constraints[constraint_id];
+        let pool = &self.fem_responses;
+        if update {
+            constraint.update(bodies);
+        }
+        if let Some(coeff) = warmstart {
+            constraint.impulse *= coeff;
+            constraint.warmstart(bodies, pool);
+        }
+        constraint.solve(bodies, pool);
+    }
+
     /// Solves the attachment constraints of `group` (serial): updated from the current poses when
     /// `update`, warm-started with `Some(coefficient)`, without bias in the relax pass.
     pub fn solve_attachments(
@@ -278,12 +362,15 @@ impl SoftConstraintsSet {
         update: bool,
         warmstart: Option<Real>,
     ) {
+        let pool: &[Vector] = &self.fem_responses;
         for constraint in &mut self.attachments[self.groups[group].attachments.clone()] {
             if update {
                 constraint.update(bodies, wo_bias);
             }
             if let Some(coeff) = warmstart {
+                constraint.warmstart(bodies, pool, coeff);
             }
+            constraint.solve(bodies, pool);
         }
     }
 }

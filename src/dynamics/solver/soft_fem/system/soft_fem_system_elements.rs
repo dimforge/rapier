@@ -39,6 +39,20 @@ pub(super) struct FemCell {
     pub(super) tangent_strain: StrainVector,
 }
 
+/// One volume element of a FEM soft body with the [`SoftBodyCellModel::Volume`] cell model:
+/// energy `½ k (V − V₀)²` over the cell's signed area/volume, Gauss-Newton tangent
+/// `k ∇V ∇Vᵀ` (the indefinite `(V − V₀) ∂²V` term dropped, like the springs). Its stiffness
+/// comes from the material's `volume_softness` the way the row path's cell-volume row does:
+/// `k = ω² / w₀`, `w₀` the row's effective mass at rest.
+#[derive(Copy, Clone, Debug)]
+pub(super) struct FemVolumeCell {
+    /// Index of the cell in the body (its vertices and cached block slots).
+    pub(super) cell: u32,
+    pub(super) rest_volume: Real,
+    pub(super) stiffness: Real,
+    pub(super) beta: Real,
+}
+
 /// One distance element (a structural or bending edge) of a FEM soft body.
 ///
 /// Energy `½ k (|d| − L)²`, with the Gauss-Newton tangent `k ∇C ∇Cᵀ` (the indefinite `C ∂²C`
@@ -103,5 +117,23 @@ pub(crate) struct SoftFemSystem {
     pub(super) rhs: Vec<Vector>,
     /// Solution of the last predictor solve (the warm start of the next one).
     pub(super) delta: Vec<Vector>,
+    /// `A` at the step's start (the substep length of the body's group): the operator every
+    /// constraint of the step sees the body through, kept for the PCG fallback.
     pub(super) step_matrix: BlockMatrix,
+    /// The PCG of `step_matrix` (its preconditioner), used when the direct factorization is
+    /// not available.
+    pub(super) step_cg: ConjugateGradient,
+    /// The direct (skyline Cholesky) factorization of `step_matrix`, for bodies up to
+    /// `SoftFemParameters::max_dense_dofs`; ordering and envelope persist with the pattern (`None`
+    /// after a rebuild), and `direct_valid` says whether this step's factorization succeeded.
+    pub(super) direct: Option<super::super::soft_fem_skyline::SkylineCholesky>,
+    pub(super) direct_valid: bool,
+    pub(super) response_rhs: Vec<Vector>,
+    pub(super) response: Vec<Vector>,
+    /// The column responses of the step (see [`Self::load_particle`]): per loaded particle, `DIM`
+    /// axis-major responses `A_step⁻¹ (e_p ⊗ axis)` of `num_particles` vectors each, plus every
+    /// particle's column index (`u32::MAX`: not loaded).
+    pub(super) columns: Vec<Vector>,
+    pub(super) column_of: Vec<u32>,
+    pub(super) num_columns: usize,
 }

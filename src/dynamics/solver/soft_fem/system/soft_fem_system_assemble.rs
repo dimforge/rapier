@@ -107,6 +107,8 @@ impl SoftFemSystem {
         self.assemble_springs(dt);
         #[cfg(feature = "dim3")]
         self.assemble_dihedrals(dt);
+        self.assemble_volume_cells(dt);
+
         // The pinned particles' coupling to the free rows (`A_pq = A_qpᵀ`), then their Dirichlet
         // rows.
         self.pinned_coupling.clear();
@@ -137,6 +139,33 @@ impl SoftFemSystem {
         for (k, &pinned) in self.pinned.iter().enumerate() {
             if pinned {
                 self.rhs[k] = Vector::ZERO;
+            }
+        }
+    }
+
+    /// Accumulates the volume elements' force and Gauss-Newton tangent.
+    fn assemble_volume_cells(&mut self, dt: Real) {
+        for element in &self.volume_cells {
+            if element.stiffness <= 0.0 {
+                continue;
+            }
+            let cell = &self.cells[element.cell as usize];
+            let x: [Vector; MAX_CONSTRAINT_PARTICLES] =
+                core::array::from_fn(|k| self.position[cell.vertices[k] as usize]);
+            let c = SoftBody::cell_volume(x) - element.rest_volume;
+            let grad = SoftBody::cell_volume_gradients(x);
+            for k in 0..MAX_CONSTRAINT_PARTICLES {
+                self.force[cell.vertices[k] as usize] -= grad[k] * (element.stiffness * c);
+            }
+            let scale = element.stiffness * (dt * dt + dt * element.beta);
+            let blocks = &self.cell_blocks[element.cell as usize];
+            for p in 0..MAX_CONSTRAINT_PARTICLES {
+                for q in 0..MAX_CONSTRAINT_PARTICLES {
+                    let slot = blocks[p * MAX_CONSTRAINT_PARTICLES + q];
+                    if slot != u32::MAX {
+                        self.matrix.blocks[slot as usize] += outer_product(grad[p], grad[q]) * scale;
+                    }
+                }
             }
         }
     }

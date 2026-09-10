@@ -199,6 +199,8 @@ impl SoftConstraintsSet {
                             attachment: k as u32,
                             particle,
                             im_particle,
+                            fem: None,
+                            body,
                             body_local_point,
                             anchor0,
                             erp_inv_dt,
