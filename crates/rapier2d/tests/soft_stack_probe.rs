@@ -168,6 +168,7 @@ fn apply_preset(world: &mut PhysicsWorld) -> String {
             r.overlap_constraints = true;
             r.crossing_repulsion = true;
             r.crossing_repulsion_guide = preset.ends_with("-guide");
+            r.crossing_repulsion_self_guide = preset.ends_with("-guide");
         }
         // The intersection-volume constraints on the defaults.
         "overlap" => r.overlap_constraints = true,

@@ -366,6 +366,7 @@ fn recovery_toggles_are_wired() {
         edge_stand_down: false,
         crossing_repulsion: false,
         crossing_repulsion_guide: false,
+        crossing_repulsion_self_guide: false,
         recovery_pace: 0.5,
         overlap_constraints: false,
         overlap_rigid: true,

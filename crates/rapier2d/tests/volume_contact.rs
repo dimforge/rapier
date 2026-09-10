@@ -119,6 +119,59 @@ fn jelly(center: Vector, half: Real) -> SoftBodyBuilder {
         .surface_collider(ColliderBuilder::ball(0.08).friction(0.7))
 }
 
+/// A blob whose top vertex was pushed through its own bottom (two crossings and a mirrored tip),
+/// with the crossing repulsion and no volume constraint: guided by the fold's volume normal, the
+/// tip is pulled back onto the pierced surface until the crossings annihilate.
+#[test]
+fn self_guided_repulsion_recovers_pierced_tip() {
+    let run = |guided: bool| -> usize {
+        let mut world = PhysicsWorld::new();
+        floor(&mut world);
+        let a = world.insert_soft_body(blob(Vector::new(0.0, 0.56), 0.5, 24));
+        // Vertex 6 is the top of the loop (angle 90 degrees): pushed below the bottom.
+        world.soft_bodies[a].set_particle_position(6, Vector::new(0.0, 0.56 - 0.5 - 0.15));
+        configure(&mut world);
+        let r = &mut world.integration_parameters.soft_bodies.recovery;
+        r.overlap_constraints = false;
+        r.crossing_repulsion = true;
+        r.crossing_repulsion_self_guide = guided;
+        let self_crossings = |world: &PhysicsWorld| {
+            let sb = &world.soft_bodies[a];
+            let mesh = sb.meshes().next().unwrap();
+            let idx = mesh.indices();
+            let p = |v: u32| mesh.vertex(sb, v as usize);
+            let mut crossings = 0;
+            for i in 0..idx.len() {
+                for j in i + 1..idx.len() {
+                    let (ei, ej) = (idx[i], idx[j]);
+                    if ei.iter().any(|v| ej.contains(v)) {
+                        continue;
+                    }
+                    if segments_cross(p(ei[0]), p(ei[1]), p(ej[0]), p(ej[1])) {
+                        crossings += 1;
+                    }
+                }
+            }
+            crossings
+        };
+        for step in 0..=steps() {
+            if step % 100 == 0 {
+                println!(
+                    "guided {guided} step {step:4}: crossings={} area={:+.3}",
+                    self_crossings(&world),
+                    world.soft_bodies[a].volume()
+                );
+            }
+            world.step();
+        }
+        self_crossings(&world)
+    };
+    let unguided = run(false);
+    let guided = run(true);
+    println!("end crossings: unguided {unguided}, guided {guided}");
+    assert_eq!(guided, 0, "the guided repulsion never pulled the tip back");
+}
+
 /// A blob on the floor with two bottom vertices tunneled through it, manifold constraints kept:
 /// the volume constraint pulls the vertices back while the manifold constraints of the same
 /// features may fight it. Every `overlap_patch_constraints` policy must recover the vertices.

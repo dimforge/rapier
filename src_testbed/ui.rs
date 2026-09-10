@@ -607,6 +607,10 @@ fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySett
             ui.checkbox(&mut r.edge_stand_down, "Edge-pass stand-down");
             ui.checkbox(&mut r.crossing_repulsion, "Crossing repulsion (repel, not drop)");
             ui.checkbox(&mut r.crossing_repulsion_guide, "Repulsion guided by the volume normal");
+            ui.checkbox(
+                &mut r.crossing_repulsion_self_guide,
+                "Self-repulsion guided by the fold's volume normal",
+            );
             ui.separator();
             ui.label("Intersection-volume constraints (closed surfaces)");
             ui.checkbox(&mut r.overlap_constraints, "Overlap constraints (master)");

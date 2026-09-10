@@ -63,59 +63,58 @@ pub(super) struct BodyContacts {
     /// vertex pass), by (vertex, element).
     pub(super) previous_vertex: HashMap<(u32, u32), (Real, Vector)>,
     /// Elements (and vertices) of the mesh being assembled whose self contacts stand down
-    /// this step: carried by inverted cells, or part of a self-crossing of the surface (empty
+    /// this step: backed by inverted cells, or part of a self-crossing of the surface (empty
     /// while the surface is healthy). Copied from the narrow phase's self detection.
     pub(super) tangled_elements: Vec<bool>,
     pub(super) tangled_vertices: Vec<bool>,
     /// The crossing element pairs the narrow phase's sweep found on the mesh being assembled.
     pub(super) crossings: Vec<(u32, u32)>,
-    /// Elements of the current pair's surface side, and vertices of its vertex side, taking
-    /// part in a crossing *between* the two surfaces (empty while the surfaces do not
-    /// cross). Rows touching them may only expel, never hold at skin distance: the
-    /// closed-surface expulsion still pushes a lens out, while nothing freezes the
-    /// crossing.
+    /// Elements of the current pair's surface side, and vertices of its vertex side, in a crossing
+    /// between the two surfaces (empty while they do not cross); constraints touching them may
+    /// only expel, never hold at skin distance, so nothing freezes the crossing.
     pub(super) cross_tangled_elements: Vec<bool>,
     pub(super) cross_tangled_vertices: Vec<bool>,
     /// Element-granularity crossing flags on the vertex-side mesh, and the recorded
     /// (element-side, vertex-side) crossing element pairs.
     pub(super) cross_tangled_vb_elements: Vec<bool>,
     pub(super) cross_pairs: Vec<(u32, u32)>,
-    /// The intersection-volume rows this body assembled (see `SoftOverlapRow`).
+    /// The intersection-volume constraints this body assembled (see `SoftOverlapConstraint`).
     pub(super) overlap_constraints: Vec<OverlapConstraintWorkspace>,
-    /// The current pair's volume normals guiding its crossing repulsion (see
-    /// `crossing_repulsion_guide`): per grid cell, its center and its normal from the
-    /// element side into the vertex side (for a self pair: the push direction of the fold's
-    /// vertices, the facing surface's vertices take the opposite).
+    /// Per grid cell, the center and normal (element side into vertex side) guiding the current
+    /// pair's crossing repulsion (see `crossing_repulsion_guide`); for a self pair, the push
+    /// direction of the fold's vertices, the facing surface's vertices taking the opposite.
     pub(super) repel_guides: Vec<(Vector, Vector)>,
+    /// For a self pair, whether each vertex lies in its own body's self-intersection region
+    /// (see `classify_inside_self`).
+    pub(super) repel_inside: Vec<bool>,
     /// For the current pair, whether each vertex of the vertex side lies in the other
-    /// side's volume patch (see `overlap_patch_rows`).
+    /// side's volume patch (see `overlap_patch_constraints`).
     pub(super) patch_inside_vb: Vec<bool>,
     /// The rigid pairs of the current mesh with a volume constraint (see
-    /// `overlap_patch_rows`): the collider, the surface vertices' depths in its patch
+    /// `overlap_patch_constraints`): the collider, the surface vertices' depths in its patch
     /// (`NEG_INFINITY` outside), and the constraint's cells (center, normal).
     pub(super) rigid_patches: Vec<(ColliderHandle, Vec<Real>, Vec<(Vector, Vector)>)>,
 }
 
-/// An intersection-volume row assembled by one body (see `SoftOverlapRow`): the gradient
-/// triples of every simulated particle of the pair, the rigid side if any, and the row's
-/// right-hand side (the signed volume estimate when the correction runs on the row, the
-/// slack alone otherwise).
+/// An intersection-volume constraint assembled by one body (see `SoftOverlapConstraint`): the
+/// gradient triples of every simulated particle of the pair, the rigid side if any, and the
+/// right-hand side (the signed volume estimate when the correction runs on it, else the slack).
 pub(super) struct OverlapConstraintWorkspace {
     pub(super) grads: Vec<(u32, Real, Vector, Vector)>,
-    /// The `(side, particle)` of every gradient entry (see `SoftOverlapRow::warm`).
+    /// The `(side, particle)` of every gradient entry (see `SoftOverlapConstraint::warm`).
     pub(super) particles: Vec<(u8, u32)>,
     pub(super) rigid: Option<(u32, Vector, AngVector)>,
     pub(super) rigid_pose0: (Vector, Rotation),
     pub(super) rhs: Real,
-    /// A contact in its own right (see `SoftOverlapRow::hard`).
+    /// A contact in its own right (see `SoftOverlapConstraint::hard`).
     pub(super) hard: bool,
-    /// The carried impulses of a hard row (see `SoftOverlapWarm`): the other collider, the
-    /// fitted multiplier, the carried impulse per gradient entry, and the rigid side's.
+    /// The warm impulses of a hard constraint (see `SoftOverlapWarm`): the other collider, the
+    /// fitted multiplier, the warm impulse per gradient entry, and the rigid side's.
     pub(super) warm: Option<(ColliderHandle, Real)>,
     pub(super) warm_impulses: Vec<Vector>,
     pub(super) warm_rigid: (Vector, AngVector),
     pub(super) max_bias_velocity: Real,
-    /// The pair's contact slot of the row's bin (see `SoftOverlapRow::report`).
+    /// The pair's contact slot of the constraint's bin (see `SoftOverlapConstraint::report`).
     pub(super) report: (ColliderHandle, ColliderHandle, u32),
 }
 
