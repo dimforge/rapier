@@ -95,6 +95,57 @@ impl ExampleEntry {
     }
 }
 
+/// Wall-clock times of the recent frames, for the performance tab: the step counters only hold
+/// the last step, and a frame also spends time outside of it (rendering, UI).
+#[derive(Default)]
+pub struct FrameStats {
+    last_frame: Option<web_time::Instant>,
+    last_timestep: usize,
+    /// `(frame_ms, step_ms)` of the recent frames, oldest first.
+    samples: std::collections::VecDeque<(f64, f64)>,
+}
+
+impl FrameStats {
+    /// The number of frames the statistics cover.
+    pub const WINDOW: usize = 60;
+
+    /// Records the frame that just ended, with `step_ms` counted only if a step ran during it.
+    pub fn record(&mut self, timestep_id: usize, step_ms: f64) {
+        let now = web_time::Instant::now();
+        if let Some(last) = self.last_frame {
+            let step_ms = if timestep_id != self.last_timestep {
+                step_ms
+            } else {
+                0.0
+            };
+            if self.samples.len() == Self::WINDOW {
+                let _ = self.samples.pop_front();
+            }
+            self.samples
+                .push_back(((now - last).as_secs_f64() * 1000.0, step_ms));
+        }
+        self.last_frame = Some(now);
+        self.last_timestep = timestep_id;
+    }
+
+    /// The mean `(frame, step)` times over the window, in milliseconds.
+    pub fn mean_ms(&self) -> (f64, f64) {
+        let n = self.samples.len().max(1) as f64;
+        let (frame, step) = self
+            .samples
+            .iter()
+            .fold((0.0, 0.0), |acc, s| (acc.0 + s.0, acc.1 + s.1));
+        (frame / n, step / n)
+    }
+
+    /// The longest `(frame, step)` times over the window, in milliseconds.
+    pub fn max_ms(&self) -> (f64, f64) {
+        self.samples
+            .iter()
+            .fold((0.0, 0.0), |acc, s| (acc.0.max(s.0), acc.1.max(s.1)))
+    }
+}
+
 /// State for the testbed application
 pub struct TestbedState {
     pub running: RunMode,
@@ -134,6 +185,8 @@ pub struct TestbedState {
     /// (`-up_axis`) instead of the hard-coded Y-axis it used to assume.
     /// Defaults to `Vector::Y`.
     pub up_axis: rapier::math::Vector,
+    /// Recent frame and step times, shown by the performance tab.
+    pub frame_stats: FrameStats,
     /// Thread pool running the physics step, shared across example reloads: sized
     /// to the performance cores (efficiency cores stall the solver's
     /// barrier-paced parallel stages). Built lazily on the first `set_world`.
@@ -164,6 +217,7 @@ impl Default for TestbedState {
             selected_tab: UiTab::default(),
             prev_save_data: SerializableTestbedState::default(),
             up_axis: rapier::math::Vector::Y,
+            frame_stats: FrameStats::default(),
             #[cfg(feature = "parallel")]
             physics_thread_pool: None,
         }

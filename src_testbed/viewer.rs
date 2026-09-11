@@ -133,6 +133,11 @@ impl TestbedViewer {
     /// requested from the UI.
     pub async fn render_frame(&mut self, world: &mut PhysicsWorld) -> bool {
         profiling::finish_frame!();
+        // A whole frame spans two calls: the example's step runs in between.
+        self.state.frame_stats.record(
+            self.state.timestep_id,
+            world.physics_pipeline.counters.step_time_ms(),
+        );
 
         #[cfg(feature = "dim3")]
         let keep_open = self
@@ -253,6 +258,8 @@ impl TestbedViewer {
         self.state.transition = None;
         self.state.snapshot = None;
         self.state.timestep_id = 0;
+        // The next example's scene building is not a frame.
+        self.state.frame_stats = Default::default();
         self.state.action_flags = TestbedActionFlags::empty();
 
         if self.state.preserve_settings_on_switch {

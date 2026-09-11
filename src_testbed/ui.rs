@@ -935,13 +935,27 @@ fn performance_tab(ui: &mut Ui, state: &TestbedState, world: &PhysicsWorld) {
     // ─────────────────────────────────────────────────────────────────
     let counters = &world.physics_pipeline.counters;
     let total_ms = counters.step_time_ms();
-    let fps = if total_ms > 0.0 {
-        (1000.0 / total_ms).round()
+    let (mean_frame_ms, mean_step_ms) = state.frame_stats.mean_ms();
+    let (max_frame_ms, max_step_ms) = state.frame_stats.max_ms();
+    let fps = if mean_frame_ms > 0.0 {
+        (1000.0 / mean_frame_ms).round()
     } else {
         0.0
     };
 
-    ui.label(RichText::new(format!("Total: {:.2}ms - {:.0} FPS", total_ms, fps)).strong());
+    // The step counters only hold the last step: the peaks over the recent frames show the
+    // spikes a single value flickers past, and the frame time is measured by the viewer.
+    ui.label(
+        RichText::new(format!("Total: {:.2}ms (peak {:.2}ms)", total_ms, max_step_ms)).strong(),
+    );
+    ui.label(format!(
+        "Frame: {:.2}ms (peak {:.2}ms) - {:.0} FPS",
+        mean_frame_ms, max_frame_ms, fps
+    ));
+    ui.label(format!(
+        "Outside physics: {:.2}ms",
+        (mean_frame_ms - mean_step_ms).max(0.0)
+    ));
     ui.add_space(4.0);
 
     // Collision detection
