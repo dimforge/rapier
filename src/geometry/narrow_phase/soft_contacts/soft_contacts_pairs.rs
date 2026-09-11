@@ -2,12 +2,16 @@
 
 use crate::alloc_prelude::*;
 
-use crate::dynamics::{RigidBodySet, SoftMeshRef};
-use crate::geometry::{Collider, ColliderHandle, ContactPair, PairContacts, RigidPairContacts};
+use crate::dynamics::{RigidBodySet, SoftBody, SoftCollisionMesh, SoftMeshRef};
+use crate::geometry::{
+    Collider, ColliderHandle, ContactManifold, ContactPair, PairContacts, RigidPairContacts,
+};
+use crate::math::{Real, Vector};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
+use super::soft_contacts_types::SoftRigidVertexContact;
 use super::soft_contacts_volume::{detect_rigid_patch, detect_volume_patch};
 use super::{
     SoftDetectionCtx, SoftVertexPass, SoftEdgePass, SoftPairContacts, body_frozen, detect_vertex_pass,
@@ -44,33 +48,145 @@ pub(crate) fn update_pair_soft_soft(
     }
 }
 
+/// The soft contacts of a soft-rigid pair beside its manifolds (computed first): the
+/// predictive vertex contacts within `reach` (the solver contacts' separation bound) and the
+/// volume patch.
 pub(crate) fn update_pair_soft_rigid(
     rigid: &mut RigidPairContacts,
-    h1: ColliderHandle,
-    h2: ColliderHandle,
-    co1: &Collider,
-    co2: &Collider,
+    (h1, co1): (ColliderHandle, &Collider),
+    (h2, co2): (ColliderHandle, &Collider),
     bodies: &RigidBodySet,
+    reach: Real,
     ctx: &SoftDetectionCtx,
 ) {
+    let (r, soft_first) = match (co1.deformable_mesh_ref, co2.deformable_mesh_ref) {
+        (Some(r), None) => (r, true),
+        (None, Some(r)) => (r, false),
+        _ => return,
+    };
+    let (soft_co, other_co, handle) = if soft_first {
+        (co1, co2, h1)
+    } else {
+        (co2, co1, h2)
+    };
+    let Some((sb, mesh)) = ctx
+        .soft_bodies
+        .get(r.body)
+        .and_then(|sb| sb.mesh(r.id).map(|mesh| (sb, mesh)))
+    else {
+        rigid.soft = None;
+        return;
+    };
+    let mut soft = rigid.soft.take().unwrap_or_default();
+    soft.patch = detect_rigid_patch((sb, mesh, handle, soft_co), other_co, bodies, ctx);
+    detect_rigid_vertices(
+        &mut soft.vertices,
+        &rigid.manifolds,
+        soft_first,
+        (sb, mesh, soft_co),
+        other_co,
+        reach,
+    );
+    if soft.patch.is_some() || !soft.vertices.is_empty() {
+        rigid.soft = Some(soft);
+    }
 }
-    match (co1.deformable_mesh_ref, co2.deformable_mesh_ref) {
-        (Some(r), None) | (None, Some(r)) => {
-            let (soft_co, other_co, handle) = if co1.deformable_mesh_ref.is_some() {
-                (co1, co2, h1)
-            } else {
-                (co2, co1, h2)
-            };
-            rigid.soft_patch = ctx
-                .soft_bodies
-                .get(r.body)
-                .and_then(|sb| sb.mesh(r.id).map(|mesh| (sb, mesh)))
-                .and_then(|(sb, mesh)| {
-                    detect_rigid_patch((sb, mesh, handle, soft_co), other_co, bodies, ctx)
-                })
-                .map(Box::new);
+
+/// The predictive vertex contacts of a soft-rigid pair: every vertex of an element the
+/// manifolds reached, within `reach` of a convex rigid collider and exposed toward it (see
+/// `SoftCollisionMesh::vertex_exposed`), warm-started from the previous contacts by vertex.
+fn detect_rigid_vertices(
+    out: &mut Vec<SoftRigidVertexContact>,
+    manifolds: &[ContactManifold],
+    soft_first: bool,
+    (sb, mesh, soft_co): (&SoftBody, &SoftCollisionMesh, &Collider),
+    other_co: &Collider,
+    reach: Real,
+) {
+    let previous = core::mem::take(out);
+    let shape = other_co.shape();
+    // A composite rigid collider meets the elements with manifolds of several points already.
+    if !shape.is_convex() {
+        return;
+    }
+    let mut candidates: Vec<(u32, u32)> = Vec::new();
+    for (mi, manifold) in manifolds.iter().enumerate() {
+        if manifold.points.is_empty() {
+            continue;
         }
-        _ => {}
+        let element = if soft_first {
+            manifold.subshape1
+        } else {
+            manifold.subshape2
+        } as usize;
+        if element < mesh.indices().len() {
+            candidates.extend(mesh.element(element).iter().map(|&v| (v, mi as u32)));
+        }
+    }
+    candidates.sort_unstable_by_key(|c| c.0);
+    let pose = other_co.position();
+    let skins = soft_co.contact_skin() + other_co.contact_skin();
+    // A manifold's force direction on the surface (the mesh's elements and a convex shape
+    // have no part pose, so the normal is in the first collider's frame).
+    let pose1 = if soft_first { soft_co } else { other_co }.position();
+    let force_dir = |m: &ContactManifold| {
+        let n = pose1.rotation * m.local_n1;
+        if soft_first { -n } else { n }
+    };
+    let mut previous = previous.iter().peekable();
+    let mut rest = &candidates[..];
+    while let Some(&(vertex, _)) = rest.first() {
+        let count = rest.iter().position(|c| c.0 != vertex).unwrap_or(rest.len());
+        let (group, tail) = rest.split_at(count);
+        rest = tail;
+        let point = mesh.vertex(sb, vertex as usize);
+        let local = pose.inverse_transform_point(point);
+        let proj = shape.project_local_point(local, false);
+        let delta = local - proj.point;
+        let len = delta.length();
+        // On the boundary itself the direction is undefined: the element's manifold holds it.
+        if len <= 1.0e-6 {
+            continue;
+        }
+        let (local_dir, separation) = if proj.is_inside {
+            (-delta / len, -len)
+        } else {
+            (delta / len, len)
+        };
+        let dist = separation - skins;
+        let dir = pose.rotation * local_dir;
+        if dist >= reach || !mesh.vertex_exposed(sb, vertex, dir) {
+            continue;
+        }
+        // An incident element's contact must agree with the direction: inside a polyhedral
+        // shape, the feature closest to the vertex can be another face than the one it met.
+        let Some((manifold, alignment)) = group
+            .iter()
+            .map(|&(_, mi)| (mi, force_dir(&manifolds[mi as usize]).dot(dir)))
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+        else {
+            continue;
+        };
+        if alignment < 0.7 {
+            continue;
+        }
+        while previous.peek().is_some_and(|c| c.vertex < vertex) {
+            previous.next();
+        }
+        let (impulse, tangent_impulse) = previous
+            .peek()
+            .filter(|c| c.vertex == vertex)
+            .map_or((0.0, Vector::ZERO), |c| (c.impulse, c.tangent_impulse));
+        out.push(SoftRigidVertexContact {
+            vertex,
+            manifold,
+            local_point: proj.point,
+            local_dir,
+            dist,
+            impulse,
+            tangent_impulse,
+        });
+    }
 }
 
 /// The detection of a pair of two soft surfaces (see [`update_pair`]), into the cleared

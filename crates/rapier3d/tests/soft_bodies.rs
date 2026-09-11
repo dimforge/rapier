@@ -3832,3 +3832,102 @@ fn modify_solver_contacts_edits_soft_soft_contacts() {
     assert!(resting > 1.1, "the jelly did not rest on the cloth: y = {resting}");
     assert!(dropped < 0.5, "the hook did not drop the soft-soft contacts: y = {dropped}");
 }
+
+/// A cloth draped over a rigid ball much larger than its elements rests on it: the ball's
+/// manifold with each element holds a single point, so the vertices are held by the pair's
+/// predictive vertex contacts (without them they sag into the skin and the cloth jitters).
+#[test]
+fn cloth_draped_over_a_large_ball_supports_its_vertices() {
+    let mut world = world_with_ground();
+    let center = Vector::new(0.0, 1.0, 0.0);
+    world.insert(
+        RigidBodyBuilder::fixed().translation(center),
+        ColliderBuilder::ball(1.0),
+    );
+    let n = 20;
+    let skin = 0.05;
+    let cloth = SoftBodyBuilder::cloth(
+        Vector::new(-0.95, 2.1, -0.95),
+        Vector::X * 0.1,
+        Vector::Z * 0.1,
+        n,
+        n,
+    )
+    .softness(SpringCoefficients::new(30.0, 1.0))
+    .particle_mass(0.02)
+    .particle_radius(skin)
+    .surface_collider(ColliderBuilder::ball(skin).friction(0.8));
+    let handle = world.insert_soft_body(cloth);
+    let mut min_dist = Real::MAX;
+    let mut max_speed: Real = 0.0;
+    let mut sum_speed = 0.0;
+    let mut count = 0;
+    for step in 0..600 {
+        world.step();
+        if step < 300 {
+            continue;
+        }
+        for p in world.soft_bodies[handle].particles() {
+            let dist = (p.position() - center).length();
+            if dist < 1.2 {
+                min_dist = min_dist.min(dist);
+                max_speed = max_speed.max(p.velocity().length());
+                sum_speed += p.velocity().length();
+                count += 1;
+            }
+        }
+    }
+    assert!(count > 0, "the cloth slid off the ball");
+    let sag = 1.0 + skin - min_dist;
+    let mean_speed = sum_speed / count as Real;
+    assert!(sag < 0.15 * skin, "the vertices sag into the ball: {sag}");
+    assert!(
+        mean_speed < 0.05 && max_speed < 0.7,
+        "the cloth jitters on the ball: mean speed {mean_speed}, max {max_speed}"
+    );
+}
+
+/// A small ball sliding across a cloth lying on the ground does not bump on the cloth's
+/// vertices: a vertex contact whose direction is tilted off the surface (the ball beside the
+/// vertex, over an incident element) would be a ghost of that element's contact.
+#[test]
+fn small_ball_slides_over_cloth_without_ghost_bumps() {
+    let mut world = world_with_ground();
+    let n = 30;
+    let cloth = SoftBodyBuilder::cloth(
+        Vector::new(-1.5, 0.03, -1.5),
+        Vector::X * 0.1,
+        Vector::Z * 0.1,
+        n,
+        n,
+    )
+    .particle_mass(0.05)
+    .surface_collider(ColliderBuilder::ball(0.02).friction(0.5));
+    world.insert_soft_body(cloth);
+    let (ball, _) = world.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(-1.2, 0.15, 0.03))
+            .linvel(Vector::new(2.0, 0.0, 0.0))
+            .can_sleep(false),
+        ColliderBuilder::ball(0.05).friction(0.0),
+    );
+    let mut max_vy: Real = 0.0;
+    let mut min_y = Real::MAX;
+    let mut max_y: Real = 0.0;
+    for step in 0..80 {
+        world.step();
+        if step >= 30 {
+            let rb = &world.bodies[ball];
+            max_vy = max_vy.max(rb.linvel().y.abs());
+            min_y = min_y.min(rb.translation().y);
+            max_y = max_y.max(rb.translation().y);
+        }
+    }
+    let x = world.bodies[ball].translation().x;
+    assert!(
+        max_y - min_y < 1.0e-3 && max_vy < 0.1,
+        "the ball bumps on the cloth's vertices: height range {}, vertical speed {max_vy}",
+        max_y - min_y
+    );
+    assert!(x > 0.6, "the cloth's vertices slowed the ball down: x = {x}");
+}

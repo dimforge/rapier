@@ -6,6 +6,7 @@ use simba::scalar::{ComplexField as _, RealField as _};
 
 use crate::alloc_prelude::*;
 
+use super::soft_contact_assembly_workspace::SOURCE_RIGID_VERTEX;
 use super::{AssemblyCtx, BodyContacts, mesh_ref};
 use super::super::soft_constraints_set::{SoftConstraintsSet, barycentric_weights};
 use super::super::soft_contact::CONTACT_ANCHORS;
@@ -197,16 +198,16 @@ impl SoftConstraintsSet {
                         (dyn_erp, dyn_cfm)
                     };
                     // Adjacent elements of a flat patch all report the shared vertex as a
-                    // contact point: keep one row per (particle, pair) for those (the deepest),
+                    // contact point: keep one constraint per (particle, pair) for those (the deepest),
                     // interior points are kept as they are.
                     let mut vertex_constraints: parry::utils::hashmap::HashMap<u32, usize> =
                         Default::default();
-                    // A particle at a rigid feature (a box edge under a cloth) collects one
-                    // row per adjacent element per feature, up to ~16, all speculative by a
-                    // few mm: in the relax pass each releases a little slack toward the
-                    // feature and the sum is a phantom velocity of the resting particle
-                    // (undone by the next biased pass). Rows of the same rigid feature whose
-                    // point is dominated by the same particle are merged into the deepest one.
+                    // The vertices a manifold constraint holds at (or next to) their position: they need
+                    // no predictive vertex constraint (see below).
+                    let mut held_vertices: Vec<u32> = Vec::new();
+                    // A particle at a rigid feature (a box edge under a cloth) collects up to ~16
+                    // speculative constraints whose relax-pass slack sums to a phantom velocity:
+                    // those of one feature dominated by the same particle merge into the deepest.
                     let mut feature_constraints: parry::utils::hashmap::HashMap<(u32, u32), usize> =
                         Default::default();
                     // The narrow phase localized the anchors in the parent bodies' CoM frames,

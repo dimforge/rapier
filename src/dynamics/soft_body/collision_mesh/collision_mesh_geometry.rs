@@ -135,6 +135,24 @@ impl SoftCollisionMesh {
         false
     }
 
+    /// Whether `vertex` is exposed along `dir`: no surface neighbor lies ahead of it (up to a few
+    /// degrees), so a body approaching along `-dir` meets the vertex first. A contact at a vertex
+    /// that is not exposed along its normal is a ghost of an incident element's contact.
+    pub(crate) fn vertex_exposed(&self, body: &SoftBody, vertex: u32, dir: Vector) -> bool {
+        const TOLERANCE: Real = 0.05;
+        let (Some(&start), Some(&end)) = (
+            self.ring_offsets.get(vertex as usize),
+            self.ring_offsets.get(vertex as usize + 1),
+        ) else {
+            return false;
+        };
+        let p = self.vertex(body, vertex as usize);
+        self.ring[start as usize..end as usize].iter().all(|&w| {
+            let d = self.vertex(body, w as usize) - p;
+            d.dot(dir) <= TOLERANCE * d.length()
+        })
+    }
+
     /// Whether a contact on `element_id` at barycentric `weights`, with the other shape's point at
     /// `point`, is a ghost of an internal vertex/edge: the point projects inside a neighboring
     /// element, which reports the real contact, so this one only brings a spurious normal.

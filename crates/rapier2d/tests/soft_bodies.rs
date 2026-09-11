@@ -2268,3 +2268,50 @@ fn modify_solver_contacts_edits_soft_soft_contacts() {
     assert!(resting > 1.1, "the blob did not rest on the rope: y = {resting}");
     assert!(dropped < 0.6, "the hook did not drop the soft-soft contacts: y = {dropped}");
 }
+
+/// A rope draped over a rigid ball much larger than its segments rests on it: the ball's
+/// manifold with each segment holds a single point, so the vertices are held by the pair's
+/// predictive vertex contacts (without them they sag into the skin and the rope jitters).
+#[test]
+fn rope_draped_over_a_large_ball_supports_its_vertices() {
+    let mut world = world_with_ground();
+    let center = Vector::new(0.0, 1.0);
+    world.insert(
+        RigidBodyBuilder::fixed().translation(center),
+        ColliderBuilder::ball(1.0),
+    );
+    let skin = 0.1 / 3.0;
+    let rope = SoftBodyBuilder::rope(Vector::new(-1.0, 2.1), Vector::new(1.0, 2.1), 21)
+        .softness(SpringCoefficients::new(30.0, 1.0))
+        .particle_mass(0.02)
+        .particle_radius(skin)
+        .surface_collider(ColliderBuilder::ball(0.05).friction(0.8));
+    let handle = world.insert_soft_body(rope);
+    let mut min_dist = Real::MAX;
+    let mut max_speed: Real = 0.0;
+    let mut sum_speed = 0.0;
+    let mut count = 0;
+    for step in 0..600 {
+        world.step();
+        if step < 300 {
+            continue;
+        }
+        for p in world.soft_bodies[handle].particles() {
+            let dist = (p.position() - center).length();
+            if dist < 1.2 {
+                min_dist = min_dist.min(dist);
+                max_speed = max_speed.max(p.velocity().length());
+                sum_speed += p.velocity().length();
+                count += 1;
+            }
+        }
+    }
+    assert!(count > 0, "the rope slid off the ball");
+    let sag = 1.0 + skin - min_dist;
+    let mean_speed = sum_speed / count as Real;
+    assert!(sag < 0.05 * skin, "the vertices sag into the ball: {sag}");
+    assert!(
+        mean_speed < 0.045 && max_speed < 0.3,
+        "the rope jitters on the ball: mean speed {mean_speed}, max {max_speed}"
+    );
+}

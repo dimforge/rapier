@@ -322,7 +322,12 @@ impl SoftConstraintsSet {
             if other_co.deformable_mesh_ref.is_some() || other_co.is_sensor() {
                 continue;
             }
-            let Some(patch) = pair.rigid().and_then(|r| r.soft_patch.as_deref()) else {
+            let Some(patch) = pair
+                .rigid()
+                .and_then(|r| r.soft.as_deref())
+                .and_then(|s| s.patch.as_ref())
+            else {
+                continue;
             };
             let other_rb = other_co.parent().and_then(|h| bodies.get(h));
             let dynamic = other_rb.is_some_and(|rb| rb.is_dynamic());

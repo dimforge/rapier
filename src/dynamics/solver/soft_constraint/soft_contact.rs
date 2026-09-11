@@ -68,11 +68,12 @@ impl FemContactSide {
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct SoftContact {
     pub source: SoftContactSource,
-    /// Index of the surface's soft body in the solver's awake list, and the element's particle
-    /// indices in it (the vertex support rows write their warm start back to the particle).
+    /// Index of the surface's soft body in the solver's awake list, and the particle indices
+    /// holding the contact point in it (the FEM solver's load).
     pub support_body: u32,
+    #[cfg_attr(not(feature = "fem"), allow(dead_code))]
     pub support_particle: [u32; CONTACT_ANCHORS],
-    /// Solver slots of the particles carrying the contact point (`u32::MAX`: frozen at
+    /// Solver slots of the particles the contact point acts through (`u32::MAX`: frozen at
     /// `frozen_pos`, or an unused anchor when its weight is zero).
     pub particles: [u32; CONTACT_ANCHORS],
     pub weights: [Real; CONTACT_ANCHORS],

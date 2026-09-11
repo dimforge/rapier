@@ -6,6 +6,7 @@ use simba::scalar::{ComplexField as _, RealField as _};
 
 use crate::alloc_prelude::*;
 
+use super::soft_contact_assembly_workspace::SOURCE_RIGID_VERTEX;
 use super::{SOURCE_EDGE_CONTACT, SOURCE_VERTEX_CONTACT};
 use super::super::soft_constraints_set::SoftConstraintsSet;
 use super::super::soft_contact::SoftContact;
@@ -194,6 +195,28 @@ impl SoftConstraintsSet {
                         point.data.tangent_impulse = Default::default();
                     }
                 }
+                if let Some(soft) = rigid.soft.as_deref_mut() {
+                    for vertex in &mut soft.vertices {
+                        vertex.impulse = 0.0;
+                        vertex.tangent_impulse = Vector::ZERO;
+                    }
+                }
+            }
+            if c.source.manifold == SOURCE_RIGID_VERTEX {
+                // A predictive vertex constraint: its warm start lives on the pair's vertex contact.
+                if let Some(vertex) = rigid
+                    .soft
+                    .as_deref_mut()
+                    .and_then(|soft| soft.vertices.get_mut(c.source.point as usize))
+                {
+                    let mut tangent = Vector::ZERO;
+                    for k in 0..DIM - 1 {
+                        tangent += c.tangents[k] * c.impulse_tangent[k];
+                    }
+                    vertex.impulse = crate::utils::canonicalize_zero(c.impulse_normal);
+                    vertex.tangent_impulse = crate::utils::canonicalize_zero(tangent);
+                }
+                continue;
             }
             let Some(manifold) = rigid.manifolds.get_mut(c.source.manifold as usize) else {
                 continue;

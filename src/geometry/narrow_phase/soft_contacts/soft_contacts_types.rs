@@ -194,6 +194,37 @@ pub struct SoftRigidPatch {
     pub rot: Rotation,
 }
 
+/// A predictive contact between a surface vertex of a soft-rigid pair and the convex rigid
+/// collider: the support of the vertex itself, which an element's manifold does not give when
+/// the rigid shape wraps the element (a single closest point per element).
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct SoftRigidVertexContact {
+    /// The vertex of the soft mesh.
+    pub vertex: u32,
+    /// A manifold of the pair on an element incident to the vertex (its material).
+    pub manifold: u32,
+    /// The closest point on the rigid collider, in that collider's frame.
+    pub local_point: Vector,
+    /// The force direction on the vertex (away from the rigid collider), in that collider's
+    /// frame.
+    pub local_dir: Vector,
+    /// The separation, skins deducted (negative: penetrating).
+    pub dist: Real,
+    /// The normal impulse the solver applied through it at the last step.
+    pub impulse: Real,
+    /// The world-space friction impulse the solver applied through it at the last step.
+    pub tangent_impulse: Vector,
+}
+
+/// The soft contacts of a soft-rigid pair beside its manifolds, rebuilt by every update.
+#[derive(Clone, Default, Debug)]
+pub(crate) struct SoftRigidContacts {
+    /// The predictive vertex contacts, sorted by vertex.
+    pub vertices: Vec<SoftRigidVertexContact>,
+    /// The volume patch of a closed soft surface intruded by the rigid collider.
+    pub patch: Option<SoftRigidPatch>,
+}
+
 /// The contacts of a pair of two soft surfaces: the candidates the narrow phase detected between
 /// them, which the soft-body solver turns into constraints, rebuilt by every update of the pair.
 /// Each slot (vertex-pass, edge, then volume-bin candidates) reports the solver's impulse.

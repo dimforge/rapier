@@ -16,42 +16,46 @@ use crate::geometry::{Collider, ColliderHandle, ColliderSet, NarrowPhase};
 use crate::dynamics::soft_body::{SoftOverlapState, SoftVolumeContact};
 use crate::math::{AngVector, Real, Rotation, Vector};
 
-/// The collision mesh a soft body's collider carries.
+/// The collision mesh a soft body's collider holds.
 pub(super) fn mesh_of(sb: &SoftBody, collider: ColliderHandle) -> Option<&SoftCollisionMesh> {
     sb.mesh_of(collider)
 }
 
+/// The mesh a deformable collider holds.
 pub(super) fn mesh_ref(co: &Collider) -> SoftMeshRef {
     co.deformable_mesh_ref.expect("not a deformable collider")
 }
 
-/// Scratch of the contact assembly kept across steps.
+/// Workspace of the contact assembly kept across steps.
 #[derive(Default)]
 pub(crate) struct EdgeContactWorkspace {
     /// Awake index of every awake soft body, by handle.
     pub(super) awake_of: HashMap<SoftBodyHandle, usize>,
-    /// The rows and new edge contacts of every awake body (assembled in parallel, appended in
+    /// The constraints and new edge contacts of every awake body (assembled in parallel, appended in
     /// awake order).
     pub(super) per_body: Vec<BodyContacts>,
 }
 
-/// `SoftContactSource::manifold` of the rows without a manifold point: an edge-vs-edge row (its
-/// warm start lives in the owner's `edge_contacts`) or a vertex-vs-surface row (`vertex_contacts`).
+/// `SoftContactSource::manifold` of the constraints without a manifold point: an edge-vs-edge constraint (its
+/// warm start lives in the owner's `edge_contacts`) or a vertex-vs-surface constraint (`vertex_contacts`).
 pub(super) const SOURCE_EDGE_CONTACT: u32 = u32::MAX;
 pub(super) const SOURCE_VERTEX_CONTACT: u32 = u32::MAX - 1;
-/// The corrective pace deep recovery is allowed (demoted intruders, the volume rows):
+/// `SoftContactSource::manifold` of a soft-rigid pair's predictive vertex constraint (its warm start
+/// lives in the pair's `SoftRigidContacts::vertices`).
+pub(super) const SOURCE_RIGID_VERTEX: u32 = u32::MAX - 2;
+/// The corrective pace deep recovery is allowed (demoted intruders, the volume constraints):
 /// fast enough to visibly heal, slow enough that a correction cannot pump the material.
 pub(super) fn material_pace(params: &IntegrationParameters) -> Real {
     params.soft_bodies.recovery.recovery_pace * params.length_unit
 }
 
-/// The contact rows of one awake soft body, and its new edge-vs-edge and vertex-vs-surface
-/// contacts (the rows' `point` indices are positions in those lists).
+/// The contact constraints of one awake soft body, and its new edge-vs-edge and vertex-vs-surface
+/// contacts (the constraints' `point` indices are positions in those lists).
 #[derive(Default)]
 pub(super) struct BodyContacts {
     pub(super) contacts: Vec<SoftContact>,
     /// The contact state of every mesh assembled this step, in the order the body's meshes were
-    /// visited (a row's `point` indexes its own mesh's lists).
+    /// visited (a constraint's `point` indexes its own mesh's lists).
     pub(super) meshes: Vec<MeshContacts>,
     /// The mesh being assembled.
     pub(super) current_mesh: usize,
