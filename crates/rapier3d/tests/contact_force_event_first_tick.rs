@@ -47,6 +47,8 @@ impl EventHandler for Events {
             .unwrap()
             .push((*self.step.lock().unwrap(), event.started));
     }
+
+    fn handle_soft_body_tear_event(&self, _: &SoftBodySet, _: &SoftBodyTearEvent) {}
 }
 
 #[test]

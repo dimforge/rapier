@@ -1,11 +1,11 @@
 use crate::alloc_prelude::*;
 use crate::dynamics::{CCDSolver, GenericJoint, ImpulseJoint, ImpulseJointHandle, ImpulseJointSet, IntegrationParameters, IslandManager, Multibody, MultibodyJointHandle, MultibodyJointSet, MultibodyLink, MultibodyLinkId, RigidBody, RigidBodyHandle, RigidBodySet, SoftBindingError, SoftBody, SoftBodyBuilder, SoftBodyHandle, SoftBodySet,
-    SoftClusterRemoval, SoftMeshBinding};
+    SoftBodyTearEvent, SoftClusterRemoval, SoftMeshBinding};
 use crate::geometry::{
     BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, ContactPair, DefaultBroadPhase,
     NarrowPhase,
 };
-use crate::math::{Real, Vector};
+use crate::math::{DIM, Real, Vector};
 use crate::pipeline::{
     EventHandler, PhysicsHooks, PhysicsPipeline, Quarantine, QueryFilter, QueryPipeline,
 };
@@ -425,6 +425,46 @@ impl PhysicsWorld {
     pub fn remove_soft_body(&mut self, handle: SoftBodyHandle) -> Option<SoftBody> {
         self.soft_bodies.remove(
             handle,
+            &mut self.islands,
+            &mut self.bodies,
+            &mut self.colliders,
+            &mut self.impulse_joints,
+            &mut self.multibody_joints,
+        )
+    }
+
+    /// Cuts a soft body along a blade (a world segment in 2D, a triangle in 3D) at once, without
+    /// removing any material (see [`SoftBodySet::cut`]). Returns the tear event, or `None` when
+    /// the cut changed nothing.
+    pub fn cut_soft_body(
+        &mut self,
+        handle: SoftBodyHandle,
+        blade: &[Vector; DIM],
+    ) -> Option<SoftBodyTearEvent> {
+        self.soft_bodies.cut(
+            handle,
+            blade,
+            &mut self.islands,
+            &mut self.bodies,
+            &mut self.colliders,
+            &mut self.impulse_joints,
+            &mut self.multibody_joints,
+        )
+    }
+
+    /// Tears a soft body at once along the given edges and through the given cells, without
+    /// removing any material (see [`SoftBodySet::tear`] and [`SoftBody::tear_edge`]). Returns
+    /// the tear event, or `None` when nothing changed.
+    pub fn tear_soft_body(
+        &mut self,
+        handle: SoftBodyHandle,
+        edges: &[u32],
+        cells: &[u32],
+    ) -> Option<SoftBodyTearEvent> {
+        self.soft_bodies.tear(
+            handle,
+            edges,
+            cells,
             &mut self.islands,
             &mut self.bodies,
             &mut self.colliders,

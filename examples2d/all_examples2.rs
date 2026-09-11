@@ -58,7 +58,9 @@ mod s2d_pyramid;
 mod sensor2;
 mod soft_blobs2;
 mod soft_bodies2;
+mod soft_cutting2;
 mod soft_fem2;
+mod soft_force_tearing2;
 mod soft_jelly2;
 mod soft_joints2;
 // The letters come from a tessellated SVG (usvg), which doesn't build for wasm.
@@ -66,6 +68,7 @@ mod soft_joints2;
 mod soft_letters2;
 mod soft_pile2;
 mod soft_plasticity2;
+mod soft_stress2;
 mod soft_surface2;
 mod soft_tearing2;
 mod soft_thin_features2;
@@ -148,6 +151,9 @@ pub async fn main() {
         SOFT, "Soft letters", soft_letters2::run;
         SOFT, "Plasticity", soft_plasticity2::run;
         SOFT, "Tearing", soft_tearing2::run;
+        SOFT, "Force tearing", soft_force_tearing2::run;
+        SOFT, "Cutting", soft_cutting2::run;
+        SOFT, "Stress coloring", soft_stress2::run;
         SOFT, "Soft FEM", soft_fem2::run;
         SOFT, "Soft joints", soft_joints2::run;
         // ── Controls ────────────────────────────────────────────────────────

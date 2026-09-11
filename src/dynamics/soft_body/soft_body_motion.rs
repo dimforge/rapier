@@ -137,4 +137,64 @@ impl SoftBody {
         }
     }
 
+    /// Applies `impulse` to every free particle within `falloff_radius` of world point `point`,
+    /// scaled linearly to zero at that radius and divided by the particle's mass; a
+    /// `falloff_radius` of zero or less gives every particle the whole impulse.
+    pub fn apply_impulse_at_point(
+        &mut self,
+        impulse: Vector,
+        point: Vector,
+        falloff_radius: Real,
+        wake_up: bool,
+    ) {
+        for p in &mut self.particles {
+            if p.inv_mass == 0.0 {
+                continue;
+            }
+            let scale = if falloff_radius > 0.0 {
+                1.0 - (p.position - point).length() / falloff_radius
+            } else {
+                1.0
+            };
+            if scale > 0.0 {
+                p.velocity += impulse * (scale * p.inv_mass);
+            }
+        }
+        if wake_up {
+            self.wake_up();
+        }
+    }
+
+    /// Applies an impulse of `magnitude` pointing away from world point `center` to every free
+    /// particle within `falloff_radius`, scaled linearly to zero at that radius (a particle on the
+    /// center gets nothing); a `falloff_radius` of zero or less pushes every particle fully.
+    pub fn apply_radial_impulse(
+        &mut self,
+        center: Vector,
+        magnitude: Real,
+        falloff_radius: Real,
+        wake_up: bool,
+    ) {
+        for p in &mut self.particles {
+            if p.inv_mass == 0.0 {
+                continue;
+            }
+            let offset = p.position - center;
+            let distance = offset.length();
+            if distance <= Real::EPSILON {
+                continue;
+            }
+            let scale = if falloff_radius > 0.0 {
+                1.0 - distance / falloff_radius
+            } else {
+                1.0
+            };
+            if scale > 0.0 {
+                p.velocity += offset * (magnitude * scale * p.inv_mass / distance);
+            }
+        }
+        if wake_up {
+            self.wake_up();
+        }
+    }
 }

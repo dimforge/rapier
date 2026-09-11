@@ -251,7 +251,7 @@ fn tear_duplicates_join_their_source_clusters() {
     let before = world.soft_bodies[h].num_particles();
     // Tear a middle edge immediately.
     let torn = world.tear_soft_body(h, &[30], &[]);
-    assert!(torn);
+    assert!(torn.is_some());
     let sb = &world.soft_bodies[h];
     let after = sb.num_particles();
     // Whatever was duplicated must be covered by cluster 0 (refcounts stay consistent).

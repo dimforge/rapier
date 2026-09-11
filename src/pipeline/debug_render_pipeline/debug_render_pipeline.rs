@@ -45,9 +45,13 @@ bitflags::bitflags! {
         /// that have them will be rendered.
         const PSEUDO_NORMALS = 1 << 8;
         /// If this flag is set, the soft bodies' volume constraints (the intersection-volume
-        /// rows) will be rendered: each constraint's normal at its patch center, and the
+        /// constraints) will be rendered: each constraint's normal at its patch center, and the
         /// volume gradient at every particle it acts on.
         const SOFT_VOLUME_CONTACTS = 1 << 9;
+        /// With [`Self::SOFT_BODIES`], colors elements by load, not `soft_body_element_color`:
+        /// `soft_body_slack_color` unloaded to `soft_body_loaded_color` at the tear threshold (the
+        /// smoothed element `stress`); without a threshold the load is the stretch, full at 50%.
+        const SOFT_BODY_STRESS = 1 << 10;
     }
 }
 
@@ -76,7 +80,7 @@ pub struct DebugRenderPipeline {
     pub mode: DebugRenderMode,
     /// The soft-body edges to draw for the body being rendered, with their load (a cage edge is
     /// shared by every cell around it: the largest). Kept here to be reused from frame to frame.
-    drawn_edges: HashMap<[u32; 2], ()>,
+    drawn_edges: HashMap<[u32; 2], f32>,
 }
 
 impl Default for DebugRenderPipeline {
@@ -160,37 +164,73 @@ impl DebugRenderPipeline {
             if !backend.filter_object(object) {
                 continue;
             }
-            let color = self.style.soft_body_element_color;
+            let element_color = self.style.soft_body_element_color;
+            let by_stress = self.mode.contains(DebugRenderMode::SOFT_BODY_STRESS);
+            // The load an element is drawn with: its smoothed tear load when the material tears,
+            // its stretch (full at 50%) otherwise, so the picture stays meaningful for a body
+            // that never tears.
+            let tears = sb.material().tears();
+            let stretch = |a: u32, b: u32| -> f32 {
+                let (pa, pb) = (&sb.particles()[a as usize], &sb.particles()[b as usize]);
+                let rest = (pa.rest_position() - pb.rest_position()).length();
+                let len = (pa.position() - pb.position()).length();
+                if rest > 0.0 {
+                    ((len / rest - 1.0).abs() / 0.5) as f32
+                } else {
+                    0.0
+                }
+            };
             // The cage is drawn edge by edge rather than cell by cell (an edge is shared by every
             // cell around it, and duplicates only thicken the picture); each edge keeps the largest
             // load of the elements sharing it.
             self.drawn_edges.clear();
-            let draw_once = |backend: &mut B, drawn: &mut HashMap<[u32; 2], ()>, e: [u32; 2]| {
+            let mut record = |drawn: &mut HashMap<[u32; 2], f32>, e: [u32; 2], load: f32| {
                 let key = [e[0].min(e[1]), e[0].max(e[1])];
-                if drawn.insert(key, ()).is_none() {
-                    backend.draw_line(
-                        object,
-                        sb.particle_position(key[0] as usize),
-                        sb.particle_position(key[1] as usize),
-                        color,
-                    );
-                }
+                let slot = drawn.entry(key).or_insert(0.0);
+                *slot = slot.max(load);
             };
             for e in sb.edges() {
                 if e.kind == SoftBodyEdgeKind::Structural {
-                    draw_once(backend, &mut self.drawn_edges, e.vertices);
+                    let load = match (by_stress, tears) {
+                        (false, _) => 0.0,
+                        (true, true) => e.stress() as f32,
+                        (true, false) => stretch(e.vertices[0], e.vertices[1]),
+                    };
+                    record(&mut self.drawn_edges, e.vertices, load);
                 }
             }
             for c in sb.cells() {
                 for a in 0..DIM + 1 {
                     for b in a + 1..DIM + 1 {
-                        draw_once(
-                            backend,
-                            &mut self.drawn_edges,
-                            [c.vertices[a], c.vertices[b]],
-                        );
+                        let edge = [c.vertices[a], c.vertices[b]];
+                        let load = match (by_stress, tears) {
+                            (false, _) => 0.0,
+                            (true, true) => c.stress() as f32,
+                            (true, false) => stretch(edge[0], edge[1]),
+                        };
+                        record(&mut self.drawn_edges, edge, load);
                     }
                 }
+            }
+            // Sorted: the backend sees the same lines in the same order every frame.
+            let mut edges: Vec<([u32; 2], f32)> =
+                self.drawn_edges.iter().map(|(k, v)| (*k, *v)).collect();
+            edges.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+            for (key, load) in edges {
+                let color = if by_stress {
+                    let t = load.clamp(0.0, 1.0);
+                    let (slack, loaded) =
+                        (self.style.soft_body_slack_color, self.style.soft_body_loaded_color);
+                    core::array::from_fn(|k| slack[k] + (loaded[k] - slack[k]) * t)
+                } else {
+                    element_color
+                };
+                backend.draw_line(
+                    object,
+                    sb.particle_position(key[0] as usize),
+                    sb.particle_position(key[1] as usize),
+                    color,
+                );
             }
             // Same reading as the rigid contacts: the depth segment joins the two witness
             // points, and the normal starts on the surface side. A contact sitting exactly on

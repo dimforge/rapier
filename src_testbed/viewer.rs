@@ -261,8 +261,19 @@ impl TestbedViewer {
             self.camera = Camera::default();
             self.state.camera_locked = false;
             self.state.example_settings.clear();
+            // An example may switch the debug renderer on for itself (see
+            // `set_debug_render`): the next one starts from the defaults.
+            self.debug_render = DebugRenderPipelineResource::default();
         }
         self.state.preserve_settings_on_switch = false;
+    }
+
+    /// Switches the debug renderer on or off, drawing what `mode` selects (see
+    /// `DebugRenderMode`): what the debug-render tab of the settings panel toggles, for an
+    /// example whose point is a debug overlay. Reset when another example is selected.
+    pub fn set_debug_render(&mut self, enabled: bool, mode: rapier::pipeline::DebugRenderMode) {
+        self.debug_render.enabled = enabled;
+        self.debug_render.pipeline.mode = mode;
     }
 
     // ──────────────────────────── camera / scene ────────────────────────────

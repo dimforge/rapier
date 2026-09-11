@@ -2054,6 +2054,10 @@ fn torn_soft_bodies_serialize() {
         })
         .map(|(i, _)| i as u32)
         .collect();
+    assert!(
+        world.tear_soft_body(handle, &diagonal, &[])
+            .is_some()
+    );
     for _ in 0..30 {
         world.step();
     }
@@ -3694,4 +3698,137 @@ fn fem_cloth_tears_when_pulled_apart() {
         sb.topology_version() > version_before,
         "the topology version was not bumped"
     );
+}
+
+/// A cut along a triangle blade follows the cells' facets: a blade through a tetrahedralized box,
+/// between two of its particle layers, splits the particles of the edges it meets, every cell
+/// going whole to the side of its centroid, and leaves two pieces without removing any cell.
+#[test]
+fn cut_splits_a_box_along_a_triangle() {
+    let mut world = world_with_ground();
+    let cuboid = SoftBodyBuilder::cuboid(
+        Vector::new(0.0, 2.0, 0.0),
+        Vector::new(1.0, 0.5, 0.5),
+        5,
+        3,
+        3,
+    )
+    .particle_mass(0.2);
+    let handle = world.insert_soft_body(cuboid);
+    world.step();
+    // A large triangle in the plane x = 0.2, between the particle layers x = 0 and x = 0.5 and
+    // away from the cell centroids (x = 0.125, 0.25 or 0.375 there).
+    let blade = [
+        Vector::new(0.2, -10.0, -10.0),
+        Vector::new(0.2, 20.0, -10.0),
+        Vector::new(0.2, -10.0, 20.0),
+    ];
+    let aside = blade.map(|v| v + Vector::X * 5.0);
+    assert!(
+        world.cut_soft_body(handle, &aside).is_none(),
+        "a blade beside the body cut something"
+    );
+    let event = world
+        .cut_soft_body(handle, &blade)
+        .expect("the blade crossed the box");
+    assert!(!event.torn_cells.is_empty() && !event.split_particles.is_empty());
+    assert_eq!(event.pieces.len(), 2);
+    // The two pieces are bodies of their own; every cell of a piece has its centroid on one
+    // side of the blade.
+    let bodies: Vec<SoftBodyHandle> = event.bodies().collect();
+    let mut sides = Vec::new();
+    let (mut cells_after, mut mass_after, mut measure_after) = (0, 0.0, 0.0);
+    for &h in &bodies {
+        let sb = &world.soft_bodies[h];
+        sb.validate_topology().unwrap();
+        assert_eq!(sb.connected_pieces().len(), 1);
+        cells_after += sb.cells().len();
+        mass_after += sb.mass();
+        measure_after += sb.rest_measure();
+        let mut side = None;
+        for c in sb.cells() {
+            let centroid: Vector = c
+                .vertices
+                .iter()
+                .map(|&v| sb.particle_position(v as usize))
+                .sum::<Vector>()
+                / 4.0;
+            assert_eq!(*side.get_or_insert(centroid.x < 0.2), centroid.x < 0.2);
+        }
+        sides.push(side.unwrap());
+    }
+    assert_eq!(cells_after, num_cells);
+    assert!((mass_after - mass).abs() < 1.0e-4 && (measure_after - measure).abs() < 1.0e-5);
+    assert_ne!(sides[0], sides[1]);
+    for &h in &bodies {
+        assert!(
+            world.cut_soft_body(h, &blade).is_none(),
+            "the same cut twice changed something"
+        );
+    }
+    for _ in 0..60 {
+        world.step();
+}
+
+/// The contact-modification hook sees the contacts between two soft surfaces (their
+/// candidates) and the soft-body solver follows its edits: a hook disabling every candidate
+/// between the two lets a jelly fall through a pinned cloth it otherwise rests on.
+#[test]
+fn modify_solver_contacts_edits_soft_soft_contacts() {
+    struct DropSoftSoft;
+    impl PhysicsHooks for DropSoftSoft {
+        fn modify_solver_contacts(&self, context: &mut ContactModificationContext) {
+            let soft = |h: ColliderHandle| context.colliders[h].user_data == 7;
+            if soft(context.collider1) && soft(context.collider2) {
+                // Two soft surfaces: their contacts are candidates, not solver contacts.
+                if let Some(candidates) = context.soft_mut() {
+                    candidates.disable_all();
+                }
+            }
+        }
+    }
+    let scene = |hooked: bool| {
+        let mut world = world_with_ground();
+        let n = 12;
+        let pinned: Vec<u32> = (0..(n * n) as u32).collect();
+        let template = ColliderBuilder::ball(0.04)
+            .user_data(7)
+            .active_hooks(if hooked {
+                ActiveHooks::MODIFY_SOLVER_CONTACTS
+            } else {
+                ActiveHooks::empty()
+            });
+        world.insert_soft_body(
+            SoftBodyBuilder::cloth(
+                Vector::new(-0.55, 1.0, -0.55),
+                Vector::X * 0.1,
+                Vector::Z * 0.1,
+                n,
+                n,
+            )
+            .pinned_particles(pinned)
+            .particle_mass(0.05)
+            .surface_collider(template.clone()),
+        );
+        let jelly = world.insert_soft_body(
+            SoftBodyBuilder::cuboid(Vector::new(0.0, 1.5, 0.0), Vector::splat(0.25), 3, 3, 3)
+                .cell_model(SoftBodyCellModel::Corotational)
+                .particle_mass(0.05)
+                .particle_radius(0.04)
+                .surface_collider(template),
+        );
+        for _ in 0..240 {
+            world.step_with_events(&DropSoftSoft, &());
+        }
+        assert_finite(&world, jelly);
+        let sb = &world.soft_bodies[jelly];
+        (0..sb.num_particles())
+            .map(|i| sb.particle_position(i).y)
+            .sum::<Real>()
+            / sb.num_particles() as Real
+    };
+    let resting = scene(false);
+    let dropped = scene(true);
+    assert!(resting > 1.1, "the jelly did not rest on the cloth: y = {resting}");
+    assert!(dropped < 0.5, "the hook did not drop the soft-soft contacts: y = {dropped}");
 }

@@ -123,3 +123,55 @@ fn soft_contacts_are_drawn_at_their_witness_points() {
         }
     }
 }
+
+/// With `SOFT_BODY_STRESS`, an element's color runs from the slack color to the loaded color
+/// with its tear load: an edge bearing half its tear force is drawn halfway, an unloaded edge
+/// in the slack color; without the flag every element keeps the element color.
+#[test]
+fn soft_elements_are_colored_by_their_load() {
+    let mut world = PhysicsWorld::new();
+    // Edge 0 hangs a unit mass (9.81 N, half the tear force); edge 1 joins two pinned
+    // particles and bears nothing.
+    let builder = SoftBodyBuilder::new(vec![
+        Vector::new(0.0, 2.0),
+        Vector::new(1.0, 2.0),
+        Vector::new(0.0, 1.0),
+        Vector::new(1.0, 1.0),
+    ])
+    .edges(vec![[0, 2], [1, 3]])
+    .pinned_particles([0, 1, 3])
+    .particle_mass(1.0)
+    .softness(SpringCoefficients::new(120.0, 1.0))
+    .tear_force(2.0 * 9.81)
+    .no_surface_collider()
+    .can_sleep(false);
+    let handle = world.insert_soft_body(builder);
+    for _ in 0..60 {
+        world.step();
+    }
+    let sb = &world.soft_bodies[handle];
+    let loaded = sb.edges()[0].stress();
+    assert!((loaded - 0.5).abs() < 0.05, "edge 0 bears {loaded} of its threshold");
+    assert!(sb.edges()[1].stress().abs() < 1.0e-6);
+
+    let style = DebugRenderStyle::default();
+    let render = |mode: DebugRenderMode| {
+        let mut pipeline = DebugRenderPipeline::new(style.clone(), mode);
+        let mut backend = LineCollector::default();
+        pipeline.render_soft_bodies(&mut backend, &world.soft_bodies);
+        backend.lines
+    };
+    // The lines come out sorted by particle pair: edge 0 first.
+    let plain = render(DebugRenderMode::SOFT_BODIES);
+    assert_eq!(plain.len(), 2);
+    assert!(plain.iter().all(|(.., c)| *c == style.soft_body_element_color));
+
+    let by_load = render(DebugRenderMode::SOFT_BODIES | DebugRenderMode::SOFT_BODY_STRESS);
+    assert_eq!(by_load.len(), 2);
+    let (slack, full) = (style.soft_body_slack_color, style.soft_body_loaded_color);
+    let expected: DebugColor = core::array::from_fn(|k| slack[k] + (full[k] - slack[k]) * loaded);
+    for k in 0..4 {
+        assert!((by_load[0].2[k] - expected[k]).abs() < 1.0e-4, "loaded edge color {:?}", by_load[0].2);
+    }
+    assert_eq!(by_load[1].2, slack);
+}

@@ -755,6 +755,13 @@ fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource)
                 "The soft bodies' intersection-volume constraints: each one's normal at its \
                  patch center, and the volume gradient at every particle it acts on.",
             ),
+            (
+                DebugRenderMode::SOFT_BODY_STRESS,
+                "Soft-body stress",
+                "Colors the soft bodies' elements by their load, blue when slack to red at \
+                 their tear threshold (by their stretch, full at 50%, for a body that never \
+                 tears). Needs the soft bodies drawn.",
+            ),
         ];
 
         for (flag, label, hover) in FLAGS {

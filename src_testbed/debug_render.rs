@@ -17,9 +17,13 @@ pub struct DebugRenderPipelineResource {
 impl Default for DebugRenderPipelineResource {
     fn default() -> Self {
         Self {
+            // AABBs and pseudo-normals are opt-in (both bury the scene under lines), and so is
+            // the soft-body stress coloring (it replaces the elements' color).
             pipeline: DebugRenderPipeline::new(
                 Default::default(),
-                !(DebugRenderMode::COLLIDER_AABBS | DebugRenderMode::PSEUDO_NORMALS),
+                !(DebugRenderMode::COLLIDER_AABBS
+                    | DebugRenderMode::PSEUDO_NORMALS
+                    | DebugRenderMode::SOFT_BODY_STRESS),
             ),
             enabled: false,
         }

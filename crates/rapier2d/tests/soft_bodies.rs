@@ -1233,13 +1233,13 @@ fn tearing_splits_the_particle_two_fans_share() {
     let idx = |i: u32, j: u32| i * ny + j;
         .edges()
         .iter()
-    assert!(
-        world
-            .soft_bodies
-            .tear(handle, &[], &torn, &mut world.bodies, &mut world.colliders)
-    );
+    let event = world.tear_soft_body(handle, &[edge], &[])
+        .expect("nothing tore");
     let sb = &world.soft_bodies[handle];
     sb.validate_topology().unwrap();
+    assert_eq!(event.soft_body, handle);
+    assert_eq!(event.torn_edges.len(), 1);
+    assert_eq!(event.pieces.len(), 2);
     let left: Vec<u32> = (0..=top).collect();
     let right: Vec<u32> = (top + 1..num_particles + 2).collect();
     assert_eq!(sb.connected_pieces(), vec![left, right]);
@@ -1810,6 +1810,25 @@ fn self_contact_blob_survives_grab_crush() {
     }
 }
 
+/// A 1 kg weight hung from a pinned bar by the tested edge `(3, 4)`, which bears the whole
+/// weight; a tear splits the edge's pinned end and the free copy falls with the weight. Bar and
+/// weight are three segments each, the smallest piece a tear may split off.
+fn hanging_weight(tear_force: Real) -> SoftBodyBuilder {
+    SoftBodyBuilder::new(vec![
+        Vector::new(-1.0, 2.0),
+        Vector::new(0.0, 2.0),
+        Vector::new(0.0, 1.0),
+        Vector::new(0.0, 0.0),
+    ])
+    // The pinned bar, the tested edge, and the weight's own edges (reinforced).
+    .edges(vec![[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7]])
+    .edge_tear_resistance([(4, 100.0), (5, 100.0), (6, 100.0)])
+    .pinned_particles([0, 1, 2, 3])
+    .particle_mass(0.25)
+    .softness(SpringCoefficients::new(120.0, 1.0))
+    .tear_force(tear_force)
+    .no_surface_collider()
+    .can_sleep(false)
 }
 
 /// A stiff edge holding a weight barely stretches, yet it bears the weight: with a tear force
@@ -2042,4 +2061,210 @@ fn edge_plasticity_keeps_a_dent() {
     for _ in 0..30 {
         world.step();
     }
+}
+
+/// Tears are reported to the event handler and keep every segment: a seven-particle rope whose
+/// middle edge snaps reports the torn edge, the split particle and two three-segment pieces.
+/// A three-segment piece cannot tear again, and an overloaded bottom edge never sheds a chip.
+#[test]
+fn tear_events_and_rope_ends() {
+    let rope = |num_particles: usize| {
+        let positions = (0..num_particles)
+            .map(|i| Vector::new(0.0, 3.0 - i as Real))
+            .collect();
+        let edges = (0..num_particles as u32 - 1).map(|i| [i, i + 1]).collect();
+        SoftBodyBuilder::new(positions)
+            .edges(edges)
+            .pinned_particles([0])
+            .particle_mass(1.0)
+            .softness(SpringCoefficients::new(120.0, 1.0))
+            .no_surface_collider()
+            .can_sleep(false)
+    };
+
+    // Seven particles: the middle edge bears three masses, past the tear force; the edges above
+    // it (four to six masses) are reinforced.
+    let mut world = PhysicsWorld::new();
+    let handle = world.insert_soft_body(
+        rope(7)
+            .edge_tear_resistance([(0, 4.0), (1, 4.0), (2, 4.0)])
+            .tear_force(24.0),
+    );
+    let log = TearLog::default();
+    for _ in 0..60 {
+        world.step_with_events(&(), &log);
+    }
+    {
+        let events = log.0.lock().unwrap();
+        assert_eq!(events.len(), 1, "one tear expected, got {events:?}");
+        let event = &events[0];
+        assert_eq!(event.soft_body, handle);
+        assert_eq!(event.torn_edges, vec![[3, 4]]);
+        assert!(event.torn_cells.is_empty());
+        assert_eq!(event.split_particles, vec![(7, 3)]);
+}
+}
+
+/// A blade across a grid between two of its columns splits the particles of the edges it meets,
+/// each cell going whole to the side of its centroid, leaving two pieces and removing no cell.
+/// A blade crossing nothing, and the same blade again, are no-ops.
+#[test]
+fn cut_splits_a_grid_along_a_segment() {
+    let mut world = world_with_ground();
+    let n = 5usize;
+    let grid = SoftBodyBuilder::grid(Vector::new(0.0, 2.0), Vector::splat(1.0), n, n)
+        .particle_mass(0.2);
+    let handle = world.insert_soft_body(grid);
+    world.step();
+    let sb = &world.soft_bodies[handle];
+    let (edges, cells) = sb.crossing_elements(&blade);
+    assert!(!edges.is_empty() && !cells.is_empty());
+    assert!(
+        world
+            .cut_soft_body(handle, &[Vector::new(5.0, -5.0), Vector::new(5.0, 10.0)])
+            .is_none(),
+        "a blade beside the body cut something"
+    );
+    let event = world
+        .cut_soft_body(handle, &blade)
+        .expect("the blade crossed the grid");
+    assert_eq!(event.pieces.len(), 2);
+    let bodies: Vec<SoftBodyHandle> = event.bodies().collect();
+    let mut sides = Vec::new();
+    let (mut cells_after, mut mass_after, mut measure_after) = (0, 0.0, 0.0);
+    for &h in &bodies {
+        let sb = &world.soft_bodies[h];
+        sb.validate_topology().unwrap();
+        assert_eq!(sb.connected_pieces().len(), 1);
+        cells_after += sb.cells().len();
+        mass_after += sb.mass();
+        measure_after += sb.rest_measure();
+        let mut side = None;
+        for c in sb.cells() {
+            let centroid: Vector = c
+                .vertices
+                .iter()
+                .map(|&v| sb.particle_position(v as usize))
+                .sum::<Vector>()
+                / 3.0;
+            assert_eq!(*side.get_or_insert(centroid.x < 0.25), centroid.x < 0.25);
+        }
+        sides.push(side.unwrap());
+    }
+    assert_eq!(cells_after, num_cells);
+    assert!((mass_after - mass).abs() < 1.0e-5 && (measure_after - measure).abs() < 1.0e-5);
+    assert_ne!(sides[0], sides[1]);
+    for &h in &bodies {
+        assert!(
+            world.cut_soft_body(h, &blade).is_none(),
+            "the same cut twice changed something"
+        );
+    }
+    for _ in 0..60 {
+        world.step();
+}
+
+/// Point and radial impulses with a linear falloff: the particle on the point takes the whole
+/// impulse over its mass, one halfway to the radius half of it, one at the radius or beyond
+/// nothing, and a pinned particle nothing at all; the radial variant pushes away from the center.
+#[test]
+fn impulses_fall_off_with_the_distance() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let builder = SoftBodyBuilder::new(vec![
+        Vector::new(0.0, 0.0),
+        Vector::new(1.0, 0.0),
+        Vector::new(2.0, 0.0),
+        Vector::new(0.0, 1.0),
+        Vector::new(-1.0, 0.0),
+    ])
+    .edges(vec![[0, 1], [1, 2], [0, 3], [0, 4]])
+    .pinned_particles([3])
+    .masses(vec![1.0, 2.0, 1.0, 1.0, 1.0])
+    .no_surface_collider();
+    let handle = world.insert_soft_body(builder);
+    let sb = &mut world.soft_bodies[handle];
+    sb.apply_impulse_at_point(Vector::new(0.0, 4.0), Vector::ZERO, 2.0, true);
+    let v = |i: usize| sb.particle_velocity(i);
+    assert!((v(0) - Vector::new(0.0, 4.0)).length() < 1.0e-6, "on the point: {:?}", v(0));
+    assert!((v(1) - Vector::new(0.0, 1.0)).length() < 1.0e-6, "halfway, twice the mass: {:?}", v(1));
+    assert_eq!(v(2), Vector::ZERO, "at the radius");
+    assert_eq!(v(3), Vector::ZERO, "pinned");
+    assert!((v(4) - Vector::new(0.0, 2.0)).length() < 1.0e-6, "halfway: {:?}", v(4));
+
+    for i in 0..sb.num_particles() {
+        sb.set_particle_velocity(i, Vector::ZERO);
+    }
+    sb.apply_radial_impulse(Vector::ZERO, 4.0, 2.0, true);
+    let v = |i: usize| sb.particle_velocity(i);
+    assert_eq!(v(0), Vector::ZERO, "on the center: no direction");
+    assert!((v(1) - Vector::new(1.0, 0.0)).length() < 1.0e-6, "pushed right: {:?}", v(1));
+    assert_eq!(v(2), Vector::ZERO, "at the radius");
+    assert_eq!(v(3), Vector::ZERO, "pinned");
+    assert!((v(4) - Vector::new(-2.0, 0.0)).length() < 1.0e-6, "pushed left: {:?}", v(4));
+
+    // Without a falloff radius every free particle gets the whole impulse.
+    for i in 0..sb.num_particles() {
+        sb.set_particle_velocity(i, Vector::ZERO);
+    }
+    sb.apply_impulse_at_point(Vector::new(0.0, 4.0), Vector::ZERO, 0.0, true);
+    assert!((sb.particle_velocity(2) - Vector::new(0.0, 4.0)).length() < 1.0e-6);
+}
+
+/// The contact-modification hook sees the contacts between two soft surfaces (their
+/// candidates) and the soft-body solver follows its edits: a hook disabling every candidate
+/// between the two lets a blob fall through a pinned rope it otherwise rests on.
+#[test]
+fn modify_solver_contacts_edits_soft_soft_contacts() {
+    struct DropSoftSoft;
+    impl PhysicsHooks for DropSoftSoft {
+        fn modify_solver_contacts(&self, context: &mut ContactModificationContext) {
+            let soft = |h: ColliderHandle| context.colliders[h].user_data == 7;
+            if soft(context.collider1) && soft(context.collider2) {
+                // Two soft surfaces: their contacts are candidates, not solver contacts.
+                if let Some(candidates) = context.soft_mut() {
+                    candidates.disable_all();
+                }
+            }
+        }
+    }
+    let scene = |hooked: bool| {
+        let mut world = world_with_ground();
+        let n = 11;
+        let template = ColliderBuilder::ball(0.04)
+            .user_data(7)
+            .active_hooks(if hooked {
+                ActiveHooks::MODIFY_SOLVER_CONTACTS
+            } else {
+                ActiveHooks::empty()
+            });
+        world.insert_soft_body(
+            SoftBodyBuilder::rope(Vector::new(-0.6, 1.0), Vector::new(0.6, 1.0), n)
+                .pinned_particles(0..n as u32)
+                .particle_mass(0.05)
+                .particle_radius(0.04)
+                .surface_collider(template.clone()),
+        );
+        let blob = world.insert_soft_body(
+            SoftBodyBuilder::disk(Vector::new(0.0, 1.6), 0.35, 20)
+                .softness(SpringCoefficients::new(20.0, 1.0))
+                .volume_factor(1.1)
+                .particle_mass(0.05)
+                .particle_radius(0.06)
+                .surface_collider(template),
+        );
+        for _ in 0..240 {
+            world.step_with_events(&DropSoftSoft, &());
+        }
+        assert_finite(&world, blob);
+        let sb = &world.soft_bodies[blob];
+        (0..sb.num_particles())
+            .map(|i| sb.particle_position(i).y)
+            .sum::<Real>()
+            / sb.num_particles() as Real
+    };
+    let resting = scene(false);
+    let dropped = scene(true);
+    assert!(resting > 1.1, "the blob did not rest on the rope: y = {resting}");
+    assert!(dropped < 0.6, "the hook did not drop the soft-soft contacts: y = {dropped}");
 }

@@ -32,6 +32,8 @@ impl EventHandler for UnsyncEventCollector {
         _total_force_magnitude: Real,
     ) {
     }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
 }
 
 #[test]

@@ -53,3 +53,4 @@ mod soft_body_plasticity;
 mod soft_body_set;
 pub(crate) mod soft_body_shape_matching;
 mod tearing;
+pub use self::tearing::{SoftBodyPiece, SoftBodyTearEvent, SoftClusterSplit, SoftJointMove};

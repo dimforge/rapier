@@ -391,7 +391,7 @@ fn tearing_keeps_cluster_joints_alive() {
     world.step();
     // Tear a couple of middle edges.
     let torn = world.tear_soft_body(h, &[28, 30], &[]);
-    assert!(torn);
+    assert!(torn.is_some());
     world.soft_bodies[h].validate_topology().unwrap();
     for _ in 0..60 {
         world.step();
