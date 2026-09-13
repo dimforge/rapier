@@ -244,6 +244,7 @@ pub struct ContactPair {
     /// Event bookkeeping: `CollisionEvent::Started` emission and force-event
     /// threshold status.
     pub(crate) event_status: PairEventStatus,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
     /// State cached at the last full narrow-phase update, allowing the update to be
     /// skipped ("recycled") while the colliders' relative pose stays within
