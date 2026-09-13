@@ -922,6 +922,8 @@ impl KinematicCharacterController {
         // World pose of the collider each manifold was computed against: the `local_p2`
         // points are in the collider’s frame, which differs from its body’s when offset.
         let mut manifold_collider_poses: Vec<Pose> = vec![];
+        // output vec for contact manifolds returned by parry
+        let mut pair_manifolds: Vec<ContactManifold> = vec![];
         let character_aabb = character_shape
             .compute_aabb(&collision.character_pos)
             .loosened(prediction);
@@ -931,21 +933,22 @@ impl KinematicCharacterController {
                 if let Some(body) = queries.bodies.get(parent.handle) {
                     if body.is_dynamic() {
                         let pos12 = collision.character_pos.inv_mul(collider.position());
-                        let prev_manifolds_len = manifolds.len();
+                        pair_manifolds.clear();
                         let _ = dispatcher.contact_manifolds(
                             &pos12,
                             character_shape,
                             collider.shape(),
                             prediction,
-                            &mut manifolds,
+                            &mut pair_manifolds,
                             &mut None,
                         );
 
-                        for m in &mut manifolds[prev_manifolds_len..] {
+                        for mut m in pair_manifolds.drain(..) {
                             m.data.rigid_body2 = Some(parent.handle);
                             m.data.normal = collision.character_pos.rotation * m.local_n1;
+                            manifolds.push(m);
+                            manifold_collider_poses.push(*collider.position());
                         }
-                        manifold_collider_poses.resize(manifolds.len(), *collider.position());
                     }
                 }
             }
@@ -1373,5 +1376,113 @@ mod test {
 
         // The floor lies in the +Y direction, i.e. along `-up`, so the character is grounded.
         assert!(movement.grounded);
+    }
+    #[test]
+    fn character_controller_impulses_with_multiple_dynamic_bodies() {
+        // `solve_character_collision_impulses` used to gather every nearby body's manifolds
+        // into one vec and slice it at the previous length, assuming `contact_manifolds`
+        // appends. Parry's composite-shape paths rebuild the vec for the current pair instead,
+        // so with a compound character and two dynamic bodies in range the second pair either
+        // indexed past the end or left its manifolds without a body handle, panicking either way.
+        let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
+        let mut multibody_joints = MultibodyJointSet::new();
+        let mut pipeline = PhysicsPipeline::new();
+        let mut bf = BroadPhaseBvh::new();
+        let mut nf = NarrowPhase::new();
+        let mut islands = IslandManager::new();
+        let mut bodies = RigidBodySet::new();
+
+        let ground = RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.6, 0.0));
+        let ground_handle = bodies.insert(ground);
+        colliders.insert_with_parent(
+            ColliderBuilder::cuboid(10.0, 0.1, 10.0),
+            ground_handle,
+            &mut bodies,
+        );
+
+        // A 1x1x1 character made of two stacked half-cubes, so its shape is a compound.
+        let character_handle = bodies.insert(RigidBodyBuilder::kinematic_position_based());
+        let character_collider = ColliderBuilder::compound(vec![
+            (
+                Pose::from_translation(Vector::new(0.0, -0.25, 0.0)),
+                SharedShape::cuboid(0.5, 0.25, 0.5),
+            ),
+            (
+                Pose::from_translation(Vector::new(0.0, 0.25, 0.0)),
+                SharedShape::cuboid(0.5, 0.25, 0.5),
+            ),
+        ])
+        .build();
+        colliders.insert_with_parent(character_collider.clone(), character_handle, &mut bodies);
+
+        // Two dynamic unit cubes touching the character: one ahead (+X), in the movement
+        // path, and one beside it (+Z), close enough to be gathered by the impulse solver but
+        // not in the way.
+        let mut insert_box = |translation: Vector| {
+            let handle = bodies.insert(RigidBodyBuilder::dynamic().translation(translation));
+            colliders.insert_with_parent(
+                ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+                handle,
+                &mut bodies,
+            );
+            handle
+        };
+        let box_ahead = insert_box(Vector::new(1.0, 0.0, 0.0));
+        let box_beside = insert_box(Vector::new(0.0, 0.0, 1.0));
+
+        let integration_parameters = IntegrationParameters::default();
+        pipeline.step(
+            Vector::ZERO,
+            &integration_parameters,
+            &mut islands,
+            &mut bf,
+            &mut nf,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut CCDSolver::new(),
+            &(),
+            &(),
+        );
+
+        let controller = KinematicCharacterController::default();
+        let filter = QueryFilter::new().exclude_rigid_body(character_handle);
+
+        let mut collisions = vec![];
+        let query_pipeline =
+            bf.as_query_pipeline(nf.query_dispatcher(), &bodies, &colliders, filter);
+        controller.move_shape(
+            integration_parameters.dt,
+            &query_pipeline,
+            character_collider.shape(),
+            bodies[character_handle].position(),
+            Vector::new(0.1, 0.0, 0.0),
+            |c| collisions.push(c),
+        );
+        assert!(
+            collisions
+                .iter()
+                .any(|c| colliders[c.handle].parent() == Some(box_ahead)),
+            "the character should have run into the box ahead of it"
+        );
+
+        let mut query_pipeline_mut =
+            bf.as_query_pipeline_mut(nf.query_dispatcher(), &mut bodies, &mut colliders, filter);
+        // This used to panic with "range start index N out of range for slice of length 0"
+        // or on `rigid_body2.unwrap()`.
+        controller.solve_character_collision_impulses(
+            integration_parameters.dt,
+            &mut query_pipeline_mut,
+            character_collider.shape(),
+            1.0,
+            &collisions,
+        );
+
+        // The box ahead was pushed forward; the box beside lies across the motion and is
+        // left alone.
+        assert!(bodies[box_ahead].linvel().x > 0.0);
+        assert_eq!(bodies[box_beside].linvel(), Vector::ZERO);
     }
 }
