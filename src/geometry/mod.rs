@@ -284,6 +284,7 @@ mod collider_components;
 mod collider_handle;
 #[cfg(feature = "alloc")]
 pub(crate) mod contact_pair;
+pub mod contact_persistence;
 #[cfg(feature = "alloc")]
 mod interaction_graph;
 mod interaction_groups;

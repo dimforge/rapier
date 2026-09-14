@@ -329,6 +329,26 @@ impl Default for ContactPair {
 }
 
 impl ContactPair {
+    /// Returns a deterministic identifier for this collider pair.
+    /// The identifier remains stable while both collider handles remain alive,
+    /// and can be used by applications to persist per-pair contact state.
+    pub fn persistent_id(&self) -> u128 {
+        let (a, b) = (
+            self.collider1.into_raw_parts(),
+            self.collider2.into_raw_parts(),
+        );
+        let (a, b) = if a <= b { (a, b) } else { (b, a) };
+        ((a.0 as u128) << 96) | ((a.1 as u128) << 64) | ((b.0 as u128) << 32) | b.1 as u128
+    }
+
+    /// Returns a deterministic identifier for a contact point within this pair.
+    /// The manifold and contact indices are stable for the duration of a solver
+    /// step and can be combined with [`Self::persistent_id`] for frame-local caches.
+    pub fn persistent_contact_id(&self, manifold_index: usize, contact_index: usize) -> u128 {
+        self.persistent_id()
+            .wrapping_mul(0x9e3779b97f4a7c15u128)
+            .wrapping_add(((manifold_index as u128) << 64) | contact_index as u128)
+    }
     pub(crate) fn new(collider1: ColliderHandle, collider2: ColliderHandle) -> Self {
         Self {
             collider1,
