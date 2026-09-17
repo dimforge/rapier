@@ -246,6 +246,13 @@ pub async fn main() {
         STRESS, "Many pyramids", stress_tests::many_pyramids3::run;
         STRESS, "Keva tower", stress_tests::keva3::run;
         STRESS, "Ray cast", stress_tests::ray_cast3::run;
+        STRESS, "Soft blobs", stress_tests::soft_blobs3::run;
+        STRESS, "Soft jellies", stress_tests::soft_jellies3::run;
+        STRESS, "Soft ropes", stress_tests::soft_ropes3::run;
+        STRESS, "Soft cloth drape", stress_tests::soft_cloth_drape3::run;
+        STRESS, "Soft cloth on Keva tower", stress_tests::soft_cloth_keva3::run;
+        STRESS, "Soft slab shower", stress_tests::soft_slab3::run;
+        STRESS, "Soft FEM beams", stress_tests::soft_fem_beams3::run;
         // ── Box3D benchmarks (ports of box3d/benchmark) ─────────────────────
         B3D, "Large pyramid", b3d_large_pyramid::run;
         B3D, "Many pyramids", b3d_many_pyramids::run;

@@ -205,6 +205,13 @@ pub async fn main() {
         STRESS, "(Stress test) joint ball", stress_tests::joint_ball2::run;
         STRESS, "(Stress test) joint fixed", stress_tests::joint_fixed2::run;
         STRESS, "(Stress test) joint prismatic", stress_tests::joint_prismatic2::run;
+        STRESS, "Soft blobs", stress_tests::soft_blobs2::run;
+        STRESS, "Soft jellies", stress_tests::soft_jellies2::run;
+        STRESS, "Soft ropes", stress_tests::soft_ropes2::run;
+        STRESS, "Soft strips", stress_tests::soft_strips2::run;
+        STRESS, "Soft cloth on Keva tower", stress_tests::soft_cloth_keva2::run;
+        STRESS, "Soft slab shower", stress_tests::soft_slab2::run;
+        STRESS, "Soft FEM beams", stress_tests::soft_fem_beams2::run;
     ];
 
     let (entries, run_fns): (Vec<_>, Vec<ExampleFn>) = examples.into_iter().unzip();

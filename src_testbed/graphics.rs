@@ -85,6 +85,19 @@ fn convex_shape_hash(shape: &dyn Shape) -> Option<u64> {
     Some(hasher.finish())
 }
 
+/// Whether a triangle mesh has a boundary (an edge belonging to a single triangle): a cloth, a
+/// torn piece, an open shell, as opposed to a closed surface.
+#[cfg(feature = "dim3")]
+pub(super) fn is_open_surface(indices: &[[u32; 3]]) -> bool {
+    let mut edges = std::collections::HashMap::with_capacity(indices.len() * 3);
+    for [a, b, c] in indices {
+        for (i, j) in [(a, b), (b, c), (c, a)] {
+            *edges.entry((i.min(j), i.max(j))).or_insert(0u32) += 1;
+        }
+    }
+    edges.values().any(|&count| count == 1)
+}
+
 /// Build a kiss3d render mesh for a convex polyhedron (used as an instancing
 /// template). Returns `None` for non-convex shapes.
 #[cfg(feature = "dim3")]
@@ -176,6 +189,8 @@ pub enum NodeLocation {
 pub struct GraphicsManager {
     scene: SceneNode,
     curr_color_index: usize,
+    /// Number of fixed bodies colored so far (the first one gets the ground color).
+    num_fixed_colored: usize,
     /// Template nodes for instanced primitives
     templates: HashMap<ShapeTemplateType, ShapeTemplate>,
     /// Individual nodes for complex shapes (trimesh, heightfield, etc.)
@@ -225,6 +240,15 @@ const GROUND_COLOR: Color = Color {
     a: 1.0,
 };
 
+/// Color of the fixed bodies other than the first one (the ground, in practice): lighter than
+/// the ground so a fixed box does not blend into the floor it stands on.
+const FIXED_COLOR: Color = Color {
+    r: 0.72,
+    g: 0.68,
+    b: 0.62,
+    a: 1.0,
+};
+
 /// Base-color alpha applied to the transparent instance node of every shape
 /// template. kiss3d routes an entire instanced node to either the opaque or the
 /// order-independent-transparency pass based on the node's base-color alpha
@@ -265,6 +289,7 @@ impl GraphicsManager {
         GraphicsManager {
             scene: Default::default(),
             curr_color_index: 0,
+            num_fixed_colored: 0,
             templates: HashMap::new(),
             individual_nodes: Vec::new(),
             body_attached_nodes: Vec::new(),
@@ -287,15 +312,18 @@ impl GraphicsManager {
     pub fn clear(&mut self) {
         self.scene = SceneNode::empty();
         self.curr_color_index = 0;
+        self.num_fixed_colored = 0;
         #[cfg(feature = "dim3")]
         {
             // A key light off the (1, 1, 1) diagonal, so the three faces of a box seen from the
             // usual eye get three different shades, and a weak fill from the other side so the
             // faces it misses are not flat ambient.
-            let mut light = self
+            let mut key = self
                 .scene
-                .add_light(Light::directional(Vec3::new(-1.0, -1.0, -1.0)));
-            light.set_position(Vec3::new(100.0, 100.0, 100.0));
+                .add_light(Light::directional(Vec3::new(-0.35, -1.0, -0.6)));
+            key.set_position(Vec3::new(100.0, 100.0, 100.0));
+            self.scene
+                .add_light(Light::directional(Vec3::new(0.6, -0.25, 0.75)).with_intensity(0.8));
         }
 
         self.templates.clear();
@@ -827,7 +855,12 @@ impl GraphicsManager {
     fn alloc_color(&mut self, handle: RigidBodyHandle, is_fixed: bool) -> Color {
         let mut color = self.ground_color;
 
-        if !is_fixed {
+        if is_fixed {
+            if self.num_fixed_colored > 0 {
+                color = FIXED_COLOR;
+            }
+            self.num_fixed_colored += 1;
+        } else {
             match self.b2color.get(&handle).cloned() {
                 Some(c) => color = c,
                 None => color = Self::gen_color(&mut self.curr_color_index),
@@ -992,13 +1025,26 @@ impl GraphicsManager {
         use kiss3d::procedural::{IndexBuffer, RenderMesh};
 
         fn to_render_mesh(trimesh: &rapier::geometry::TriMesh, smooth: bool) -> RenderMesh {
-            let vtx = trimesh
+            let mut vtx: Vec<Vec3> = trimesh
                 .vertices()
                 .iter()
                 .map(|pt| Vec3::new(pt.x as f32, pt.y as f32, pt.z as f32))
                 .collect();
-            let idx = trimesh.indices().to_vec();
+            let mut idx = trimesh.indices().to_vec();
+            // An open surface is seen from both sides but the shader lights a face by its own
+            // normal, so the back side gets its own triangles wound the other way (and its own
+            // vertices when shared, so normals can differ); `write_mesh_vertices` matches.
+            if is_open_surface(&idx) {
+                let n = if smooth { vtx.len() as u32 } else { 0 };
+                let back: Vec<[u32; 3]> =
+                    idx.iter().map(|[a, b, c]| [a + n, c + n, b + n]).collect();
+                if smooth {
+                    vtx.extend_from_within(..);
+                }
+                idx.extend(back);
+            }
             let mut mesh = RenderMesh::new(vtx, None, None, Some(IndexBuffer::Unified(idx)));
+            // Unshared vertices (three per triangle) give per-face normals: flat shading.
             if !smooth {
                 mesh.replicate_vertices();
             }

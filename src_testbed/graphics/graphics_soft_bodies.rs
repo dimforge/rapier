@@ -82,10 +82,17 @@ fn write_mesh_vertices(
     vertices: &[rapier::math::Vector],
     indices: &[[u32; 3]],
 ) -> bool {
-    let expected = if smooth {
+    let single = if smooth {
         vertices.len()
     } else {
         indices.len() * 3
+    };
+    // An open surface is built double-sided (see `create_individual_node`): a second copy of
+    // the geometry, wound the other way, after the first.
+    let expected = if super::is_open_surface(indices) {
+        single * 2
+    } else {
+        single
     };
     let mut usable = true;
     node.modify_vertices(&mut |vtx: &mut Vec<Vec3>| {
@@ -101,10 +108,22 @@ fn write_mesh_vertices(
             for (v, i) in vtx.iter_mut().zip(0..vertices.len() as u32) {
                 *v = point(i);
             }
+            if expected > single {
+                let (front, back) = vtx.split_at_mut(single);
+                back.copy_from_slice(front);
+            }
         } else {
             for (triangle, corners) in indices.iter().enumerate() {
                 for (k, corner) in corners.iter().enumerate() {
                     vtx[triangle * 3 + k] = point(*corner);
+                }
+            }
+            if expected > single {
+                for (triangle, [a, b, c]) in indices.iter().enumerate() {
+                    let base = single + triangle * 3;
+                    vtx[base] = point(*a);
+                    vtx[base + 1] = point(*c);
+                    vtx[base + 2] = point(*b);
                 }
             }
         }
