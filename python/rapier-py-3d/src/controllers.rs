@@ -701,7 +701,7 @@ impl KinematicCharacterController {
                 bp.0.as_query_pipeline(np.0.query_dispatcher(), &bodies.0, &colliders.0, qf);
 
             let result = (|qp: rapier::pipeline::QueryPipeline<'_>| {
-                let mv = inner.move_shape(dt, &qp, &*shape.0.0, &pose, desired, |collision| {
+                let mv = inner.move_shape(dt, &qp, &*shape.0 .0, &pose, desired, |collision| {
                     if let Some(ref obj) = cb_obj {
                         let py_col = CharacterCollision::from_rapier(collision);
                         if let Err(e) = obj.call1(py, (py_col,)) {
@@ -781,7 +781,7 @@ impl KinematicCharacterController {
         self.0.solve_character_collision_impulses(
             dt,
             &mut qpmut,
-            &*character_shape.0.0,
+            &*character_shape.0 .0,
             character_mass,
             collisions_rs.iter(),
         );

@@ -106,7 +106,12 @@ impl SolverFlags {
     /// Compute impulses for this contact pair (i.e. solve the contact).
     #[classattr]
     const COMPUTE_IMPULSES: SolverFlags =
-        SolverFlags(rapier::geometry::SolverFlags::COMPUTE_IMPULSES);
+        SolverFlags(rapier::geometry::SolverFlags::COMPUTE_RIGID_IMPULSES);
+    /// Compute impulses between two rigid colliders (the name the engine uses for
+    /// ``COMPUTE_IMPULSES``).
+    #[classattr]
+    const COMPUTE_RIGID_IMPULSES: SolverFlags =
+        SolverFlags(rapier::geometry::SolverFlags::COMPUTE_RIGID_IMPULSES);
     /// Empty flag set — equivalent to :meth:`empty`.
     #[classattr]
     const EMPTY: SolverFlags = SolverFlags(rapier::geometry::SolverFlags::empty());
@@ -587,6 +592,40 @@ impl rapier::pipeline::EventHandler for PyEventHandler {
         });
     }
 
+    fn handle_soft_body_tear_event(
+        &self,
+        _soft_bodies: &rapier::dynamics::SoftBodySet,
+        event: &rapier::dynamics::SoftBodyTearEvent,
+    ) {
+        {
+            let slot = self.err_slot.lock().unwrap();
+            if slot.aborted {
+                return;
+            }
+        }
+        Python::with_gil(|py| {
+            let bound = self.obj.bind(py);
+            // The method is optional: handlers written before soft bodies existed keep working.
+            if !bound
+                .hasattr("handle_soft_body_tear_event")
+                .unwrap_or(false)
+            {
+                return;
+            }
+            let py_event = crate::soft_body::SoftBodyTearEvent(event.clone());
+            let res = bound.call_method1("handle_soft_body_tear_event", (py.None(), py_event));
+            if let Err(e) = res {
+                let mut s = self.err_slot.lock().unwrap();
+                if s.err.is_none() {
+                    s.err = Some(e);
+                }
+                if s.policy_strict {
+                    s.aborted = true;
+                }
+            }
+        });
+    }
+
     fn handle_contact_force_event(
         &self,
         dt: Real,
@@ -658,6 +697,7 @@ impl rapier::pipeline::EventHandler for PyEventHandler {
 pub struct ChannelEventCollector {
     collisions: Arc<Mutex<Vec<CollisionEvent>>>,
     forces: Arc<Mutex<Vec<ContactForceEvent>>>,
+    tears: Arc<Mutex<Vec<crate::soft_body::SoftBodyTearEvent>>>,
 }
 
 #[pymethods]
@@ -668,7 +708,15 @@ impl ChannelEventCollector {
         Self {
             collisions: Arc::new(Mutex::new(Vec::new())),
             forces: Arc::new(Mutex::new(Vec::new())),
+            tears: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    /// Consume and return every queued :class:`SoftBodyTearEvent`.
+    ///
+    /// After this call the internal tear buffer is empty.
+    fn drain_soft_body_tear_events(&self) -> Vec<crate::soft_body::SoftBodyTearEvent> {
+        std::mem::take(&mut *self.tears.lock().unwrap())
     }
 
     /// Consume and return every queued :class:`CollisionEvent`.
@@ -691,15 +739,18 @@ impl ChannelEventCollector {
         std::mem::take(&mut *self.forces.lock().unwrap())
     }
 
-    /// Drop every queued collision and contact-force event.
+    /// Drop every queued collision, contact-force and tear event.
     fn clear(&self) {
         self.collisions.lock().unwrap().clear();
         self.forces.lock().unwrap().clear();
+        self.tears.lock().unwrap().clear();
     }
 
-    /// Total queued events (collisions + contact-force).
+    /// Total queued events (collisions + contact-force + tears).
     fn __len__(&self) -> usize {
-        self.collisions.lock().unwrap().len() + self.forces.lock().unwrap().len()
+        self.collisions.lock().unwrap().len()
+            + self.forces.lock().unwrap().len()
+            + self.tears.lock().unwrap().len()
     }
 
     /// Debug repr — shows the per-buffer queue lengths.
@@ -718,6 +769,7 @@ impl ChannelEventCollector {
         ChannelEventCollectorAdapter {
             collisions: Arc::clone(&self.collisions),
             forces: Arc::clone(&self.forces),
+            tears: Arc::clone(&self.tears),
         }
     }
 }
@@ -728,9 +780,21 @@ impl ChannelEventCollector {
 pub struct ChannelEventCollectorAdapter {
     collisions: Arc<Mutex<Vec<CollisionEvent>>>,
     forces: Arc<Mutex<Vec<ContactForceEvent>>>,
+    tears: Arc<Mutex<Vec<crate::soft_body::SoftBodyTearEvent>>>,
 }
 
 impl rapier::pipeline::EventHandler for ChannelEventCollectorAdapter {
+    fn handle_soft_body_tear_event(
+        &self,
+        _soft_bodies: &rapier::dynamics::SoftBodySet,
+        event: &rapier::dynamics::SoftBodyTearEvent,
+    ) {
+        self.tears
+            .lock()
+            .unwrap()
+            .push(crate::soft_body::SoftBodyTearEvent(event.clone()));
+    }
+
     fn handle_collision_event(
         &self,
         _bodies: &rapier::dynamics::RigidBodySet,
@@ -906,14 +970,20 @@ impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
                 return;
             }
         }
+        // The contacts of two soft surfaces are candidates rather than a manifold: the Python
+        // hook only sees rigid manifolds.
+        let manifold = match &mut context.contacts {
+            rapier::pipeline::ModifiableContacts::Rigid(manifold) => manifold,
+            rapier::pipeline::ModifiableContacts::Soft(_) => return,
+        };
         Python::with_gil(|py| {
-            let manifold_local_n1 = context.manifold.local_n1;
-            let manifold_local_n2 = context.manifold.local_n2;
-            let normal_ptr: *mut rapier::math::Vector = context.normal;
-            let sc_ptr: *mut Vec<rapier::geometry::SolverContact> = context.solver_contacts;
-            let friction_ptr: *mut Real = context.friction;
-            let restitution_ptr: *mut Real = context.restitution;
-            let ud_ptr: *mut u32 = context.user_data;
+            let manifold_local_n1 = manifold.manifold.local_n1;
+            let manifold_local_n2 = manifold.manifold.local_n2;
+            let normal_ptr: *mut rapier::math::Vector = manifold.normal;
+            let sc_ptr: *mut Vec<rapier::geometry::SolverContact> = manifold.solver_contacts;
+            let friction_ptr: *mut Real = manifold.friction;
+            let restitution_ptr: *mut Real = manifold.restitution;
+            let ud_ptr: *mut u32 = manifold.user_data;
             let ctx_py = match Py::new(
                 py,
                 ContactModificationContext {

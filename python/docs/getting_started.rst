@@ -89,6 +89,7 @@ What to read next
 -----------------
 
 * :doc:`api/dynamics` — rigid bodies, mass, integration.
+* :doc:`api/soft_bodies` — cloth, ropes, jellies; tearing, cutting, clusters.
 * :doc:`api/pipeline` — stepping a world manually & query pipelines.
 * :doc:`api/joints` — impulse + multibody joints, motors, limits.
 * :doc:`api/controllers` — kinematic character, PID/PD, ray-cast

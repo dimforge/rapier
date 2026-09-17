@@ -10,6 +10,28 @@ release cadence. The authoritative changelog is the Cargo
 Unreleased
 ----------
 
+**Soft bodies.** ``PhysicsWorld.add_soft_body`` inserts a deformable body
+(``SoftBody.rope`` / ``cloth`` / ``cuboid`` / ``sphere`` / ``trimesh`` /
+``volumetric`` generators, ``SoftBodyBuilder`` setters, ``SoftBodyMaterial``),
+simulated together with the rigid bodies, contacts and joints; ``world.soft_bodies``
+is the ``SoftBodySet``. Particles can be pinned, attached to rigid bodies, driven
+kinematically or pushed by forces and impulses; clusters
+(``add_soft_body_cluster``) give a set of particles a rigid proxy that joints and
+colliders attach to; deformable colliders (``insert_deformable``) bind a triangle
+mesh to a cluster. Tearing and cutting (``tear_soft_body``, ``cut_soft_body``,
+material thresholds) split pieces off into soft bodies of their own and report a
+``SoftBodyTearEvent`` (``EventHandler.handle_soft_body_tear_event``,
+``ChannelEventCollector.drain_soft_body_tear_events``). See :doc:`api/soft_bodies`.
+
+Related changes: ``RigidBodyType.SOFT_FRAME`` marks the proxies of soft-body
+clusters (``RigidBody.is_soft_frame`` / ``soft_body`` / ``soft_cluster``);
+``RigidBody.additional_pgs_iterations``; ``IntegrationParameters.soft_bodies``
+(``SoftBodiesSettings``); ``RigidBodySet.remove``, ``ColliderSet.remove``,
+``PhysicsPipeline.step`` and ``DebugRenderPipeline.render`` / ``render_to_arrays``
+take an optional ``soft_bodies`` argument; ``DebugRenderMode.SOFT_BODIES`` and
+related modes; snapshots include the soft bodies; ``SolverFlags.COMPUTE_RIGID_IMPULSES``
+is the engine's new name for ``COMPUTE_IMPULSES``.
+
 **Breaking — repackaged as ``rapier3d``.** The single ``rapier`` umbrella
 package (with ``rapier.dim3`` submodules) has been replaced by the
 ``rapier3d`` package (3D / f32):

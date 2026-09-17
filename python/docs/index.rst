@@ -65,6 +65,7 @@ Contents
    api/world
    api/math
    api/dynamics
+   api/soft_bodies
    api/geometry
    api/joints
    api/pipeline

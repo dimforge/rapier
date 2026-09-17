@@ -1727,7 +1727,7 @@ impl QueryPipeline {
 
             let result = (|qp: rapier::pipeline::QueryPipeline<'_>| {
                 Ok(qp
-                    .cast_shape(&pose, vel, &*shape.0.0, options.0)
+                    .cast_shape(&pose, vel, &*shape.0 .0, options.0)
                     .map(|(h, hit)| (ColliderHandle(h), ShapeCastHit::from_parry(hit))))
             })(qp);
             if let Some(e) = pred_err.into_inner() {
@@ -1823,7 +1823,7 @@ impl QueryPipeline {
                 Ok(qp
                     .cast_shape_nonlinear(
                         &motion.0,
-                        &*shape.0.0,
+                        &*shape.0 .0,
                         start_time,
                         end_time,
                         options.0.stop_at_penetration,
@@ -1913,7 +1913,7 @@ impl QueryPipeline {
                 bp.0.as_query_pipeline(np.0.query_dispatcher(), &bodies.0, &colliders.0, qf);
 
             let result = (|qp: rapier::pipeline::QueryPipeline<'_>| {
-                for (h, _co) in qp.intersect_shape(pose, &*shape.0.0) {
+                for (h, _co) in qp.intersect_shape(pose, &*shape.0 .0) {
                     let res = callback.call1(py, (ColliderHandle(h),))?;
                     if let Ok(b) = res.extract::<bool>(py) {
                         if !b {
@@ -2466,6 +2466,7 @@ impl PhysicsPipeline {
         ccd_solver,
         hooks=None,
         events=None,
+        soft_bodies=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn step(
@@ -2483,6 +2484,7 @@ impl PhysicsPipeline {
         ccd_solver: &mut CCDSolver,
         hooks: Option<&Bound<'_, PyAny>>,
         events: Option<&Bound<'_, PyAny>>,
+        soft_bodies: Option<&mut crate::soft_body::SoftBodySet>,
     ) -> PyResult<()> {
         let hooks_obj: Option<Py<PyAny>> = hooks.and_then(|h| {
             if h.is_none() {
@@ -2503,6 +2505,8 @@ impl PhysicsPipeline {
         let events_box = build_event_handler(py, events_obj.as_ref(), err_slot.clone());
 
         let g: rapier::math::Vector = gravity.0.into();
+        let mut scratch_soft_bodies = rapier::dynamics::SoftBodySet::new();
+        let sb_inner = soft_bodies.map_or(&mut scratch_soft_bodies, |s| &mut s.0);
         let pp_inner = &mut self.0;
         let ip_inner = &integration_parameters.0;
         let islands_inner = &mut islands.0;
@@ -2532,6 +2536,7 @@ impl PhysicsPipeline {
                 colliders_inner,
                 ij_inner,
                 mj_inner,
+                sb_inner,
                 ccd_inner,
                 hooks_ref,
                 events_ref,
@@ -2696,6 +2701,7 @@ impl CollisionPipeline {
 pub struct PhysicsWorld {
     pub bodies: Py<RigidBodySet>,
     pub colliders: Py<ColliderSet>,
+    pub soft_bodies: Py<crate::soft_body::SoftBodySet>,
     pub impulse_joints: Py<ImpulseJointSet>,
     pub multibody_joints: Py<MultibodyJointSet>,
     pub broad_phase: Py<BroadPhaseBvh>,
@@ -2734,6 +2740,10 @@ impl PhysicsWorld {
 
         let bodies = Py::new(py, RigidBodySet(rapier::dynamics::RigidBodySet::new()))?;
         let colliders = Py::new(py, ColliderSet(rapier::geometry::ColliderSet::new()))?;
+        let soft_bodies = Py::new(
+            py,
+            crate::soft_body::SoftBodySet(rapier::dynamics::SoftBodySet::new()),
+        )?;
         let impulse_joints = Py::new(
             py,
             ImpulseJointSet(rapier::dynamics::ImpulseJointSet::new()),
@@ -2768,6 +2778,7 @@ impl PhysicsWorld {
         Ok(Self {
             bodies,
             colliders,
+            soft_bodies,
             impulse_joints,
             multibody_joints,
             broad_phase,
@@ -2807,6 +2818,11 @@ impl PhysicsWorld {
     #[getter]
     fn multibody_joints(&self, py: Python<'_>) -> Py<MultibodyJointSet> {
         self.multibody_joints.clone_ref(py)
+    }
+    /// The world's :class:`SoftBodySet` (stable across calls).
+    #[getter]
+    fn soft_bodies(&self, py: Python<'_>) -> Py<crate::soft_body::SoftBodySet> {
+        self.soft_bodies.clone_ref(py)
     }
     /// The world's :class:`BroadPhaseBvh` (stable across calls).
     #[getter]
@@ -2997,6 +3013,7 @@ impl PhysicsWorld {
             let mut colliders = self.colliders.borrow_mut(py);
             let mut ij = self.impulse_joints.borrow_mut(py);
             let mut mj = self.multibody_joints.borrow_mut(py);
+            let mut sb = self.soft_bodies.borrow_mut(py);
             let mut ccd = self.ccd_solver.borrow_mut(py);
             let g_engine: rapier::math::Vector = g.into();
             // Borrow the inner rapier values explicitly so the
@@ -3011,6 +3028,7 @@ impl PhysicsWorld {
             let colliders_inner = &mut colliders.0;
             let ij_inner = &mut ij.0;
             let mj_inner = &mut mj.0;
+            let sb_inner = &mut sb.0;
             let ccd_inner = &mut ccd.0;
             let hooks_ref: &dyn rapier::pipeline::PhysicsHooks = match hooks_box.as_deref() {
                 Some(h) => h,
@@ -3031,6 +3049,7 @@ impl PhysicsWorld {
                     colliders_inner,
                     ij_inner,
                     mj_inner,
+                    sb_inner,
                     ccd_inner,
                     hooks_ref,
                     events_ref,
@@ -3245,6 +3264,7 @@ impl PhysicsWorld {
         let mut colliders = self.colliders.borrow_mut(py);
         let mut ij = self.impulse_joints.borrow_mut(py);
         let mut mj = self.multibody_joints.borrow_mut(py);
+        let mut sb = self.soft_bodies.borrow_mut(py);
         Ok(bodies
             .0
             .remove(
@@ -3253,6 +3273,7 @@ impl PhysicsWorld {
                 &mut colliders.0,
                 &mut ij.0,
                 &mut mj.0,
+                &mut sb.0,
                 true,
             )
             .map(RigidBody::new_owned))
@@ -3271,17 +3292,182 @@ impl PhysicsWorld {
         let mut cset = self.colliders.borrow_mut(py);
         let mut bset = self.bodies.borrow_mut(py);
         let mut islands = self.islands.borrow_mut(py);
+        let mut sb = self.soft_bodies.borrow_mut(py);
         Ok(cset
             .0
-            .remove(handle.0, &mut islands.0, &mut bset.0, true)
+            .remove(handle.0, &mut islands.0, &mut bset.0, &mut sb.0, true)
             .map(Collider::new_owned))
     }
 
-    /// Debug repr — shows body and collider counts.
+    // ---- soft bodies ----
+
+    /// Insert a soft body and return its handle; this creates its hidden root rigid body and
+    /// its colliders, which :meth:`remove_soft_body` removes.
+    ///
+    /// :param builder: A :class:`SoftBodyBuilder` (see :meth:`SoftBody.cloth`,
+    ///     :meth:`SoftBody.cuboid`, ...).
+    fn add_soft_body(
+        &self,
+        py: Python<'_>,
+        builder: &crate::soft_body::SoftBodyBuilder,
+    ) -> crate::soft_body::SoftBodyHandle {
+        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut bodies = self.bodies.borrow_mut(py);
+        let mut colliders = self.colliders.borrow_mut(py);
+        crate::soft_body::SoftBodyHandle(sb.0.insert(
+            builder.builder.clone(),
+            &mut bodies.0,
+            &mut colliders.0,
+        ))
+    }
+
+    /// Remove a soft body with its proxies, colliders and attached joints.
+    ///
+    /// :returns: the removed :class:`SoftBody`, or ``None`` if the handle matched nothing.
+    fn remove_soft_body(
+        &self,
+        py: Python<'_>,
+        handle: &crate::soft_body::SoftBodyHandle,
+    ) -> Option<crate::soft_body::SoftBody> {
+        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut islands = self.islands.borrow_mut(py);
+        let mut bodies = self.bodies.borrow_mut(py);
+        let mut colliders = self.colliders.borrow_mut(py);
+        let mut ij = self.impulse_joints.borrow_mut(py);
+        let mut mj = self.multibody_joints.borrow_mut(py);
+        sb.0.remove(
+            handle.0,
+            &mut islands.0,
+            &mut bodies.0,
+            &mut colliders.0,
+            &mut ij.0,
+            &mut mj.0,
+        )
+        .map(crate::soft_body::SoftBody::new_owned)
+    }
+
+    /// Insert a collider holding a soft body's deformable collision mesh, bound to the cluster
+    /// of ``parent`` (a cluster proxy; see :meth:`ColliderSet.insert_deformable`).
+    ///
+    /// :raises SoftBindingError: if the mesh cannot be bound.
+    fn insert_deformable(
+        &self,
+        py: Python<'_>,
+        builder: &Bound<'_, PyAny>,
+        binding: &crate::soft_body::SoftMeshBinding,
+        parent: &RigidBodyHandle,
+    ) -> PyResult<ColliderHandle> {
+        let mut colliders = self.colliders.borrow_mut(py);
+        let mut bodies = self.bodies.borrow_mut(py);
+        let mut sb = self.soft_bodies.borrow_mut(py);
+        colliders.insert_deformable(builder, binding, parent, &mut bodies, &mut sb)
+    }
+
+    /// Add a cluster to a soft body: a rigid proxy over the given particles that joints and
+    /// colliders can attach to. Returns the cluster's index, or ``None`` if no particle was
+    /// valid.
+    fn add_soft_body_cluster(
+        &self,
+        py: Python<'_>,
+        handle: &crate::soft_body::SoftBodyHandle,
+        particles: &Bound<'_, PyAny>,
+    ) -> PyResult<Option<u32>> {
+        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut bodies = self.bodies.borrow_mut(py);
+        let mut colliders = self.colliders.borrow_mut(py);
+        sb.add_cluster(handle, particles, &mut bodies, &mut colliders)
+    }
+
+    /// Remove a cluster of a soft body with its proxy, colliders and joints; ``False`` if it
+    /// did not exist.
+    fn remove_soft_body_cluster(
+        &self,
+        py: Python<'_>,
+        handle: &crate::soft_body::SoftBodyHandle,
+        cluster: u32,
+    ) -> bool {
+        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut islands = self.islands.borrow_mut(py);
+        let mut bodies = self.bodies.borrow_mut(py);
+        let mut colliders = self.colliders.borrow_mut(py);
+        let mut ij = self.impulse_joints.borrow_mut(py);
+        let mut mj = self.multibody_joints.borrow_mut(py);
+        sb.remove_cluster(
+            handle,
+            cluster,
+            &mut islands,
+            &mut bodies,
+            &mut colliders,
+            &mut ij,
+            &mut mj,
+        )
+    }
+
+    /// Tear a soft body at once along the given edges and through the given cells, without
+    /// removing material (see :meth:`SoftBodySet.tear`).
+    ///
+    /// :returns: the :class:`SoftBodyTearEvent`, or ``None`` when nothing changed.
+    fn tear_soft_body(
+        &self,
+        py: Python<'_>,
+        handle: &crate::soft_body::SoftBodyHandle,
+        edges: &Bound<'_, PyAny>,
+        cells: &Bound<'_, PyAny>,
+    ) -> PyResult<Option<crate::soft_body::SoftBodyTearEvent>> {
+        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut islands = self.islands.borrow_mut(py);
+        let mut bodies = self.bodies.borrow_mut(py);
+        let mut colliders = self.colliders.borrow_mut(py);
+        let mut ij = self.impulse_joints.borrow_mut(py);
+        let mut mj = self.multibody_joints.borrow_mut(py);
+        sb.tear(
+            handle,
+            edges,
+            cells,
+            &mut islands,
+            &mut bodies,
+            &mut colliders,
+            &mut ij,
+            &mut mj,
+        )
+    }
+
+    /// Cut a soft body along a blade (a world-space triangle given as three points) at once,
+    /// without removing material (see :meth:`SoftBodySet.cut`).
+    ///
+    /// :returns: the :class:`SoftBodyTearEvent`, or ``None`` when nothing changed.
+    fn cut_soft_body(
+        &self,
+        py: Python<'_>,
+        handle: &crate::soft_body::SoftBodyHandle,
+        blade: (PyVector, PyVector, PyVector),
+    ) -> Option<crate::soft_body::SoftBodyTearEvent> {
+        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut islands = self.islands.borrow_mut(py);
+        let mut bodies = self.bodies.borrow_mut(py);
+        let mut colliders = self.colliders.borrow_mut(py);
+        let mut ij = self.impulse_joints.borrow_mut(py);
+        let mut mj = self.multibody_joints.borrow_mut(py);
+        sb.cut(
+            handle,
+            blade,
+            &mut islands,
+            &mut bodies,
+            &mut colliders,
+            &mut ij,
+            &mut mj,
+        )
+    }
+
+    /// Debug repr — shows body, collider and soft-body counts.
     fn __repr__(&self, py: Python<'_>) -> String {
         let nb = self.bodies.borrow(py).0.len();
         let nc = self.colliders.borrow(py).0.len();
-        format!("PhysicsWorld(bodies={}, colliders={})", nb, nc)
+        let ns = self.soft_bodies.borrow(py).0.len();
+        format!(
+            "PhysicsWorld(bodies={}, colliders={}, soft_bodies={})",
+            nb, nc, ns
+        )
     }
 }
 

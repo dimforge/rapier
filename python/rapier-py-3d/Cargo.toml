@@ -52,4 +52,4 @@ urdf-rs.workspace = true
 # Phase 11 — Serialization, snapshots.
 serde = { workspace = true, features = ["derive", "std"] }
 bincode = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["arbitrary_precision"] }
