@@ -8,8 +8,8 @@ mod soft_body_builder_shapes;
 
 pub use self::soft_body_builder::{SoftBodyBuilder, SoftBodyParticleSettings};
 pub(crate) use self::soft_body_builder_mesh_helpers::{
-    cell_faces, element_vertices, surface_element_cells, surface_is_closed, surface_rings,
-    surface_vertex_elements,
+    cell_faces, element_vertices, element_vertices_mut, surface_element_cells, surface_is_closed,
+    surface_rings, surface_vertex_elements,
 };
 #[cfg(feature = "dim3")]
 pub(crate) use self::soft_body_builder_mesh_helpers::surface_edge_table;

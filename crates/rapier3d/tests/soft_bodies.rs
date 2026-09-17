@@ -30,6 +30,67 @@ fn assert_finite(world: &PhysicsWorld, handle: SoftBodyHandle) {
     }
 }
 
+/// A soft body and every body split off it by tears, recursively (see `SoftBody::pieces`).
+fn family(world: &PhysicsWorld, handle: SoftBodyHandle) -> Vec<SoftBodyHandle> {
+    let mut bodies = vec![handle];
+    let mut i = 0;
+    while i < bodies.len() {
+        bodies.extend(world.soft_bodies[bodies[i]].pieces().iter().copied());
+        i += 1;
+    }
+    bodies
+}
+
+/// Collects the tear events of every step.
+#[derive(Default)]
+struct TearLog(std::sync::Mutex<Vec<SoftBodyTearEvent>>);
+
+impl TearLog {
+    fn drain(&self) -> Vec<SoftBodyTearEvent> {
+        std::mem::take(&mut *self.0.lock().unwrap())
+    }
+}
+
+impl EventHandler for TearLog {
+    fn handle_collision_event(
+        &self,
+        _: &RigidBodySet,
+        _: &ColliderSet,
+        _: CollisionEvent,
+        _: Option<&ContactPair>,
+    ) {
+    }
+    fn handle_contact_force_event(
+        &self,
+        _: Real,
+        _: &RigidBodySet,
+        _: &ColliderSet,
+        _: &ContactPair,
+        _: Real,
+    ) {
+    }
+    fn handle_soft_body_tear_event(&self, _: &SoftBodySet, event: &SoftBodyTearEvent) {
+        self.0.lock().unwrap().push(event.clone());
+    }
+}
+
+/// Where a particle driven by index is after the tears of a step: the body and index the events
+/// moved it to.
+fn follow(
+    events: &[SoftBodyTearEvent],
+    mut body: SoftBodyHandle,
+    mut i: u32,
+) -> (SoftBodyHandle, u32) {
+    for event in events {
+        if event.soft_body == body {
+            if let Some(destination) = event.particle_destination(i) {
+                (body, i) = destination;
+            }
+        }
+    }
+    (body, i)
+}
+
 /// The period of a mass-spring pair set by its natural frequency must not depend on the
 /// substep count: this is the property that separates the material model from position-based
 /// `rigidity` knobs.
@@ -1840,41 +1901,54 @@ fn cloth_tears_when_pulled_apart() {
         .map(|j| world.soft_bodies[handle].particle_position(idx(nu - 1, j)))
         .collect();
     let width = step * (nu - 1) as Real;
+    // The driven column and the middle one follow the tears: the pieces become bodies.
+    let mut right: Vec<(SoftBodyHandle, u32)> =
+        (0..nv).map(|j| (handle, idx(nu - 1, j) as u32)).collect();
+    let mut middle: Vec<(SoftBodyHandle, u32)> =
+        (0..nv).map(|j| (handle, idx(nu / 2, j) as u32)).collect();
+    let log = TearLog::default();
     for k in 0..180 {
         let shift = width * (k as Real / 120.0).min(1.0);
-        for (j, p) in rest.iter().enumerate() {
-            world.soft_bodies[handle]
-                .set_particle_kinematic_target(idx(nu - 1, j), *p + Vector::new(shift, 0.0, 0.0));
+        for (&(body, i), p) in right.iter().zip(&rest) {
+            world.soft_bodies[body]
+                .set_particle_kinematic_target(i as usize, *p + Vector::new(shift, 0.0, 0.0));
         }
-        world.step();
-        assert_finite(&world, handle);
-        world.soft_bodies[handle].validate_topology().unwrap();
+        world.step_with_events(&(), &log);
+        let events = log.drain();
+        for r in right.iter_mut().chain(middle.iter_mut()) {
+            *r = follow(&events, r.0, r.1);
+        }
+        for h in family(&world, handle) {
+            assert_finite(&world, h);
+            world.soft_bodies[h].validate_topology().unwrap();
+        }
     }
-    let sb = &world.soft_bodies[handle];
-    assert_eq!(
-        sb.boundary().len(),
-        num_surface,
-        "a cloth loses no triangle when it tears"
-    assert!(
-        sb.num_particles() > nu * nv,
-        "the crack did not split any particle"
-    );
+    let bodies = family(&world, handle);
+    assert!(bodies.len() >= 2, "the cloth is still in one piece");
+    let surface: usize = bodies.iter().map(|&h| world.soft_bodies[h].boundary().len()).sum();
+    assert_eq!(surface, num_surface, "the torn cloth lost triangles");
+    let particles: usize = bodies.iter().map(|&h| world.soft_bodies[h].num_particles()).sum();
+    assert!(particles > nu * nv, "the crack did not split any particle");
     // The two pinned columns are now more than twice the rest width apart: what still ties
     // them would be strained way past the threshold, so nothing does. The middle sagged under
     // gravity instead of being held taut.
-    let mid = (0..nv)
-        .map(|j| sb.particle_position(idx(nu / 2, j)).y)
+    let mid = middle
+        .iter()
+        .map(|&(body, i)| world.soft_bodies[body].particle_position(i as usize).y)
         .fold(Real::MAX, Real::min);
     assert!(mid < 1.9, "the torn cloth did not sag: {mid}");
-    for e in sb.edges() {
-        let len = (sb.particle_position(e.vertices[0] as usize)
-            - sb.particle_position(e.vertices[1] as usize))
-        .length();
-        assert!(
-            len < e.rest_length * 1.6,
-            "an edge past the tear strain survived: {len} vs rest {}",
-            e.rest_length
-        );
+    for &h in &bodies {
+        let sb = &world.soft_bodies[h];
+        for e in sb.edges() {
+            let len = (sb.particle_position(e.vertices[0] as usize)
+                - sb.particle_position(e.vertices[1] as usize))
+            .length();
+            assert!(
+                len < e.rest_length * 1.6,
+                "an edge past the tear strain survived: {len} vs rest {}",
+                e.rest_length
+            );
+        }
     }
 }
 
@@ -1914,14 +1988,22 @@ fn tearing_splits_the_particles_a_crack_passes_through() {
         .map(|(i, _)| i as u32)
         .collect();
     assert_eq!(warp.len(), n);
-    let torn = world.tear_soft_body(handle, &warp, &[]);
-    assert!(torn.is_some());
-    let sb = &world.soft_bodies[handle];
-    sb.validate_topology().unwrap();
-    // One split per torn edge (its first endpoint, `(col, j)`), the triangles all still there.
-    assert_eq!(sb.num_particles(), num_particles + n);
-    assert_eq!(sb.boundary().len(), num_surface);
-    let mass: Real = sb.particles().iter().map(|p| p.mass()).sum();
+    let event = world.tear_soft_body(handle, &warp, &[]).expect("nothing tore");
+    // One split per torn edge (its first endpoint, `(col, j)`), the triangles all still there,
+    // and the cloth in two bodies: the wider left piece keeps the handle.
+    assert_eq!(event.pieces.len(), 2);
+    assert_eq!(event.pieces[0].soft_body, handle);
+    let bodies: Vec<SoftBodyHandle> = event.bodies().collect();
+    let (mut particles, mut surface, mut mass) = (0, 0, 0.0);
+    for &h in &bodies {
+        let sb = &world.soft_bodies[h];
+        sb.validate_topology().unwrap();
+        particles += sb.num_particles();
+        surface += sb.boundary().len();
+        mass += sb.particles().iter().map(|p| p.mass()).sum::<Real>();
+    }
+    assert_eq!(particles, num_particles + n);
+    assert_eq!(surface, num_surface);
     assert!(
         (mass - num_particles as Real).abs() < 1.0e-4,
         "mass changed: {mass}"
@@ -1930,15 +2012,21 @@ fn tearing_splits_the_particles_a_crack_passes_through() {
     // drift apart.
     for _ in 0..120 {
         world.step();
-        assert_finite(&world, handle);
+        for &h in &bodies {
+            assert_finite(&world, h);
+        }
     }
-    let sb = &world.soft_bodies[handle];
-    sb.validate_topology().unwrap();
+    for &h in &bodies {
+        world.soft_bodies[h].validate_topology().unwrap();
+    }
     // The copies are appended in crack order: the copy of `(col, j)` is particle
     // `num_particles + j`; the event says where each ended up.
-    let copy = num_particles + n / 2;
-    let gap =
-        (sb.particle_position(copy) - sb.particle_position(idx(col, n / 2) as usize)).length();
+    let at = |i: u32| event.particle_destination(i).unwrap();
+    let (copy, source) = (at((num_particles + n / 2) as u32), at(idx(col, n / 2)));
+    assert_ne!(copy.0, source.0, "the split particles stayed in one body");
+    let position =
+        |(body, i): (SoftBodyHandle, u32)| world.soft_bodies[body].particle_position(i as usize);
+    let gap = (position(copy) - position(source)).length();
     assert!(gap > 0.05, "the split particles did not separate: {gap}");
 }
 
@@ -1967,7 +2055,7 @@ fn jelly_bar_tears_when_pulled_apart() {
     .particle_mass(0.05);
     let handle = world.insert_soft_body(bar);
     let sb = &world.soft_bodies[handle];
-    let num_cells = sb.cells().len();
+    let (num_cells, num_particles) = (sb.cells().len(), sb.num_particles());
     let left: Vec<usize> = (0..sb.num_particles())
         .filter(|&i| sb.particle_position(i).x < -1.19)
         .collect();
@@ -1982,40 +2070,50 @@ fn jelly_bar_tears_when_pulled_apart() {
         .iter()
         .map(|&i| world.soft_bodies[handle].particle_position(i))
         .collect();
+    // The driven particles follow the tears: the piece they are in becomes its own body.
+    let mut right: Vec<(SoftBodyHandle, u32)> =
+        right.iter().map(|&i| (handle, i as u32)).collect();
+    let log = TearLog::default();
     for k in 0..240 {
         let shift = 2.4 * (k as Real / 180.0).min(1.0);
-        for (&i, p) in right.iter().zip(rest.iter()) {
-            world.soft_bodies[handle]
-                .set_particle_kinematic_target(i, *p + Vector::new(shift, 0.0, 0.0));
+        for (&(body, i), p) in right.iter().zip(rest.iter()) {
+            world.soft_bodies[body]
+                .set_particle_kinematic_target(i as usize, *p + Vector::new(shift, 0.0, 0.0));
         }
-        world.step();
-        assert_finite(&world, handle);
-        world.soft_bodies[handle].validate_topology().unwrap();
-    }
-    let sb = &world.soft_bodies[handle];
-    assert!(
-        sb.cells().len() < num_cells,
-        "no cell tore ({num_cells} before and after)"
-    );
-    assert!(!sb.boundary().is_empty());
-    for c in sb.cells() {
-        for &v in &c.vertices {
-            assert!((v as usize) < sb.num_particles());
+        world.step_with_events(&(), &log);
+        let events = log.drain();
+        for r in &mut right {
+            *r = follow(&events, r.0, r.1);
+        }
+        for h in family(&world, handle) {
+            assert_finite(&world, h);
+            world.soft_bodies[h].validate_topology().unwrap();
         }
     }
+    let bodies = family(&world, handle);
+    assert!(bodies.len() >= 2, "the bar is still in one piece");
+    let cells: usize = bodies.iter().map(|&h| world.soft_bodies[h].cells().len()).sum();
+    assert_eq!(cells, num_cells, "a tear removed cells");
+    let particles: usize = bodies.iter().map(|&h| world.soft_bodies[h].num_particles()).sum();
+    assert!(particles > num_particles, "no particle split");
     // The bar is now torn: no remaining cell is stretched past twice the tear strain.
     let mut max_stretch: Real = 0.0;
-    for c in sb.cells() {
-        for a in 0..4 {
-            for b in a + 1..4 {
-                let (pa, pb) = (
-                    sb.particle_position(c.vertices[a] as usize),
-                    sb.particle_position(c.vertices[b] as usize),
-                );
-                let rest = (sb.particles()[c.vertices[a] as usize].rest_position()
-                    - sb.particles()[c.vertices[b] as usize].rest_position())
-                .length();
-                max_stretch = max_stretch.max((pa - pb).length() / rest);
+    for &h in &bodies {
+        let sb = &world.soft_bodies[h];
+        assert!(!sb.boundary().is_empty());
+        for c in sb.cells() {
+            for a in 0..4 {
+                for b in a + 1..4 {
+                    let (pa, pb) = (
+                        sb.particle_position(c.vertices[a] as usize),
+                        sb.particle_position(c.vertices[b] as usize),
+                    );
+                    let rest = (sb.particles()[c.vertices[a] as usize].rest_position()
+                        - sb.particles()[c.vertices[b] as usize].rest_position())
+                    .length();
+                    max_stretch = max_stretch.max((pa - pb).length() / rest);
+                }
+            }
         }
     }
     assert!(
@@ -3675,6 +3773,7 @@ fn fem_cloth_tears_when_pulled_apart() {
         .iter()
         .map(|&i| world.soft_bodies[handle].particle_position(i))
         .collect();
+    let particles_before = world.soft_bodies[handle].num_particles();
     let triangles_before = world.soft_bodies[handle].boundary().len();
     let version_before = world.soft_bodies[handle].topology_version();
     for step in 0..400 {
@@ -3692,8 +3791,11 @@ fn fem_cloth_tears_when_pulled_apart() {
     assert_finite(&world, handle);
     let sb = &world.soft_bodies[handle];
     assert!(
+        sb.num_particles() > particles_before,
         "the FEM cloth did not tear: no particle split"
     );
+    assert_eq!(sb.boundary().len(), triangles_before, "the torn FEM cloth lost triangles");
+    sb.validate_topology().unwrap();
     assert!(
         sb.topology_version() > version_before,
         "the topology version was not bumped"
@@ -3728,6 +3830,8 @@ fn cut_splits_a_box_along_a_triangle() {
         world.cut_soft_body(handle, &aside).is_none(),
         "a blade beside the body cut something"
     );
+    let sb = &world.soft_bodies[handle];
+    let (num_cells, mass, measure) = (sb.cells().len(), sb.mass(), sb.rest_measure());
     let event = world
         .cut_soft_body(handle, &blade)
         .expect("the blade crossed the box");
@@ -3768,6 +3872,173 @@ fn cut_splits_a_box_along_a_triangle() {
     }
     for _ in 0..60 {
         world.step();
+        for &h in &bodies {
+            assert_finite(&world, h);
+        }
+    }
+    for &h in &bodies {
+        world.soft_bodies[h].validate_topology().unwrap();
+    }
+}
+
+/// A rope cut inserts two particles at the crossing: proportional rest lengths, the ends' masses
+/// shared with the inserted particles, the wire segment split the same way, the rope apart. A
+/// blade left across the cut ends inserts nothing more.
+#[test]
+fn cut_inserts_particles_into_a_rope() {
+    let mut world = world_with_ground();
+    // Particles every 0.25 from x = 0 to x = 2; the blade crosses the segment (3, 4) at t = 0.6.
+    let rope = SoftBodyBuilder::rope(Vector::new(0.0, 3.0, 0.0), Vector::new(2.0, 3.0, 0.0), 9)
+        .pinned_particles([0])
+        .particle_mass(0.1);
+    let handle = world.insert_soft_body(rope);
+    let blade = [
+        Vector::new(0.9, -10.0, -10.0),
+        Vector::new(0.9, 20.0, -10.0),
+        Vector::new(0.9, -10.0, 20.0),
+    ];
+    let event = world
+        .cut_soft_body(handle, &blade)
+        .expect("the blade crossed the rope");
+    assert_eq!(event.inserted_particles, vec![9, 10]);
+    assert!(event.split_particles.is_empty());
+    let mut removed = event.removed_edges.clone();
+    removed.sort_unstable();
+    assert_eq!(removed, vec![[2, 4], [3, 5]]);
+    // The longer, free half keeps the handle; the pinned half is a new body. The event maps
+    // every particle to its body and index there.
+    assert_eq!(event.pieces.len(), 2);
+    assert_eq!(event.pieces[0].particles, vec![4, 5, 6, 7, 8, 10]);
+    assert_eq!(event.pieces[1].particles, vec![0, 1, 2, 3, 9]);
+    let at = |i: u32| event.particle_destination(i).unwrap();
+    let (free, pinned) = (&world.soft_bodies[handle], &world.soft_bodies[at(0).0]);
+    assert_eq!((at(3), at(9)), ((at(0).0, 3), (at(0).0, 4)));
+    assert_eq!((at(10), at(4)), ((handle, 5), (handle, 0)));
+    free.validate_topology().unwrap();
+    pinned.validate_topology().unwrap();
+    let close = |a: Real, b: Real| (a - b).abs() < 1.0e-5;
+    let length = |sb: &SoftBody, a: u32, b: u32| {
+        sb.edges()
+            .iter()
+            .find(|e| e.vertices == [a, b])
+            .map(|e| e.rest_length)
+    };
+    assert!(close(length(pinned, 3, 4).unwrap(), 0.15) && close(length(free, 5, 0).unwrap(), 0.1));
+    assert!(close(free.rest_measure() + pinned.rest_measure(), 2.0));
+    assert!(close(free.mass() + pinned.mass(), 0.9));
+    // Each end gives up half its mass (its share of the segment), then the four particles share
+    // that mass by the halves' lumped masses: 0.3 and 0.2 of it at each end of the halves.
+    let masses = [
+        pinned.particles()[3].mass(),
+        pinned.particles()[4].mass(),
+        free.particles()[5].mass(),
+        free.particles()[0].mass(),
+    ];
+    for (mass, expected) in masses.iter().zip([0.08, 0.03, 0.02, 0.07]) {
+        assert!(close(*mass, expected), "masses {masses:?}");
+    }
+    assert!(pinned.particles()[0].is_pinned() && !pinned.particles()[4].is_pinned());
+    // The wire came apart with the body: one wire per piece, over its particles.
+    for sb in [free, pinned] {
+        let wire = sb.meshes().next().unwrap();
+        assert!(wire.is_wire());
+        assert_eq!(wire.vertex_count(), sb.num_particles());
+        assert_eq!(wire.indices().len(), sb.num_particles() - 1);
+    }
+
+    let bodies: Vec<SoftBodyHandle> = event.bodies().collect();
+    for _ in 0..60 {
+        world.step();
+        for &h in &bodies {
+            let num_particles = world.soft_bodies[h].num_particles();
+            assert!(world.cut_soft_body(h, &blade).is_none());
+            assert_eq!(world.soft_bodies[h].num_particles(), num_particles);
+            assert_finite(&world, h);
+        }
+    }
+    for &h in &bodies {
+        world.soft_bodies[h].validate_topology().unwrap();
+    }
+}
+
+/// A tear keeps every particle in a measure element, whatever it takes around a particle: tearing
+/// every edge at a cloth corner, every cell at a box corner, and every edge of a rope.
+#[test]
+fn tears_keep_every_particle_in_an_element() {
+    let mut world = world_with_ground();
+    let cloth = world.insert_soft_body(
+        SoftBodyBuilder::cloth(
+            Vector::new(0.0, 3.0, 0.0),
+            Vector::X * 0.2,
+            Vector::Z * 0.2,
+            6,
+            6,
+        )
+        .pinned_particles([5]),
+    );
+    let torn_box = world.insert_soft_body(
+        SoftBodyBuilder::cuboid(Vector::new(4.0, 2.0, 0.0), Vector::new(1.0, 0.5, 0.5), 5, 3, 3)
+            .particle_mass(0.2),
+    );
+    let rope = world.insert_soft_body(
+        SoftBodyBuilder::rope(Vector::new(0.0, 3.0, 4.0), Vector::new(2.0, 3.0, 4.0), 6)
+            .pinned_particles([0]),
+    );
+    world.step();
+
+    let touching = |elements: Vec<bool>| -> Vec<u32> {
+        (0..elements.len() as u32)
+            .filter(|&i| elements[i as usize])
+            .collect()
+    };
+    let sb = &world.soft_bodies[cloth];
+    let corner_edges = touching(sb.edges().iter().map(|e| e.vertices.contains(&0)).collect());
+    let event = world.tear_soft_body(cloth, &corner_edges, &[])
+        .expect("the corner edges tore");
+    // The torn edges reported are the ones a crack opened across, before the tear.
+    assert!(!event.torn_edges.is_empty() && event.torn_edges.iter().all(|e| e.contains(&0)));
+
+    let sb = &world.soft_bodies[torn_box];
+    let corner_cells = touching(sb.cells().iter().map(|c| c.vertices.contains(&0)).collect());
+    world.tear_soft_body(torn_box, &[], &corner_cells);
+
+    let all_edges: Vec<u32> = (0..world.soft_bodies[rope].edges().len() as u32).collect();
+    world.tear_soft_body(rope, &all_edges, &[]);
+
+    for _ in 0..60 {
+        world.step();
+    }
+    for handle in [cloth, torn_box, rope] {
+        world.soft_bodies[handle].validate_topology().unwrap();
+        assert_finite(&world, handle);
+    }
+}
+
+/// A cut keeps every particle in a measure element: a blade cutting a box corner off.
+#[test]
+fn cuts_keep_every_particle_in_an_element() {
+    let mut world = world_with_ground();
+    let cut_box = world.insert_soft_body(
+        SoftBodyBuilder::cuboid(Vector::new(-4.0, 2.0, 0.0), Vector::new(1.0, 0.5, 0.5), 5, 3, 3)
+            .particle_mass(0.2),
+    );
+    world.step();
+    // A triangle in the plane through the middle of the corner cube of the grid, across the
+    // diagonal from the corner.
+    let corner = world.soft_bodies[cut_box].particle_position(0);
+    let center = corner + Vector::splat(0.25);
+    let (u, w) = (Vector::new(1.0, -1.0, 0.0), Vector::new(1.0, 1.0, -2.0));
+    let blade = [center + u * 2.0, center - u + w, center - u - w];
+    let event = world
+        .cut_soft_body(cut_box, &blade)
+        .expect("the blade crossed the corner");
+    assert_eq!(event.pieces.len(), 2);
+    world.soft_bodies[cut_box].validate_topology().unwrap();
+    for _ in 0..60 {
+        world.step();
+    }
+    world.soft_bodies[cut_box].validate_topology().unwrap();
+    assert_finite(&world, cut_box);
 }
 
 /// The contact-modification hook sees the contacts between two soft surfaces (their
@@ -3930,4 +4201,317 @@ fn small_ball_slides_over_cloth_without_ghost_bumps() {
         max_y - min_y
     );
     assert!(x > 0.6, "the cloth's vertices slowed the ball down: x = {x}");
+}
+
+/// A tear or a cut never deletes material: the mass and the rest measure (cell volumes, surface
+/// triangle areas without cells, or structural edge lengths) are conserved, every particle keeps
+/// a measure element and the tables stay consistent. One test per body kind and tear source.
+mod tear_and_cut_conserve_mass_and_measure {
+    use super::*;
+
+    /// Asserts the tear invariants from the body before a tear or cut to the bodies after it.
+    fn assert_tear_invariants(before: &SoftBody, after: &[&SoftBody]) {
+        let close = |a: Real, b: Real| (a - b).abs() <= 1.0e-5 * a.abs().max(b.abs());
+        let mass: Real = after.iter().map(|sb| sb.mass()).sum();
+        let measure: Real = after.iter().map(|sb| sb.rest_measure()).sum();
+        assert!(
+            close(before.mass(), mass),
+            "mass changed: {} before, {} after",
+            before.mass(),
+            mass
+        );
+        assert!(
+            close(before.rest_measure(), measure),
+            "rest measure changed: {} before, {} after",
+            before.rest_measure(),
+            measure
+        );
+        for after in after {
+            assert_piece_invariants(before, after);
+        }
+    }
+
+    /// Asserts that every particle of a piece keeps a measure element and its tables hold.
+    fn assert_piece_invariants(before: &SoftBody, after: &SoftBody) {
+        // The measure elements are chosen by the body kind before the tear.
+        let elements: Vec<Vec<u32>> = if !before.cells().is_empty() {
+            after.cells().iter().map(|c| c.vertices.to_vec()).collect()
+        } else if !before.boundary().is_empty() {
+            after.boundary().iter().map(|t| t.to_vec()).collect()
+        } else {
+            after
+                .edges()
+                .iter()
+                .filter(|e| e.kind == SoftBodyEdgeKind::Structural)
+                .map(|e| e.vertices.to_vec())
+                .collect()
+        };
+        let mut supported = vec![false; after.num_particles()];
+        for element in &elements {
+            for &v in element {
+                supported[v as usize] = true;
+            }
+        }
+        if let Some(v) = supported.iter().position(|s| !s) {
+            panic!("particle {v} belongs to no measure element");
+        }
+        after.validate_topology().unwrap();
+    }
+
+    /// Inserts the body, tears it with `tear`, checks the invariants, then steps the torn body.
+    fn check(
+        builder: SoftBodyBuilder,
+        tear: impl FnOnce(&mut PhysicsWorld, SoftBodyHandle) -> Option<SoftBodyTearEvent>,
+    ) {
+        let mut world = PhysicsWorld::new();
+        let handle = world.insert_soft_body(builder);
+        let before = world.soft_bodies[handle].clone();
+        let event = tear(&mut world, handle).expect("nothing tore");
+        let bodies: Vec<SoftBodyHandle> = event.bodies().collect();
+        let after: Vec<&SoftBody> = bodies.iter().map(|&h| &world.soft_bodies[h]).collect();
+        assert_tear_invariants(&before, &after);
+        for _ in 0..10 {
+            world.step();
+            for &h in &bodies {
+                assert_finite(&world, h);
+            }
+        }
+        for &h in &bodies {
+            world.soft_bodies[h].validate_topology().unwrap();
+        }
+    }
+
+    /// Tears the structural edge whose midpoint is closest to `point`.
+    fn tear_edge_near(
+        world: &mut PhysicsWorld,
+        handle: SoftBodyHandle,
+        point: Vector,
+    ) -> Option<SoftBodyTearEvent> {
+        let sb = &world.soft_bodies[handle];
+        let distance = |e: &SoftBodyEdge| {
+            let mid = (sb.particle_position(e.vertices[0] as usize)
+                + sb.particle_position(e.vertices[1] as usize))
+                * 0.5;
+            (mid - point).length()
+        };
+        let edge = (0..sb.edges().len())
+            .filter(|&i| sb.edges()[i].kind == SoftBodyEdgeKind::Structural)
+            .min_by(|&i, &j| distance(&sb.edges()[i]).total_cmp(&distance(&sb.edges()[j])))
+            .unwrap() as u32;
+        world.tear_soft_body(handle, &[edge], &[])
+    }
+
+    /// Tears the cell whose centroid is closest to `point`.
+    fn tear_cell_near(
+        world: &mut PhysicsWorld,
+        handle: SoftBodyHandle,
+        point: Vector,
+    ) -> Option<SoftBodyTearEvent> {
+        let sb = &world.soft_bodies[handle];
+        let distance = |c: &SoftBodyCell| {
+            let sum: Vector = c
+                .vertices
+                .iter()
+                .map(|&v| sb.particle_position(v as usize))
+                .sum();
+            (sum / c.vertices.len() as Real - point).length()
+        };
+        let cell = (0..sb.cells().len())
+            .min_by(|&i, &j| distance(&sb.cells()[i]).total_cmp(&distance(&sb.cells()[j])))
+            .unwrap() as u32;
+        world.tear_soft_body(handle, &[], &[cell])
+    }
+
+    fn cuboid() -> SoftBodyBuilder {
+        SoftBodyBuilder::cuboid(Vector::ZERO, Vector::new(1.0, 0.5, 0.5), 5, 3, 3)
+            .particle_mass(0.2)
+    }
+
+    fn cloth() -> SoftBodyBuilder {
+        SoftBodyBuilder::cloth(Vector::ZERO, Vector::X * 0.2, Vector::Z * 0.2, 6, 6)
+            .particle_mass(0.05)
+    }
+
+    fn rope() -> SoftBodyBuilder {
+        SoftBodyBuilder::rope(Vector::ZERO, Vector::new(2.0, 0.0, 0.0), 9)
+    }
+
+    /// Cuts along a large triangle blade in the plane `x = x`.
+    fn cut_at(
+        x: Real,
+    ) -> impl FnOnce(&mut PhysicsWorld, SoftBodyHandle) -> Option<SoftBodyTearEvent> {
+        let blade = [
+            Vector::new(x, -10.0, -10.0),
+            Vector::new(x, 20.0, -10.0),
+            Vector::new(x, -10.0, 20.0),
+        ];
+        move |world, handle| world.cut_soft_body(handle, &blade)
+    }
+
+    #[test]
+    fn cuboid_edge_tear() {
+        check(cuboid(), |w, h| {
+            tear_edge_near(w, h, Vector::new(0.25, 0.0, 0.0))
+        });
+    }
+
+    #[test]
+    fn cuboid_cell_tear() {
+        check(cuboid(), |w, h| tear_cell_near(w, h, Vector::ZERO));
+    }
+
+    #[test]
+    fn cuboid_cut() {
+        check(cuboid(), cut_at(0.25));
+    }
+
+    #[test]
+    fn cloth_edge_tear() {
+        check(cloth(), |w, h| {
+            tear_edge_near(w, h, Vector::new(0.5, 0.0, 0.4))
+        });
+    }
+
+    #[test]
+    fn cloth_two_sides_tear() {
+        // Two sides of the triangle `(2, 2), (3, 2), (3, 3)` of the cloth grid.
+        check(cloth(), |w, h| {
+            let first = tear_edge_near(w, h, Vector::new(0.5, 0.0, 0.4))?;
+            let second = tear_edge_near(w, h, Vector::new(0.6, 0.0, 0.5))?;
+            Some(SoftBodyTearEvent {
+                split_particles: [first.split_particles, second.split_particles].concat(),
+                ..second
+            })
+        });
+    }
+
+    #[test]
+    fn cloth_cut() {
+        check(cloth(), cut_at(0.5));
+    }
+
+    #[test]
+    fn sphere_shell_edge_tear() {
+        check(SoftBodyBuilder::sphere(Vector::ZERO, 1.0, 2), |w, h| {
+            let e = w.soft_bodies[h].edges()[0].vertices;
+            let mid = (w.soft_bodies[h].particle_position(e[0] as usize)
+                + w.soft_bodies[h].particle_position(e[1] as usize))
+                * 0.5;
+            tear_edge_near(w, h, mid)
+        });
+    }
+
+    #[test]
+    fn rope_edge_tear() {
+        check(rope(), |w, h| {
+            tear_edge_near(w, h, Vector::new(0.875, 0.0, 0.0))
+        });
+    }
+
+    #[test]
+    fn rope_cut() {
+        check(rope(), cut_at(0.9));
+    }
+}
+
+/// Volume preservation holds every piece of material enclosed by its own closed boundary on its
+/// own target: of two spheres appended into one body, squeezing one does not inflate the other.
+#[test]
+fn appended_spheres_keep_their_own_volumes() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let center = Vector::new(-1.5, 0.0, 0.0);
+    let first = SoftBodyBuilder::sphere(center, 1.0, 2);
+    let n = first.particle_positions().len();
+    let spheres = first
+        .append(SoftBodyBuilder::sphere(Vector::new(1.5, 0.0, 0.0), 1.0, 2))
+        .pinned_particles(0..n as u32)
+        .softness(SpringCoefficients::new(20.0, 1.0))
+        .can_sleep(false);
+    let handle = world.insert_soft_body(spheres);
+    let sb = &world.soft_bodies[handle];
+    assert!(sb.volume_preservation_enabled());
+    let pieces = sb.volume_pieces();
+    assert_eq!(pieces.len(), 2);
+    assert_eq!(pieces[0].particles(), (0..n as u32).collect::<Vec<_>>());
+    let rest = pieces[1].rest_volume();
+    assert!(rest > 3.0, "icosphere volume too small: {rest}");
+    assert!((pieces[0].rest_volume() - rest).abs() < 1.0e-4 * rest);
+
+    // The pinned sphere is squeezed to half its volume.
+    let sb = &mut world.soft_bodies[handle];
+    let scale = Real::cbrt(0.5);
+    for i in 0..n {
+        let p = sb.particle_position(i);
+        sb.set_particle_position(i, center + (p - center) * scale);
+    }
+    for _ in 0..300 {
+        world.step();
+    }
+    assert_finite(&world, handle);
+    let sb = &world.soft_bodies[handle];
+    let squeezed = sb.volume_pieces()[0].volume(sb);
+    let free = sb.volume_pieces()[1].volume(sb);
+    assert!(
+        (squeezed - 0.5 * rest).abs() < 0.01 * rest,
+        "the pinned sphere moved: {squeezed} vs {}",
+        0.5 * rest
+    );
+    assert!(
+        (free - rest).abs() < 0.02 * rest,
+        "the free sphere traded volume with the squeezed one: {free} vs {rest}"
+    );
+}
+
+/// Two pieces of one body keep the gaps their features had at rest: the halves of a cut body,
+/// interlocked along the cells' facets within the contact skins, rest exactly as cut instead of
+/// being pushed apart by the skins; shoved into each other, they collide and come back out.
+#[test]
+fn cut_halves_rest_as_cut_and_collide_when_shoved() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let cuboid = SoftBodyBuilder::cuboid(Vector::ZERO, Vector::new(1.0, 0.5, 0.5), 5, 3, 3)
+        .particle_mass(0.1)
+        .can_sleep(false);
+    let handle = world.insert_soft_body(cuboid);
+    world.step();
+    let blade = [
+        Vector::new(0.2, -10.0, -10.0),
+        Vector::new(0.2, 20.0, -10.0),
+        Vector::new(0.2, -10.0, 20.0),
+    ];
+    let event = world
+        .cut_soft_body(handle, &blade)
+        .expect("the blade crossed the box");
+    let halves: Vec<SoftBodyHandle> = event.bodies().collect();
+    assert_eq!(halves.len(), 2);
+    let centroid = |world: &PhysicsWorld, h: SoftBodyHandle| world.soft_bodies[h].center_of_mass();
+    let offset = |world: &PhysicsWorld| (centroid(world, halves[1]) - centroid(world, halves[0])).x;
+    let rest_offset = offset(&world);
+    for _ in 0..60 {
+        world.step();
+        for &h in &halves {
+            let sb = &world.soft_bodies[h];
+            let speed = sb.particle_velocities().map(|v| v.length()).fold(0.0, Real::max);
+            assert!(speed < 1.0e-3, "the halves moved on their own: {speed} m/s");
+        }
+    }
+    assert!((offset(&world) - rest_offset).abs() < 1.0e-3);
+
+    // Shoved into each other by a fraction of a cell, the halves collide and come back out.
+    let sign = rest_offset.signum();
+    let shove = 0.15 * sign;
+    for i in 0..world.soft_bodies[halves[1]].num_particles() {
+        let p = world.soft_bodies[halves[1]].particle_position(i);
+        world.soft_bodies[halves[1]].set_particle_position(i, p - Vector::X * shove);
+    }
+    assert!((offset(&world) - rest_offset) * sign < -0.1);
+    for _ in 0..120 {
+        world.step();
+        for &h in &halves {
+            assert_finite(&world, h);
+        }
+    }
+    let pushed_back = (offset(&world) - rest_offset) * sign;
+    assert!(pushed_back > -0.05, "the shoved halves stayed interlocked: {pushed_back}");
 }

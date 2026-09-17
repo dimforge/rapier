@@ -46,6 +46,7 @@ impl SoftBodySet {
             #[cfg(feature = "fem")]
             solver: soft_body.solver,
             volume_preservation: false,
+            volume_pieces: Vec::new(),
             volume_factor: 1.0,
             rest_com: soft_body.rest_com,
             particle_radius: soft_body.particle_radius,
@@ -60,6 +61,8 @@ impl SoftBodySet {
             contact_approach_speeds: [None; 2],
             contact_load: 0.0,
             load_extra_substeps: 0,
+            origin: None,
+            pieces: Vec::new(),
             user_data: 0,
         }));
 

@@ -54,50 +54,48 @@ pub struct SoftBodyMaterial {
     /// once.
     #[cfg_attr(feature = "serde-serialize", serde(default = "one"))]
     pub edge_plastic_creep: Real,
-    /// Largest permanent set an edge may accumulate, as a fraction of the length it was created
-    /// with (default: `1.0`): past it the edge stops yielding and stays elastic from where it
-    /// flowed to (a repeatedly crushed edge cannot flow to nothing).
+    /// Largest permanent set an edge may accumulate, as a fraction of its initial length (default:
+    /// `0.5`); past it the edge stops yielding and stays elastic, so a crushed edge cannot flow to
+    /// nothing.
     #[cfg_attr(feature = "serde-serialize", serde(default = "half"))]
     pub edge_plastic_max: Real,
     /// Whether the edges take a permanent set under a squeeze, a stretch, or both (default:
     /// both).
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub edge_plastic_flow: SoftEdgePlasticFlow,
-    /// Strain beyond which the elements break (default: `None`, unbreakable): a structural or
-    /// cell whose largest tensile principal strain exceeds it, is torn at the end of the step
-    /// (see [`crate::dynamics::SoftBody::tear_edge`] for what a tear removes). Cells of the volume model do not
-    /// tear on their own, their edges do. The cell strain is the one seen by the solver, capped
-    /// at `1.0`, so a cell threshold of one or more never fires.
+    /// Strain beyond which elements break (default: `None`, unbreakable): an edge stretched past
+    /// this fraction of its initial rest length, or a corotational cell whose largest tensile
+    /// principal strain (capped at `1.0`) exceeds it, tears at step end; volume cells never do.
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub tear_strain: Option<Real>,
-    /// [`crate::dynamics::SoftBody::tear_edge`]). Unlike the strain, the force reports the load of an edge that
+    /// Force beyond which the edges break (default: `None`): an edge whose force along its
+    /// direction (its impulse over the substep, positive when resisting stretching) exceeds it is
+    /// torn at the end of the step. Either criterion tears an edge; cells tear on strain only.
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub tear_force: Option<Real>,
-    /// Time constant, in seconds, over which an element's load is averaged before it is compared
-    /// to its tear threshold (default: `0.0`, none). At `0.0` one step past the threshold tears;
-    /// with a positive value the load is smoothed exponentially over about that long, so a brief
-    /// spike (an impact, a jerk) is shrugged off and only a sustained pull tears. Applies to the
-    /// strain and the force criteria alike; [`crate::dynamics::SoftBodyEdge::stress`] and [`crate::dynamics::SoftBodyCell::stress`]
-    /// read the smoothed load back.
+    /// Time constant, in seconds, over which an element's load is smoothed exponentially before the
+    /// tear test (default: `0.0`, one step past the threshold tears); applies to the strain and
+    /// force criteria alike, and [`crate::dynamics::SoftBodyEdge::stress`] reads the smoothed load.
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub tear_smoothing: Real,
-    /// How much tougher an element deep inside the body is than one at its surface (default:
-    /// `1.0`, no difference). An element whose particles are all interior (none on the surface)
-    /// and undamaged needs this many times its tear threshold; elements at the surface, or next
-    /// to a particle an earlier tear passed through, tear at the threshold itself. Tears then
-    /// start at the surface or at existing damage and run inward, where the material is
-    /// weakened, instead of anywhere a particle happens to be pulled. Multiplies the per-element
-    /// [`crate::dynamics::SoftBodyEdge::tear_resistance`] / [`crate::dynamics::SoftBodyCell::tear_resistance`].
+    /// How much tougher an undamaged interior element (no particle on the surface or on an earlier
+    /// tear) is than a surface one (default: `1.0`): it needs this many times its tear threshold,
+    /// so tears start at the surface or existing damage and run inward; scales `tear_resistance`.
     #[cfg_attr(feature = "serde-serialize", serde(default = "one"))]
     pub interior_strength: Real,
-    /// ones (see [`crate::dynamics::SoftBodyEdge::stress`]) go first, the others wait for the next step (edges
-    /// projectile being caught like in a net while its rim tears one edge at a time; the
-    /// default lets a puncture open at once.
+    /// Maximum number of edges torn per step (default: `u32::MAX`, no limit): the most loaded go
+    /// first, the others wait for the next step (edges past twice their threshold always tear).
+    /// Bounding it paces the cracks of a taut sheet but lets a projectile be caught as in a net.
     #[cfg_attr(
         feature = "serde-serialize",
         serde(default = "default_max_tears_per_step")
     )]
     pub max_tears_per_step: u32,
+    /// The smallest piece, in measure elements, a tear may split off (default: `None`: ten
+    /// triangles for a 3D cloth, three cells in 2D or six in 3D, three segments for a rope). A tear
+    /// leaving a smaller piece waits (cuts are exempt); `Some(1)` lets a tear shed single elements.
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub min_piece: Option<u32>,
 }
 
 #[cfg(feature = "serde-serialize")]
@@ -138,6 +136,7 @@ impl Default for SoftBodyMaterial {
             tear_smoothing: 0.0,
             interior_strength: 1.0,
             max_tears_per_step: u32::MAX,
+            min_piece: None,
         }
     }
 }

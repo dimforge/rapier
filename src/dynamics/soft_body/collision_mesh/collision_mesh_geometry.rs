@@ -129,10 +129,38 @@ impl SoftCollisionMesh {
             } else {
                 Triangle::new(rest[0], rest[1], rest[2]).distance_to_local_point(p, true)
             };
-            if dist < clearance {
+            if dist < clearance && !self.across_crack(body, vertex, element) {
+                return true;
             }
         }
         false
+    }
+
+    /// Whether `element` holds a copy of the particle of `vertex` or of one of its surface
+    /// neighbors: the pair faces across a crack, which rests at distance zero yet must collide.
+    /// Always `false` for a skinned mesh, whose vertices are not particles.
+    fn across_crack(&self, body: &SoftBody, vertex: u32, element: &[u32]) -> bool {
+        let super::SoftMeshMapping::Direct { particles } = &self.binding else {
+            return false;
+        };
+        let family = |v: u32| {
+            let p = particles[v as usize];
+            (p, body.particles[p as usize].split_root(p))
+        };
+        let (start, end) = match (
+            self.ring_offsets.get(vertex as usize),
+            self.ring_offsets.get(vertex as usize + 1),
+        ) {
+            (Some(&start), Some(&end)) => (start as usize, end as usize),
+            _ => (0, 0),
+        };
+        let near = core::iter::once(&vertex).chain(&self.ring[start..end]);
+        near.map(|&w| family(w)).any(|(p, root)| {
+            element.iter().any(|&e| {
+                let (q, other_root) = family(e);
+                other_root == root && q != p
+            })
+        })
     }
 
     /// Whether `vertex` is exposed along `dir`: no surface neighbor lies ahead of it (up to a few
@@ -288,6 +316,28 @@ impl SoftCollisionMesh {
         } else {
             n
         })
+    }
+
+    /// The outward direction of a closed mesh at one of its vertices: the normalized sum of the
+    /// outward normals of the elements around it (`None` for an open mesh, and where no element
+    /// can orient itself).
+    pub(crate) fn vertex_outward_normal(&self, body: &SoftBody, vertex: u32) -> Option<Vector> {
+        let mut sum = Vector::ZERO;
+        let (Some(&start), Some(&end)) = (
+            self.vertex_elements_offsets.get(vertex as usize),
+            self.vertex_elements_offsets.get(vertex as usize + 1),
+        ) else {
+            return None;
+        };
+        for &e in &self.vertex_elements[start as usize..end as usize] {
+            if let Some(n) = self
+                .element_outward_normal(body, e as usize)
+                .and_then(|n| n.try_normalize())
+            {
+                sum += n;
+            }
+        }
+        sum.try_normalize()
     }
 
     /// The sign turning this mesh's raw winding into its geometric orientation: `-1.0` for

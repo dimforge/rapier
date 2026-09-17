@@ -197,16 +197,23 @@ impl SoftConstraintsSet {
         if !update {
             return;
         }
-        if let Some(vi) = awake.volume_constraint {
+        for vi in awake.volume_constraints.clone() {
             let vc = &mut volume_constraints[vi];
+            let piece = &sb.volume_pieces[vc.piece as usize];
             let grads = &mut volume_grads[vc.grads.clone()];
-            grads.fill(Vector::ZERO);
+            for &i in &piece.particles {
+                grads[i as usize] = Vector::ZERO;
+            }
             let position = |i: u32| pos(i as usize);
-            let volume = SoftBody::boundary_volume(&sb.boundary, position);
-            SoftBody::boundary_volume_gradients(&sb.boundary, position, grads);
+            let elements = || piece.boundary_elements(&sb.boundary);
+            let volume = SoftBody::elements_volume(elements(), position);
+            SoftBody::boundary_volume_gradients(elements(), position, grads);
             let mut w = 0.0;
-            for (i, p) in sb.particles.iter().enumerate() {
-                    w += p.inv_mass * grads[i].length_squared();
+            for &i in &piece.particles {
+                let i = i as usize;
+                if slots[i] != u32::MAX {
+                    w += sb.particles[i].inv_mass * grads[i].length_squared();
+                }
             }
             // A FEM body answers the constraint through its augmented mass: the response to the
             // fresh gradients, and the augmented gain in place of the lumped one.
@@ -216,12 +223,13 @@ impl SoftConstraintsSet {
                 let system = unsafe { &mut *fem.system };
                 let n = sb.particles.len();
                 let out = &mut fem_responses[side.start as usize..side.start as usize + n];
-                let entries = sb
+                let entries = piece
                     .particles
                     .iter()
-                    .enumerate()
-                    .filter(|(i, p)| slots[*i] != u32::MAX && p.inv_mass > 0.0)
-                    .map(|(i, _)| (i as u32, grads[i]));
+                    .filter(|&&i| {
+                        slots[i as usize] != u32::MAX && sb.particles[i as usize].inv_mass > 0.0
+                    })
+                    .map(|&i| (i, grads[i as usize]));
                 side.gain = system.response_into(entries, out, &fem.params);
                 side.u_max = out.iter().map(|u| u.length()).fold(0.0, Real::max);
                 w = if out.iter().any(|u| u.length() > super::soft_fem_amplification_cap() * side.gain) {

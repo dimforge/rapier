@@ -9,6 +9,7 @@ use parry::utils::hashmap::HashMap;
 #[cfg(feature = "dim3")]
 use super::tearing::pair;
 use super::super::soft_body::SOFT_BODY_OVERFLOW_COLOR;
+use super::super::soft_body_builder::element_vertices;
 use super::super::SoftBody;
 
 impl SoftBody {
@@ -43,11 +44,38 @@ impl SoftBody {
         }
         // Every particle belongs to some measure element (a tear never removes one), unless the
         // body has none.
+        if let Some(kind) = self.measure_kind() {
+            let mut supported = vec![false; n as usize];
+            self.for_each_measure_element(kind, |_, vertices| {
+                for &v in vertices {
+                    if let Some(s) = supported.get_mut(v as usize) {
+                        *s = true;
+                    }
+                }
+            });
+            if let Some(v) = supported.iter().position(|s| !s) {
+                return Err(format!("particle {v} belongs to no measure element"));
+            }
         }
         for (mi, mesh) in self.meshes().enumerate() {
             let nv = mesh.vertex_count();
+            if let super::collision_mesh::SoftMeshMapping::Skinned { bindings } = mesh.binding() {
+                if bindings.len() != nv {
+                    return Err(format!("mesh {mi} has {} bindings for {nv} vertices", bindings.len()));
+                }
+                // A body left without any cell has nothing to bind to.
+                let dead = |b: &super::collision_mesh::SoftMeshCellBinding| {
+                    !self.cells.is_empty() && b.cell as usize >= self.cells.len()
+                };
+                if let Some(v) = bindings.iter().position(dead) {
+                    return Err(format!("mesh {mi} vertex {v} is bound to a dead cell"));
+                }
+            }
             for (i, s) in mesh.indices().iter().enumerate() {
-                for &v in s {
+                for &v in element_vertices(s) {
+                    if v as usize >= nv {
+                        return Err(format!("mesh {mi} element {i} has an out-of-range vertex"));
+                    }
                 }
             }
             if mesh.ring_offsets.len() != nv + 1 {
@@ -59,6 +87,7 @@ impl SoftBody {
                 ));
             }
             for (i, s) in mesh.indices().iter().enumerate() {
+                let s = element_vertices(s);
                 for &v in s {
                     let (start, end) = (
                         mesh.vertex_elements_offsets[v as usize] as usize,
@@ -98,6 +127,14 @@ impl SoftBody {
                     return Err(format!("mesh {mi} edge tables do not cover its elements"));
                 }
                 for (i, s) in mesh.indices().iter().enumerate() {
+                    // A wire segment (padded with `u32::MAX`) is its own single edge.
+                    if element_vertices(s).len() < DIM {
+                        let id = mesh.element_edges[i][0] as usize;
+                        if mesh.edges.get(id) != Some(&pair(s[0], s[1])) {
+                            return Err(format!("mesh {mi} segment {i} edge mismatch"));
+                        }
+                        continue;
+                    }
                     for k in 0..DIM {
                         let id = mesh.element_edges[i][k] as usize;
                         let expected = pair(s[(k + 1) % DIM], s[(k + 2) % DIM]);

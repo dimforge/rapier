@@ -222,6 +222,8 @@ fn detect_soft_pair(
     if frozen1 && frozen2 {
         return;
     }
+    // Two pieces of one torn body keep the gaps their features had at rest.
+    let pieces = ctx.pieces_of_one_body((sb1, r1.body), (sb2, r2.body));
     // Both vertex passes: each surface's owner consumes the other's vertices against it (and
     // the reverse pass too when the other body is not simulated).
     let mut pass1 = SoftVertexPass::default();
@@ -231,6 +233,7 @@ fn detect_soft_pair(
         (sb1, mesh1, h1, co1),
         (sb2, mesh2, h2, co2),
         None,
+        pieces,
         ctx,
     );
     detect_vertex_pass(
@@ -238,6 +241,7 @@ fn detect_soft_pair(
         (sb2, mesh2, h2, co2),
         (sb1, mesh1, h1, co1),
         None,
+        pieces,
         ctx,
     );
     // The edge pass, oriented from its owner: a crossed closed-closed pair whose volume constraint
@@ -257,7 +261,7 @@ fn detect_soft_pair(
         && recovery.overlap_edge_stand_down
         && !owner_pass.cross_tangled_elements.is_empty();
     let mut edges = SoftEdgePass::default();
-    let has_edges = !stood_down && detect_edges(&mut edges, own, other, None, ctx);
+    let has_edges = !stood_down && detect_edges(&mut edges, own, other, None, pieces, ctx);
     // The volume patches, from the vertex pass of the pair's lower surface.
     let (lower_pass, lower, higher) = if h1.into_raw_parts() < h2.into_raw_parts() {
         (&pass1, (sb1, mesh1, h1, co1), (sb2, mesh2, h2, co2))

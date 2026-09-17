@@ -373,10 +373,10 @@ pub(super) fn update_self(
     detect_self_tangles(sb, mesh, co, run_crossing_sweep, out);
     let side = (sb, mesh, handle, co);
     let mut vertex_pass = core::mem::take(&mut out.vertex_pass);
-    detect_vertex_pass(&mut vertex_pass, side, side, Some(out.tangles()), ctx);
+    detect_vertex_pass(&mut vertex_pass, side, side, Some(out.tangles()), false, ctx);
     out.vertex_pass = vertex_pass;
     let mut edges = out.edges.take().unwrap_or_default();
-    let has_edges = detect_edges(&mut edges, side, side, Some(out.tangles()), ctx);
+    let has_edges = detect_edges(&mut edges, side, side, Some(out.tangles()), false, ctx);
     out.edges = has_edges.then_some(edges);
     detect_self_regions(out, sb, mesh, co, ctx);
 }

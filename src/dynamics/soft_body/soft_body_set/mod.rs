@@ -3,6 +3,7 @@ mod soft_body_set;
 mod soft_body_set_clusters;
 mod soft_body_set_insert_remove;
 mod soft_body_set_proxies;
+mod soft_body_set_split;
 mod soft_body_set_step_sync;
 
 pub use self::soft_body_set::SoftBodySet;

@@ -8,7 +8,9 @@ use crate::math::{DIM, Real, Vector};
 use simba::scalar::{ComplexField as _, RealField as _};
 
 use super::super::SoftBody;
+use super::tearing_cut::blade_hit;
 use super::tearing_event::{CATASTROPHIC_STRESS, SoftBodyTearEvent};
+use super::tearing_particle_split::SplitLog;
 
 /// A sorted particle-index pair.
 pub(super) fn pair(a: u32, b: u32) -> [u32; 2] {
@@ -115,86 +117,31 @@ impl SoftBody {
         torn_edges: &[u32],
         torn_cells: &[u32],
         event: &mut SoftBodyTearEvent,
-        let any_cell_removed = cell_removed.contains(&true);
-        if any_cell_removed {
-            let mut kept_pairs: HashMap<[u32; 2], ()> = HashMap::default();
-            let mut dead_pairs: HashMap<[u32; 2], ()> = HashMap::default();
-            for (ci, c) in self.cells.iter().enumerate() {
-                if !cell_removed[ci] {
-                    for i in 0..=DIM {
-                        for j in i + 1..=DIM {
-                            kept_pairs.insert(pair(c.vertices[i], c.vertices[j]), ());
-                        }
-                    }
-                }
-            }
-            for (ci, c) in self.cells.iter().enumerate() {
-                if cell_removed[ci] {
-                    for i in 0..=DIM {
-                        for j in i + 1..=DIM {
-                            let key = pair(c.vertices[i], c.vertices[j]);
-                            if !kept_pairs.contains_key(&key) {
-                                dead_pairs.insert(key, ());
-                            }
-                        }
-                    }
-                }
-            }
-                if !edge_removed[ei] && dead_pairs.contains_key(&key) {
-            for (key, ()) in dead_pairs {
-                torn_pairs.insert(key, ());
-            }
-        }
-        // Surface elements owned by a removed cell or spanning a torn pair. A 3D cloth (no
-        let mut surface_removed = vec![false; self.boundary.len()];
-        for (si, element) in self.boundary.iter().enumerate() {
-            let owner = self
-                .boundary_element_cells
-                .get(si)
-                .copied()
-                .unwrap_or(u32::MAX);
-            let owner_removed =
-                owner != u32::MAX && cell_removed.get(owner as usize) == Some(&true);
-            if owner_removed
-                || (!cloth && !torn_pairs.is_empty() && spans_pair(element, &torn_pairs))
-            {
-                surface_removed[si] = true;
-            }
-        }
+    ) -> bool {
+        self.crack_body(torn_edges, torn_cells, event)
+    }
 
-        // Dihedrals spanning a torn pair or bending over a removed triangle.
-        #[cfg(feature = "dim3")]
-        let mut dihedral_removed = vec![false; self.dihedrals.len()];
-        #[cfg(feature = "dim3")]
-        {
-            let mut removed_tris: HashMap<[u32; 3], ()> = HashMap::default();
-            for (si, element) in self.boundary.iter().enumerate() {
-                if surface_removed[si] {
-                    let mut key = *element;
-                    key.sort_unstable();
-                    removed_tris.insert(key, ());
-                }
-            }
-            for (di, d) in self.dihedrals.iter().enumerate() {
-                let v = d.vertices;
-                let mut t1 = [v[0], v[1], v[2]];
-                let mut t2 = [v[0], v[1], v[3]];
-                t1.sort_unstable();
-                t2.sort_unstable();
-                if spans_pair(&v, &torn_pairs)
-                    || removed_tris.contains_key(&t1)
-                    || removed_tris.contains_key(&t2)
-                {
-                    dihedral_removed[di] = true;
-                }
-            }
-        }
-                held >= 2
-        // Split copies join the clusters of their source particle; the clusters' cell matches
-        // follow the compacted cell list.
-        self.inherit_cluster_membership(&duplicated);
-        // the split copies, so the direct meshes keep their indices).
-            cells: &cell_remap,
-        true
+    /// Follows a topology change through the derived state: the split copies and inserted
+    /// particles of `log` join the clusters of their source or neighboring segment end, the meshes
+    /// follow, and the boundary tables, rest volume and coloring are rebuilt.
+    pub(super) fn finish_topology_change(&mut self, log: &SplitLog) {
+        let mut sources = log.split_particles.clone();
+        sources.extend(log.inserted.iter().flat_map(|&[a, b, p, q]| [(p, a), (q, b)]));
+        // This also matches the clusters to the updated cell list.
+        self.inherit_cluster_membership(&sources);
+        let remap_tables = super::collision_mesh::SoftTopologyRemap {
+            cells: &[],
+            particles: &[],
+            split: &log.split_particles,
+            inserted: &log.inserted,
+        };
+        self.for_each_mesh_mut(|body, mesh| {
+            mesh.remap_topology(body, &remap_tables);
+            mesh.clear_contacts();
+        });
+        self.rebuild_boundary_tables();
+        self.recolor();
+        self.modified = true;
+        self.topology_version = self.topology_version.wrapping_add(1);
     }
 }

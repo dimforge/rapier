@@ -110,13 +110,16 @@ impl SoftShapeConstraint {
     }
 }
 
-/// The global area/volume preservation row of a soft body (touches every particle: solved
-/// serially).
+/// The area/volume preservation constraint of one volume piece of a soft body (touches every
+/// particle of the piece: solved serially).
 #[derive(Clone, Debug)]
 pub(crate) struct SoftVolumeConstraint {
     pub soft_body: u32,
+    /// The constrained piece in the body's `volume_pieces`.
+    pub piece: u32,
     pub target: Real,
-    /// Range of this row's particle gradients in `volume_grads`.
+    /// Range of the body's particle gradients in `volume_grads`, shared by its pieces (their
+    /// particles are disjoint).
     pub grads: Range<usize>,
     pub erp_inv_dt: Real,
     pub cfm_coeff: Real,

@@ -9,13 +9,17 @@ use crate::math::{DIM, Real, Vector};
 use crate::geometry::PointQueryWithLocation;
 use crate::utils::DotProduct;
 use parry::bounding_volume::BoundingVolume;
+use parry::query::PointQuery;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
 use super::soft_contacts_classify::{classify_inside, classify_inside_self, project_on_element, ring_depths};
 use super::soft_contacts_volume::{VolumeSide, fill_depths, patch_vertices, volume_bins, volume_split};
-use super::{SelfTangles, Side, SoftDetectionCtx, SoftVertexPass, SoftVertexCandidate, SoftVertexHits};
+use super::{
+    SelfTangles, Side, SoftDetectionCtx, SoftVertexCandidate, SoftVertexHits, SoftVertexPass,
+    rest_gap_skins,
+};
 
 /// Whether two elements' boundaries cross transversally, whatever their arities (a
 /// segment through a triangle covers a wire through a surface; two wires cross with
@@ -90,6 +94,7 @@ pub(crate) fn detect_vertex_pass(
     (eb, eb_mesh, surface_handle, eb_co): Side<'_>,
     (vb, vb_mesh, vertices_handle, vb_co): Side<'_>,
     tangles: Option<SelfTangles<'_>>,
+    rest_gaps: bool,
     ctx: &SoftDetectionCtx,
 ) {
     let params = ctx.params;
@@ -534,10 +539,69 @@ impl VertexScan<'_> {
             };
             let sep = vertex_pos - proj.point;
             let len = sep.length();
-            if len >= reach || len < 1.0e-6 {
+            if len >= self.reach {
                 continue;
             }
-            let dist = len - skins;
+            // A vertex on the surface itself has no direction of its own. Between two pieces of
+            // one torn body it is a crack vertex, held along the normal of the face it was split
+            // from when its own surface faces the other way (the crack's sides face each other).
+            let coincident = len < 1.0e-6;
+            if coincident {
+                if !self.rest_gaps || !self.closed {
+                    continue;
+                }
+                let Some(outward) = self.eb_mesh
+                    .element_outward_normal(self.eb, e as usize)
+                    .and_then(|n| n.try_normalize())
+                else {
+                    continue;
+                };
+                let Some(own) = self.vb_mesh.vertex_outward_normal(self.vb, v as u32) else {
+                    continue;
+                };
+                if own.gdot(outward) > -0.5 {
+                    continue;
+                }
+                scratch.push(SoftVertexCandidate {
+                    element: e,
+                    weights,
+                    dir: -outward,
+                    dist: 0.0,
+                    outward: Some(outward),
+                    interior: false,
+                    enabled: true,
+                    impulse: 0.0,
+                    tangent_impulse: Vector::ZERO,
+                });
+                continue;
+            }
+            let pair_skins = if self.rest_gaps {
+                let rest_vertex = self.vb_mesh.rest_vertex(self.vb, v);
+                let rest: [Vector; DIM] = core::array::from_fn(|k| {
+                    element
+                        .get(k)
+                        .map_or(Vector::ZERO, |v| self.eb_mesh.rest_vertex(self.eb, *v as usize))
+                });
+                let rest_gap = if element.len() < DIM {
+                    parry::shape::Segment::new(rest[0], rest[1])
+                        .distance_to_local_point(rest_vertex, true)
+                } else {
+                    #[cfg(feature = "dim2")]
+                    {
+                        parry::shape::Segment::new(rest[0], rest[1])
+                            .distance_to_local_point(rest_vertex, true)
+                    }
+                    #[cfg(feature = "dim3")]
+                    {
+                        parry::shape::Triangle::new(rest[0], rest[1], rest[2])
+                            .distance_to_local_point(rest_vertex, true)
+                    }
+                };
+                rest_gap_skins(self.skins, rest_gap)
+            } else {
+                self.skins
+            };
+            let dist = len - pair_skins;
             // Beyond the prediction distance, only a contact closing fast enough to happen within
             // the whole step is kept (`self.params.dt` is the substep): the rest of the reach is
             // the bodies' motion margin, and a resting vertex must not keep constraints in it.

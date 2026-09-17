@@ -113,6 +113,39 @@ pub(super) fn spawn_mesh_collider(
     Some(co_handle)
 }
 
+/// Creates the collider of a mesh split off another (see `SoftCollisionMesh::restricted_to`): a
+/// copy of `source` (material, groups, events, user data) holding the new mesh's shape, parented
+/// to `proxy` in `frame` (the proxy's pose). `None` if the source is gone or the mesh has no shape.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn clone_mesh_collider(
+    source: ColliderHandle,
+    handle: SoftBodyHandle,
+    mesh: &super::SoftCollisionMesh,
+    body: &SoftBody,
+    proxy: RigidBodyHandle,
+    frame: &Pose,
+    bodies: &mut RigidBodySet,
+    colliders: &mut ColliderSet,
+) -> Option<ColliderHandle> {
+    let mut collider = colliders.get(source)?.clone();
+    let shape = rebuilt_surface_shape(
+        collider.shape(),
+        mesh.local_vertices(body, frame),
+        mesh.indices(),
+    )?;
+    collider.set_shape(shape);
+    collider.set_position(Pose::IDENTITY);
+    collider.set_enabled(true);
+    let co_handle = colliders.insert_with_parent(collider, proxy, bodies);
+    let co = colliders.index_mut_internal(co_handle);
+    co.deformable_mesh_ref = Some(SoftMeshRef {
+        body: handle,
+        id: mesh.id(),
+    });
+    co.deform_pose(*frame);
+    Some(co_handle)
+}
+
 /// Creates the proxy rigid body of cluster `cluster` of soft body `handle`: a
 /// [`crate::dynamics::RigidBodyType::SoftFrame`] body standing for the cluster in the islands
 /// and joints and holding its colliders. Cluster 0's proxy is the soft body's root body.

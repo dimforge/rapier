@@ -266,6 +266,13 @@ impl SoftBodyBuilder {
         self
     }
 
+    /// Sets the smallest piece, in measure elements, a tear may split off (see
+    /// [`SoftBodyMaterial::min_piece`]).
+    pub fn min_piece(mut self, elements: u32) -> Self {
+        self.material.min_piece = Some(elements);
+        self
+    }
+
     /// Sets the material's tear smoothing time constant (see
     /// [`SoftBodyMaterial::tear_smoothing`]).
     pub fn tear_smoothing(mut self, seconds: Real) -> Self {

@@ -4,7 +4,8 @@ use crate::alloc_prelude::*;
 use core::ops::Range;
 
 use crate::dynamics::{
-    IntegrationParameters, RigidBodySet, SoftBody, SoftBodySet, SoftCollisionMesh,
+    IntegrationParameters, RigidBodySet, SoftBody, SoftBodyHandle, SoftBodySet,
+    SoftCollisionMesh,
 };
 use crate::geometry::{Collider, ColliderHandle, ColliderSet};
 use crate::math::{DIM, Real, Rotation, Vector};
@@ -25,6 +26,19 @@ pub(crate) struct SoftDetectionCtx<'a> {
 }
 
 impl SoftDetectionCtx<'_> {
+    /// Whether two soft bodies are pieces of one torn body (one is the other's origin, or both
+    /// share one): their rest shapes live in the same frame, and the contact skin between two of
+    /// their features is capped by the gap those features had at rest (see `rest_gap_skins`).
+    pub fn pieces_of_one_body(
+        &self,
+        (sb1, h1): (&SoftBody, SoftBodyHandle),
+        (sb2, h2): (&SoftBody, SoftBodyHandle),
+    ) -> bool {
+        sb1.origin() == Some(h2)
+            || sb2.origin() == Some(h1)
+            || (sb1.origin().is_some() && sb1.origin() == sb2.origin())
+    }
+
     /// The speculative motion margin of a soft body's collider, held by its parent cluster proxy
     /// (zero without a parent).
     pub fn motion_margin(&self, co: &Collider) -> Real {
@@ -407,3 +421,10 @@ pub(super) type Side<'a> = (
     ColliderHandle,
     &'a Collider,
 );
+
+/// The contact skins between two features of two pieces of one torn body: the full `skins`, capped
+/// by the features' rest-shape distance. Crack faces rest at distance zero (a crack snapped to the
+/// cells' facets interlocks the sides), so features keep their rest gap and collide from there.
+pub(crate) fn rest_gap_skins(skins: Real, rest_gap: Real) -> Real {
+    skins.min(rest_gap.max(0.0))
+}

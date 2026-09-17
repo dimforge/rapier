@@ -24,6 +24,7 @@ impl SoftConstraintsSet {
         let sb = unsafe { &*awake.ptr };
         let slots = &self.slots[awake.slot_start..awake.slot_start + awake.num_particles];
         let grads = &self.volume_grads[vc.grads.clone()];
+        let piece = &sb.volume_pieces[vc.piece as usize];
         let fem = vc.fem.map(|side| {
             let n = sb.particles.len();
             (
@@ -40,8 +41,11 @@ impl SoftConstraintsSet {
         match &fem {
             Some((side, _, _)) => g_max = side.u_max,
             None => {
-                for (i, p) in sb.particles.iter().enumerate() {
-                        g_max = g_max.max(grads[i].length() * p.inv_mass);
+                for &i in &piece.particles {
+                    let i = i as usize;
+                    if slots[i] != u32::MAX {
+                        g_max = g_max.max(grads[i].length() * sb.particles[i].inv_mass);
+                    }
                 }
             }
         }
@@ -59,8 +63,13 @@ impl SoftConstraintsSet {
                 }
             }
             None => {
-                for (i, p) in sb.particles.iter().enumerate() {
-                        bodies.vels[s as usize].linear -= grads[i] * (p.inv_mass * impulse);
+                for &i in &piece.particles {
+                    let i = i as usize;
+                    let s = slots[i];
+                    if s != u32::MAX && (s as usize) < bodies.len() {
+                        bodies.vels[s as usize].linear -=
+                            grads[i] * (sb.particles[i].inv_mass * impulse);
+                    }
                 }
             }
         };
@@ -71,7 +80,8 @@ impl SoftConstraintsSet {
         }
 
         let mut dc = 0.0;
-        for i in 0..sb.particles.len() {
+        for &i in &piece.particles {
+            let i = i as usize;
             let s = slots[i];
             if s != u32::MAX {
                 dc += grads[i].gdot(bodies.get_vel(s).linear);

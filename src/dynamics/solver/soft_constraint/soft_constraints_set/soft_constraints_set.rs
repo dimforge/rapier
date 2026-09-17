@@ -37,7 +37,7 @@ pub(crate) struct AwakeSoftBody {
     /// Range of this body's constraints in `shape_constraints`.
     pub shape_constraints: Range<usize>,
     /// Range of this body's volume constraints in `volume_constraints` (one per volume piece).
-    pub volume_constraint: Option<usize>,
+    pub volume_constraints: Range<usize>,
     /// Fraction of the non-rigid velocity removed per substep (`deformation_damping`).
     pub damping_factor: Real,
     /// Set by the writeback stage when a cell flowed plastically by a significant amount

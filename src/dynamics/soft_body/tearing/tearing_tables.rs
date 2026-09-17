@@ -11,6 +11,7 @@ impl SoftBody {
         self.boundary_element_cells = surface_element_cells(&self.boundary, &self.cells);
         self.update_surface_flags();
         self.rebuild_mesh_tables();
+        self.rebuild_volume_pieces(&[]);
     }
 
     /// Recomputes the parallel colors of every element.

@@ -50,6 +50,15 @@ pub(crate) fn element_vertices(element: &[u32; DIM]) -> &[u32] {
     &element[..used]
 }
 
+/// The used vertices of a surface element, mutably (see [`element_vertices`]).
+pub(crate) fn element_vertices_mut(element: &mut [u32; DIM]) -> &mut [u32] {
+    let used = element
+        .iter()
+        .position(|v| *v == u32::MAX)
+        .unwrap_or(element.len());
+    &mut element[..used]
+}
+
 pub(crate) fn surface_is_closed(surface: &[[u32; DIM]]) -> bool {
     if surface.is_empty() {
         return false;
@@ -77,7 +86,34 @@ pub(crate) fn surface_is_closed(surface: &[[u32; DIM]]) -> bool {
             *counts.entry(facet).or_insert(0) += 1;
         }
     }
-    counts.values().all(|&c| c == 2)
+    if counts.values().all(|&c| c == 2) {
+        return true;
+    }
+    // A crack reaching the surface of a body with cells joins four elements at a facet (two per
+    // side): the surface still encloses its material when every facet is crossed as often in
+    // both directions.
+    let mut balance: HashMap<[u32; DIM - 1], i32> = HashMap::default();
+    for element in surface {
+        for k in 0..DIM {
+            let mut facet = [0u32; DIM - 1];
+            let mut n = 0;
+            for (j, &v) in element.iter().enumerate() {
+                if j != k {
+                    facet[n] = v;
+                    n += 1;
+                }
+            }
+            #[allow(unused_mut)]
+            let mut sign = if k % 2 == 0 { 1 } else { -1 };
+            #[cfg(feature = "dim3")]
+            if facet[0] > facet[1] {
+                facet.swap(0, 1);
+                sign = -sign;
+            }
+            *balance.entry(facet).or_insert(0) += sign;
+        }
+    }
+    balance.values().all(|&b| b == 0)
 }
 
 /// The cell owning each surface element (`u32::MAX` when no cell contains its vertices).

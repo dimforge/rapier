@@ -77,6 +77,21 @@ impl SoftBodyCluster {
         !self.proxy.is_invalid()
     }
 
+    /// Turns this slot into a dead one, returning its particles and its proxy. The meshes are
+    /// dropped: their colliders are the caller's to deal with.
+    pub(crate) fn tombstone(&mut self) -> (Vec<u32>, RigidBodyHandle) {
+        self.cell = u32::MAX;
+        self.shape_matching = false;
+        self.shape_matching_target = None;
+        self.prev_shape_matching_target = None;
+        self.shape_impulses.clear();
+        self.meshes.clear();
+        (
+            core::mem::take(&mut self.particles),
+            core::mem::replace(&mut self.proxy, RigidBodyHandle::invalid()),
+        )
+    }
+
     /// The particles of this cluster (sorted, unique).
     pub fn particles(&self) -> &[u32] {
         &self.particles
@@ -486,6 +501,23 @@ impl SoftBody {
             }
         }
 
+        // A split family keeps one root: the new index of its first surviving member.
+        let mut family_root = vec![u32::MAX; self.particles.len()];
+        for (i, p) in self.particles.iter_mut().enumerate() {
+            if dead[i] {
+                continue;
+            }
+            let old = p.split_root(i as u32) as usize;
+            if let Some(root) = family_root.get_mut(old) {
+                if *root == u32::MAX {
+                    *root = remap[i];
+                }
+                p.split_root = *root;
+            } else {
+                p.split_root = remap[i];
+            }
+        }
+
         // The particles themselves, and the per-particle tables.
         let mut keep = dead.iter().map(|d| !d);
         self.particles.retain(|_| keep.next().unwrap());
@@ -496,15 +528,17 @@ impl SoftBody {
         let remap_tables = super::collision_mesh::SoftTopologyRemap {
             cells: &cell_remap,
             particles: &remap,
+            split: &[],
+            inserted: &[],
         };
         self.for_each_mesh_mut(|body, mesh| {
             mesh.remap_topology(body, &remap_tables);
             mesh.clear_contacts();
         });
 
-        self.boundary_closed = super::soft_body_builder::surface_is_closed(&self.boundary);
-        self.update_surface_flags();
-        self.rebuild_mesh_tables();
+        // The boundary tables (closedness, owning cells, volume pieces) and the meshes' own.
+        self.rebuild_boundary_tables();
+        self.rebuild_volume_pieces(&remap);
         self.update_cluster_cells();
         self.recolor();
         self.modified = true;

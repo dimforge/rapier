@@ -56,6 +56,93 @@ impl SoftBody {
         pieces
     }
 
+    /// The components of the body's element graph restricted to `members` (all particles when
+    /// `None`) that contain a particle of some `seeds` pair (the pairs a tear or cut separated, see
+    /// [`crate::dynamics::SoftBodyTearEvent::split_particles`]), sorted; empty unless at least two.
+    pub fn seeded_components(&self, members: Option<&[u32]>, seeds: &[[u32; 2]]) -> Vec<Vec<u32>> {
+        let n = self.particles.len();
+        let member =
+            |v: u32| (v as usize) < n && members.is_none_or(|m| m.binary_search(&v).is_ok());
+        let mut parent: Vec<u32> = (0..n as u32).collect();
+        fn find(parent: &mut [u32], mut i: u32) -> u32 {
+            while parent[i as usize] != i {
+                let up = parent[parent[i as usize] as usize];
+                parent[i as usize] = up;
+                i = up;
+            }
+            i
+        }
+        // Pairwise over the in-set vertices: a chain through an out-of-set vertex must not break.
+        let mut union = |vertices: &[u32]| {
+            for i in 0..vertices.len() {
+                if !member(vertices[i]) {
+                    continue;
+                }
+                for j in i + 1..vertices.len() {
+                    if !member(vertices[j]) {
+                        continue;
+                    }
+                    let (a, b) = (find(&mut parent, vertices[i]), find(&mut parent, vertices[j]));
+                    if a != b {
+                        parent[a.max(b) as usize] = a.min(b);
+                    }
+                }
+            }
+        };
+        for e in &self.edges {
+            union(&e.vertices);
+        }
+        for c in &self.cells {
+            union(&c.vertices);
+        }
+        #[cfg(feature = "dim3")]
+        for d in &self.dihedrals {
+            union(&d.vertices);
+        }
+        for s in &self.boundary {
+            union(s);
+        }
+        let mut seeded = vec![false; n];
+        for pair in seeds {
+            for &v in pair {
+                if member(v) {
+                    seeded[find(&mut parent, v) as usize] = true;
+                }
+            }
+        }
+        if seeded.iter().filter(|s| **s).count() < 2 {
+            return Vec::new();
+        }
+        // Roots are the smallest index of their component, so the components come out ordered.
+        let mut piece_of_root = vec![u32::MAX; n];
+        let mut pieces: Vec<Vec<u32>> = Vec::new();
+        let mut visit = |v: u32, parent: &mut [u32]| {
+            let root = find(parent, v) as usize;
+            if !seeded[root] {
+                return;
+            }
+            if piece_of_root[root] == u32::MAX {
+                piece_of_root[root] = pieces.len() as u32;
+                pieces.push(Vec::new());
+            }
+            pieces[piece_of_root[root] as usize].push(v);
+        };
+        match members {
+            Some(members) => members.iter().for_each(|&v| visit(v, &mut parent)),
+            None => (0..n as u32).for_each(|v| visit(v, &mut parent)),
+        }
+        pieces
+    }
+
+    /// The summed nominal mass of the given particles (out-of-range indices ignored).
+    pub fn mass_of(&self, particles: &[u32]) -> Real {
+        particles
+            .iter()
+            .filter_map(|&v| self.particles.get(v as usize))
+            .map(|p| p.mass)
+            .sum()
+    }
+
     /// Sets the tear-threshold multiplier of the `i`-th edge (see
     /// [`crate::dynamics::SoftBodyEdge::tear_resistance`]); `1.0` restores the material's threshold.
     pub fn set_edge_tear_resistance(&mut self, i: usize, resistance: Real) {

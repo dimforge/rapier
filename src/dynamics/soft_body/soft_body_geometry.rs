@@ -9,13 +9,21 @@ impl SoftBody {
     /// Updates the state derived from the particle positions at the end of a step: the volume
     /// pieces' inside-out flags (their pressure targets) and the collision mesh's orientation.
     pub(crate) fn update_orientation(&mut self) {
-            // With hysteresis: a crumpled body hovering around a zero volume must not flip its
-            // pressure target every step.
-            let volume =
-                Self::boundary_volume(&self.boundary, |i| self.particles[i as usize].position);
-            let ratio = volume / self.rest_volume;
-            if ratio < -0.25 {
-            } else if ratio > 0.25 {
+        let (particles, boundary) = (&self.particles, &self.boundary);
+        for piece in &mut self.volume_pieces {
+            if piece.rest_volume != 0.0 {
+                // With hysteresis: a crumpled piece hovering around a zero volume must not flip
+                // its pressure target every step.
+                let volume = Self::elements_volume(piece.boundary_elements(boundary), |i| {
+                    particles[i as usize].position
+                });
+                let ratio = volume / piece.rest_volume;
+                if ratio < -0.25 {
+                    piece.inverted = true;
+                } else if ratio > 0.25 {
+                    piece.inverted = false;
+                }
+            }
         }
         self.for_each_mesh_mut(|body, mesh| mesh.update_orientation(body));
     }
@@ -25,8 +33,16 @@ impl SoftBody {
         boundary: &[[u32; DIM]],
         position: impl Fn(u32) -> Vector,
     ) -> Real {
+        Self::elements_volume(boundary, position)
+    }
+
+    /// The signed area (2D) or volume (3D) enclosed by `elements` (segments or triangles).
+    pub(crate) fn elements_volume<'a>(
+        elements: impl IntoIterator<Item = &'a [u32; DIM]>,
+        position: impl Fn(u32) -> Vector,
+    ) -> Real {
         let mut vol = 0.0;
-        for element in boundary {
+        for element in elements {
             #[cfg(feature = "dim2")]
             {
                 let a = position(element[0]);
@@ -45,8 +61,8 @@ impl SoftBody {
     }
 
     /// Accumulates the gradient of the enclosed area/volume with respect to every particle.
-    pub(crate) fn boundary_volume_gradients(
-        boundary: &[[u32; DIM]],
+    pub(crate) fn boundary_volume_gradients<'a>(
+        boundary: impl IntoIterator<Item = &'a [u32; DIM]>,
         position: impl Fn(u32) -> Vector,
         gradients: &mut [Vector],
     ) {

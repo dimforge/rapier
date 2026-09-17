@@ -4,13 +4,16 @@
 use crate::alloc_prelude::*;
 use crate::geometry::ColliderHandle;
 use crate::math::{DIM, Pose, Real, Vector};
+use parry::utils::hashmap::HashMap;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
 use super::collision_mesh_binding::{bind_to_cells, closest_cell_binding};
+use super::soft_body_builder::{element_vertices, element_vertices_mut};
 use super::{
-    SoftBody, SoftBodyCell, SoftCollisionMesh, SoftMeshId, SoftMeshMapping, SoftTopologyRemap,
+    SoftBody, SoftBodyCell, SoftCollisionMesh, SoftMeshCellBinding, SoftMeshId, SoftMeshMapping,
+    SoftTopologyRemap,
     surface_element_cells, surface_is_closed, surface_rings, surface_vertex_elements,
 };
 
@@ -345,9 +348,12 @@ impl SoftCollisionMesh {
                     .collect();
                 for vertex in dangling {
                     let position = self.vertices[vertex];
-                    if let Some(binding) = closest_cell_binding(body, position) {
+                    if let Some(binding) = closest_cell_binding(body, position, |_| true) {
                         bindings[vertex] = binding;
                     }
+                }
+                if !remap.split.is_empty() {
+                    follow_pieces(bindings, &mut self.vertices, &mut self.indices, body);
                 }
             }
             SoftMeshMapping::Direct { particles } if self.follows_boundary => {
@@ -358,31 +364,103 @@ impl SoftCollisionMesh {
                 });
             }
             SoftMeshMapping::Direct { particles } => {
-                if remap.particles.is_empty() {
-                    return;
-                }
-                let mut vertex_remap = vec![u32::MAX; particles.len()];
-                let mut kept = Vec::with_capacity(particles.len());
-                for (vertex, particle) in particles.iter().enumerate() {
-                    let new = remap.particles.get(*particle as usize).copied();
-                    if let Some(new) = new.filter(|p| *p != u32::MAX) {
-                        vertex_remap[vertex] = kept.len() as u32;
-                        kept.push(new);
+                if !remap.particles.is_empty() {
+                    // The vertices whose particle died go with it, and so do the elements they
+                    // were in; the survivors are compacted.
+                    let mut vertex_remap = vec![u32::MAX; particles.len()];
+                    let mut kept = Vec::with_capacity(particles.len());
+                    for (vertex, particle) in particles.iter().enumerate() {
+                        let new = remap.particles.get(*particle as usize).copied();
+                        if let Some(new) = new.filter(|p| *p != u32::MAX) {
+                            vertex_remap[vertex] = kept.len() as u32;
+                            kept.push(new);
+                        }
+                    }
+                    *particles = kept;
+                    // A wire element pads its unused slot with `u32::MAX`: only the used
+                    // vertices are looked up.
+                    self.indices.retain(|element| {
+                        element_vertices(element)
+                            .iter()
+                            .all(|v| vertex_remap[*v as usize] != u32::MAX)
+                    });
+                    for element in &mut self.indices {
+                        for v in element_vertices_mut(element) {
+                            *v = vertex_remap[*v as usize];
+                        }
                     }
                 }
-                *particles = kept;
-                self.indices.retain(|element| {
-                    element
-                        .iter()
-                        .all(|v| vertex_remap[*v as usize] != u32::MAX)
-                });
-                for element in &mut self.indices {
-                    for v in element.iter_mut() {
-                        *v = vertex_remap[*v as usize];
-                    }
+                if !remap.inserted.is_empty() {
+                    follow_insertions(particles, &mut self.indices, remap.inserted);
+                }
+                if !remap.split.is_empty() {
+                    follow_splits(particles, &mut self.indices, body, remap.split);
                 }
             }
         }
+    }
+
+    /// A copy of this mesh over the vertices `keep` accepts: other vertices and their elements
+    /// dropped, tables rebuilt, contact state cleared, no collider or id. `None` when no element
+    /// remains; how a mesh follows a cluster split.
+    pub(crate) fn restricted_to(
+        &self,
+        body: &SoftBody,
+        keep: impl Fn(u32) -> bool,
+    ) -> Option<Self> {
+        let n = self.vertex_count();
+        let mut vertex_remap = vec![u32::MAX; n];
+        let mut kept = 0u32;
+        for v in 0..n {
+            if keep(v as u32) {
+                vertex_remap[v] = kept;
+                kept += 1;
+            }
+        }
+        let indices: Vec<[u32; DIM]> = self
+            .indices
+            .iter()
+            .filter(|element| {
+                element_vertices(element)
+                    .iter()
+                    .all(|v| vertex_remap[*v as usize] != u32::MAX)
+            })
+            .map(|element| {
+                let mut element = *element;
+                for v in element_vertices_mut(&mut element) {
+                    *v = vertex_remap[*v as usize];
+                }
+                element
+            })
+            .collect();
+        if indices.is_empty() {
+            return None;
+        }
+        let mut mesh = self.clone();
+        mesh.indices = indices;
+        let mut keep = (0..n).map(|v| vertex_remap[v] != u32::MAX);
+        match &mut mesh.binding {
+            SoftMeshMapping::Direct { particles } => particles.retain(|_| keep.next().unwrap()),
+            SoftMeshMapping::Skinned { bindings } => {
+                let mut keep_vertices = keep.clone();
+                bindings.retain(|_| keep.next().unwrap());
+                mesh.vertices.retain(|_| keep_vertices.next().unwrap());
+            }
+        }
+        mesh.collider = ColliderHandle::invalid();
+        mesh.id = SoftMeshId::default();
+        mesh.clear_contacts();
+        mesh.overlap_states.clear();
+        mesh.overlap_warm.clear();
+        mesh.volume_contacts.clear();
+        mesh.rebuild_tables(body);
+        mesh.rest_signed_volume = if mesh.is_wire() {
+            0.0
+        } else {
+            SoftBody::boundary_volume(&mesh.indices, |i| mesh.rest_vertex(body, i as usize))
+        };
+        mesh.update_orientation(body);
+        Some(mesh)
     }
 
     /// Clears the contact state kept across steps (a topology change invalidated its ids).
@@ -391,5 +469,174 @@ impl SoftCollisionMesh {
         self.vertex_contacts.clear();
         self.crossing_sweep_travel = Real::MAX;
         self.crossed_partners.clear();
+    }
+}
+
+/// Follows the particles a cut inserted into segments (`inserted`: `[a, b, p, q]`, segment `(a, b)`
+/// became `(a, p)` and `(q, b)`) in a direct mesh (`particles`: the particle of each vertex): a
+/// mesh segment over `a` and `b` is split the same way, with a new vertex per inserted particle.
+fn follow_insertions(particles: &mut Vec<u32>, indices: &mut Vec<[u32; DIM]>, inserted: &[[u32; 4]]) {
+    for &[a, b, p, q] in inserted {
+        for i in 0..indices.len() {
+            let element = indices[i];
+            if element_vertices(&element).len() != 2 {
+                continue;
+            }
+            let ends = [particles[element[0] as usize], particles[element[1] as usize]];
+            let (first, second) = if ends == [a, b] {
+                (p, q)
+            } else if ends == [b, a] {
+                (q, p)
+            } else {
+                continue;
+            };
+            particles.push(first);
+            particles.push(second);
+            let n = particles.len() as u32;
+            indices[i][1] = n - 2;
+            let mut rest = element;
+            rest[0] = n - 1;
+            indices.push(rest);
+        }
+    }
+}
+
+/// Separates a skinned mesh along the cracks between the body's pieces: in an element whose
+/// vertices ride cells of different pieces, each vertex outside the majority piece is replaced by
+/// a copy bound to the closest cell of that piece (one shared copy per vertex and piece).
+fn follow_pieces(
+    bindings: &mut Vec<SoftMeshCellBinding>,
+    vertices: &mut Vec<Vector>,
+    indices: &mut [[u32; DIM]],
+    body: &SoftBody,
+) {
+    let pieces = body.connected_pieces();
+    if pieces.len() < 2 {
+        return;
+    }
+    let mut particle_piece = vec![u32::MAX; body.particles.len()];
+    for (k, piece) in pieces.iter().enumerate() {
+        for &p in piece {
+            particle_piece[p as usize] = k as u32;
+        }
+    }
+    let cell_piece = |cell: u32| {
+        body.cells
+            .get(cell as usize)
+            .map_or(u32::MAX, |c| particle_piece[c.vertices[0] as usize])
+    };
+    let mut copies: HashMap<(u32, u32), u32> = HashMap::default();
+    for element in indices.iter_mut() {
+        let used = element_vertices(element).len();
+        let piece_of: Vec<u32> = element[..used]
+            .iter()
+            .map(|&w| bindings.get(w as usize).map_or(u32::MAX, |b| cell_piece(b.cell)))
+            .collect();
+        // The most frequent piece, ties going to the one met first.
+        let mut majority = (u32::MAX, 0);
+        for &piece in piece_of.iter().filter(|&&piece| piece != u32::MAX) {
+            let count = piece_of.iter().filter(|&&other| other == piece).count();
+            if count > majority.1 {
+                majority = (piece, count);
+            }
+        }
+        let majority = majority.0;
+        if piece_of.iter().all(|&piece| piece == majority || piece == u32::MAX) {
+            continue;
+        }
+        for k in 0..used {
+            if piece_of[k] == majority || piece_of[k] == u32::MAX {
+                continue;
+            }
+            let w = element[k];
+            let copy = match copies.get(&(w, majority)) {
+                Some(&copy) => copy,
+                None => {
+                    let position = vertices[w as usize];
+                    let Some(binding) =
+                        closest_cell_binding(body, position, |cell| cell_piece(cell) == majority)
+                    else {
+                        continue;
+                    };
+                    bindings.push(binding);
+                    vertices.push(position);
+                    let copy = vertices.len() as u32 - 1;
+                    let _ = copies.insert((w, majority), copy);
+                    copy
+                }
+            };
+            element[k] = copy;
+        }
+    }
+}
+
+/// The largest number of particle combinations [`follow_splits`] tries for one element.
+const MAX_SPLIT_COMBINATIONS: usize = 64;
+
+/// Follows particle splits (`split`: `(copy, source)` in creation order) in a direct mesh
+/// (`particles`: the particle of each vertex): an element whose particles no longer share a
+/// measure element of `body` switches to the combination of copies that does, adding vertices.
+fn follow_splits(
+    particles: &mut Vec<u32>,
+    indices: &mut [[u32; DIM]],
+    body: &SoftBody,
+    split: &[(u32, u32)],
+) {
+    // Every split particle's family: the particle it was first split from, then its copies.
+    let mut root: HashMap<u32, u32> = HashMap::default();
+    let mut families: HashMap<u32, Vec<u32>> = HashMap::default();
+    for &(copy, source) in split {
+        let first = root.get(&source).copied().unwrap_or(source);
+        root.insert(copy, first);
+        families.entry(first).or_insert_with(|| vec![first]).push(copy);
+    }
+    let mut vertex_of: HashMap<u32, u32> = HashMap::default();
+    for (vertex, &particle) in particles.iter().enumerate() {
+        vertex_of.entry(particle).or_insert(vertex as u32);
+    }
+    for element in indices.iter_mut() {
+        let used = element_vertices(element).len();
+        let current: Vec<u32> = element[..used]
+            .iter()
+            .map(|&w| particles[w as usize])
+            .collect();
+        let candidates: Vec<&[u32]> = current
+            .iter()
+            .map(|p| {
+                let first = root.get(p).copied().unwrap_or(*p);
+                families
+                    .get(&first)
+                    .map_or(core::slice::from_ref(p), Vec::as_slice)
+            })
+            .collect();
+        let combinations: usize = candidates.iter().map(|c| c.len()).product();
+        if combinations == 1
+            || combinations > MAX_SPLIT_COMBINATIONS
+            || body.measure_element_holds(&current)
+        {
+            continue;
+        }
+        for index in 0..combinations {
+            let mut digits = index;
+            let combination: Vec<u32> = candidates
+                .iter()
+                .map(|c| {
+                    let p = c[digits % c.len()];
+                    digits /= c.len();
+                    p
+                })
+                .collect();
+            if body.measure_element_holds(&combination) {
+                for (k, &p) in combination.iter().enumerate() {
+                    if p != current[k] {
+                        element[k] = *vertex_of.entry(p).or_insert_with(|| {
+                            particles.push(p);
+                            particles.len() as u32 - 1
+                        });
+                    }
+                }
+                break;
+            }
+        }
     }
 }

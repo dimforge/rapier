@@ -378,11 +378,11 @@ fn a_skinned_mesh_follows_its_cells_through_a_tear() {
     };
 
     // Tear a cell of the ball: a crack opens through it, under the skin.
-    let cells_before = world.soft_bodies[handle].cells().len();
+    let particles_before = world.soft_bodies[handle].num_particles();
     world.soft_bodies[handle].tear_cell(0);
     world.step();
     assert!(
-        world.soft_bodies[handle].cells().len() < cells_before,
+        world.soft_bodies[handle].num_particles() > particles_before,
         "nothing was torn"
     );
 
@@ -448,5 +448,133 @@ fn a_skinned_mesh_binds_where_it_is_given() {
             (bound - *given).length() < 1.0e-4,
             "the mesh was bound at {bound:?} instead of {given:?}"
         );
+    }
+}
+
+/// The surface of a box (`center`, `half_extents`) with `m × m` quads per face, shared vertices
+/// along the box edges, and outward triangles.
+fn box_surface(center: Vector, half_extents: Vector, m: usize) -> (Vec<Vector>, Vec<[u32; 3]>) {
+    use std::collections::HashMap;
+    let mut ids: HashMap<[usize; 3], u32> = HashMap::new();
+    let mut vertices = Vec::new();
+    let mut vertex = |g: [usize; 3], vertices: &mut Vec<Vector>| {
+        *ids.entry(g).or_insert_with(|| {
+            let t = |k: usize| -1.0 + 2.0 * g[k] as Real / m as Real;
+            vertices.push(center + Vector::new(t(0), t(1), t(2)) * half_extents);
+            vertices.len() as u32 - 1
+        })
+    };
+    let mut indices = Vec::new();
+    for axis in 0..3 {
+        let (u, w) = ((axis + 1) % 3, (axis + 2) % 3);
+        for side in [0, m] {
+            for i in 0..m {
+                for j in 0..m {
+                    let corner = |di: usize, dj: usize| {
+                        let mut g = [0; 3];
+                        g[axis] = side;
+                        g[u] = i + di;
+                        g[w] = j + dj;
+                        g
+                    };
+                    let q = [corner(0, 0), corner(1, 0), corner(1, 1), corner(0, 1)]
+                        .map(|g| vertex(g, &mut vertices));
+                    for mut tri in [[q[0], q[1], q[2]], [q[0], q[2], q[3]]] {
+                        let p = tri.map(|v| vertices[v as usize]);
+                        let normal = (p[1] - p[0]).cross(p[2] - p[0]);
+                        if normal.dot(p[0] - center) < 0.0 {
+                            tri.swap(1, 2);
+                        }
+                        indices.push(tri);
+                    }
+                }
+            }
+        }
+    }
+    (vertices, indices)
+}
+
+/// A cut through a body wearing a skin separates the skin too: every skin element ends on the
+/// cells of one piece (the vertices of an element spanning the crack are duplicated onto the
+/// majority side), whether the skin collides or is only drawn.
+#[test]
+fn a_skinned_mesh_comes_apart_with_its_cells() {
+    for collides in [true, false] {
+        let mut world = world_with_ground();
+        let center = Vector::new(0.0, 1.5, 0.0);
+        let half_extents = Vector::new(1.0, 0.5, 0.5);
+        let (vertices, indices) = box_surface(center, half_extents * 0.95, 8);
+        let handle = world.insert_soft_body(
+            SoftBodyBuilder::cuboid(center, half_extents, 5, 3, 3)
+                .skin(vertices, indices)
+                .skin_collision(collides)
+                .particle_mass(0.05),
+        );
+        world.step();
+        let skins = |sb: &SoftBody| -> Vec<SoftCollisionMesh> {
+            sb.meshes().filter(|mesh| mesh.is_skinned()).cloned().collect()
+        };
+        let vertex_count = skins(&world.soft_bodies[handle])[0].vertex_count();
+
+        let blade = [
+            Vector::new(0.1, -5.0, -5.0),
+            Vector::new(0.1, 15.0, -5.0),
+            Vector::new(0.1, -5.0, 15.0),
+        ];
+        let event = world
+            .cut_soft_body(handle, &blade)
+            .expect("the blade crossed the box");
+        // The box is two bodies now, the skin came apart with them: one skin per body, over
+        // that body's cells alone.
+        assert_eq!(event.pieces.len(), 2);
+        let bodies: Vec<SoftBodyHandle> = event.bodies().collect();
+        let mut vertices = 0;
+        let mut positions = Vec::new();
+        for &h in &bodies {
+            let sb = &world.soft_bodies[h];
+            sb.validate_topology().unwrap();
+            assert_eq!(sb.connected_pieces().len(), 1);
+            let meshes = skins(sb);
+            assert_eq!(meshes.len(), 1);
+            let mesh = &meshes[0];
+            assert_eq!(mesh.collision_enabled(), collides);
+            assert!(!mesh.indices().is_empty());
+            vertices += mesh.vertex_count();
+            let SoftMeshMapping::Skinned { bindings } = mesh.binding() else {
+                panic!("the skin is not skinned");
+            };
+            for (i, element) in mesh.indices().iter().enumerate() {
+                for &v in element {
+                    assert!(
+                        (bindings[v as usize].cell as usize) < sb.cells().len(),
+                        "skin element {i} rides a cell of the other piece (collides: {collides})"
+                    );
+                }
+            }
+            positions.push(mesh.vertex_positions(sb).collect::<Vec<Vector>>());
+        }
+        assert!(vertices > vertex_count, "no skin vertex was duplicated across the cut");
+        // The duplicated vertices start where their source was: nothing jumps.
+        world.step();
+        let mut moved: Real = 0.0;
+        for (&h, then) in bodies.iter().zip(&positions) {
+            let sb = &world.soft_bodies[h];
+            for (now, then) in skins(sb)[0].vertex_positions(sb).zip(then) {
+                moved = moved.max((now - *then).length());
+            }
+        }
+        assert!(moved < 0.1, "a skin vertex jumped {moved} through the cut (collides: {collides})");
+
+        for _ in 0..120 {
+            world.step();
+        }
+        for &h in &bodies {
+            let sb = &world.soft_bodies[h];
+            sb.validate_topology().unwrap();
+            assert!(sb.particle_positions().all(|p| p.is_finite()));
+            for mesh in skins(sb) {
+                assert!(mesh.vertex_positions(sb).all(|p| p.is_finite()));
+            }
+        }
     }
 }

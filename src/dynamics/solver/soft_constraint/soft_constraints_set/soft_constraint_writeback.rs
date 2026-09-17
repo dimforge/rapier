@@ -154,8 +154,9 @@ impl SoftConstraintsSet {
                     }
                 }
             }
-            if let Some(vi) = awake.volume_constraint {
-                sb.volume_impulse = crate::utils::canonicalize_zero(self.volume_constraints[vi].impulse);
+            for vc in &self.volume_constraints[awake.volume_constraints.clone()] {
+                sb.volume_pieces[vc.piece as usize].impulse =
+                    crate::utils::canonicalize_zero(vc.impulse);
             }
             sb.plastic_flowing = awake.plastic_flow.load(Ordering::Relaxed);
             sb.tearing_pending |= awake.torn.load(Ordering::Relaxed);

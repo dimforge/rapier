@@ -8,6 +8,7 @@ use crate::geometry::ColliderSet;
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 use super::soft_body_set_proxies::{rebuilt_surface_shape, sync_soft_body};
+use super::soft_body_set_split::{ProxyPoses, rebase_proxy_attachments};
 use crate::dynamics::soft_body::{SoftBody, SoftBodyHandle, SoftBodyTearEvent};
 use super::{SoftBodyIslandEvent, SoftBodySet};
 use crate::pipeline::EventHandler;
@@ -322,6 +323,24 @@ impl SoftBodySet {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
     ) -> Option<SoftBodyTearEvent> {
+        let _ = multibody_joints;
+        self.change_topology(handle, islands, bodies, colliders, impulse_joints, |sb, event| {
+            sb.tear_topology(edges, cells, event)
+        })
+    }
+
+    /// Applies a topology change to a soft body (`change` returns whether anything changed and
+    /// records it in the event), then splits the clusters the change disconnected, rebuilds the
+    /// colliders and wakes the body up.
+    fn change_topology(
+        &mut self,
+        handle: SoftBodyHandle,
+        islands: &mut IslandManager,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        impulse_joints: &mut ImpulseJointSet,
+        change: impl FnOnce(&mut SoftBody, &mut SoftBodyTearEvent) -> bool,
+    ) -> Option<SoftBodyTearEvent> {
         let sb = self.bodies.get_mut(handle.0)?;
         let mut event = SoftBodyTearEvent {
             soft_body: handle,
@@ -331,9 +350,50 @@ impl SoftBodySet {
             return None;
         }
 
+        // The clusters the crack ran through come apart with their material, then so does the
+        // body: every piece the crack disconnected becomes a soft body of its own.
+        let seeds = event.seeds();
+        let mut poses = ProxyPoses::default();
+        let split = self.split_clusters_along(
+            handle,
+            &seeds,
+            islands,
+            bodies,
+            colliders,
+            impulse_joints,
+            &mut event,
+            &mut poses,
+        );
+        let mut handles = self.split_body_along(
+            handle,
+            &seeds,
+            islands,
+            bodies,
+            colliders,
+            impulse_joints,
+            &mut event,
+            &mut poses,
+        );
+        let split = split || !handles.is_empty();
+        handles.insert(0, handle);
 
-        if let Some(rb) = bodies.get_mut(sb.root_body) {
-            rb.wake_up(true);
+        for &piece in &handles {
+            let sb = &mut self.bodies[piece.0];
+            if split {
+                // The pieces' frames, fresh and retained: the colliders are expressed in them.
+                Self::update_cluster_proxies(sb, bodies, colliders);
+            }
+            // The colliders follow the new surface at once: the next step's narrow phase must
+            // not report elements that no longer exist.
+            Self::update_colliders(sb, bodies, colliders, true);
+        }
+        if split {
+            rebase_proxy_attachments(&poses, bodies, colliders, impulse_joints);
+        }
+        for &piece in &handles {
+            if let Some(rb) = bodies.get_mut(self.bodies[piece.0].root_body) {
+                rb.wake_up(true);
+            }
         }
         Some(event)
     }
@@ -353,6 +413,9 @@ impl SoftBodySet {
         multibody_joints: &mut MultibodyJointSet,
     ) -> Option<SoftBodyTearEvent> {
         let _ = multibody_joints;
+        self.change_topology(handle, islands, bodies, colliders, impulse_joints, |sb, event| {
+            sb.cut_topology(blade, event)
+        })
     }
 
     /// Refreshes every mesh's vertex cache from the particles, before a narrow-phase update

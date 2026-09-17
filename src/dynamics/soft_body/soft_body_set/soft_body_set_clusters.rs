@@ -114,6 +114,7 @@ impl SoftBodySet {
             if !c.is_live() {
                 return None;
             }
+            let (particles, proxy) = c.tombstone();
 
             // Reference counts: the particles only this cluster covered die.
             let mut dead = alloc::vec![false; sb.particles.len()];

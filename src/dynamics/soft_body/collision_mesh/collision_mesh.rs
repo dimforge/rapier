@@ -163,4 +163,6 @@ pub struct SoftCollisionMesh {
 pub(crate) struct SoftTopologyRemap<'a> {
     pub cells: &'a [u32],
     pub particles: &'a [u32],
+    pub split: &'a [(u32, u32)],
+    pub inserted: &'a [[u32; 4]],
 }

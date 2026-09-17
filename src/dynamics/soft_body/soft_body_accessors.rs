@@ -1,5 +1,8 @@
 //! Accessors and simple setters of a soft body: particles, elements, material, volume preservation, sleeping and enabling.
-use super::{SoftBody, SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyMaterial, SoftBodyParticle};
+use super::{
+    SoftBody, SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyMaterial, SoftBodyParticle,
+    SoftVolumePiece,
+};
 #[cfg(feature = "dim3")]
 use super::SoftBodyDihedral;
 #[cfg(feature = "fem")]
@@ -148,36 +151,44 @@ impl SoftBody {
         }
     }
 
-    /// Whether the global area/volume preservation row is enabled.
+    /// Whether the area/volume preservation constraints are enabled (see [`Self::volume_pieces`]).
     pub fn volume_preservation_enabled(&self) -> bool {
         self.volume_preservation
     }
 
-    /// Enables or disables the global area/volume preservation row (requires a closed
-    /// surface).
+    /// Enables or disables area/volume preservation: one constraint per volume piece (see
+    /// [`Self::volume_pieces`]); it stays disabled for a body without any.
     pub fn enable_volume_preservation(&mut self, enabled: bool) {
-        self.volume_preservation = enabled && !self.boundary.is_empty();
+        self.volume_preservation = enabled && !self.volume_pieces.is_empty();
         self.modified = true;
     }
 
-    /// The signed area (2D) or volume (3D) enclosed by the surface at rest.
+    /// The pieces of material enclosed by a closed boundary, each with its own volume constraint
+    /// so squeezing one does not inflate another. Pieces joined by no element (appended bodies,
+    /// torn-apart halves) are separate; the holes or cavities of a piece belong to it.
+    pub fn volume_pieces(&self) -> &[SoftVolumePiece] {
+        &self.volume_pieces
+    }
+
+    /// The signed area (2D) or volume (3D) enclosed by the volume pieces at rest (`0.0` for a
+    /// body without a closed boundary).
     pub fn rest_volume(&self) -> Real {
-        self.rest_volume
+        self.volume_pieces.iter().map(|piece| piece.rest_volume).sum()
     }
 
-    /// The signed area (2D) or volume (3D) currently enclosed by the surface.
+    /// The signed area (2D) or volume (3D) currently enclosed by the volume pieces.
     pub fn volume(&self) -> Real {
-        Self::boundary_volume(&self.boundary, |i| self.particles[i as usize].position)
+        self.volume_pieces.iter().map(|piece| piece.volume(self)).sum()
     }
 
-    /// The multiplier applied to the rest volume to obtain the volume-preservation target
-    /// (`> 1` inflates the body).
+    /// The multiplier applied to each volume piece's rest volume to obtain its
+    /// volume-preservation target (`> 1` inflates the body).
     pub fn volume_factor(&self) -> Real {
         self.volume_factor
     }
 
-    /// Sets the multiplier applied to the rest volume to obtain the volume-preservation
-    /// target (`> 1` inflates the body).
+    /// Sets the multiplier applied to each volume piece's rest volume to obtain its
+    /// volume-preservation target (`> 1` inflates the body).
     pub fn set_volume_factor(&mut self, factor: Real) {
         self.volume_factor = factor;
         self.modified = true;
@@ -189,13 +200,25 @@ impl SoftBody {
         self.particle_radius
     }
 
-    /// The hidden rigid body standing for this soft body in the islands and carrying its
-    /// colliders (see the type-level documentation; invalid until the soft body is inserted in a
-    /// set). Never move, remove or attach joints to it: it is only useful to recognize the soft
-    /// body's colliders (their parent) in query results and events, or to exclude them from a
-    /// query.
+    /// The hidden rigid body standing for this soft body in the islands and holding its colliders
+    /// (invalid until inserted in a set). Never move, remove or attach joints to it; it only
+    /// serves to recognize or exclude the soft body's colliders in queries and events.
     pub fn root_body(&self) -> RigidBodyHandle {
         self.root_body
+    }
+
+    /// The soft body this one was split off from by a tear or a cut (`None` for a user-inserted
+    /// body): the piece that kept the handle (see [`crate::dynamics::SoftBodyTearEvent::pieces`]).
+    /// Informational only; the handle dangles once that body is removed.
+    pub fn origin(&self) -> Option<crate::dynamics::SoftBodyHandle> {
+        self.origin
+    }
+
+    /// The soft bodies split off from this one by tears and cuts, in creation order (a piece
+    /// torn off a piece is listed by that piece, not here). Informational: the engine never
+    /// reads it, and a handle dangles once that body is removed.
+    pub fn pieces(&self) -> &[crate::dynamics::SoftBodyHandle] {
+        &self.pieces
     }
 
     /// The dynamics settings of the particles (damping, gravity scale, sleeping...).

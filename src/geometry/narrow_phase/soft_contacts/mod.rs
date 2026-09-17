@@ -18,7 +18,9 @@ pub use soft_contacts_types::{
     SoftContactImpulse, SoftEdgeCandidate, SoftEdgePass, SoftPairContacts, SoftRigidPatch,
     SoftVertexCandidate, SoftVertexHits, SoftVertexPass, SoftVolumePatch,
 };
-pub(crate) use soft_contacts_types::{SelfTangles, SoftDetectionCtx, SoftRigidContacts, body_frozen};
+pub(crate) use soft_contacts_types::{
+    SelfTangles, SoftDetectionCtx, SoftRigidContacts, body_frozen, rest_gap_skins,
+};
 use soft_contacts_types::Side;
 pub(crate) use soft_contacts_vertex_pass::{detect_vertex_pass, element_plane, elements_cross};
 pub use soft_contacts_volume::VolumeBin;

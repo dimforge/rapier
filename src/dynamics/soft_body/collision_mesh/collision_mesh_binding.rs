@@ -234,5 +234,31 @@ pub enum SoftBindingError {
 /// The binding of `position` to the closest cell of `body` accepted by `allowed` (`None` without
 /// any such cell).
 // TODO: optimize neighrest neighbor search with the BVH?
-pub(super) fn closest_cell_binding(body: &SoftBody, position: Vector) -> Option<SoftMeshCellBinding> {
+pub(super) fn closest_cell_binding(
+    body: &SoftBody,
+    position: Vector,
+    allowed: impl Fn(u32) -> bool,
+) -> Option<SoftMeshCellBinding> {
+    let cell_points =
+        |cell: &SoftBodyCell| cell.vertices.map(|v| body.particles[v as usize].position);
+    let mut by_distance: Vec<(Real, u32)> = body
+        .cells
+        .iter()
+        .enumerate()
+        .filter(|(id, _)| allowed(*id as u32))
+        .map(|(id, cell)| {
+            (
+                distance_squared_to_cell(position, cell_points(cell)),
+                id as u32,
+            )
+        })
+        .collect();
+    by_distance.sort_unstable_by(|a, b| a.0.total_cmp(&b.0));
+    by_distance.iter().find_map(|(_, cell)| {
+        let weights = barycentric(position, cell_points(&body.cells[*cell as usize]))?;
+        Some(SoftMeshCellBinding {
+            cell: *cell,
+            weights,
+        })
+    })
 }

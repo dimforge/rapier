@@ -56,7 +56,8 @@ impl SoftBodyBuilder {
             .iter()
             .zip(masses.iter())
             .zip(pinned.iter())
-            .map(|((p, m), pinned)| SoftBodyParticle {
+            .enumerate()
+            .map(|(i, ((p, m), pinned))| SoftBodyParticle {
                 position: *p,
                 velocity: Vector::ZERO,
                 rest_position: *p - rest_com,
@@ -66,6 +67,7 @@ impl SoftBodyBuilder {
                 next_position: None,
                 damaged: false,
                 on_surface: false,
+                split_root: i as u32,
             })
             .collect();
         let pos = |i: u32| self.positions[i as usize];
@@ -190,7 +192,6 @@ impl SoftBodyBuilder {
             &mut dihedrals,
         );
 
-        let rest_volume = SoftBody::boundary_volume(&surface, pos);
         let boundary_closed = surface_is_closed(&surface);
         let boundary_element_cells = surface_element_cells(&surface, &cells);
         let mut particles = particles;
@@ -202,12 +203,51 @@ impl SoftBodyBuilder {
             }
         }
 
-        SoftBody {
-            volume_preservation: self.volume_preservation && !surface.is_empty(),
-            boundary_inverted: false,
-            rest_volume,
-            volume_impulse: 0.0,
-        }
+        let mut body = SoftBody {
+            particles,
+            clusters: vec![],
+            cluster_refs: Vec::new(),
+            root_body: RigidBodyHandle::invalid(),
+            attachments: Vec::new(),
+            sleeping: false,
+            enabled: true,
+            positions_modified: false,
+            attachments_modified: false,
+            edges,
+            #[cfg(feature = "dim3")]
+            dihedrals,
+            cells,
+            volume_preservation: self.volume_preservation,
+            boundary: surface,
+            boundary_closed,
+            boundary_element_cells,
+            material: self.material,
+            cell_model: self.cell_model,
+            #[cfg(feature = "fem")]
+            solver: self.solver,
+            volume_pieces: Vec::new(),
+            volume_factor: self.volume_factor,
+            rest_com,
+            particle_radius: self.particle_radius,
+            particle_settings: self.particle_settings,
+            num_colors,
+            has_overflow_color,
+            modified: false,
+            plastic_flowing: false,
+            sleep_speed: 0.0,
+            tearing_pending: false,
+            topology_version: 0,
+            contact_approach_speeds: [None; 2],
+            contact_load: 0.0,
+            load_extra_substeps: 0,
+            origin: None,
+            pieces: Vec::new(),
+            user_data: self.user_data,
+        };
+        // From the builder's positions: the particles' rest positions are centered on `rest_com`.
+        body.volume_pieces = body.compute_volume_pieces(&[], pos);
+        body.volume_preservation &= !body.volume_pieces.is_empty();
+        body
     }
 }
 

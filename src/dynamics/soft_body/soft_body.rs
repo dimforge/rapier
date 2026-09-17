@@ -80,6 +80,8 @@ pub struct SoftBody {
     pub(crate) volume_preservation: bool,
     /// The pieces of material enclosed by a closed boundary, each with its own volume constraint
     /// (rebuilt with the boundary tables).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) volume_pieces: Vec<super::SoftVolumePiece>,
     /// Multiplier of the target volume (`> 1` inflates the body).
     pub(crate) volume_factor: Real,
     /// The rest shape's center of mass at insertion (world space).
@@ -127,6 +129,13 @@ pub struct SoftBody {
     pub(crate) contact_load: Real,
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub(crate) load_extra_substeps: u8,
+    /// The soft body this one was split off from by a tear or a cut (see
+    /// [`Self::origin`]).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) origin: Option<crate::dynamics::SoftBodyHandle>,
+    /// The soft bodies split off from this one, in creation order (see [`Self::pieces`]).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) pieces: Vec<crate::dynamics::SoftBodyHandle>,
     /// User-defined data associated to this soft body.
     pub user_data: u128,
 }

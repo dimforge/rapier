@@ -2,8 +2,11 @@
 //! hanging strip shot through by a fast disk, and a jelly bar pulled apart by its kinematic ends.
 //! Cracks split particles and shed pieces as new soft bodies; the panel sets `min_piece`.
 
-use rapier_testbed2d::TestbedViewer;
 use rapier2d::prelude::*;
+use rapier_testbed2d::{
+    TestbedViewer,
+    egui::{Align2, Slider, Window},
+};
 
 pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
@@ -96,8 +99,32 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     viewer.set_world(&mut world);
     viewer.look_at(Vec2::new(0.0, 4.0), 40.0);
 
+    // Demo UI: the smallest piece a tear may split off, applied to every soft body (the pieces
+    // a tear splits off inherit their origin's material).
+    let mut min_piece_default = true;
+    let mut min_piece: u32 = 3;
     let mut t: Real = 0.0;
     while viewer.render_frame(&mut world).await {
+        let mut changed = false;
+        Window::new("Tearing")
+            .anchor(Align2::RIGHT_TOP, [-15.0, 15.0])
+            .show(viewer.egui_context(), |ui| {
+                changed |= ui
+                    .checkbox(&mut min_piece_default, "Default minimum piece (3 cells)")
+                    .changed();
+                changed |= ui
+                    .add_enabled(
+                        !min_piece_default,
+                        Slider::new(&mut min_piece, 1..=40).text("minimum piece (elements)"),
+                    )
+                    .changed();
+            });
+        if changed {
+            let value = (!min_piece_default).then_some(min_piece);
+            for (_, sb) in world.soft_bodies.iter_mut() {
+                sb.material_mut().min_piece = value;
+            }
+        }
         if viewer.simulating() {
             t += world.integration_parameters.dt;
             // The right end of the bar starts moving after a second, at half a meter per

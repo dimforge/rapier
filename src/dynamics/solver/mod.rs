@@ -12,6 +12,7 @@ mod interaction_groups;
 mod joint_constraint;
 pub(crate) mod manifold_store;
 mod soft_constraint;
+pub(crate) use soft_constraint::soft_element_constraint::symmetric_eigen;
 #[cfg(feature = "fem")]
 pub(crate) mod soft_fem;
 mod solver_body;

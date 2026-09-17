@@ -202,23 +202,28 @@ impl SoftConstraintsSet {
                     awake.damping_factor = 1.0 - (-material.deformation_damping * dt).exp();
                     damping = true;
                 }
-                if sb.volume_preservation && !sb.boundary.is_empty() {
+                if sb.volume_preservation && !sb.volume_pieces.is_empty() {
                     let grads_start = self.volume_grads.len();
                     self.volume_grads
                         .resize(grads_start + sb.particles.len(), Vector::ZERO);
-                    awake.volume_constraint = Some(self.volume_constraints.len());
-                    self.volume_constraints.push(SoftVolumeConstraint {
-                        soft_body: ai as u32,
-                        target: sb.rest_volume * sb.volume_factor,
-                        grads: grads_start..grads_start + sb.particles.len(),
-                        erp_inv_dt: material.volume_softness.erp_inv_dt(dt),
-                        cfm_coeff: material.volume_softness.cfm_coeff(dt),
-                        max_bias_velocity: max_corrective_velocity,
-                        inv_lhs: 0.0,
-                        cfm_gain: 0.0,
-                        rhs: 0.0,
-                        fem: None,
-                    });
+                    let first = self.volume_constraints.len();
+                    for (pi, piece) in sb.volume_pieces.iter().enumerate() {
+                        self.volume_constraints.push(SoftVolumeConstraint {
+                            soft_body: ai as u32,
+                            piece: pi as u32,
+                            target: piece.rest_volume * sb.volume_factor,
+                            grads: grads_start..grads_start + sb.particles.len(),
+                            erp_inv_dt: material.volume_softness.erp_inv_dt(dt),
+                            cfm_coeff: material.volume_softness.cfm_coeff(dt),
+                            max_bias_velocity: max_corrective_velocity,
+                            inv_lhs: 0.0,
+                            cfm_gain: 0.0,
+                            rhs: 0.0,
+                            impulse: piece.impulse,
+                            fem: None,
+                        });
+                    }
+                    awake.volume_constraints = first..self.volume_constraints.len();
                 }
             }
             let colors_start = self.color_ranges.len();
@@ -429,6 +434,10 @@ impl SoftConstraintsSet {
             let Some(sb) = soft_bodies.get_mut(handle) else {
                 continue;
             };
+            // A body deserialized from a snapshot predating the volume pieces has none yet.
+            if sb.volume_preservation && sb.volume_pieces.is_empty() {
+                sb.rebuild_volume_pieces(&[]);
+            }
 
             let awake_clusters =
             sb
@@ -473,7 +482,7 @@ impl SoftConstraintsSet {
                 num_particles: sb.particles.len(),
                 shape_com: Vector::ZERO,
                 shape_constraints: 0..0,
-                volume_constraint: None,
+                volume_constraints: 0..0,
                 damping_factor: 0.0,
                 plastic_flow: AtomicBool::new(false),
                 torn: AtomicBool::new(false),

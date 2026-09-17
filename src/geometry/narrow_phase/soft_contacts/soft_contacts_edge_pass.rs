@@ -13,7 +13,10 @@ use simba::scalar::{ComplexField as _, RealField as _};
 #[cfg(feature = "parallel")]
 use super::soft_contacts_vertex_pass::PARALLEL_CHUNK;
 use super::soft_contacts_vertex_pass::element_points;
-use super::{SelfTangles, Side, SoftDetectionCtx, SoftEdgeCandidate, SoftEdgePass, elements_cross};
+use super::{
+    SelfTangles, Side, SoftDetectionCtx, SoftEdgeCandidate, SoftEdgePass, elements_cross,
+    rest_gap_skins,
+};
 
 /// The edge-vs-edge candidates between the surfaces of `own` and `other` (itself for a self pass,
 /// with `tangles` set); complements the vertex-vs-surface constraints, keeping only contacts
@@ -23,6 +26,7 @@ pub(crate) fn detect_edges(
     (sb, mesh, surface_handle, surface_co): Side<'_>,
     (other, other_mesh, other_surface_handle, other_co): Side<'_>,
     tangles: Option<SelfTangles<'_>>,
+    rest_gaps: bool,
     ctx: &SoftDetectionCtx,
 ) -> bool {
     let params = ctx.params;
@@ -239,18 +243,50 @@ impl EdgeScan<'_> {
                         continue;
                     }
                     let (loc_a, loc_b) =
-                // Endpoint contacts are vertex contacts, carried by the vertex rows.
+                        parry::query::details::closest_points_segment_segment_with_locations_nD(
+                            (&pa[0], &pa[1]),
+                            (&pb[0], &pb[1]),
+                        );
+                    // Endpoint contacts are vertex contacts, handled by the vertex constraints.
+                    let (
+                        parry::shape::SegmentPointLocation::OnEdge(ba),
+                        parry::shape::SegmentPointLocation::OnEdge(bb),
                     ) = (loc_a, loc_b)
                     else {
                         continue;
+                    };
                     let point_a = pa[0] * ba[0] + pa[1] * ba[1];
                     let point_b = pb[0] * bb[0] + pb[1] * bb[1];
                     let sep = point_b - point_a;
                     let len = sep.length();
                     if len >= self.reach || len < 1.0e-6 {
-                let dist = len - skins;
                         continue;
                     }
+                    // Two pieces of one torn body keep the gap the edges had at rest.
+                    let pair_skins = if self.rest_gaps {
+                        let ra = [
+                            self.mesh.rest_vertex(self.sb, va[0] as usize),
+                            self.mesh.rest_vertex(self.sb, va[1] as usize),
+                        ];
+                        let rb = [
+                            self.other_mesh.rest_vertex(self.other, vb[0] as usize),
+                            self.other_mesh.rest_vertex(self.other, vb[1] as usize),
+                        ];
+                        let (la, lb) =
+                            parry::query::details::closest_points_segment_segment_with_locations_nD(
+                                (&ra[0], &ra[1]),
+                                (&rb[0], &rb[1]),
+                            );
+                        let (ca, cb) = (la.barycentric_coordinates(), lb.barycentric_coordinates());
+                        let rest_gap = (ra[0] * ca[0] + ra[1] * ca[1]
+                            - rb[0] * cb[0]
+                            - rb[1] * cb[1])
+                            .length();
+                        rest_gap_skins(self.skins, rest_gap)
+                    } else {
+                        self.skins
+                    };
+                    let dist = len - pair_skins;
                     // Beyond the prediction distance, only a contact closing fast enough
                     // to happen within the whole step is kept (the vertex pass's rule):
                     // the rest of the self.reach is the bodies' motion margin.

@@ -41,9 +41,29 @@ pub struct SoftBodyParticle {
     /// Whether some surface element has this particle as a vertex (updated with the boundary).
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub(crate) on_surface: bool,
+    /// The particle this one was split from, shared by every copy of a split particle (its own
+    /// index when it was never split; `u32::MAX` also reads as its own index, see
+    /// [`Self::split_root`]).
+    #[cfg_attr(feature = "serde-serialize", serde(default = "no_split_root"))]
+    pub(crate) split_root: u32,
+}
+
+#[cfg(feature = "serde-serialize")]
+fn no_split_root() -> u32 {
+    u32::MAX
 }
 
 impl SoftBodyParticle {
+    /// The root of this particle's split family, `index` being this particle's own index: two
+    /// particles with the same root are copies of one particle a crack went through.
+    pub(crate) fn split_root(&self, index: u32) -> u32 {
+        if self.split_root == u32::MAX {
+            index
+        } else {
+            self.split_root
+        }
+    }
+
     /// The world-space position of this particle.
     pub fn position(&self) -> Vector {
         self.position
