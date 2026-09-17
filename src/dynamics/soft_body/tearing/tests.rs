@@ -129,6 +129,49 @@ fn min_piece_sets_the_smallest_piece_a_tear_leaves() {
     }
 }
 
+/// Checks that a pinned particle is never split: a rope pinned at both ends tears at the free end
+/// of its first segment, a segment between two pinned particles never tears, and a cut next to a
+/// pinned end inserts its particles a fifth of the segment in.
+#[test]
+fn pinned_particles_are_never_split() {
+    let rope = SoftBodyBuilder::rope(Vector::ZERO, Vector::X * 8.0, 9)
+        .particle_mass(0.5)
+        .min_piece(1)
+        .pinned_particles([0, 8]);
+    let (mut world, handle) = world_with(rope);
+    let event = world.tear_soft_body(handle, &[0], &[]).expect("nothing tore");
+    assert_eq!(event.split_particles, vec![(9, 1)]);
+    assert_eq!(event.pieces.len(), 2);
+    let stub = &world.soft_bodies[event.pieces[1].soft_body];
+    assert_eq!(event.pieces[1].particles, vec![0, 9]);
+    assert!(stub.particles()[0].is_pinned() && !stub.particles()[1].is_pinned());
+
+    let both = SoftBodyBuilder::rope(Vector::ZERO, Vector::X * 2.0, 3)
+        .min_piece(1)
+        .pinned_particles([0, 1]);
+    let (mut world, handle) = world_with(both);
+    assert!(world.tear_soft_body(handle, &[0], &[]).is_none());
+    assert_eq!(world.soft_bodies[handle].num_particles(), 3);
+
+    let rope = SoftBodyBuilder::rope(Vector::ZERO, Vector::X * 8.0, 9).pinned_particles([0]);
+    let (mut world, handle) = world_with(rope);
+    #[cfg(feature = "dim2")]
+    let blade = [Vector::new(0.05, -1.0), Vector::new(0.05, 1.0)];
+    #[cfg(feature = "dim3")]
+    let blade = [
+        Vector::new(0.05, -1.0, -1.0),
+        Vector::new(0.05, 2.0, -1.0),
+        Vector::new(0.05, -1.0, 2.0),
+    ];
+    let event = world.cut_soft_body(handle, &blade).expect("the blade crossed the rope");
+    assert!(event.split_particles.is_empty());
+    assert_eq!(event.inserted_particles.len(), 2);
+    let stub = &world.soft_bodies[event.pieces[1].soft_body];
+    assert_eq!(stub.num_particles(), 2);
+    assert!(stub.particles()[0].is_pinned());
+    assert!((stub.particle_position(1).x - 0.2).abs() < 1.0e-5);
+}
+
 /// A soft body and every body split off it by tears, recursively (see `SoftBody::pieces`).
 fn family(world: &PhysicsWorld, handle: SoftBodyHandle) -> Vec<SoftBodyHandle> {
     let mut bodies = vec![handle];

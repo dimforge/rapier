@@ -316,6 +316,10 @@ impl SoftBody {
     /// shape: every element goes to the side of its rest centroid, and the groups are the
     /// connected components within a side. `None` when the fan lies on one side only.
     pub(super) fn plane_fan(&self, v: u32, origin: Vector, normal: Vector) -> Option<Fan> {
+        // A pinned particle is never split: the crack must open elsewhere.
+        if self.particles[v as usize].inv_mass == 0.0 {
+            return None;
+        }
         let kind = self.measure_kind()?;
         let mut fan = self.fan(kind, v);
         let rest = |i: u32| self.particles[i as usize].rest_position;

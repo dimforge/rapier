@@ -172,6 +172,13 @@ impl TestbedViewer {
         self.autosave();
 
         highlight_hovered_body(&mut self.graphics, &self.scene_mouse, world);
+        // The pieces a tear split off during the step, and what moved between bodies.
+        self.graphics.add_missing_soft_body_graphics(
+            &mut self.window,
+            &world.bodies,
+            &world.colliders,
+            &world.soft_bodies,
+        );
         self.graphics.draw(
             self.state.flags,
             &world.bodies,

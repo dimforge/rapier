@@ -80,25 +80,30 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         .surface_collider(ColliderBuilder::ball(0.1).friction(0.8));
     let bar = world.insert_soft_body(bar);
     let sb = &world.soft_bodies[bar];
-    let ends: Vec<(usize, Vector, bool)> = (0..sb.num_particles())
+    let mut ends: Vec<((SoftBodyHandle, u32), Vector, bool)> = (0..sb.num_particles())
         .filter_map(|i| {
             let p = sb.particle_position(i);
             if p.x < -4.99 {
-                Some((i, p, false))
+                Some(((bar, i as u32), p, false))
             } else if p.x > -1.01 {
-                Some((i, p, true))
+                Some(((bar, i as u32), p, true))
             } else {
                 None
             }
         })
         .collect();
-    for &(i, _, _) in &ends {
-        world.soft_bodies[bar].set_particle_pinned(i, true);
+    for &((_, i), _, _) in &ends {
+        world.soft_bodies[bar].set_particle_pinned(i as usize, true);
     }
 
     viewer.set_world(&mut world);
     viewer.look_at(Vec2::new(0.0, 4.0), 40.0);
 
+    // The tears of every step, to follow the driven particles through them.
+    let (collision_send, _collision_recv) = std::sync::mpsc::channel();
+    let (force_send, _force_recv) = std::sync::mpsc::channel();
+    let (tear_send, tear_recv) = std::sync::mpsc::channel();
+    let events = ChannelEventCollector::new(collision_send, force_send, tear_send);
     // Demo UI: the smallest piece a tear may split off, applied to every soft body (the pieces
     // a tear splits off inherit their origin's material).
     let mut min_piece_default = true;
@@ -130,14 +135,32 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             // The right end of the bar starts moving after a second, at half a meter per
             // second, and stops once the bar has doubled its length.
             let shift = ((t - 1.0).max(0.0) * 0.5).min(4.0);
-            let sb = &mut world.soft_bodies[bar];
-            for &(i, rest, right) in &ends {
+            for &((body, i), rest, right) in &ends {
                 if right {
-                    sb.set_particle_kinematic_target(i, rest + Vector::new(shift, 0.0));
+                    world.soft_bodies[body]
+                        .set_particle_kinematic_target(i as usize, rest + Vector::new(shift, 0.0));
                 }
             }
-            world.step();
+            world.step_with_events(&(), &events);
+            let tears: Vec<SoftBodyTearEvent> = tear_recv.try_iter().collect();
+            for (particle, _, _) in &mut ends {
+                follow_tears(&tears, particle);
+            }
         }
     }
     Ok(())
 }
+
+/// Where a particle driven by index is after the tears of a step: a tear compacts the torn
+/// body's particles and splits the disconnected pieces off as soft bodies of their own, so a
+/// particle's body and index follow the events.
+fn follow_tears(events: &[SoftBodyTearEvent], particle: &mut (SoftBodyHandle, u32)) {
+    for event in events {
+        if event.soft_body == particle.0 {
+            if let Some(destination) = event.particle_destination(particle.1) {
+                *particle = destination;
+            }
+        }
+    }
+}
+

@@ -8,8 +8,8 @@ use super::graphics_polyline::stroked_polyline;
 use super::graphics_polyline::tube_polyline;
 use super::{GraphicsManager, IndividualNode, SceneNode};
 use kiss3d::prelude::*;
-use rapier::dynamics::{SoftBodyHandle, SoftBodySet, SoftMeshRef};
-use rapier::geometry::{Collider, Shape, SharedShape};
+use rapier::dynamics::{RigidBodySet, SoftBodyHandle, SoftBodySet, SoftMeshRef};
+use rapier::geometry::{Collider, ColliderSet, Shape, SharedShape};
 use std::collections::HashMap;
 
 /// A render-only node following a mesh a soft body only *draws*: the skin it wears without
@@ -197,6 +197,83 @@ impl GraphicsManager {
                 smooth,
             });
         }
+    }
+
+    /// Registers render nodes for what the soft bodies gained since the last frame: a tear splits
+    /// pieces as new soft bodies (fresh proxies and colliders) and moves clusters between bodies.
+    /// Each proxy wears its body's color; drawn skins get nodes, moved-away meshes lose theirs.
+    pub fn add_missing_soft_body_graphics(
+        &mut self,
+        window: &mut Window,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        soft_bodies: &SoftBodySet,
+    ) {
+        for (handle, sb) in soft_bodies.iter() {
+            let color = self.soft_body_color(handle);
+            for (_, cluster) in sb.live_clusters() {
+                let proxy = cluster.proxy();
+                self.set_initial_body_color(proxy, color);
+                let Some(rb) = bodies.get(proxy) else {
+                    continue;
+                };
+                for &co_handle in rb.colliders() {
+                    if self.c2nodes.contains_key(&co_handle) {
+                        continue;
+                    }
+                    let Some(co) = colliders.get(co_handle) else {
+                        continue;
+                    };
+                    self.add_shape(
+                        window,
+                        co_handle,
+                        Some(proxy),
+                        co.shape(),
+                        co.is_sensor(),
+                        rapier::math::Pose::IDENTITY,
+                        color,
+                    );
+                }
+            }
+            for mesh in sb.meshes().filter(|mesh| is_drawn_skin(mesh)) {
+                let mesh_ref = SoftMeshRef {
+                    body: handle,
+                    id: mesh.id(),
+                };
+                if self.soft_graphics.mesh_nodes.iter().any(|n| n.mesh == mesh_ref) {
+                    continue;
+                }
+                let Some(shape) =
+                    drawn_mesh_shape(mesh.vertex_positions(sb).collect(), mesh.indices())
+                else {
+                    continue;
+                };
+                let smooth = self.smooth_mesh_colliders;
+                let Some(mut node) =
+                    Self::create_individual_node(&mut self.scene, &*shape, color, false, smooth)
+                else {
+                    continue;
+                };
+                node.set_visible(self.draw_surfaces && self.colliders_visible);
+                self.soft_graphics.mesh_nodes.push(SoftMeshNode {
+                    node,
+                    mesh: mesh_ref,
+                    color,
+                    smooth,
+                });
+            }
+        }
+        // The nodes of meshes that are gone (a removed body, a mesh moved to a piece).
+        self.soft_graphics.mesh_nodes.retain_mut(|n| {
+            let live = soft_bodies
+                .get(n.mesh.body)
+                .and_then(|sb| sb.mesh(n.mesh.id))
+                .is_some();
+            if !live {
+                n.node.detach();
+            }
+            live
+        });
     }
 
     /// Follows the drawn soft-body meshes: their vertices move every step, so each node's vertex

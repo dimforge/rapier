@@ -6,7 +6,7 @@
 #![allow(clippy::unnecessary_cast)]
 
 use crate::mouse::SceneMouse;
-use rapier::dynamics::{RigidBodyBuilder, RigidBodyHandle, SoftBodyHandle};
+use rapier::dynamics::{ImpulseJointHandle, RigidBodyBuilder, RigidBodyHandle};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::PhysicsWorld;
 use rapier::prelude::{
@@ -32,10 +32,23 @@ struct Grabbed {
     /// Invisible kinematic body following the cursor.
     mouse_body: RigidBodyHandle,
     /// The mouse joint.
-    soft_cluster: Option<(SoftBodyHandle, u32)>,
+    joint: ImpulseJointHandle,
+    /// Whether the grab holds a soft body through a temporary cluster proxy, torn down on
+    /// release together with whatever proxy the joint ended on.
+    soft: bool,
     /// Anchor of the plane the cursor ray is intersected with while dragging.
     #[cfg(feature = "dim3")]
     plane_point: Vector,
+}
+
+impl Grabbed {
+    /// The body the joint pulls now: the picked body, or the proxy a tear handed the joint to.
+    fn pulled(&self, world: &PhysicsWorld) -> RigidBodyHandle {
+        world
+            .impulse_joints
+            .get(self.joint)
+            .map_or(self.body, |joint| joint.body2())
+    }
 }
 
 impl MouseGrab {
@@ -47,7 +60,7 @@ impl MouseGrab {
     pub fn cue_line(&self, world: &PhysicsWorld) -> Option<(Vector, Vector)> {
         let g = self.grabbed.as_ref()?;
         let mouse = world.bodies.get(g.mouse_body)?.position().translation;
-        let body = world.bodies.get(g.body)?.position().translation;
+        let body = world.bodies.get(g.pulled(world))?.position().translation;
         Some((mouse, body))
     }
 
@@ -93,11 +106,12 @@ impl MouseGrab {
             };
             let mouse_body = world
                 .insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
-            world.insert_impulse_joint(mouse_body, proxy, mouse_joint(Vector::ZERO));
+            let joint = world.insert_impulse_joint(mouse_body, proxy, mouse_joint(Vector::ZERO));
             Grabbed {
                 body: proxy,
                 mouse_body,
-                soft_cluster: Some((sb_handle, cluster)),
+                joint,
+                soft: true,
                 #[cfg(feature = "dim3")]
                 plane_point: anchor,
             }
@@ -107,11 +121,13 @@ impl MouseGrab {
                 .inverse_transform_point(grab_point);
             let mouse_body = world
                 .insert_body(RigidBodyBuilder::kinematic_position_based().translation(grab_point));
-            world.insert_impulse_joint(mouse_body, body_handle, mouse_joint(local_anchor));
+            let joint =
+                world.insert_impulse_joint(mouse_body, body_handle, mouse_joint(local_anchor));
             Grabbed {
                 body: body_handle,
                 mouse_body,
-                soft_cluster: None,
+                joint,
+                soft: false,
                 #[cfg(feature = "dim3")]
                 plane_point: grab_point,
             }
@@ -136,7 +152,8 @@ impl MouseGrab {
             return;
         };
         // The example may have removed the body (or the whole soft body) while we held it.
-        if world.bodies.get(g.body).is_none() || world.bodies.get(g.mouse_body).is_none() {
+        let pulled = g.pulled(world);
+        if world.bodies.get(pulled).is_none() || world.bodies.get(g.mouse_body).is_none() {
             self.release(world);
             return;
         }
@@ -165,7 +182,7 @@ impl MouseGrab {
         };
 
         world.bodies[g.mouse_body].set_next_kinematic_translation(target);
-        world.bodies[g.body].wake_up(true);
+        world.bodies[pulled].wake_up(true);
     }
 
     /// Removes the mouse joint, its kinematic anchor, and any temporary cluster proxy (the one
@@ -175,14 +192,18 @@ impl MouseGrab {
         let Some(g) = self.grabbed.take() else {
             return;
         };
-        if let Some(rb) = world.bodies.get_mut(g.body) {
+        let pulled = g.pulled(world);
+        if let Some(rb) = world.bodies.get_mut(pulled) {
             rb.wake_up(true);
         }
         // Removing the body also removes the attached mouse joint.
         world.remove_body(g.mouse_body);
-        if let Some((sb_handle, cluster)) = g.soft_cluster {
-            if world.soft_bodies.get(sb_handle).is_some() {
-                world.remove_soft_body_cluster(sb_handle, cluster);
+        if g.soft {
+            for proxy in [g.body, pulled] {
+                if world.bodies.get(proxy).is_some_and(|rb| rb.is_soft_frame()) {
+                    world.remove_body(proxy);
+                }
+            }
         }
     }
 }

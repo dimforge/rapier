@@ -241,6 +241,7 @@ impl SoftBody {
         &mut self,
         ei: usize,
         t: Real,
+        force: bool,
         straddling: &mut Vec<usize>,
         log: &mut SplitLog,
     ) -> bool {
@@ -248,6 +249,7 @@ impl SoftBody {
         if !force && !range.contains(&t) {
             return false;
         }
+        let t = t.clamp(*range.start(), *range.end());
         let edge = self.edges[ei];
         let [a, b] = edge.vertices;
         let length = edge.initial_rest_length();

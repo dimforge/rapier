@@ -1976,6 +1976,7 @@ fn stiff_edge_tears_under_force_not_strain() {
         let tested = sb.edges().iter().find(|e| e.vertices == [3, 4]);
         let particles: usize = bodies.iter().map(|&h| world.soft_bodies[h].num_particles()).sum();
         (
+            particles,
             bodies.len(),
             tested.map(|e| e.stress()),
             sb.edges().len(),
@@ -1989,8 +1990,16 @@ fn stiff_edge_tears_under_force_not_strain() {
         (stress - 9.81 / 30.0).abs() < 0.08,
         "stress {stress} does not read the weight over the threshold"
     );
+    // The tear keeps every edge and never splits the pinned end: the weight's top particle
+    // splits, its copy stays on the bar as a stub and the weight falls as its own body. Edge
+    // `[3, 4]` now bears the stub alone (three quarters of the split particle's mass).
     let (particles, pieces, stress, edges) = hang(6.0);
     assert_eq!((particles, pieces, edges), (9, 2, 4), "the edge held a load above its tear force");
+    let stress = stress.unwrap();
+    assert!(
+        (stress - 0.1875 * 9.81 / 6.0).abs() < 0.03,
+        "the tested edge does not bear the stub alone: {stress}"
+    );
 }
 
 /// Tear smoothing: a jerk that would snap an edge at once is shrugged off once the load is
@@ -2203,11 +2212,24 @@ fn edge_plasticity_keeps_a_dent() {
     let sb = &world.soft_bodies[handle];
     let e = &sb.edges()[0];
     assert!((e.rest_length - 0.7 / 0.9).abs() < 1.0e-4, "a stretch flowed: {}", e.rest_length);
-    // 30% past the initial length: past the tear strain.
+    let stress = e.stress();
+    assert!(
+        (stress - 0.2 / 0.25).abs() < 0.02,
+        "the tear load reads the flowed rest length instead of the initial one: {stress}"
+    );
+    // 30% past the initial length: past the tear strain (the edge would tear, were an end free).
     world.soft_bodies[handle].set_particle_position(1, Vector::new(1.3, 0.0));
     for _ in 0..30 {
         world.step();
     }
+    let sb = &world.soft_bodies[handle];
+    sb.validate_topology().unwrap();
+    assert_eq!(sb.num_particles(), 10, "an edge between two pinned particles tore");
+    let stress = sb.edges()[0].stress();
+    assert!(
+        (stress - 0.3 / 0.25).abs() < 0.02,
+        "the overstretched edge does not read past its threshold: {stress}"
+    );
 }
 
 /// Tears are reported to the event handler and keep every segment: a seven-particle rope whose

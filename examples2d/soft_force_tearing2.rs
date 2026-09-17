@@ -156,6 +156,11 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         DebugRenderMode::SOFT_BODIES | DebugRenderMode::SOFT_BODY_STRESS,
     );
 
+    // The tears of every step, to follow the driven particles through them.
+    let (collision_send, _collision_recv) = std::sync::mpsc::channel();
+    let (force_send, _force_recv) = std::sync::mpsc::channel();
+    let (tear_send, tear_recv) = std::sync::mpsc::channel();
+    let events = ChannelEventCollector::new(collision_send, force_send, tear_send);
     let mut t: Real = 0.0;
     while viewer.render_frame(&mut world).await {
         if viewer.simulating() {
@@ -184,5 +189,18 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Where a particle driven by index is after the tears of a step: a tear compacts the torn
+/// body's particles and splits the disconnected pieces off as soft bodies of their own, so a
+/// particle's body and index follow the events.
+fn follow_tears(events: &[SoftBodyTearEvent], particle: &mut (SoftBodyHandle, u32)) {
+    for event in events {
+        if event.soft_body == particle.0 {
+            if let Some(destination) = event.particle_destination(particle.1) {
+                *particle = destination;
+            }
+        }
+    }
 }
 
