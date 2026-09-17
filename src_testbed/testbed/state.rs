@@ -96,10 +96,12 @@ impl ExampleEntry {
 }
 
 /// Wall-clock times of the recent frames, for the performance tab: the step counters only hold
-/// the last step, and a frame also spends time outside of it (rendering, UI).
+/// the last step, and a frame also spends time outside of it (scene update, UI). The renderer's
+/// present (which waits for vsync) is left out, so the numbers do not saturate at the refresh rate.
 #[derive(Default)]
 pub struct FrameStats {
-    last_frame: Option<web_time::Instant>,
+    /// When the renderer last handed control back, or `None` before the first render.
+    resumed_at: Option<web_time::Instant>,
     last_timestep: usize,
     /// `(frame_ms, step_ms)` of the recent frames, oldest first.
     samples: std::collections::VecDeque<(f64, f64)>,
@@ -109,10 +111,10 @@ impl FrameStats {
     /// The number of frames the statistics cover.
     pub const WINDOW: usize = 60;
 
-    /// Records the frame that just ended, with `step_ms` counted only if a step ran during it.
+    /// Records the frame that just ended (everything since the last [`Self::resume`]), with
+    /// `step_ms` counted only if a step ran during it. Called right before rendering.
     pub fn record(&mut self, timestep_id: usize, step_ms: f64) {
-        let now = web_time::Instant::now();
-        if let Some(last) = self.last_frame {
+        if let Some(resumed_at) = self.resumed_at.take() {
             let step_ms = if timestep_id != self.last_timestep {
                 step_ms
             } else {
@@ -121,11 +123,16 @@ impl FrameStats {
             if self.samples.len() == Self::WINDOW {
                 let _ = self.samples.pop_front();
             }
-            self.samples
-                .push_back(((now - last).as_secs_f64() * 1000.0, step_ms));
+            let frame_ms = resumed_at.elapsed().as_secs_f64() * 1000.0;
+            self.samples.push_back((frame_ms, step_ms));
         }
-        self.last_frame = Some(now);
         self.last_timestep = timestep_id;
+    }
+
+    /// Starts timing the next frame. Called right after the renderer returns, so the time it
+    /// spends presenting (and waiting for vsync) is not counted.
+    pub fn resume(&mut self) {
+        self.resumed_at = Some(web_time::Instant::now());
     }
 
     /// The mean `(frame, step)` times over the window, in milliseconds.

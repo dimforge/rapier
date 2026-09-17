@@ -133,7 +133,7 @@ impl TestbedViewer {
     /// requested from the UI.
     pub async fn render_frame(&mut self, world: &mut PhysicsWorld) -> bool {
         profiling::finish_frame!();
-        // A whole frame spans two calls: the example's step runs in between.
+        // A frame spans two calls (the example's step runs in between) minus the render below.
         self.state.frame_stats.record(
             self.state.timestep_id,
             world.physics_pipeline.counters.step_time_ms(),
@@ -149,6 +149,8 @@ impl TestbedViewer {
             .window
             .render_2d(self.graphics.scene_mut(), &mut self.camera)
             .await;
+
+        self.state.frame_stats.resume();
 
         if !keep_open {
             self.state.transition = Some(Transition::Quit);
