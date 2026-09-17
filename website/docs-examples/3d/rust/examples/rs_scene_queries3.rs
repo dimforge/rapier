@@ -20,6 +20,7 @@ fn main() {
     let integration_parameters = IntegrationParameters::default();
     let mut physics_pipeline = PhysicsPipeline::new();
     let mut island_manager = IslandManager::new();
+    let mut soft_body_set = SoftBodySet::new();
     let mut broad_phase = DefaultBroadPhase::new();
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joint_set = ImpulseJointSet::new();
@@ -41,6 +42,7 @@ fn main() {
         handle_to_remove,
         &mut island_manager,
         &mut rigid_body_set,
+        &mut soft_body_set,
         true,
     );
     let collider = collider_set.get_mut(handle1).unwrap();

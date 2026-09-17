@@ -26,6 +26,7 @@ fn main() {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joint_set = ImpulseJointSet::new();
     let mut multibody_joint_set = MultibodyJointSet::new();
+    let mut soft_body_set = SoftBodySet::new();
     let mut ccd_solver = CCDSolver::new();
     let physics_hooks = ();
     let event_handler = ();
@@ -34,7 +35,9 @@ fn main() {
     // Initialize the event collector.
     let (collision_send, collision_recv) = std::sync::mpsc::channel();
     let (contact_force_send, contact_force_recv) = std::sync::mpsc::channel();
-    let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+    let (soft_body_tear_send, soft_body_tear_recv) = std::sync::mpsc::channel();
+    let event_handler =
+        ChannelEventCollector::new(collision_send, contact_force_send, soft_body_tear_send);
 
     physics_pipeline.step(
         gravity,
@@ -46,6 +49,7 @@ fn main() {
         &mut collider_set,
         &mut impulse_joint_set,
         &mut multibody_joint_set,
+        &mut soft_body_set,
         &mut ccd_solver,
         &physics_hooks,
         &event_handler,
@@ -60,6 +64,11 @@ fn main() {
         // Handle the contact force event.
         println!("Received contact force event: {:?}", contact_force_event);
     }
+
+    while let Ok(tear_event) = soft_body_tear_recv.try_recv() {
+        // Handle the soft-body tear event.
+        println!("Received soft-body tear event: {:?}", tear_event);
+    }
     // DOCUSAURUS: Events stop
 
     // DOCUSAURUS: ContactGraph1 start
@@ -72,7 +81,7 @@ fn main() {
         }
 
         // We may also read the contact manifolds to access the contact geometry.
-        for manifold in &contact_pair.manifolds {
+        for manifold in contact_pair.manifolds() {
             println!("Local-space contact normal: {}", manifold.local_n1);
             println!("Local-space contact normal: {}", manifold.local_n2);
             println!("World-space contact normal: {}", manifold.data.normal);
@@ -94,10 +103,9 @@ fn main() {
                 // Solver contacts are anchored in the local-space of the body they touch, so
                 // they ride rigidly with it. Resolve them through the bodies' current poses to
                 // get the world-space contact point on each body's surface.
-                let (point1, point2) =
-                    manifold
-                        .data
-                        .solver_contact_world_points(solver_contact, &rigid_body_set);
+                let (point1, point2) = manifold
+                    .data
+                    .solver_contact_world_points(solver_contact, &rigid_body_set);
                 println!("Found solver contact points: {point1:?}, {point2:?}");
                 // The solver contact distance is negative if there is a penetration.
                 println!("Found solver contact distance: {:?}", solver_contact.dist);
@@ -158,7 +166,7 @@ fn main() {
                 let user_data2 = context.colliders[context.collider2].user_data;
 
                 if user_data1 % 2 == 0 && user_data2 % 2 == 0 {
-                    Some(SolverFlags::COMPUTE_IMPULSES)
+                    Some(SolverFlags::COMPUTE_RIGID_IMPULSES)
                 } else if user_data1 == user_data2 {
                     Some(SolverFlags::empty())
                 } else {
@@ -191,28 +199,33 @@ fn main() {
             // - Set the friction coefficient to 0.3
             // - Set the restitution coefficient to 0.4
             // - Set the tangent velocities to X * 10.0
-            *context.normal = -*context.normal;
+            // The contacts of two soft surfaces are candidates rather than a manifold:
+            // only the manifolds of rigid pairs are modified here.
+            let ModifiableContacts::Rigid(manifold) = &mut context.contacts else {
+                return;
+            };
+            *manifold.normal = -*manifold.normal;
 
-            if !context.solver_contacts.is_empty() {
-                context.solver_contacts.swap_remove(0);
+            if !manifold.solver_contacts.is_empty() {
+                manifold.solver_contacts.swap_remove(0);
             }
 
             // Friction and restitution are combined once per manifold, so they are set
             // for the whole manifold rather than per solver contact.
-            *context.friction = 0.3;
-            *context.restitution = 0.4;
+            *manifold.friction = 0.3;
+            *manifold.restitution = 0.4;
 
-            for solver_contact in &mut *context.solver_contacts {
+            for solver_contact in &mut *manifold.solver_contacts {
                 solver_contact.tangent_velocity.x = 10.0;
             }
 
             // Use the persistent user-data to count the number of times
             // contact modification was called for this contact manifold
             // since its creation.
-            *context.user_data += 1;
+            *manifold.user_data += 1;
             println!(
                 "Contact manifold has been modified {} times since its creation.",
-                *context.user_data
+                *manifold.user_data
             );
         }
     }
