@@ -170,6 +170,7 @@ impl SoftBodySet {
                         co.shape(),
                         mesh.local_vertices(sb, &pose),
                         mesh.indices(),
+                        mesh.is_closed(),
                     ) {
                         Some(shape) => co.replace_deformed_shape(shape),
                         None => co.set_enabled(false),

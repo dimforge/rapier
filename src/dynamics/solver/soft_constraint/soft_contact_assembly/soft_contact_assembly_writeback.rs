@@ -18,6 +18,11 @@ use crate::math::{AngVector, DIM, Vector};
 /// before its pair's constraints report; a point split into endpoint constraints sums them):
 /// the step's total for the events, the last substep's for the warm start.
 fn report_impulses(data: &mut crate::geometry::ContactData, c: &SoftContact) {
+    data.impulse = crate::utils::canonicalize_zero(
+        data.impulse + c.impulse_normal_acc + c.impulse_normal,
+    );
+    data.warmstart_impulse =
+        crate::utils::canonicalize_zero(data.warmstart_impulse + c.impulse_normal);
     #[cfg(feature = "dim2")]
     {
         data.tangent_impulse[0] = crate::utils::canonicalize_zero(
@@ -38,6 +43,7 @@ fn report_impulses(data: &mut crate::geometry::ContactData, c: &SoftContact) {
             );
         }
         data.warmstart_tangent_world = crate::utils::canonicalize_zero(
+            data.warmstart_tangent_world
                 + c.tangents[0] * c.impulse_tangent[0]
                 + c.tangents[1] * c.impulse_tangent[1],
         );
@@ -193,6 +199,12 @@ impl SoftConstraintsSet {
                     for point in &mut manifold.points {
                         point.data.impulse = 0.0;
                         point.data.tangent_impulse = Default::default();
+                        point.data.warmstart_impulse = 0.0;
+                        point.data.warmstart_tangent_impulse = Default::default();
+                        #[cfg(feature = "dim3")]
+                        {
+                            point.data.warmstart_tangent_world = Vector::ZERO;
+                        }
                     }
                 }
                 if let Some(soft) = rigid.soft.as_deref_mut() {

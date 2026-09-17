@@ -170,3 +170,71 @@ fn a_wire_collider_follows_the_particles() {
         );
     }
 }
+
+/// A rope released already hanging over a fixed rod rests on it. A segment across a round rod
+/// touches it at one point: with a single contact there the chord rocked about it until an
+/// endpoint sank into the rod and was kicked back, and the rope jittered on the rod forever.
+#[test]
+fn a_rope_draped_over_a_rod_rests() {
+    let mut world = world_with_ground();
+    let rod_radius = 0.12;
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, 4.0, 0.0)),
+        ColliderBuilder::capsule_x(5.0, rod_radius),
+    );
+    // The rope's path: down the -z side, over the rod, down the +z side.
+    let n = 40;
+    let length = 3.5;
+    let segment = length / (n - 1) as Real;
+    let radius = segment * 0.5;
+    let r = rod_radius + radius + 0.01;
+    let arc = core::f32::consts::PI * r;
+    let side = (length - arc) * 0.5;
+    let positions: Vec<Vector> = (0..n)
+        .map(|i| {
+            let t = i as Real * segment;
+            if t < side {
+                Vector::new(0.0, 4.0 - (side - t), -r)
+            } else if t < side + arc {
+                let a = (t - side) / r;
+                Vector::new(0.0, 4.0 + a.sin() * r, -a.cos() * r)
+            } else {
+                Vector::new(0.0, 4.0 - (t - side - arc), r)
+            }
+        })
+        .collect();
+    let edges: Vec<[u32; 2]> = (0..n as u32 - 1).map(|i| [i, i + 1]).collect();
+    let bend_edges: Vec<[u32; 2]> = (0..n as u32 - 2).map(|i| [i, i + 2]).collect();
+    let handle = world.insert_soft_body(
+        SoftBodyBuilder::new(positions)
+            .particle_radius(radius)
+            .wire(edges.clone())
+            .edges(edges)
+            .bend_edges(bend_edges)
+            .softness(SpringCoefficients::new(30.0, 1.0))
+            .particle_mass(0.03)
+            .surface_collider(ColliderBuilder::ball(radius).friction(0.6)),
+    );
+    let mut max_speed: Real = 0.0;
+    let mut on_rod = 0;
+    for step in 0..400 {
+        world.step();
+        if step < 200 {
+            continue;
+        }
+        for p in world.soft_bodies[handle].particles() {
+            if p.position().y > 3.9 {
+                on_rod += 1;
+                max_speed = max_speed.max(p.velocity().length());
+            }
+        }
+    }
+    assert!(on_rod > 0, "the rope slid off the rod");
+    let low = lowest(&world, handle);
+    assert!(low > 2.0 && low < 3.0, "the rope is not hanging from the rod: {low}");
+    assert!(
+        max_speed < 0.02,
+        "the rope jitters on the rod: max speed {max_speed}"
+    );
+}
+

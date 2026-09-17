@@ -421,7 +421,7 @@ impl SoftConstraintsSet {
                             let (dir, dist, _expelling) = match (along_normal, reversed) {
                                 (Some(constraint), _) => constraint,
                                 (None, Some(_)) if is_interior(element, &weights) => continue,
-                                _ => (dir, sc.dist, false),
+                                _ => (dir, sc_dist, false),
                             };
                             // The point the constraint tracks, expressed in the particles it acts through.
                             let (anchors, anchor_weights, tracked) =

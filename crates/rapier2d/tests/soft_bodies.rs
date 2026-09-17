@@ -2733,6 +2733,108 @@ fn modify_solver_contacts_edits_soft_soft_contacts() {
     assert!(dropped < 0.6, "the hook did not drop the soft-soft contacts: y = {dropped}");
 }
 
+/// A rope shot tip first at a fixed wall stops at the wall: an open polyline collides from
+/// both sides (its segments were oriented, and every contact outside the cone of their
+/// normals, the wall ahead of the rope's tip included, was dropped: the rope went through).
+#[test]
+fn a_rope_shot_at_a_wall_stops_tip_first() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(3.0, 0.0)),
+        ColliderBuilder::cuboid(0.5, 5.0),
+    );
+    let n = 40;
+    let rope = SoftBodyBuilder::rope(Vector::new(-4.0, 0.0), Vector::new(0.0, 0.0), n)
+        .softness(SpringCoefficients::new(30.0, 1.0))
+        .particle_mass(0.03)
+        .surface_collider(ColliderBuilder::ball(0.05));
+    let handle = world.insert_soft_body(rope);
+    for i in 0..n {
+        world.soft_bodies[handle].set_particle_velocity(i, Vector::new(3.0, 0.0));
+    }
+    let mut max_x = Real::MIN;
+    for _ in 0..200 {
+        world.step();
+        let x = world.soft_bodies[handle]
+            .particle_positions()
+            .map(|p| p.x)
+            .fold(Real::MIN, Real::max);
+        max_x = max_x.max(x);
+    }
+    assert_finite(&world, handle);
+    // The wall's face is at x = 2.5; the rope's skin is half a segment thick.
+    assert!(max_x < 2.5, "the rope went into the wall: max x = {max_x}");
+    assert!(max_x > 2.3, "the rope never reached the wall: max x = {max_x}");
+}
+
+/// A rope released hanging over a small fixed ball rests on it: the segments beside the ball
+/// touch it at an interior point each, split into endpoint contacts that are not filtered as
+/// ghosts of a neighbor's contact.
+#[test]
+fn rope_draped_over_a_ball_pin_rests() {
+    let mut world = world_with_ground();
+    let center = Vector::new(0.0, 4.0);
+    let pin_radius = 0.1;
+    world.insert(
+        RigidBodyBuilder::fixed().translation(center),
+        ColliderBuilder::ball(pin_radius),
+    );
+    // The rope's path: down the left side, over the pin, down the right side.
+    let n = 40;
+    let length = 4.0;
+    let segment = length / (n - 1) as Real;
+    let radius = segment * 0.5;
+    let r = pin_radius + radius + 0.01;
+    let arc = core::f32::consts::PI * r;
+    let side = (length - arc) * 0.5;
+    let positions: Vec<Vector> = (0..n)
+        .map(|i| {
+            let t = i as Real * segment;
+            if t < side {
+                Vector::new(-r, 4.0 - (side - t))
+            } else if t < side + arc {
+                let a = (t - side) / r;
+                Vector::new(-a.cos() * r, 4.0 + a.sin() * r)
+            } else {
+                Vector::new(r, 4.0 - (t - side - arc))
+            }
+        })
+        .collect();
+    let edges: Vec<[u32; 2]> = (0..n as u32 - 1).map(|i| [i, i + 1]).collect();
+    let bend_edges: Vec<[u32; 2]> = (0..n as u32 - 2).map(|i| [i, i + 2]).collect();
+    let handle = world.insert_soft_body(
+        SoftBodyBuilder::new(positions)
+            .particle_radius(radius)
+            .surface(edges.clone())
+            .edges(edges)
+            .bend_edges(bend_edges)
+            .softness(SpringCoefficients::new(30.0, 1.0))
+            .particle_mass(0.03)
+            .surface_collider(ColliderBuilder::ball(radius).friction(0.6)),
+    );
+    let mut max_speed: Real = 0.0;
+    let mut on_pin = 0;
+    for step in 0..400 {
+        world.step();
+        if step < 200 {
+            continue;
+        }
+        for p in world.soft_bodies[handle].particles() {
+            if (p.position() - center).length() < r + 0.05 {
+                on_pin += 1;
+                max_speed = max_speed.max(p.velocity().length());
+            }
+        }
+    }
+    assert_finite(&world, handle);
+    assert!(on_pin > 0, "the rope slid off the pin");
+    assert!(
+        max_speed < 0.02,
+        "the rope jitters on the pin: max speed {max_speed}"
+    );
+}
+
 /// A rope draped over a rigid ball much larger than its segments rests on it: the ball's
 /// manifold with each segment holds a single point, so the vertices are held by the pair's
 /// predictive vertex contacts (without them they sag into the skin and the rope jitters).

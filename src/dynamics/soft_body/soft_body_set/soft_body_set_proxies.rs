@@ -12,7 +12,9 @@ use crate::math::{DIM, Pose, Real, Vector};
 /// deformable so the narrow phase never trusts contact points cached across a vertex update.
 /// A closed 2D polyline is one-sided (pushing outward); an open one (a rope) is two-sided.
 pub(crate) fn surface_shape(
+    vertices: Vec<Vector>,
     surface: &[[u32; DIM]],
+    closed: bool,
 ) -> Option<SharedShape> {
     if surface.is_empty() || vertices.is_empty() {
         return None;
@@ -20,6 +22,8 @@ pub(crate) fn surface_shape(
     #[cfg(feature = "dim2")]
     {
         use parry::shape::{Polyline, PolylineFlags};
+        let mut flags = PolylineFlags::DEFORMABLE;
+        flags.set(PolylineFlags::ORIENTED, closed);
         Some(SharedShape::new(Polyline::with_flags(
             vertices,
             Some(surface.to_vec()),
@@ -29,6 +33,9 @@ pub(crate) fn surface_shape(
     #[cfg(feature = "dim3")]
     {
         use parry::shape::{Polyline, PolylineFlags, TriMeshFlags};
+        let _ = closed;
+        // A wire's elements are segments (`u32::MAX` fills the unused slot): it collides as a
+        // polyline, which parry supports in 3D too.
         if super::soft_body_builder::element_vertices(&surface[0]).len() < DIM {
             let segments: Vec<[u32; 2]> = surface.iter().map(|e| [e[0], e[1]]).collect();
             return Some(SharedShape::new(Polyline::with_flags(
@@ -48,6 +55,7 @@ pub(super) fn rebuilt_surface_shape(
     prev: &dyn parry::shape::Shape,
     vertices: Vec<Vector>,
     surface: &[[u32; DIM]],
+    closed: bool,
 ) -> Option<SharedShape> {
     let mut shape = surface_shape(vertices, surface, closed)?;
     let rebuilt = shape.make_mut();
@@ -132,6 +140,7 @@ pub(super) fn clone_mesh_collider(
         collider.shape(),
         mesh.local_vertices(body, frame),
         mesh.indices(),
+        mesh.is_closed(),
     )?;
     collider.set_shape(shape);
     collider.set_position(Pose::IDENTITY);
