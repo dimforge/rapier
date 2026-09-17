@@ -150,21 +150,22 @@ tempfile = "3"
 #kiss3d = { path = "../kiss3d" }
 # Temporary: the deformable-mesh API (parry branch `soft-bodies`), to be replaced by a
 # version bump when parry is released.
-parry2d = { path = "../parry/crates/parry2d" }
-parry3d = { path = "../parry/crates/parry3d" }
-parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
-parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
+#parry2d = { path = "../parry/crates/parry2d" }
+#parry3d = { path = "../parry/crates/parry3d" }
+#parry2d-f64 = { path = "../parry/crates/parry2d-f64" }
+#parry3d-f64 = { path = "../parry/crates/parry3d-f64" }
 #nalgebra = { path = "../nalgebra" }
 #simba = { path = "../simba" }
 #wide = { path = "../wide" }
-glamx = { path = "../glamx" }
+#glamx = { path = "../glamx" }
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d", branch = "render-2d" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
-#parry2d = { git = "https://github.com/dimforge/parry", branch = "master" }
-#parry3d = { git = "https://github.com/dimforge/parry", branch = "master" }
-#parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
-#parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "master" }
+glamx = { git = "https://github.com/dimforge/glamx", branch = "fix-lerp2" }
+parry2d = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
+parry3d = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
+parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
+parry3d-f64 = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
 
 # See https://github.com/EmbarkStudios/puffin/pull/234
 puffin_egui = { git = "https://github.com/tedsteen/puffin.git", rev = "11771ebe00fd257aedbb545df3339ad597b1cc34" }
