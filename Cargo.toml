@@ -66,7 +66,7 @@ needless_lifetimes = "allow"
 [workspace.dependencies]
 # Core math
 nalgebra = { version = "0.35", default-features = false, features = ["macros"] }
-glamx = { version = "0.3", default-features = false }
+glamx = { version = "0.3.1", default-features = false }
 simba = { version = "0.10.2", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 approx = { version = "0.5", default-features = false }
@@ -161,7 +161,7 @@ tempfile = "3"
 
 #kiss3d = { git = "https://github.com/sebcrozet/kiss3d", branch = "render-2d" }
 #nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
-glamx = { git = "https://github.com/dimforge/glamx", branch = "fix-lerp2" }
+#glamx = { git = "https://github.com/dimforge/glamx", branch = "fix-lerp2" }
 parry2d = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
 parry3d = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
 parry2d-f64 = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
