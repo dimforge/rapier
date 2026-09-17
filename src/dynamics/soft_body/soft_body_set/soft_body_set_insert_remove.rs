@@ -55,6 +55,7 @@ impl SoftBodySet {
             has_overflow_color: false,
             modified: false,
             plastic_flowing: false,
+            rest_fit_pending: false,
             sleep_speed: 0.0,
             tearing_pending: false,
             topology_version: 0,

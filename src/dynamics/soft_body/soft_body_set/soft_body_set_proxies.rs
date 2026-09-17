@@ -159,6 +159,7 @@ pub(super) fn spawn_proxy(
     let rb = RigidBodyBuilder::dynamic()
         .gravity_scale(0.0)
         .additional_solver_iterations(settings.additional_solver_iterations)
+        .additional_pgs_iterations(settings.additional_pgs_iterations)
         .can_sleep(settings.can_sleep)
         .dominance_group(settings.dominance_group)
         .user_data(user_data)
@@ -214,6 +215,11 @@ pub(super) fn sync_soft_body(
     let plastic_flowing = core::mem::take(&mut sb.plastic_flowing);
     if plastic_flowing {
         sb.sleep_speed = Real::MAX;
+        sb.rest_fit_pending = true;
+    }
+    // The rest positions follow the flow, over the steps it takes them to settle.
+    if sb.rest_fit_pending && !sleeping && sb.is_finite() && sb.fit_rest_positions() {
+        sb.rest_fit_pending = false;
     }
     let mut outcome = SyncOutcome {
         margin: None,

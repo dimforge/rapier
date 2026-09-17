@@ -138,6 +138,9 @@ struct GroupLayout {
     joint_overflow: Range<usize>,
     /// Substeps to run for this group.
     num_substeps: usize,
+    /// Internal PGS iterations per substep for this group (`num_internal_pgs_iterations` plus the
+    /// group's `additional_pgs_iterations`).
+    num_pgs_iterations: usize,
     /// This group's substep length (`base_dt / num_substeps`).
     dt: Real,
 }

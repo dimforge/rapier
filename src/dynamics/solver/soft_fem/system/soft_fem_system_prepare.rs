@@ -79,6 +79,7 @@ impl SoftFemSystem {
                 beta,
                 rotation: c.rotation,
                 strain: StrainVector::zeros(),
+                inverted: false,
                 neo_hookean: sb.cell_model == SoftBodyCellModel::NeoHookean,
                 tangent: Self::corotational_hessian(mu * volume, lambda * volume),
                 tangent_strain: StrainVector::repeat(Real::MAX),

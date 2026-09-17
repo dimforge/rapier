@@ -24,6 +24,9 @@ pub struct SoftBodyParticle {
     /// shape-matching goal shape). Follows the plastic flow of the elements (see
     /// [`Self::initial_rest_position`]).
     pub(crate) rest_position: Vector,
+    /// The rest position before any plastic flow: the world-space position at insertion,
+    /// relative to the rest center of mass. The cells' initial rest shapes are read from it.
+    pub(crate) initial_rest_position: Vector,
     /// Nominal mass (used by shape matching even for pinned particles).
     pub(crate) mass: Real,
     /// `0.0` for pinned particles.
@@ -90,6 +93,12 @@ impl SoftBodyParticle {
     /// [`SoftBodyMaterial::plastic_yield`]); [`Self::initial_rest_position`] predates any flow.
     pub fn rest_position(&self) -> Vector {
         self.rest_position
+    }
+
+    /// The position of this particle in the soft body's rest shape before any plastic flow
+    /// (its position at insertion, relative to the rest center of mass).
+    pub fn initial_rest_position(&self) -> Vector {
+        self.initial_rest_position
     }
 
     /// The nominal mass of this particle.
@@ -201,8 +210,27 @@ pub struct SoftBodyDihedral {
     pub rest_angle: Real,
     /// Accumulated impulse of the last step (warm-start state).
     pub(crate) impulse: Real,
+    /// Accumulated plastic set of the rest angle: `rest_angle = initial rest angle +
+    /// plastic_set` (see [`Self::plastic_set`]).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) plastic_set: Real,
     /// Parallel solve color.
     pub(crate) color: u8,
+}
+
+#[cfg(feature = "dim3")]
+impl SoftBodyDihedral {
+    /// The permanent set of this dihedral: how far its rest angle has flowed from the angle it
+    /// was created with, in radians (see [`SoftBodyMaterial::edge_plastic_yield`]).
+    pub fn plastic_set(&self) -> Real {
+        self.plastic_set
+    }
+
+    /// The rest angle this dihedral was created with (its `rest_angle` before any plastic
+    /// flow).
+    pub fn initial_rest_angle(&self) -> Real {
+        self.rest_angle - self.plastic_set
+    }
 }
 
 /// Which solver simulates a soft body's elasticity (requires the `fem` cargo feature).
@@ -254,15 +282,16 @@ pub struct SoftBodyCell {
     pub rest_volume: Real,
     /// Inverse of the rest edge matrix `[x1 - x0, x2 - x0, (x3 - x0)]`.
     pub(crate) inv_rest_matrix: Matrix,
-    /// Accumulated plastic stretch of the rest shape (material frame, unit determinant): the
-    /// current rest edge matrix is `plastic_stretch * Dm₀`. Bounded by the material's
-    /// `plastic_max`, which keeps flowing cells from degenerating into slivers.
+    /// Accumulated plastic stretch of the rest shape (material frame, unit determinant): the rest
+    /// edge matrix is `plastic_stretch * Dm₀`, `Dm₀` the initial rest edge matrix. Bounded by the
+    /// material's `plastic_max`, which keeps flowing cells from degenerating into slivers.
+    #[cfg_attr(feature = "serde-serialize", serde(default = "identity_matrix"))]
     pub(crate) plastic_stretch: Matrix,
-    /// Accumulated impulses of the last step (warm-start state): the volume row's in `[0]`, or
-    /// the corotational rows' (strain rows in the cell frame, then volumetric).
+    /// Accumulated impulses of the last step (warm-start state): the volume constraint's in `[0]`, or
+    /// the corotational constraints' (strain rows in the cell frame, then volumetric).
     pub(crate) impulses: [Real; CELL_IMPULSES],
     /// Rotation of the polar decomposition of the cell's deformation gradient at the last step
-    /// (warm start of the corotational rows' rotation extraction).
+    /// (warm start of the corotational constraints' rotation extraction).
     pub(crate) rotation: Rotation,
     /// Multiplier of the material's Young modulus for this cell (default `1.0`): per-region
     /// stiffness, usually set through [`crate::dynamics::SoftBody::set_cluster_stiffness_scale`].
@@ -284,7 +313,19 @@ pub struct SoftBodyCell {
     pub(crate) stress: Real,
 }
 
+#[cfg(feature = "serde-serialize")]
+fn identity_matrix() -> Matrix {
+    Matrix::IDENTITY
+}
+
 impl SoftBodyCell {
+    /// The accumulated plastic stretch of this cell's rest shape (material frame, unit
+    /// determinant): its current rest shape is this stretch applied to the shape it was created
+    /// with (see [`SoftBodyMaterial::plastic_yield`]); the identity before any flow.
+    pub fn plastic_stretch(&self) -> Matrix {
+        self.plastic_stretch
+    }
+
     /// The largest tensile strain of this cell as a fraction of its tear threshold, smoothed
     /// over the material's [`SoftBodyMaterial::tear_smoothing`]: `0.0` slack, `1.0` tearing.
     /// Stays `0.0` while the material has no `tear_strain` (cells only tear on their strain).

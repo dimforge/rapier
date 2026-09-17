@@ -107,7 +107,9 @@ fn elastic_cell_gradients_match_finite_differences() {
         inv_a: StrainMatrix::zeros(),
         strain_cap: StrainVector::repeat(Real::MAX),
         strain: StrainVector::zeros(),
+        inverted: false,
         strain_impulse: StrainVector::zeros(),
+        strain_per_impulse: StrainVector::zeros(),
         vol_impulse: 0.0,
         model: SoftElasticModel::Corotational(CorotationalConstraint {
             erp_strain: StrainVector::zeros(),

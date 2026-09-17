@@ -756,17 +756,20 @@ impl SoftConstraintsSet {
                     let mut softened = block;
                     let mut inert = [false; STRAIN_ROWS];
                     let mut damping = StrainVector::zeros();
+                    let mut strain_per_impulse = StrainVector::zeros();
                     for r in 0..STRAIN_ROWS {
                         let w = block[(r, r)];
+                        // The row's deviatoric stiffness: the stress-based strain of both models
+                        // reads through it (an isotropic material's deviatoric response is `2μ`).
+                        let k_dev = if r < DIM { 2.0 * mu * vol } else { 4.0 * mu * vol };
                         let k = if neo_hookean {
                             NeoHookeanConstraint::rest_stiffness(mu, lambda, r) * vol
-                        } else if r < DIM {
-                            2.0 * mu * vol
                         } else {
-                            4.0 * mu * vol
+                            k_dev
                         };
                         let omega = (k * w).sqrt();
                         if omega > 0.0 {
+                            strain_per_impulse[r] = 1.0 / (k_dev * dt);
                             let (erp, cfm) =
                                 coeffs_of(&SpringCoefficients::new(omega / two_pi, elastic_zeta));
                             erp_strain[r] = erp;
@@ -830,7 +833,9 @@ impl SoftConstraintsSet {
                         inv_a,
                         strain_cap: strain_caps,
                         strain: StrainVector::zeros(),
+                        inverted: false,
                         strain_impulse,
+                        strain_per_impulse,
                         vol_impulse,
                         model,
                     };

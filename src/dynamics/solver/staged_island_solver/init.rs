@@ -65,10 +65,18 @@ impl StagedIslandSolver {
             .first()
             .map(|g| g.extra_iters as usize)
             .unwrap_or(0);
+        let max_extra_pgs = islands
+            .solve_groups
+            .iter()
+            .map(|g| g.extra_pgs as usize)
+            .max()
+            .unwrap_or(0);
         self.groups.clear();
         if multi_group {
             for group in &islands.solve_groups {
                 let num_substeps = base_params.num_solver_iterations + group.extra_iters as usize;
+                let num_pgs_iterations =
+                    base_params.num_internal_pgs_iterations + group.extra_pgs as usize;
                 self.groups.push(GroupLayout {
                     bodies: group.body_range.clone(),
                     soft_slots: 0..0,
@@ -80,11 +88,13 @@ impl StagedIslandSolver {
                     joint_builders: 0..0,
                     joint_overflow: 0..0,
                     num_substeps,
+                    num_pgs_iterations,
                     dt: base_params.dt / num_substeps as Real,
                 });
             }
         } else {
             let num_substeps = base_params.num_solver_iterations + max_extra;
+            let num_pgs_iterations = base_params.num_internal_pgs_iterations + max_extra_pgs;
             self.groups.push(GroupLayout {
                 bodies: 0..island_bodies.len(),
                 soft_slots: 0..0,
@@ -96,6 +106,7 @@ impl StagedIslandSolver {
                 joint_builders: 0..0,
                 joint_overflow: 0..0,
                 num_substeps,
+                num_pgs_iterations,
                 dt: base_params.dt / num_substeps as Real,
             });
         }

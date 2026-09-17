@@ -105,6 +105,11 @@ pub struct SoftBody {
     /// step: the body is kept awake so its creep goes on.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) plastic_flowing: bool,
+    /// Set when the elements flowed plastically: the particles' rest positions are fitted to the
+    /// flowed rest shapes at the end of the step, over the following steps until they settle
+    /// (see `SoftBody::fit_rest_positions`).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) rest_fit_pending: bool,
     /// The speed the sleep rule reads for this body's cluster proxies: the fastest particle at the
     /// end of the last step, or `Real::MAX` while the body flows plastically (kept awake).
     /// `RigidBodyActivation::update_energy` compares it against the proxies' activation threshold.

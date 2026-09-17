@@ -22,6 +22,22 @@ pub(crate) struct SolveGroup {
     /// Extra substeps for this group, on top of
     /// `IntegrationParameters::num_solver_iterations`.
     pub extra_iters: u32,
+    /// Extra internal PGS iterations per substep for this group, on top of
+    /// `IntegrationParameters::num_internal_pgs_iterations`.
+    pub extra_pgs: u32,
+}
+
+/// The partition key of a body: its extra substeps in the high half, its extra PGS iterations
+/// in the low half, so the groups sort by substep cadence first.
+#[inline]
+fn key(extra_substeps: u32, extra_pgs: u32) -> u32 {
+    (extra_substeps.min(0xFFFF) << 16) | extra_pgs.min(0xFFFF)
+}
+
+/// The element-wise maximum of two keys (a component takes the largest of each count).
+#[inline]
+fn max_key(a: u32, b: u32) -> u32 {
+    key((a >> 16).max(b >> 16), (a & 0xFFFF).max(b & 0xFFFF))
 }
 
 /// Workspace state for [`IslandManager::update_substep_groups`], kept to reuse
@@ -138,10 +154,14 @@ impl IslandManager {
         ws.keys.resize(num_bodies, 0);
         for i in 0..num_bodies {
             let handle = self.islands[awake_id].bodies[i];
-            let extra = bodies[handle].additional_solver_iterations() as u32;
-            if extra > 0 {
+            let rb = &bodies[handle];
+            let body_key = key(
+                rb.additional_solver_iterations() as u32,
+                rb.additional_pgs_iterations() as u32,
+            );
+            if body_key > 0 {
                 let root = ws.uf.find(i as u32) as usize;
-                ws.keys[root] = ws.keys[root].max(extra);
+                ws.keys[root] = max_key(ws.keys[root], body_key);
             }
         }
         for i in 0..num_bodies {
@@ -253,7 +273,8 @@ fn push_group_ranges(groups: &mut Vec<SolveGroup>, keys: &[u32]) {
         if i == keys.len() || keys[i] != keys[start] {
             groups.push(SolveGroup {
                 body_range: start..i,
-                extra_iters: keys[start],
+                extra_iters: keys[start] >> 16,
+                extra_pgs: keys[start] & 0xFFFF,
             });
             start = i;
         }

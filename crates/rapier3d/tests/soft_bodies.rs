@@ -700,8 +700,10 @@ fn deformation_damping_settles_stiff_bodies() {
     };
     let undamped = tip_speed_after(0.0, 6.0);
     let damped = tip_speed_after(3.0, 6.0);
+    // The soft PGS iterations take part of the residual sway away (0.9 m/s with a single
+    // pass); the damping takes the rest.
     assert!(
-        undamped > 0.5,
+        undamped > 0.3,
         "the undamped beam already stopped: {undamped}"
     );
     assert!(damped < 0.01, "the damped beam still swings: {damped}");
@@ -745,7 +747,9 @@ fn deformation_damping_settles_stiff_bodies() {
         undamped > 0.1,
         "the undamped block already stopped: {undamped}"
     );
-    assert!(damped < 0.01, "the damped block still sways: {damped}");
+    // The residual is the block rocking on its surface colliders, which the damping leaves
+    // alone by design.
+    assert!(damped < 0.03, "the damped block still sways: {damped}");
 }
 
 /// Two-way coupling: a rigid box dropped on a cloth pinned by its four corners is held up by
@@ -1039,7 +1043,9 @@ fn self_contacts_keep_folded_cloth_apart() {
             ((n - 1) * 3 + 2) as u32,
         ])
         .self_contacts(self_contacts)
-        .softness(SpringCoefficients::new(30.0, 1.0))
+        // Floppy enough to touch itself once folded (the soft PGS iterations stiffen the
+        // bending: at 30 Hz the loop stays open on its own).
+        .softness(SpringCoefficients::new(10.0, 1.0))
         .particle_mass(0.05);
         let handle = world.insert_soft_body(strip);
         // Let it sag, then move the right end onto the left end.
@@ -1468,10 +1474,26 @@ fn plastic_cells_keep_their_deformation() {
             .map(|&i| sb.particle_position(i).x)
             .sum::<Real>()
             / bottom.len() as Real;
-        top_x - bottom_x
+        // The skew of the rest shape: the angle its vertical and horizontal mid-lines lost
+        // from a right angle. Rotation-invariant: a symmetric plastic stretch leaves the rest
+        // shape rotated by the shear's polar angle, so a lean read along `x` would undercount.
+        let left: Vec<usize> = (0..sb.num_particles())
+            .filter(|&i| sb.particles()[i].initial_rest_position().x < -0.74)
+            .collect();
+        let right: Vec<usize> = (0..sb.num_particles())
+            .filter(|&i| sb.particles()[i].initial_rest_position().x > 0.74)
+            .collect();
+        let mean = |set: &[usize]| {
+            set.iter().map(|&i| sb.particles()[i].rest_position()).sum::<Vector>()
+                / set.len() as Real
+        };
+        let vertical = mean(&top) - mean(&bottom);
+        let horizontal = mean(&right) - mean(&left);
+        let skew = (vertical.dot(horizontal) / (vertical.length() * horizontal.length())).asin();
+        (top_x - bottom_x, skew)
     };
-    let elastic = lean_after(0.0);
-    let plastic = lean_after(0.05);
+    let (elastic, elastic_skew) = lean_after(0.0);
+    let (plastic, plastic_skew) = lean_after(0.05);
     assert!(
         elastic.abs() < 0.15,
         "the elastic block did not spring back: lean {elastic}"
@@ -1480,6 +1502,65 @@ fn plastic_cells_keep_their_deformation() {
         plastic > 0.4,
         "the plastic block did not keep its lean: {plastic} (elastic {elastic})"
     );
+    // The rest positions followed the flow: the plastic block's rest shape is skewed like it
+    // (a lean of 0.4 over a height of 1.5 is a skew of about 15 degrees).
+    assert_eq!(elastic_skew, 0.0, "an elastic body's rest shape moved");
+    assert!(
+        plastic_skew.to_degrees() > 12.0,
+        "the rest shape did not follow the plastic flow: skew {} degrees (lean {plastic})",
+        plastic_skew.to_degrees()
+    );
+}
+
+/// Dihedral plasticity: a cloth fold past the yield (read in radians) keeps a crease, the
+/// rest angle flowing to what leaves exactly the yield; the reset flattens it again.
+#[test]
+fn dihedral_plasticity_keeps_a_crease() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    // Two triangles sharing the edge `[0, 1]`, flat at rest; a free particle on a slack edge
+    // keeps the body from being frozen once the four of the fold are pinned.
+    let builder = SoftBodyBuilder::new(vec![
+        Vector::new(0.0, 0.0, 0.0),
+        Vector::new(1.0, 0.0, 0.0),
+        Vector::new(0.5, 0.0, 1.0),
+        Vector::new(0.5, 0.0, -1.0),
+        Vector::new(3.0, 0.0, 0.0),
+    ])
+    .edges(vec![[0, 1], [0, 2], [1, 2], [0, 3], [1, 3], [2, 4]])
+    .dihedrals(vec![[0, 1, 2, 3]])
+    .pinned_particles([0, 1, 2, 3])
+    .particle_mass(1.0)
+    .material(SoftBodyMaterial {
+        edge_plastic_yield: 0.2,
+        edge_plastic_creep: Real::INFINITY,
+        edge_plastic_max: 1.0,
+        ..Default::default()
+    })
+    .no_surface_collider()
+    .can_sleep(false);
+    let handle = world.insert_soft_body(builder);
+    let flat = world.soft_bodies[handle].dihedrals()[0].rest_angle;
+    // Fold particle 3 up by 60 degrees about the shared edge: the fold angle is 120 degrees.
+    let sixty: Real = 60.0;
+    let (s, c) = sixty.to_radians().sin_cos();
+    world.soft_bodies[handle].set_particle_position(3, Vector::new(0.5, s, -c));
+    for _ in 0..30 {
+        world.step();
+    }
+    let folded: Real = 2.0 * core::f32::consts::FRAC_PI_3;
+    let d = &world.soft_bodies[handle].dihedrals()[0];
+    assert!(
+        (d.rest_angle - (folded + 0.2)).abs() < 1.0e-3,
+        "the rest angle did not flow to the yield: {} (flat {flat}, folded {folded})",
+        d.rest_angle
+    );
+    assert!((d.initial_rest_angle() - flat).abs() < 1.0e-6);
+    assert!((d.plastic_set() - (folded + 0.2 - flat)).abs() < 1.0e-3);
+    world.soft_bodies[handle].reset_plasticity();
+    let d = &world.soft_bodies[handle].dihedrals()[0];
+    assert_eq!(d.rest_angle, flat);
+    assert_eq!(d.plastic_set(), 0.0);
 }
 
 /// Plastic flow is bounded: a clay slab stamped again and again by a kinematic wedge keeps
@@ -1604,16 +1685,17 @@ fn creeping_body_stays_awake() {
         world.step();
     }
     let plastic_top_early = top(&world, handles[1]);
+    // Still creeping at 3 s (it collapses into a heap by 4 s, and a heap may sleep).
+    assert!(
+        !world.soft_bodies[handles[1]].is_sleeping(),
+        "the creeping column fell asleep"
+    );
     for _ in 0..180 {
         world.step();
     }
     assert!(
         world.soft_bodies[handles[0]].is_sleeping(),
         "the elastic column did not sleep"
-    );
-    assert!(
-        !world.soft_bodies[handles[1]].is_sleeping(),
-        "the creeping column fell asleep"
     );
     let plastic_top = top(&world, handles[1]);
     assert!(

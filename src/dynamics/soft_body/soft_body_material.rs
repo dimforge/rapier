@@ -113,6 +113,11 @@ pub(super) fn one() -> Real {
     1.0
 }
 
+#[cfg(feature = "serde-serialize")]
+fn half() -> Real {
+    0.5
+}
+
 impl Default for SoftBodyMaterial {
     fn default() -> Self {
         Self {

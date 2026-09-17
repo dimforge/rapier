@@ -20,6 +20,10 @@ pub struct SoftBodyParticleSettings {
     pub gravity_scale: Real,
     /// Extra solver substeps requested for the particles (and everything they touch).
     pub additional_solver_iterations: usize,
+    /// Extra internal PGS iterations per substep for the particles and everything they touch, on
+    /// top of `IntegrationParameters::num_internal_pgs_iterations`; stamped on the root proxy each
+    /// step (see [`crate::dynamics::RigidBody::set_additional_pgs_iterations`]) (default: `3`).
+    pub additional_pgs_iterations: usize,
     /// Whether the soft body may fall asleep.
     pub can_sleep: bool,
     /// Dominance group of the soft body (see [`crate::dynamics::RigidBody::dominance_group`]).
@@ -32,6 +36,7 @@ impl Default for SoftBodyParticleSettings {
             linear_damping: 0.0,
             gravity_scale: 1.0,
             additional_solver_iterations: 0,
+            additional_pgs_iterations: 3,
             can_sleep: true,
             dominance_group: 0,
         }

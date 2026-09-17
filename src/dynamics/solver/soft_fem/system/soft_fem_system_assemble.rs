@@ -4,7 +4,9 @@ use super::SoftFemSystem;
 use crate::alloc_prelude::*;
 use crate::dynamics::SoftBody;
 use crate::dynamics::soft_body::soft_body_shape_matching::extract_rotation;
-use crate::dynamics::solver::soft_constraint::soft_constraints_set::plastic_flow;
+use crate::dynamics::solver::soft_constraint::soft_constraints_set::{
+    plastic_flow, total_tensile_strain,
+};
 #[cfg(feature = "dim3")]
 use crate::dynamics::solver::soft_constraint::soft_element_constraint::dihedral_gradients;
 use crate::dynamics::solver::soft_constraint::soft_element_constraint::{
@@ -47,6 +49,7 @@ impl SoftFemSystem {
             let x: [Vector; MAX_CONSTRAINT_PARTICLES] =
                 core::array::from_fn(|k| self.position[cell.vertices[k] as usize]);
             let f = SoftBody::cell_edge_matrix(x) * cell.inv_rest_matrix;
+            cell.inverted = f.determinant() < 0.0;
             cell.rotation = extract_rotation(f, cell.rotation);
             let s = cell.rotation.inverse().to_mat() * f;
             cell.strain = strain_rows_of(&(s - Matrix::IDENTITY));
@@ -295,8 +298,15 @@ impl SoftFemSystem {
             if cell.mu <= 0.0 {
                 continue;
             }
-            if plastic && plastic_flow(out, &cell.strain, &material, step_dt) {
-                flowing = true;
+            // The tear strain counts the plastic stretch, as it stood before this step's flow.
+            let tensile = total_tensile_strain(&cell.strain, &out.plastic_stretch);
+            if plastic {
+                let rest0: [Vector; MAX_CONSTRAINT_PARTICLES] = core::array::from_fn(|k| {
+                    sb.particles[out.vertices[k] as usize].initial_rest_position
+                });
+                if plastic_flow(out, &cell.strain, cell.inverted, &rest0, &material, step_dt) {
+                    flowing = true;
+                }
             }
             if material.tear_strain.is_some() {
                 let load =
@@ -309,6 +319,18 @@ impl SoftFemSystem {
             }
         }
         let edge_plasticity = material.edge_plastic_yield > 0.0 && material.edge_plastic_creep > 0.0;
+        #[cfg(feature = "dim3")]
+        if edge_plasticity {
+            for (dihedral, d) in self.dihedrals.iter().zip(sb.dihedrals.iter_mut()) {
+                let pos: [Vector; 4] =
+                    core::array::from_fn(|k| self.position[dihedral.vertices[k] as usize]);
+                let mut grad = [Vector::ZERO; 4];
+                let angle = d.rest_angle + dihedral_gradients(&pos, d.rest_angle, &mut grad);
+                if d.plastic_flow(angle, &material, step_dt) {
+                    flowing = true;
+                }
+            }
+        }
         if material.tears() || edge_plasticity {
             for ((spring, edge), ei) in self.springs.iter().zip(sb.edges.iter_mut()).zip(0..) {
                 if spring.rest_length <= 0.0 {

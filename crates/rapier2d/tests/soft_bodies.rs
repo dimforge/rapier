@@ -2085,6 +2085,10 @@ fn interior_strength_shields_undamaged_interior_edges() {
                 interior_strength,
                 ..Default::default()
             })
+            // The crack opens at a free endpoint of the torn edge, chosen by the loads around
+            // it, which the shield changes: pinning one endpoint makes both runs open the same
+            // crack, so their geometries stay identical and the loads comparable.
+            .pinned_particles([idx(1, 1)])
             .no_surface_collider()
             .can_sleep(false);
         let handle = world.insert_soft_body(grid);
@@ -2190,6 +2194,24 @@ fn edge_plasticity_keeps_a_dent() {
     assert!((e.rest_length - 0.7 / 0.9).abs() < 1.0e-4, "rest length {}", e.rest_length);
     assert!((e.initial_rest_length() - 1.0).abs() < 1.0e-4);
     assert!((e.plastic_strain() - (0.7 / 0.9 - 1.0)).abs() < 1.0e-4);
+    // The rest positions followed the flow: the edge is as long at rest as its rest length.
+    let rest_distance = |sb: &SoftBody| {
+        (sb.particles()[1].rest_position() - sb.particles()[0].rest_position()).length()
+    };
+    let rest = rest_distance(sb);
+    assert!(
+        (rest - 0.7 / 0.9).abs() < 5.0e-3,
+        "the rest positions did not follow the flow: rest distance {rest}"
+    );
+    let initial =
+        sb.particles()[1].initial_rest_position() - sb.particles()[0].initial_rest_position();
+    assert!((initial.length() - 1.0).abs() < 1.0e-6);
+    // The reset undoes the set: rest length and rest positions as created.
+    world.soft_bodies[handle].reset_plasticity();
+    let sb = &world.soft_bodies[handle];
+    assert_eq!(sb.edges()[0].rest_length, 1.0);
+    assert_eq!(sb.edges()[0].plastic_strain(), 0.0);
+    assert_eq!(rest_distance(sb), 1.0);
 
     // The plastic maximum bounds the set.
     let (world, handle) = squeeze(clay(SoftEdgePlasticFlow::Both, 0.15));

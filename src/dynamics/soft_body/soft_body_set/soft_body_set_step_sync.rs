@@ -238,6 +238,7 @@ impl SoftBodySet {
                 continue;
             };
             rb.additional_solver_iterations = outcome.additional_solver_iterations;
+            rb.additional_pgs_iterations = sb.particle_settings.additional_pgs_iterations;
             // The cluster proxies first (pose, velocity, reduced mass): the colliders are
             // expressed in the fresh whole-body frame.
             Self::update_cluster_proxies(sb, bodies, colliders);

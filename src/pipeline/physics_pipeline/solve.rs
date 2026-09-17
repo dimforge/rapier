@@ -249,7 +249,8 @@ impl PhysicsPipeline {
                 let effective_mass = rb.mprops.effective_mass();
                 rb.forces
                     .compute_effective_force_and_torque(gravity, effective_mass);
-                any_extra_iterations |= rb.additional_solver_iterations() > 0;
+                any_extra_iterations |=
+                    rb.additional_solver_iterations() > 0 || rb.additional_pgs_iterations() > 0;
                 bid(rb, &islands.persistent, &mut split_bid);
                 observe(rb, observations);
             }
@@ -280,7 +281,8 @@ impl PhysicsPipeline {
                         let effective_mass = rb.mprops.effective_mass();
                         rb.forces
                             .compute_effective_force_and_torque(gravity, effective_mass);
-                        any_extra |= rb.additional_solver_iterations() > 0;
+                        any_extra |= rb.additional_solver_iterations() > 0
+                            || rb.additional_pgs_iterations() > 0;
                         bid(rb, persistent, &mut chunk_bid);
                         observe(rb, &mut observations);
                     }

@@ -61,6 +61,7 @@ impl SoftBodyBuilder {
                 position: *p,
                 velocity: Vector::ZERO,
                 rest_position: *p - rest_com,
+                initial_rest_position: *p - rest_com,
                 mass: *m,
                 inv_mass: if *pinned { 0.0 } else { crate::utils::inv(*m) },
                 force: Vector::ZERO,
@@ -179,6 +180,7 @@ impl SoftBodyBuilder {
             .map(|v| SoftBodyDihedral {
                 vertices: *v,
                 rest_angle: dihedral_angle(pos(v[0]), pos(v[1]), pos(v[2]), pos(v[3])),
+                plastic_set: 0.0,
                 impulse: 0.0,
                 color: 0,
             })
@@ -234,6 +236,7 @@ impl SoftBodyBuilder {
             has_overflow_color,
             modified: false,
             plastic_flowing: false,
+            rest_fit_pending: false,
             sleep_speed: 0.0,
             tearing_pending: false,
             topology_version: 0,

@@ -380,6 +380,15 @@ impl SoftBodyBuilder {
         self
     }
 
+    /// Requests extra internal PGS iterations per substep for the particles (and everything
+    /// they touch); see [`SoftBodyParticleSettings::additional_pgs_iterations`].
+    ///
+    /// [`SoftBodyParticleSettings::additional_pgs_iterations`]: super::SoftBodyParticleSettings::additional_pgs_iterations
+    pub fn additional_pgs_iterations(mut self, iterations: usize) -> Self {
+        self.particle_settings.additional_pgs_iterations = iterations;
+        self
+    }
+
     /// Whether the particles may fall asleep.
     pub fn can_sleep(mut self, can_sleep: bool) -> Self {
         self.particle_settings.can_sleep = can_sleep;

@@ -425,6 +425,24 @@ fn settings_tab(ui: &mut Ui, state: &mut TestbedState, world: &mut PhysicsWorld)
         )
         .on_hover_text("Internal Projected Gauss-Seidel iterations.");
 
+        // Applied to every soft body of the world when moved, so a demo's own per-body
+        // choices stand until the user touches the slider.
+        if ui
+            .add(Slider::new(&mut state.soft_additional_pgs, 0..=15).text("Soft extra PGS iters"))
+            .on_hover_text(
+                "Extra internal PGS iterations per substep for the island components holding \
+                 a soft body (applied to every soft body when moved). Converges the elastic \
+                 rows and the contacts together: stiff or slender soft bodies get closer to \
+                 their nominal stiffness, resting bodies lose their residual roughness, cloth \
+                 stretches less and plastic flow reads the stress it should.",
+            )
+            .changed()
+        {
+            for (_, sb) in world.soft_bodies.iter_mut() {
+                sb.set_additional_pgs_iterations(state.soft_additional_pgs);
+            }
+        }
+
         ui.add(
             Slider::new(
                 &mut integration_parameters.num_internal_stabilization_iterations,

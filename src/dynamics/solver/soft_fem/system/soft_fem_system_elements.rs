@@ -27,23 +27,23 @@ pub(super) struct FemCell {
     /// Polar rotation of the deformation gradient, frozen over the substep and warm-started
     /// from the previous one.
     pub(super) rotation: Rotation,
-    /// Corotated strain `sym(RᵀF) - I` in the strain-row coordinates.
+    /// Corotated strain `sym(RᵀF) - I` in the strain-constraint coordinates.
     pub(super) strain: StrainVector,
-    /// Whether the cell carries the stable Neo-Hookean energy instead of the linear-elastic
+    /// Whether the cell was inverted (`det F < 0`) at the last assembly.
+    pub(super) inverted: bool,
+    /// Whether the cell uses the stable Neo-Hookean energy instead of the linear-elastic
     /// (corotational) one.
     pub(super) neo_hookean: bool,
     /// The tangent `V₀ ∂²Ψ/∂ε²` last computed, and the strain it was computed at
     /// (`Real::MAX`: never). Constant for the corotational model; the Neo-Hookean one
-    /// re-linearizes when the strain moved by more than `STIFFNESS_REFRESH_STRAIN`.
+    /// re-linearizes when the strain moved by more than `STIFFNESS_UPDATE_STRAIN`.
     pub(super) tangent: StrainMatrix,
     pub(super) tangent_strain: StrainVector,
 }
 
-/// One volume element of a FEM soft body with the [`SoftBodyCellModel::Volume`] cell model:
-/// energy `½ k (V − V₀)²` over the cell's signed area/volume, Gauss-Newton tangent
-/// `k ∇V ∇Vᵀ` (the indefinite `(V − V₀) ∂²V` term dropped, like the springs). Its stiffness
-/// comes from the material's `volume_softness` the way the row path's cell-volume row does:
-/// `k = ω² / w₀`, `w₀` the row's effective mass at rest.
+/// One volume element of a FEM soft body with the [`SoftBodyCellModel::Volume`] cell model: energy
+/// `½ k (V − V₀)²` over the signed area/volume, Gauss-Newton tangent `k ∇V ∇Vᵀ` (indefinite term
+/// dropped); `k = ω² / w₀` from `volume_softness`, `w₀` the constraint's rest effective mass.
 #[derive(Copy, Clone, Debug)]
 pub(super) struct FemVolumeCell {
     /// Index of the cell in the body (its vertices and cached block slots).

@@ -609,12 +609,14 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
             }
 
             /*
-             * Stages: solve with bias.
+             * Stages: solve with bias. The group's count includes the extra iterations its bodies
+             * request (`RigidBody::additional_pgs_iterations`, 3 by default for soft bodies), so
+             * the substep's constraints converge against each other at the same positions.
              */
-            for pgs_iter in 0..params.num_internal_pgs_iterations {
-                // Joint warm-starting is fused into the first biased pass: each claimed
-                // joint applies its carried impulse right before being solved (sound
-                // within a color; Gauss-Seidel-ordered across colors).
+            for pgs_iter in 0..group.num_pgs_iterations {
+                // Joint warm-starting is fused into the first biased pass: each claimed joint
+                // applies its warm impulse right before being solved. Soft-body constraints do
+                // the same and update their geometry on the first iteration of the pass.
                 let warmstart_joints = params.warmstart_joints && pgs_iter == 0;
                 let soft_warmstart = (pgs_iter == 0 && params.warmstart_coefficient != 0.0)
                     .then_some(params.warmstart_coefficient);

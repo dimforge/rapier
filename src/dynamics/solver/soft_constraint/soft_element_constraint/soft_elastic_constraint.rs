@@ -156,21 +156,27 @@ pub(crate) struct SoftElasticConstraint {
     pub strain_cap: StrainVector,
     /// Strain of the last update (cell frame, clamped).
     pub strain: StrainVector,
+    /// Whether the cell was inverted (`det F < 0`) at the last update.
+    pub inverted: bool,
     /// Strain impulses (cell frame).
     pub strain_impulse: StrainVector,
+    /// Elastic strain per unit of strain-row impulse, `1 / (k_r dt)` (`k_r` = `2μV₀` diagonal,
+    /// `4μV₀` shear; zero for an inert row): `strain_impulse ∘ strain_per_impulse` is the strain
+    /// carried as stress, which the plastic flow reads instead of the unconverged geometric strain.
+    pub strain_per_impulse: StrainVector,
     /// Volumetric impulse (corotational only).
     pub vol_impulse: Real,
     pub model: SoftElasticModel,
 }
 
-/// The constitutive model of a [`SoftElasticRow`] and its model-specific state.
+/// The constitutive model of a [`SoftElasticConstraint`] and its model-specific state.
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum SoftElasticModel {
     Corotational(CorotationalConstraint),
     NeoHookean(NeoHookeanConstraint),
 }
 
-/// Corotational state of a [`SoftElasticRow`]: constant per-row spring coefficients and the
+/// Corotational state of a [`SoftElasticConstraint`]: constant per-constraint spring coefficients and the
 /// volumetric row solved through a Schur complement of the strain block.
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct CorotationalConstraint {
@@ -198,10 +204,6 @@ impl SoftElasticConstraint {
     #[inline]
     pub fn is_strained(&self, min_strain: Real) -> bool {
         self.strain.iter().any(|s| s.abs() > min_strain)
-    }
-
-    pub fn max_tensile_strain(&self) -> Real {
-        max_tensile_strain(&self.strain)
     }
 
     /// Deviatoric coefficients of a cell from its inverse rest matrix.
@@ -298,6 +300,7 @@ impl SoftElasticConstraint {
         // substeps; a cell torn far past rest has its strain error clamped at 100% (or the same cap
         // when larger) to keep the bias continuous on un-inversion; ordinary strains are unclamped.
         let inverted = f.determinant() < 0.0;
+        self.inverted = inverted;
         let caps = if inverted {
             self.strain_cap
         } else {

@@ -226,6 +226,13 @@ impl SoftBody {
         &self.particle_settings
     }
 
+    /// Sets the extra internal PGS iterations per substep requested for this body's island
+    /// component (see [`super::SoftBodyParticleSettings::additional_pgs_iterations`]); takes
+    /// effect at the next step.
+    pub fn set_additional_pgs_iterations(&mut self, iterations: usize) {
+        self.particle_settings.additional_pgs_iterations = iterations;
+    }
+
     /// The number of parallel solver colors used by this soft body's elements (informational:
     /// elements of a same color share no particle and are solved concurrently).
     pub fn num_solver_colors(&self) -> usize {

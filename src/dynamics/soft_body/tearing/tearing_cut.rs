@@ -319,6 +319,7 @@ impl SoftBody {
                 position: pa.position.lerp(pb.position, t),
                 velocity: pa.velocity.lerp(pb.velocity, t),
                 rest_position: pa.rest_position.lerp(pb.rest_position, t),
+                initial_rest_position: pa.initial_rest_position.lerp(pb.initial_rest_position, t),
                 mass,
                 inv_mass: crate::utils::inv(mass),
                 force: Vector::ZERO,

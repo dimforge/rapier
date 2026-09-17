@@ -7,8 +7,10 @@ use core::sync::atomic::Ordering;
 use simba::scalar::{ComplexField as _, RealField as _};
 
 use crate::dynamics::solver::solver_body::SolverBodies;
-use crate::math::{Real, Vector};
+use crate::math::{DIM, Real, Vector};
 
+#[cfg(feature = "dim3")]
+use super::super::soft_element_constraint::dihedral_gradients;
 use super::super::soft_element_constraint::SoftScalarConstraintWriteback;
 use super::*;
 
@@ -59,7 +61,15 @@ impl SoftConstraintsSet {
                     }
                     #[cfg(feature = "dim3")]
                     SoftScalarConstraintWriteback::Dihedral => {
-                        sb.dihedrals[constraint.element as usize].impulse = impulse
+                        let dihedral = &mut sb.dihedrals[constraint.element as usize];
+                        dihedral.impulse = impulse;
+                        // Angle as seen at the last substep's update.
+                        let mut grad = [Vector::ZERO; 4];
+                        let angle = dihedral.rest_angle
+                            + dihedral_gradients(&constraint.pos, dihedral.rest_angle, &mut grad);
+                        if dihedral.plastic_flow(angle, &material, dt) {
+                            awake.plastic_flow.store(true, Ordering::Relaxed);
+                        }
                     }
                     SoftScalarConstraintWriteback::CellVolume => {
                         sb.cells[constraint.element as usize].impulses[0] = impulse
@@ -83,11 +93,28 @@ impl SoftConstraintsSet {
                     *dst = crate::utils::canonicalize_zero(*src);
                 }
                 cell.rotation = constraint.rotation;
-                if material.plastic_yield > 0.0
-                    && material.plastic_creep > 0.0
-                    && plastic_flow(cell, &constraint.strain, &material, dt)
-                {
-                    awake.plastic_flow.store(true, Ordering::Relaxed);
+                // The tear strain counts the plastic stretch, as it stood before this step's flow.
+                let tensile = total_tensile_strain(&constraint.strain, &cell.plastic_stretch);
+                if material.plastic_yield > 0.0 && material.plastic_creep > 0.0 {
+                    let rest0: [Vector; DIM + 1] = core::array::from_fn(|k| {
+                        sb.particles[cell.vertices[k] as usize].initial_rest_position
+                    });
+                    // The flow reads the strain the cell carries as stress (its last substep's
+                    // impulses over the row stiffness), not the geometric strain: the sweep's
+                    // unconverged residual is geometric but transmits no load.
+                    let stress_strain = constraint
+                        .strain_impulse
+                        .component_mul(&constraint.strain_per_impulse);
+                    if plastic_flow(
+                        cell,
+                        &stress_strain,
+                        constraint.inverted,
+                        &rest0,
+                        &material,
+                        dt,
+                    ) {
+                        awake.plastic_flow.store(true, Ordering::Relaxed);
+                    }
                 }
                 if material.tear_strain.is_some() {
                     let load = material.cell_tear_load(tensile) * crate::utils::inv(resistance);

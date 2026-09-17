@@ -170,6 +170,8 @@ pub struct TestbedState {
     /// and stamped onto the running world every frame, so the panel's choices survive
     /// demo restarts and switches.
     pub soft_recovery: rapier::dynamics::SoftRecoverySettings,
+    /// Extra PGS iterations the solver panel's slider applies to every soft body when moved.
+    pub soft_additional_pgs: usize,
     pub broad_phase_type: RapierBroadPhaseType,
     pub snapshot: Option<PhysicsSnapshot>,
     /// Number of physics steps run since the example was (re)started. Bumped by
@@ -211,6 +213,7 @@ impl Default for TestbedState {
             example_groups: Vec::new(),
             example_settings: ExampleSettings::default(),
             soft_recovery: Default::default(),
+            soft_additional_pgs: 3,
             selected_display_index: 0,
             broad_phase_type: RapierBroadPhaseType::default(),
             camera_locked: false,

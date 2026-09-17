@@ -65,6 +65,7 @@ pub struct RigidBody {
     pub(crate) dominance: RigidBodyDominance,
     pub(crate) enabled: bool,
     pub(crate) additional_solver_iterations: usize,
+    pub(crate) additional_pgs_iterations: usize,
     /// The soft body this rigid body is the root of (invalid for regular rigid bodies).
     #[cfg_attr(
         feature = "serde-serialize",
@@ -112,6 +113,7 @@ impl RigidBody {
             enabled: true,
             user_data: 0,
             additional_solver_iterations: 0,
+            additional_pgs_iterations: 0,
             soft_body: crate::dynamics::SoftBodyHandle::invalid(),
             soft_cluster: u32::MAX,
             soft_motion_margin: 0.0,
@@ -160,6 +162,7 @@ impl RigidBody {
             dominance,
             enabled,
             additional_solver_iterations,
+            additional_pgs_iterations,
             soft_body: _soft_body, // The soft-body markers belong to the proxy, not to its state.
             soft_cluster: _soft_cluster,
             soft_motion_margin: _soft_motion_margin, // Engine-managed, like the markers.
@@ -178,6 +181,7 @@ impl RigidBody {
         self.dominance = *dominance;
         self.enabled = *enabled;
         self.additional_solver_iterations = *additional_solver_iterations;
+        self.additional_pgs_iterations = *additional_pgs_iterations;
         self.user_data = *user_data;
 
         self.changes = RigidBodyChanges::all();
@@ -218,6 +222,21 @@ impl RigidBody {
     /// attaching an elevated body to a large pile substeps the pile too.
     pub fn set_additional_solver_iterations(&mut self, additional_iterations: usize) {
         self.additional_solver_iterations = additional_iterations;
+    }
+
+    /// The additional number of internal PGS iterations run per substep for the simulation
+    /// island component containing this rigid-body (default: 0).
+    ///
+    /// See [`Self::set_additional_pgs_iterations`] for additional information.
+    pub fn additional_pgs_iterations(&self) -> usize {
+        self.additional_pgs_iterations
+    }
+
+    /// Set the additional number of internal PGS iterations run per substep for the simulation
+    /// island component containing this rigid-body (default: 0); the component runs the largest
+    /// request, soft bodies asking three ([`crate::dynamics::SoftBodyParticleSettings`]).
+    pub fn set_additional_pgs_iterations(&mut self, additional_iterations: usize) {
+        self.additional_pgs_iterations = additional_iterations;
     }
 
     /// The activation status of this rigid-body.
@@ -1666,6 +1685,11 @@ pub struct RigidBodyBuilder {
     ///
     /// See [`RigidBody::set_additional_solver_iterations`] for additional information.
     pub additional_solver_iterations: usize,
+    /// The additional number of internal PGS iterations run per substep for the island
+    /// component of this rigid-body.
+    ///
+    /// See [`RigidBody::set_additional_pgs_iterations`] for additional information.
+    pub additional_pgs_iterations: usize,
     /// Are gyroscopic forces enabled for this rigid-body?
     pub gyroscopic_forces_enabled: bool,
 }
@@ -1703,6 +1727,7 @@ impl RigidBodyBuilder {
             enabled: true,
             user_data: 0,
             additional_solver_iterations: 0,
+            additional_pgs_iterations: 0,
             gyroscopic_forces_enabled: true,
         }
     }
@@ -1777,6 +1802,15 @@ impl RigidBodyBuilder {
     /// See [`RigidBody::set_additional_solver_iterations`] for additional information.
     pub fn additional_solver_iterations(mut self, additional_iterations: usize) -> Self {
         self.additional_solver_iterations = additional_iterations;
+        self
+    }
+
+    /// Sets the additional number of internal PGS iterations run per substep for the island
+    /// component of this rigid-body.
+    ///
+    /// See [`RigidBody::set_additional_pgs_iterations`] for additional information.
+    pub fn additional_pgs_iterations(mut self, additional_iterations: usize) -> Self {
+        self.additional_pgs_iterations = additional_iterations;
         self
     }
 
@@ -2101,6 +2135,7 @@ impl RigidBodyBuilder {
         rb.body_type = self.body_type;
         rb.user_data = self.user_data;
         rb.additional_solver_iterations = self.additional_solver_iterations;
+        rb.additional_pgs_iterations = self.additional_pgs_iterations;
 
         if self.additional_mass_properties
             != RigidBodyAdditionalMassProps::MassProps(MassProperties::default())
