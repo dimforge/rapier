@@ -99,6 +99,18 @@ export class MultibodyJointSet {
     }
 
     /**
+     * Drops the wrappers of the joints the engine removed on its own (the joints of removed
+     * soft bodies and clusters).
+     */
+    public unmapRemovedJoints() {
+        for (let joint of this.map.getAll()) {
+            if (!this.raw.contains(joint.handle)) {
+                this.map.delete(joint.handle);
+            }
+        }
+    }
+
+    /**
      * The number of joints on this set.
      */
     public len(): number {

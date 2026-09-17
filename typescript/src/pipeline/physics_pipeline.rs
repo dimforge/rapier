@@ -1,6 +1,6 @@
 use crate::dynamics::{
     RawCCDSolver, RawImpulseJointSet, RawIntegrationParameters, RawIslandManager,
-    RawMultibodyJointSet, RawRigidBodySet,
+    RawMultibodyJointSet, RawRigidBodySet, RawSoftBodySet,
 };
 use crate::geometry::{RawBroadPhase, RawColliderSet, RawNarrowPhase};
 use crate::math::RawVector;
@@ -105,6 +105,7 @@ impl RawPhysicsPipeline {
         narrowPhase: &mut RawNarrowPhase,
         bodies: &mut RawRigidBodySet,
         colliders: &mut RawColliderSet,
+        softBodies: &mut RawSoftBodySet,
         joints: &mut RawImpulseJointSet,
         articulations: &mut RawMultibodyJointSet,
         ccd_solver: &mut RawCCDSolver,
@@ -119,6 +120,7 @@ impl RawPhysicsPipeline {
             &mut colliders.0,
             &mut joints.0,
             &mut articulations.0,
+            &mut softBodies.0,
             &mut ccd_solver.0,
             &(),
             &(),
@@ -134,6 +136,7 @@ impl RawPhysicsPipeline {
         narrowPhase: &mut RawNarrowPhase,
         bodies: &mut RawRigidBodySet,
         colliders: &mut RawColliderSet,
+        softBodies: &mut RawSoftBodySet,
         joints: &mut RawImpulseJointSet,
         articulations: &mut RawMultibodyJointSet,
         ccd_solver: &mut RawCCDSolver,
@@ -162,6 +165,7 @@ impl RawPhysicsPipeline {
             &mut colliders.0,
             &mut joints.0,
             &mut articulations.0,
+            &mut softBodies.0,
             &mut ccd_solver.0,
             &hooks,
             &eventQueue.collector,

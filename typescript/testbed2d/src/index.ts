@@ -10,6 +10,7 @@ import * as ConvexPolygons from "./demos/convexPolygons";
 import * as CharacterController from "./demos/characterController";
 import * as PidController from "./demos/pidController";
 import * as Voxels from "./demos/voxels";
+import * as SoftBodies from "./demos/softBodies";
 
 import("@dimforge/rapier2d").then((RAPIER) => {
     let builders = new Map([
@@ -23,6 +24,7 @@ import("@dimforge/rapier2d").then((RAPIER) => {
         ["locked rotations", LockedRotations.initWorld],
         ["pid controller", PidController.initWorld],
         ["polyline", Polyline.initWorld],
+        ["soft bodies", SoftBodies.initWorld],
         ["voxels", Voxels.initWorld],
     ]);
     let testbed = new Testbed(RAPIER, builders);

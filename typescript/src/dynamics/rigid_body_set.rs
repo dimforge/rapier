@@ -1,4 +1,4 @@
-use crate::dynamics::{RawImpulseJointSet, RawIslandManager, RawMultibodyJointSet};
+use crate::dynamics::{RawImpulseJointSet, RawIslandManager, RawMultibodyJointSet, RawSoftBodySet};
 use crate::geometry::RawColliderSet;
 use crate::math::{RawRotation, RawVector};
 use crate::utils::{self, FlatHandle};
@@ -12,6 +12,7 @@ pub enum RawRigidBodyType {
     Fixed,
     KinematicPositionBased,
     KinematicVelocityBased,
+    SoftFrame,
 }
 
 impl Into<RigidBodyType> for RawRigidBodyType {
@@ -21,6 +22,7 @@ impl Into<RigidBodyType> for RawRigidBodyType {
             RawRigidBodyType::Fixed => RigidBodyType::Fixed,
             RawRigidBodyType::KinematicPositionBased => RigidBodyType::KinematicPositionBased,
             RawRigidBodyType::KinematicVelocityBased => RigidBodyType::KinematicVelocityBased,
+            RawRigidBodyType::SoftFrame => RigidBodyType::SoftFrame,
         }
     }
 }
@@ -32,6 +34,7 @@ impl Into<RawRigidBodyType> for RigidBodyType {
             RigidBodyType::Fixed => RawRigidBodyType::Fixed,
             RigidBodyType::KinematicPositionBased => RawRigidBodyType::KinematicPositionBased,
             RigidBodyType::KinematicVelocityBased => RawRigidBodyType::KinematicVelocityBased,
+            RigidBodyType::SoftFrame => RawRigidBodyType::SoftFrame,
         }
     }
 }
@@ -95,6 +98,7 @@ impl RawRigidBodySet {
         ccdEnabled: bool,
         dominanceGroup: i8,
         additional_solver_iterations: usize,
+        additional_pgs_iterations: usize,
     ) -> FlatHandle {
         let pos = Pose::from_parts(translation.0, rotation.0);
 
@@ -117,6 +121,7 @@ impl RawRigidBodySet {
             .ccd_enabled(ccdEnabled)
             .dominance_group(dominanceGroup)
             .additional_solver_iterations(additional_solver_iterations)
+            .additional_pgs_iterations(additional_pgs_iterations)
             .soft_ccd_prediction(softCcdPrediction);
 
         rigid_body = if massOnly {
@@ -159,6 +164,7 @@ impl RawRigidBodySet {
         ccdEnabled: bool,
         dominanceGroup: i8,
         additional_solver_iterations: usize,
+        additional_pgs_iterations: usize,
     ) -> FlatHandle {
         let pos = Pose::from_parts(translation.0, rotation.0);
         let mut rigid_body = RigidBodyBuilder::new(rb_type.into())
@@ -175,6 +181,7 @@ impl RawRigidBodySet {
             .ccd_enabled(ccdEnabled)
             .dominance_group(dominanceGroup)
             .additional_solver_iterations(additional_solver_iterations)
+            .additional_pgs_iterations(additional_pgs_iterations)
             .soft_ccd_prediction(softCcdPrediction);
 
         rigid_body = if massOnly {
@@ -196,6 +203,7 @@ impl RawRigidBodySet {
         handle: FlatHandle,
         islands: &mut RawIslandManager,
         colliders: &mut RawColliderSet,
+        softBodies: &mut RawSoftBodySet,
         joints: &mut RawImpulseJointSet,
         articulations: &mut RawMultibodyJointSet,
     ) {
@@ -206,6 +214,7 @@ impl RawRigidBodySet {
             &mut colliders.0,
             &mut joints.0,
             &mut articulations.0,
+            &mut softBodies.0,
             true,
         );
     }

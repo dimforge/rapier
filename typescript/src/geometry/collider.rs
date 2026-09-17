@@ -750,6 +750,22 @@ impl RawColliderSet {
         })
     }
 
+    pub fn coCompoundFlags(&self, handle: FlatHandle) -> Option<u32> {
+        self.map(handle, |co| {
+            co.shape()
+                .as_compound()
+                .map(|compound| compound.flags().bits() as u32)
+        })
+    }
+
+    pub fn coPolylineFlags(&self, handle: FlatHandle) -> Option<u32> {
+        self.map(handle, |co| {
+            co.shape()
+                .as_polyline()
+                .map(|polyline| polyline.flags().bits() as u32)
+        })
+    }
+
     pub fn coTriMeshFlags(&self, handle: FlatHandle) -> Option<u32> {
         self.map(handle, |co| {
             co.shape().as_trimesh().map(|tri| tri.flags().bits() as u32)
@@ -846,6 +862,19 @@ impl RawColliderSet {
     /// The unique integer identifier of the collider this collider is attached to.
     pub fn coParent(&self, handle: FlatHandle) -> Option<FlatHandle> {
         self.map(handle, |co| co.parent().map(|p| utils::flat_handle(p.0)))
+    }
+
+    /// The soft body whose deformable collision mesh this collider holds, if any.
+    pub fn coSoftBody(&self, handle: FlatHandle) -> Option<FlatHandle> {
+        self.map(handle, |co| {
+            co.deformable_mesh_ref()
+                .map(|mesh| utils::flat_handle(mesh.body.0))
+        })
+    }
+
+    /// Does this collider hold a soft body's deformable collision mesh?
+    pub fn coIsDeformable(&self, handle: FlatHandle) -> bool {
+        self.map(handle, |co| co.deformable_mesh_ref().is_some())
     }
 
     pub fn coSetEnabled(&mut self, handle: FlatHandle, enabled: bool) {

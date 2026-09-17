@@ -11,6 +11,7 @@ var kk = 0;
 
 export class Graphics {
     coll2gfx: Map<number, PIXI.Graphics>;
+    sb2gfx: Map<number, PIXI.Graphics>;
     colorIndex: number;
     colorPalette: Array<number>;
     renderer: PIXI.Renderer;
@@ -24,6 +25,7 @@ export class Graphics {
         // const pixelRatio = window.devicePixelRatio ? Math.min(window.devicePixelRatio, 1.5) : 1;
 
         this.coll2gfx = new Map();
+        this.sb2gfx = new Map();
         this.colorIndex = 0;
         this.colorPalette = [0xf3d9b1, 0x98c1d9, 0x053c5e, 0x1f7a8c];
         this.renderer = new PIXI.Renderer({
@@ -119,7 +121,47 @@ export class Graphics {
         }
 
         this.updatePositions(world);
+        this.updateSoftBodies(world);
         this.renderer.render(this.scene);
+    }
+
+    /**
+     * Draws every soft body as the segments of its boundary, redrawn from its particle
+     * positions every frame.
+     */
+    updateSoftBodies(world: RAPIER.World) {
+        let seen = new Set<number>();
+        world.forEachSoftBody((body) => {
+            seen.add(body.handle);
+            let gfx = this.sb2gfx.get(body.handle);
+            if (!gfx) {
+                gfx = new PIXI.Graphics();
+                this.viewport.addChild(gfx);
+                this.sb2gfx.set(body.handle, gfx);
+                this.colorIndex =
+                    (this.colorIndex + 1) % (this.colorPalette.length - 1);
+                gfx.tint = this.colorPalette[this.colorIndex + 1];
+            }
+            let positions = body.particlePositions();
+            let boundary = body.boundary();
+            gfx.clear();
+            gfx.lineStyle(0.1, 0xffffff);
+            for (let i = 0; i < boundary.length; i += 2) {
+                let a = boundary[i];
+                let b = boundary[i + 1];
+                gfx.moveTo(positions[a * 2], -positions[a * 2 + 1]);
+                gfx.lineTo(positions[b * 2], -positions[b * 2 + 1]);
+            }
+        });
+
+        // Soft bodies removed from the world.
+        this.sb2gfx.forEach((gfx, handle) => {
+            if (!seen.has(handle)) {
+                this.viewport.removeChild(gfx);
+                gfx.destroy();
+                this.sb2gfx.delete(handle);
+            }
+        });
     }
 
     lookAt(pos: {zoom: number; target: {x: number; y: number}}) {
@@ -147,6 +189,11 @@ export class Graphics {
             gfx.destroy();
         });
         this.coll2gfx = new Map();
+        this.sb2gfx.forEach((gfx) => {
+            this.viewport.removeChild(gfx);
+            gfx.destroy();
+        });
+        this.sb2gfx = new Map();
         this.colorIndex = 0;
     }
 
@@ -157,6 +204,11 @@ export class Graphics {
     ) {
         let i;
         let parent = collider.parent();
+        // The colliders of a soft body (its deformable surface, or its particles) are drawn
+        // from the soft body itself.
+        if (!!parent && parent.isSoftFrame()) {
+            return;
+        }
         let instance;
         let graphics;
         let vertices;

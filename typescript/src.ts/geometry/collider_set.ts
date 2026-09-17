@@ -2,8 +2,14 @@ import {RawColliderSet} from "../raw";
 import {Coarena} from "../coarena";
 import {RotationOps, VectorOps} from "../math";
 import {Collider, ColliderDesc, ColliderHandle} from "./collider";
-import {ImpulseJointHandle, IslandManager, RigidBodyHandle} from "../dynamics";
-import {RigidBodySet} from "../dynamics";
+import {
+    ImpulseJointHandle,
+    IslandManager,
+    RigidBodyHandle,
+    RigidBodySet,
+    SoftBodySet,
+    SoftMeshBinding,
+} from "../dynamics";
 
 /**
  * A set of rigid bodies that can be handled by a physics pipeline.
@@ -144,6 +150,128 @@ export class ColliderSet {
     }
 
     /**
+     * Creates a collider holding a soft body's deformable collision mesh: a polyline (2D) or a
+     * triangle mesh (3D) built with the `DEFORMABLE` flag, whose vertices follow the cluster
+     * of the parent proxy through `binding`.
+     *
+     * Returns `null` when the binding fails: the parent is not a live cluster proxy, the shape
+     * is not a deformable mesh, or a vertex could not be bound.
+     *
+     * @param bodies - The set of bodies where the parent proxy can be found.
+     * @param softBodies - The set of soft bodies owning the cluster.
+     * @param desc - The collider's description.
+     * @param binding - How the mesh follows the cluster.
+     * @param parentHandle - The handle of the cluster proxy (see `SoftBody.rootBody`,
+     *                       `SoftBody.clusterProxy`).
+     */
+    public createDeformableCollider(
+        bodies: RigidBodySet,
+        softBodies: SoftBodySet,
+        desc: ColliderDesc,
+        binding: SoftMeshBinding,
+        parentHandle: RigidBodyHandle,
+    ): Collider | null {
+        let rawShape = desc.shape.intoRaw();
+        let rawTra = VectorOps.intoRaw(desc.translation);
+        let rawRot = RotationOps.intoRaw(desc.rotation);
+        let rawCom = VectorOps.intoRaw(desc.centerOfMass);
+
+        // #if DIM3
+        let rawPrincipalInertia = VectorOps.intoRaw(
+            desc.principalAngularInertia,
+        );
+        let rawInertiaFrame = RotationOps.intoRaw(
+            desc.angularInertiaLocalFrame,
+        );
+        // #endif
+
+        let handle = this.raw.createDeformableCollider(
+            desc.enabled,
+            rawShape,
+            rawTra,
+            rawRot,
+            desc.massPropsMode,
+            desc.mass,
+            rawCom,
+            // #if DIM2
+            desc.principalAngularInertia,
+            // #endif
+            // #if DIM3
+            rawPrincipalInertia,
+            rawInertiaFrame,
+            // #endif
+            desc.density,
+            desc.friction,
+            desc.restitution,
+            desc.frictionCombineRule,
+            desc.restitutionCombineRule,
+            desc.isSensor,
+            desc.collisionGroups,
+            desc.solverGroups,
+            desc.activeCollisionTypes,
+            desc.activeHooks,
+            desc.activeEvents,
+            desc.contactForceEventThreshold,
+            desc.contactSkin,
+            binding.rawMode(),
+            binding.particles,
+            binding.eps,
+            binding.selfContacts,
+            parentHandle,
+            bodies.raw,
+            softBodies.raw,
+        );
+
+        rawShape.free();
+        rawTra.free();
+        rawRot.free();
+        rawCom.free();
+
+        // #if DIM3
+        rawPrincipalInertia.free();
+        rawInertiaFrame.free();
+        // #endif
+
+        if (handle === undefined) {
+            return null;
+        }
+
+        let parent = bodies.get(parentHandle);
+        let collider = new Collider(this, handle, parent, desc.shape);
+        this.map.set(handle, collider);
+        return collider;
+    }
+
+    /**
+     * Wraps the colliders the engine created on its own (the deformable surfaces and particle
+     * colliders of soft bodies) that have no JavaScript wrapper yet.
+     */
+    public mapNewColliders(bodies: RigidBodySet) {
+        this.raw.forEachColliderHandle((handle: ColliderHandle) => {
+            if (!this.map.get(handle)) {
+                let parentHandle = this.raw.coParent(handle);
+                let parent =
+                    parentHandle === undefined
+                        ? null
+                        : bodies.get(parentHandle);
+                this.map.set(handle, new Collider(this, handle, parent));
+            }
+        });
+    }
+
+    /**
+     * Drops the wrappers of the colliders the engine removed on its own (the colliders of
+     * removed soft bodies and clusters).
+     */
+    public unmapRemovedColliders() {
+        for (let collider of this.map.getAll()) {
+            if (!this.raw.contains(collider.handle)) {
+                this.map.delete(collider.handle);
+            }
+        }
+    }
+
+    /**
      * Remove a collider from this set.
      *
      * @param handle - The integer handle of the collider to remove.
@@ -154,9 +282,16 @@ export class ColliderSet {
         handle: ColliderHandle,
         islands: IslandManager,
         bodies: RigidBodySet,
+        softBodies: SoftBodySet,
         wakeUp: boolean,
     ) {
-        this.raw.remove(handle, islands.raw, bodies.raw, wakeUp);
+        this.raw.remove(
+            handle,
+            islands.raw,
+            bodies.raw,
+            softBodies.raw,
+            wakeUp,
+        );
         this.unmap(handle);
     }
 

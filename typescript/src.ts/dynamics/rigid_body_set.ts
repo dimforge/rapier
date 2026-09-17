@@ -11,6 +11,7 @@ import {ColliderSet} from "../geometry";
 import {ImpulseJointSet} from "./impulse_joint_set";
 import {MultibodyJointSet} from "./multibody_joint_set";
 import {IslandManager} from "./island_manager";
+import {SoftBodySet} from "./soft_body_set";
 
 /**
  * A set of rigid bodies that can be handled by a physics pipeline.
@@ -115,6 +116,7 @@ export class RigidBodySet {
             desc.ccdEnabled,
             desc.dominanceGroup,
             desc.additionalSolverIterations,
+            desc.additionalPgsIterations,
         );
 
         rawTra.free();
@@ -143,6 +145,7 @@ export class RigidBodySet {
      *
      * @param handle - The integer handle of the rigid-body to remove.
      * @param colliders - The set of colliders that may contain colliders attached to the removed rigid-body.
+     * @param softBodies - The set of soft bodies: removing a cluster proxy removes its cluster.
      * @param impulseJoints - The set of impulse joints that may contain joints attached to the removed rigid-body.
      * @param multibodyJoints - The set of multibody joints that may contain joints attached to the removed rigid-body.
      */
@@ -150,6 +153,7 @@ export class RigidBodySet {
         handle: RigidBodyHandle,
         islands: IslandManager,
         colliders: ColliderSet,
+        softBodies: SoftBodySet,
         impulseJoints: ImpulseJointSet,
         multibodyJoints: MultibodyJointSet,
     ) {
@@ -171,10 +175,40 @@ export class RigidBodySet {
             handle,
             islands.raw,
             colliders.raw,
+            softBodies.raw,
             impulseJoints.raw,
             multibodyJoints.raw,
         );
         this.map.delete(handle);
+        // A cluster proxy takes its cluster's colliders with it.
+        colliders.unmapRemovedColliders();
+    }
+
+    /**
+     * Wraps the rigid-bodies the engine created on its own (the proxies of soft bodies and
+     * their clusters) that have no JavaScript wrapper yet.
+     */
+    public mapNewBodies(colliders: ColliderSet) {
+        this.raw.forEachRigidBodyHandle((handle: RigidBodyHandle) => {
+            if (!this.map.get(handle)) {
+                this.map.set(
+                    handle,
+                    new RigidBody(this.raw, colliders, handle),
+                );
+            }
+        });
+    }
+
+    /**
+     * Drops the wrappers of the rigid-bodies the engine removed on its own (the proxies of
+     * removed soft bodies and clusters).
+     */
+    public unmapRemovedBodies() {
+        for (let body of this.map.getAll()) {
+            if (!this.raw.contains(body.handle)) {
+                this.map.delete(body.handle);
+            }
+        }
     }
 
     /**

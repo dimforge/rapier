@@ -16,6 +16,10 @@ strip = true # Workaround for https://github.com/bevyengine/bevy/issues/16030 (t
 # must stay semver-compatible with the in-repo crate version for this to apply.
 rapier2d = { path = "../crates/rapier2d" }
 rapier3d = { path = "../crates/rapier3d" }
+# Temporary: the deformable-mesh API (parry branch `soft-bodies`), to be replaced by a
+# version bump when parry is released. Mirrors the patch of the root workspace.
+parry2d = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
+parry3d = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
 
 # parry, nalgebra and simba are still pulled from crates.io, matching the
 # versions the in-repo rapier crates depend on. Uncomment to build against local

@@ -573,6 +573,18 @@ impl RawShape {
         })
     }
 
+    pub fn compoundFlags(&self) -> Option<u32> {
+        self.0
+            .as_compound()
+            .map(|compound| compound.flags().bits() as u32)
+    }
+
+    pub fn polylineFlags(&self) -> Option<u32> {
+        self.0
+            .as_polyline()
+            .map(|polyline| polyline.flags().bits() as u32)
+    }
+
     pub fn triMeshFlags(&self) -> Option<u32> {
         self.0
             .as_trimesh()
@@ -732,17 +744,22 @@ impl RawShape {
         Self(SharedShape::voxels_from_points(voxel_size.0, &points))
     }
 
-    pub fn polyline(vertices: Vec<f32>, indices: Vec<u32>) -> Self {
+    pub fn polyline(vertices: Vec<f32>, indices: Vec<u32>, flags: u32) -> Self {
+        use rapier::parry::shape::{Polyline, PolylineFlags};
+        let flags = PolylineFlags::from_bits(flags as u8).unwrap_or_default();
         let vertices = vertices
             .chunks(DIM)
             .map(|v| Vector::from_slice(v))
             .collect();
         let indices: Vec<_> = indices.chunks(2).map(|v| [v[0], v[1]]).collect();
-        if indices.is_empty() {
-            Self(SharedShape::polyline(vertices, None))
+        let indices = if indices.is_empty() {
+            None
         } else {
-            Self(SharedShape::polyline(vertices, Some(indices)))
-        }
+            Some(indices)
+        };
+        Self(SharedShape::new(Polyline::with_flags(
+            vertices, indices, flags,
+        )))
     }
 
     pub fn trimesh(vertices: Vec<f32>, indices: Vec<u32>, flags: u32) -> Option<RawShape> {
@@ -850,7 +867,12 @@ impl RawShape {
         SharedShape::round_convex_mesh(vertices, &indices, borderRadius).map(|s| Self(s))
     }
 
-    pub fn compound(shapes: Vec<RawShape>, positions: Vec<f32>, rotations: Vec<f32>) -> RawShape {
+    pub fn compound(
+        shapes: Vec<RawShape>,
+        positions: Vec<f32>,
+        rotations: Vec<f32>,
+        flags: u32,
+    ) -> RawShape {
         let mut compound_parts = Vec::new();
         let num_shapes = shapes.len();
 
@@ -903,17 +925,22 @@ impl RawShape {
             compound_parts.push((pose, shapes[i].0.clone()));
         }
 
-        Self(SharedShape::compound(compound_parts))
+        Self(compound_with_flags(compound_parts, flags))
     }
 
-    pub fn convexDecomposition(vertices: Vec<f32>, indices: Vec<u32>) -> Option<RawShape> {
-        Self::convexDecompositionWithParams(vertices, indices, &RawVHACDParameters::new())
+    pub fn convexDecomposition(
+        vertices: Vec<f32>,
+        indices: Vec<u32>,
+        flags: u32,
+    ) -> Option<RawShape> {
+        Self::convexDecompositionWithParams(vertices, indices, &RawVHACDParameters::new(), flags)
     }
 
     pub fn convexDecompositionWithParams(
         vertices: Vec<f32>,
         indices: Vec<u32>,
         params: &RawVHACDParameters,
+        flags: u32,
     ) -> Option<RawShape> {
         let vertices: Vec<_> = vertices
             .chunks(DIM)
@@ -949,7 +976,7 @@ impl RawShape {
             return None;
         }
 
-        Some(Self(SharedShape::compound(parts)))
+        Some(Self(compound_with_flags(parts, flags)))
     }
 
     pub fn castShape(
@@ -1312,4 +1339,11 @@ mod tests {
 
         assert!(RawShape::convexMesh(roundtrip_vertices, roundtrip_indices).is_some());
     }
+}
+
+/// A compound shape with the given `CompoundFlags` bits (the default weld tolerance).
+fn compound_with_flags(parts: Vec<(Pose, SharedShape)>, flags: u32) -> SharedShape {
+    use rapier::parry::shape::{Compound, CompoundFlags};
+    let flags = CompoundFlags::from_bits(flags as u8).unwrap_or_default();
+    SharedShape::new(Compound::with_flags(parts, flags, None))
 }
