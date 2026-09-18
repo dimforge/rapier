@@ -188,17 +188,21 @@ export class World {
     public static fromRaw(raw: RawDeserializedWorld): World {
         if (!raw) return null;
 
-        return new World(
-            VectorOps.fromRaw(raw.takeGravity()),
-            raw.takeIntegrationParameters(),
-            raw.takeIslandManager(),
-            raw.takeBroadPhase(),
-            raw.takeNarrowPhase(),
-            raw.takeBodies(),
-            raw.takeColliders(),
-            raw.takeImpulseJoints(),
-            raw.takeMultibodyJoints(),
-        );
+        try {
+            return new World(
+                VectorOps.fromRaw(raw.takeGravity()),
+                raw.takeIntegrationParameters(),
+                raw.takeIslandManager(),
+                raw.takeBroadPhase(),
+                raw.takeNarrowPhase(),
+                raw.takeBodies(),
+                raw.takeColliders(),
+                raw.takeImpulseJoints(),
+                raw.takeMultibodyJoints(),
+            );
+        } finally {
+            raw.free();
+        }
     }
 
     /**
@@ -228,7 +232,11 @@ export class World {
      */
     public static restoreSnapshot(data: Uint8Array): World {
         let deser = new SerializationPipeline();
-        return deser.deserializeAll(data);
+        try {
+            return deser.deserializeAll(data);
+        } finally {
+            deser.free();
+        }
     }
 
     /**
