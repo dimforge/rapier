@@ -57,7 +57,7 @@ impl Default for SoftBodiesSettings {
 pub struct SoftFemParameters {
     /// Relative residual at which the conjugate gradient stops (default: `1.0e-5`).
     pub linear_tolerance: Real,
-    /// Hard cap on the conjugate-gradient iterations, whatever the residual (default: `256`).
+    /// Hard cap on the conjugate-gradient iterations, whatever the residual (default: `20`).
     ///
     /// A very stiff, finely meshed body can need several hundred iterations to converge; the
     /// truncated step it gets instead is under-relaxed (safe), only slower to settle.

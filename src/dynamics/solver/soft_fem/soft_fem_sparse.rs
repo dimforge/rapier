@@ -306,10 +306,9 @@ mod tests {
     use super::*;
     use crate::dynamics::solver::soft_constraint::soft_element_constraint::outer_product;
 
-    /// A small SPD block system solved by the conjugate gradient must match a dense reference
-    /// solve.
+    /// A small SPD block system solved by the conjugate gradient leaves a negligible residual.
     #[test]
-    fn conjugate_gradient_matches_dense_solve() {
+    fn conjugate_gradient_solves_the_system() {
         let n = 12;
         // A chain: every particle couples with its two neighbours.
         let pairs: Vec<(u32, u32)> = (0..n as u32 - 1).map(|i| (i, i + 1)).collect();
@@ -347,7 +346,6 @@ mod tests {
         cg.update_preconditioner(&matrix);
         cg.solve(&matrix, &rhs, &mut x, 1.0e-10, 1000);
 
-        // Residual check (the dense reference here is the matrix itself).
         let mut ax = vec![Vector::ZERO; n];
         matrix.mul(&x, &mut ax);
         for k in 0..n {

@@ -3,7 +3,8 @@ members = ["2d/bevy", "2d/rust", "3d/bevy", "3d/rust", "inject_file"]
 resolver = "2"
 
 [patch.crates-io]
-# Temporary: the deformable-mesh API (parry branch `soft-bodies`), to be replaced by a
-# version bump when parry is released. Mirrors the patch of the root workspace.
-parry2d = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
-parry3d = { git = "https://github.com/dimforge/parry", branch = "soft-bodies" }
+# Temporary: the composite-shape queries returning the part id alongside the result (parry
+# branch `composite-subshape-ids`), to be replaced by a version bump when parry is released.
+# Mirrors the patch of the root workspace.
+parry2d = { path = "../../../parry/crates/parry2d" }
+parry3d = { path = "../../../parry/crates/parry3d" }

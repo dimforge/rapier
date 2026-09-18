@@ -158,7 +158,7 @@ mod tests {
     fn inverted_cells_do_not_flow() {
         let (mut cell, rest0) = unit_cell();
         let before = cell;
-        // A reflection about an oblique plane: no diagonal strain reaches the old `-0.9` guard.
+        // A reflection about an oblique plane: no diagonal strain reveals the inversion.
         let mut strain = StrainVector::zeros();
         for k in 0..DIM {
             strain[k] = -2.0 / DIM as Real;

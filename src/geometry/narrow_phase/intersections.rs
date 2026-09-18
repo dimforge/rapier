@@ -128,7 +128,7 @@ impl NarrowPhase {
                 let pos12 = co1.pos.inv_mul(&co2.pos);
                 edge.weight.intersecting = query_dispatcher
                     .intersection_test(&pos12, &*co1.shape, &*co2.shape)
-                    .unwrap_or(false);
+                    .is_ok_and(|hit| hit.intersecting);
             }
 
             let active_events = co1.flags.active_events | co2.flags.active_events;

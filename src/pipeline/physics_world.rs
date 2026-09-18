@@ -712,7 +712,10 @@ impl PhysicsWorld {
                 let (co, co_handle) = colliders.get_unknown_gen(leaf)?;
                 if filter.test(bodies, co_handle, co) {
                     let pos12 = shape_pos.inv_mul(co.position());
-                    if dispatcher.intersection_test(&pos12, shape, co.shape()) == Ok(true) {
+                    if dispatcher
+                        .intersection_test(&pos12, shape, co.shape())
+                        .is_ok_and(|hit| hit.intersecting)
+                    {
                         return Some((co_handle, co));
                     }
                 }

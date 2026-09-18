@@ -10,7 +10,7 @@ use parry::utils::hashmap::HashMap;
 use simba::scalar::{ComplexField as _, RealField as _};
 
 use super::super::soft_body_builder::cell_faces;
-use super::super::{SoftBody, SoftBodyEdgeKind, SoftBodyMaterial, SoftBodyParticle};
+use super::super::{SoftBody, SoftBodyEdgeKind, SoftBodyParticle};
 use super::tearing::shared_others;
 
 /// The elements carrying a body's rest measure (see [`SoftBody::rest_measure`]).

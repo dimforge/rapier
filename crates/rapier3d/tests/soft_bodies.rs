@@ -1651,8 +1651,8 @@ fn creeping_body_stays_awake() {
     let mut handles = vec![];
     for (i, plastic_yield) in [0.0, 0.05].into_iter().enumerate() {
         // Resting on the ground rather than authored into it, and the elastic twin squat enough
-        // not to buckle: overlap recovery is paced (see SoftPairBudget) and this test is about
-        // sleep gating. The creeping twin stays slender (it collapses either way).
+        // not to buckle: this test is about sleep gating, not overlap recovery. The creeping
+        // twin stays slender (it collapses either way).
         let width = if plastic_yield > 0.0 { 0.3 } else { 0.45 };
         let column = SoftBodyBuilder::cuboid(
             Vector::new(i as Real * 3.0, 1.3, 0.0),
@@ -2933,9 +2933,8 @@ fn skinned_bodies_collide_with_each_other() {
     );
 }
 
-/// Reproducer for a known bug (see `docs/soft-soft-overlap-bug.md`): two soft bodies inserted
-/// with overlapping contact skins are thrown apart instead of settling. Ignored because it
-/// fails (the per-pair de-overlap budget that fixed it lives on the experimental branch).
+/// Reproducer for a known bug: two soft bodies inserted with overlapping contact skins are
+/// thrown apart instead of settling. Ignored because it still fails.
 #[test]
 #[ignore = "known bug: soft-vs-soft bodies inserted within each other's contact skins explode"]
 fn soft_bodies_inserted_overlapping_settle() {
@@ -3234,6 +3233,8 @@ fn fem_deflection_is_substep_invariant() {
     let settle = |solver: SoftBodySolver, substeps: usize, young: Real| -> Real {
         let mut world = PhysicsWorld::new();
         world.integration_parameters.num_solver_iterations = substeps;
+        // The invariance is a property of the converged linear solve: lift the iteration cap.
+        world.integration_parameters.soft_bodies.fem.max_linear_iterations = 256;
         let (builder, tip) = fem_cantilever(solver, young, length, thickness, 9, 3);
         let handle = world.insert_soft_body(builder.mass(mass));
         for _ in 0..1500 {
@@ -3590,9 +3591,11 @@ fn fem_edge_period_is_substep_invariant() {
 #[test]
 fn fem_rope_hangs_from_anchor() {
     let mut world = PhysicsWorld::new();
+    // Damped, so the released rope stops swinging and hangs within the run.
     let rope = SoftBodyBuilder::rope(Vector::ZERO, Vector::new(2.0, 0.0, 0.0), 21)
         .pinned_particles([0])
         .softness(SpringCoefficients::new(300.0, 1.0))
+        .linear_damping(2.0)
         .solver(SoftBodySolver::Fem)
         .no_surface_collider()
         .can_sleep(false);
@@ -3821,8 +3824,9 @@ fn fem_plastic_cells_keep_their_deformation() {
     );
 }
 
-/// Tearing on the FEM path: a pinned FEM cloth pulled apart tears, and the topology change is
-/// picked up by the solver (the sparsity pattern is rebuilt).
+/// Tearing on the FEM path: a pinned FEM cloth pulled apart tears (the pieces become bodies of
+/// their own), and the topology change is picked up by the solver (the sparsity pattern is
+/// rebuilt).
 #[cfg(feature = "fem")]
 #[test]
 fn fem_cloth_tears_when_pulled_apart() {
@@ -3842,44 +3846,58 @@ fn fem_cloth_tears_when_pulled_apart() {
     .no_surface_collider()
     .can_sleep(false);
     let handle = world.insert_soft_body(cloth);
-    let left: Vec<usize> = (0..n).map(|k| k * n).collect();
-    let right: Vec<usize> = (0..n).map(|k| k * n + n - 1).collect();
-    for &i in left.iter().chain(right.iter()) {
-        world.soft_bodies[handle].set_particle_pinned(i, true);
+    // The two side columns, driven apart; they follow the tears into the split-off pieces.
+    let mut left: Vec<(SoftBodyHandle, u32)> = (0..n).map(|k| (handle, (k * n) as u32)).collect();
+    let mut right: Vec<(SoftBodyHandle, u32)> =
+        (0..n).map(|k| (handle, (k * n + n - 1) as u32)).collect();
+    for &(_, i) in left.iter().chain(right.iter()) {
+        world.soft_bodies[handle].set_particle_pinned(i as usize, true);
     }
-    let rest_left: Vec<Vector> = left
-        .iter()
-        .map(|&i| world.soft_bodies[handle].particle_position(i))
-        .collect();
-    let rest_right: Vec<Vector> = right
-        .iter()
-        .map(|&i| world.soft_bodies[handle].particle_position(i))
-        .collect();
+    let rest = |driven: &[(SoftBodyHandle, u32)]| -> Vec<Vector> {
+        driven
+            .iter()
+            .map(|&(_, i)| world.soft_bodies[handle].particle_position(i as usize))
+            .collect()
+    };
+    let (rest_left, rest_right) = (rest(&left), rest(&right));
     let particles_before = world.soft_bodies[handle].num_particles();
     let triangles_before = world.soft_bodies[handle].boundary().len();
     let version_before = world.soft_bodies[handle].topology_version();
+    let log = TearLog::default();
     for step in 0..400 {
         let pull = 0.004 * step as Real;
-        for (&i, p) in left.iter().zip(&rest_left) {
-            world.soft_bodies[handle]
-                .set_particle_kinematic_target(i, *p - Vector::new(pull, 0.0, 0.0));
+        for (&(body, i), p) in left.iter().zip(&rest_left) {
+            world.soft_bodies[body]
+                .set_particle_kinematic_target(i as usize, *p - Vector::new(pull, 0.0, 0.0));
         }
-        for (&i, p) in right.iter().zip(&rest_right) {
-            world.soft_bodies[handle]
-                .set_particle_kinematic_target(i, *p + Vector::new(pull, 0.0, 0.0));
+        for (&(body, i), p) in right.iter().zip(&rest_right) {
+            world.soft_bodies[body]
+                .set_particle_kinematic_target(i as usize, *p + Vector::new(pull, 0.0, 0.0));
         }
-        world.step();
+        world.step_with_events(&(), &log);
+        let events = log.drain();
+        for r in left.iter_mut().chain(right.iter_mut()) {
+            *r = follow(&events, r.0, r.1);
+        }
     }
-    assert_finite(&world, handle);
-    let sb = &world.soft_bodies[handle];
+    let bodies = family(&world, handle);
+    assert!(bodies.len() >= 2, "the FEM cloth did not tear in two");
+    let particles: usize = bodies
+        .iter()
+        .map(|&h| world.soft_bodies[h].num_particles())
+        .sum();
+    assert!(particles > particles_before, "the crack did not split any particle");
+    let triangles: usize = bodies
+        .iter()
+        .map(|&h| world.soft_bodies[h].boundary().len())
+        .sum();
+    assert_eq!(triangles, triangles_before, "the torn FEM cloth lost triangles");
+    for &h in &bodies {
+        assert_finite(&world, h);
+        world.soft_bodies[h].validate_topology().unwrap();
+    }
     assert!(
-        sb.num_particles() > particles_before,
-        "the FEM cloth did not tear: no particle split"
-    );
-    assert_eq!(sb.boundary().len(), triangles_before, "the torn FEM cloth lost triangles");
-    sb.validate_topology().unwrap();
-    assert!(
-        sb.topology_version() > version_before,
+        world.soft_bodies[handle].topology_version() > version_before,
         "the topology version was not bumped"
     );
 }

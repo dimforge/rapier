@@ -300,10 +300,10 @@ impl CCDSolver {
                 let dispatcher = narrow_phase.query_dispatcher();
                 let intersect_before = dispatcher
                     .intersection_test(&prev_pos12, co1.shape.as_ref(), co2.shape.as_ref())
-                    .unwrap_or(false);
+                    .is_ok_and(|hit| hit.intersecting);
                 let intersect_after = dispatcher
                     .intersection_test(&next_pos12, co1.shape.as_ref(), co2.shape.as_ref())
-                    .unwrap_or(false);
+                    .is_ok_and(|hit| hit.intersecting);
 
                 if !intersect_before
                     && !intersect_after

@@ -171,6 +171,11 @@ impl<'a> QueryPipeline<'a> {
         self.colliders.get_unknown_gen(id).map(|(_, h)| (h, data))
     }
 
+    /// The handle of the collider parry reported as the part of the collider set that answered.
+    fn handle_of(&self, id: u32) -> Option<ColliderHandle> {
+        self.colliders.get_unknown_gen(id).map(|(_, h)| h)
+    }
+
     /// Replaces [`Self::filter`] with different filtering rules.
     pub fn with_filter(self, filter: QueryFilter<'a>) -> Self {
         Self { filter, ..self }
@@ -254,9 +259,9 @@ impl<'a> QueryPipeline<'a> {
         max_toi: Real,
         solid: bool,
     ) -> Option<(ColliderHandle, RayIntersection)> {
-        CompositeShapeRef(self)
-            .cast_local_ray_and_get_normal(ray, max_toi, solid)
-            .and_then(|hit| self.id_to_handle(hit))
+        let (id, hit) =
+            CompositeShapeRef(self).cast_local_ray_and_get_normal(ray, max_toi, solid)?;
+        Some((self.handle_of(id)?, hit))
     }
 
     /// Returns ALL colliders that a ray passes through (not just the first).
@@ -349,7 +354,8 @@ impl<'a> QueryPipeline<'a> {
         max_dist: Real,
         solid: bool,
     ) -> Option<(ColliderHandle, PointProjection)> {
-        self.id_to_handle(CompositeShapeRef(self).project_local_point(point, max_dist, solid)?)
+        let (id, proj) = CompositeShapeRef(self).project_local_point(point, max_dist, solid)?;
+        Some((self.handle_of(id)?, proj))
     }
 
     /// Returns ALL colliders that contain the given point.
@@ -406,10 +412,9 @@ impl<'a> QueryPipeline<'a> {
         point: Vector,
         max_dist: Real,
     ) -> Option<(ColliderHandle, PointProjection, FeatureId)> {
-        let (id, (proj, feat)) =
+        let (id, proj, feat) =
             CompositeShapeRef(self).project_local_point_and_get_feature(point, max_dist)?;
-        let handle = self.colliders.get_unknown_gen(id)?.1;
-        Some((handle, proj, feat))
+        Some((self.handle_of(id)?, proj, feat))
     }
 
     /// Finds all handles of all the colliders with an [`Aabb`] intersecting the given [`Aabb`].
@@ -488,9 +493,14 @@ impl<'a> QueryPipeline<'a> {
         shape: &dyn Shape,
         options: ShapeCastOptions,
     ) -> Option<(ColliderHandle, ShapeCastHit)> {
-        CompositeShapeRef(self)
-            .cast_shape(self.dispatcher, shape_pos, shape_vel, shape, options)
-            .and_then(|hit| self.id_to_handle(hit))
+        let (id, hit) = CompositeShapeRef(self).cast_shape(
+            self.dispatcher,
+            shape_pos,
+            shape_vel,
+            shape,
+            options,
+        )?;
+        Some((self.handle_of(id)?, hit))
     }
 
     /// Casts a shape with an arbitrary continuous motion and retrieve the first collider it hits.
@@ -520,17 +530,16 @@ impl<'a> QueryPipeline<'a> {
         end_time: Real,
         stop_at_penetration: bool,
     ) -> Option<(ColliderHandle, ShapeCastHit)> {
-        CompositeShapeRef(self)
-            .cast_shape_nonlinear(
-                self.dispatcher,
-                &NonlinearRigidMotion::identity(),
-                shape_motion,
-                shape,
-                start_time,
-                end_time,
-                stop_at_penetration,
-            )
-            .and_then(|hit| self.id_to_handle(hit))
+        let (id, hit) = CompositeShapeRef(self).cast_shape_nonlinear(
+            self.dispatcher,
+            &NonlinearRigidMotion::identity(),
+            shape_motion,
+            shape,
+            start_time,
+            end_time,
+            stop_at_penetration,
+        )?;
+        Some((self.handle_of(id)?, hit))
     }
 
     /// Retrieve all the colliders intersecting the given shape.
@@ -552,7 +561,11 @@ impl<'a> QueryPipeline<'a> {
                 let (co, co_handle) = self.colliders.get_unknown_gen(leaf)?;
                 if self.filter.test(self.bodies, co_handle, co) {
                     let pos12 = shape_pos.inv_mul(co.position());
-                    if self.dispatcher.intersection_test(&pos12, shape, co.shape()) == Ok(true) {
+                    if self
+                        .dispatcher
+                        .intersection_test(&pos12, shape, co.shape())
+                        .is_ok_and(|hit| hit.intersecting)
+                    {
                         return Some((co_handle, co));
                     }
                 }

@@ -248,7 +248,6 @@ fn tear_duplicates_join_their_source_clusters() {
         .tear_strain(0.2),
     );
     world.step();
-    let before = world.soft_bodies[h].num_particles();
     // Tear a middle edge immediately.
     let torn = world.tear_soft_body(h, &[30], &[]);
     assert!(torn.is_some());
@@ -257,7 +256,6 @@ fn tear_duplicates_join_their_source_clusters() {
     // Whatever was duplicated must be covered by cluster 0 (refcounts stay consistent).
     assert_eq!(sb.cluster(0).unwrap().particles().len(), after);
     sb.validate_topology().unwrap();
-    let _ = before;
     for _ in 0..5 {
         world.step();
     }
@@ -402,7 +400,7 @@ fn cluster_stiffness_scale_stiffens_a_region() {
         SoftBodyBuilder::cuboid(Vector::new(0.0, 0.5, 0.0), Vector::splat(0.5), 3, 3, 3)
             .cell_model(SoftBodyCellModel::Corotational)
             .material(SoftBodyMaterial {
-                young_modulus: 5.0e2,
+                young_modulus: 2.0e2,
                 poisson_ratio: 0.3,
                 elastic_damping_ratio: 1.0,
                 ..Default::default()
@@ -417,7 +415,7 @@ fn cluster_stiffness_scale_stiffens_a_region() {
         SoftBodyBuilder::cuboid(Vector::new(0.0, 0.5, 0.0), Vector::splat(0.5), 3, 3, 3)
             .cell_model(SoftBodyCellModel::Corotational)
             .material(SoftBodyMaterial {
-                young_modulus: 5.0e2,
+                young_modulus: 2.0e2,
                 poisson_ratio: 0.3,
                 elastic_damping_ratio: 1.0,
                 ..Default::default()
@@ -427,7 +425,7 @@ fn cluster_stiffness_scale_stiffens_a_region() {
             .surface_collider(ColliderBuilder::ball(0.05)),
     );
     // Stiffen the whole body through the whole-body cluster: it must sag less than the soft
-    // reference under its own weight.
+    // reference under its own weight (a few centimeters at this modulus).
     world.soft_bodies[h].set_cluster_stiffness_scale(0, 50.0);
     for _ in 0..300 {
         world.step();
@@ -590,12 +588,13 @@ fn a_rigid_collider_on_a_sub_cluster_does_not_fight_its_own_body() {
 #[test]
 fn a_rigid_collider_on_a_cluster_brings_the_world_to_the_particles() {
     let mut world = world_with_ground();
-    // A soft jelly, so the load's deflection is visible.
+    // A soft jelly, so the load's deflection is visible: the box's weight over the top face
+    // compresses it by about a twelfth of its height at this modulus.
     let h = world.insert_soft_body(
         SoftBodyBuilder::cuboid(Vector::new(0.0, 0.6, 0.0), Vector::splat(0.5), 3, 3, 3)
             .cell_model(SoftBodyCellModel::Corotational)
             .material(SoftBodyMaterial {
-                young_modulus: 2.0e3,
+                young_modulus: 5.0e2,
                 poisson_ratio: 0.3,
                 elastic_damping_ratio: 1.0,
                 ..Default::default()

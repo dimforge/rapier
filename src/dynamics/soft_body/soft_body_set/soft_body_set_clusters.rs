@@ -108,7 +108,7 @@ impl SoftBodySet {
     ) -> Option<(SoftClusterRemoval, RigidBodyHandle)> {
         // First pass, on the soft body alone: tombstone the cluster and remove the particles
         // only it covered (with their elements and attachments).
-        let (mut counts, remap, dead, proxy, root, last) = {
+        let (mut counts, proxy, root, last) = {
             let sb = self.bodies.get_mut(handle.0)?;
             let c = sb.clusters.get_mut(cluster as usize)?;
             if !c.is_live() {
@@ -126,7 +126,7 @@ impl SoftBodySet {
                     }
                 }
             }
-            let (counts, remap) = sb.remove_dead_particles(&dead);
+            let (counts, _) = sb.remove_dead_particles(&dead);
 
             // The root body follows the first live cluster when cluster 0 goes.
             if sb.root_body == proxy {
@@ -138,7 +138,7 @@ impl SoftBodySet {
                 sb.root_body = next_root;
             }
             let last = sb.num_live_clusters() == 0;
-            (counts, remap, dead, proxy, sb.root_body, last)
+            (counts, proxy, sb.root_body, last)
         };
         counts.soft_body_removed = last;
 

@@ -25,7 +25,7 @@ use crate::dynamics::{
     RigidBodyHandle, RigidBodySet, SoftBody, SoftBodyCellModel, SoftBodyEdgeKind, SoftBodyHandle,
     SoftBodySet, SpringCoefficients,
 };
-use crate::math::{AngVector, DIM, Matrix, Real, Vector};
+use crate::math::{DIM, Matrix, Real, Vector};
 use crate::utils::RotationOps;
 use na::SimdRealField;
 use super::soft_constraints_set::AwakeCluster;

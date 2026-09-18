@@ -104,7 +104,8 @@ impl SharedShapeUtility for SharedShape {
     }
 
     fn intersectsShape(&self, shapePos1: &Pose, shape2: &dyn Shape, shapePos2: &Pose) -> bool {
-        query::intersection_test(shapePos1, &*self.0, shapePos2, shape2).unwrap_or(false)
+        query::intersection_test(shapePos1, &*self.0, shapePos2, shape2)
+            .is_ok_and(|hit| hit.intersecting)
     }
 
     fn contactShape(

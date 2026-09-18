@@ -1,5 +1,6 @@
-//! Soft-body regression tests (2D): substep invariance, ropes, blobs (area preservation),
-//! triangulated bodies, shape matching, two-way coupling, sleeping and removal.
+//! Soft-body regression tests (2D): substep invariance, materials (springs, corotational,
+//! Neo-Hookean, FEM), contacts, sleeping and removal, snapshots, tearing and cutting, plasticity,
+//! impulses, hooks and clusters.
 
 use rapier2d::prelude::*;
 
@@ -1578,6 +1579,8 @@ fn fem_deflection_is_substep_invariant() {
     let settle = |substeps: usize| -> Real {
         let mut world = PhysicsWorld::new();
         world.integration_parameters.num_solver_iterations = substeps;
+        // The invariance is a property of the converged linear solve: lift the iteration cap.
+        world.integration_parameters.soft_bodies.fem.max_linear_iterations = 256;
         let builder = SoftBodyBuilder::grid(
             Vector::new(length * 0.5, 0.0),
             Vector::new(length * 0.5, thickness * 0.5),

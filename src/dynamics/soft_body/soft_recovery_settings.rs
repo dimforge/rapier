@@ -39,8 +39,8 @@ pub struct SoftRecoverySettings {
     /// Detect inverted cells (material locally inside out) each step; feeds the self stand-down.
     /// (default: `true`)
     pub inverted_cell_detection: bool,
-    /// Detect surface self-crossings each step (the BVTT sweep); feeds the self stand-down and the
-    /// self untangler. (default: `true`)
+    /// Detect surface self-crossings each step (the BVTT sweep); feeds the self stand-down.
+    /// (default: `true`)
     pub self_crossing_detection: bool,
     /// Skip the self-crossing sweep while the surface's accumulated travel could not have bridged
     /// half a skin (crossings only form through motion). Off: sweep every step. (default: `true`)
@@ -106,7 +106,7 @@ pub struct SoftRecoverySettings {
     pub overlap_patch_constraints: SoftPatchConstraints,
     /// Measure the intersection volume on the contact skins (surfaces dilated by their skin), not
     /// the geometric surfaces: a resting pair then has a hard volume constraint with speculative
-    /// slack before the skins meet. Implied by [`SoftContactModel::VolumeOnly`]. (default: `false`)
+    /// slack before the skins meet. (default: `false`)
     pub overlap_skin_volume: bool,
     /// The skin overlap kept at rest, as a fraction of the pair's skins (the paper's maintained
     /// interpenetration layer): the correction removes only the volume beyond it, holding the

@@ -349,6 +349,8 @@ impl CharacterCollision {
             translation_remaining: tr,
             hit: rapier::parry::query::ShapeCastHit {
                 time_of_impact: self.toi.time_of_impact,
+                subshape1: 0,
+                subshape2: 0,
                 witness1: self.toi.witness1.0.coords.into(),
                 witness2: self.toi.witness2.0.coords.into(),
                 normal1: crate::na::Unit::new_unchecked(self.toi.normal1.0)
