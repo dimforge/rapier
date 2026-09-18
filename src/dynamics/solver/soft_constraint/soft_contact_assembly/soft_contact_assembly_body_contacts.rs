@@ -284,11 +284,19 @@ impl SoftConstraintsSet {
                         (v_other - v_surface).gdot(dir).max(0.0)
                     };
 
-                    // A closed surface's reversed interior contacts (an intruder seen from inside,
+                    // A solid surface's reversed interior contacts (an intruder seen from inside,
                     // a fold's far layer) are dropped: the volume constraints and the elasticity
-                    // resolve them. The rule reads the cells' winding, so a skin collides plainly.
+                    // resolve them. The rule reads the cells' winding, so a skin collides plainly,
+                    // and a shell (an unoriented surface) holds every body on the side it is on.
                     let skinned = mesh.is_skinned();
-                    let closed = mesh.is_closed() && self_particle.is_none() && !skinned;
+                    let closed = mesh.is_solid() && self_particle.is_none() && !skinned;
+                    // A body centered inside a solid surface is not held in it. In 2D parry's
+                    // oriented polyline gives it no contact at all; a 3D mesh's contacts stay
+                    // two-sided whatever its `ORIENTED` flag, so they are dropped here.
+                    #[cfg(feature = "dim3")]
+                    if closed && mesh.contains_point_parity(sb, other_co.translation()) {
+                        continue;
+                    }
 
                     // The features a volume constraint acts on (see `overlap_patch_constraints`).
                     let patch_policy = params.soft_bodies.recovery.overlap_patch_constraints;

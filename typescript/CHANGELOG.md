@@ -15,6 +15,10 @@
 
 ### Added
 
+- `SoftBodyDesc.setOriented` and `SoftBody.isMeshOriented`: whether the shape of a soft body's
+  collision surface carries the `ORIENTED` flag. Left unset, a closed surface is oriented (it
+  encloses solid matter, so nothing is held inside it); `setOriented(false)` makes it a shell
+  whose inner side holds the bodies inside it. A deformable collider follows its own shape's flag.
 - Soft bodies: `World.createSoftBody(desc)` inserts a deformable body made of particles linked
   by edges, bending constraints and cells, simulated together with the rigid bodies, contacts
   and joints. `SoftBodyDesc` offers the generators `rope`, `cloth`, `clothTube`,

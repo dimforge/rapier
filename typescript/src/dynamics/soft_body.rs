@@ -622,6 +622,10 @@ impl RawSoftBodyBuilder {
         self.0.self_contacts = enabled;
     }
 
+    pub fn setOriented(&mut self, oriented: bool) {
+        self.0.oriented = Some(oriented);
+    }
+
     pub fn setParticleRadius(&mut self, radius: f32) {
         self.0.particle_radius = radius;
     }
@@ -1511,6 +1515,10 @@ impl RawSoftBodySet {
         self.map(handle, |sb| {
             sb.meshes().nth(i).is_some_and(|m| m.collision_enabled())
         })
+    }
+
+    pub fn sbMeshIsOriented(&self, handle: FlatHandle, i: usize) -> bool {
+        self.map(handle, |sb| sb.meshes().nth(i).is_some_and(|m| m.is_oriented()))
     }
 
     /// The world-space vertex positions of a collision mesh, `DIM` floats per vertex.

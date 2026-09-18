@@ -346,6 +346,13 @@ fn stiff_neo_hookean_square_is_stable() {
 #[test]
 fn neo_hookean_square_survives_large_compression() {
     let mut world = world_with_ground();
+    // The plate swallows the square's top vertices once it is squashed, which makes a volume
+    // patch: the contacts must keep holding it (not bent along the patch normal), and the patch
+    // needs its per-cell multipliers to follow a kinematic press.
+    let recovery = &mut world.integration_parameters.soft_bodies.recovery;
+    recovery.overlap_patch_constraints = SoftPatchConstraints::Keep;
+    recovery.overlap_normal_push = false;
+    recovery.overlap_multi_volume = true;
     let square = SoftBodyBuilder::grid(Vector::new(0.0, 0.5), Vector::splat(0.5), 5, 5)
         .cell_model(SoftBodyCellModel::NeoHookean)
         .material(SoftBodyMaterial {
@@ -502,9 +509,9 @@ fn neo_hookean_response_is_substep_invariant() {
     );
 }
 
-/// A closed surface expels bodies that cross it: a small rigid ball spawned straddling a soft
-/// square's edge from inside (and a particle of a second soft body likewise) come out instead
-/// of being trapped, and the square itself stays whole.
+/// An oriented surface holds nothing inside: a small rigid ball straddling a soft square's
+/// edge from inside and moving outward crosses it freely (and a particle of a second soft body
+/// likewise comes out) instead of being trapped, and the square itself stays whole.
 #[test]
 fn closed_surface_expels_intruders() {
     let mut world = world_with_ground();
@@ -521,7 +528,9 @@ fn closed_surface_expels_intruders() {
         .particle_radius(0.05);
     let square = world.insert_soft_body(square);
     let (ball, _) = world.insert(
-        RigidBodyBuilder::dynamic().translation(Vector::new(0.1, 3.68)),
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(0.1, 3.68))
+            .linvel(Vector::new(0.0, 1.0)),
         ColliderBuilder::ball(0.1),
     );
     let intruder = SoftBodyBuilder::new(vec![
@@ -544,8 +553,8 @@ fn closed_surface_expels_intruders() {
     };
     let ball_pos = world.bodies[ball].translation();
     assert!(
-        !inside(ball_pos),
-        "rigid ball still inside the square: {ball_pos:?}"
+        !inside(ball_pos) && ball_pos.y > 4.0,
+        "the rigid ball was held inside the square: {ball_pos:?}"
     );
     for p in world.soft_bodies[intruder].particles() {
         assert!(
@@ -986,100 +995,84 @@ fn torn_cell_recovers_without_snapping() {
     assert!(max_speed < 60.0, "recovery snapped at {max_speed} m/s");
 }
 
-/// A closed surface only expels intruders through elements whose winding can be trusted: an
-/// element belonging to an inverted cell has a mirrored winding, and a ball resting on it must
-/// not be "expelled" through the body.
+/// An unoriented blob is a shell: a rigid ball spawned straddling its wall from inside is pushed back
+/// in and rests on its inner wall, while an oriented (solid) blob expels it.
 #[test]
-fn inverted_cell_elements_do_not_expel() {
-    let mut world = world_with_ground();
-    let square = SoftBodyBuilder::grid(Vector::new(0.0, 0.75), Vector::splat(0.75), 4, 4)
-        .cell_model(SoftBodyCellModel::Corotational)
-        .material(SoftBodyMaterial {
-            young_modulus: 1.0e4,
-            poisson_ratio: 0.4,
-            ..Default::default()
-        })
-        .particle_mass(0.1)
-        .particle_radius(0.05);
-    let handle = world.insert_soft_body(square);
-    // Pin the top edge, its two middle particles swapped and raised: the segment between them
-    // runs backwards (its cell is inverted), so its winding normal points into the square, and
-    // it stands alone above the rest of the top edge.
-    let sb = &world.soft_bodies[handle];
-    let n = sb.num_particles();
-    let mut top: Vec<usize> = (0..n)
-        .filter(|&i| sb.particle_position(i).y > 1.49)
-        .collect();
-    top.sort_by(|&a, &b| {
-        sb.particle_position(a)
-            .x
-            .partial_cmp(&sb.particle_position(b).x)
-            .unwrap()
-    });
-    let (a, b) = (top[1], top[2]);
-    for &i in &top {
-        world.soft_bodies[handle].set_particle_pinned(i, true);
-    }
-    for (i, x) in [(a, 0.6), (b, -0.6)] {
-        world.soft_bodies[handle].set_particle_position(i, Vector::new(x, 1.9));
-    }
-    // A ball resting on that segment only.
-    let (ball, _) = world.insert(
-        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 1.9 + 0.05 + 0.15)),
-        ColliderBuilder::ball(0.15),
-    );
-    for _ in 0..120 {
-        world.step();
-    }
-    assert_finite(&world, handle);
-    // Resting on the segment: 1.9 + skin 0.05 + radius 0.15 (a mirrored-winding expulsion
-    // pushed it down to 1.93).
-    let y = world.bodies[ball].translation().y;
+fn unoriented_blob_holds_a_ball_inside() {
+    let run = |oriented: bool| -> (Vector, Real) {
+        let mut world = world_with_ground();
+        let blob = SoftBodyBuilder::disk(Vector::new(0.0, 1.0), 0.8, 32)
+            .softness(SpringCoefficients::new(20.0, 1.0))
+            .particle_mass(0.05)
+            .particle_radius(0.05)
+            .surface_collider(ColliderBuilder::ball(0.05))
+            .oriented(oriented);
+        let handle = world.insert_soft_body(blob);
+        // Straddling the wall on the right, its center inside.
+        let (ball, _) = world.insert(
+            RigidBodyBuilder::dynamic().translation(Vector::new(0.75, 1.0)),
+            ColliderBuilder::ball(0.1),
+        );
+        for _ in 0..300 {
+            world.step();
+        }
+        assert_finite(&world, handle);
+        let sb = &world.soft_bodies[handle];
+        let lowest = sb.particle_positions().map(|p| p.y).fold(Real::MAX, Real::min);
+        (world.bodies[ball].translation() - sb.center_of_mass(), lowest)
+    };
+    let (offset, lowest) = run(false);
     assert!(
-        y > 2.05,
-        "the ball was pushed into the square through a mirrored element: y = {y}"
+        offset.length() < 0.8 && offset.y + 1.0 > lowest + 0.1,
+        "the ball left the unoriented blob: offset {offset:?}, lowest particle {lowest}"
+    );
+    let (offset, _) = run(true);
+    assert!(
+        offset.length() > 0.8,
+        "the ball was not expelled from the oriented blob: offset {offset:?}"
     );
 }
 
-/// A pressurized body turned inside out is accepted as mirrored: its area target follows its
-/// orientation and its outward normals flip with it, so it stays a blob and supports a box.
+/// The builder orients a closed surface unless told otherwise, and after insertion the
+/// collider's shape is the authority: clearing its `ORIENTED` flag makes the surface a shell.
 #[test]
-fn inverted_blob_is_accepted_as_mirrored() {
+fn the_collider_shape_decides_the_orientation() {
+    use rapier2d::parry::shape::PolylineFlags;
     let mut world = world_with_ground();
-    let blob = SoftBodyBuilder::disk(Vector::new(0.0, 0.7), 0.6, 20)
-        .softness(SpringCoefficients::new(20.0, 1.0))
-        .volume_factor(1.1)
-        .particle_mass(0.05)
-        .particle_radius(0.06);
-    let handle = world.insert_soft_body(blob);
-    // Mirror it (same shape, reversed winding).
-    {
-        let sb = &mut world.soft_bodies[handle];
-        for i in 0..sb.num_particles() {
-            let p = sb.particle_position(i);
-            sb.set_particle_position(i, Vector::new(-p.x, p.y));
-        }
-    }
-    let (block, _) = world.insert(
-        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 1.8)),
-        ColliderBuilder::cuboid(0.3, 0.2).density(0.3),
-    );
-    for _ in 0..240 {
-        world.step();
-    }
-    assert_finite(&world, handle);
-    let sb = &world.soft_bodies[handle];
-    let area = sb.volume();
-    assert!(
-        (area.abs() - 1.1 * sb.rest_volume()).abs() < 0.15 * sb.rest_volume(),
-        "mirrored blob area {area} vs target {}",
-        1.1 * sb.rest_volume()
-    );
-    let y = world.bodies[block].translation().y;
-    assert!(
-        y > 1.0,
-        "the block did not rest on the mirrored blob: y = {y}"
-    );
+    let blob = |center: Vector| {
+        SoftBodyBuilder::disk(center, 0.8, 32)
+            .softness(SpringCoefficients::new(20.0, 1.0))
+            .particle_mass(0.05)
+            .particle_radius(0.05)
+            .surface_collider(ColliderBuilder::ball(0.05))
+    };
+    let closed = world.insert_soft_body(blob(Vector::new(0.0, 1.0)));
+    let shell = world.insert_soft_body(blob(Vector::new(4.0, 1.0)).oriented(false));
+    let rope = world.insert_soft_body(SoftBodyBuilder::rope(
+        Vector::new(-4.0, 3.0),
+        Vector::new(-2.0, 3.0),
+        8,
+    ));
+    let flag = |world: &PhysicsWorld, h: SoftBodyHandle| {
+        let co = world.soft_bodies[h].collision_mesh().unwrap().collider();
+        let polyline = world.colliders[co].shape().as_polyline().unwrap();
+        polyline.flags().contains(PolylineFlags::ORIENTED)
+    };
+    assert!(flag(&world, closed), "a closed surface is oriented by default");
+    assert!(!flag(&world, shell), "an explicit `oriented(false)` was ignored");
+    assert!(!flag(&world, rope), "an open surface cannot be oriented");
+    world.step();
+    assert!(world.soft_bodies[closed].collision_mesh().unwrap().is_solid());
+    assert!(!world.soft_bodies[shell].collision_mesh().unwrap().is_solid());
+
+    // Cleared on the collider's shape: the mesh follows at the next step.
+    let co = world.soft_bodies[closed].collision_mesh().unwrap().collider();
+    let polyline = world.colliders[co].shape_mut().as_polyline_mut().unwrap();
+    polyline.set_flags(polyline.flags() & !PolylineFlags::ORIENTED);
+    world.step();
+    let mesh = world.soft_bodies[closed].collision_mesh().unwrap();
+    assert!(!mesh.is_oriented() && !mesh.is_solid());
+    assert!(!flag(&world, closed), "the step put the flag back");
 }
 
 /// A fixed thin pin inside a blob pressed on the ground by a plate cannot be expelled: the

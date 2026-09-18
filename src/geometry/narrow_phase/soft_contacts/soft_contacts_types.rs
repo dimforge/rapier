@@ -67,6 +67,10 @@ pub struct SoftVertexCandidate {
     pub interior: bool,
     /// Whether the solver builds a constraint for it (the hook clears it to drop the contact).
     pub enabled: bool,
+    /// The two surfaces are pieces of one torn body, their separations measured from the
+    /// features' rest gaps (see `rest_gap_skins`): the constraint holds a crack's rest geometry,
+    /// and the along-normal volume-patch policy leaves it as it is.
+    pub rest_gap: bool,
     /// The normal impulse the solver applied through it at the last step.
     pub impulse: Real,
     /// The world-space friction impulse the solver applied through it at the last step.

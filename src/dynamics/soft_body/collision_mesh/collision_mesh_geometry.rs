@@ -278,14 +278,14 @@ impl SoftCollisionMesh {
     }
 
     /// Outward normal (not normalized) of an element from the cached vertex positions, only
-    /// meaningful for a closed mesh (`None` otherwise, and for an element whose cell is
-    /// currently inverted: its winding is mirrored, so it cannot orient its contacts).
+    /// meaningful for a solid mesh (`None` for an open or unoriented one, and for an element whose
+    /// cell is currently inverted: its winding is mirrored, so it cannot orient its contacts).
     pub(crate) fn element_outward_normal(
         &self,
         body: &SoftBody,
         element_id: usize,
     ) -> Option<Vector> {
-        if !self.closed {
+        if !self.is_solid() {
             return None;
         }
         // A likely self-crossed loop (an O squeezed into an 8) has part of its winding mirrored;

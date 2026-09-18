@@ -102,7 +102,7 @@ pub struct SoftRecoverySettings {
     pub overlap_constraint_pace: Real,
     /// What the per-point constraints (manifold constraints against rigid colliders, vertex
     /// constraints against soft surfaces) of the features inside a volume constraint's patch do,
-    /// feature by feature (see [`SoftPatchConstraints`]). (default: `Keep`)
+    /// feature by feature (see [`SoftPatchConstraints`]). (default: `AlongNormal`)
     pub overlap_patch_constraints: SoftPatchConstraints,
     /// Measure the intersection volume on the contact skins (surfaces dilated by their skin), not
     /// the geometric surfaces: a resting pair then has a hard volume constraint with speculative
@@ -118,7 +118,7 @@ pub struct SoftRecoverySettings {
     pub overlap_self_regions: bool,
     /// Push along each constraint's normal instead of the volume gradients: every entry keeps its
     /// gradient's magnitude but takes the constraint's mean direction, so the whole patch
-    /// separates along one axis. (default: `false`)
+    /// separates along one axis. (default: `true`)
     pub overlap_normal_push: bool,
     /// Multi-volume grid (the paper's section 5): each pair's patch is split into a regular grid of
     /// cells along its tangent axes, each with its own constraint and multiplier, so the pressure
@@ -157,12 +157,12 @@ impl Default for SoftRecoverySettings {
             overlap_skip_self_tangled: true,
             overlap_edge_stand_down: true,
             overlap_constraint_pace: 1.0,
-            overlap_patch_constraints: SoftPatchConstraints::Keep,
+            overlap_patch_constraints: SoftPatchConstraints::AlongNormal,
             overlap_skin_volume: false,
             overlap_kept_depth: 0.0,
-            overlap_normal_push: false,
+            overlap_normal_push: true,
             overlap_self_regions: false,
-            overlap_multi_volume: true,
+            overlap_multi_volume: false,
             overlap_split: 3,
             overlap_patience: 240,
             overlap_progress_margin: 0.02,

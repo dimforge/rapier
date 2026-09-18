@@ -1114,6 +1114,14 @@ export class SoftBody {
     }
 
     /**
+     * Does the shape of the `i`-th collision mesh carry the `ORIENTED` flag (see
+     * `SoftBodyDesc.setOriented`)?
+     */
+    public isMeshOriented(i: number): boolean {
+        return this.rawSet.sbMeshIsOriented(this.handle, i);
+    }
+
+    /**
      * The world-space vertex positions of the `i`-th collision mesh, flattened.
      */
     public meshVertices(i: number): Float32Array {
@@ -1178,25 +1186,32 @@ export class SoftBodyDesc {
      */
     cellModel: SoftBodyCellModel;
     /**
-     * Whether the area/volume enclosed by the body's closed surfaces is preserved.
+     * Whether the area/volume enclosed by the body's closed surfaces is preserved (`null`:
+     * what the generator chose, off for raw positions).
      */
-    volumePreservation: boolean;
+    volumePreservation: boolean | null;
     /**
      * The target volume multiplier of the volume preservation (`> 1` inflates the body).
      */
     volumeFactor: number;
     /**
-     * Whether shape matching holds the body's shape.
+     * Whether shape matching holds the body's shape (`null`: what the generator chose, off for
+     * raw positions).
      */
-    shapeMatching: boolean;
+    shapeMatching: boolean | null;
     /**
      * Whether the body's surface collides with itself.
      */
     selfContacts: boolean;
     /**
-     * The thickness of the particles.
+     * Whether the shape of the body's collision surface is built with the `ORIENTED` flag
+     * (`null`: whenever the surface is closed).
      */
-    particleRadius: number;
+    oriented: boolean | null;
+    /**
+     * The thickness of the particles (`null`: what the generator chose).
+     */
+    particleRadius: number | null;
     /**
      * The template of the body's colliders (their shape is replaced by the body's deformable
      * surface), or `null` for a body without collisions.
@@ -1256,11 +1271,12 @@ export class SoftBodyDesc {
         this.masses = null;
         this.pinnedParticles = new Uint32Array(0);
         this.cellModel = SoftBodyCellModel.Volume;
-        this.volumePreservation = false;
+        this.volumePreservation = null;
         this.volumeFactor = 1.0;
-        this.shapeMatching = false;
+        this.shapeMatching = null;
         this.selfContacts = false;
-        this.particleRadius = 0.01;
+        this.oriented = null;
+        this.particleRadius = null;
         this.surfaceCollider = ColliderDesc.ball(0.05);
         this.skinCollision = false;
         this.translation = null;
@@ -1759,6 +1775,18 @@ export class SoftBodyDesc {
     }
 
     /**
+     * Sets whether the shape of the body's collision surface is built with the `ORIENTED`
+     * flag, like a polyline or mesh. Left unset, it is whenever the surface is closed, which
+     * is what a solid body wants: an oriented closed surface encloses matter, so nothing is
+     * held inside it. Set it to `false` for a shell, whose inner side holds the bodies inside
+     * it.
+     */
+    public setOriented(oriented: boolean): SoftBodyDesc {
+        this.oriented = oriented;
+        return this;
+    }
+
+    /**
      * Sets the thickness of the particles.
      */
     public setParticleRadius(radius: number): SoftBodyDesc {
@@ -1890,11 +1918,21 @@ export class SoftBodyDesc {
         }
         raw.setPinnedParticles(this.pinnedParticles);
         raw.setCellModel(this.cellModel as number as RawSoftBodyCellModel);
-        raw.setVolumePreservation(this.volumePreservation);
+        // The settings a generator may have chosen are only overridden when set here.
+        if (this.volumePreservation !== null) {
+            raw.setVolumePreservation(this.volumePreservation);
+        }
         raw.setVolumeFactor(this.volumeFactor);
-        raw.setShapeMatching(this.shapeMatching);
+        if (this.shapeMatching !== null) {
+            raw.setShapeMatching(this.shapeMatching);
+        }
         raw.setSelfContacts(this.selfContacts);
-        raw.setParticleRadius(this.particleRadius);
+        if (this.oriented !== null) {
+            raw.setOriented(this.oriented);
+        }
+        if (this.particleRadius !== null) {
+            raw.setParticleRadius(this.particleRadius);
+        }
         raw.setSkinCollision(this.skinCollision);
         if (this.surfaceCollider) {
             let c = this.surfaceCollider;

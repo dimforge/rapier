@@ -63,7 +63,7 @@ pub(super) fn detect_volume_patch(
 ) -> Option<SoftVolumePatch> {
     let params = ctx.params;
     let recovery = &params.soft_bodies.recovery;
-    let closed_pair = vb_mesh.is_closed() && eb_mesh.is_closed();
+    let closed_pair = vb_mesh.is_solid() && eb_mesh.is_solid();
     let crossed = !pass.cross_pairs.is_empty() && !pass.cross_tangled_vb_elements.is_empty();
     if !recovery.overlap_constraints
         || !closed_pair
@@ -171,8 +171,9 @@ pub(super) fn detect_rigid_patch(
     {
         return None;
     }
-    // A self-crossed mesh sits out: part of its winding is mirrored.
-    if !mesh.is_closed()
+    // A shell (unoriented mesh) holds intruders instead; a self-crossed mesh sits out: part of
+    // its winding is mirrored.
+    if !mesh.is_solid()
         || (recovery.overlap_skip_self_tangled
             && (mesh.orientation_unreliable || mesh.crossed_partners.contains(&handle)))
     {

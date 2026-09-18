@@ -25,6 +25,12 @@ impl SoftBodySet {
         params: &IntegrationParameters,
         quarantined: &mut Vec<SoftBodyHandle>,
     ) {
+        // The colliders' shapes say which surfaces are oriented (the user may have changed them).
+        for (_, sb) in self.bodies.iter_mut() {
+            for mesh in sb.meshes_mut() {
+                mesh.read_orientation(colliders);
+            }
+        }
         let mut relink = false;
         let handles: Vec<SoftBodyHandle> = self
             .bodies
@@ -166,12 +172,7 @@ impl SoftBodySet {
                 co.deform_pose(frame);
                 let pose = *co.position();
                 if rebuild {
-                    match rebuilt_surface_shape(
-                        co.shape(),
-                        mesh.local_vertices(sb, &pose),
-                        mesh.indices(),
-                        mesh.is_closed(),
-                    ) {
+                    match rebuilt_surface_shape(co.shape(), mesh.local_vertices(sb, &pose), mesh) {
                         Some(shape) => co.replace_deformed_shape(shape),
                         None => co.set_enabled(false),
                     }

@@ -97,9 +97,37 @@ impl SoftCollisionMesh {
         matches!(self.binding, SoftMeshMapping::Skinned { .. })
     }
 
-    /// Whether this mesh is closed (its contacts with other bodies are then oriented outward).
+    /// Whether this mesh is closed (every segment vertex / triangle edge shared by exactly two
+    /// elements).
     pub fn is_closed(&self) -> bool {
         self.closed
+    }
+
+    /// Whether this mesh's collider shape carries parry's `ORIENTED` flag, as of the last step.
+    pub fn is_oriented(&self) -> bool {
+        self.oriented
+    }
+
+    /// Whether this mesh encloses solid matter: closed and oriented. Its contacts with other
+    /// bodies are then oriented outward and nothing is held inside it; otherwise it is two-sided.
+    pub fn is_solid(&self) -> bool {
+        self.closed && self.oriented
+    }
+
+    /// Reads the orientation back from the collider's shape, which is the authority on it.
+    pub(crate) fn read_orientation(&mut self, colliders: &crate::geometry::ColliderSet) {
+        let Some(co) = colliders.get(self.collider) else {
+            return;
+        };
+        #[cfg(feature = "dim2")]
+        let oriented = co.shape().as_polyline().is_some_and(|polyline| {
+            polyline.flags().contains(parry::shape::PolylineFlags::ORIENTED)
+        });
+        #[cfg(feature = "dim3")]
+        let oriented = co.shape().as_trimesh().is_some_and(|trimesh| {
+            trimesh.flags().contains(parry::shape::TriMeshFlags::ORIENTED)
+        });
+        self.oriented = oriented;
     }
 
     /// Whether this mesh collides with itself.

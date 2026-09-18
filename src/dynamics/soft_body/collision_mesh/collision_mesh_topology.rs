@@ -60,6 +60,7 @@ impl SoftCollisionMesh {
             edge_owners,
             inverted: false,
             orientation_unreliable: false,
+            oriented: false,
             collision_enabled,
             collider: ColliderHandle::invalid(),
             self_contacts,
@@ -128,6 +129,7 @@ impl SoftCollisionMesh {
             edge_owners,
             inverted: false,
             orientation_unreliable: false,
+            oriented: false,
             collision_enabled: true,
             collider: ColliderHandle::invalid(),
             self_contacts,
@@ -209,6 +211,7 @@ impl SoftCollisionMesh {
             edge_owners,
             inverted: false,
             orientation_unreliable: false,
+            oriented: false,
             collision_enabled,
             collider: ColliderHandle::invalid(),
             self_contacts,
@@ -234,8 +237,7 @@ impl SoftCollisionMesh {
     }
 
     /// Moves the vertices of this mesh's collider shape to the current positions, in place:
-    /// parry refits the shape's BVH. A closed 2D polyline is one-sided only while its winding
-    /// can be trusted (see [`Self::winding_trustworthy`]).
+    /// parry refits the shape's BVH.
     pub(crate) fn deform_shape(
         &self,
         body: &SoftBody,
@@ -250,16 +252,6 @@ impl SoftCollisionMesh {
         };
         // A polyline in either dimension (a 2D surface, or a wire in 3D), a trimesh in 3D.
         if let Some(polyline) = shape.as_polyline_mut() {
-            #[cfg(feature = "dim2")]
-            {
-                use parry::shape::PolylineFlags;
-                let oriented = self.closed && self.winding_trustworthy(body);
-                let mut flags = polyline.flags();
-                if flags.contains(PolylineFlags::ORIENTED) != oriented {
-                    flags.set(PolylineFlags::ORIENTED, oriented);
-                    polyline.set_flags(flags);
-                }
-            }
             polyline.update_vertices(write);
             return;
         }
@@ -285,19 +277,6 @@ impl SoftCollisionMesh {
             }
             *vertex = skinned;
         }
-    }
-
-    /// Whether every element's winding says where the outside is: not for a mesh turned inside
-    /// out or hovering around a zero volume, nor while a cell backing an element is inverted.
-    /// The rigid contacts of a closed mesh are one-sided only then; otherwise they are two-sided
-    /// and the contact assembly orients the reversed ones (see `element_outward_normal`).
-    #[cfg(feature = "dim2")]
-    pub(crate) fn winding_trustworthy(&self, body: &SoftBody) -> bool {
-        if self.inverted || self.orientation_unreliable {
-            return false;
-        }
-        body.cells.is_empty()
-            || !(0..self.indices.len()).any(|e| self.element_cell_inverted(body, e))
     }
 
     /// Updates the inside-out state of a closed mesh from the current vertex positions.

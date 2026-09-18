@@ -8,32 +8,44 @@ use simba::scalar::{ComplexField as _, RealField as _};
 use crate::dynamics::soft_body::{SoftBody, SoftBodyHandle, SoftMeshRef};
 use crate::math::{DIM, Pose, Real, Vector};
 
-/// The deformable surface shape (a 2D polyline or 3D triangle mesh over `vertices`), flagged
-/// deformable so the narrow phase never trusts contact points cached across a vertex update.
-/// A closed 2D polyline is one-sided (pushing outward); an open one (a rope) is two-sided.
+/// The deformable surface shape of `mesh` (a 2D polyline or 3D triangle mesh over `vertices`),
+/// flagged deformable so the narrow phase never trusts contact points cached across a vertex
+/// update, and oriented when the mesh is solid (see `SoftCollisionMesh::is_solid`): one-sided,
+/// pushing outward. An open mesh (a rope, a cloth) and a shell are two-sided.
 pub(crate) fn surface_shape(
     vertices: Vec<Vector>,
-    surface: &[[u32; DIM]],
-    closed: bool,
+    mesh: &super::SoftCollisionMesh,
 ) -> Option<SharedShape> {
+    let surface = mesh.indices();
     if surface.is_empty() || vertices.is_empty() {
         return None;
     }
+    let solid = mesh.is_solid();
+    // Parry reads the outside from the winding: a mesh wound inward gets its elements reversed
+    // (their ids, which the contacts report, stay the same).
+    let outward = |surface: &[[u32; DIM]]| -> Vec<[u32; DIM]> {
+        let mut elements = surface.to_vec();
+        if mesh.rest_signed_volume < 0.0 {
+            for e in &mut elements {
+                e.swap(DIM - 2, DIM - 1);
+            }
+        }
+        elements
+    };
     #[cfg(feature = "dim2")]
     {
         use parry::shape::{Polyline, PolylineFlags};
         let mut flags = PolylineFlags::DEFORMABLE;
-        flags.set(PolylineFlags::ORIENTED, closed);
+        flags.set(PolylineFlags::ORIENTED, solid);
         Some(SharedShape::new(Polyline::with_flags(
             vertices,
-            Some(surface.to_vec()),
+            Some(outward(surface)),
             flags,
         )))
     }
     #[cfg(feature = "dim3")]
     {
         use parry::shape::{Polyline, PolylineFlags, TriMeshFlags};
-        let _ = closed;
         // A wire's elements are segments (`u32::MAX` fills the unused slot): it collides as a
         // polyline, which parry supports in 3D too.
         if super::soft_body_builder::element_vertices(&surface[0]).len() < DIM {
@@ -44,40 +56,44 @@ pub(crate) fn surface_shape(
                 PolylineFlags::DEFORMABLE,
             )));
         }
-        SharedShape::trimesh_with_flags(vertices, surface.to_vec(), TriMeshFlags::DEFORMABLE).ok()
+        let mut flags = TriMeshFlags::DEFORMABLE;
+        flags.set(TriMeshFlags::ORIENTED, solid);
+        SharedShape::trimesh_with_flags(vertices, outward(surface), flags).ok()
     }
 }
 
 /// Rebuilds a surface shape whose topology changed (a tear), keeping the replaced shape's flags
-/// except those that would edit the vertex or index buffers; a 2D polyline's orientation
-/// follows `closed` (a torn open loop is two-sided).
+/// except those that would edit the vertex or index buffers; its orientation follows the mesh (a
+/// torn open loop is two-sided).
 pub(super) fn rebuilt_surface_shape(
     prev: &dyn parry::shape::Shape,
     vertices: Vec<Vector>,
-    surface: &[[u32; DIM]],
-    closed: bool,
+    mesh: &super::SoftCollisionMesh,
 ) -> Option<SharedShape> {
-    let mut shape = surface_shape(vertices, surface, closed)?;
+    let mut shape = surface_shape(vertices, mesh)?;
     let rebuilt = shape.make_mut();
     if let (Some(prev), Some(rebuilt)) = (prev.as_polyline(), rebuilt.as_polyline_mut()) {
         #[allow(unused_mut)]
         let mut flags = prev.flags();
         #[cfg(feature = "dim2")]
-        flags.set(parry::shape::PolylineFlags::ORIENTED, closed);
+        flags.set(parry::shape::PolylineFlags::ORIENTED, mesh.is_solid());
         rebuilt.set_flags(flags);
     }
     #[cfg(feature = "dim3")]
     if let (Some(prev), Some(rebuilt)) = (prev.as_trimesh(), rebuilt.as_trimesh_mut()) {
         use parry::shape::TriMeshFlags;
-        let flags = prev.flags()
+        let mut flags = prev.flags()
             & !(TriMeshFlags::MERGE_DUPLICATE_VERTICES
                 | TriMeshFlags::DELETE_DEGENERATE_TRIANGLES
                 | TriMeshFlags::DELETE_DUPLICATE_TRIANGLES
                 | TriMeshFlags::DELETE_BAD_TOPOLOGY_TRIANGLES);
+        flags.set(TriMeshFlags::ORIENTED, mesh.is_solid());
         // A torn mesh may no longer satisfy a topology flag: it falls back to the bare
         // deformable shape.
         if rebuilt.set_flags(flags).is_err() {
-            let _ = rebuilt.set_flags(TriMeshFlags::DEFORMABLE);
+            let mut bare = TriMeshFlags::DEFORMABLE;
+            bare.set(TriMeshFlags::ORIENTED, mesh.is_solid());
+            let _ = rebuilt.set_flags(bare);
         }
     }
     Some(shape)
@@ -97,11 +113,7 @@ pub(super) fn spawn_mesh_collider(
     bodies: &mut RigidBodySet,
     colliders: &mut ColliderSet,
 ) -> Option<ColliderHandle> {
-    let shape = surface_shape(
-        mesh.local_vertices(body, frame),
-        mesh.indices(),
-        mesh.is_closed(),
-    )?;
+    let shape = surface_shape(mesh.local_vertices(body, frame), mesh)?;
     let mut collider = template
         .clone()
         .density(0.0)
@@ -136,12 +148,7 @@ pub(super) fn clone_mesh_collider(
     colliders: &mut ColliderSet,
 ) -> Option<ColliderHandle> {
     let mut collider = colliders.get(source)?.clone();
-    let shape = rebuilt_surface_shape(
-        collider.shape(),
-        mesh.local_vertices(body, frame),
-        mesh.indices(),
-        mesh.is_closed(),
-    )?;
+    let shape = rebuilt_surface_shape(collider.shape(), mesh.local_vertices(body, frame), mesh)?;
     collider.set_shape(shape);
     collider.set_position(Pose::IDENTITY);
     collider.set_enabled(true);

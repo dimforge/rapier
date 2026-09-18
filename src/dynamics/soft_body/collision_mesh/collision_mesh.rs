@@ -90,8 +90,13 @@ pub struct SoftCollisionMesh {
     #[cfg(feature = "dim3")]
     pub(crate) edge_owners: Vec<u32>,
     /// Whether the mesh is closed (every segment vertex / triangle edge shared by exactly two
-    /// elements): its contacts with other bodies are then oriented outward.
+    /// elements): its contacts with other bodies are then oriented outward, if it is oriented.
     pub(crate) closed: bool,
+    /// Whether the collider's shape carries parry's `ORIENTED` flag, read back from it before
+    /// every step: closed, the mesh then encloses solid matter. Otherwise it is a shell: its
+    /// contacts are two-sided, a body inside it rests on its inner side, and it takes no patch.
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) oriented: bool,
     /// Signed area/volume enclosed by the mesh at rest: with `inverted`, it says which way the
     /// winding points.
     pub(crate) rest_signed_volume: Real,

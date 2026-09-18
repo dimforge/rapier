@@ -255,8 +255,8 @@ fn detect_soft_pair(
     let owner_pass = if own.2 == h1 { &pass1 } else { &pass2 };
     let recovery = &ctx.params.soft_bodies.recovery;
     let stood_down = cfg!(feature = "dim3")
-        && mesh1.is_closed()
-        && mesh2.is_closed()
+        && mesh1.is_solid()
+        && mesh2.is_solid()
         && recovery.overlap_constraints
         && recovery.overlap_edge_stand_down
         && !owner_pass.cross_tangled_elements.is_empty();

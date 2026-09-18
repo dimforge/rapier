@@ -334,6 +334,17 @@ impl SoftBodyBuilder {
         self
     }
 
+    /// Whether the shape of the body's default collision surface is built with parry's
+    /// `ORIENTED` flag, like a rigid polyline or mesh. Left unset, it is whenever the surface is
+    /// closed, which is what a solid body wants: an oriented closed surface encloses matter, so
+    /// nothing is held inside it. Set it to `false` for a shell, whose inner side holds the bodies
+    /// inside it. After insertion the collider's shape is the authority: change its flags there,
+    /// like for any collider. Independent of the material inside (cells, pressure).
+    pub fn oriented(mut self, oriented: bool) -> Self {
+        self.oriented = Some(oriented);
+        self
+    }
+
     /// Sets the thickness of the particles (the radius of their ball colliders for a body
     /// colliding through its particles, the surface collider's contact skin otherwise).
     pub fn particle_radius(mut self, radius: Real) -> Self {

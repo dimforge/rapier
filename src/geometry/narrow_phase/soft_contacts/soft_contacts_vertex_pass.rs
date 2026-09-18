@@ -157,8 +157,9 @@ pub(crate) fn detect_vertex_pass(
     let skins = vb_co.contact_skin() + eb_co.contact_skin();
     let prediction = params.prediction_distance();
     let reach = prediction + skins + ctx.motion_margin(eb_co) + ctx.motion_margin(vb_co);
-    // A closed surface's reversed sightings mark a foreign vertex inside it.
-    let closed = eb_mesh.is_closed() && !is_self;
+    // A solid surface's reversed sightings mark a foreign vertex inside it (a shell holds it on
+    // its inner side).
+    let closed = eb_mesh.is_solid() && !is_self;
 
     // Crossing repulsion (see `repel_constraint`): the detected crossing pairs also get their own
     // constraints (the piercing element's vertices against the pierced element), so an edge-first
@@ -205,8 +206,8 @@ pub(crate) fn detect_vertex_pass(
     if ((repel && params.soft_bodies.recovery.crossing_repulsion_guide)
         || patch_policy != crate::dynamics::SoftPatchConstraints::Keep)
         && !is_self
-        && vb_mesh.is_closed()
-        && eb_mesh.is_closed()
+        && vb_mesh.is_solid()
+        && eb_mesh.is_solid()
         && !out.cross_pairs.is_empty()
     {
         let mut inside_vb = Vec::new();
@@ -262,7 +263,7 @@ pub(crate) fn detect_vertex_pass(
     let self_guided = repel
         && params.soft_bodies.recovery.crossing_repulsion_self_guide
         && is_self
-        && vb_mesh.is_closed()
+        && vb_mesh.is_solid()
         && !crossings.is_empty();
     if self_guided {
         let n_v = vb_mesh.vertex_count();
@@ -570,6 +571,7 @@ impl VertexScan<'_> {
                     outward: Some(outward),
                     interior: false,
                     enabled: true,
+                    rest_gap: true,
                     impulse: 0.0,
                     tangent_impulse: Vector::ZERO,
                 });
@@ -641,6 +643,7 @@ impl VertexScan<'_> {
                 outward,
                 interior: weights.iter().all(|w| *w > 0.02),
                 enabled: true,
+                rest_gap: self.rest_gaps,
                 impulse: 0.0,
                 tangent_impulse: Vector::ZERO,
             });
@@ -671,6 +674,7 @@ impl VertexScan<'_> {
                                 outward: None,
                                 interior: false,
                                 enabled: true,
+                                rest_gap: false,
                                 impulse: 0.0,
                                 tangent_impulse: Vector::ZERO,
                             });

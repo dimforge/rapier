@@ -277,21 +277,27 @@ impl SoftBodyBuilder {
         }
         // A wire replaces the boundary mesh: a body made of segments has no surface.
         #[cfg(feature = "dim3")]
-        if !skin_collides && !self.wire.is_empty() {
+        let wire = !skin_collides && !self.wire.is_empty();
+        #[cfg(feature = "dim2")]
+        let wire = false;
+        #[cfg(feature = "dim3")]
+        if wire {
             meshes.push(SoftCollisionMesh::wire(
                 body,
                 &self.wire,
                 self.self_contacts,
                 has_collider,
             ));
-            return meshes;
         }
-        if !skin_collides {
+        if !skin_collides && !wire {
             meshes.push(SoftCollisionMesh::boundary(
                 body,
                 self.self_contacts,
                 has_collider,
             ));
+        }
+        for mesh in &mut meshes {
+            mesh.oriented = self.oriented.unwrap_or(mesh.closed);
         }
         meshes
     }

@@ -281,7 +281,17 @@ impl ColliderSet {
             .map_or(coll.pos.0, |parent| parent.pos_wrt_parent);
         let pose = frame * pos_wrt_parent;
         let vertices: Vec<Vector> = vertices.iter().map(|v| pose * *v).collect();
-        let mesh = sb.bind_mesh(cluster_id, &binding, vertices, indices)?;
+        let mut mesh = sb.bind_mesh(cluster_id, &binding, vertices, indices)?;
+        // The shape's `ORIENTED` flag says whether the closed mesh encloses solid matter.
+        #[cfg(feature = "dim2")]
+        let oriented = coll.shape().as_polyline().is_some_and(|polyline| {
+            polyline.flags().contains(parry::shape::PolylineFlags::ORIENTED)
+        });
+        #[cfg(feature = "dim3")]
+        let oriented = coll.shape().as_trimesh().is_some_and(|trimesh| {
+            trimesh.flags().contains(parry::shape::TriMeshFlags::ORIENTED)
+        });
+        mesh.oriented = oriented;
         coll.set_density(0.0);
         // The contact skin is the thickness of the mesh's vertices in the soft contact
         // passes: a collider left without one gets the body's particle radius.

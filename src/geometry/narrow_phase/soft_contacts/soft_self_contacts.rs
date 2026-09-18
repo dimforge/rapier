@@ -396,7 +396,7 @@ fn detect_self_regions(
     out.region_bins.clear();
     if !recovery.overlap_constraints
         || !recovery.overlap_self_regions
-        || !mesh.is_closed()
+        || !mesh.is_solid()
         || mesh.orientation_unreliable
         || out.crossings.is_empty()
     {

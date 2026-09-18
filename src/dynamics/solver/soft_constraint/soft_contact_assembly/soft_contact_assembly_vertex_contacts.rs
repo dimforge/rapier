@@ -320,8 +320,12 @@ impl SoftConstraintsSet {
                 if patch_guide.is_some() && patch_policy == SoftPatchConstraints::StandDown {
                     continue;
                 }
-                let along_patch_normal =
-                    patch_guide.is_some() && patch_policy == SoftPatchConstraints::AlongNormal;
+                // A constraint measured from a rest gap (a crack between two pieces of one torn
+                // body) holds that rest geometry: bending it along the patch normal would treat
+                // the crack as a penetration by the skins and push the pieces apart.
+                let along_patch_normal = patch_guide.is_some()
+                    && patch_policy == SoftPatchConstraints::AlongNormal
+                    && !c.rest_gap;
                 let repelled = if repel && flagged || along_patch_normal {
                     // The nearest guiding cell's normal, if the guide is on.
                     let guide = out

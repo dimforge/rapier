@@ -956,6 +956,7 @@ impl SoftBodyBuilder {
             "volume_factor" => b.volume_factor(v.extract()?),
             "shape_matching" => b.shape_matching(v.extract()?),
             "self_contacts" => b.self_contacts(v.extract()?),
+            "oriented" => b.oriented(v.extract()?),
             "particle_radius" => b.particle_radius(v.extract()?),
             "surface_collider" => {
                 b.surface_collider(v.extract::<PyRef<'_, ColliderBuilder>>()?.builder.clone())
@@ -1179,6 +1180,13 @@ impl SoftBodyBuilder {
     /// Make the body's surface collide with itself.
     fn self_contacts(&self, enabled: bool) -> Self {
         self.chained(|b| b.self_contacts(enabled))
+    }
+    /// Set whether the shape of the body's collision surface is built with the ``ORIENTED``
+    /// flag, like a polyline or mesh. Left unset, it is whenever the surface is closed, which is
+    /// what a solid body wants: an oriented closed surface encloses matter, so nothing is held
+    /// inside it. Set it to ``False`` for a shell, whose inner side holds the bodies inside it.
+    fn oriented(&self, oriented: bool) -> Self {
+        self.chained(|b| b.oriented(oriented))
     }
     /// Set the thickness of the particles.
     fn particle_radius(&self, radius: Real) -> Self {
@@ -1635,6 +1643,10 @@ pub struct SoftCollisionMesh {
     /// Does the mesh collide with itself?
     #[pyo3(get)]
     self_contacts_enabled: bool,
+    /// Does the mesh's collider shape carry the ``ORIENTED`` flag (see
+    /// :meth:`SoftBodyBuilder.oriented`)?
+    #[pyo3(get)]
+    is_oriented: bool,
     vertices: Vec<rapier::math::Vector>,
     indices: Vec<Vec<u32>>,
 }
@@ -1691,6 +1703,7 @@ impl SoftCollisionMesh {
             is_closed: mesh.is_closed(),
             is_wire: mesh.is_wire(),
             self_contacts_enabled: mesh.self_contacts_enabled(),
+            is_oriented: mesh.is_oriented(),
             vertices: mesh.vertex_positions(body).collect(),
             indices,
         }

@@ -93,6 +93,9 @@ pub struct SoftBodyBuilder {
     pub shape_matching: bool,
     /// Whether the body's surface collides with itself.
     pub self_contacts: bool,
+    /// Whether the default collision surface's shape is built with parry's `ORIENTED` flag
+    /// (see [`Self::oriented`]); `None`: when the surface is closed.
+    pub oriented: Option<bool>,
     /// Thickness of the particles: the radius of their ball colliders (bodies colliding through
     /// their particles), the surface collider's contact skin otherwise.
     pub particle_radius: Real,

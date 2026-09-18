@@ -42,6 +42,7 @@ impl SoftBodyBuilder {
             volume_factor: 1.0,
             shape_matching: false,
             self_contacts: false,
+            oriented: None,
             particle_radius: 0.01,
             skin: None,
             #[cfg(feature = "dim3")]
@@ -125,7 +126,7 @@ impl SoftBodyBuilder {
                     .edges(edges)
                     .surface(boundary)
                     .shape_matching(true)
-                    .particle_radius(mean_edge * 0.5),
+                        .particle_radius(mean_edge * 0.5),
             )
         }
     }

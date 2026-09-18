@@ -1643,6 +1643,107 @@ fn plastic_flow_is_bounded() {
     );
 }
 
+/// An oriented surface holds nothing inside: a small rigid ball straddling a soft cube's
+/// face from inside and moving outward crosses it freely (and a particle of a second soft body
+/// likewise comes out) instead of being trapped, and the cube itself stays whole.
+#[test]
+fn closed_surface_expels_intruders() {
+    let mut world = world_with_ground();
+    world.gravity = Vector::ZERO;
+    let cube = SoftBodyBuilder::cuboid(Vector::new(0.0, 3.0, 0.0), Vector::splat(0.75), 5, 5, 5)
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: 1.0e4,
+            poisson_ratio: 0.4,
+            elastic_damping_ratio: 0.5,
+            ..Default::default()
+        })
+        .particle_mass(0.1)
+        .particle_radius(0.05);
+    let cube = world.insert_soft_body(cube);
+    let (ball, _) = world.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(0.1, 3.68, 0.1))
+            .linvel(Vector::new(0.0, 1.0, 0.0)),
+        ColliderBuilder::ball(0.1),
+    );
+    let intruder = SoftBodyBuilder::new(vec![
+        Vector::new(0.72, 3.1, 0.0),
+        Vector::new(1.2, 3.0, 0.1),
+        Vector::new(1.0, 3.5, -0.1),
+        Vector::new(1.0, 3.2, 0.4),
+    ])
+    .cells(vec![[0, 1, 2, 3]])
+    .particle_radius(0.05)
+    .particle_mass(0.1);
+    let intruder = world.insert_soft_body(intruder);
+    for _ in 0..300 {
+        world.step();
+    }
+    assert_finite(&world, cube);
+    let sb = &world.soft_bodies[cube];
+    let inside = |p: Vector| {
+        let com = sb.center_of_mass();
+        (p - com).abs().max_element() < 0.75 - 0.05
+    };
+    let ball_pos = world.bodies[ball].translation();
+    assert!(
+        !inside(ball_pos) && ball_pos.y > 4.0,
+        "the rigid ball was held inside the cube: {ball_pos:?}"
+    );
+    for p in world.soft_bodies[intruder].particles() {
+        assert!(
+            !inside(p.position()),
+            "intruder particle still inside: {:?}",
+            p.position()
+        );
+    }
+    let volume = sb.volume();
+    assert!(
+        (volume - sb.rest_volume()).abs() < 0.1 * sb.rest_volume(),
+        "cube volume {volume} vs rest {}",
+        sb.rest_volume()
+    );
+}
+
+/// An unoriented balloon is a shell: a rigid ball spawned straddling its wall from inside is pushed
+/// back in and rests on its inner wall, while an oriented (solid) balloon expels it.
+#[test]
+fn unoriented_balloon_holds_a_ball_inside() {
+    let run = |oriented: bool| -> (Vector, Real) {
+        let mut world = world_with_ground();
+        let balloon = SoftBodyBuilder::sphere(Vector::new(0.0, 1.0, 0.0), 0.8, 2)
+            .softness(SpringCoefficients::new(20.0, 1.0))
+            .particle_mass(0.05)
+            .particle_radius(0.05)
+            .surface_collider(ColliderBuilder::ball(0.05))
+            .oriented(oriented);
+        let handle = world.insert_soft_body(balloon);
+        // Straddling the wall on the right, its center inside.
+        let (ball, _) = world.insert(
+            RigidBodyBuilder::dynamic().translation(Vector::new(0.75, 1.0, 0.0)),
+            ColliderBuilder::ball(0.1),
+        );
+        for _ in 0..300 {
+            world.step();
+        }
+        assert_finite(&world, handle);
+        let sb = &world.soft_bodies[handle];
+        let lowest = sb.particle_positions().map(|p| p.y).fold(Real::MAX, Real::min);
+        (world.bodies[ball].translation() - sb.center_of_mass(), lowest)
+    };
+    let (offset, lowest) = run(false);
+    assert!(
+        offset.length() < 0.8 && offset.y + 1.0 > lowest + 0.1,
+        "the ball left the unoriented balloon: offset {offset:?}, lowest particle {lowest}"
+    );
+    let (offset, _) = run(true);
+    assert!(
+        offset.length() > 0.8,
+        "the ball was not expelled from the oriented balloon: offset {offset:?}"
+    );
+}
+
 /// A body whose cells keep flowing is kept awake: a plastic column creeping under its own
 /// weight must not fall asleep mid-creep (its elastic twin, at rest, does sleep).
 #[test]
