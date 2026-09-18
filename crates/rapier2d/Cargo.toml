@@ -119,7 +119,13 @@ nalgebra = { workspace = true }
 glamx = { workspace = true, features = ["nalgebra"] }
 
 [dev-dependencies]
+criterion = "0.8"
 bincode.workspace = true
 serde_json.workspace = true
 serde = { workspace = true, features = ["std"] }
 oorandom.workspace = true
+
+[[bench]]
+name = "pipeline"
+path = "benches/pipeline.rs"
+harness = false
