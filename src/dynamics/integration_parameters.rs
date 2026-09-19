@@ -249,6 +249,7 @@ pub struct IntegrationParameters {
     /// substeps, contact stiffening and FEM solver tuning (see [`SoftBodiesSettings`]).
     ///
     /// [`SoftBodiesSettings`]: crate::dynamics::SoftBodiesSettings
+    #[cfg(feature = "alloc")]
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub soft_bodies: crate::dynamics::SoftBodiesSettings,
 
@@ -422,6 +423,7 @@ impl Default for IntegrationParameters {
             friction_in_bias_pass: false,
             warmstart_joints: false,
             length_unit: 1.0,
+            #[cfg(feature = "alloc")]
             soft_bodies: Default::default(),
             #[cfg(feature = "dim3")]
             friction_model: FrictionModel::default(),

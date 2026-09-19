@@ -35,7 +35,9 @@ pub use self::interaction_groups::{Group, InteractionGroups, InteractionTestMode
 pub use self::mesh_converter::{MeshConverter, MeshConverterError};
 #[cfg(feature = "alloc")]
 pub use self::narrow_phase::NarrowPhase;
+#[cfg(feature = "alloc")]
 pub(crate) use self::narrow_phase::soft_contacts;
+#[cfg(feature = "alloc")]
 pub use self::narrow_phase::soft_contacts::{
     SoftContactImpulse, SoftEdgeCandidate, SoftEdgePass, SoftPairContacts, SoftVertexCandidate,
     SoftVertexHits, SoftVertexPass, SoftVolumePatch, VolumeBin,

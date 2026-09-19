@@ -1051,6 +1051,7 @@ pub struct DebugRenderPipeline {
 }
 
 impl DebugRenderPipeline {
+    #[allow(clippy::too_many_arguments)]
     fn _run_with_backend(
         &mut self,
         bodies: &RigidBodySet,

@@ -2,6 +2,10 @@
 //! ([`crate::dynamics::RigidBodyType::SoftFrame`]) standing for it in the islands and joints.
 //! Index 0 is the whole-body cluster; removing a cluster deletes the particles it alone covers.
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use simba::scalar::{ComplexField as _, RealField as _};
+
 use crate::alloc_prelude::*;
 use crate::dynamics::RigidBodyHandle;
 use crate::math::{AngVector, AngularInertia, DIM, Pose, Real, Rotation, Vector};

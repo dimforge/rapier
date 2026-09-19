@@ -945,7 +945,7 @@ impl SoftBodyBuilder {
             "masses" => b.masses(v.extract()?),
             "pinned_particles" => b.pinned_particles(extract_indices_1d(v)?),
             "softness" => b.softness(spring(v)?),
-            "material" => b.material(v.extract::<PyRef<'_, SoftBodyMaterial>>()?.0.clone()),
+            "material" => b.material(v.extract::<PyRef<'_, SoftBodyMaterial>>()?.0),
             "tear_strain" => b.tear_strain(v.extract()?),
             "tear_force" => b.tear_force(v.extract()?),
             "min_piece" => b.min_piece(v.extract()?),
@@ -1034,7 +1034,7 @@ impl SoftBodyBuilder {
     /// The material (a copy).
     #[getter]
     fn current_material(&self) -> SoftBodyMaterial {
-        SoftBodyMaterial(self.builder.material.clone())
+        SoftBodyMaterial(self.builder.material)
     }
 
     /// The edges of the surface elements, deduplicated, as an ``(E, 2)`` ndarray.
@@ -1126,7 +1126,7 @@ impl SoftBodyBuilder {
     }
     /// Set the material.
     fn material(&self, material: &SoftBodyMaterial) -> Self {
-        let m = material.0.clone();
+        let m = material.0;
         self.chained(|b| b.material(m))
     }
     /// Set a uniform softness (a :class:`SpringCoefficients` or a ``(frequency, damping)``
@@ -2381,11 +2381,11 @@ impl SoftBody {
     /// The material (a copy: assign it back or use :meth:`set_material` to apply changes).
     #[getter]
     fn material(&self) -> SoftBodyMaterial {
-        self.with_ref(|b| SoftBodyMaterial(b.material().clone()))
+        self.with_ref(|b| SoftBodyMaterial(*b.material()))
     }
     #[setter]
     fn set_material(&mut self, material: &SoftBodyMaterial) {
-        let m = material.0.clone();
+        let m = material.0;
         self.with_mut(|b| b.set_material(m));
     }
     /// The constitutive model of the cells.

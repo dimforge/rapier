@@ -35,13 +35,14 @@ block-solver = []
 alloc = [
     "nalgebra/alloc",
     "parry2d-f64/alloc",
-    # Needed by `SoftBodyBuilder::volumetric`, for the Delaunay refinement.
-    "parry2d-f64/spade",
     "serde?/alloc",
 ]
 std = [
     "alloc",
     "parry2d-f64/std",
+    # Needed by `SoftBodyBuilder::volumetric`, for the Delaunay refinement. Kept out of
+    # `alloc`: spade's `robust` dependency does not build without the standard library.
+    "parry2d-f64/spade",
     "nalgebra/std",
     "simba/std",
     "num-traits/std",

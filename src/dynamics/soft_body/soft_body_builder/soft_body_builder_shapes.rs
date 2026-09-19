@@ -14,7 +14,9 @@ use simba::scalar::{ComplexField as _, RealField as _};
 use super::super::{SoftBodyCellModel, SoftBodyMaterial};
 #[cfg(feature = "dim3")]
 use super::soft_body_builder_mesh_helpers::icosphere;
-use super::soft_body_builder_mesh_helpers::{cell_faces, drop_stray_pieces, mean_edge_length};
+use super::soft_body_builder_mesh_helpers::mean_edge_length;
+#[cfg(any(feature = "dim3", feature = "std"))]
+use super::soft_body_builder_mesh_helpers::{cell_faces, drop_stray_pieces};
 use super::{SoftBodyBuilder, SoftBodyParticleSettings};
 
 impl SoftBodyBuilder {
@@ -417,6 +419,9 @@ impl SoftBodyBuilder {
     /// A volumetric body filling a closed, outward-oriented mesh (triangles in 3D, segments in 2D)
     /// with cells of size `cell_size`; the surface is their boundary. Particle radius defaults to
     /// half the mean cell edge; `None` if the mesh is empty, open or encloses nothing at that size.
+    // Filling a 2D boundary goes through parry's Delaunay refinement, which rapier2d
+    // enables with `std` (see the crate's feature list).
+    #[cfg(any(feature = "dim3", feature = "std"))]
     pub fn volumetric(
         vertices: &[Vector],
         indices: &[[u32; DIM]],
@@ -432,6 +437,9 @@ impl SoftBodyBuilder {
     /// The same as [`Self::volumetric`], with the meshing parameters spelled out: element size,
     /// the cover's smoothing, guard and subdivision, and whether the surface alone is covered
     /// (the crust).
+    // Filling a 2D boundary goes through parry's Delaunay refinement, which rapier2d
+    // enables with `std` (see the crate's feature list).
+    #[cfg(any(feature = "dim3", feature = "std"))]
     pub fn volumetric_with(
         vertices: &[Vector],
         indices: &[[u32; DIM]],
@@ -447,6 +455,7 @@ impl SoftBodyBuilder {
     }
 
     /// A body of the cells of a filled mesh, with the particle radius the mesh asks for.
+    #[cfg(any(feature = "dim3", feature = "std"))]
     fn from_cells(mesh: parry::transformation::VolumeMesh) -> Option<Self> {
         let mut builder = Self::new(mesh.vertices).cells(mesh.cells);
         // Half the mean edge of the *boundary*: with a subdivided cover the interior edges are
@@ -481,6 +490,9 @@ impl SoftBodyBuilder {
     /// The same as [`Self::volumetric`], keeping the boundary mesh as the body's skin: the cells
     /// hold it and the body is drawn as it, so thin features survive a cell size that cannot
     /// resolve them; it still collides through its cells, so contacts are as coarse as they are.
+    // Filling a 2D boundary goes through parry's Delaunay refinement, which rapier2d
+    // enables with `std` (see the crate's feature list).
+    #[cfg(any(feature = "dim3", feature = "std"))]
     pub fn volumetric_skinned(
         vertices: &[Vector],
         indices: &[[u32; DIM]],

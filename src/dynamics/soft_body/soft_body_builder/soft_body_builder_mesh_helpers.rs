@@ -11,6 +11,7 @@ use super::super::SoftBodyCell;
 
 /// Drops the pieces of a filled mesh that are negligible next to its largest one; pieces of a
 /// comparable size are all kept, since dropping them would lose limbs rather than specks.
+#[cfg(any(feature = "dim3", feature = "std"))]
 pub(super) fn drop_stray_pieces(
     mesh: &mut parry::transformation::VolumeMesh,
     components: &[u32],
