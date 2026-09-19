@@ -22,7 +22,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         for i in 0..(levels - level) {
             let x = -8.0 + (i as Real - (levels - level) as Real * 0.5 + 0.5) * 1.6;
             let y = 0.75 + level as Real * 1.5;
-            let square = SoftBodyBuilder::grid(Vector::new(x, y), Vector::splat(0.75), 5, 5)
+            let square = SoftBodyBuilder::grid(Vector::new(x, y), Vector::splat(0.6), 5, 5)
                 .cell_model(SoftBodyCellModel::Corotational)
                 .material(SoftBodyMaterial {
                     young_modulus: young,

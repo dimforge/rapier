@@ -42,13 +42,16 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     for k in 0..6 {
         let origin = Vector::new(-6.0, 2.0, 0.0)
             + rot * Vector::new(-3.5 + k as Real * 0.3, 0.3 + k as Real * 0.12, -1.5);
-        world.insert_soft_body(cloth(
-            origin,
-            rot * Vector::new(0.15, 0.0, 0.0),
-            Vector::new(0.0, 0.0, 0.15),
-            21,
-            21,
-        ));
+        world.insert_soft_body(
+            cloth(
+                origin,
+                rot * Vector::new(0.15, 0.0, 0.0),
+                Vector::new(0.0, 0.0, 0.15),
+                21,
+                21,
+            )
+            .self_contacts(true),
+        );
     }
 
     /*

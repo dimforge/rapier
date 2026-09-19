@@ -88,21 +88,6 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         }
     }
 
-    /*
-     * Ropes thrown on top.
-     */
-    for i in 0..3 {
-        let rope = SoftBodyBuilder::rope(
-            Vector::new(-6.0 + i as Real, 36.0 + i as Real),
-            Vector::new(4.0 + i as Real, 37.0 + i as Real),
-            30,
-        )
-        .softness(SpringCoefficients::new(30.0, 1.0))
-        .particle_mass(0.03)
-        .surface_collider(ColliderBuilder::ball(0.08).friction(0.6));
-        world.insert_soft_body(rope);
-    }
-
     viewer.set_world(&mut world);
     viewer.look_at(Vec2::new(0.0, 10.0), 20.0);
 
