@@ -86,6 +86,7 @@ impl SkylineCholesky {
 
     /// Factorizes `matrix` (same pattern as the one this was built from). Returns `false` when
     /// the matrix is not positive definite (the factor is then unusable).
+    #[allow(clippy::neg_cmp_op_on_partial_ord)] // A NaN pivot must fail the factorization.
     pub fn factorize(&mut self, matrix: &BlockMatrix) -> bool {
         let Self {
             inv_perm,
@@ -168,7 +169,11 @@ impl SkylineCholesky {
             let mut sum = scratch[i];
             if fi < i {
                 let row = &values[ri..ri + i - fi];
-                sum -= row.iter().zip(&scratch[fi..i]).map(|(l, y)| l * y).sum::<Real>();
+                sum -= row
+                    .iter()
+                    .zip(&scratch[fi..i])
+                    .map(|(l, y)| l * y)
+                    .sum::<Real>();
             }
             scratch[i] = sum / values[ri + i - fi];
         }
@@ -256,7 +261,12 @@ fn reverse_cuthill_mckee<'a>(n: usize, neighbors: impl Fn(usize) -> &'a [u32]) -
             let v = order[head] as usize;
             head += 1;
             sorted.clear();
-            sorted.extend(neighbors(v).iter().copied().filter(|&w| !visited[w as usize]));
+            sorted.extend(
+                neighbors(v)
+                    .iter()
+                    .copied()
+                    .filter(|&w| !visited[w as usize]),
+            );
             sorted.sort_unstable_by_key(|&w| (degree(w as usize), w));
             for &w in &sorted {
                 if !visited[w as usize] {

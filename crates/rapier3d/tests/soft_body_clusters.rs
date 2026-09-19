@@ -38,10 +38,7 @@ fn root_body_is_the_whole_body_cluster_proxy() {
     let sb = &world.soft_bodies[h];
     assert_eq!(sb.num_live_clusters(), 1);
     assert_eq!(sb.cluster_proxy(0), Some(sb.root_body()));
-    assert_eq!(
-        sb.cluster(0).unwrap().particles().len(),
-        sb.num_particles()
-    );
+    assert_eq!(sb.cluster(0).unwrap().particles().len(), sb.num_particles());
     let rb = &world.bodies[sb.root_body()];
     assert_eq!(rb.body_type(), RigidBodyType::SoftFrame);
     assert!(rb.is_soft_frame());
@@ -342,7 +339,7 @@ fn user_collider_on_a_proxy_rides_the_frame() {
 /// Per-cluster shape matching: two clusters of one cloth are held rigid independently while the
 /// rest of the cloth stays soft.
 #[test]
-fn per_cluster_shape_matching_holds_two_regions()  {
+fn per_cluster_shape_matching_holds_two_regions() {
     let mut world = world_with_ground();
     let h = world.insert_soft_body(
         SoftBodyBuilder::cloth(
@@ -511,7 +508,10 @@ fn pinned_cluster_drives_its_region_kinematically() {
     );
     // The free part of the cloth was dragged along.
     let bottom = world.soft_bodies[h].particle_position(32);
-    assert!(bottom.x > 0.7, "the cloth did not follow its grip ({bottom:?})");
+    assert!(
+        bottom.x > 0.7,
+        "the cloth did not follow its grip ({bottom:?})"
+    );
     for p in world.soft_bodies[h].particles() {
         assert!(p.position().is_finite());
     }
@@ -657,8 +657,8 @@ fn torn_cluster_splits_and_its_joint_follows_the_source() {
     let h = world.insert_soft_body(builder);
     let cluster = world.add_soft_body_cluster(h, &[4]).unwrap();
     let proxy = world.soft_bodies[h].cluster_proxy(cluster).unwrap();
-    let anchor =
-        world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(Vector::X * 4.0));
+    let anchor = world
+        .insert_body(RigidBodyBuilder::kinematic_position_based().translation(Vector::X * 4.0));
     let joint = world.insert_impulse_joint(
         anchor,
         proxy,
@@ -691,13 +691,19 @@ fn torn_cluster_splits_and_its_joint_follows_the_source() {
     assert_eq!(splits.len(), 2, "{:?}", event.clusters);
     let kept = splits.iter().find(|c| c.keeps_proxy).unwrap();
     let fresh = splits.iter().find(|c| !c.keeps_proxy).unwrap();
-    assert_eq!((kept.soft_body, kept.cluster, kept.proxy), (h, cluster, proxy));
+    assert_eq!(
+        (kept.soft_body, kept.cluster, kept.proxy),
+        (h, cluster, proxy)
+    );
     assert_eq!(fresh.soft_body, lh);
     let (rb, lb) = (&world.soft_bodies[h], &world.soft_bodies[lh]);
     assert_eq!(rb.cluster(kept.cluster).unwrap().particles(), &[4]);
     assert_eq!(lb.cluster(fresh.cluster).unwrap().particles(), &[4]);
     assert_eq!(world.bodies[fresh.proxy].soft_body(), Some(lh));
-    assert_eq!(world.bodies[fresh.proxy].soft_cluster(), Some(fresh.cluster));
+    assert_eq!(
+        world.bodies[fresh.proxy].soft_cluster(),
+        Some(fresh.cluster)
+    );
     assert!(rb.cluster(kept.cluster).unwrap().meshes().next().is_none());
     // The left body took the fresh pieces of both clusters (made in cluster order).
     assert_eq!(left.clusters, vec![[2, 0], [3, 1]]);
@@ -707,7 +713,10 @@ fn torn_cluster_splits_and_its_joint_follows_the_source() {
     // source's wins the tie, and the anchor stays where the particle is.
     assert_eq!(event.moved_joints.len(), 1);
     let moved = event.moved_joints[0];
-    assert_eq!((moved.joint, moved.from, moved.to), (joint, proxy, fresh.proxy));
+    assert_eq!(
+        (moved.joint, moved.from, moved.to),
+        (joint, proxy, fresh.proxy)
+    );
     let j = world.impulse_joints.get(joint).unwrap();
     assert_eq!((j.body1(), j.body2()), (anchor, fresh.proxy));
     let world_anchor = *world.bodies[fresh.proxy].position() * j.data.local_frame2.translation;

@@ -4,11 +4,10 @@
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
-
-use super::{BodyContacts, SOURCE_EDGE_CONTACT, mesh_of, mesh_ref};
 use super::super::soft_constraints_set::SoftConstraintsSet;
 use super::super::soft_contact::CONTACT_ANCHORS;
 use super::super::soft_contact::{SoftContact, SoftContactElement, SoftContactSource};
+use super::{BodyContacts, SOURCE_EDGE_CONTACT, mesh_of, mesh_ref};
 use crate::dynamics::soft_body::{SoftCollisionMesh, SoftEdgeContact};
 use crate::dynamics::{IntegrationParameters, SoftBody};
 use crate::geometry::soft_contacts::SoftEdgePass;
@@ -52,7 +51,10 @@ impl SoftConstraintsSet {
             return;
         }
         #[cfg(feature = "dim3")]
-        if !params.soft_bodies.recovery.edge_speculation && mesh.is_closed() && other_mesh.is_closed() {
+        if !params.soft_bodies.recovery.edge_speculation
+            && mesh.is_closed()
+            && other_mesh.is_closed()
+        {
             return;
         }
         // While a volume constraint owns a crossed closed-closed pair, its edge constraints stand down
@@ -138,7 +140,15 @@ impl SoftConstraintsSet {
                     -c.dir,
                 )
             } else {
-                (c.edge, c.other_edge, c.bcoords, c.other_bcoords, c.point, c.other_point, c.dir)
+                (
+                    c.edge,
+                    c.other_edge,
+                    c.bcoords,
+                    c.other_bcoords,
+                    c.point,
+                    c.other_point,
+                    c.dir,
+                )
             };
             let dist = c.dist;
             let (va, vb) = (mesh.edge_vertices(ea), other_mesh.edge_vertices(eb));

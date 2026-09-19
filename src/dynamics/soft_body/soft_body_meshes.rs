@@ -1,6 +1,6 @@
 //! The collision meshes of a soft body: lookup, binding to clusters, insertion and removal, and update after a step or a tear.
-use crate::alloc_prelude::*;
 use super::{SoftBody, SoftBodyCell, SoftCollisionMesh, SoftMeshId};
+use crate::alloc_prelude::*;
 use crate::math::{DIM, Vector};
 
 impl SoftBody {
@@ -105,7 +105,12 @@ impl SoftBody {
                     let closest = cluster
                         .particles()
                         .iter()
-                        .map(|&p| (p, (self.particles[p as usize].position - *position).length()))
+                        .map(|&p| {
+                            (
+                                p,
+                                (self.particles[p as usize].position - *position).length(),
+                            )
+                        })
                         .filter(|(_, d)| *d <= *eps)
                         .min_by(|a, b| a.1.total_cmp(&b.1));
                     let (particle, _) = closest.ok_or(SoftBindingError::UnmatchedVertex {
@@ -124,12 +129,10 @@ impl SoftBody {
                 let owned: Vec<SoftBodyCell> = cells.iter().map(|&c| self.cells[c]).collect();
                 // The mesh is given in world space, so it binds against where the particles
                 // are now (`rest_position` is relative to the rest center of mass).
-                let positions: Vec<Vector> =
-                    self.particles.iter().map(|p| p.position).collect();
-                let bindings = super::collision_mesh::bind_to_cells(
-                    &vertices, &indices, &owned, &positions,
-                )
-                .ok_or(SoftBindingError::UnboundVertex { vertex: 0 })?;
+                let positions: Vec<Vector> = self.particles.iter().map(|p| p.position).collect();
+                let bindings =
+                    super::collision_mesh::bind_to_cells(&vertices, &indices, &owned, &positions)
+                        .ok_or(SoftBindingError::UnboundVertex { vertex: 0 })?;
                 // `bind_to_cells` indexes the cells it was given: back to the body's own ids.
                 SoftMeshMapping::Skinned {
                     bindings: bindings
@@ -194,7 +197,10 @@ impl SoftBody {
     }
 
     /// Runs `f` on every mesh of this body, with the body itself in hand.
-    pub(crate) fn for_each_mesh_mut(&mut self, mut f: impl FnMut(&SoftBody, &mut SoftCollisionMesh)) {
+    pub(crate) fn for_each_mesh_mut(
+        &mut self,
+        mut f: impl FnMut(&SoftBody, &mut SoftCollisionMesh),
+    ) {
         let mut clusters = core::mem::take(&mut self.clusters);
         for cluster in &mut clusters {
             for mesh in cluster.meshes.iter_mut().flatten() {

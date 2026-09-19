@@ -1,10 +1,10 @@
 //! The step-constant preparation: the sparsity pattern, the per-element material and shape functions, and the particle state.
 
+use super::super::soft_fem_sparse::BlockMatrix;
 use super::SoftFemSystem;
-use super::soft_fem_system_elements::{CELL_BLOCKS, FemCell, FemSpring, FemVolumeCell};
 #[cfg(feature = "dim3")]
 use super::soft_fem_system_elements::FemDihedral;
-use super::super::soft_fem_sparse::BlockMatrix;
+use super::soft_fem_system_elements::{CELL_BLOCKS, FemCell, FemSpring, FemVolumeCell};
 #[cfg(feature = "dim3")]
 use crate::dynamics::solver::soft_constraint::soft_element_constraint::dihedral_gradients;
 use crate::dynamics::solver::soft_constraint::soft_element_constraint::{

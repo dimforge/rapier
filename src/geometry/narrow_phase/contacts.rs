@@ -6,12 +6,12 @@ use super::pair_update::{
     self, HintsPtr, OUTCOME_CLEARED_IN_GRAPH, OUTCOME_FULL, OUTCOME_FULL_COMPOSITE,
     OUTCOME_RECYCLED_REQUALIFIED, PairTransition,
 };
+use super::soft_contacts::SoftDetectionCtx;
 use super::{
     NarrowPhase, assign_pair_solver_color, clear_pair_solver_color, collect_pairs_to_update,
     pack_color_body_info, strong_wake_sleeping_side, unpack_color_body_info,
 };
 use crate::alloc_prelude::*;
-use super::soft_contacts::SoftDetectionCtx;
 use crate::dynamics::{
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
     SoftBodySet,

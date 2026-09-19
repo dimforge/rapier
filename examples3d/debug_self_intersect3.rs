@@ -49,8 +49,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         })
         .unwrap()
         .0;
-    let slab =
-        world.insert_soft_body(builder.pinned_particles(pinned).self_contacts(true));
+    let slab = world.insert_soft_body(builder.pinned_particles(pinned).self_contacts(true));
     world.soft_bodies[slab]
         .set_particle_position(captured, slab_origin + Vector::new(0.3, -0.4, 0.0));
 
@@ -68,7 +67,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             nu,
             nv,
         )
-        .material(SoftBodyMaterial::uniform(SpringCoefficients::new(40.0, 1.0)))
+        .material(SoftBodyMaterial::uniform(SpringCoefficients::new(
+            40.0, 1.0,
+        )))
         .softness(SpringCoefficients::new(40.0, 1.0))
         .particle_mass(0.02)
         .particle_radius(0.05)
@@ -105,7 +106,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             nu,
             nv,
         )
-        .material(SoftBodyMaterial::uniform(SpringCoefficients::new(40.0, 1.0)))
+        .material(SoftBodyMaterial::uniform(SpringCoefficients::new(
+            40.0, 1.0,
+        )))
         .softness(SpringCoefficients::new(40.0, 1.0))
         .particle_mass(0.02)
         .particle_radius(0.05)
@@ -142,7 +145,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             n,
             n,
         )
-        .material(SoftBodyMaterial::uniform(SpringCoefficients::new(40.0, 1.0)))
+        .material(SoftBodyMaterial::uniform(SpringCoefficients::new(
+            40.0, 1.0,
+        )))
         .softness(SpringCoefficients::new(40.0, 1.0))
         .particle_mass(0.02)
         .particle_radius(0.05)
@@ -163,7 +168,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let strips_origin = Vector::new(8.5, 0.0, 0.0);
     let strip = |origin: Vector, du: Vector, dv: Vector| {
         SoftBodyBuilder::cloth(origin, du, dv, 12, 2)
-            .material(SoftBodyMaterial::uniform(SpringCoefficients::new(40.0, 1.0)))
+            .material(SoftBodyMaterial::uniform(SpringCoefficients::new(
+                40.0, 1.0,
+            )))
             .softness(SpringCoefficients::new(40.0, 1.0))
             .particle_mass(0.02)
             .particle_radius(0.05)
@@ -202,8 +209,12 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
                 Vector::ZERO
             }
         });
-        reset(world, bullet, &bullet_rest, &|_| Vector::new(0.0, -60.0, 0.0));
-        reset(world, top_strip, &top_rest, &|_| Vector::new(0.0, -30.0, 0.0));
+        reset(world, bullet, &bullet_rest, &|_| {
+            Vector::new(0.0, -60.0, 0.0)
+        });
+        reset(world, top_strip, &top_rest, &|_| {
+            Vector::new(0.0, -30.0, 0.0)
+        });
     };
     refire(&mut world);
 

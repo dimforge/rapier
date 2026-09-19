@@ -89,11 +89,11 @@ impl MultibodyIndex {
         ))
     }
     fn into_raw_parts(&self) -> (u32, u32) {
-        self.0 .0.into_raw_parts()
+        self.0.0.into_raw_parts()
     }
     fn __reduce__(slf: PyRef<'_, Self>) -> PyResult<(Py<PyAny>, (u32, u32))> {
         let py = slf.py();
-        let (i, g) = slf.0 .0.into_raw_parts();
+        let (i, g) = slf.0.0.into_raw_parts();
         let ctor: Py<PyAny> = py
             .get_type_bound::<MultibodyIndex>()
             .getattr("from_raw_parts")?

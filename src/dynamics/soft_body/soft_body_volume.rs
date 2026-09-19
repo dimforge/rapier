@@ -154,7 +154,9 @@ impl SoftBody {
             particles.sort_unstable();
             particles.dedup();
             let rest_volume = Self::boundary_volume(&elements, &rest_position);
-            let old = self.volume_pieces.get(previous[particles[0] as usize] as usize);
+            let old = self
+                .volume_pieces
+                .get(previous[particles[0] as usize] as usize);
             pieces.push(SoftVolumePiece {
                 elements: group,
                 particles,

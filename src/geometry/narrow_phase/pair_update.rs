@@ -13,8 +13,8 @@ use crate::dynamics::{
     RigidBodyType,
 };
 use crate::geometry::{
-    BoundingVolume, ColliderChanges, ColliderSet, ContactData,
-    ContactManifoldData, ContactPair, SolverContact, SolverFlags,
+    BoundingVolume, ColliderChanges, ColliderSet, ContactData, ContactManifoldData, ContactPair,
+    SolverContact, SolverFlags,
 };
 use crate::math::{MAX_MANIFOLD_POINTS, Real};
 use crate::pipeline::{
@@ -195,8 +195,10 @@ pub(super) fn process_pair(
         let rb_type2 = rb2.map(|rb| rb.body_type).unwrap_or(RigidBodyType::Fixed);
 
         #[cfg(feature = "dim3")]
-        let soft_surface_pair = co1.deformable_mesh_ref.is_some() || co2.deformable_mesh_ref.is_some();
-        let two_soft_surfaces = co1.deformable_mesh_ref.is_some() && co2.deformable_mesh_ref.is_some();
+        let soft_surface_pair =
+            co1.deformable_mesh_ref.is_some() || co2.deformable_mesh_ref.is_some();
+        let two_soft_surfaces =
+            co1.deformable_mesh_ref.is_some() && co2.deformable_mesh_ref.is_some();
 
         // Two colliders of one soft body: its collision meshes decide between themselves (see
         // `soft_contacts::update_pair`), but a rigid collider hung on a cluster proxy must not
@@ -320,8 +322,7 @@ pub(super) fn process_pair(
         let soft_margin1 = rb1.map_or(0.0, |rb| rb.soft_motion_margin);
         let soft_margin2 = rb2.map_or(0.0, |rb| rb.soft_motion_margin);
         let soft_body_prediction = soft_margin1 + soft_margin2;
-        let contact_skin_sum =
-            co1.contact_skin() + co2.contact_skin();
+        let contact_skin_sum = co1.contact_skin() + co2.contact_skin();
         let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
         let soft_ccd_prediction2 = rb2.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
         let effective_prediction_distance = if soft_ccd_prediction1 > 0.0
@@ -346,7 +347,9 @@ pub(super) fn process_pair(
                 break 'emit_events;
             }
 
-            prediction_distance.max(dt * (linvel1 - linvel2).length()) + contact_skin_sum + soft_body_prediction
+            prediction_distance.max(dt * (linvel1 - linvel2).length())
+                + contact_skin_sum
+                + soft_body_prediction
         } else {
             prediction_distance + contact_skin_sum + soft_body_prediction
         };
@@ -441,7 +444,9 @@ pub(super) fn process_pair(
             &mut rigid.workspace,
         );
 
-        if let Some(soft) = soft.filter(|_| co1.deformable_mesh_ref.is_some() || co2.deformable_mesh_ref.is_some()) {
+        if let Some(soft) =
+            soft.filter(|_| co1.deformable_mesh_ref.is_some() || co2.deformable_mesh_ref.is_some())
+        {
             // Soft-vs-rigid: the predictive vertex contacts of the elements the manifolds reached
             // (within the solver contacts' separation bound), and the intersection volume.
             super::soft_contacts::update_pair_soft_rigid(
@@ -716,8 +721,7 @@ pub(super) fn process_pair(
             // A pair without contacts has an (unknown) separation larger than
             // the prediction distance. Cap its recycle window by the
             // prediction distance so an incoming contact can't be missed.
-            let max_drift = if rigid.has_any_active_contact()
-            {
+            let max_drift = if rigid.has_any_active_contact() {
                 contact_recycle_distance
             } else {
                 contact_recycle_distance.min(prediction_distance)

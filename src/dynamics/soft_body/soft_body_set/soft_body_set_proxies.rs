@@ -1,12 +1,12 @@
 //! Spawning the cluster proxies and mesh colliders of a soft body, and the per-body end-of-step particle sync.
 use crate::alloc_prelude::*;
+use crate::dynamics::soft_body::{SoftBody, SoftBodyHandle, SoftMeshRef};
 use crate::dynamics::{IntegrationParameters, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
 use crate::geometry::{ColliderBuilder, ColliderHandle, ColliderSet, SharedShape};
+use crate::math::{DIM, Pose, Real, Vector};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
-use crate::dynamics::soft_body::{SoftBody, SoftBodyHandle, SoftMeshRef};
-use crate::math::{DIM, Pose, Real, Vector};
 
 /// The deformable surface shape of `mesh` (a 2D polyline or 3D triangle mesh over `vertices`),
 /// flagged deformable so the narrow phase never trusts contact points cached across a vertex

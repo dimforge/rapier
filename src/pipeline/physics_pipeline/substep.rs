@@ -125,7 +125,9 @@ impl PhysicsPipeline {
                 // Non-finite pose: leave the body at its last valid state for
                 // `Quarantine::apply_end_step` to neutralize.
                 if !rb.pos.next_position.is_finite() {
-                    self.quarantine.body_workspace.push((handle, rb.pos.position));
+                    self.quarantine
+                        .body_workspace
+                        .push((handle, rb.pos.position));
                     continue;
                 }
                 rb.pos.position = rb.pos.next_position;
@@ -309,7 +311,7 @@ impl PhysicsPipeline {
         soft_bodies.apply_user_changes(
             bodies,
             colliders,
-            &integration_parameters,
+            integration_parameters,
             &mut self.quarantine.soft_bodies,
         );
 

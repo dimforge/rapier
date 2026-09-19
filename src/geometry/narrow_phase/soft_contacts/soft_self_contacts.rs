@@ -16,8 +16,10 @@ use simba::scalar::{ComplexField as _, RealField as _};
 use super::soft_contacts_classify::{classify_inside_self, project_on_element};
 use super::soft_contacts_edge_pass::detect_edges;
 use super::soft_contacts_vertex_pass::detect_vertex_pass;
-use super::soft_contacts_volume::{VolumeBin, VolumeSide, patch_vertices, volume_bins, volume_split};
-use super::{SelfTangles, SoftDetectionCtx, SoftVertexPass, SoftEdgePass};
+use super::soft_contacts_volume::{
+    VolumeBin, VolumeSide, patch_vertices, volume_bins, volume_split,
+};
+use super::{SelfTangles, SoftDetectionCtx, SoftEdgePass, SoftVertexPass};
 
 /// The self contact detection of one soft collision mesh (see
 /// [`NarrowPhase::soft_self_contacts`]): its tangle signal, and its self candidates.
@@ -229,6 +231,7 @@ impl TangleSink {
     }
 
     /// Appends a later chunk's findings (its records after this sink's, same rule).
+    #[cfg(feature = "parallel")]
     fn merge(&mut self, other: TangleSink) {
         self.marks.extend(other.marks);
         for pair in other.crossings {
@@ -373,7 +376,14 @@ pub(super) fn update_self(
     detect_self_tangles(sb, mesh, co, run_crossing_sweep, out);
     let side = (sb, mesh, handle, co);
     let mut vertex_pass = core::mem::take(&mut out.vertex_pass);
-    detect_vertex_pass(&mut vertex_pass, side, side, Some(out.tangles()), false, ctx);
+    detect_vertex_pass(
+        &mut vertex_pass,
+        side,
+        side,
+        Some(out.tangles()),
+        false,
+        ctx,
+    );
     out.vertex_pass = vertex_pass;
     let mut edges = out.edges.take().unwrap_or_default();
     let has_edges = detect_edges(&mut edges, side, side, Some(out.tangles()), false, ctx);
@@ -416,7 +426,14 @@ fn detect_self_regions(
         }
     }
     let mut inside = Vec::new();
-    if !classify_inside_self(mesh, sb, co.contact_skin(), &crossing, &vertex_elements, &mut inside) {
+    if !classify_inside_self(
+        mesh,
+        sb,
+        co.contact_skin(),
+        &crossing,
+        &vertex_elements,
+        &mut inside,
+    ) {
         return;
     }
     // Each inside vertex's facing element (the nearest one outside its neighborhood) and
@@ -540,4 +557,3 @@ fn detect_self_regions(
             .push(volume_bins(&own, Some(&other), volume_split(params)));
     }
 }
-

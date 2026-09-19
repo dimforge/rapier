@@ -243,8 +243,12 @@ impl StagedIslandSolver {
                 }
             }
             let vs = &self.velocity_solver;
-            self.soft_constraints
-                .assemble_clusters(bodies, colliders, &vs.solver_bodies, &jointed_proxies);
+            self.soft_constraints.assemble_clusters(
+                bodies,
+                colliders,
+                &vs.solver_bodies,
+                &jointed_proxies,
+            );
 
             // The FEM bodies' answers to the step's constraints, once every constraint exists: planned here,
             // computed by the workers' first stage.
@@ -263,7 +267,8 @@ impl StagedIslandSolver {
         let soft = &self.soft_constraints;
         let approx_chunks = num_two_body / SIMD_WIDTH
             + joint_indices.len() / 4
-            + (soft.scalar_constraints.len() + soft.shape_constraints.len() + soft.contacts.len()) / 8
+            + (soft.scalar_constraints.len() + soft.shape_constraints.len() + soft.contacts.len())
+                / 8
             + fem_chunks;
         let num_workers = num_workers.clamp(1, (approx_chunks / 16).max(1));
 

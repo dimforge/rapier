@@ -8,12 +8,12 @@ mod collision_mesh_binding;
 mod collision_mesh_geometry;
 mod collision_mesh_topology;
 
-pub use self::collision_mesh_binding::{SoftBindingError, SoftMeshBinding, SoftMeshBindingMode};
-pub(crate) use self::collision_mesh_binding::bind_to_cells;
+pub(crate) use self::collision_mesh::SoftTopologyRemap;
 pub use self::collision_mesh::{
     SoftCollisionMesh, SoftMeshCellBinding, SoftMeshId, SoftMeshMapping, SoftMeshRef,
 };
-pub(crate) use self::collision_mesh::SoftTopologyRemap;
+pub(crate) use self::collision_mesh_binding::bind_to_cells;
+pub use self::collision_mesh_binding::{SoftBindingError, SoftMeshBinding, SoftMeshBindingMode};
 pub(super) use super::SoftBodyParticle;
 pub(super) use super::soft_body_builder;
 pub(super) use super::soft_body_builder::{

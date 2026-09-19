@@ -1,5 +1,6 @@
 //! Finite-difference and linear-algebra checks of the soft constraints.
 
+use super::*;
 use crate::dynamics::SoftBody;
 use crate::dynamics::soft_body::soft_body_shape_matching::extract_rotation;
 use crate::math::{DIM, Matrix, Real, Rotation, Vector};
@@ -7,7 +8,6 @@ use crate::utils::{DotProduct, RotationOps};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
-use super::*;
 
 #[cfg(feature = "dim2")]
 fn base_positions() -> [Vector; 3] {
@@ -51,7 +51,10 @@ fn gradients_match_finite_differences() {
         impulse_bounds: [-Real::MAX, Real::MAX],
     };
     #[cfg(feature = "dim2")]
-    let kinds = [(SoftScalarConstraintKind::Distance, 2), (SoftScalarConstraintKind::CellVolume, 3)];
+    let kinds = [
+        (SoftScalarConstraintKind::Distance, 2),
+        (SoftScalarConstraintKind::CellVolume, 3),
+    ];
     #[cfg(feature = "dim3")]
     let kinds = [
         (SoftScalarConstraintKind::Distance, 2),
@@ -170,7 +173,8 @@ fn elastic_cell_gradients_match_finite_differences() {
             let local = rot.inverse() * e;
             for r in 0..STRAIN_ROWS {
                 let fd = (sp[r] - sm[r]) / (2.0 * eps);
-                let expected = SoftElasticConstraint::strain_gradient(&constraint.coeffs, r, k).gdot(local);
+                let expected =
+                    SoftElasticConstraint::strain_gradient(&constraint.coeffs, r, k).gdot(local);
                 assert!(
                     (fd - expected).abs() < 2.0e-3 * (1.0 + expected.abs()),
                     "strain row {r}: particle {k} axis {axis}: fd {fd} vs {expected}"
@@ -259,7 +263,8 @@ fn neo_hookean_gradient_and_hessian_match_finite_differences() {
             let minus = perturbed(strain, r, -eps);
             let (gp, _) = NeoHookeanConstraint::gradient_and_hessian(mu, lambda, &plus);
             let (gm, _) = NeoHookeanConstraint::gradient_and_hessian(mu, lambda, &minus);
-            h.row_mut(r).copy_from(&((gp - gm) / (2.0 * eps)).transpose());
+            h.row_mut(r)
+                .copy_from(&((gp - gm) / (2.0 * eps)).transpose());
         }
         h
     };
@@ -305,7 +310,8 @@ fn neo_hookean_gradient_and_hessian_match_finite_differences() {
     );
     // At rest the Hessian is the linear-elastic block: 2μ + λ on the diagonal rows, λ between
     // them, 4μ on the shears.
-    let (grad, hess) = NeoHookeanConstraint::gradient_and_hessian(mu, lambda, &StrainVector::zeros());
+    let (grad, hess) =
+        NeoHookeanConstraint::gradient_and_hessian(mu, lambda, &StrainVector::zeros());
     assert!(grad.amax() < 1.0e-6, "nonzero rest gradient {grad:?}");
     for r in 0..STRAIN_ROWS {
         for s in 0..STRAIN_ROWS {
@@ -333,7 +339,12 @@ fn cofactor_is_the_determinant_gradient() {
     let cof = cofactor(&f);
     for k in 0..DIM {
         let err = (cof.col(k) - expected.col(k)).abs().max_element();
-        assert!(err < 1.0e-5, "column {k}: {:?} vs {:?}", cof.col(k), expected.col(k));
+        assert!(
+            err < 1.0e-5,
+            "column {k}: {:?} vs {:?}",
+            cof.col(k),
+            expected.col(k)
+        );
     }
 }
 
@@ -351,11 +362,18 @@ fn symmetric_eigen_handles_degenerate_matrices() {
         let orthonormality = vectors.transpose() * vectors;
         for k in 0..DIM {
             let err = (rebuilt.col(k) - m.col(k)).abs().max_element();
-            let ortho = (orthonormality.col(k) - Matrix::IDENTITY.col(k)).abs().max_element();
-            assert!(err < 1.0e-4 && ortho < 1.0e-4, "{m:?}: column {k}: {err} {ortho}");
+            let ortho = (orthonormality.col(k) - Matrix::IDENTITY.col(k))
+                .abs()
+                .max_element();
+            assert!(
+                err < 1.0e-4 && ortho < 1.0e-4,
+                "{m:?}: column {k}: {err} {ortho}"
+            );
         }
         let max = max_symmetric_eigenvalue(&m);
-        assert!((max - values.max_element()).abs() < 1.0e-4, "{m:?}: {max} vs {values:?}");
+        assert!(
+            (max - values.max_element()).abs() < 1.0e-4,
+            "{m:?}: {max} vs {values:?}"
+        );
     }
 }
-

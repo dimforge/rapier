@@ -58,17 +58,25 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     );
     let bottom_row = (0..7).map(|i| i * 3);
     let ground_strip = world.insert_soft_body(
-        SoftBodyBuilder::grid(grab_origin + Vector::new(0.0, 0.15), Vector::new(1.5, 0.15), 7, 3)
-            .pinned_particles(bottom_row)
-            .softness(SpringCoefficients::new(5.0, 1.0))
-            .self_contacts(true),
+        SoftBodyBuilder::grid(
+            grab_origin + Vector::new(0.0, 0.15),
+            Vector::new(1.5, 0.15),
+            7,
+            3,
+        )
+        .pinned_particles(bottom_row)
+        .softness(SpringCoefficients::new(5.0, 1.0))
+        .self_contacts(true),
     );
     let grabbed = 11u32;
     let anchor = world.soft_bodies[ground_strip].particle_position(grabbed as usize);
-    let cluster = world.add_soft_body_cluster(ground_strip, &[grabbed]).unwrap();
-    let proxy = world.soft_bodies[ground_strip].cluster_proxy(cluster).unwrap();
-    let mouse =
-        world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
+    let cluster = world
+        .add_soft_body_cluster(ground_strip, &[grabbed])
+        .unwrap();
+    let proxy = world.soft_bodies[ground_strip]
+        .cluster_proxy(cluster)
+        .unwrap();
+    let mouse = world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
     let joint: GenericJoint = GenericJointBuilder::new(JointAxesMask::empty())
         .motor_position(JointAxis::LinX, 0.0, 1000.0, 50.0)
         .motor_position(JointAxis::LinY, 0.0, 1000.0, 50.0)
@@ -94,10 +102,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let reload = |world: &mut PhysicsWorld| {
         let n = world.soft_bodies[bullet].particles().len();
         for i in 0..n {
-            let angle = core::f32::consts::TAU as Real * i as Real / n as Real;
-            let p = cannon_origin
-                + Vector::new(0.0, 2.5)
-                + Vector::new(angle.cos(), angle.sin()) * 0.3;
+            let angle = core::f32::consts::TAU * i as Real / n as Real;
+            let p =
+                cannon_origin + Vector::new(0.0, 2.5) + Vector::new(angle.cos(), angle.sin()) * 0.3;
             world.soft_bodies[bullet].set_particle_position(i, p);
             world.soft_bodies[bullet].set_particle_velocity(i, Vector::new(0.0, -150.0));
         }
@@ -119,7 +126,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let gerono_eight = |world: &mut PhysicsWorld, h: SoftBodyHandle, center: Vector, r: Real| {
         let n = world.soft_bodies[h].particles().len();
         for i in 0..n {
-            let t = core::f32::consts::TAU as Real * i as Real / n as Real;
+            let t = core::f32::consts::TAU * i as Real / n as Real;
             let p = center + Vector::new(r * t.cos(), r * t.sin() * t.cos());
             world.soft_bodies[h].set_particle_position(i, p);
         }
@@ -128,7 +135,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         |world: &mut PhysicsWorld, h: SoftBodyHandle, center: Vector, rb: Real, rs: Real| {
             let n = world.soft_bodies[h].particles().len();
             let n_big = (n as Real * rb / (rb + rs)) as usize;
-            let tau = core::f32::consts::TAU as Real;
+            let tau = core::f32::consts::TAU;
             for i in 0..n {
                 let p = if i < n_big {
                     let t = tau * i as Real / n_big as Real;
@@ -196,7 +203,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             let target = if cycle < 1.0 {
                 Vector::new(0.0, 0.5 - 0.48 * cycle)
             } else if cycle < 4.0 {
-                let w = core::f32::consts::TAU as Real * (cycle - 1.0);
+                let w = core::f32::consts::TAU * (cycle - 1.0);
                 Vector::new(0.3 * w.sin(), 0.02 + 0.03 * (1.0 - (2.0 * w).cos()))
             } else if cycle < 5.0 {
                 Vector::new(0.0, 0.02 + 0.48 * (cycle - 4.0))

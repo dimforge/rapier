@@ -204,8 +204,11 @@ mod tests {
     fn the_split_jelly_halves_are_closed() {
         let (world, [_, _, split]) = build_world().expect("the demo builds");
         let sb = &world.soft_bodies[split];
-        let on_boundary =
-            |particle: u32| sb.boundary().iter().any(|element| element.contains(&particle));
+        let on_boundary = |particle: u32| {
+            sb.boundary()
+                .iter()
+                .any(|element| element.contains(&particle))
+        };
 
         let halves: Vec<_> = sb.meshes().filter(|mesh| mesh.id().cluster != 0).collect();
         assert_eq!(halves.len(), 2);

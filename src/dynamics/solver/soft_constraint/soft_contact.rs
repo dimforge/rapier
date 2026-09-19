@@ -356,7 +356,14 @@ impl SoftContact {
 
     /// Applies the accumulated (warm-start) impulses.
     pub fn warmstart(&self, bodies: &mut SolverBodies, pool: &[Vector]) {
-        self.apply(bodies, pool, 0, self.dir, self.ii_torque_dir, self.impulse_normal);
+        self.apply(
+            bodies,
+            pool,
+            0,
+            self.dir,
+            self.ii_torque_dir,
+            self.impulse_normal,
+        );
         for j in 0..DIM - 1 {
             self.apply(
                 bodies,

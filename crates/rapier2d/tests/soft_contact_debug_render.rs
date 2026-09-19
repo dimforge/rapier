@@ -151,7 +151,10 @@ fn soft_elements_are_colored_by_their_load() {
     }
     let sb = &world.soft_bodies[handle];
     let loaded = sb.edges()[0].stress();
-    assert!((loaded - 0.5).abs() < 0.05, "edge 0 bears {loaded} of its threshold");
+    assert!(
+        (loaded - 0.5).abs() < 0.05,
+        "edge 0 bears {loaded} of its threshold"
+    );
     assert!(sb.edges()[1].stress().abs() < 1.0e-6);
 
     let style = DebugRenderStyle::default();
@@ -164,14 +167,22 @@ fn soft_elements_are_colored_by_their_load() {
     // The lines come out sorted by particle pair: edge 0 first.
     let plain = render(DebugRenderMode::SOFT_BODIES);
     assert_eq!(plain.len(), 2);
-    assert!(plain.iter().all(|(.., c)| *c == style.soft_body_element_color));
+    assert!(
+        plain
+            .iter()
+            .all(|(.., c)| *c == style.soft_body_element_color)
+    );
 
     let by_load = render(DebugRenderMode::SOFT_BODIES | DebugRenderMode::SOFT_BODY_STRESS);
     assert_eq!(by_load.len(), 2);
     let (slack, full) = (style.soft_body_slack_color, style.soft_body_loaded_color);
     let expected: DebugColor = core::array::from_fn(|k| slack[k] + (full[k] - slack[k]) * loaded);
     for k in 0..4 {
-        assert!((by_load[0].2[k] - expected[k]).abs() < 1.0e-4, "loaded edge color {:?}", by_load[0].2);
+        assert!(
+            (by_load[0].2[k] - expected[k]).abs() < 1.0e-4,
+            "loaded edge color {:?}",
+            by_load[0].2
+        );
     }
     assert_eq!(by_load[1].2, slack);
 }

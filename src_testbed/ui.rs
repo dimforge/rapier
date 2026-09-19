@@ -611,20 +611,32 @@ fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySett
         .show(ui, |ui| {
             ui.label("Prevention");
             ui.checkbox(&mut r.authored_velocity_margin, "Authored-velocity margin");
-            ui.checkbox(&mut r.edge_speculation, "Edge speculation (3D closed pairs)");
+            ui.checkbox(
+                &mut r.edge_speculation,
+                "Edge speculation (3D closed pairs)",
+            );
             ui.separator();
             ui.label("Detection");
             ui.checkbox(&mut r.inverted_cell_detection, "Inverted cells");
             ui.checkbox(&mut r.self_crossing_detection, "Self-crossings");
-            ui.checkbox(&mut r.detection_motion_gating, "Self-crossing sweep motion gating");
+            ui.checkbox(
+                &mut r.detection_motion_gating,
+                "Self-crossing sweep motion gating",
+            );
             ui.checkbox(&mut r.cross_body_detection, "Cross-body crossings");
             ui.separator();
             ui.label("Passive stand-down");
             ui.checkbox(&mut r.self_stand_down, "Self stand-down");
             ui.checkbox(&mut r.cross_body_expel_gate, "Cross expel-only gate");
             ui.checkbox(&mut r.edge_stand_down, "Edge-pass stand-down");
-            ui.checkbox(&mut r.crossing_repulsion, "Crossing repulsion (repel, not drop)");
-            ui.checkbox(&mut r.crossing_repulsion_guide, "Repulsion guided by the volume normal");
+            ui.checkbox(
+                &mut r.crossing_repulsion,
+                "Crossing repulsion (repel, not drop)",
+            );
+            ui.checkbox(
+                &mut r.crossing_repulsion_guide,
+                "Repulsion guided by the volume normal",
+            );
             ui.checkbox(
                 &mut r.crossing_repulsion_self_guide,
                 "Self-repulsion guided by the fold's volume normal",
@@ -637,8 +649,14 @@ fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySett
                 Slider::new(&mut r.overlap_kept_depth, 0.0..=1.0)
                     .text("Kept skin overlap (fraction of skins)"),
             );
-            ui.checkbox(&mut r.overlap_normal_push, "Push along the normal instead of the gradients");
-            ui.checkbox(&mut r.overlap_self_regions, "Self-overlaps between distinct regions");
+            ui.checkbox(
+                &mut r.overlap_normal_push,
+                "Push along the normal instead of the gradients",
+            );
+            ui.checkbox(
+                &mut r.overlap_self_regions,
+                "Self-overlaps between distinct regions",
+            );
             ui.horizontal(|ui| {
                 ui.label("Per-point constraints on the patch's features");
                 for (policy, name) in [
@@ -653,7 +671,10 @@ fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySett
             ui.add(Slider::new(&mut r.overlap_split, 1..=8).text("Grid cells per tangent axis"));
             ui.checkbox(&mut r.overlap_rigid, "Against rigid colliders");
             ui.checkbox(&mut r.overlap_skip_self_tangled, "Skip self-crossed meshes");
-            ui.checkbox(&mut r.overlap_edge_stand_down, "Edge constraints stand down on owned pairs (3D)");
+            ui.checkbox(
+                &mut r.overlap_edge_stand_down,
+                "Edge constraints stand down on owned pairs (3D)",
+            );
             ui.add(
                 Slider::new(&mut r.recovery_pace, 0.05..=8.0)
                     .logarithmic(true)
@@ -681,7 +702,10 @@ fn debug_color_picker(ui: &mut Ui, label: &str, color: &mut rapier::pipeline::De
     let rgba = crate::debug_render::hsla_to_rgb(color[0], color[1], color[2], color[3]);
     let mut srgba = rgba.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
     ui.horizontal(|ui| {
-        if ui.color_edit_button_srgba_unmultiplied(&mut srgba).changed() {
+        if ui
+            .color_edit_button_srgba_unmultiplied(&mut srgba)
+            .changed()
+        {
             *color = crate::debug_render::rgb_to_hsla(srgba.map(|c| c as f32 / 255.0));
         }
         ui.label(label);
@@ -814,14 +838,10 @@ fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource)
             .on_hover_text("Segments approximating a curved shape (balls, capsules, cones).");
         ui.add(Slider::new(&mut style.border_subdivisions, 1..=32).text("Border subdivisions"))
             .on_hover_text("Segments approximating the rounded border of a round shape.");
-        ui.add(
-            Slider::new(&mut style.rigid_body_axes_length, 0.0..=2.0).text("Axes length"),
-        )
-        .on_hover_text("Length of the rigid-body axes.");
-        ui.add(
-            Slider::new(&mut style.contact_normal_length, 0.0..=1.0).text("Normal length"),
-        )
-        .on_hover_text("Length of the contact normals.");
+        ui.add(Slider::new(&mut style.rigid_body_axes_length, 0.0..=2.0).text("Axes length"))
+            .on_hover_text("Length of the rigid-body axes.");
+        ui.add(Slider::new(&mut style.contact_normal_length, 0.0..=1.0).text("Normal length"))
+            .on_hover_text("Length of the contact normals.");
         ui.add(
             Slider::new(&mut style.pseudo_normal_length, 0.0..=1.0).text("Pseudo-normal length"),
         )
@@ -830,10 +850,22 @@ fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource)
         ui.collapsing("Colors", |ui| {
             debug_color_picker(ui, "Dynamic colliders", &mut style.collider_dynamic_color);
             debug_color_picker(ui, "Fixed colliders", &mut style.collider_fixed_color);
-            debug_color_picker(ui, "Kinematic colliders", &mut style.collider_kinematic_color);
-            debug_color_picker(ui, "Parentless colliders", &mut style.collider_parentless_color);
+            debug_color_picker(
+                ui,
+                "Kinematic colliders",
+                &mut style.collider_kinematic_color,
+            );
+            debug_color_picker(
+                ui,
+                "Parentless colliders",
+                &mut style.collider_parentless_color,
+            );
             debug_color_picker(ui, "Collider AABBs", &mut style.collider_aabb_color);
-            debug_color_picker(ui, "Impulse joint anchors", &mut style.impulse_joint_anchor_color);
+            debug_color_picker(
+                ui,
+                "Impulse joint anchors",
+                &mut style.impulse_joint_anchor_color,
+            );
             debug_color_picker(
                 ui,
                 "Impulse joint separation",
@@ -867,7 +899,11 @@ fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource)
             ui.add_space(4.0);
             ui.label("Multipliers (per HSLA component)");
             debug_multiplier_row(ui, "Sleeping", &mut style.sleep_color_multiplier);
-            debug_multiplier_row(ui, "Sleep-ready", &mut style.sleep_eligible_color_multiplier);
+            debug_multiplier_row(
+                ui,
+                "Sleep-ready",
+                &mut style.sleep_eligible_color_multiplier,
+            );
             debug_multiplier_row(ui, "Disabled", &mut style.disabled_color_multiplier);
             if ui.button("Reset colors").clicked() {
                 let default = rapier::pipeline::DebugRenderStyle::default();
@@ -894,7 +930,12 @@ fn performance_tab(ui: &mut Ui, state: &TestbedState, world: &PhysicsWorld) {
     let num_contacts: usize = world
         .narrow_phase
         .contact_pairs()
-        .map(|pair| pair.manifolds().iter().map(|m| m.points.len()).sum::<usize>())
+        .map(|pair| {
+            pair.manifolds()
+                .iter()
+                .map(|m| m.points.len())
+                .sum::<usize>()
+        })
         .sum();
 
     let num_sleeping = world

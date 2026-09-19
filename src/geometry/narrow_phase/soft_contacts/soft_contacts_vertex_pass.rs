@@ -5,8 +5,8 @@ use crate::alloc_prelude::*;
 #[cfg(feature = "dim2")]
 use crate::dynamics::soft_body_crossing_tests::segments_cross;
 use crate::dynamics::{SoftBody, SoftCollisionMesh};
-use crate::math::{DIM, Real, Vector};
 use crate::geometry::PointQueryWithLocation;
+use crate::math::{DIM, Real, Vector};
 use crate::utils::DotProduct;
 use parry::bounding_volume::BoundingVolume;
 use parry::query::PointQuery;
@@ -14,8 +14,12 @@ use parry::query::PointQuery;
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
-use super::soft_contacts_classify::{classify_inside, classify_inside_self, project_on_element, ring_depths};
-use super::soft_contacts_volume::{VolumeSide, fill_depths, patch_vertices, volume_bins, volume_split};
+use super::soft_contacts_classify::{
+    classify_inside, classify_inside_self, project_on_element, ring_depths,
+};
+use super::soft_contacts_volume::{
+    VolumeSide, fill_depths, patch_vertices, volume_bins, volume_split,
+};
 use super::{
     SelfTangles, Side, SoftDetectionCtx, SoftVertexCandidate, SoftVertexHits, SoftVertexPass,
     rest_gap_skins,
@@ -273,7 +277,14 @@ pub(crate) fn detect_vertex_pass(
             crossing[j as usize] = true;
         }
         let mut inside = Vec::new();
-        if classify_inside_self(vb_mesh, vb, vb_co.contact_skin(), &crossing, &vertex_elements, &mut inside) {
+        if classify_inside_self(
+            vb_mesh,
+            vb,
+            vb_co.contact_skin(),
+            &crossing,
+            &vertex_elements,
+            &mut inside,
+        ) {
             let mut depth_fold = vec![Real::NEG_INFINITY; n_v];
             let mut depth_face = vec![Real::NEG_INFINITY; n_v];
             for v in 0..n_v {
@@ -501,7 +512,11 @@ impl VertexScan<'_> {
             if self.is_self
                 && self.params.soft_bodies.recovery.self_stand_down
                 && !self.params.soft_bodies.recovery.crossing_repulsion
-                && self.tangled_elements.get(e as usize).copied().unwrap_or(false)
+                && self
+                    .tangled_elements
+                    .get(e as usize)
+                    .copied()
+                    .unwrap_or(false)
             {
                 continue;
             }
@@ -551,7 +566,8 @@ impl VertexScan<'_> {
                 if !self.rest_gaps || !self.closed {
                     continue;
                 }
-                let Some(outward) = self.eb_mesh
+                let Some(outward) = self
+                    .eb_mesh
                     .element_outward_normal(self.eb, e as usize)
                     .and_then(|n| n.try_normalize())
                 else {
@@ -580,9 +596,9 @@ impl VertexScan<'_> {
             let pair_skins = if self.rest_gaps {
                 let rest_vertex = self.vb_mesh.rest_vertex(self.vb, v);
                 let rest: [Vector; DIM] = core::array::from_fn(|k| {
-                    element
-                        .get(k)
-                        .map_or(Vector::ZERO, |v| self.eb_mesh.rest_vertex(self.eb, *v as usize))
+                    element.get(k).map_or(Vector::ZERO, |v| {
+                        self.eb_mesh.rest_vertex(self.eb, *v as usize)
+                    })
                 });
                 let rest_gap = if element.len() < DIM {
                     parry::shape::Segment::new(rest[0], rest[1])
@@ -624,7 +640,9 @@ impl VertexScan<'_> {
             // than the element wrap several elements, so their feature contacts are real support.
             let size = (positions[1] - positions[0]).length();
             if self.vb_co.contact_skin() < size
-                && self.eb_mesh.contact_is_ghost(self.eb, e as usize, &weights, vertex_pos)
+                && self
+                    .eb_mesh
+                    .contact_is_ghost(self.eb, e as usize, &weights, vertex_pos)
             {
                 continue;
             }
@@ -663,8 +681,10 @@ impl VertexScan<'_> {
                 let bound = 2.0 * self.skins + self.eb_co.contact_skin();
                 for &f in &self.vertex_elements[v] {
                     for &e in &self.targets[f as usize] {
-                        let near = element_plane(self.eb_mesh, e as usize, |v| self.eb_mesh.cached_vertex(v))
-                            .is_some_and(|(p0, n)| (vertex_pos - p0).dot(n).abs() <= bound);
+                        let near = element_plane(self.eb_mesh, e as usize, |v| {
+                            self.eb_mesh.cached_vertex(v)
+                        })
+                        .is_some_and(|(p0, n)| (vertex_pos - p0).dot(n).abs() <= bound);
                         if near && scratch.iter().all(|c| c.element != e) {
                             scratch.push(SoftVertexCandidate {
                                 element: e,
@@ -734,7 +754,7 @@ impl VertexScan<'_> {
             && !seen_outside_any
             && self.eb_mesh.contains_point_parity(self.eb, vertex_pos);
         let start = out_candidates.len() as u32;
-        out_candidates.extend_from_slice(&scratch);
+        out_candidates.extend_from_slice(scratch);
         hits.push(SoftVertexHits {
             vertex: v as u32,
             candidates: start..out_candidates.len() as u32,

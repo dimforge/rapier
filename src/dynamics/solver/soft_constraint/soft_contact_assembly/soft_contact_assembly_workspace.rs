@@ -11,10 +11,14 @@ use super::super::soft_contact::SoftContact;
 use crate::dynamics::soft_body::{
     SoftCollisionMesh, SoftEdgeContact, SoftMeshId, SoftMeshRef, SoftVertexContact,
 };
+use crate::dynamics::soft_body::{SoftOverlapState, SoftVolumeContact};
 use crate::dynamics::{IntegrationParameters, RigidBodySet, SoftBody, SoftBodyHandle, SoftBodySet};
 use crate::geometry::{Collider, ColliderHandle, ColliderSet, NarrowPhase};
-use crate::dynamics::soft_body::{SoftOverlapState, SoftVolumeContact};
 use crate::math::{AngVector, Real, Rotation, Vector};
+
+/// A rigid collider's volume-constraint patch: the surface vertices' depths in it
+/// (`NEG_INFINITY` outside), and the constraint's cells (center, normal).
+pub(super) type RigidPatch = (Vec<Real>, Vec<(Vector, Vector)>);
 
 /// The collision mesh a soft body's collider holds.
 pub(super) fn mesh_of(sb: &SoftBody, collider: ColliderHandle) -> Option<&SoftCollisionMesh> {
@@ -97,7 +101,7 @@ pub(super) struct BodyContacts {
     /// The rigid pairs of the current mesh with a volume constraint (see
     /// `overlap_patch_constraints`): the collider, the surface vertices' depths in its patch
     /// (`NEG_INFINITY` outside), and the constraint's cells (center, normal).
-    pub(super) rigid_patches: Vec<(ColliderHandle, Vec<Real>, Vec<(Vector, Vector)>)>,
+    pub(super) rigid_patches: Vec<(ColliderHandle, RigidPatch)>,
 }
 
 /// An intersection-volume constraint assembled by one body (see `SoftOverlapConstraint`): the

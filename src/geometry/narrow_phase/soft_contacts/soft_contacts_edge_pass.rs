@@ -72,7 +72,9 @@ pub(crate) fn detect_edges(
     let mut crossed_own: Vec<bool> = Vec::new();
     let mut crossed_other: Vec<bool> = Vec::new();
     let other_inv_pose = other_co.position().inverse();
-    if !is_self && params.soft_bodies.recovery.cross_body_detection && params.soft_bodies.recovery.edge_stand_down
+    if !is_self
+        && params.soft_bodies.recovery.cross_body_detection
+        && params.soft_bodies.recovery.edge_stand_down
     {
         for i in 0..mesh.indices().len() {
             let element = mesh.element(i);
@@ -188,8 +190,16 @@ impl EdgeScan<'_> {
                 }
                 // Tangled elements (inverted cells, or part of a surface self-crossing):
                 // their self contacts stand down (see `detect_self_tangles`).
-                if self.tangled_elements.get(i as usize).copied().unwrap_or(false)
-                    || self.tangled_elements.get(j as usize).copied().unwrap_or(false)
+                if self
+                    .tangled_elements
+                    .get(i as usize)
+                    .copied()
+                    .unwrap_or(false)
+                    || self
+                        .tangled_elements
+                        .get(j as usize)
+                        .copied()
+                        .unwrap_or(false)
                 {
                     continue;
                 }
@@ -225,8 +235,10 @@ impl EdgeScan<'_> {
                         self.other_mesh.cached_vertex(vb[0] as usize),
                         self.other_mesh.cached_vertex(vb[1] as usize),
                     ];
-                    if !box_a.intersects(&crate::geometry::Aabb::new(pb[0].min(pb[1]), pb[0].max(pb[1])))
-                    {
+                    if !box_a.intersects(&crate::geometry::Aabb::new(
+                        pb[0].min(pb[1]),
+                        pb[0].max(pb[1]),
+                    )) {
                         continue;
                     }
                     // Near-parallel edges never cross: their proximity is a face contact,
@@ -278,10 +290,9 @@ impl EdgeScan<'_> {
                                 (&rb[0], &rb[1]),
                             );
                         let (ca, cb) = (la.barycentric_coordinates(), lb.barycentric_coordinates());
-                        let rest_gap = (ra[0] * ca[0] + ra[1] * ca[1]
-                            - rb[0] * cb[0]
-                            - rb[1] * cb[1])
-                            .length();
+                        let rest_gap =
+                            (ra[0] * ca[0] + ra[1] * ca[1] - rb[0] * cb[0] - rb[1] * cb[1])
+                                .length();
                         rest_gap_skins(self.skins, rest_gap)
                     } else {
                         self.skins

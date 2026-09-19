@@ -1,6 +1,11 @@
 use crate::alloc_prelude::*;
-use crate::dynamics::{CCDSolver, GenericJoint, ImpulseJoint, ImpulseJointHandle, ImpulseJointSet, IntegrationParameters, IslandManager, Multibody, MultibodyJointHandle, MultibodyJointSet, MultibodyLink, MultibodyLinkId, RigidBody, RigidBodyHandle, RigidBodySet, SoftBindingError, SoftBody, SoftBodyBuilder, SoftBodyHandle, SoftBodySet,
-    SoftBodyTearEvent, SoftClusterRemoval, SoftMeshBinding};
+use crate::dynamics::{
+    CCDSolver, GenericJoint, ImpulseJoint, ImpulseJointHandle, ImpulseJointSet,
+    IntegrationParameters, IslandManager, Multibody, MultibodyJointHandle, MultibodyJointSet,
+    MultibodyLink, MultibodyLinkId, RigidBody, RigidBodyHandle, RigidBodySet, SoftBindingError,
+    SoftBody, SoftBodyBuilder, SoftBodyHandle, SoftBodySet, SoftBodyTearEvent, SoftClusterRemoval,
+    SoftMeshBinding,
+};
 use crate::geometry::{
     BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, ContactPair, DefaultBroadPhase,
     NarrowPhase,
@@ -286,14 +291,13 @@ impl PhysicsWorld {
     ///
     /// Returns the removed collider, or `None` if the handle was invalid.
     pub fn remove_collider(&mut self, handle: ColliderHandle) -> Option<Collider> {
-        self.colliders
-            .remove(
-                handle,
-                &mut self.islands,
-                &mut self.bodies,
-                &mut self.soft_bodies,
-                true,
-            )
+        self.colliders.remove(
+            handle,
+            &mut self.islands,
+            &mut self.bodies,
+            &mut self.soft_bodies,
+            true,
+        )
     }
 
     // ── Impulse joints ──────────────────────────────────────────────────
@@ -474,7 +478,8 @@ impl PhysicsWorld {
     }
 
     /// Adds a cluster to a soft body: a set of its particles backed by a fresh proxy rigid
-    /// body ([`RigidBodyType::SoftFrame`]) that impulse joints and colliders can attach to.
+    /// body ([`crate::dynamics::RigidBodyType::SoftFrame`]) that impulse joints and colliders
+    /// can attach to.
     /// Returns the cluster's index (see [`SoftBodySet::add_cluster`]).
     pub fn add_soft_body_cluster(
         &mut self,

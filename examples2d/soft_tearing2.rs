@@ -2,11 +2,11 @@
 //! hanging strip shot through by a fast disk, and a jelly bar pulled apart by its kinematic ends.
 //! Cracks split particles and shed pieces as new soft bodies; the panel sets `min_piece`.
 
-use rapier2d::prelude::*;
 use rapier_testbed2d::{
     TestbedViewer,
     egui::{Align2, Slider, Window},
 };
+use rapier2d::prelude::*;
 
 pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
@@ -156,11 +156,10 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
 /// particle's body and index follow the events.
 fn follow_tears(events: &[SoftBodyTearEvent], particle: &mut (SoftBodyHandle, u32)) {
     for event in events {
-        if event.soft_body == particle.0 {
-            if let Some(destination) = event.particle_destination(particle.1) {
-                *particle = destination;
-            }
+        if event.soft_body == particle.0
+            && let Some(destination) = event.particle_destination(particle.1)
+        {
+            *particle = destination;
         }
     }
 }
-

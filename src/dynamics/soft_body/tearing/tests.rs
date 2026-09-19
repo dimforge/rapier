@@ -52,7 +52,10 @@ fn tears_never_split_off_a_chip() {
             );
         }
         assert!(relative(total_mass, mass), "{kind:?}: mass changed");
-        assert!(relative(total_measure, measure), "{kind:?}: rest measure changed");
+        assert!(
+            relative(total_measure, measure),
+            "{kind:?}: rest measure changed"
+        );
     }
 }
 
@@ -67,7 +70,9 @@ fn seeded_components_follow_the_tear() {
         let sb = &world.soft_bodies[handle];
         (sb.rest_measure(), sb.mass())
     };
-    let event = world.tear_soft_body(handle, &[4], &[]).expect("nothing tore");
+    let event = world
+        .tear_soft_body(handle, &[4], &[])
+        .expect("nothing tore");
     // The tear split the rope in two bodies of four segments; the event says which is which.
     assert_eq!(event.seeds(), vec![[9, 4]]);
     assert_eq!(event.pieces.len(), 2);
@@ -98,11 +103,16 @@ fn seeded_components_follow_the_tear() {
         edges.push([rope * 3, rope * 3 + 1]);
         edges.push([rope * 3 + 1, rope * 3 + 2]);
     }
-    let ropes = SoftBodyBuilder::new(positions).edges(edges).no_surface_collider();
+    let ropes = SoftBodyBuilder::new(positions)
+        .edges(edges)
+        .no_surface_collider();
     let (world, handle) = world_with(ropes);
     let sb = &world.soft_bodies[handle];
     // Restricted graphs: particles 0 and 2 share no element, 0, 1 and 2 chain through 1.
-    assert_eq!(sb.seeded_components(Some(&[0, 2]), &[[0, 2]]), vec![vec![0], vec![2]]);
+    assert_eq!(
+        sb.seeded_components(Some(&[0, 2]), &[[0, 2]]),
+        vec![vec![0], vec![2]]
+    );
     assert!(sb.seeded_components(Some(&[0, 1, 2]), &[[0, 2]]).is_empty());
     assert_eq!(
         sb.seeded_components(None, &[[2, 3]]),
@@ -120,7 +130,9 @@ fn min_piece_sets_the_smallest_piece_a_tear_leaves() {
     let (mut world, handle) = world_with(rope());
     assert!(world.tear_soft_body(handle, &[2], &[]).is_none());
     let (mut world, handle) = world_with(rope().min_piece(2));
-    let event = world.tear_soft_body(handle, &[2], &[]).expect("nothing tore");
+    let event = world
+        .tear_soft_body(handle, &[2], &[])
+        .expect("nothing tore");
     assert_eq!(event.pieces.len(), 2);
     for body in event.bodies() {
         let sb = &world.soft_bodies[body];
@@ -139,7 +151,9 @@ fn pinned_particles_are_never_split() {
         .min_piece(1)
         .pinned_particles([0, 8]);
     let (mut world, handle) = world_with(rope);
-    let event = world.tear_soft_body(handle, &[0], &[]).expect("nothing tore");
+    let event = world
+        .tear_soft_body(handle, &[0], &[])
+        .expect("nothing tore");
     assert_eq!(event.split_particles, vec![(9, 1)]);
     assert_eq!(event.pieces.len(), 2);
     let stub = &world.soft_bodies[event.pieces[1].soft_body];
@@ -163,7 +177,9 @@ fn pinned_particles_are_never_split() {
         Vector::new(0.05, 2.0, -1.0),
         Vector::new(0.05, -1.0, 2.0),
     ];
-    let event = world.cut_soft_body(handle, &blade).expect("the blade crossed the rope");
+    let event = world
+        .cut_soft_body(handle, &blade)
+        .expect("the blade crossed the rope");
     assert!(event.split_particles.is_empty());
     assert_eq!(event.inserted_particles.len(), 2);
     let stub = &world.soft_bodies[event.pieces[1].soft_body];

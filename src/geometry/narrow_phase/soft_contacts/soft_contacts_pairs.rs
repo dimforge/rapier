@@ -14,8 +14,8 @@ use simba::scalar::{ComplexField as _, RealField as _};
 use super::soft_contacts_types::SoftRigidVertexContact;
 use super::soft_contacts_volume::{detect_rigid_patch, detect_volume_patch};
 use super::{
-    SoftDetectionCtx, SoftVertexPass, SoftEdgePass, SoftPairContacts, body_frozen, detect_vertex_pass,
-    detect_edges,
+    SoftDetectionCtx, SoftEdgePass, SoftPairContacts, SoftVertexPass, body_frozen, detect_edges,
+    detect_vertex_pass,
 };
 
 /// The edge-pass owner of a pair of meshes: the lower `(body handle, cluster, mesh)`, which is
@@ -24,7 +24,6 @@ fn owns_edge_pass(a: SoftMeshRef, b: SoftMeshRef) -> bool {
     (a.body.0.into_raw_parts(), a.id.cluster, a.id.mesh)
         <= (b.body.0.into_raw_parts(), b.id.cluster, b.id.mesh)
 }
-
 
 pub(crate) fn update_pair_soft_soft(
     pair: &mut ContactPair,
@@ -136,7 +135,10 @@ fn detect_rigid_vertices(
     let mut previous = previous.iter().peekable();
     let mut rest = &candidates[..];
     while let Some(&(vertex, _)) = rest.first() {
-        let count = rest.iter().position(|c| c.0 != vertex).unwrap_or(rest.len());
+        let count = rest
+            .iter()
+            .position(|c| c.0 != vertex)
+            .unwrap_or(rest.len());
         let (group, tail) = rest.split_at(count);
         rest = tail;
         let point = mesh.vertex(sb, vertex as usize);

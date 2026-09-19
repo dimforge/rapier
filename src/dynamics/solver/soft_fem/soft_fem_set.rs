@@ -4,8 +4,10 @@
 use super::system::SoftFemSystem;
 use crate::alloc_prelude::*;
 use crate::dynamics::solver::soft_constraint::SoftConstraintsSet;
-use crate::dynamics::solver::soft_constraint::soft_constraints_set::{FemOverlapSide, FemVolumeSide};
 use crate::dynamics::solver::soft_constraint::soft_attachment::FemAttachment;
+use crate::dynamics::solver::soft_constraint::soft_constraints_set::{
+    FemOverlapSide, FemVolumeSide,
+};
 use crate::dynamics::solver::soft_constraint::soft_contact::{CONTACT_ANCHORS, FemContactSide};
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::{SoftBody, SoftBodyHandle, SoftBodySet, SoftFemParameters};
@@ -32,11 +34,17 @@ struct ActiveFem {
 #[derive(Copy, Clone, Debug)]
 enum FemConstraintRef {
     /// `contacts[constraint].fem[side]` (the combined same-body response when it `covers_other`).
-    Contact { constraint: u32, side: u8 },
+    Contact {
+        constraint: u32,
+        side: u8,
+    },
     Attachment(u32),
     Shape(u32),
     /// `overlap_fem_sides[side]` of `overlap_constraints[constraint]`.
-    Overlap { constraint: u32, side: u32 },
+    Overlap {
+        constraint: u32,
+        side: u32,
+    },
 }
 
 // SAFETY: the pointers are only dereferenced during the solve, where the stage discipline gives
@@ -254,7 +262,8 @@ impl SoftFemSet {
                 continue;
             };
             let entry = &self.active[fi];
-            if r.particle < entry.first_slot || r.particle >= entry.first_slot + entry.num_particles {
+            if r.particle < entry.first_slot || r.particle >= entry.first_slot + entry.num_particles
+            {
                 continue;
             }
             r.fem = Some(FemAttachment {
@@ -299,6 +308,7 @@ impl SoftFemSet {
             let entry = &self.active[fi];
             constraint.fem = Some(FemVolumeSide {
                 start: reserve(entry.num_particles as usize),
+                #[cfg(feature = "fem")]
                 gain: 0.0,
                 u_max: 0.0,
             });
@@ -480,9 +490,8 @@ impl SoftFemSet {
                         }
                     }
                     let anchors = &anchors[..num];
-                    let directions: [Vector; DIM] = core::array::from_fn(|k| {
-                        if k == 0 { c.dir } else { c.tangents[k - 1] }
-                    });
+                    let directions: [Vector; DIM] =
+                        core::array::from_fn(|k| if k == 0 { c.dir } else { c.tangents[k - 1] });
                     let mut gains = [0.0; DIM];
                     for (k, d) in directions.iter().enumerate() {
                         let d = *d;

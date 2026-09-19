@@ -231,10 +231,12 @@ fn a_rope_draped_over_a_rod_rests() {
     }
     assert!(on_rod > 0, "the rope slid off the rod");
     let low = lowest(&world, handle);
-    assert!(low > 2.0 && low < 3.0, "the rope is not hanging from the rod: {low}");
+    assert!(
+        low > 2.0 && low < 3.0,
+        "the rope is not hanging from the rod: {low}"
+    );
     assert!(
         max_speed < 0.02,
         "the rope jitters on the rod: max speed {max_speed}"
     );
 }
-

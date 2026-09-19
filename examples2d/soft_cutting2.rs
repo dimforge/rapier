@@ -3,8 +3,8 @@
 //! suspended slab. Cuts remove no material and separated pieces become soft bodies.
 
 use kiss3d::color::Color;
-use rapier2d::prelude::*;
 use rapier_testbed2d::{Key, TestbedViewer};
+use rapier2d::prelude::*;
 
 pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
@@ -74,9 +74,8 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     // The saw: a kinematic blade drawn as a thin plate, a sensor so it pushes nothing (the
     // cut does the work).
     let saw_start = Vector::new(10.0, 1.5);
-    let saw = world.insert_body(
-        RigidBodyBuilder::kinematic_position_based().translation(saw_start),
-    );
+    let saw =
+        world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(saw_start));
     world.insert_collider(ColliderBuilder::cuboid(0.05, 1.0).sensor(true), Some(saw));
 
     viewer.set_world(&mut world);

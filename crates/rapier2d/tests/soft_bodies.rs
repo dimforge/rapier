@@ -1018,8 +1018,14 @@ fn unoriented_blob_holds_a_ball_inside() {
         }
         assert_finite(&world, handle);
         let sb = &world.soft_bodies[handle];
-        let lowest = sb.particle_positions().map(|p| p.y).fold(Real::MAX, Real::min);
-        (world.bodies[ball].translation() - sb.center_of_mass(), lowest)
+        let lowest = sb
+            .particle_positions()
+            .map(|p| p.y)
+            .fold(Real::MAX, Real::min);
+        (
+            world.bodies[ball].translation() - sb.center_of_mass(),
+            lowest,
+        )
     };
     let (offset, lowest) = run(false);
     assert!(
@@ -1058,15 +1064,34 @@ fn the_collider_shape_decides_the_orientation() {
         let polyline = world.colliders[co].shape().as_polyline().unwrap();
         polyline.flags().contains(PolylineFlags::ORIENTED)
     };
-    assert!(flag(&world, closed), "a closed surface is oriented by default");
-    assert!(!flag(&world, shell), "an explicit `oriented(false)` was ignored");
+    assert!(
+        flag(&world, closed),
+        "a closed surface is oriented by default"
+    );
+    assert!(
+        !flag(&world, shell),
+        "an explicit `oriented(false)` was ignored"
+    );
     assert!(!flag(&world, rope), "an open surface cannot be oriented");
     world.step();
-    assert!(world.soft_bodies[closed].collision_mesh().unwrap().is_solid());
-    assert!(!world.soft_bodies[shell].collision_mesh().unwrap().is_solid());
+    assert!(
+        world.soft_bodies[closed]
+            .collision_mesh()
+            .unwrap()
+            .is_solid()
+    );
+    assert!(
+        !world.soft_bodies[shell]
+            .collision_mesh()
+            .unwrap()
+            .is_solid()
+    );
 
     // Cleared on the collider's shape: the mesh follows at the next step.
-    let co = world.soft_bodies[closed].collision_mesh().unwrap().collider();
+    let co = world.soft_bodies[closed]
+        .collision_mesh()
+        .unwrap()
+        .collider();
     let polyline = world.colliders[co].shape_mut().as_polyline_mut().unwrap();
     polyline.set_flags(polyline.flags() & !PolylineFlags::ORIENTED);
     world.step();
@@ -1263,7 +1288,10 @@ fn strip_tears_when_pulled_apart() {
             }
         }
         let bodies = family(&world, handle);
-        assert!(bodies.len() >= 2, "{model:?}: the strip is still in one piece");
+        assert!(
+            bodies.len() >= 2,
+            "{model:?}: the strip is still in one piece"
+        );
         let sum = |f: &dyn Fn(&SoftBody) -> Real| -> Real {
             bodies.iter().map(|&h| f(&world.soft_bodies[h])).sum()
         };
@@ -1329,7 +1357,8 @@ fn tearing_splits_the_particle_two_fans_share() {
         .expect("the bottom edge exists") as u32;
     let num_particles = sb.num_particles() as u32;
     let (num_cells, mass, measure) = (sb.cells().len(), sb.mass(), sb.rest_measure());
-    let event = world.tear_soft_body(handle, &[edge], &[])
+    let event = world
+        .tear_soft_body(handle, &[edge], &[])
         .expect("nothing tore");
     world.soft_bodies[handle].validate_topology().unwrap();
     assert_eq!(event.soft_body, handle);
@@ -1573,7 +1602,11 @@ fn fem_deflection_is_substep_invariant() {
         let mut world = PhysicsWorld::new();
         world.integration_parameters.num_solver_iterations = substeps;
         // The invariance is a property of the converged linear solve: lift the iteration cap.
-        world.integration_parameters.soft_bodies.fem.max_linear_iterations = 256;
+        world
+            .integration_parameters
+            .soft_bodies
+            .fem
+            .max_linear_iterations = 256;
         let builder = SoftBodyBuilder::grid(
             Vector::new(length * 0.5, 0.0),
             Vector::new(length * 0.5, thickness * 0.5),
@@ -1672,7 +1705,10 @@ fn fem_stiff_stack_rests_without_sinking() {
     let (half, radius) = (3.0, 0.15);
     let mut handles = Vec::new();
     for row in 0..3 {
-        let center = Vector::new(0.0, ground_top + half + 0.5 + row as Real * (2.0 * half + 1.0));
+        let center = Vector::new(
+            0.0,
+            ground_top + half + 0.5 + row as Real * (2.0 * half + 1.0),
+        );
         let square = SoftBodyBuilder::grid(center, Vector::splat(half), 4, 4)
             .cell_model(SoftBodyCellModel::Corotational)
             .material(SoftBodyMaterial {
@@ -1696,11 +1732,26 @@ fn fem_stiff_stack_rests_without_sinking() {
     for &h in &handles {
         let sb = &world.soft_bodies[h];
         assert_finite(&world, h);
-        let min_y = sb.particles().iter().map(|p| p.position().y).fold(Real::MAX, Real::min);
-        let max_y = sb.particles().iter().map(|p| p.position().y).fold(Real::MIN, Real::max);
-        let max_vel = sb.particles().iter().map(|p| p.velocity().length()).fold(0.0, Real::max);
+        let min_y = sb
+            .particles()
+            .iter()
+            .map(|p| p.position().y)
+            .fold(Real::MAX, Real::min);
+        let max_y = sb
+            .particles()
+            .iter()
+            .map(|p| p.position().y)
+            .fold(Real::MIN, Real::max);
+        let max_vel = sb
+            .particles()
+            .iter()
+            .map(|p| p.velocity().length())
+            .fold(0.0, Real::max);
         let penetration = previous_top + radius - min_y;
-        assert!(penetration < 0.02, "a body sank by {penetration} into the one below");
+        assert!(
+            penetration < 0.02,
+            "a body sank by {penetration} into the one below"
+        );
         assert!(max_vel < 0.1, "the stack did not settle: {max_vel} m/s");
         previous_top = max_y + radius;
     }
@@ -1777,7 +1828,10 @@ fn fem_thin_feature_self_contacts_stay_calm() {
         .map(|(a, b)| (*a - *b).length())
         .fold(0.0, Real::max);
     let min_y = settled.iter().map(|p| p.y).fold(Real::MAX, Real::min);
-    assert!(drift < 1.0e-3, "the bar keeps moving: drift {drift} over 800 steps");
+    assert!(
+        drift < 1.0e-3,
+        "the bar keeps moving: drift {drift} over 800 steps"
+    );
     assert!(min_y > 0.3 - 0.02, "the bar sank into the ground: {min_y}");
 }
 
@@ -1891,8 +1945,7 @@ fn self_contact_blob_survives_grab_crush() {
     let anchor = world.soft_bodies[victim].particle_position(grabbed as usize);
     let cluster = world.add_soft_body_cluster(victim, &[grabbed]).unwrap();
     let proxy = world.soft_bodies[victim].cluster_proxy(cluster).unwrap();
-    let mouse =
-        world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
+    let mouse = world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
     let joint: GenericJoint = GenericJointBuilder::new(JointAxesMask::empty())
         .motor_position(JointAxis::LinX, 0.0, 1000.0, 50.0)
         .motor_position(JointAxis::LinY, 0.0, 1000.0, 50.0)
@@ -1900,10 +1953,8 @@ fn self_contact_blob_survives_grab_crush() {
     world.insert_impulse_joint(mouse, proxy, joint);
     for step in 0..900 {
         let tt = step as Real / 60.0;
-        world.bodies[mouse].set_next_kinematic_translation(Vector::new(
-            anchor.x + 1.5 * (3.0 * tt).sin(),
-            -8.0,
-        ));
+        world.bodies[mouse]
+            .set_next_kinematic_translation(Vector::new(anchor.x + 1.5 * (3.0 * tt).sin(), -8.0));
         world.bodies[proxy].wake_up(true);
         world.step();
     }
@@ -1970,7 +2021,10 @@ fn stiff_edge_tears_under_force_not_strain() {
         }
         let sb = &world.soft_bodies[handle];
         let tested = sb.edges().iter().find(|e| e.vertices == [3, 4]);
-        let particles: usize = bodies.iter().map(|&h| world.soft_bodies[h].num_particles()).sum();
+        let particles: usize = bodies
+            .iter()
+            .map(|&h| world.soft_bodies[h].num_particles())
+            .sum();
         (
             particles,
             bodies.len(),
@@ -1980,7 +2034,11 @@ fn stiff_edge_tears_under_force_not_strain() {
     };
     // The load is the weight, 9.81 N.
     let (particles, pieces, stress, edges) = hang(30.0);
-    assert_eq!((particles, pieces, edges), (8, 1, 7), "the edge tore under a third of its threshold");
+    assert_eq!(
+        (particles, pieces, edges),
+        (8, 1, 7),
+        "the edge tore under a third of its threshold"
+    );
     let stress = stress.unwrap();
     assert!(
         (stress - 9.81 / 30.0).abs() < 0.08,
@@ -1990,7 +2048,11 @@ fn stiff_edge_tears_under_force_not_strain() {
     // splits, its copy stays on the bar as a stub and the weight falls as its own body. Edge
     // `[3, 4]` now bears the stub alone (three quarters of the split particle's mass).
     let (particles, pieces, stress, edges) = hang(6.0);
-    assert_eq!((particles, pieces, edges), (9, 2, 4), "the edge held a load above its tear force");
+    assert_eq!(
+        (particles, pieces, edges),
+        (9, 2, 4),
+        "the edge held a load above its tear force"
+    );
     let stress = stress.unwrap();
     assert!(
         (stress - 0.1875 * 9.81 / 6.0).abs() < 0.03,
@@ -2018,7 +2080,11 @@ fn tear_smoothing_shrugs_off_a_spike() {
         family(&world, handle).len()
     };
     assert_eq!(jerk(0.0), 2, "without smoothing the spike snaps the edge");
-    assert_eq!(jerk(1.0), 1, "smoothed over a second, the spike is shrugged off");
+    assert_eq!(
+        jerk(1.0),
+        1,
+        "smoothed over a second, the spike is shrugged off"
+    );
 }
 
 /// A per-edge tear resistance multiplies the edge's threshold: of two edges bearing the same
@@ -2033,14 +2099,32 @@ fn tear_resistance_scales_the_threshold() {
         positions.extend([Vector::new(0.0, y), Vector::new(1.0, y)]);
     }
     let builder = SoftBodyBuilder::new(positions)
-    .edges(vec![[0, 1], [0, 2], [1, 3], [2, 4], [3, 5], [4, 6], [5, 7], [6, 8], [7, 9]])
-    .edge_tear_resistance([(2, 3.0), (3, 100.0), (4, 100.0), (5, 100.0), (6, 100.0), (7, 100.0), (8, 100.0)])
-    .pinned_particles([0, 1])
-    .particle_mass(0.25)
-    .softness(SpringCoefficients::new(120.0, 1.0))
-    .tear_force(6.0)
-    .no_surface_collider()
-    .can_sleep(false);
+        .edges(vec![
+            [0, 1],
+            [0, 2],
+            [1, 3],
+            [2, 4],
+            [3, 5],
+            [4, 6],
+            [5, 7],
+            [6, 8],
+            [7, 9],
+        ])
+        .edge_tear_resistance([
+            (2, 3.0),
+            (3, 100.0),
+            (4, 100.0),
+            (5, 100.0),
+            (6, 100.0),
+            (7, 100.0),
+            (8, 100.0),
+        ])
+        .pinned_particles([0, 1])
+        .particle_mass(0.25)
+        .softness(SpringCoefficients::new(120.0, 1.0))
+        .tear_force(6.0)
+        .no_surface_collider()
+        .can_sleep(false);
     let handle = world.insert_soft_body(builder);
     for _ in 0..60 {
         world.step();
@@ -2062,7 +2146,10 @@ fn tear_resistance_scales_the_threshold() {
     let sb = &world.soft_bodies[handle];
     let reinforced = sb.edges().iter().find(|e| e.tear_resistance == 3.0);
     let stress = reinforced.expect("the reinforced edge tore").stress();
-    assert!((stress - 9.81 / 18.0).abs() < 0.08, "stress {stress} ignores the resistance");
+    assert!(
+        (stress - 9.81 / 18.0).abs() < 0.08,
+        "stress {stress} ignores the resistance"
+    );
 }
 
 /// An edge whose particles are all interior and undamaged bears its load against
@@ -2128,12 +2215,24 @@ fn interior_strength_shields_undamaged_interior_edges() {
     };
     let plain = run(1.0);
     let tough = run(4.0);
-    assert!(plain.0 > 0.05 && plain.1 > 0.02, "the stretched grid reads a load: {plain:?}");
+    assert!(
+        plain.0 > 0.05 && plain.1 > 0.02,
+        "the stretched grid reads a load: {plain:?}"
+    );
     let close = |a: Real, b: Real| (a - b).abs() <= 1.0e-5 * a.abs().max(1.0);
     assert!(close(plain.0, tough.0), "a surface edge is not shielded");
-    assert!(close(plain.1, 4.0 * tough.1), "an interior edge bears 4x the threshold");
-    assert!(close(plain.2, tough.2), "an edge next to damage lost its shield");
-    assert!(close(plain.3, 4.0 * tough.3), "an edge far from damage keeps its shield");
+    assert!(
+        close(plain.1, 4.0 * tough.1),
+        "an interior edge bears 4x the threshold"
+    );
+    assert!(
+        close(plain.2, tough.2),
+        "an edge next to damage lost its shield"
+    );
+    assert!(
+        close(plain.3, 4.0 * tough.3),
+        "an edge far from damage keeps its shield"
+    );
 }
 
 /// A squeezed edge past its yield takes a permanent set (only the excess strain flows), bounded
@@ -2159,7 +2258,16 @@ fn edge_plasticity_keeps_a_dent() {
             Vector::new(0.0, 3.0),
             Vector::new(1.0, 3.0),
         ])
-        .edges(vec![[0, 1], [2, 3], [0, 4], [1, 5], [4, 6], [5, 7], [6, 8], [7, 9]])
+        .edges(vec![
+            [0, 1],
+            [2, 3],
+            [0, 4],
+            [1, 5],
+            [4, 6],
+            [5, 7],
+            [6, 8],
+            [7, 9],
+        ])
         .pinned_particles([0, 1, 3, 4, 5, 6, 7, 8, 9])
         .particle_mass(1.0)
         .material(material)
@@ -2187,7 +2295,11 @@ fn edge_plasticity_keeps_a_dent() {
     let (mut world, handle) = squeeze(clay(SoftEdgePlasticFlow::Both, 1.0));
     let sb = &world.soft_bodies[handle];
     let e = &sb.edges()[0];
-    assert!((e.rest_length - 0.7 / 0.9).abs() < 1.0e-4, "rest length {}", e.rest_length);
+    assert!(
+        (e.rest_length - 0.7 / 0.9).abs() < 1.0e-4,
+        "rest length {}",
+        e.rest_length
+    );
     assert!((e.initial_rest_length() - 1.0).abs() < 1.0e-4);
     assert!((e.plastic_strain() - (0.7 / 0.9 - 1.0)).abs() < 1.0e-4);
     // The rest positions followed the flow: the edge is as long at rest as its rest length.
@@ -2212,12 +2324,20 @@ fn edge_plasticity_keeps_a_dent() {
     // The plastic maximum bounds the set.
     let (world, handle) = squeeze(clay(SoftEdgePlasticFlow::Both, 0.15));
     let e = &world.soft_bodies[handle].edges()[0];
-    assert!((e.rest_length - 0.85).abs() < 1.0e-4, "rest length {}", e.rest_length);
+    assert!(
+        (e.rest_length - 0.85).abs() < 1.0e-4,
+        "rest length {}",
+        e.rest_length
+    );
 
     // Tension-only clay does not dent.
     let (world, handle) = squeeze(clay(SoftEdgePlasticFlow::Tension, 1.0));
     let e = &world.soft_bodies[handle].edges()[0];
-    assert!((e.rest_length - 1.0).abs() < 1.0e-6, "rest length {}", e.rest_length);
+    assert!(
+        (e.rest_length - 1.0).abs() < 1.0e-6,
+        "rest length {}",
+        e.rest_length
+    );
 
     // Compression-only clay dents, then springs back from a stretch (the rest stays where it
     // flowed to), and the tear strain is measured against the initial length: 20% past it is
@@ -2229,7 +2349,11 @@ fn edge_plasticity_keeps_a_dent() {
     }
     let sb = &world.soft_bodies[handle];
     let e = &sb.edges()[0];
-    assert!((e.rest_length - 0.7 / 0.9).abs() < 1.0e-4, "a stretch flowed: {}", e.rest_length);
+    assert!(
+        (e.rest_length - 0.7 / 0.9).abs() < 1.0e-4,
+        "a stretch flowed: {}",
+        e.rest_length
+    );
     let stress = e.stress();
     assert!(
         (stress - 0.2 / 0.25).abs() < 0.02,
@@ -2242,7 +2366,11 @@ fn edge_plasticity_keeps_a_dent() {
     }
     let sb = &world.soft_bodies[handle];
     sb.validate_topology().unwrap();
-    assert_eq!(sb.num_particles(), 10, "an edge between two pinned particles tore");
+    assert_eq!(
+        sb.num_particles(),
+        10,
+        "an edge between two pinned particles tore"
+    );
     let stress = sb.edges()[0].stress();
     assert!(
         (stress - 0.3 / 0.25).abs() < 0.02,
@@ -2300,7 +2428,10 @@ fn tear_events_and_rope_ends() {
         fallen.validate_topology().unwrap();
         assert_eq!(fallen.origin(), Some(handle));
         assert_eq!((fallen.num_particles(), fallen.edges().len()), (4, 3));
-        assert_eq!(world.soft_bodies[handle].pieces(), &[event.pieces[1].soft_body]);
+        assert_eq!(
+            world.soft_bodies[handle].pieces(),
+            &[event.pieces[1].soft_body]
+        );
     }
     let sb = &world.soft_bodies[handle];
     sb.validate_topology().unwrap();
@@ -2309,8 +2440,7 @@ fn tear_events_and_rope_ends() {
     // The pinned piece is three segments: any split would leave a side below the minimum.
     let pinned: Vec<u32> = (0..sb.edges().len() as u32).collect();
     assert!(
-        world.tear_soft_body(handle, &pinned, &[])
-            .is_none(),
+        world.tear_soft_body(handle, &pinned, &[]).is_none(),
         "a piece of three segments tore"
     );
     assert_eq!(world.soft_bodies[handle].num_particles(), 4);
@@ -2358,7 +2488,8 @@ fn torn_builder_rope_separates() {
         .iter()
         .position(|e| e.vertices == [4, 5] && e.kind == SoftBodyEdgeKind::Structural)
         .unwrap() as u32;
-    let event = world.tear_soft_body(handle, &[torn], &[])
+    let event = world
+        .tear_soft_body(handle, &[torn], &[])
         .expect("the rope tore");
     // Particle 4 splits (the lower index), and the bending edge (3, 5) over it goes.
     assert_eq!(event.split_particles, vec![(9, 4)]);
@@ -2378,9 +2509,15 @@ fn torn_builder_rope_separates() {
     let measure = sb.rest_measure() + lb.rest_measure();
     assert!((mass - before.mass()).abs() <= 1.0e-5 * before.mass());
     assert!((measure - before.rest_measure()).abs() <= 1.0e-5 * before.rest_measure());
-    assert_eq!(sb.edges().len() + lb.edges().len(), before.edges().len() - 1);
+    assert_eq!(
+        sb.edges().len() + lb.edges().len(),
+        before.edges().len() - 1
+    );
     assert_eq!(num_bends(sb) + num_bends(lb), num_bends(&before) - 1);
-    assert_eq!(sb.boundary().len() + lb.boundary().len(), before.boundary().len());
+    assert_eq!(
+        sb.boundary().len() + lb.boundary().len(),
+        before.boundary().len()
+    );
     assert_eq!(sb.connected_pieces().len(), 1);
     assert_eq!(lb.connected_pieces().len(), 1);
 
@@ -2430,7 +2567,8 @@ fn tears_keep_every_particle_in_an_element() {
     world.tear_soft_body(grid, &corner, &[]);
     let ring = edges_at(&world.soft_bodies[disk], Vector::new(5.6, 2.0), true);
     assert_eq!(ring.len(), 2);
-    world.tear_soft_body(disk, &ring, &[])
+    world
+        .tear_soft_body(disk, &ring, &[])
         .expect("the ring tore");
     let all_edges: Vec<u32> = (0..world.soft_bodies[rope].edges().len() as u32).collect();
     world.tear_soft_body(rope, &all_edges, &[]);
@@ -2438,7 +2576,10 @@ fn tears_keep_every_particle_in_an_element() {
     for _ in 0..60 {
         world.step();
     }
-    for handle in [grid, disk, rope].into_iter().flat_map(|h| family(&world, h)) {
+    for handle in [grid, disk, rope]
+        .into_iter()
+        .flat_map(|h| family(&world, h))
+    {
         let sb = &world.soft_bodies[handle];
         sb.validate_topology().unwrap();
         assert!(sb.particles().iter().all(|p| p.position().is_finite()));
@@ -2485,8 +2626,8 @@ fn cuts_keep_every_particle_in_an_element() {
 fn cut_splits_a_grid_along_a_segment() {
     let mut world = world_with_ground();
     let n = 5usize;
-    let grid = SoftBodyBuilder::grid(Vector::new(0.0, 2.0), Vector::splat(1.0), n, n)
-        .particle_mass(0.2);
+    let grid =
+        SoftBodyBuilder::grid(Vector::new(0.0, 2.0), Vector::splat(1.0), n, n).particle_mass(0.2);
     let handle = world.insert_soft_body(grid);
     world.step();
     let blade = [Vector::new(0.25, -5.0), Vector::new(0.25, 10.0)];
@@ -2646,11 +2787,23 @@ fn impulses_fall_off_with_the_distance() {
     let sb = &mut world.soft_bodies[handle];
     sb.apply_impulse_at_point(Vector::new(0.0, 4.0), Vector::ZERO, 2.0, true);
     let v = |i: usize| sb.particle_velocity(i);
-    assert!((v(0) - Vector::new(0.0, 4.0)).length() < 1.0e-6, "on the point: {:?}", v(0));
-    assert!((v(1) - Vector::new(0.0, 1.0)).length() < 1.0e-6, "halfway, twice the mass: {:?}", v(1));
+    assert!(
+        (v(0) - Vector::new(0.0, 4.0)).length() < 1.0e-6,
+        "on the point: {:?}",
+        v(0)
+    );
+    assert!(
+        (v(1) - Vector::new(0.0, 1.0)).length() < 1.0e-6,
+        "halfway, twice the mass: {:?}",
+        v(1)
+    );
     assert_eq!(v(2), Vector::ZERO, "at the radius");
     assert_eq!(v(3), Vector::ZERO, "pinned");
-    assert!((v(4) - Vector::new(0.0, 2.0)).length() < 1.0e-6, "halfway: {:?}", v(4));
+    assert!(
+        (v(4) - Vector::new(0.0, 2.0)).length() < 1.0e-6,
+        "halfway: {:?}",
+        v(4)
+    );
 
     for i in 0..sb.num_particles() {
         sb.set_particle_velocity(i, Vector::ZERO);
@@ -2658,10 +2811,18 @@ fn impulses_fall_off_with_the_distance() {
     sb.apply_radial_impulse(Vector::ZERO, 4.0, 2.0, true);
     let v = |i: usize| sb.particle_velocity(i);
     assert_eq!(v(0), Vector::ZERO, "on the center: no direction");
-    assert!((v(1) - Vector::new(1.0, 0.0)).length() < 1.0e-6, "pushed right: {:?}", v(1));
+    assert!(
+        (v(1) - Vector::new(1.0, 0.0)).length() < 1.0e-6,
+        "pushed right: {:?}",
+        v(1)
+    );
     assert_eq!(v(2), Vector::ZERO, "at the radius");
     assert_eq!(v(3), Vector::ZERO, "pinned");
-    assert!((v(4) - Vector::new(-2.0, 0.0)).length() < 1.0e-6, "pushed left: {:?}", v(4));
+    assert!(
+        (v(4) - Vector::new(-2.0, 0.0)).length() < 1.0e-6,
+        "pushed left: {:?}",
+        v(4)
+    );
 
     // Without a falloff radius every free particle gets the whole impulse.
     for i in 0..sb.num_particles() {
@@ -2725,8 +2886,14 @@ fn modify_solver_contacts_edits_soft_soft_contacts() {
     };
     let resting = scene(false);
     let dropped = scene(true);
-    assert!(resting > 1.1, "the blob did not rest on the rope: y = {resting}");
-    assert!(dropped < 0.6, "the hook did not drop the soft-soft contacts: y = {dropped}");
+    assert!(
+        resting > 1.1,
+        "the blob did not rest on the rope: y = {resting}"
+    );
+    assert!(
+        dropped < 0.6,
+        "the hook did not drop the soft-soft contacts: y = {dropped}"
+    );
 }
 
 /// A rope shot tip first at a fixed wall stops at the wall: an open polyline collides from
@@ -2761,7 +2928,10 @@ fn a_rope_shot_at_a_wall_stops_tip_first() {
     assert_finite(&world, handle);
     // The wall's face is at x = 2.5; the rope's skin is half a segment thick.
     assert!(max_x < 2.5, "the rope went into the wall: max x = {max_x}");
-    assert!(max_x > 2.3, "the rope never reached the wall: max x = {max_x}");
+    assert!(
+        max_x > 2.3,
+        "the rope never reached the wall: max x = {max_x}"
+    );
 }
 
 /// A rope released hanging over a small fixed ball rests on it: the segments beside the ball
@@ -3049,7 +3219,10 @@ mod tear_and_cut_conserve_mass_and_measure {
 
     #[test]
     fn grid_cut() {
-        check(grid(), cut([Vector::new(0.25, -5.0), Vector::new(0.25, 5.0)]));
+        check(
+            grid(),
+            cut([Vector::new(0.25, -5.0), Vector::new(0.25, 5.0)]),
+        );
     }
 
     #[test]
@@ -3064,12 +3237,17 @@ mod tear_and_cut_conserve_mass_and_measure {
 
     #[test]
     fn polyline_edge_tear() {
-        check(strip(), |w, h| tear_edge_near(w, h, Vector::new(0.875, 0.0)));
+        check(strip(), |w, h| {
+            tear_edge_near(w, h, Vector::new(0.875, 0.0))
+        });
     }
 
     #[test]
     fn polyline_cut() {
-        check(strip(), cut([Vector::new(0.8, -1.0), Vector::new(0.8, 1.0)]));
+        check(
+            strip(),
+            cut([Vector::new(0.8, -1.0), Vector::new(0.8, 1.0)]),
+        );
     }
 
     #[test]
@@ -3165,7 +3343,10 @@ fn tangles(sb: &SoftBody) -> (usize, usize) {
         .iter()
         .filter(|c| {
             let now = area(c.vertices.map(|v| sb.particle_position(v as usize)));
-            let rest = area(c.vertices.map(|v| sb.particles()[v as usize].rest_position()));
+            let rest = area(
+                c.vertices
+                    .map(|v| sb.particles()[v as usize].rest_position()),
+            );
             now * rest <= 0.0
         })
         .count();
@@ -3250,7 +3431,11 @@ fn crack_faces_collide_when_squeezed_shut() {
             .split_particles
             .iter()
             .map(|&(copy, source)| {
-                let (l, r) = if left[source as usize] { (source, copy) } else { (copy, source) };
+                let (l, r) = if left[source as usize] {
+                    (source, copy)
+                } else {
+                    (copy, source)
+                };
                 sb.particle_position(r as usize).x - sb.particle_position(l as usize).x
             })
             .fold(Real::MAX, Real::min)
@@ -3259,7 +3444,11 @@ fn crack_faces_collide_when_squeezed_shut() {
     for _ in 0..60 {
         world.step();
     }
-    assert!(gap(&world) > 0.05, "the crack did not open: {}", gap(&world));
+    assert!(
+        gap(&world) > 0.05,
+        "the crack did not open: {}",
+        gap(&world)
+    );
     assert_eq!(tangles(&world.soft_bodies[handle]), (0, 0));
 
     push(&mut world, 4.0);
@@ -3304,7 +3493,10 @@ fn cut_halves_keep_their_own_areas() {
         assert_eq!(sb.volume_pieces().len(), 1);
         rest.push(sb.volume_pieces()[0].rest_volume());
     }
-    assert!(rest.iter().all(|r| *r > 0.5), "a half is too small: {rest:?}");
+    assert!(
+        rest.iter().all(|r| *r > 0.5),
+        "a half is too small: {rest:?}"
+    );
     assert!((rest[0] + rest[1] - rest_volume).abs() < 1.0e-4 * rest_volume);
 
     // A heavy lid presses both halves into the ground.
@@ -3350,7 +3542,10 @@ fn cut_halves_rest_as_cut_and_collide_when_shoved() {
         world.step();
         for &h in &halves {
             let sb = &world.soft_bodies[h];
-            let speed = sb.particle_velocities().map(|v| v.length()).fold(0.0, Real::max);
+            let speed = sb
+                .particle_velocities()
+                .map(|v| v.length())
+                .fold(0.0, Real::max);
             assert!(speed < 1.0e-3, "the halves moved on their own: {speed} m/s");
         }
     }
@@ -3371,5 +3566,8 @@ fn cut_halves_rest_as_cut_and_collide_when_shoved() {
         }
     }
     let pushed_back = (offset(&world) - rest_offset) * sign;
-    assert!(pushed_back > -0.05, "the shoved halves stayed interlocked: {pushed_back}");
+    assert!(
+        pushed_back > -0.05,
+        "the shoved halves stayed interlocked: {pushed_back}"
+    );
 }

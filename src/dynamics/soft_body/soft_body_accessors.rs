@@ -1,12 +1,12 @@
 //! Accessors and simple setters of a soft body: particles, elements, material, volume preservation, sleeping and enabling.
-use super::{
-    SoftBody, SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyMaterial, SoftBodyParticle,
-    SoftVolumePiece,
-};
 #[cfg(feature = "dim3")]
 use super::SoftBodyDihedral;
 #[cfg(feature = "fem")]
 use super::SoftBodySolver;
+use super::{
+    SoftBody, SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyMaterial, SoftBodyParticle,
+    SoftVolumePiece,
+};
 use crate::dynamics::RigidBodyHandle;
 use crate::math::{DIM, Real, Vector};
 
@@ -173,12 +173,18 @@ impl SoftBody {
     /// The signed area (2D) or volume (3D) enclosed by the volume pieces at rest (`0.0` for a
     /// body without a closed boundary).
     pub fn rest_volume(&self) -> Real {
-        self.volume_pieces.iter().map(|piece| piece.rest_volume).sum()
+        self.volume_pieces
+            .iter()
+            .map(|piece| piece.rest_volume)
+            .sum()
     }
 
     /// The signed area (2D) or volume (3D) currently enclosed by the volume pieces.
     pub fn volume(&self) -> Real {
-        self.volume_pieces.iter().map(|piece| piece.volume(self)).sum()
+        self.volume_pieces
+            .iter()
+            .map(|piece| piece.volume(self))
+            .sum()
     }
 
     /// The multiplier applied to each volume piece's rest volume to obtain its

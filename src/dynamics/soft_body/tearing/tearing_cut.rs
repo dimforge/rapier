@@ -237,6 +237,7 @@ impl SoftBody {
     /// Inserts `p`, `q` where the blade crosses structural edge `ei` at `t`: the edge becomes
     /// `(a, p)`, `(q, b)` (proportional rest lengths and mass, surface segment too) and spanning
     /// edges go to `straddling`. `false` for a massless segment or, unless `force`, an endpoint.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)] // A NaN measure must be rejected too.
     fn insert_into_segment(
         &mut self,
         ei: usize,

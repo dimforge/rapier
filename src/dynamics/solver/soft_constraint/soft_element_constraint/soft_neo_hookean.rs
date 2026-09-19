@@ -1,10 +1,10 @@
 //! The stable Neo-Hookean state of an elastic cell: stiffness update, energy gradient and Hessian.
 
+use super::*;
 use crate::math::{DIM, Matrix, Real, Vector};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
-use super::*;
 
 /// Stable Neo-Hookean state of a [`SoftElasticConstraint`]: the energy of Smith et al. 2018 in
 /// Kim & Eberle 2020's form, bounded below when inverted. `update` refreshes the gradient every
@@ -65,7 +65,8 @@ impl NeoHookeanConstraint {
         self.m = (hess * dt + StrainMatrix::from_diagonal(&self.damping)) * dt;
         // `(M A + I)⁻¹`, with the effective-mass block `A_rs = Σₚ wₚ gᵣ[p]·gₛ[p]` built from
         // `G = Σₚ wₚ cₚ cₚᵀ` (the gradients are axis-aligned).
-        let weighted: [Vector; MAX_CONSTRAINT_PARTICLES] = core::array::from_fn(|p| coeffs[p] * im[p]);
+        let weighted: [Vector; MAX_CONSTRAINT_PARTICLES] =
+            core::array::from_fn(|p| coeffs[p] * im[p]);
         let a = Self::strain_block_from_g(&outer_sum(&weighted, coeffs));
         *inv_a = (self.m * a + StrainMatrix::identity())
             .try_inverse()

@@ -559,9 +559,7 @@ impl TestbedViewer {
                 WindowEvent::MouseButton(kiss3d::event::MouseButton::Button1, action, _) => {
                     match action {
                         Action::Press => {
-                            if !egui_wants_pointer
-                                && self.grab.try_grab(&self.scene_mouse, world)
-                            {
+                            if !egui_wants_pointer && self.grab.try_grab(&self.scene_mouse, world) {
                                 event.inhibited = true;
                             }
                         }

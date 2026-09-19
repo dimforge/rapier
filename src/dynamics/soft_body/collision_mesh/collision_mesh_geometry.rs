@@ -40,7 +40,10 @@ impl SoftCollisionMesh {
                 );
                 if a.is_finite()
                     && b.is_finite()
-                    && crate::dynamics::soft_body::soft_body_crossing_tests::segments_cross([p, q], [a, b])
+                    && crate::dynamics::soft_body::soft_body_crossing_tests::segments_cross(
+                        [p, q],
+                        [a, b],
+                    )
                 {
                     crossings += 1;
                 }

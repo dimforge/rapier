@@ -19,8 +19,8 @@ fn torn_cluster_splits_and_its_joint_follows_the_source() {
     let h = world.insert_soft_body(builder);
     let cluster = world.add_soft_body_cluster(h, &[4]).unwrap();
     let proxy = world.soft_bodies[h].cluster_proxy(cluster).unwrap();
-    let anchor =
-        world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(Vector::X * 4.0));
+    let anchor = world
+        .insert_body(RigidBodyBuilder::kinematic_position_based().translation(Vector::X * 4.0));
     let joint = world.insert_impulse_joint(
         anchor,
         proxy,
@@ -53,13 +53,19 @@ fn torn_cluster_splits_and_its_joint_follows_the_source() {
     assert_eq!(splits.len(), 2, "{:?}", event.clusters);
     let kept = splits.iter().find(|c| c.keeps_proxy).unwrap();
     let fresh = splits.iter().find(|c| !c.keeps_proxy).unwrap();
-    assert_eq!((kept.soft_body, kept.cluster, kept.proxy), (h, cluster, proxy));
+    assert_eq!(
+        (kept.soft_body, kept.cluster, kept.proxy),
+        (h, cluster, proxy)
+    );
     assert_eq!(fresh.soft_body, lh);
     let (rb, lb) = (&world.soft_bodies[h], &world.soft_bodies[lh]);
     assert_eq!(rb.cluster(kept.cluster).unwrap().particles(), &[4]);
     assert_eq!(lb.cluster(fresh.cluster).unwrap().particles(), &[4]);
     assert_eq!(world.bodies[fresh.proxy].soft_body(), Some(lh));
-    assert_eq!(world.bodies[fresh.proxy].soft_cluster(), Some(fresh.cluster));
+    assert_eq!(
+        world.bodies[fresh.proxy].soft_cluster(),
+        Some(fresh.cluster)
+    );
     assert!(rb.cluster(kept.cluster).unwrap().meshes().next().is_none());
     // The left body took the fresh pieces of both clusters (made in cluster order).
     assert_eq!(left.clusters, vec![[2, 0], [3, 1]]);
@@ -69,7 +75,10 @@ fn torn_cluster_splits_and_its_joint_follows_the_source() {
     // source's wins the tie, and the anchor stays where the particle is.
     assert_eq!(event.moved_joints.len(), 1);
     let moved = event.moved_joints[0];
-    assert_eq!((moved.joint, moved.from, moved.to), (joint, proxy, fresh.proxy));
+    assert_eq!(
+        (moved.joint, moved.from, moved.to),
+        (joint, proxy, fresh.proxy)
+    );
     let j = world.impulse_joints.get(joint).unwrap();
     assert_eq!((j.body1(), j.body2()), (anchor, fresh.proxy));
     let world_anchor = *world.bodies[fresh.proxy].position() * j.data.local_frame2.translation;

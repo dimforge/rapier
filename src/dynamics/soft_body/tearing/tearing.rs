@@ -68,7 +68,8 @@ impl SoftBody {
             .iter()
             .enumerate()
             .filter(|(_, c)| {
-                (0..DIM + 1).any(|a| (a + 1..DIM + 1).any(|b| crosses(c.vertices[a], c.vertices[b])))
+                (0..DIM + 1)
+                    .any(|a| (a + 1..DIM + 1).any(|b| crosses(c.vertices[a], c.vertices[b])))
             })
             .map(|(i, _)| i as u32)
             .collect();
@@ -126,7 +127,11 @@ impl SoftBody {
     /// follow, and the boundary tables, rest volume and coloring are rebuilt.
     pub(super) fn finish_topology_change(&mut self, log: &SplitLog) {
         let mut sources = log.split_particles.clone();
-        sources.extend(log.inserted.iter().flat_map(|&[a, b, p, q]| [(p, a), (q, b)]));
+        sources.extend(
+            log.inserted
+                .iter()
+                .flat_map(|&[a, b, p, q]| [(p, a), (q, b)]),
+        );
         // This also matches the clusters to the updated cell list.
         self.inherit_cluster_membership(&sources);
         let remap_tables = super::collision_mesh::SoftTopologyRemap {

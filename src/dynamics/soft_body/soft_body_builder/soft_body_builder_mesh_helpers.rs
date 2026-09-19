@@ -295,7 +295,11 @@ pub(crate) fn dihedral_angle(p0: Vector, p1: Vector, p2: Vector, p3: Vector) -> 
 /// An icosphere: vertices on the sphere of the given center and radius, outward-oriented
 /// triangles.
 #[cfg(feature = "dim3")]
-pub(super) fn icosphere(center: Vector, radius: Real, subdivisions: usize) -> (Vec<Vector>, Vec<[u32; 3]>) {
+pub(super) fn icosphere(
+    center: Vector,
+    radius: Real,
+    subdivisions: usize,
+) -> (Vec<Vector>, Vec<[u32; 3]>) {
     let t = (1.0 + Real::sqrt(5.0)) * 0.5;
     let mut vertices: Vec<Vector> = [
         (-1.0, t, 0.0),

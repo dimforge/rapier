@@ -87,7 +87,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let top_cluster = world
         .add_soft_body_cluster(wobbler, &top_face)
         .expect("top-face cluster");
-    let top_proxy = world.soft_bodies[wobbler].cluster_proxy(top_cluster).unwrap();
+    let top_proxy = world.soft_bodies[wobbler]
+        .cluster_proxy(top_cluster)
+        .unwrap();
     let top_pos = world.bodies[top_proxy].position().translation;
     let (plate, _) = world.insert(
         RigidBodyBuilder::dynamic().translation(top_pos + Vector::new(0.0, 0.12, 0.0)),
@@ -194,17 +196,23 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
      * motorized revolute at its middle, so the body folds and flaps at its own hinge.
      */
     let bar = world.insert_soft_body(
-        SoftBodyBuilder::cuboid(Vector::new(2.5, 2.2, 5.5), Vector::new(1.0, 0.22, 0.4), 7, 3, 3)
-            .cell_model(SoftBodyCellModel::Corotational)
-            .material(SoftBodyMaterial {
-                young_modulus: 2.0e4,
-                poisson_ratio: 0.35,
-                elastic_damping_ratio: 1.0,
-                ..Default::default()
-            })
-            .particle_mass(0.08)
-            .particle_radius(0.06)
-            .surface_collider(ColliderBuilder::ball(0.06)),
+        SoftBodyBuilder::cuboid(
+            Vector::new(2.5, 2.2, 5.5),
+            Vector::new(1.0, 0.22, 0.4),
+            7,
+            3,
+            3,
+        )
+        .cell_model(SoftBodyCellModel::Corotational)
+        .material(SoftBodyMaterial {
+            young_modulus: 2.0e4,
+            poisson_ratio: 0.35,
+            elastic_damping_ratio: 1.0,
+            ..Default::default()
+        })
+        .particle_mass(0.08)
+        .particle_radius(0.06)
+        .surface_collider(ColliderBuilder::ball(0.06)),
     );
     let (left_half, right_half): (Vec<u32>, Vec<u32>) = {
         let sb = &world.soft_bodies[bar];
@@ -220,7 +228,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         }
         (left, right)
     };
-    let left_cluster = world.add_soft_body_cluster(bar, &left_half).expect("left half");
+    let left_cluster = world
+        .add_soft_body_cluster(bar, &left_half)
+        .expect("left half");
     let right_cluster = world
         .add_soft_body_cluster(bar, &right_half)
         .expect("right half");
@@ -294,11 +304,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         RigidBodyBuilder::dynamic().translation(Vector::new(10.2, 0.3, 6.0)),
         ColliderBuilder::cuboid(0.3, 0.3, 0.3).density(0.5),
     );
-    world.insert_impulse_joint(
-        pendulum_root,
-        crate_body,
-        RopeJointBuilder::new(3.2),
-    );
+    world.insert_impulse_joint(pendulum_root, crate_body, RopeJointBuilder::new(3.2));
 
     /*
      * Kinematic cluster (no joint): a banner whose pinned top-edge cluster is waved rigidly.

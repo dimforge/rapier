@@ -38,6 +38,11 @@ impl NarrowPhase {
                     continue;
                 }
                 let collider = mesh.collider();
+                // The `enhanced-determinism` map is an `IndexMap`, whose `remove` is a
+                // deprecated alias of `swap_remove`; hashbrown's only has `remove`.
+                #[cfg(feature = "enhanced-determinism")]
+                let payload = self.soft_self.swap_remove(&collider).unwrap_or_default();
+                #[cfg(not(feature = "enhanced-determinism"))]
                 let payload = self.soft_self.remove(&collider).unwrap_or_default();
                 jobs.push((
                     collider,
@@ -52,8 +57,11 @@ impl NarrowPhase {
         // The entries left are those of the sleeping bodies (kept for their wake-up) and of
         // the removed meshes (dropped).
         let colliders = ctx.colliders;
-        self.soft_self
-            .retain(|h, _| colliders.get(*h).is_some_and(|c| c.deformable_mesh_ref.is_some()));
+        self.soft_self.retain(|h, _| {
+            colliders
+                .get(*h)
+                .is_some_and(|c| c.deformable_mesh_ref.is_some())
+        });
         let run = |(collider, mesh_ref, payload): &mut (
             ColliderHandle,
             SoftMeshRef,

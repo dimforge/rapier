@@ -12,9 +12,9 @@ use parry::utils::hashmap::HashMap;
 use simba::scalar::{ComplexField as _, RealField as _};
 
 use super::super::{SoftBodyCellModel, SoftBodyMaterial};
-use super::soft_body_builder_mesh_helpers::{cell_faces, drop_stray_pieces, mean_edge_length};
 #[cfg(feature = "dim3")]
 use super::soft_body_builder_mesh_helpers::icosphere;
+use super::soft_body_builder_mesh_helpers::{cell_faces, drop_stray_pieces, mean_edge_length};
 use super::{SoftBodyBuilder, SoftBodyParticleSettings};
 
 impl SoftBodyBuilder {
@@ -126,7 +126,7 @@ impl SoftBodyBuilder {
                     .edges(edges)
                     .surface(boundary)
                     .shape_matching(true)
-                        .particle_radius(mean_edge * 0.5),
+                    .particle_radius(mean_edge * 0.5),
             )
         }
     }

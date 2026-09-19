@@ -769,7 +769,7 @@ impl GraphicsManager {
         }
     }
 
-    pub fn set_body_color(&mut self, b: RigidBodyHandle, mut color: Color, tmp_color: bool) {
+    pub fn set_body_color(&mut self, b: RigidBodyHandle, color: Color, tmp_color: bool) {
         if !tmp_color {
             self.b2color.insert(b, color);
         }

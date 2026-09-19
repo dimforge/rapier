@@ -14,10 +14,12 @@ use super::super::{
     SoftBody, SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyEdgeKind, SoftBodyParticle,
     SoftCollisionMesh, soft_body_coloring,
 };
+use super::SoftBodyBuilder;
 #[cfg(feature = "dim3")]
 use super::soft_body_builder_mesh_helpers::dihedral_angle;
-use super::soft_body_builder_mesh_helpers::{cell_boundary, surface_element_cells, surface_is_closed};
-use super::SoftBodyBuilder;
+use super::soft_body_builder_mesh_helpers::{
+    cell_boundary, surface_element_cells, surface_is_closed,
+};
 
 impl SoftBodyBuilder {
     /*

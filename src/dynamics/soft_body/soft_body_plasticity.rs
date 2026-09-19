@@ -48,7 +48,12 @@ impl SoftBodyEdge {
     /// Flows the rest length toward `length` when the strain exceeds the material's edge yield
     /// ([`SoftBodyMaterial::edge_plastic_yield`]; `dt`: the step length). Returns whether the edge
     /// flowed significantly (such a body is kept awake).
-    pub(crate) fn plastic_flow(&mut self, length: Real, material: &SoftBodyMaterial, dt: Real) -> bool {
+    pub(crate) fn plastic_flow(
+        &mut self,
+        length: Real,
+        material: &SoftBodyMaterial,
+        dt: Real,
+    ) -> bool {
         let yield_strain = material.edge_plastic_yield;
         if yield_strain <= 0.0 || material.edge_plastic_creep <= 0.0 || self.rest_length <= 0.0 {
             return false;
@@ -63,7 +68,11 @@ impl SoftBodyEdge {
             return false;
         }
         // The rest length that would leave exactly the yield strain: only the excess flows.
-        let signed_yield = if strain > 0.0 { yield_strain } else { -yield_strain };
+        let signed_yield = if strain > 0.0 {
+            yield_strain
+        } else {
+            -yield_strain
+        };
         let target = length / (1.0 + signed_yield);
         let blend = (material.edge_plastic_creep * dt).min(1.0);
         let initial = self.initial_rest_length();

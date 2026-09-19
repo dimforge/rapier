@@ -96,18 +96,6 @@ impl Collider {
         self.changes.insert(ColliderChanges::DEFORMED);
     }
 
-    /// Moves a soft-body particle ball to its particle's world position (a simulation-driven
-    /// motion, like a deformation: no wake-up, no narrow-phase workspace invalidation). `frame`
-    /// is the parent proxy's pose: the ball's local pose is kept consistent with it.
-    pub(crate) fn deform_position(&mut self, frame: &Pose, position: Vector) {
-        let world = Pose::from_translation(position);
-        if let Some(parent) = self.parent.as_mut() {
-            parent.pos_wrt_parent = frame.inverse() * world;
-        }
-        self.pos = ColliderPosition(world);
-        self.changes.insert(ColliderChanges::DEFORMED);
-    }
-
     /// Moves a soft-body surface collider along with its cluster proxy (`frame` is the proxy's
     /// pose, the collider keeps its pose relative to it), as a deformation: no wake-up, no
     /// workspace invalidation. The shape's vertices are expressed in the resulting frame.
@@ -627,9 +615,7 @@ impl Collider {
         params: &IntegrationParameters,
         bodies: &RigidBodySet,
     ) -> Aabb {
-        let parent = self
-            .parent
-            .and_then(|p| Some((p, bodies.get(p.handle)?)));
+        let parent = self.parent.and_then(|p| Some((p, bodies.get(p.handle)?)));
         // Take soft-ccd into account by growing the aabb.
         let next_pose = parent.and_then(|(p, parent)| {
             (parent.soft_ccd_prediction() > 0.0).then(|| {
@@ -642,8 +628,7 @@ impl Collider {
         let soft_motion_margin = parent.map_or(0.0, |(_, parent)| parent.soft_motion_margin);
 
         let prediction_distance = params.prediction_distance();
-        let mut aabb =
-            self.compute_collision_aabb(prediction_distance / 2.0 + soft_motion_margin);
+        let mut aabb = self.compute_collision_aabb(prediction_distance / 2.0 + soft_motion_margin);
         if let Some(next_pose) = next_pose {
             let next_aabb = self
                 .shape

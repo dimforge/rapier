@@ -97,8 +97,7 @@ pub struct SoftRecoverySettings {
     /// overlap they are wrong-sided and freeze it). (default: `true`)
     pub overlap_edge_stand_down: bool,
     /// Bound on the velocity change the coupled constraint may hand any side per step, in multiples
-    /// of [`Self::recovery_pace`]; `Real::MAX` makes it hard. With
-    /// [`Self::overlap_velocity_correction`] it bounds the closing rate instead. (default: `1.0`)
+    /// of [`Self::recovery_pace`]; `Real::MAX` makes it hard. (default: `1.0`)
     pub overlap_constraint_pace: Real,
     /// What the per-point constraints (manifold constraints against rigid colliders, vertex
     /// constraints against soft surfaces) of the features inside a volume constraint's patch do,
@@ -133,7 +132,6 @@ pub struct SoftRecoverySettings {
     /// Relative drop of the estimate that counts as progress for the patience.
     /// (default: `0.02`)
     pub overlap_progress_margin: Real,
-
 }
 
 impl Default for SoftRecoverySettings {

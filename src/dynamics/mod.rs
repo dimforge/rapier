@@ -29,9 +29,9 @@ pub use parry::mass_properties::MassProperties;
 pub use self::rigid_body::{RigidBody, RigidBodyBuilder};
 #[cfg(feature = "alloc")]
 pub use self::rigid_body_set::{BodyPair, RigidBodySet};
+pub(crate) use self::soft_body::soft_body_crossing_tests;
 #[cfg(feature = "alloc")]
 pub use self::soft_body::*;
-pub(crate) use self::soft_body::soft_body_crossing_tests;
 
 #[cfg(feature = "alloc")]
 mod ccd;

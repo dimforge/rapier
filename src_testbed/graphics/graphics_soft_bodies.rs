@@ -259,7 +259,12 @@ impl GraphicsManager {
                     body: handle,
                     id: mesh.id(),
                 };
-                if self.soft_graphics.mesh_nodes.iter().any(|n| n.mesh == mesh_ref) {
+                if self
+                    .soft_graphics
+                    .mesh_nodes
+                    .iter()
+                    .any(|n| n.mesh == mesh_ref)
+                {
                     continue;
                 }
                 let Some(shape) =

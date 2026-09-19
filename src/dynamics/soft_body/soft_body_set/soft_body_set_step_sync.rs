@@ -1,18 +1,18 @@
 //! Per-step maintenance of the set: applying user changes, updating proxies and colliders, syncing particle positions, tearing and cutting.
+use super::soft_body_set_proxies::{rebuilt_surface_shape, sync_soft_body};
+use super::soft_body_set_split::{ProxyPoses, rebase_proxy_attachments};
+use super::{SoftBodyIslandEvent, SoftBodySet};
 use crate::alloc_prelude::*;
+use crate::dynamics::soft_body::{SoftBody, SoftBodyHandle, SoftBodyTearEvent};
 use crate::dynamics::{
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
 };
 use crate::geometry::ColliderSet;
+use crate::math::{DIM, Pose, Real, Vector};
+use crate::pipeline::EventHandler;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
-use super::soft_body_set_proxies::{rebuilt_surface_shape, sync_soft_body};
-use super::soft_body_set_split::{ProxyPoses, rebase_proxy_attachments};
-use crate::dynamics::soft_body::{SoftBody, SoftBodyHandle, SoftBodyTearEvent};
-use super::{SoftBodyIslandEvent, SoftBodySet};
-use crate::pipeline::EventHandler;
-use crate::math::{DIM, Pose, Real, Vector};
 
 impl SoftBodySet {
     /// Applies the user's changes since the last step: wakes the soft bodies whose settings
@@ -327,9 +327,14 @@ impl SoftBodySet {
         multibody_joints: &mut MultibodyJointSet,
     ) -> Option<SoftBodyTearEvent> {
         let _ = multibody_joints;
-        self.change_topology(handle, islands, bodies, colliders, impulse_joints, |sb, event| {
-            sb.tear_topology(edges, cells, event)
-        })
+        self.change_topology(
+            handle,
+            islands,
+            bodies,
+            colliders,
+            impulse_joints,
+            |sb, event| sb.tear_topology(edges, cells, event),
+        )
     }
 
     /// Applies a topology change to a soft body (`change` returns whether anything changed and
@@ -416,9 +421,14 @@ impl SoftBodySet {
         multibody_joints: &mut MultibodyJointSet,
     ) -> Option<SoftBodyTearEvent> {
         let _ = multibody_joints;
-        self.change_topology(handle, islands, bodies, colliders, impulse_joints, |sb, event| {
-            sb.cut_topology(blade, event)
-        })
+        self.change_topology(
+            handle,
+            islands,
+            bodies,
+            colliders,
+            impulse_joints,
+            |sb, event| sb.cut_topology(blade, event),
+        )
     }
 
     /// Refreshes every mesh's vertex cache from the particles, before a narrow-phase update
@@ -428,7 +438,9 @@ impl SoftBodySet {
         {
             use rayon::prelude::*;
             let mut bodies: Vec<&mut SoftBody> = self.bodies.iter_mut().map(|(_, sb)| sb).collect();
-            bodies.par_iter_mut().for_each(|sb| sb.refresh_vertex_caches());
+            bodies
+                .par_iter_mut()
+                .for_each(|sb| sb.refresh_vertex_caches());
         }
         #[cfg(not(feature = "parallel"))]
         for (_, sb) in self.bodies.iter_mut() {

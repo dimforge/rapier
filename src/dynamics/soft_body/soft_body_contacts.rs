@@ -1,6 +1,6 @@
 //! The contact records a soft body keeps between steps (edge, vertex, overlap and volume contacts) and their debug-render accessors.
-use crate::alloc_prelude::*;
 use super::{SoftBody, SoftCollisionMesh, SoftMeshRef};
+use crate::alloc_prelude::*;
 use crate::math::{AngVector, DIM, Pose, Real, Vector};
 
 /// An edge-vs-edge contact between two surface edges (segments in 2D, triangle edges in 3D):
@@ -196,7 +196,12 @@ mod test {
         let mut cells = Vec::new();
         for i in 0..3u32 {
             for j in 0..3u32 {
-                let (a, b, c, d) = (i * 4 + j, i * 4 + j + 1, (i + 1) * 4 + j, (i + 1) * 4 + j + 1);
+                let (a, b, c, d) = (
+                    i * 4 + j,
+                    i * 4 + j + 1,
+                    (i + 1) * 4 + j,
+                    (i + 1) * 4 + j + 1,
+                );
                 cells.push([a, b, c]);
                 cells.push([b, d, c]);
             }

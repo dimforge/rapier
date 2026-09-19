@@ -3,8 +3,8 @@
 use super::SoftFemSystem;
 use crate::alloc_prelude::*;
 use crate::dynamics::SoftFemParameters;
-use crate::math::Vector;
 use crate::dynamics::{SoftBodyBuilder, SoftBodyCellModel, SoftBodyMaterial};
+use crate::math::Vector;
 
 /// A response solves `A_step u = Jᵀ` (checked against the matrix), is zero at the pinned
 /// particles and has gain `J · u`; the dense and conjugate-gradient paths agree.
@@ -51,7 +51,10 @@ fn response_solves_the_step_matrix() {
         system.step_matrix.mul(&pool, &mut lhs);
         for (k, l) in lhs.iter().enumerate() {
             let rhs = if k == 1 { Vector::ONE } else { Vector::ZERO };
-            assert!((*l - rhs).length() < 1.0e-3 * (1.0 + rhs.length()), "row {k}: {l:?} vs {rhs:?}");
+            assert!(
+                (*l - rhs).length() < 1.0e-3 * (1.0 + rhs.length()),
+                "row {k}: {l:?} vs {rhs:?}"
+            );
         }
         assert!((gain - Vector::ONE.dot(pool[1])).abs() < 1.0e-6);
         results.push((gain, pool));
@@ -69,7 +72,10 @@ fn response_solves_the_step_matrix() {
         #[cfg(feature = "dim2")]
         let entries = [(1u32, Vector::new(0.3, -0.7)), (2u32, Vector::ONE * 0.5)];
         #[cfg(feature = "dim3")]
-        let entries = [(1u32, Vector::new(0.3, -0.7, 0.2)), (2u32, Vector::ONE * 0.5)];
+        let entries = [
+            (1u32, Vector::new(0.3, -0.7, 0.2)),
+            (2u32, Vector::ONE * 0.5),
+        ];
         let mut direct = vec![Vector::ZERO; n];
         let gain = system.response_into(entries.iter().copied(), &mut direct, &params);
         system.clear_columns();
@@ -92,7 +98,12 @@ fn response_solves_the_step_matrix() {
         );
     }
     let (dense, cg) = (&results[0], &results[1]);
-    assert!((dense.0 - cg.0).abs() < 1.0e-3 * dense.0, "gains {} vs {}", dense.0, cg.0);
+    assert!(
+        (dense.0 - cg.0).abs() < 1.0e-3 * dense.0,
+        "gains {} vs {}",
+        dense.0,
+        cg.0
+    );
     for (a, b) in dense.1.iter().zip(&cg.1) {
         assert!((*a - *b).length() < 1.0e-3 * (1.0 + a.length()));
     }

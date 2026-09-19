@@ -637,16 +637,16 @@ impl MultibodyIndex {
     /// Slot index of this multibody.
     #[getter]
     fn index(&self) -> u32 {
-        self.0 .0.into_raw_parts().0
+        self.0.0.into_raw_parts().0
     }
     /// Generation counter, incremented when a slot is reused.
     #[getter]
     fn generation(&self) -> u32 {
-        self.0 .0.into_raw_parts().1
+        self.0.0.into_raw_parts().1
     }
     /// Hash matching equality semantics.
     fn __hash__(&self) -> u64 {
-        let (i, g) = self.0 .0.into_raw_parts();
+        let (i, g) = self.0.0.into_raw_parts();
         ((i as u64) << 32) | (g as u64)
     }
     /// Equality and inequality comparisons; other operators raise.
@@ -661,7 +661,7 @@ impl MultibodyIndex {
     }
     /// Return a developer-readable representation.
     fn __repr__(&self) -> String {
-        let (i, g) = self.0 .0.into_raw_parts();
+        let (i, g) = self.0.0.into_raw_parts();
         format!("MultibodyIndex(index={}, generation={})", i, g)
     }
 }

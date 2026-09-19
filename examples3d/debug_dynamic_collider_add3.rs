@@ -78,15 +78,13 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
                 for handle in &extra_colliders {
                     viewer.remove_collider(*handle);
 
-                    world
-                        .colliders
-                        .remove(
-                            *handle,
-                            &mut world.islands,
-                            &mut world.bodies,
-                            &mut world.soft_bodies,
-                            true,
-                        );
+                    world.colliders.remove(
+                        *handle,
+                        &mut world.islands,
+                        &mut world.bodies,
+                        &mut world.soft_bodies,
+                        true,
+                    );
                 }
 
                 extra_colliders.clear();

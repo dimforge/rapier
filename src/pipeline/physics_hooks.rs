@@ -107,7 +107,7 @@ impl<'a> ContactModificationContext<'a> {
     pub fn soft(&self) -> Option<&SoftPairContacts> {
         match &self.contacts {
             ModifiableContacts::Rigid(_) => None,
-            ModifiableContacts::Soft(soft) => Some(&*soft),
+            ModifiableContacts::Soft(soft) => Some(soft),
         }
     }
 

@@ -4,9 +4,9 @@
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
-use super::{AssemblyCtx, BodyContacts};
 use super::super::soft_constraints_set::{SoftConstraintsSet, SoftOverlapConstraint};
 use super::super::soft_contact::SoftContact;
+use super::{AssemblyCtx, BodyContacts};
 use crate::dynamics::{IntegrationParameters, RigidBodySet, SoftBodySet, SpringCoefficients};
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::{Real, Vector};
@@ -134,7 +134,10 @@ impl SoftConstraintsSet {
             // The intersection-volume constraints of the group's bodies, with the contact softness.
             let ostart = self.overlap_constraints.len();
             for ai in self.groups[gi].awake.clone() {
-                let mesh_id = per_body[ai].meshes.get(per_body[ai].current_mesh).map(|m| m.id);
+                let mesh_id = per_body[ai]
+                    .meshes
+                    .get(per_body[ai].current_mesh)
+                    .map(|m| m.id);
                 for constraint in per_body[ai].overlap_constraints.drain(..) {
                     let gs = self.overlap_grads.len();
                     let n = constraint.grads.len();
@@ -166,7 +169,11 @@ impl SoftConstraintsSet {
                         impulse,
                         // A hard constraint's slack is speculative: consumed within the substep,
                         // never past it.
-                        speculative_inv_dt: if constraint.hard { 1.0 / group_dt(gi) } else { 0.0 },
+                        speculative_inv_dt: if constraint.hard {
+                            1.0 / group_dt(gi)
+                        } else {
+                            0.0
+                        },
                         rigid: constraint.rigid,
                         hard: constraint.hard,
                         fem_sides: 0..0,

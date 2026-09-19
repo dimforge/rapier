@@ -5,8 +5,8 @@ use core::ops::Range;
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
-use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::dynamics::soft_body::SoftMeshId;
+use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::geometry::ColliderHandle;
 use crate::math::{AngVector, DIM, Matrix, Real, Rotation, Vector};
 use crate::utils::ComponentMul;
@@ -140,6 +140,7 @@ pub(crate) struct SoftVolumeConstraint {
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct FemVolumeSide {
     pub start: u32,
+    #[cfg(feature = "fem")]
     pub gain: Real,
     pub u_max: Real,
 }

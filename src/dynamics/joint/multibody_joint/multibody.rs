@@ -1811,7 +1811,7 @@ mod test {
     use crate::math::{Real, SPATIAL_DIM};
     use crate::prelude::{
         ColliderSet, MultibodyJointHandle, MultibodyJointSet, RevoluteJoint, RigidBodyBuilder,
-        RigidBodySet, SoftBodySet
+        RigidBodySet, SoftBodySet,
     };
     use na::{DVector, RowDVector};
 

@@ -1,6 +1,6 @@
 //! Tearing-related helpers of a soft body: connected pieces, tear resistance and particle damage.
-use crate::alloc_prelude::*;
 use super::super::SoftBody;
+use crate::alloc_prelude::*;
 use crate::math::Real;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -82,7 +82,10 @@ impl SoftBody {
                     if !member(vertices[j]) {
                         continue;
                     }
-                    let (a, b) = (find(&mut parent, vertices[i]), find(&mut parent, vertices[j]));
+                    let (a, b) = (
+                        find(&mut parent, vertices[i]),
+                        find(&mut parent, vertices[j]),
+                    );
                     if a != b {
                         parent[a.max(b) as usize] = a.min(b);
                     }

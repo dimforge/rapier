@@ -187,7 +187,7 @@ impl SoftBodyBuilder {
     }
 
     /// Sets the simplex cells (triangles in 2D, tetrahedra in 3D). Structural edges along the
-    /// cell edges are added by [`Self::build`] if none were given.
+    /// cell edges are added at build time if none were given.
     pub fn cells(mut self, cells: Vec<[u32; DIM + 1]>) -> Self {
         self.cells = cells;
         self

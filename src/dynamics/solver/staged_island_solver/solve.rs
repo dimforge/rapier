@@ -446,7 +446,12 @@ unsafe fn solve_soft_constraints(
             let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
             let claimed_len = claimed.len();
             for constraint_id in claimed {
-                soft.solve_shape_constraint(constraint_id, solver_bodies, soft_update, soft_warmstart);
+                soft.solve_shape_constraint(
+                    constraint_id,
+                    solver_bodies,
+                    soft_update,
+                    soft_warmstart,
+                );
             }
             done += claimed_len;
         }
@@ -459,14 +464,22 @@ unsafe fn solve_soft_constraints(
             let soft = unsafe { &mut *ctx.soft_constraints };
             let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
             for constraint_id in sg.shape_constraints.clone() {
-                soft.solve_shape_constraint(constraint_id, solver_bodies, soft_update, soft_warmstart);
+                soft.solve_shape_constraint(
+                    constraint_id,
+                    solver_bodies,
+                    soft_update,
+                    soft_warmstart,
+                );
             }
             sync.complete(stage, 1, 1);
         }
         stage = sync.sync(stage, 1);
     }
 
-    if sg.serial.len() > 0 || !sg.volume_constraints.is_empty() || !sg.overlap_constraints.is_empty() {
+    if sg.serial.len() > 0
+        || !sg.volume_constraints.is_empty()
+        || !sg.overlap_constraints.is_empty()
+    {
         if worker_id == 0 {
             let soft = unsafe { &mut *ctx.soft_constraints };
             let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };

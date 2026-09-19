@@ -226,6 +226,7 @@ pub struct ContactPair {
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 #[repr(C, u8)]
+#[allow(clippy::large_enum_variant)] // Boxing would move the manifolds off the fixed layout.
 pub enum PairContacts {
     /// Contact manifolds: every pair but the pairs of two soft surfaces.
     Rigid(RigidPairContacts),
@@ -335,9 +336,9 @@ impl RigidPairContacts {
         self.soft = None;
     }
 
+    /// Is there any active contact among this side's solver manifolds?
     pub fn has_any_active_contact(&self) -> bool {
-        self
-            .solver_manifolds()
+        self.solver_manifolds()
             .iter()
             .any(|m| !m.data.solver_contacts.is_empty())
     }
@@ -503,13 +504,15 @@ impl ContactPair {
     /// solver actually sees (the solver clusters if any, else the plain manifolds).
     #[cfg_attr(feature = "parallel", allow(dead_code))] // Single-threaded solver path.
     pub(crate) fn solver_manifolds_mut(&mut self) -> &mut [ContactManifold] {
-        self.rigid_mut().map_or(&mut [], |r| r.solver_manifolds_mut())
+        self.rigid_mut()
+            .map_or(&mut [], |r| r.solver_manifolds_mut())
     }
 
     /// The pair's solver graph colour (`SOLVER_COLOR_UNCOLORED` for a pair of two soft
     /// surfaces, which the rigid solver never sees).
     pub(crate) fn solver_color(&self) -> u8 {
-        self.rigid().map_or(SOLVER_COLOR_UNCOLORED, |r| r.solver_color)
+        self.rigid()
+            .map_or(SOLVER_COLOR_UNCOLORED, |r| r.solver_color)
     }
 
     /// Is there any active contact in this contact pair?

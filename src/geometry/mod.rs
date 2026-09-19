@@ -23,9 +23,8 @@ pub(crate) use self::contact_pair::relative_pose_drift;
 #[cfg(feature = "alloc")]
 pub use self::contact_pair::{
     ContactData, ContactId, ContactManifoldData, ContactPair, IntersectionPair, NEW_CONTACT_BIT,
-    PairContacts, RigidPairContacts,
-    SimdSolverContact, SolverContact, SolverContactGeneric, SolverContacts, SolverFlags, is_bouncy,
-    is_bouncy_simd,
+    PairContacts, RigidPairContacts, SimdSolverContact, SolverContact, SolverContactGeneric,
+    SolverContacts, SolverFlags, is_bouncy, is_bouncy_simd,
 };
 #[cfg(feature = "alloc")]
 pub use self::interaction_graph::{
@@ -36,11 +35,11 @@ pub use self::interaction_groups::{Group, InteractionGroups, InteractionTestMode
 pub use self::mesh_converter::{MeshConverter, MeshConverterError};
 #[cfg(feature = "alloc")]
 pub use self::narrow_phase::NarrowPhase;
+pub(crate) use self::narrow_phase::soft_contacts;
 pub use self::narrow_phase::soft_contacts::{
     SoftContactImpulse, SoftEdgeCandidate, SoftEdgePass, SoftPairContacts, SoftVertexCandidate,
     SoftVertexHits, SoftVertexPass, SoftVolumePatch, VolumeBin,
 };
-pub(crate) use self::narrow_phase::soft_contacts;
 #[cfg(feature = "alloc")]
 pub use parry::utils::Array2;
 

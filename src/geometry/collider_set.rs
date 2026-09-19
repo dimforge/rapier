@@ -285,11 +285,15 @@ impl ColliderSet {
         // The shape's `ORIENTED` flag says whether the closed mesh encloses solid matter.
         #[cfg(feature = "dim2")]
         let oriented = coll.shape().as_polyline().is_some_and(|polyline| {
-            polyline.flags().contains(parry::shape::PolylineFlags::ORIENTED)
+            polyline
+                .flags()
+                .contains(parry::shape::PolylineFlags::ORIENTED)
         });
         #[cfg(feature = "dim3")]
         let oriented = coll.shape().as_trimesh().is_some_and(|trimesh| {
-            trimesh.flags().contains(parry::shape::TriMeshFlags::ORIENTED)
+            trimesh
+                .flags()
+                .contains(parry::shape::TriMeshFlags::ORIENTED)
         });
         mesh.oriented = oriented;
         coll.set_density(0.0);
@@ -576,7 +580,9 @@ fn mesh_geometry(
     #[cfg(feature = "dim2")]
     let (deformable, geometry) = {
         use parry::shape::PolylineFlags;
-        let polyline = shape.as_polyline().ok_or(SoftBindingError::UnsupportedShape)?;
+        let polyline = shape
+            .as_polyline()
+            .ok_or(SoftBindingError::UnsupportedShape)?;
         (
             polyline.flags().contains(PolylineFlags::DEFORMABLE),
             (polyline.vertices().to_vec(), polyline.indices().to_vec()),
@@ -585,7 +591,9 @@ fn mesh_geometry(
     #[cfg(feature = "dim3")]
     let (deformable, geometry) = {
         use parry::shape::TriMeshFlags;
-        let trimesh = shape.as_trimesh().ok_or(SoftBindingError::UnsupportedShape)?;
+        let trimesh = shape
+            .as_trimesh()
+            .ok_or(SoftBindingError::UnsupportedShape)?;
         (
             trimesh.flags().contains(TriMeshFlags::DEFORMABLE),
             (trimesh.vertices().to_vec(), trimesh.indices().to_vec()),

@@ -11,8 +11,10 @@ use parry::utils::hashmap::HashMap;
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
-use super::soft_contacts_classify::{classify_inside, classify_skin, classify_skin_rigid, ring_depths};
-use super::{Side, SoftDetectionCtx, SoftVertexPass, SoftRigidPatch, SoftVolumePatch, body_frozen};
+use super::soft_contacts_classify::{
+    classify_inside, classify_skin, classify_skin_rigid, ring_depths,
+};
+use super::{Side, SoftDetectionCtx, SoftRigidPatch, SoftVertexPass, SoftVolumePatch, body_frozen};
 
 /// The multi-volume grid's cells per tangent axis (see `overlap_multi_volume`).
 pub(super) fn volume_split(params: &IntegrationParameters) -> u32 {
@@ -202,7 +204,8 @@ pub(super) fn detect_rigid_patch(
     let bins = volume_bins(&own, None, volume_split(params));
     Some(SoftRigidPatch {
         bins,
-        depth: if recovery.overlap_patch_constraints != crate::dynamics::SoftPatchConstraints::Keep {
+        depth: if recovery.overlap_patch_constraints != crate::dynamics::SoftPatchConstraints::Keep
+        {
             depth
         } else {
             Vec::new()
@@ -408,7 +411,11 @@ fn side_entries(side: &VolumeSide, picked: &[usize]) -> Vec<(u32, Vector)> {
 /// Splits a pair's patches into the volume constraints: one bin (mono-volume), or `split` cells
 /// per tangent axis of a regular grid over the patches, aligned with the pair's mean normal
 /// (multi-volume). A cell missing one side joins the nearest two-sided cell; with none, one bin.
-pub(super) fn volume_bins(own: &VolumeSide, other: Option<&VolumeSide>, split: u32) -> Vec<VolumeBin> {
+pub(super) fn volume_bins(
+    own: &VolumeSide,
+    other: Option<&VolumeSide>,
+    split: u32,
+) -> Vec<VolumeBin> {
     let n_own = own.vertices.len();
     let n_other = other.map_or(0, |o| o.vertices.len());
     if n_own + n_other == 0 {
@@ -557,4 +564,3 @@ pub(super) fn volume_bins(own: &VolumeSide, other: Option<&VolumeSide>, split: u
         })
         .collect()
 }
-

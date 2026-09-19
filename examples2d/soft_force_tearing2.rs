@@ -2,9 +2,9 @@
 //! bars hanging a crate (the strain criterion never fires, the force one tears), a notched slab
 //! pulled apart with a tougher interior, and crate bars struck by a disk, one of them smoothed.
 
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::pipeline::DebugRenderMode;
 use rapier2d::prelude::*;
-use rapier_testbed2d::TestbedViewer;
 
 pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let settings = viewer.example_settings_mut();
@@ -114,7 +114,12 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     }
     let mut right_end: Vec<((SoftBodyHandle, u32), Vector)> = (0..sy)
         .flat_map(|j| [sidx(sx - 2, j), sidx(sx - 1, j)])
-        .map(|i| ((slab, i), world.soft_bodies[slab].particle_position(i as usize)))
+        .map(|i| {
+            (
+                (slab, i),
+                world.soft_bodies[slab].particle_position(i as usize),
+            )
+        })
         .collect();
 
     /*
@@ -196,11 +201,10 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
 /// particle's body and index follow the events.
 fn follow_tears(events: &[SoftBodyTearEvent], particle: &mut (SoftBodyHandle, u32)) {
     for event in events {
-        if event.soft_body == particle.0 {
-            if let Some(destination) = event.particle_destination(particle.1) {
-                *particle = destination;
-            }
+        if event.soft_body == particle.0
+            && let Some(destination) = event.particle_destination(particle.1)
+        {
+            *particle = destination;
         }
     }
 }
-

@@ -1,6 +1,8 @@
 //! Splitting clusters and soft bodies along the cracks a tear or a cut opened: a cluster comes
 //! apart with the material it covers, its meshes and joints following the pieces, and a piece the
 //! crack disconnected from the rest of the body becomes a soft body of its own.
+use super::soft_body_set_proxies::{clone_mesh_collider, spawn_proxy};
+use super::{SoftBodyIslandEvent, SoftBodySet};
 use crate::alloc_prelude::*;
 use crate::dynamics::soft_body::{
     SoftBody, SoftBodyCluster, SoftBodyHandle, SoftBodyPiece, SoftBodyTearEvent, SoftClusterSplit,
@@ -11,8 +13,6 @@ use crate::dynamics::{
 };
 use crate::geometry::{ColliderHandle, ColliderSet};
 use crate::math::{Pose, Real, Vector};
-use super::soft_body_set_proxies::{clone_mesh_collider, spawn_proxy};
-use super::{SoftBodyIslandEvent, SoftBodySet};
 
 /// The poses the proxies had before a split, by proxy (a fresh proxy records the pose of the
 /// proxy it was split from): what the joints and rigid colliders hung on them are re-based from
@@ -66,11 +66,7 @@ fn rest_centroid(sb: &SoftBody, particles: &[u32]) -> Vector {
         com += p.rest_position * p.mass;
         mass += p.mass;
     }
-    if mass > 0.0 {
-        com / mass
-    } else {
-        com
-    }
+    if mass > 0.0 { com / mass } else { com }
 }
 
 impl SoftBodySet {
@@ -138,7 +134,9 @@ impl SoftBodySet {
         let sb = &mut self.bodies[handle.0];
         let source = &sb.clusters[cluster as usize];
         let proxy = source.proxy;
-        let old_pose = bodies.get(proxy).map_or(Pose::IDENTITY, |rb| *rb.position());
+        let old_pose = bodies
+            .get(proxy)
+            .map_or(Pose::IDENTITY, |rb| *rb.position());
         poses.record(proxy, old_pose);
         let shape_matching = source.shape_matching;
         let rest_com = rest_centroid(sb, &source.particles);
@@ -148,8 +146,7 @@ impl SoftBodySet {
         let mut new_clusters: Vec<u32> = Vec::new();
         for piece in &pieces[1..] {
             let index = sb.clusters.len() as u32;
-            let new_proxy =
-                spawn_proxy(&sb.particle_settings, sb.user_data, handle, index, bodies);
+            let new_proxy = spawn_proxy(&sb.particle_settings, sb.user_data, handle, index, bodies);
             let mut c = SoftBodyCluster::new(piece.clone(), new_proxy, shape_matching);
             c.cell = sb.matching_cell(piece);
             sb.clusters.push(c);
@@ -161,7 +158,10 @@ impl SoftBodySet {
         {
             let c = &mut sb.clusters[cluster as usize];
             if c.shape_impulses.len() == c.particles.len() {
-                let mut keep = c.particles.iter().map(|v| pieces[0].binary_search(v).is_ok());
+                let mut keep = c
+                    .particles
+                    .iter()
+                    .map(|v| pieces[0].binary_search(v).is_ok());
                 c.shape_impulses.retain(|_| keep.next().unwrap());
             } else {
                 c.shape_impulses.clear();
@@ -435,7 +435,8 @@ impl SoftBodySet {
                 particles: kept_particles(&remap, num_particles),
                 clusters: moves.iter().map(|&(old, new)| [old, new]).collect(),
             });
-            self.island_events.push(SoftBodyIslandEvent { handle: new_handle });
+            self.island_events
+                .push(SoftBodyIslandEvent { handle: new_handle });
             new_handles.push(new_handle);
         }
 
@@ -539,8 +540,7 @@ pub(super) fn rebase_proxy_attachments(
             continue;
         };
         let new_pose = *rb.position();
-        if new_pose.translation == old_pose.translation && new_pose.rotation == old_pose.rotation
-        {
+        if new_pose.translation == old_pose.translation && new_pose.rotation == old_pose.rotation {
             continue;
         }
         let delta = new_pose.inverse() * old_pose;

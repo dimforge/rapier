@@ -59,7 +59,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let top_cluster = world
         .add_soft_body_cluster(wobbler, &top_edge)
         .expect("top-edge cluster");
-    let top_proxy = world.soft_bodies[wobbler].cluster_proxy(top_cluster).unwrap();
+    let top_proxy = world.soft_bodies[wobbler]
+        .cluster_proxy(top_cluster)
+        .unwrap();
     let top_pos = world.bodies[top_proxy].position().translation;
     let (plate, _) = world.insert(
         RigidBodyBuilder::dynamic().translation(top_pos + Vector::new(0.0, 0.12)),
@@ -99,7 +101,8 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         RigidBodyBuilder::fixed().translation(Vector::new(1.5, 1.0)),
         ColliderBuilder::cuboid(1.2, 1.0),
     );
-    let anchor_jelly = world.insert_soft_body(jelly(Vector::new(1.5, 2.6), Vector::splat(0.5), 1.2e4));
+    let anchor_jelly =
+        world.insert_soft_body(jelly(Vector::new(1.5, 2.6), Vector::splat(0.5), 1.2e4));
     let hanging_jelly =
         world.insert_soft_body(jelly(Vector::new(3.8, 2.6), Vector::splat(0.5), 1.2e4));
     world.insert_impulse_joint(
@@ -129,7 +132,11 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         RigidBodyBuilder::fixed().translation(pole_pos),
         ColliderBuilder::cuboid(0.05, 2.5).collision_groups(InteractionGroups::none()),
     );
-    let bead = world.insert_soft_body(jelly(pole_pos + Vector::new(0.0, 1.7), Vector::splat(0.35), 8.0e3));
+    let bead = world.insert_soft_body(jelly(
+        pole_pos + Vector::new(0.0, 1.7),
+        Vector::splat(0.35),
+        8.0e3,
+    ));
     let pole = world.insert_body(RigidBodyBuilder::fixed().translation(pole_pos));
     world.insert_impulse_joint(
         pole,
@@ -168,7 +175,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
         }
         (left, right)
     };
-    let left_cluster = world.add_soft_body_cluster(bar, &left_half).expect("left half");
+    let left_cluster = world
+        .add_soft_body_cluster(bar, &left_half)
+        .expect("left half");
     let right_cluster = world
         .add_soft_body_cluster(bar, &right_half)
         .expect("right half");

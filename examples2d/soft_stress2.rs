@@ -2,9 +2,9 @@
 //! `SoftBodyEdge::stress`, blue when slack, red at the tear threshold; nothing tears. Scenes: a
 //! bridge, a bar and a block, each under a crate, and a blob colored by its stretch instead.
 
+use rapier_testbed2d::TestbedViewer;
 use rapier2d::pipeline::DebugRenderMode;
 use rapier2d::prelude::*;
-use rapier_testbed2d::TestbedViewer;
 
 pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();

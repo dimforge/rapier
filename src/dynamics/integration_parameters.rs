@@ -119,7 +119,10 @@ impl<N: SimdRealField<Element = Real> + Copy> SpringCoefficients<N> {
             // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
             // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
             inv_erp_minus_one * inv_erp_minus_one
-                / ((one + inv_erp_minus_one) * N::splat(4.0) * self.damping_ratio * self.damping_ratio)
+                / ((one + inv_erp_minus_one)
+                    * N::splat(4.0)
+                    * self.damping_ratio
+                    * self.damping_ratio)
         };
         let undamped = {
             // Undamped version if the damping ratio is zero.
@@ -291,7 +294,7 @@ pub struct IntegrationParameters {
     /// into one "cluster" manifold before constraint generation (default: `true`, 3D only), so at
     /// most 4 contact points are solved per contact plane — a large solver win on composite shapes
     /// (meshes, heightfields, compounds, voxels) that emit one manifold per subshape. When clustering
-    /// applies, read solver contacts/impulses from [`crate::geometry::ContactPair::solver_clusters`],
+    /// applies, read solver contacts/impulses from [`crate::geometry::RigidPairContacts::solver_clusters`],
     /// not [`crate::geometry::ContactPair::manifolds`].
     pub contact_clustering: bool,
     /// If enabled, a contact pair whose relative pose moved less than [`Self::contact_recycle_distance`]

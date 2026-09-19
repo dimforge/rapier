@@ -10,12 +10,14 @@ mod soft_constraint_writeback;
 mod soft_constraints;
 mod soft_constraints_set;
 
-use super::{soft_attachment, soft_contact_assembly, soft_contact_chunks, soft_element_constraint_assembly};
+use super::{
+    soft_attachment, soft_contact_assembly, soft_contact_chunks, soft_element_constraint_assembly,
+};
 
+pub(crate) use self::soft_constraint_plasticity::*;
 #[cfg(feature = "fem")]
 pub(crate) use self::soft_constraint_prepare::soft_fem_amplification_cap;
-pub(crate) use self::soft_constraint_plasticity::*;
 pub(crate) use self::soft_constraint_rigid_coupling::*;
+use self::soft_constraint_writeback::*;
 pub(crate) use self::soft_constraints::*;
 pub(crate) use self::soft_constraints_set::*;
-use self::soft_constraint_writeback::*;

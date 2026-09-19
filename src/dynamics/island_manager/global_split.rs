@@ -204,7 +204,9 @@ impl PersistentIslands {
                 let new_id = self.alloc_island();
                 let island = &mut self.islands[new_id as usize];
                 island.sleeping = base_sleeping;
-                island.bodies.reserve(workspace.uf.size(root as u32) as usize);
+                island
+                    .bodies
+                    .reserve(workspace.uf.size(root as u32) as usize);
                 island
                     .contact_links
                     .reserve(workspace.contact_counts[root] as usize);

@@ -1,11 +1,13 @@
 //! The cluster paths of a `SoftBodySet`: adding, removing and dissolving clusters.
-use crate::alloc_prelude::*;
-use crate::dynamics::{ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodyHandle, RigidBodySet};
-use crate::geometry::ColliderSet;
-use crate::dynamics::soft_body::{SoftBodyCluster, SoftBodyHandle, SoftClusterRemoval};
-use crate::math::Rotation;
 use super::soft_body_set_proxies::spawn_proxy;
 use super::{SoftBodyIslandEvent, SoftBodySet};
+use crate::alloc_prelude::*;
+use crate::dynamics::soft_body::{SoftBodyCluster, SoftBodyHandle, SoftClusterRemoval};
+use crate::dynamics::{
+    ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodyHandle, RigidBodySet,
+};
+use crate::geometry::ColliderSet;
+use crate::math::Rotation;
 
 impl SoftBodySet {
     /// Adds a cluster to a soft body: a set of its particles (invalid indices ignored, duplicates

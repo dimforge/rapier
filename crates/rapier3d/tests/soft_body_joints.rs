@@ -85,7 +85,8 @@ fn rope_joint_limits_a_jelly_fall() {
     let mut world = PhysicsWorld::new();
     let h = jelly_at(&mut world, Vector::new(0.0, 0.0, 0.0));
     let root = world.soft_bodies[h].root_body();
-    let anchor = world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(0.0, 2.0, 0.0)));
+    let anchor =
+        world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(0.0, 2.0, 0.0)));
     let joint = RopeJointBuilder::new(3.0)
         .local_anchor1(Vector::ZERO)
         .local_anchor2(Vector::ZERO);
@@ -299,10 +300,7 @@ fn soft_cluster_jointed_to_a_multibody() {
     }
     // The jelly hangs from the arm instead of free-falling.
     let com = world.soft_bodies[h].center_of_mass();
-    assert!(
-        com.y > 0.5,
-        "the jelly fell as if unjointed (com {com:?})"
-    );
+    assert!(com.y > 0.5, "the jelly fell as if unjointed (com {com:?})");
     assert!(com.is_finite());
 }
 
@@ -327,7 +325,8 @@ fn joint_on_a_fem_body_holds() {
             .surface_collider(ColliderBuilder::ball(0.05)),
     );
     let root = world.soft_bodies[h].root_body();
-    let anchor = world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(0.0, 2.0, 0.0)));
+    let anchor =
+        world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(0.0, 2.0, 0.0)));
     let joint = RopeJointBuilder::new(3.0)
         .local_anchor1(Vector::ZERO)
         .local_anchor2(Vector::ZERO);
@@ -360,7 +359,10 @@ fn quarantine_contains_a_nan_on_a_jointed_cluster() {
     for _ in 0..10 {
         world.step();
     }
-    assert!(!world.soft_bodies[h].is_enabled(), "the NaN body must be quarantined");
+    assert!(
+        !world.soft_bodies[h].is_enabled(),
+        "the NaN body must be quarantined"
+    );
     assert!(world.bodies[partner].position().translation.is_finite());
 }
 

@@ -38,7 +38,7 @@ pub(crate) fn assign_colors(
     for d in dihedrals.iter_mut() {
         d.color = colors.next().unwrap();
     }
-    
+
     (num_colors, has_overflow)
 }
 

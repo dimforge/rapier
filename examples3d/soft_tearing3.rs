@@ -2,11 +2,11 @@
 //! shot through by a ball, and a jelly bar pulled apart by its kinematic ends. Cloth springs are
 //! stiff (100 Hz) so only impacts pass the 0.4 tear strain; the panel sets `min_piece`.
 
-use rapier3d::prelude::*;
 use rapier_testbed3d::{
     TestbedViewer,
     egui::{Align2, Slider, Window},
 };
+use rapier3d::prelude::*;
 
 pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
@@ -177,11 +177,10 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
 /// particle's body and index follow the events.
 fn follow_tears(events: &[SoftBodyTearEvent], particle: &mut (SoftBodyHandle, u32)) {
     for event in events {
-        if event.soft_body == particle.0 {
-            if let Some(destination) = event.particle_destination(particle.1) {
-                *particle = destination;
-            }
+        if event.soft_body == particle.0
+            && let Some(destination) = event.particle_destination(particle.1)
+        {
+            *particle = destination;
         }
     }
 }
-

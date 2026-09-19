@@ -8,11 +8,13 @@ use crate::dynamics::solver::categorization::categorize_joints;
 use crate::dynamics::solver::contact_constraint::joint_num_constraints;
 use crate::dynamics::solver::joint_constraint::JointConstraintBuilder;
 use crate::dynamics::solver::joint_constraint::JointConstraintBuilderSimd;
+use crate::dynamics::solver::joint_constraint::{
+    joint_uses_angular_axes, soft_frame_angular_degenerate,
+};
 use crate::dynamics::solver::reset_buffer;
 use crate::dynamics::{
     JointGraphEdge, JointIndex, MultibodyJointSet, RigidBodyHandle, RigidBodySet,
 };
-use crate::dynamics::solver::joint_constraint::{joint_uses_angular_axes, soft_frame_angular_degenerate};
 use parry::math::SIMD_WIDTH;
 
 use super::{GroupJointRanges, JOINT_BATCH, LAYOUT_REF_WORKERS, StagedIslandSolver};
@@ -187,10 +189,9 @@ impl StagedIslandSolver {
                             let joint = &impulse_joints[*joint_i].weight;
 
                             // No SIMD for joints whose angular part may be masked out; rare enough.
-                            let ang_maskable = joint_uses_angular_axes(
-                                &joint.data,
-                            ) && (soft_frame_angular_degenerate(&bodies[joint.body1])
-                                || soft_frame_angular_degenerate(&bodies[joint.body2]));
+                            let ang_maskable = joint_uses_angular_axes(&joint.data)
+                                && (soft_frame_angular_degenerate(&bodies[joint.body1])
+                                    || soft_frame_angular_degenerate(&bodies[joint.body2]));
                             if joint.data.supports_simd_constraints() && !ang_maskable {
                                 self.joint_sig_workspace
                                     .push((joint.data.simd_row_signature(), *joint_i));
@@ -366,11 +367,10 @@ impl StagedIslandSolver {
                 for joint_i in color {
                     let joint = &impulse_joints[*joint_i].weight;
                     // No SIMD for joints whose angular part may be masked out; rare enough.
-                    let ang_maskable = joint_uses_angular_axes(
-                                &joint.data,
-                            ) && (soft_frame_angular_degenerate(&bodies[joint.body1])
-                                || soft_frame_angular_degenerate(&bodies[joint.body2]));
-                            if joint.data.supports_simd_constraints() && !ang_maskable {
+                    let ang_maskable = joint_uses_angular_axes(&joint.data)
+                        && (soft_frame_angular_degenerate(&bodies[joint.body1])
+                            || soft_frame_angular_degenerate(&bodies[joint.body2]));
+                    if joint.data.supports_simd_constraints() && !ang_maskable {
                         self.joint_sig_workspace
                             .push((joint.data.simd_row_signature(), *joint_i));
                     } else {

@@ -1,8 +1,8 @@
 //! The step matrix: its factorization at the step start, and the response and column solves the constraints go through.
 
+use super::super::soft_fem_skyline::SkylineCholesky;
 use super::SoftFemSystem;
 use crate::dynamics::SoftFemParameters;
-use super::super::soft_fem_skyline::SkylineCholesky;
 use crate::math::{DIM, Matrix, Real, Vector};
 
 impl SoftFemSystem {

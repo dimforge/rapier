@@ -9,9 +9,9 @@ use simba::scalar::{ComplexField as _, RealField as _};
 use crate::dynamics::solver::solver_body::SolverBodies;
 use crate::math::{DIM, Real, Vector};
 
+use super::super::soft_element_constraint::SoftScalarConstraintWriteback;
 #[cfg(feature = "dim3")]
 use super::super::soft_element_constraint::dihedral_gradients;
-use super::super::soft_element_constraint::SoftScalarConstraintWriteback;
 use super::*;
 
 impl SoftConstraintsSet {
@@ -87,8 +87,8 @@ impl SoftConstraintsSet {
                     1.0
                 };
                 let cell = &mut sb.cells[constraint.element as usize];
-                let impulses =
-                    (constraint.strain_impulse.iter()).chain(core::iter::once(&constraint.vol_impulse));
+                let impulses = (constraint.strain_impulse.iter())
+                    .chain(core::iter::once(&constraint.vol_impulse));
                 for (dst, src) in cell.impulses.iter_mut().zip(impulses) {
                     *dst = crate::utils::canonicalize_zero(*src);
                 }

@@ -6,14 +6,14 @@ use simba::scalar::{ComplexField as _, RealField as _};
 
 use crate::alloc_prelude::*;
 
-use super::soft_contact_assembly_volume_constraints::{emit_volume_bins, mirrored_bins};
-use super::{AssemblyCtx, BodyContacts, SOURCE_VERTEX_CONTACT, mesh_of, mesh_ref};
 use super::super::soft_constraints_set::SoftConstraintsSet;
 use super::super::soft_contact::CONTACT_ANCHORS;
 use super::super::soft_contact::{SoftContact, SoftContactElement, SoftContactSource};
+use super::soft_contact_assembly_volume_constraints::{emit_volume_bins, mirrored_bins};
+use super::{AssemblyCtx, BodyContacts, SOURCE_VERTEX_CONTACT, mesh_of, mesh_ref};
+use crate::dynamics::SoftBody;
 use crate::dynamics::soft_body::SoftPatchConstraints;
 use crate::dynamics::soft_body::{SoftCollisionMesh, SoftVertexContact};
-use crate::dynamics::SoftBody;
 use crate::geometry::soft_contacts::{SoftVertexPass, SoftVolumePatch, VolumeBin, element_plane};
 use crate::geometry::{Collider, ColliderHandle};
 use crate::math::{DIM, Real, Vector};
@@ -97,9 +97,27 @@ impl SoftConstraintsSet {
         };
         // The vertex side and the element side.
         let (vb, vb_mesh, vb_slots, vb_co, eb, eb_mesh, eb_slots, eb_co) = if flipped {
-            (sb, mesh, Some(own_slots), surface_co, other, other_mesh, other_slots, other_co)
+            (
+                sb,
+                mesh,
+                Some(own_slots),
+                surface_co,
+                other,
+                other_mesh,
+                other_slots,
+                other_co,
+            )
         } else {
-            (other, other_mesh, other_slots, other_co, sb, mesh, Some(own_slots), surface_co)
+            (
+                other,
+                other_mesh,
+                other_slots,
+                other_co,
+                sb,
+                mesh,
+                Some(own_slots),
+                surface_co,
+            )
         };
         // Crossings between the two surfaces (see `soft_contacts`): the pair's keep-apart
         // constraints are wrong-sided there and would freeze the crossing (or push material through
@@ -292,7 +310,11 @@ impl SoftConstraintsSet {
                 // and drops when the neighborhood straddles the element.
                 let flagged = if is_self {
                     out.tangled_vertices.get(v).copied().unwrap_or(false)
-                        || out.tangled_elements.get(c.element as usize).copied().unwrap_or(false)
+                        || out
+                            .tangled_elements
+                            .get(c.element as usize)
+                            .copied()
+                            .unwrap_or(false)
                 } else {
                     out.cross_tangled_vertices.get(v).copied().unwrap_or(false)
                         || out

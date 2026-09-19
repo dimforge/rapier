@@ -6,10 +6,10 @@ use simba::scalar::{ComplexField as _, RealField as _};
 
 use crate::alloc_prelude::*;
 
-use super::soft_contact_assembly_workspace::SOURCE_RIGID_VERTEX;
-use super::{SOURCE_EDGE_CONTACT, SOURCE_VERTEX_CONTACT};
 use super::super::soft_constraints_set::SoftConstraintsSet;
 use super::super::soft_contact::SoftContact;
+use super::soft_contact_assembly_workspace::SOURCE_RIGID_VERTEX;
+use super::{SOURCE_EDGE_CONTACT, SOURCE_VERTEX_CONTACT};
 use crate::dynamics::soft_body::SoftOverlapWarm;
 use crate::geometry::NarrowPhase;
 use crate::math::{AngVector, DIM, Vector};
@@ -18,9 +18,8 @@ use crate::math::{AngVector, DIM, Vector};
 /// before its pair's constraints report; a point split into endpoint constraints sums them):
 /// the step's total for the events, the last substep's for the warm start.
 fn report_impulses(data: &mut crate::geometry::ContactData, c: &SoftContact) {
-    data.impulse = crate::utils::canonicalize_zero(
-        data.impulse + c.impulse_normal_acc + c.impulse_normal,
-    );
+    data.impulse =
+        crate::utils::canonicalize_zero(data.impulse + c.impulse_normal_acc + c.impulse_normal);
     data.warmstart_impulse =
         crate::utils::canonicalize_zero(data.warmstart_impulse + c.impulse_normal);
     #[cfg(feature = "dim2")]

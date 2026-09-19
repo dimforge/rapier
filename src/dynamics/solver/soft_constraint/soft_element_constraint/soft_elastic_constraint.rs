@@ -1,5 +1,6 @@
 //! The elastic-cell block constraint: strain blocks, their inverse, the per-substep update, warm start and the corotational and Neo-Hookean solves.
 
+use super::*;
 use crate::dynamics::SoftBody;
 use crate::dynamics::soft_body::soft_body_shape_matching::extract_rotation;
 use crate::dynamics::solver::solver_body::SolverBodies;
@@ -8,7 +9,6 @@ use crate::utils::{DotProduct, RotationOps};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
-use super::*;
 
 /// Number of strain rows of an elastic cell: the independent components of the symmetric
 /// strain tensor.
@@ -219,6 +219,7 @@ impl SoftElasticConstraint {
 
     /// Gradient of strain row `r` w.r.t. particle `p`'s velocity, in the cell frame:
     /// `½ (coeffs[p][b] e_a + coeffs[p][a] e_b)`.
+    #[cfg(any(feature = "fem", test))]
     #[inline]
     pub(crate) fn strain_gradient(
         coeffs: &[Vector; MAX_CONSTRAINT_PARTICLES],
@@ -270,7 +271,9 @@ impl SoftElasticConstraint {
                 a[(r, r)] = 1.0;
             }
         }
-        let mut inv = a.cholesky().map_or_else(StrainMatrix::zeros, |chol| chol.inverse());
+        let mut inv = a
+            .cholesky()
+            .map_or_else(StrainMatrix::zeros, |chol| chol.inverse());
         for (r, inert) in inert.iter().enumerate() {
             if *inert {
                 inv.row_mut(r).fill(0.0);

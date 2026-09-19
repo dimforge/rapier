@@ -43,9 +43,9 @@ impl SoftCollisionMesh {
     /// mesh in 2D), `DIM` for a surface.
     #[inline]
     pub fn arity(&self) -> usize {
-        self.indices.first().map_or(DIM, |e| {
-            super::soft_body_builder::element_vertices(e).len()
-        })
+        self.indices
+            .first()
+            .map_or(DIM, |e| super::soft_body_builder::element_vertices(e).len())
     }
 
     /// Whether this mesh is a wire (segments in 3D): a curve, with no inside and no facets.
@@ -121,11 +121,15 @@ impl SoftCollisionMesh {
         };
         #[cfg(feature = "dim2")]
         let oriented = co.shape().as_polyline().is_some_and(|polyline| {
-            polyline.flags().contains(parry::shape::PolylineFlags::ORIENTED)
+            polyline
+                .flags()
+                .contains(parry::shape::PolylineFlags::ORIENTED)
         });
         #[cfg(feature = "dim3")]
         let oriented = co.shape().as_trimesh().is_some_and(|trimesh| {
-            trimesh.flags().contains(parry::shape::TriMeshFlags::ORIENTED)
+            trimesh
+                .flags()
+                .contains(parry::shape::TriMeshFlags::ORIENTED)
         });
         self.oriented = oriented;
     }
@@ -160,9 +164,7 @@ impl SoftCollisionMesh {
     /// The world position of the `i`-th vertex.
     pub fn vertex(&self, body: &SoftBody, i: usize) -> Vector {
         match &self.binding {
-            SoftMeshMapping::Direct { particles } => {
-                body.particles[particles[i] as usize].position
-            }
+            SoftMeshMapping::Direct { particles } => body.particles[particles[i] as usize].position,
             SoftMeshMapping::Skinned { .. } => self.vertices[i],
         }
     }
@@ -192,9 +194,7 @@ impl SoftCollisionMesh {
     /// The world velocity of the `i`-th vertex: a skinned vertex moves with the cell holding it.
     pub fn vertex_velocity(&self, body: &SoftBody, i: usize) -> Vector {
         match &self.binding {
-            SoftMeshMapping::Direct { particles } => {
-                body.particles[particles[i] as usize].velocity
-            }
+            SoftMeshMapping::Direct { particles } => body.particles[particles[i] as usize].velocity,
             SoftMeshMapping::Skinned { bindings } => {
                 let binding = &bindings[i];
                 let Some(cell) = body.cells.get(binding.cell as usize) else {
@@ -223,11 +223,7 @@ impl SoftCollisionMesh {
     /// The particles a contact at the `i`-th vertex acts through, and their weights: the
     /// vertex's own particle for a direct mesh, the particles of the cell holding it for a
     /// skinned one.
-    pub fn vertex_anchors(
-        &self,
-        body: &SoftBody,
-        i: usize,
-    ) -> ([u32; DIM + 1], [Real; DIM + 1]) {
+    pub fn vertex_anchors(&self, body: &SoftBody, i: usize) -> ([u32; DIM + 1], [Real; DIM + 1]) {
         match &self.binding {
             SoftMeshMapping::Direct { particles } => {
                 let mut ids = [u32::MAX; DIM + 1];

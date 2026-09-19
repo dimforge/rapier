@@ -4,8 +4,8 @@
 #[allow(unused_imports)]
 use simba::scalar::{ComplexField as _, RealField as _};
 
-use crate::dynamics::solver::solver_body::{SolverBodies, SolverPose, SolverVel};
 use crate::dynamics::SoftBody;
+use crate::dynamics::solver::solver_body::{SolverBodies, SolverPose, SolverVel};
 use crate::math::{AngVector, Matrix, Real, Vector};
 use crate::utils::{AngularInertiaOps, CrossProduct};
 
@@ -109,10 +109,11 @@ impl SoftConstraintsSet {
                         let p = &sb.particles[v as usize];
                         a += outer((pos(v as usize) - com) * p.mass, p.rest_position - rest_com);
                     }
-                    let rot = crate::dynamics::soft_body::soft_body_shape_matching::extract_rotation(
-                        a,
-                        awake_cluster.rotation,
-                    );
+                    let rot =
+                        crate::dynamics::soft_body::soft_body_shape_matching::extract_rotation(
+                            a,
+                            awake_cluster.rotation,
+                        );
                     let mut dyn_mass = 0.0;
                     let mut dyn_com = Vector::ZERO;
                     for &v in cluster.particles() {
@@ -232,7 +233,10 @@ impl SoftConstraintsSet {
                     .map(|&i| (i, grads[i as usize]));
                 side.gain = system.response_into(entries, out, &fem.params);
                 side.u_max = out.iter().map(|u| u.length()).fold(0.0, Real::max);
-                w = if out.iter().any(|u| u.length() > super::soft_fem_amplification_cap() * side.gain) {
+                w = if out
+                    .iter()
+                    .any(|u| u.length() > super::soft_fem_amplification_cap() * side.gain)
+                {
                     // Ill-conditioned (see `MAX_RESPONSE_AMPLIFICATION`): under-relax with the
                     // lumped gain, the response still spreads the impulse consistently.
                     w
@@ -398,6 +402,7 @@ fn rigid_fit_velocity(
 
 /// The response amplification past which a FEM constraint falls back to its lumped gain (see
 /// `soft_fem::MAX_RESPONSE_AMPLIFICATION`); the constraint path never asks (no FEM body).
+#[cfg(feature = "fem")]
 #[inline]
 pub(crate) fn soft_fem_amplification_cap() -> crate::math::Real {
     #[cfg(feature = "fem")]

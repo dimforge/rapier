@@ -1,11 +1,14 @@
 //! Insertion and removal of the soft bodies of a `SoftBodySet`.
-use crate::alloc_prelude::*;
-use crate::dynamics::{ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodyHandle, RigidBodySet, SoftBodyBuilder};
-use crate::geometry::ColliderSet;
-use crate::dynamics::soft_body::{SoftBody, SoftBodyCluster, SoftBodyHandle, SoftMeshId};
-use crate::math::{Pose, Rotation};
 use super::soft_body_set_proxies::{spawn_mesh_collider, spawn_proxy};
 use super::{SoftBodyIslandEvent, SoftBodySet};
+use crate::alloc_prelude::*;
+use crate::dynamics::soft_body::{SoftBody, SoftBodyCluster, SoftBodyHandle, SoftMeshId};
+use crate::dynamics::{
+    ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodyHandle, RigidBodySet,
+    SoftBodyBuilder,
+};
+use crate::geometry::ColliderSet;
+use crate::math::{Pose, Rotation};
 
 impl SoftBodySet {
     /// Inserts a soft body, creating its root rigid body and its colliders from the collider
@@ -67,8 +70,13 @@ impl SoftBodySet {
             user_data: 0,
         }));
 
-        soft_body.root_body =
-            spawn_proxy(&soft_body.particle_settings, soft_body.user_data, handle, 0, bodies);
+        soft_body.root_body = spawn_proxy(
+            &soft_body.particle_settings,
+            soft_body.user_data,
+            handle,
+            0,
+            bodies,
+        );
         let meshes = soft_body_builder.build_meshes(&soft_body);
         soft_body.clusters = alloc::vec![SoftBodyCluster {
             particles: (0..soft_body.particles.len() as u32).collect(),
@@ -106,7 +114,13 @@ impl SoftBodySet {
                         continue;
                     }
                     let Some(co_handle) = spawn_mesh_collider(
-                        template, handle, mesh, &soft_body, cluster.proxy, &frame, bodies,
+                        template,
+                        handle,
+                        mesh,
+                        &soft_body,
+                        cluster.proxy,
+                        &frame,
+                        bodies,
                         colliders,
                     ) else {
                         // No shape to build (no element): the mesh collides through nothing,

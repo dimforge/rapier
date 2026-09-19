@@ -7,9 +7,9 @@ use crate::math::{DIM, Real, Vector};
 use parry::utils::hashmap::HashMap;
 
 use super::super::SoftBody;
+use super::tearing::pair;
 use super::tearing_event::SoftBodyTearEvent;
 use super::tearing_particle_split::{Fan, MeasureKind, SplitLog};
-use super::tearing::pair;
 
 /// The mean load of the fan elements on the given side of the split plane.
 fn side_load(fan: &Fan, side: usize, load: impl Fn(u32) -> Real) -> Real {
@@ -18,7 +18,9 @@ fn side_load(fan: &Fan, side: usize, load: impl Fn(u32) -> Real) -> Real {
         .iter()
         .zip(&fan.sides)
         .filter(|(_, s)| **s == side)
-        .fold((0.0, 0usize), |(sum, count), (&e, _)| (sum + load(e), count + 1));
+        .fold((0.0, 0usize), |(sum, count), (&e, _)| {
+            (sum + load(e), count + 1)
+        });
     sum / count.max(1) as Real
 }
 
@@ -139,7 +141,11 @@ impl SoftBody {
             load
         };
         match kind {
-            MeasureKind::Cells => self.cells.iter().map(|c| load(c.stress, &c.vertices)).collect(),
+            MeasureKind::Cells => self
+                .cells
+                .iter()
+                .map(|c| load(c.stress, &c.vertices))
+                .collect(),
             MeasureKind::Triangles => self.boundary.iter().map(|t| load(0.0, t)).collect(),
             MeasureKind::Segments => Vec::new(),
         }
@@ -168,7 +174,11 @@ impl SoftBody {
         }
         for &x in &fa {
             for &y in &fb {
-                if self.edges.iter().any(|e| e.vertices == [x, y] || e.vertices == [y, x]) {
+                if self
+                    .edges
+                    .iter()
+                    .any(|e| e.vertices == [x, y] || e.vertices == [y, x])
+                {
                     return Some((x, y));
                 }
             }

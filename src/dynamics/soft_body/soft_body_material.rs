@@ -1,6 +1,6 @@
 //! The `SoftBodyMaterial`: per-family stiffness, damping, plasticity and tearing parameters.
-use crate::dynamics::soft_body::SoftEdgePlasticFlow;
 use crate::dynamics::SpringCoefficients;
+use crate::dynamics::soft_body::SoftEdgePlasticFlow;
 use crate::math::Real;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]

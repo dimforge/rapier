@@ -6,11 +6,11 @@ use crate::math::DIM;
 use alloc::format;
 use parry::utils::hashmap::HashMap;
 
-#[cfg(feature = "dim3")]
-use super::tearing::pair;
+use super::super::SoftBody;
 use super::super::soft_body::SOFT_BODY_OVERFLOW_COLOR;
 use super::super::soft_body_builder::element_vertices;
-use super::super::SoftBody;
+#[cfg(feature = "dim3")]
+use super::tearing::pair;
 
 impl SoftBody {
     /// Checks the topology and its derived tables (element indices, every particle in a measure
@@ -61,7 +61,10 @@ impl SoftBody {
             let nv = mesh.vertex_count();
             if let super::collision_mesh::SoftMeshMapping::Skinned { bindings } = mesh.binding() {
                 if bindings.len() != nv {
-                    return Err(format!("mesh {mi} has {} bindings for {nv} vertices", bindings.len()));
+                    return Err(format!(
+                        "mesh {mi} has {} bindings for {nv} vertices",
+                        bindings.len()
+                    ));
                 }
                 // A body left without any cell has nothing to bind to.
                 let dead = |b: &super::collision_mesh::SoftMeshCellBinding| {
@@ -94,7 +97,9 @@ impl SoftBody {
                         mesh.vertex_elements_offsets[v as usize + 1] as usize,
                     );
                     if !mesh.vertex_elements[start..end].contains(&(i as u32)) {
-                        return Err(format!("mesh {mi} element {i} missing from vertex {v}'s list"));
+                        return Err(format!(
+                            "mesh {mi} element {i} missing from vertex {v}'s list"
+                        ));
                     }
                     let (start, end) = (
                         mesh.ring_offsets[v as usize] as usize,
@@ -115,7 +120,9 @@ impl SoftBody {
                         .get(e as usize)
                         .is_some_and(|s| s.contains(&(v as u32)));
                     if !ok {
-                        return Err(format!("mesh {mi}: vertex {v} lists element {e} it is not in"));
+                        return Err(format!(
+                            "mesh {mi}: vertex {v} lists element {e} it is not in"
+                        ));
                     }
                 }
             }

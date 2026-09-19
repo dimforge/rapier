@@ -6,13 +6,13 @@ use simba::scalar::{ComplexField as _, RealField as _};
 
 use crate::alloc_prelude::*;
 
-use super::soft_contact_assembly_workspace::SOURCE_RIGID_VERTEX;
-use super::{AssemblyCtx, BodyContacts, mesh_ref};
 use super::super::soft_constraints_set::{SoftConstraintsSet, barycentric_weights};
 use super::super::soft_contact::CONTACT_ANCHORS;
 use super::super::soft_contact::{SoftContact, SoftContactSource};
-use crate::dynamics::soft_body::SoftPatchConstraints;
+use super::soft_contact_assembly_workspace::{RigidPatch, SOURCE_RIGID_VERTEX};
+use super::{AssemblyCtx, BodyContacts, mesh_ref};
 use crate::dynamics::SoftBodyHandle;
+use crate::dynamics::soft_body::SoftPatchConstraints;
 use crate::geometry::ColliderHandle;
 use crate::geometry::soft_contacts::SoftEdgePass;
 use crate::math::{DIM, Real, Vector};
@@ -22,7 +22,12 @@ impl SoftConstraintsSet {
     /// The contact constraints of awake body `ai`: its surface's narrow-phase pairs, then the
     /// vertex-vs-surface and edge-vs-edge constraints against the other soft surfaces met and against
     /// itself (self contacts).
-    pub(super) fn assemble_body_contacts(&self, ai: usize, ctx: &AssemblyCtx, out: &mut BodyContacts) {
+    pub(super) fn assemble_body_contacts(
+        &self,
+        ai: usize,
+        ctx: &AssemblyCtx,
+        out: &mut BodyContacts,
+    ) {
         use crate::geometry::contact_pair::NEW_CONTACT_BIT;
         let AssemblyCtx {
             island_id,
@@ -101,7 +106,8 @@ impl SoftConstraintsSet {
                             if same_cluster
                                 || !mesh.self_contacts_enabled()
                                 || !other_mesh.self_contacts_enabled()
-                                || !sb.clusters_are_disjoint(mesh.id().cluster, other_ref.id.cluster)
+                                || !sb
+                                    .clusters_are_disjoint(mesh.id().cluster, other_ref.id.cluster)
                             {
                                 continue;
                             }
@@ -122,7 +128,11 @@ impl SoftConstraintsSet {
                         let flips: &[bool] = if both { &[false, true] } else { &[false] };
                         for &flipped in flips {
                             // The vertex pass whose surface side this pass assembles.
-                            let surface = if flipped { other_handle } else { surface_handle };
+                            let surface = if flipped {
+                                other_handle
+                            } else {
+                                surface_handle
+                            };
                             let Some(vertex_pass) = detected.vertex_pass_on(surface) else {
                                 continue;
                             };
@@ -176,8 +186,7 @@ impl SoftConstraintsSet {
                     // The other side's solver body (its contact point is tracked in that body's
                     // CoM frame), if it is simulated in this island: a rigid body, or the
                     // particle's solver body (its frame is at the particle).
-                    let (other_slot, other_com_pose) = match other_rb
-                    {
+                    let (other_slot, other_com_pose) = match other_rb {
                         Some(rb)
                             if rb.ids.active_island_id == island_id as u32
                                 && !rb.is_sleeping()
@@ -268,21 +277,19 @@ impl SoftConstraintsSet {
                     // Normal approach speed of the other body (rigid ones only: soft particles
                     // count through their own body's speeds) toward the element's point.
                     let rigid_other = other_rb.filter(|rb| rb.soft_body().is_none());
-                    let approach_speed = |element: &[u32],
-                                          weights: &[Real; DIM],
-                                          anchor: Vector,
-                                          dir: Vector| {
-                        let Some(rb) = rigid_other else {
-                            return 0.0;
+                    let approach_speed =
+                        |element: &[u32], weights: &[Real; DIM], anchor: Vector, dir: Vector| {
+                            let Some(rb) = rigid_other else {
+                                return 0.0;
+                            };
+                            let v_other =
+                                rb.linvel() + rb.angvel().gcross(anchor - rb.center_of_mass());
+                            let mut v_surface = Vector::ZERO;
+                            for (k, v) in element.iter().enumerate() {
+                                v_surface += mesh.vertex_velocity(sb, *v as usize) * weights[k];
+                            }
+                            (v_other - v_surface).gdot(dir).max(0.0)
                         };
-                        let v_other =
-                            rb.linvel() + rb.angvel().gcross(anchor - rb.center_of_mass());
-                        let mut v_surface = Vector::ZERO;
-                        for (k, v) in element.iter().enumerate() {
-                            v_surface += mesh.vertex_velocity(sb, *v as usize) * weights[k];
-                        }
-                        (v_other - v_surface).gdot(dir).max(0.0)
-                    };
 
                     // A solid surface's reversed interior contacts (an intruder seen from inside,
                     // a fold's far layer) are dropped: the volume constraints and the elasticity
@@ -300,27 +307,31 @@ impl SoftConstraintsSet {
 
                     // The features a volume constraint acts on (see `overlap_patch_constraints`).
                     let patch_policy = params.soft_bodies.recovery.overlap_patch_constraints;
-                    let rigid_patch: Option<(Vec<Real>, Vec<(Vector, Vector)>)> =
-                        (patch_policy != SoftPatchConstraints::Keep)
-                            .then(|| {
-                                out.rigid_patches
-                                    .iter()
-                                    .find(|p| p.0 == other_handle)
-                                    .map(|p| (p.1.clone(), p.2.clone()))
-                            })
-                            .flatten();
+                    let rigid_patch: Option<RigidPatch> = (patch_policy
+                        != SoftPatchConstraints::Keep)
+                        .then(|| {
+                            out.rigid_patches
+                                .iter()
+                                .find(|p| p.0 == other_handle)
+                                .map(|p| p.1.clone())
+                        })
+                        .flatten();
                     for (mi, manifold) in pair.manifolds().iter().enumerate() {
                         let Some((element_id, element)) = manifold_element(manifold) else {
                             continue;
                         };
                         if let Some(p) = self_particle {
-                            if mesh.self_contact_excluded(sb, p, element, surface_co.contact_skin()) {
+                            if mesh.self_contact_excluded(sb, p, element, surface_co.contact_skin())
+                            {
                                 continue;
                             }
                         }
                         let in_patch = rigid_patch.as_ref().is_some_and(|(depths, _)| {
                             element.iter().any(|&v| {
-                                depths.get(v as usize).copied().unwrap_or(Real::NEG_INFINITY)
+                                depths
+                                    .get(v as usize)
+                                    .copied()
+                                    .unwrap_or(Real::NEG_INFINITY)
                                     > Real::NEG_INFINITY
                             })
                         });
@@ -390,7 +401,14 @@ impl SoftConstraintsSet {
                             .flat_map(|sc| contact_points(sc).map(move |p| (sc, p)))
                         {
                             let point_id = (sc.contact_id[0] & !NEW_CONTACT_BIT) as usize;
-                            let (positions, weights, surface_point0, other_anchor, sc_dist, warm_share) = point;
+                            let (
+                                positions,
+                                weights,
+                                surface_point0,
+                                other_anchor,
+                                sc_dist,
+                                warm_share,
+                            ) = point;
                             // A constraint disagreeing with the volume constraint (see
                             // `overlap_patch_constraints`) pushes the surface into the rigid body
                             // along the nearest cell's normal: stood down, or bent along it.
@@ -411,8 +429,7 @@ impl SoftConstraintsSet {
                                     let mut depth = 0.0;
                                     for k in 0..DIM {
                                         if let Some(&v) = element.get(k) {
-                                            depth += weights[k]
-                                                * depths[v as usize].max(0.0);
+                                            depth += weights[k] * depths[v as usize].max(0.0);
                                         }
                                     }
                                     Some((-n, -depth, false))
@@ -420,7 +437,8 @@ impl SoftConstraintsSet {
                             } else {
                                 None
                             };
-                            if disagreeing.is_some() && patch_policy == SoftPatchConstraints::StandDown
+                            if disagreeing.is_some()
+                                && patch_policy == SoftPatchConstraints::StandDown
                             {
                                 continue;
                             }
@@ -467,10 +485,8 @@ impl SoftConstraintsSet {
                             // A small ball (a soft particle) touching a surface vertex/edge while
                             // its center projects inside a neighboring element is a ghost contact
                             // (spurious normal): skipped; large balls and split endpoints are real.
-                            if let Some(ball) = other_co
-                                .shape()
-                                .as_ball()
-                                .filter(|_| !split_endpoints)
+                            if let Some(ball) =
+                                other_co.shape().as_ball().filter(|_| !split_endpoints)
                             {
                                 let size = (positions[1] - positions[0]).length();
                                 if ball.radius < size {

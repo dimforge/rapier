@@ -149,7 +149,11 @@ mod tests {
         let err = frobenius_norm(&(cell.inv_rest_matrix * dm - Matrix::IDENTITY));
         assert!(err < 1.0e-5, "rest matrix drifted: {err}");
         // The strain rows' warm start followed the flow (full creep: nothing elastic left).
-        assert!(cell.impulses[..STRAIN_ROWS].iter().all(|i| i.abs() < 1.0e-6));
+        assert!(
+            cell.impulses[..STRAIN_ROWS]
+                .iter()
+                .all(|i| i.abs() < 1.0e-6)
+        );
         assert_eq!(cell.impulses[STRAIN_ROWS], 1.0);
     }
 
@@ -172,7 +176,9 @@ mod tests {
             plastic_creep: 1.0,
             ..clay()
         };
-        assert!(!plastic_flow(&mut cell, &strain, true, &rest0, &material, 0.3));
+        assert!(!plastic_flow(
+            &mut cell, &strain, true, &rest0, &material, 0.3
+        ));
         assert_eq!(cell.plastic_stretch, before.plastic_stretch);
         assert_eq!(cell.inv_rest_matrix, before.inv_rest_matrix);
         // The same rows on a cell that is not inverted flow, bounded by the plastic maximum.
@@ -182,7 +188,10 @@ mod tests {
         }
         assert!(flowed > 0);
         let deviation = frobenius_norm(&(cell.plastic_stretch - Matrix::IDENTITY));
-        assert!(deviation <= 1.0 + 1.0e-3, "flow past the maximum: {deviation}");
+        assert!(
+            deviation <= 1.0 + 1.0e-3,
+            "flow past the maximum: {deviation}"
+        );
     }
 
     /// The tear strain counts the plastic stretch: an unflowed cell reads its largest

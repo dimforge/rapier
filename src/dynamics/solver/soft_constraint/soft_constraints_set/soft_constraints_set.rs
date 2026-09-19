@@ -33,7 +33,6 @@ pub(crate) struct AwakeSoftBody {
     /// particles' slots are contiguous, laid out group-major after the rigid bodies').
     pub slot_start: usize,
     pub num_particles: usize,
-    pub shape_com: Vector,
     /// Range of this body's constraints in `shape_constraints`.
     pub shape_constraints: Range<usize>,
     /// Range of this body's volume constraints in `volume_constraints` (one per volume piece).

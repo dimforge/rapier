@@ -1,17 +1,17 @@
 //! The `SoftBody` struct and the shared constants of the soft-body constraints.
-use crate::alloc_prelude::*;
-use crate::dynamics::RigidBodyHandle;
-use crate::math::{DIM, Real, Vector};
-use super::{
-    SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyMaterial, SoftBodyParticle,
-    SoftParticleAttachment,
-};
 #[cfg(feature = "dim3")]
 use super::SoftBodyDihedral;
 #[cfg(feature = "fem")]
 use super::SoftBodySolver;
 #[cfg(feature = "serde-serialize")]
 use super::soft_body_material::default_true;
+use super::{
+    SoftBodyCell, SoftBodyCellModel, SoftBodyEdge, SoftBodyMaterial, SoftBodyParticle,
+    SoftParticleAttachment,
+};
+use crate::alloc_prelude::*;
+use crate::dynamics::RigidBodyHandle;
+use crate::math::{DIM, Real, Vector};
 
 /// Number of particles a soft-body constraint can touch (a simplex cell).
 pub const SOFT_BODY_MAX_CONSTRAINT_PARTICLES: usize = DIM + 1;

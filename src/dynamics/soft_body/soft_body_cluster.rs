@@ -56,6 +56,7 @@ fn invalid_cell() -> u32 {
 }
 
 impl SoftBodyCluster {
+    /// A cluster over `particles`, backed by the proxy rigid body `proxy`.
     pub fn new(particles: Vec<u32>, proxy: RigidBodyHandle, shape_matching: bool) -> Self {
         SoftBodyCluster {
             particles,
@@ -122,6 +123,7 @@ impl SoftBodyCluster {
         self.shape_matching
     }
 
+    /// Sets the pose the cluster's particles are shape-matched toward (`None`: its own frame).
     pub fn set_shape_matching_target(&mut self, target: Option<Pose>) {
         self.shape_matching_target = target;
     }
@@ -205,7 +207,8 @@ impl SoftBody {
     }
 
     /// Enables or disables shape matching of the `i`-th cluster's particles toward the cluster's
-    /// frame (independent from the whole-body [`Self::enable_shape_matching`]).
+    /// frame (independent from the whole-body
+    /// [`crate::dynamics::SoftBodyBuilder::shape_matching`]).
     pub fn enable_cluster_shape_matching(&mut self, i: u32, enabled: bool) {
         if let Some(c) = self.clusters.get_mut(i as usize) {
             if c.is_live() && c.shape_matching != enabled {
@@ -372,7 +375,8 @@ impl SoftBody {
                         c.particles.insert(pos, copy);
                         if !c.shape_impulses.is_empty() {
                             // Keep the warm shape impulses aligned with the particle list.
-                            c.shape_impulses.insert(pos.min(c.shape_impulses.len()), Vector::ZERO);
+                            c.shape_impulses
+                                .insert(pos.min(c.shape_impulses.len()), Vector::ZERO);
                         }
                         if let Some(r) = self.cluster_refs.get_mut(copy as usize) {
                             *r += 1;
@@ -403,7 +407,10 @@ impl SoftBody {
     /// Removes every particle whose `dead` flag is set (they must belong to no live cluster), the
     /// elements touching them and the attachments on them, compacting the remaining indices.
     /// Returns the removal counts and the old-to-new remap (`u32::MAX` if removed; empty if none).
-    pub(crate) fn remove_dead_particles(&mut self, dead: &[bool]) -> (SoftClusterRemoval, Vec<u32>) {
+    pub(crate) fn remove_dead_particles(
+        &mut self,
+        dead: &[bool],
+    ) -> (SoftClusterRemoval, Vec<u32>) {
         let mut counts = SoftClusterRemoval::default();
         if !dead.contains(&true) {
             return (counts, Vec::new());
@@ -712,11 +719,7 @@ impl SoftBody {
                 angmom += r.gcross(vel(v) * p.mass);
             }
         }
-        (
-            com,
-            linvel * inv_mass,
-            inv_inertia.transform_vector(angmom),
-        )
+        (com, linvel * inv_mass, inv_inertia.transform_vector(angmom))
     }
 }
 
@@ -762,8 +765,15 @@ pub(crate) fn pseudo_inverse_inertia(inertia: AngularInertia, abs_floor: Real) -
 pub(crate) fn pseudo_inverse_inertia(inertia: AngularInertia, abs_floor: Real) -> AngularInertia {
     const RELATIVE_EPS: Real = 1.0e-5;
     let m = na::Matrix3::new(
-        inertia.m11, inertia.m12, inertia.m13, inertia.m12, inertia.m22, inertia.m23, inertia.m13,
-        inertia.m23, inertia.m33,
+        inertia.m11,
+        inertia.m12,
+        inertia.m13,
+        inertia.m12,
+        inertia.m22,
+        inertia.m23,
+        inertia.m13,
+        inertia.m23,
+        inertia.m33,
     );
     let eig = m.symmetric_eigen();
     let max = eig.eigenvalues.amax();

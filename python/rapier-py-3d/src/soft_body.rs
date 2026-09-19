@@ -307,7 +307,7 @@ impl SoftBodyMaterial {
             other => {
                 return Err(PyTypeError::new_err(format!(
                     "SoftBodyMaterial: unknown keyword argument '{other}'"
-                )))
+                )));
             }
         }
         Ok(())
@@ -2605,7 +2605,7 @@ impl SoftBody {
     /// The ``(edges, cells)`` a blade (a world-space triangle given as three points) crosses,
     /// as would be torn by :meth:`SoftBodySet.cut`.
     fn crossing_elements(&self, blade: (PyVector, PyVector, PyVector)) -> (Vec<u32>, Vec<u32>) {
-        let blade = [blade.0 .0.into(), blade.1 .0.into(), blade.2 .0.into()];
+        let blade = [blade.0.0.into(), blade.1.0.into(), blade.2.0.into()];
         self.with_ref(|b| b.crossing_elements(&blade))
     }
 
@@ -2888,7 +2888,7 @@ impl SoftBodySet {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
     ) -> Option<SoftBodyTearEvent> {
-        let blade = [blade.0 .0.into(), blade.1 .0.into(), blade.2 .0.into()];
+        let blade = [blade.0.0.into(), blade.1.0.into(), blade.2.0.into()];
         self.0
             .cut(
                 handle.0,

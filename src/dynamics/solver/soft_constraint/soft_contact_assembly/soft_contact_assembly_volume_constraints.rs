@@ -6,8 +6,8 @@ use simba::scalar::{ComplexField as _, RealField as _};
 
 use crate::alloc_prelude::*;
 
-use super::{AssemblyCtx, BodyContacts, MeshContacts, OverlapConstraintWorkspace, material_pace};
 use super::super::soft_constraints_set::SoftConstraintsSet;
+use super::{AssemblyCtx, BodyContacts, MeshContacts, OverlapConstraintWorkspace, material_pace};
 use crate::dynamics::soft_body::SoftPatchConstraints;
 use crate::dynamics::soft_body::{SoftCollisionMesh, SoftOverlapState, SoftVolumeContact};
 use crate::dynamics::{IntegrationParameters, SoftBody};
@@ -141,8 +141,10 @@ pub(super) fn emit_volume_bins(
         // The warm impulse of every entry, and the multiplier fitted to them (least
         // squares along the new gradients): what the solve starts from.
         let (warm, warm_impulses, warm_rigid) = if hard {
-            let warm_impulses: Vec<Vector> =
-                particles.iter().map(|&(side, p)| prev_warm_of(side, p)).collect();
+            let warm_impulses: Vec<Vector> = particles
+                .iter()
+                .map(|&(side, p)| prev_warm_of(side, p))
+                .collect();
             let mut num = 0.0;
             let mut den = 0.0;
             for (&(_, _, g, _), &p) in grads.iter().zip(&warm_impulses) {
@@ -213,8 +215,16 @@ fn overlap_arming(
     error: Real,
 ) -> OverlapArming {
     let margin = params.soft_bodies.recovery.overlap_progress_margin;
-    let patience = params.soft_bodies.recovery.overlap_patience.min(u16::MAX as u32) as u16;
-    let previous = mesh.overlap_states.iter().find(|s| s.other == other).copied();
+    let patience = params
+        .soft_bodies
+        .recovery
+        .overlap_patience
+        .min(u16::MAX as u32) as u16;
+    let previous = mesh
+        .overlap_states
+        .iter()
+        .find(|s| s.other == other)
+        .copied();
     let state = match previous {
         Some(prev) => {
             let needed = if prev.stalled { 5.0 * margin } else { margin };
@@ -361,7 +371,7 @@ impl SoftConstraintsSet {
             );
             if recovery.overlap_patch_constraints != SoftPatchConstraints::Keep {
                 out.rigid_patches
-                    .push((other_handle, patch.depth.clone(), cells));
+                    .push((other_handle, (patch.depth.clone(), cells)));
             }
         }
     }

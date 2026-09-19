@@ -10,13 +10,14 @@ use crate::alloc_prelude::*;
 use core::ops::Range;
 use core::sync::atomic::AtomicBool;
 
+use super::soft_constraints_set::AwakeCluster;
 use super::soft_constraints_set::{
     AwakeSoftBody, SoftColorRange, SoftConstraintsSet, SoftGroupLayout, SoftShapeConstraint,
     SoftVolumeConstraint,
 };
 use super::soft_element_constraint::{
     CorotationalConstraint, MAX_CONSTRAINT_PARTICLES, NeoHookeanConstraint, STRAIN_ROWS,
-    SoftElasticModel, SoftElasticConstraint, SoftScalarConstraint, SoftScalarConstraintKind,
+    SoftElasticConstraint, SoftElasticModel, SoftScalarConstraint, SoftScalarConstraintKind,
     SoftScalarConstraintWriteback, StrainMatrix, StrainVector,
 };
 use crate::dynamics::soft_body::SOFT_BODY_OVERFLOW_COLOR;
@@ -28,7 +29,6 @@ use crate::dynamics::{
 use crate::math::{DIM, Matrix, Real, Vector};
 use crate::utils::RotationOps;
 use na::SimdRealField;
-use super::soft_constraints_set::AwakeCluster;
 
 /// Number of element colors: the parallel ones, then the overflow color.
 const NUM_COLORS: usize = SOFT_BODY_OVERFLOW_COLOR as usize + 1;
@@ -89,7 +89,12 @@ impl BodyCursors {
     #[inline]
     fn push_shape_constraint(&mut self, constraint: SoftShapeConstraint) {
         // SAFETY: the body's own slot (see `ConstraintSlots`).
-        unsafe { self.slots.shape_constraints.add(self.shape_constraints).write(constraint) };
+        unsafe {
+            self.slots
+                .shape_constraints
+                .add(self.shape_constraints)
+                .write(constraint)
+        };
         self.shape_constraints += 1;
     }
 }
@@ -310,21 +315,22 @@ impl SoftConstraintsSet {
                     let num_chunks = num_elements.div_ceil(FILL_CHUNK);
                     let chunk_range =
                         |c: usize| c * FILL_CHUNK..((c + 1) * FILL_CHUNK).min(num_elements);
-                    let mut chunk_counts: Vec<([usize; NUM_COLORS], [usize; NUM_COLORS])> =
-                        (0..num_chunks)
-                            .into_par_iter()
-                            .map(|c| {
-                                let mut counts = ([0; NUM_COLORS], [0; NUM_COLORS]);
-                                this.count_body_constraints(
-                                    ai,
-                                    &mut counts.0,
-                                    &mut counts.1,
-                                    chunk_range(c),
-                                );
-                                counts
-                            })
-                            .collect();
+                    let mut chunk_counts: Vec<([usize; NUM_COLORS], [usize; NUM_COLORS])> = (0
+                        ..num_chunks)
+                        .into_par_iter()
+                        .map(|c| {
+                            let mut counts = ([0; NUM_COLORS], [0; NUM_COLORS]);
+                            this.count_body_constraints(
+                                ai,
+                                &mut counts.0,
+                                &mut counts.1,
+                                chunk_range(c),
+                            );
+                            counts
+                        })
+                        .collect();
                     for (scalar, elastic) in chunk_counts.iter_mut() {
+                        #[allow(clippy::manual_memcpy)] // Each slot is swapped, not copied.
                         for color in 0..NUM_COLORS {
                             let (count, elastic_count) = (scalar[color], elastic[color]);
                             scalar[color] = cursors.scalar_constraints[color];
@@ -366,7 +372,10 @@ impl SoftConstraintsSet {
                     0..num_elements,
                 );
                 this.fill_body_shape_constraints(ai, dt, &mut cursors);
-                debug_assert_eq!(cursors.shape_constraints, this.awake[ai].shape_constraints.end);
+                debug_assert_eq!(
+                    cursors.shape_constraints,
+                    this.awake[ai].shape_constraints.end
+                );
             };
             #[cfg(feature = "parallel")]
             {
@@ -439,8 +448,7 @@ impl SoftConstraintsSet {
                 sb.rebuild_volume_pieces(&[]);
             }
 
-            let awake_clusters =
-            sb
+            let awake_clusters = sb
                 .clusters
                 .iter()
                 .enumerate()
@@ -449,14 +457,20 @@ impl SoftConstraintsSet {
                     let mut target_linvel = Default::default();
                     let mut target_angvel = Default::default();
 
-                    if let (Some(prev_target_pose), Some(target_pose)) = (&c.prev_shape_matching_target, &c.shape_matching_target) {
+                    if let (Some(prev_target_pose), Some(target_pose)) =
+                        (&c.prev_shape_matching_target, &c.shape_matching_target)
+                    {
                         let dpos = target_pose.translation - prev_target_pose.translation;
                         let drot = target_pose.rotation * prev_target_pose.rotation.inverse();
                         target_linvel = dpos * inv_dt;
                         #[cfg(feature = "dim2")]
-                        { target_angvel = drot.angle() * inv_dt; }
+                        {
+                            target_angvel = drot.angle() * inv_dt;
+                        }
                         #[cfg(feature = "dim3")]
-                        { target_angvel = drot.to_scaled_axis() * inv_dt; }
+                        {
+                            target_angvel = drot.to_scaled_axis() * inv_dt;
+                        }
                     }
 
                     AwakeCluster {
@@ -480,7 +494,6 @@ impl SoftConstraintsSet {
                 frozen,
                 slot_start: 0,
                 num_particles: sb.particles.len(),
-                shape_com: Vector::ZERO,
                 shape_constraints: 0..0,
                 volume_constraints: 0..0,
                 damping_factor: 0.0,
@@ -608,13 +621,13 @@ impl SoftConstraintsSet {
         };
         let pos_of = |i: u32| sb.particles[i as usize].position;
         let base_constraint = |kind: SoftScalarConstraintKind,
-                        writeback: SoftScalarConstraintWriteback,
-                        element: usize,
-                        vertices: &[u32],
-                        rest: Real,
-                        erp: Real,
-                        cfm: Real,
-                        impulse: Real|
+                               writeback: SoftScalarConstraintWriteback,
+                               element: usize,
+                               vertices: &[u32],
+                               rest: Real,
+                               erp: Real,
+                               cfm: Real,
+                               impulse: Real|
          -> SoftScalarConstraint {
             let mut solver_ids = [u32::MAX; MAX_CONSTRAINT_PARTICLES];
             let mut pos = [Vector::ZERO; MAX_CONSTRAINT_PARTICLES];
@@ -699,7 +712,13 @@ impl SoftConstraintsSet {
             out.push_constraint(d.color, constraint);
         }
 
-        for (ci, c) in sb.cells.iter().enumerate().take(cells.end).skip(cells.start) {
+        for (ci, c) in sb
+            .cells
+            .iter()
+            .enumerate()
+            .take(cells.end)
+            .skip(cells.start)
+        {
             match sb.cell_model {
                 // Integrated implicitly by the FEM solver instead (see `soft_fem`).
                 SoftBodyCellModel::Volume if sb.uses_fem() => continue,
@@ -761,7 +780,11 @@ impl SoftConstraintsSet {
                         let w = block[(r, r)];
                         // The row's deviatoric stiffness: the stress-based strain of both models
                         // reads through it (an isotropic material's deviatoric response is `2μ`).
-                        let k_dev = if r < DIM { 2.0 * mu * vol } else { 4.0 * mu * vol };
+                        let k_dev = if r < DIM {
+                            2.0 * mu * vol
+                        } else {
+                            4.0 * mu * vol
+                        };
                         let k = if neo_hookean {
                             NeoHookeanConstraint::rest_stiffness(mu, lambda, r) * vol
                         } else {
@@ -843,7 +866,6 @@ impl SoftConstraintsSet {
                 }
             }
         }
-
     }
 
     /// Builds the shape-matching constraints of awake body `ai` into its slots (see
@@ -883,7 +905,11 @@ impl SoftConstraintsSet {
                     inv_lhs: Vector::ZERO,
                     cfm_gain: Vector::ZERO,
                     rhs: Vector::ZERO,
-                    impulse: cluster.shape_impulses.get(k).copied().unwrap_or(Vector::ZERO),
+                    impulse: cluster
+                        .shape_impulses
+                        .get(k)
+                        .copied()
+                        .unwrap_or(Vector::ZERO),
                     fem: None,
                     inv_lhs_block: Matrix::ZERO,
                     cfm_gain_block: Matrix::ZERO,
@@ -934,7 +960,11 @@ fn elastic_cell_terms(
     sb: &SoftBody,
     slots: &[u32],
     c: &crate::dynamics::SoftBodyCell,
-) -> ([Vector; MAX_CONSTRAINT_PARTICLES], [Real; MAX_CONSTRAINT_PARTICLES], Real) {
+) -> (
+    [Vector; MAX_CONSTRAINT_PARTICLES],
+    [Real; MAX_CONSTRAINT_PARTICLES],
+    Real,
+) {
     let coeffs = SoftElasticConstraint::coefficients(&c.inv_rest_matrix);
     let mut im = [0.0; MAX_CONSTRAINT_PARTICLES];
     for (k, &v) in c.vertices.iter().enumerate() {

@@ -13,19 +13,15 @@ use super::collision_mesh_binding::{bind_to_cells, closest_cell_binding};
 use super::soft_body_builder::{element_vertices, element_vertices_mut};
 use super::{
     SoftBody, SoftBodyCell, SoftCollisionMesh, SoftMeshCellBinding, SoftMeshId, SoftMeshMapping,
-    SoftTopologyRemap,
-    surface_element_cells, surface_is_closed, surface_rings, surface_vertex_elements,
+    SoftTopologyRemap, surface_element_cells, surface_is_closed, surface_rings,
+    surface_vertex_elements,
 };
 
 impl SoftCollisionMesh {
     /// The mesh a body collides through when it collides through its own boundary: one vertex
     /// per particle (interior particles included, so vertex indices are particle indices), the
     /// cells' boundary as elements.
-    pub(crate) fn boundary(
-        body: &SoftBody,
-        self_contacts: bool,
-        collision_enabled: bool,
-    ) -> Self {
+    pub(crate) fn boundary(body: &SoftBody, self_contacts: bool, collision_enabled: bool) -> Self {
         let num_vertices = body.particles.len();
         let indices = body.boundary.clone();
         let (ring_offsets, ring) = surface_rings(num_vertices, &indices);
@@ -39,7 +35,10 @@ impl SoftCollisionMesh {
             binding: SoftMeshMapping::Direct {
                 particles: (0..num_vertices as u32).collect(),
             },
-            id: SoftMeshId { cluster: 0, mesh: 0 },
+            id: SoftMeshId {
+                cluster: 0,
+                mesh: 0,
+            },
             follows_boundary: true,
             closed: surface_is_closed(&indices),
             rest_signed_volume: SoftBody::boundary_volume(&indices, |i| {
@@ -188,11 +187,15 @@ impl SoftCollisionMesh {
         let (vertex_elements_offsets, vertex_elements) =
             surface_vertex_elements(vertices.len(), indices);
         #[cfg(feature = "dim3")]
-        let (edges, element_edges, edge_owners) = super::soft_body_builder::surface_edge_table(indices);
+        let (edges, element_edges, edge_owners) =
+            super::soft_body_builder::surface_edge_table(indices);
 
         Some(Self {
             binding: SoftMeshMapping::Skinned { bindings },
-            id: SoftMeshId { cluster: 0, mesh: 0 },
+            id: SoftMeshId {
+                cluster: 0,
+                mesh: 0,
+            },
             follows_boundary: false,
             closed: surface_is_closed(indices),
             rest_signed_volume: SoftBody::boundary_volume(indices, |i| vertices[i as usize]),
@@ -250,14 +253,14 @@ impl SoftCollisionMesh {
                 *v = pose.inverse_transform_point(self.vertex(body, i));
             }
         };
-        // A polyline in either dimension (a 2D surface, or a wire in 3D), a trimesh in 3D.
-        if let Some(polyline) = shape.as_polyline_mut() {
-            polyline.update_vertices(write);
-            return;
-        }
         #[cfg(feature = "dim3")]
         if let Some(trimesh) = shape.as_trimesh_mut() {
             trimesh.update_vertices(write);
+            return;
+        }
+        // A polyline in either dimension: a 2D surface, or a wire in 3D.
+        if let Some(polyline) = shape.as_polyline_mut() {
+            polyline.update_vertices(write);
         }
     }
 
@@ -478,14 +481,21 @@ impl SoftCollisionMesh {
 /// Follows the particles a cut inserted into segments (`inserted`: `[a, b, p, q]`, segment `(a, b)`
 /// became `(a, p)` and `(q, b)`) in a direct mesh (`particles`: the particle of each vertex): a
 /// mesh segment over `a` and `b` is split the same way, with a new vertex per inserted particle.
-fn follow_insertions(particles: &mut Vec<u32>, indices: &mut Vec<[u32; DIM]>, inserted: &[[u32; 4]]) {
+fn follow_insertions(
+    particles: &mut Vec<u32>,
+    indices: &mut Vec<[u32; DIM]>,
+    inserted: &[[u32; 4]],
+) {
     for &[a, b, p, q] in inserted {
         for i in 0..indices.len() {
             let element = indices[i];
             if element_vertices(&element).len() != 2 {
                 continue;
             }
-            let ends = [particles[element[0] as usize], particles[element[1] as usize]];
+            let ends = [
+                particles[element[0] as usize],
+                particles[element[1] as usize],
+            ];
             let (first, second) = if ends == [a, b] {
                 (p, q)
             } else if ends == [b, a] {
@@ -533,7 +543,11 @@ fn follow_pieces(
         let used = element_vertices(element).len();
         let piece_of: Vec<u32> = element[..used]
             .iter()
-            .map(|&w| bindings.get(w as usize).map_or(u32::MAX, |b| cell_piece(b.cell)))
+            .map(|&w| {
+                bindings
+                    .get(w as usize)
+                    .map_or(u32::MAX, |b| cell_piece(b.cell))
+            })
             .collect();
         // The most frequent piece, ties going to the one met first.
         let mut majority = (u32::MAX, 0);
@@ -544,7 +558,10 @@ fn follow_pieces(
             }
         }
         let majority = majority.0;
-        if piece_of.iter().all(|&piece| piece == majority || piece == u32::MAX) {
+        if piece_of
+            .iter()
+            .all(|&piece| piece == majority || piece == u32::MAX)
+        {
             continue;
         }
         for k in 0..used {
@@ -591,7 +608,10 @@ fn follow_splits(
     for &(copy, source) in split {
         let first = root.get(&source).copied().unwrap_or(source);
         root.insert(copy, first);
-        families.entry(first).or_insert_with(|| vec![first]).push(copy);
+        families
+            .entry(first)
+            .or_insert_with(|| vec![first])
+            .push(copy);
     }
     let mut vertex_of: HashMap<u32, u32> = HashMap::default();
     for (vertex, &particle) in particles.iter().enumerate() {

@@ -18,8 +18,12 @@ const POLYLINE_JOIN_SUBDIV: usize = 8;
 /// so the corners join cleanly. The layout only depends on the segment and vertex counts, so a
 /// deforming polyline's vertex buffer can be rewritten in place (see `update_deformable_node`).
 #[cfg(feature = "dim2")]
-pub(super) fn stroked_polyline(vertices: &[Vec2], indices: &[[u32; 2]]) -> (Vec<Vec2>, Vec<[u32; 3]>) {
-    let mut vtx = Vec::with_capacity(indices.len() * 4 + vertices.len() * (POLYLINE_JOIN_SUBDIV + 1));
+pub(super) fn stroked_polyline(
+    vertices: &[Vec2],
+    indices: &[[u32; 2]],
+) -> (Vec<Vec2>, Vec<[u32; 3]>) {
+    let mut vtx =
+        Vec::with_capacity(indices.len() * 4 + vertices.len() * (POLYLINE_JOIN_SUBDIV + 1));
     let mut idx = Vec::with_capacity(indices.len() * 2 + vertices.len() * POLYLINE_JOIN_SUBDIV);
 
     for segment in indices {
@@ -41,11 +45,7 @@ pub(super) fn stroked_polyline(vertices: &[Vec2], indices: &[[u32; 2]]) -> (Vec<
         }
         for k in 0..POLYLINE_JOIN_SUBDIV {
             let next = (k + 1) % POLYLINE_JOIN_SUBDIV;
-            idx.push([
-                center,
-                center + 1 + k as u32,
-                center + 1 + next as u32,
-            ]);
+            idx.push([center, center + 1 + k as u32, center + 1 + next as u32]);
         }
     }
 
@@ -56,7 +56,9 @@ pub(super) fn stroked_polyline(vertices: &[Vec2], indices: &[[u32; 2]]) -> (Vec<
 #[cfg(feature = "dim2")]
 pub(super) fn polyline_geometry(shape: &dyn Shape) -> Option<(Vec<Vec2>, Vec<[u32; 2]>)> {
     let to_vec2 = |pts: &[rapier::math::Vector]| -> Vec<Vec2> {
-        pts.iter().map(|p| Vec2::new(p.x as f32, p.y as f32)).collect()
+        pts.iter()
+            .map(|p| Vec2::new(p.x as f32, p.y as f32))
+            .collect()
     };
     match shape.shape_type() {
         ShapeType::Polyline => {

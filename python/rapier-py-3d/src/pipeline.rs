@@ -1727,7 +1727,7 @@ impl QueryPipeline {
 
             let result = (|qp: rapier::pipeline::QueryPipeline<'_>| {
                 Ok(qp
-                    .cast_shape(&pose, vel, &*shape.0 .0, options.0)
+                    .cast_shape(&pose, vel, &*shape.0.0, options.0)
                     .map(|(h, hit)| (ColliderHandle(h), ShapeCastHit::from_parry(hit))))
             })(qp);
             if let Some(e) = pred_err.into_inner() {
@@ -1823,7 +1823,7 @@ impl QueryPipeline {
                 Ok(qp
                     .cast_shape_nonlinear(
                         &motion.0,
-                        &*shape.0 .0,
+                        &*shape.0.0,
                         start_time,
                         end_time,
                         options.0.stop_at_penetration,
@@ -1913,7 +1913,7 @@ impl QueryPipeline {
                 bp.0.as_query_pipeline(np.0.query_dispatcher(), &bodies.0, &colliders.0, qf);
 
             let result = (|qp: rapier::pipeline::QueryPipeline<'_>| {
-                for (h, _co) in qp.intersect_shape(pose, &*shape.0 .0) {
+                for (h, _co) in qp.intersect_shape(pose, &*shape.0.0) {
                     let res = callback.call1(py, (ColliderHandle(h),))?;
                     if let Ok(b) = res.extract::<bool>(py) {
                         if !b {

@@ -245,7 +245,10 @@ impl SoftBody {
                 {
                     let rest = |v: u32| self.particles[v as usize].initial_rest_position;
                     let t = self.boundary[i as usize];
-                    (rest(t[1]) - rest(t[0])).cross(rest(t[2]) - rest(t[0])).length() * 0.5
+                    (rest(t[1]) - rest(t[0]))
+                        .cross(rest(t[2]) - rest(t[0]))
+                        .length()
+                        * 0.5
                 }
                 #[cfg(feature = "dim2")]
                 {
@@ -389,7 +392,9 @@ impl SoftBody {
         let mut elements: HashMap<u32, Vec<u32>> = HashMap::default();
         self.for_each_measure_element(kind, |i, vertices| {
             elements.insert(i, vertices.to_vec());
-            facets(vertices, pivot, |key| by_facet.entry(key).or_default().push(i));
+            facets(vertices, pivot, |key| {
+                by_facet.entry(key).or_default().push(i)
+            });
         });
         let mut seen: HashMap<u32, ()> = HashMap::default();
         let mut stack: Vec<u32> = seeds.to_vec();
@@ -654,7 +659,8 @@ impl SoftBody {
                 let cell = self.cells[fan.elements[k] as usize].vertices;
                 let copy = copies[fan.groups[k]];
                 let on_facet = |w: &u32| {
-                    *w == copy || (*w != v && fan.vertices[i].contains(w) && fan.vertices[j].contains(w))
+                    *w == copy
+                        || (*w != v && fan.vertices[i].contains(w) && fan.vertices[j].contains(w))
                 };
                 if let Some(face) = cell_faces(cell)
                     .into_iter()

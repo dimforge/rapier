@@ -59,7 +59,8 @@ impl SoftFemSystem {
                 // below for inverted cells, and its tangent is floored mode-wise at the rest
                 // curvature so one implicit step per substep needs no line search.
                 let lambda = cell.lambda + cell.mu;
-                let (s, kappa, gradient) = NeoHookeanConstraint::gradient(cell.mu, lambda, &cell.strain);
+                let (s, kappa, gradient) =
+                    NeoHookeanConstraint::gradient(cell.mu, lambda, &cell.strain);
                 let stale = (cell.strain - cell.tangent_strain)
                     .iter()
                     .any(|d| d.abs() > STIFFNESS_UPDATE_STRAIN);
@@ -166,7 +167,8 @@ impl SoftFemSystem {
                 for q in 0..MAX_CONSTRAINT_PARTICLES {
                     let slot = blocks[p * MAX_CONSTRAINT_PARTICLES + q];
                     if slot != u32::MAX {
-                        self.matrix.blocks[slot as usize] += outer_product(grad[p], grad[q]) * scale;
+                        self.matrix.blocks[slot as usize] +=
+                            outer_product(grad[p], grad[q]) * scale;
                     }
                 }
             }
@@ -318,7 +320,8 @@ impl SoftFemSystem {
                 }
             }
         }
-        let edge_plasticity = material.edge_plastic_yield > 0.0 && material.edge_plastic_creep > 0.0;
+        let edge_plasticity =
+            material.edge_plastic_yield > 0.0 && material.edge_plastic_creep > 0.0;
         #[cfg(feature = "dim3")]
         if edge_plasticity {
             for (dihedral, d) in self.dihedrals.iter().zip(sb.dihedrals.iter_mut()) {

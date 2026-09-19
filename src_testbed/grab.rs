@@ -104,8 +104,8 @@ impl MouseGrab {
                 world.remove_soft_body_cluster(sb_handle, cluster);
                 return false;
             };
-            let mouse_body = world
-                .insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
+            let mouse_body =
+                world.insert_body(RigidBodyBuilder::kinematic_position_based().translation(anchor));
             let joint = world.insert_impulse_joint(mouse_body, proxy, mouse_joint(Vector::ZERO));
             Grabbed {
                 body: proxy,
@@ -237,16 +237,18 @@ fn pick(mouse: &SceneMouse, world: &PhysicsWorld) -> Option<(RigidBodyHandle, Ve
     );
     // An exact hit inside a solid collider. A 2D soft body's surface polyline is oriented, so
     // parry classifies its interior (holes included) with the vertex pseudo-normals.
-    let inside = query_pipeline.intersect_point(point).find_map(|(handle, co)| {
-        // An open soft surface (rope, cloth) only has an outward side, not an interior.
-        if let Some(mesh_ref) = co.deformable_mesh_ref() {
-            let mesh = world.soft_bodies.get(mesh_ref.body)?.mesh_of(handle)?;
-            if !mesh.is_closed() {
-                return None;
+    let inside = query_pipeline
+        .intersect_point(point)
+        .find_map(|(handle, co)| {
+            // An open soft surface (rope, cloth) only has an outward side, not an interior.
+            if let Some(mesh_ref) = co.deformable_mesh_ref() {
+                let mesh = world.soft_bodies.get(mesh_ref.body)?.mesh_of(handle)?;
+                if !mesh.is_closed() {
+                    return None;
+                }
             }
-        }
-        co.parent()
-    });
+            co.parent()
+        });
     if let Some(body) = inside {
         return Some((body, point));
     }

@@ -160,8 +160,9 @@ impl BroadPhaseBvh {
                 &mut self.update_batch_statuses,
             );
 
-            for ((modified, _, _), status) in
-                update_workspace.iter().zip(self.update_batch_statuses.iter())
+            for ((modified, _, _), status) in update_workspace
+                .iter()
+                .zip(self.update_batch_statuses.iter())
             {
                 let leaf_index = modified.into_raw_parts().0;
                 match status {
@@ -193,7 +194,8 @@ impl BroadPhaseBvh {
             // mixes moved colliders with newly added ones would otherwise build a
             // different tree here than it does there.
             let mut deferred_inserts: Vec<usize> = Vec::new();
-            for (i, (modified, aabb, change_detection_skin)) in update_workspace.iter().enumerate() {
+            for (i, (modified, aabb, change_detection_skin)) in update_workspace.iter().enumerate()
+            {
                 let leaf_index = modified.into_raw_parts().0;
                 // `..._if_present` reports a missing leaf through the lookup it already
                 // performs, so deferring insertions costs no extra probe.

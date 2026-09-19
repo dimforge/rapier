@@ -180,11 +180,14 @@ impl SoftConstraintsSet {
         }
         // The rigid side's effective mass (its mass properties are step-constant, read from
         // the solver body).
-        let rigid = constraint.rigid.filter(|r| live(r.0)).map(|(slot, g_lin, g_ang)| {
-            let pose = bodies.get_pose(slot);
-            let ii_g = pose.ii.transform_vector(g_ang);
-            (slot, g_lin, g_ang, pose.im, ii_g)
-        });
+        let rigid = constraint
+            .rigid
+            .filter(|r| live(r.0))
+            .map(|(slot, g_lin, g_ang)| {
+                let pose = bodies.get_pose(slot);
+                let ii_g = pose.ii.transform_vector(g_ang);
+                (slot, g_lin, g_ang, pose.im, ii_g)
+            });
         if let Some((_, g_lin, g_ang, im, ii_g)) = rigid {
             w += g_lin.gdot(im.component_mul(&g_lin)) + ii_g.gdot(g_ang);
             g_max = g_max.max(im.component_mul(&g_lin).length());
@@ -235,8 +238,9 @@ impl SoftConstraintsSet {
             let v = bodies.get_vel(slot);
             dc += g_lin.gdot(v.linear) + g_ang.gdot(v.angular);
         }
-        let mut total =
-            (constraint.impulse + inv_lhs * (dc + rhs_bias - cfm_gain * constraint.impulse)).max(0.0);
+        let mut total = (constraint.impulse
+            + inv_lhs * (dc + rhs_bias - cfm_gain * constraint.impulse))
+            .max(0.0);
         // A soft overlap constraint's accumulated impulse is bounded by the pace (released elastic
         // energy is metered, not shot into the lighter side); a hard constraint keeps its velocity
         // part, and one applying the correction itself (`rhs > 0`) bounds the bias instead.
@@ -324,7 +328,10 @@ impl SoftConstraintsSet {
         let num_scalar = self.scalar_constraints.len();
         for ci in colors.chain(core::iter::once(usize::MAX)) {
             let (constraints, elastic_constraints) = if ci == usize::MAX {
-                (serial.scalar_constraints.clone(), serial.elastic_constraints.clone())
+                (
+                    serial.scalar_constraints.clone(),
+                    serial.elastic_constraints.clone(),
+                )
             } else {
                 let r = &self.color_ranges[ci];
                 (r.scalar_constraints.clone(), r.elastic_constraints.clone())

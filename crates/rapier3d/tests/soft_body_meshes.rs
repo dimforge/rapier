@@ -170,7 +170,14 @@ fn a_mesh_bound_outside_its_cluster_is_rejected() {
         matches!(err, SoftBindingError::UnmatchedVertex { .. }),
         "{err}"
     );
-    assert_eq!(world.soft_bodies[handle].cluster(cluster).unwrap().meshes().count(), 0);
+    assert_eq!(
+        world.soft_bodies[handle]
+            .cluster(cluster)
+            .unwrap()
+            .meshes()
+            .count(),
+        0
+    );
 }
 
 #[test]
@@ -321,14 +328,13 @@ fn a_mesh_on_a_sub_cluster_binds_to_its_own_particles() {
 
     // A quad over those four particles.
     let sb = &world.soft_bodies[handle];
-    let vertices: Vec<Vector> = lower.iter().map(|&i| sb.particle_position(i as usize)).collect();
+    let vertices: Vec<Vector> = lower
+        .iter()
+        .map(|&i| sb.particle_position(i as usize))
+        .collect();
     let patch = world_mesh(&world, vertices, vec![[0, 1, 2]], proxy);
     let collider = world
-        .insert_deformable(
-            patch,
-            SoftMeshBinding::direct_by_position(1.0e-4),
-            proxy,
-        )
+        .insert_deformable(patch, SoftMeshBinding::direct_by_position(1.0e-4), proxy)
         .expect("the patch binds to the lower-face cluster");
 
     let mesh = world.soft_bodies[handle].mesh_of(collider).unwrap();
@@ -387,7 +393,9 @@ fn a_skinned_mesh_follows_its_cells_through_a_tear() {
     );
 
     let sb = &world.soft_bodies[handle];
-    let mesh = sb.collision_mesh().expect("the skin is still the collision mesh");
+    let mesh = sb
+        .collision_mesh()
+        .expect("the skin is still the collision mesh");
     // Every vertex still rides a live cell.
     match mesh.binding() {
         SoftMeshMapping::Skinned { bindings } => {
@@ -512,7 +520,10 @@ fn a_skinned_mesh_comes_apart_with_its_cells() {
         );
         world.step();
         let skins = |sb: &SoftBody| -> Vec<SoftCollisionMesh> {
-            sb.meshes().filter(|mesh| mesh.is_skinned()).cloned().collect()
+            sb.meshes()
+                .filter(|mesh| mesh.is_skinned())
+                .cloned()
+                .collect()
         };
         let vertex_count = skins(&world.soft_bodies[handle])[0].vertex_count();
 
@@ -553,7 +564,10 @@ fn a_skinned_mesh_comes_apart_with_its_cells() {
             }
             positions.push(mesh.vertex_positions(sb).collect::<Vec<Vector>>());
         }
-        assert!(vertices > vertex_count, "no skin vertex was duplicated across the cut");
+        assert!(
+            vertices > vertex_count,
+            "no skin vertex was duplicated across the cut"
+        );
         // The duplicated vertices start where their source was: nothing jumps.
         world.step();
         let mut moved: Real = 0.0;
@@ -563,7 +577,10 @@ fn a_skinned_mesh_comes_apart_with_its_cells() {
                 moved = moved.max((now - *then).length());
             }
         }
-        assert!(moved < 0.1, "a skin vertex jumped {moved} through the cut (collides: {collides})");
+        assert!(
+            moved < 0.1,
+            "a skin vertex jumped {moved} through the cut (collides: {collides})"
+        );
 
         for _ in 0..120 {
             world.step();

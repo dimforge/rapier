@@ -254,7 +254,10 @@ impl SoftConstraintsSet {
                 let rows = &workspace.chunk_rows[workspace.chunk_row_offsets[chunk] as usize
                     ..workspace.chunk_row_offsets[chunk + 1] as usize];
                 let contacts = &self.contacts[constraints.clone()];
-                let slots = || rows.iter().flat_map(|&i| written_slots(&contacts[i as usize]));
+                let slots = || {
+                    rows.iter()
+                        .flat_map(|&i| written_slots(&contacts[i as usize]))
+                };
                 let color = workspace
                     .color_slots
                     .iter()
@@ -314,17 +317,27 @@ impl SoftConstraintsSet {
             for color in &self.contact_colors[g.contact_colors.clone()] {
                 let mut seen = vec![usize::MAX; num_slots];
                 for chunk in color.clone() {
-                    for &row in &self.contact_chunk_constraints[self.contact_chunks[chunk].clone()] {
+                    for &row in &self.contact_chunk_constraints[self.contact_chunks[chunk].clone()]
+                    {
                         let c = &self.contacts[row as usize];
                         for slot in written_slots(c) {
                             let prev = core::mem::replace(&mut seen[slot as usize], chunk);
                             if prev != usize::MAX && prev != chunk {
-                                let key = |ch: usize| workspace.keys[workspace.ordered[ch - chunks_start]];
+                                let key = |ch: usize| {
+                                    workspace.keys[workspace.ordered[ch - chunks_start]]
+                                };
                                 let (k1, k2) = (key(prev), key(chunk));
                                 panic!(
                                     "slot {slot} shared: chunk {prev} (soft {:?} rigid {}) and chunk {chunk} (soft {:?} rigid {}); row body {} element {} soft_other {} fem {:?} particles {:?}",
-                                    k1.soft, k1.rigid, k2.soft, k2.rigid, c.body, c.element.is_some(), c.soft_other,
-                                    c.fem.iter().map(|f| f.is_some()).collect::<Vec<_>>(), c.particles
+                                    k1.soft,
+                                    k1.rigid,
+                                    k2.soft,
+                                    k2.rigid,
+                                    c.body,
+                                    c.element.is_some(),
+                                    c.soft_other,
+                                    c.fem.iter().map(|f| f.is_some()).collect::<Vec<_>>(),
+                                    c.particles
                                 );
                             }
                         }

@@ -104,7 +104,7 @@ pub struct SoftBodyBuilder {
     /// its particles; `None` disables collisions.
     pub collider_template: Option<ColliderBuilder>,
     /// Mesh held by the cells, if any: `(vertices, elements)` in world space, bound to the
-    /// cells at build time (see [`super::SoftBodySkin`]).
+    /// cells at build time.
     pub skin: Option<(Vec<Vector>, Vec<[u32; DIM]>)>,
     /// The segments the body collides through when it has no surface: a rope or a wire (3D
     /// only; in 2D the surface is already made of segments).

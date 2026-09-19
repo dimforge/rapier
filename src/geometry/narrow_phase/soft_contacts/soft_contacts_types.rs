@@ -4,8 +4,7 @@ use crate::alloc_prelude::*;
 use core::ops::Range;
 
 use crate::dynamics::{
-    IntegrationParameters, RigidBodySet, SoftBody, SoftBodyHandle, SoftBodySet,
-    SoftCollisionMesh,
+    IntegrationParameters, RigidBodySet, SoftBody, SoftBodyHandle, SoftBodySet, SoftCollisionMesh,
 };
 use crate::geometry::{Collider, ColliderHandle, ColliderSet};
 use crate::math::{DIM, Real, Rotation, Vector};
@@ -126,16 +125,19 @@ pub struct SoftVertexPass {
     pub surface: ColliderHandle,
     /// The collider whose surface vertices are tested.
     pub vertices_of: ColliderHandle,
-    /// Elements of the surface side, and vertices of the vertex side, taking part in a
-    /// crossing between the two surfaces (empty while they do not cross): constraints touching them
-    /// may only expel, never hold.
+    /// Elements of the surface side taking part in a crossing between the two surfaces (empty
+    /// while they do not cross): constraints touching them may only expel, never hold.
     pub cross_tangled_elements: Vec<bool>,
+    /// Vertices of the vertex side taking part in a crossing, same rule as
+    /// [`Self::cross_tangled_elements`].
     pub cross_tangled_vertices: Vec<bool>,
-    /// Element-granularity crossing flags on the vertex-side mesh, and the recorded
-    /// (surface-side, vertex-side) crossing element pairs.
+    /// Element-granularity crossing flags on the vertex-side mesh.
     pub cross_tangled_vb_elements: Vec<bool>,
+    /// The recorded (surface-side, vertex-side) crossing element pairs.
     pub cross_pairs: Vec<(u32, u32)>,
+    /// Per tested vertex of the vertex side, its candidates against the surface side.
     pub hits: Vec<SoftVertexHits>,
+    /// The candidate pool the [`Self::hits`] ranges index into.
     pub candidates: Vec<SoftVertexCandidate>,
     /// The volume normals guiding the crossing repulsion (see `crossing_repulsion_guide`): per
     /// grid cell, its center and its normal from the surface side into the vertex side (for a
@@ -285,7 +287,9 @@ impl SoftPairContacts {
 
     /// The vertex pass whose surface side is `surface`.
     pub fn vertex_pass_on(&self, surface: ColliderHandle) -> Option<&SoftVertexPass> {
-        self.vertex_passes.iter().find(|pass| pass.surface == surface)
+        self.vertex_passes
+            .iter()
+            .find(|pass| pass.surface == surface)
     }
 
     /// Disables every candidate (the contact-modification hook's way of dropping the pair's

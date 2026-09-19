@@ -148,6 +148,7 @@ impl DebugRenderPipeline {
     /// the particles' positions at the end of the last step) and their soft-vs-soft contacts
     /// (vertex-vs-surface and edge-vs-edge).
     #[profiling::function]
+    #[allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
     pub fn render_soft_bodies<B: DebugRenderBackend>(
         &mut self,
         backend: &mut B,
@@ -184,7 +185,7 @@ impl DebugRenderPipeline {
             // cell around it, and duplicates only thicken the picture); each edge keeps the largest
             // load of the elements sharing it.
             self.drawn_edges.clear();
-            let mut record = |drawn: &mut HashMap<[u32; 2], f32>, e: [u32; 2], load: f32| {
+            let record = |drawn: &mut HashMap<[u32; 2], f32>, e: [u32; 2], load: f32| {
                 let key = [e[0].min(e[1]), e[0].max(e[1])];
                 let slot = drawn.entry(key).or_insert(0.0);
                 *slot = slot.max(load);
@@ -215,12 +216,14 @@ impl DebugRenderPipeline {
             // Sorted: the backend sees the same lines in the same order every frame.
             let mut edges: Vec<([u32; 2], f32)> =
                 self.drawn_edges.iter().map(|(k, v)| (*k, *v)).collect();
-            edges.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+            edges.sort_unstable_by_key(|e| e.0);
             for (key, load) in edges {
                 let color = if by_stress {
                     let t = load.clamp(0.0, 1.0);
-                    let (slack, loaded) =
-                        (self.style.soft_body_slack_color, self.style.soft_body_loaded_color);
+                    let (slack, loaded) = (
+                        self.style.soft_body_slack_color,
+                        self.style.soft_body_loaded_color,
+                    );
                     core::array::from_fn(|k| slack[k] + (loaded[k] - slack[k]) * t)
                 } else {
                     element_color
