@@ -75,8 +75,44 @@ export class IntegrationParameters {
         return this.raw.maxCcdSubsteps;
     }
 
+    /**
+     * Strain beyond which a soft-body constraint is re-solved after the contacts inside every
+     * substep, so a light body buried under heavier ones is not torn (default: `0.75`).
+     */
+    get softBodiesResweepStrain(): number {
+        return this.raw.softBodiesResweepStrain;
+    }
+
+    /**
+     * Maximum number of extra substeps a soft body requests for its island while it is hit
+     * fast (default: `4`; `0` disables the impact-adaptive substeps).
+     */
+    get softBodiesMaxExtraSubsteps(): number {
+        return this.raw.softBodiesMaxExtraSubsteps;
+    }
+
+    /**
+     * Factor applied to the contact softness natural frequencies for the soft-body contacts
+     * (default: `4.0`).
+     */
+    get softBodiesContactStiffening(): number {
+        return this.raw.softBodiesContactStiffening;
+    }
+
     set dt(value: number) {
         this.raw.dt = value;
+    }
+
+    set softBodiesResweepStrain(value: number) {
+        this.raw.softBodiesResweepStrain = value;
+    }
+
+    set softBodiesMaxExtraSubsteps(value: number) {
+        this.raw.softBodiesMaxExtraSubsteps = value;
+    }
+
+    set softBodiesContactStiffening(value: number) {
+        this.raw.softBodiesContactStiffening = value;
     }
 
     set contact_natural_frequency(value: number) {

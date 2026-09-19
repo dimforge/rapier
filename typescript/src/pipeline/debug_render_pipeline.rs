@@ -1,4 +1,4 @@
-use crate::dynamics::{RawImpulseJointSet, RawMultibodyJointSet, RawRigidBodySet};
+use crate::dynamics::{RawImpulseJointSet, RawMultibodyJointSet, RawRigidBodySet, RawSoftBodySet};
 use crate::geometry::{RawColliderSet, RawNarrowPhase};
 use js_sys::Float32Array;
 use palette::convert::IntoColorUnclamped;
@@ -45,6 +45,7 @@ impl RawDebugRenderPipeline {
         &mut self,
         bodies: &RawRigidBodySet,
         colliders: &RawColliderSet,
+        soft_bodies: &RawSoftBodySet,
         impulse_joints: &RawImpulseJointSet,
         multibody_joints: &RawMultibodyJointSet,
         narrow_phase: &RawNarrowPhase,
@@ -77,6 +78,7 @@ impl RawDebugRenderPipeline {
                 &impulse_joints.0,
                 &multibody_joints.0,
                 &narrow_phase.0,
+                &soft_bodies.0,
             )
         })
     }
@@ -126,6 +128,9 @@ impl<'a> DebugRenderBackend for CopyToBuffersBackend<'a> {
                 test_rigid_body(rb)
             }
             DebugRenderObject::RigidBody(_, rb) => test_rigid_body(rb),
+            DebugRenderObject::SoftBody(_, sb) => {
+                self.bodies.get(sb.root_body()).is_some_and(test_rigid_body)
+            }
         }
     }
 

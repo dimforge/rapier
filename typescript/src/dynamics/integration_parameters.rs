@@ -51,6 +51,36 @@ impl RawIntegrationParameters {
         self.0.length_unit
     }
 
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesResweepStrain(&self) -> f32 {
+        self.0.soft_bodies.resweep_strain
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_softBodiesResweepStrain(&mut self, value: f32) {
+        self.0.soft_bodies.resweep_strain = value;
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesMaxExtraSubsteps(&self) -> usize {
+        self.0.soft_bodies.max_extra_substeps
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_softBodiesMaxExtraSubsteps(&mut self, value: usize) {
+        self.0.soft_bodies.max_extra_substeps = value;
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesContactStiffening(&self) -> f32 {
+        self.0.soft_bodies.contact_stiffening
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_softBodiesContactStiffening(&mut self, value: f32) {
+        self.0.soft_bodies.contact_stiffening = value;
+    }
+
     #[wasm_bindgen(setter)]
     pub fn set_dt(&mut self, value: f32) {
         self.0.dt = value;

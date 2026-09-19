@@ -65,8 +65,27 @@ pub struct RigidBody {
     pub(crate) dominance: RigidBodyDominance,
     pub(crate) enabled: bool,
     pub(crate) additional_solver_iterations: usize,
+    pub(crate) additional_pgs_iterations: usize,
+    /// The soft body this rigid body is the root of (invalid for regular rigid bodies).
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(default = "crate::dynamics::SoftBodyHandle::invalid")
+    )]
+    pub(crate) soft_body: crate::dynamics::SoftBodyHandle,
+    /// The cluster this soft-frame proxy stands for, in its soft body's cluster list
+    /// (`u32::MAX` for regular rigid bodies).
+    #[cfg_attr(feature = "serde-serialize", serde(default = "invalid_soft_cluster"))]
+    pub(crate) soft_cluster: u32,
+    /// The speculative margin of a soft-frame proxy's colliders, set by the soft-body step: the
+    /// farthest particle travel of its soft body over the coming step (zero for regular bodies).
+    pub(crate) soft_motion_margin: Real,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
+}
+
+#[cfg(feature = "serde-serialize")]
+fn invalid_soft_cluster() -> u32 {
+    u32::MAX
 }
 
 impl Default for RigidBody {
@@ -94,12 +113,18 @@ impl RigidBody {
             enabled: true,
             user_data: 0,
             additional_solver_iterations: 0,
+            additional_pgs_iterations: 0,
+            soft_body: crate::dynamics::SoftBodyHandle::invalid(),
+            soft_cluster: u32::MAX,
+            soft_motion_margin: 0.0,
         }
     }
 
     pub(crate) fn reset_internal_references(&mut self) {
         self.colliders.0 = Vec::new();
         self.ids = Default::default();
+        self.soft_body = crate::dynamics::SoftBodyHandle::invalid();
+        self.soft_cluster = u32::MAX;
     }
 
     /// Copy all the characteristics from `other` to `self`.
@@ -137,6 +162,10 @@ impl RigidBody {
             dominance,
             enabled,
             additional_solver_iterations,
+            additional_pgs_iterations,
+            soft_body: _soft_body, // The soft-body markers belong to the proxy, not to its state.
+            soft_cluster: _soft_cluster,
+            soft_motion_margin: _soft_motion_margin, // Engine-managed, like the markers.
             user_data,
         } = other;
 
@@ -152,6 +181,7 @@ impl RigidBody {
         self.dominance = *dominance;
         self.enabled = *enabled;
         self.additional_solver_iterations = *additional_solver_iterations;
+        self.additional_pgs_iterations = *additional_pgs_iterations;
         self.user_data = *user_data;
 
         self.changes = RigidBodyChanges::all();
@@ -165,6 +195,25 @@ impl RigidBody {
         self.additional_solver_iterations
     }
 
+    /// The soft body this rigid body is a cluster proxy of, if any. A proxy stands for its cluster
+    /// in islands and joints, holds its colliders, and its removal removes the cluster; see
+    /// [`crate::dynamics::SoftBodySet::insert`] and [`crate::dynamics::SoftBodySet::add_cluster`].
+    pub fn soft_body(&self) -> Option<crate::dynamics::SoftBodyHandle> {
+        (!self.soft_body.is_invalid()).then_some(self.soft_body)
+    }
+
+    /// The index of the cluster this soft-frame proxy stands for in its soft body's cluster
+    /// list, if any (see [`Self::soft_body`]).
+    pub fn soft_cluster(&self) -> Option<u32> {
+        (self.soft_cluster != u32::MAX).then_some(self.soft_cluster)
+    }
+
+    /// Whether this rigid body is the proxy of a soft-body cluster
+    /// ([`RigidBodyType::SoftFrame`]).
+    pub fn is_soft_frame(&self) -> bool {
+        self.body_type.is_soft_frame()
+    }
+
     /// Set the additional number of solver substeps run for the simulation island containing this
     /// rigid-body (default: 0). Each extra substep re-derives the soft constraint bias at a smaller
     /// timestep, improving accuracy for stiff couplings (joint chains, high mass-ratio stacks). The
@@ -173,6 +222,21 @@ impl RigidBody {
     /// attaching an elevated body to a large pile substeps the pile too.
     pub fn set_additional_solver_iterations(&mut self, additional_iterations: usize) {
         self.additional_solver_iterations = additional_iterations;
+    }
+
+    /// The additional number of internal PGS iterations run per substep for the simulation
+    /// island component containing this rigid-body (default: 0).
+    ///
+    /// See [`Self::set_additional_pgs_iterations`] for additional information.
+    pub fn additional_pgs_iterations(&self) -> usize {
+        self.additional_pgs_iterations
+    }
+
+    /// Set the additional number of internal PGS iterations run per substep for the simulation
+    /// island component containing this rigid-body (default: 0); the component runs the largest
+    /// request, soft bodies asking three ([`crate::dynamics::SoftBodyParticleSettings`]).
+    pub fn set_additional_pgs_iterations(&mut self, additional_iterations: usize) {
+        self.additional_pgs_iterations = additional_iterations;
     }
 
     /// The activation status of this rigid-body.
@@ -250,6 +314,11 @@ impl RigidBody {
 
     /// Sets the type of this rigid-body.
     pub fn set_body_type(&mut self, status: RigidBodyType, wake_up: bool) {
+        if self.is_soft_frame() || status.is_soft_frame() {
+            // Soft-frame proxies are created and removed with their cluster only: a body
+            // cannot be turned into one, and a proxy cannot change kind.
+            return;
+        }
         if status != self.body_type {
             self.changes.insert(RigidBodyChanges::TYPE);
             self.body_type = status;
@@ -303,6 +372,11 @@ impl RigidBody {
     /// Sets the axes along which this rigid-body cannot translate or rotate.
     #[inline]
     pub fn set_locked_axes(&mut self, locked_axes: LockedAxes, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if locked_axes != self.mprops.flags {
             if self.is_dynamic_or_kinematic() && wake_up {
                 self.wake_up(true);
@@ -325,6 +399,11 @@ impl RigidBody {
     /// Use for characters that shouldn't tip over, or objects that should only slide.
     #[inline]
     pub fn lock_rotations(&mut self, locked: bool, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if locked != self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED) {
             if self.is_dynamic_or_kinematic() && wake_up {
                 self.wake_up(true);
@@ -346,6 +425,11 @@ impl RigidBody {
         allow_rotations_z: bool,
         wake_up: bool,
     ) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_X) == allow_rotations_x
             || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Y) == allow_rotations_y
             || self.mprops.flags.contains(LockedAxes::ROTATION_LOCKED_Z) == allow_rotations_z
@@ -390,6 +474,11 @@ impl RigidBody {
     /// Use for rotating platforms, turrets, or objects fixed in space.
     #[inline]
     pub fn lock_translations(&mut self, locked: bool, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if locked != self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED) {
             if self.is_dynamic_or_kinematic() && wake_up {
                 self.wake_up(true);
@@ -411,6 +500,11 @@ impl RigidBody {
         #[cfg(feature = "dim3")] allow_translation_z: bool,
         wake_up: bool,
     ) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         #[cfg(feature = "dim2")]
         if self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_X) != allow_translation_x
             && self.mprops.flags.contains(LockedAxes::TRANSLATION_LOCKED_Y) != allow_translation_y
@@ -589,6 +683,11 @@ impl RigidBody {
     /// Updated automatically at next physics step or call `recompute_mass_properties_from_colliders()`.
     #[inline]
     pub fn set_additional_mass(&mut self, additional_mass: Real, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         self.do_set_additional_mass_properties(
             RigidBodyAdditionalMassProps::Mass(additional_mass),
             wake_up,
@@ -613,6 +712,11 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[inline]
     pub fn set_additional_mass_properties(&mut self, props: MassProperties, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         self.do_set_additional_mass_properties(
             RigidBodyAdditionalMassProps::MassProps(props),
             wake_up,
@@ -660,8 +764,9 @@ impl RigidBody {
     /// Checks if this is a dynamic body (moves via forces and collisions).
     ///
     /// Dynamic bodies are fully simulated and respond to gravity, forces, and collisions.
+    /// Soft-frame proxies ([`RigidBodyType::SoftFrame`]) count as dynamic.
     pub fn is_dynamic(&self) -> bool {
-        self.body_type == RigidBodyType::Dynamic
+        self.body_type.is_dynamic()
     }
 
     /// Checks if this is a kinematic body (moves via direct velocity/position control).
@@ -738,6 +843,11 @@ impl RigidBody {
     /// bodies[body].set_gravity_scale(2.0, true);  // Extra heavy
     /// ```
     pub fn set_gravity_scale(&mut self, scale: Real, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if self.forces.gravity_scale != scale {
             if wake_up && self.activation.sleeping {
                 self.changes.insert(RigidBodyChanges::SLEEP);
@@ -903,6 +1013,11 @@ impl RigidBody {
     /// bodies[body].set_linvel(Vector::new(5.0, 0.0, 0.0), true);
     /// ```
     pub fn set_linvel(&mut self, linvel: Vector, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if self.vels.linvel != linvel {
             match self.body_type {
                 RigidBodyType::Dynamic | RigidBodyType::KinematicVelocityBased => {
@@ -911,7 +1026,9 @@ impl RigidBody {
                         self.wake_up(true)
                     }
                 }
-                RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
+                RigidBodyType::Fixed
+                | RigidBodyType::KinematicPositionBased
+                | RigidBodyType::SoftFrame => {}
             }
         }
     }
@@ -922,6 +1039,11 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim2")]
     pub fn set_angvel(&mut self, angvel: Real, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if self.vels.angvel != angvel {
             match self.body_type {
                 RigidBodyType::Dynamic | RigidBodyType::KinematicVelocityBased => {
@@ -930,7 +1052,9 @@ impl RigidBody {
                         self.wake_up(true)
                     }
                 }
-                RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
+                RigidBodyType::Fixed
+                | RigidBodyType::KinematicPositionBased
+                | RigidBodyType::SoftFrame => {}
             }
         }
     }
@@ -941,6 +1065,11 @@ impl RigidBody {
     /// put to sleep because it did not move for a while.
     #[cfg(feature = "dim3")]
     pub fn set_angvel(&mut self, angvel: AngVector, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if self.vels.angvel != angvel {
             match self.body_type {
                 RigidBodyType::Dynamic | RigidBodyType::KinematicVelocityBased => {
@@ -949,7 +1078,9 @@ impl RigidBody {
                         self.wake_up(true)
                     }
                 }
-                RigidBodyType::Fixed | RigidBodyType::KinematicPositionBased => {}
+                RigidBodyType::Fixed
+                | RigidBodyType::KinematicPositionBased
+                | RigidBodyType::SoftFrame => {}
             }
         }
     }
@@ -986,6 +1117,11 @@ impl RigidBody {
     /// * `wake_up` - If `true`, prevents the body from immediately going back to sleep
     #[inline]
     pub fn set_translation(&mut self, translation: Vector, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if self.pos.position.translation != translation
             || self.pos.next_position.translation != translation
         {
@@ -1014,6 +1150,11 @@ impl RigidBody {
     /// ⚠️ **Warning**: This teleports the rotation, ignoring physics! See [`set_translation()`](Self::set_translation) for details.
     #[inline]
     pub fn set_rotation(&mut self, rotation: Rotation, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if self.pos.position.rotation != rotation || self.pos.next_position.rotation != rotation {
             self.changes.insert(RigidBodyChanges::POSITION);
             self.pos.position.rotation = rotation;
@@ -1036,6 +1177,11 @@ impl RigidBody {
     ///
     /// Use for respawning, level transitions, or resetting positions.
     pub fn set_position(&mut self, pos: Pose, wake_up: bool) {
+        if self.is_soft_frame() {
+            // A soft-frame proxy's state is derived from its cluster's particles: this
+            // setter is ignored for it.
+            return;
+        }
         if self.pos.position != pos || self.pos.next_position != pos {
             self.changes.insert(RigidBodyChanges::POSITION);
             self.pos.position = pos;
@@ -1207,7 +1353,7 @@ impl RigidBody {
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
     pub fn add_force(&mut self, force: Vector, wake_up: bool) {
-        if force != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
+        if force != Vector::ZERO && self.body_type.is_dynamic() {
             self.forces.user_force += force;
 
             if wake_up {
@@ -1225,7 +1371,7 @@ impl RigidBody {
     /// Only affects dynamic bodies.
     #[cfg(feature = "dim2")]
     pub fn add_torque(&mut self, torque: Real, wake_up: bool) {
-        if !torque.is_zero() && self.body_type == RigidBodyType::Dynamic {
+        if !torque.is_zero() && self.body_type.is_dynamic() {
             self.forces.user_torque += torque;
 
             if wake_up {
@@ -1242,7 +1388,7 @@ impl RigidBody {
     /// Only affects dynamic bodies.
     #[cfg(feature = "dim3")]
     pub fn add_torque(&mut self, torque: Vector, wake_up: bool) {
-        if torque != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
+        if torque != Vector::ZERO && self.body_type.is_dynamic() {
             self.forces.user_torque += torque;
 
             if wake_up {
@@ -1264,7 +1410,7 @@ impl RigidBody {
     ///
     /// Only affects dynamic bodies.
     pub fn add_force_at_point(&mut self, force: Vector, point: Vector, wake_up: bool) {
-        if force != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
+        if force != Vector::ZERO && self.body_type.is_dynamic() {
             self.forces.user_force += force;
             self.forces.user_torque += (point - self.mprops.world_com).gcross(force);
 
@@ -1302,7 +1448,7 @@ impl RigidBody {
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
     #[profiling::function]
     pub fn apply_impulse(&mut self, impulse: Vector, wake_up: bool) {
-        if impulse != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
+        if impulse != Vector::ZERO && self.body_type.is_dynamic() {
             self.vels.linvel += impulse * self.mprops.effective_inv_mass;
 
             if wake_up {
@@ -1317,7 +1463,7 @@ impl RigidBody {
     #[cfg(feature = "dim2")]
     #[profiling::function]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Real, wake_up: bool) {
-        if !torque_impulse.is_zero() && self.body_type == RigidBodyType::Dynamic {
+        if !torque_impulse.is_zero() && self.body_type.is_dynamic() {
             self.vels.angvel += self.mprops.effective_world_inv_inertia * torque_impulse;
 
             if wake_up {
@@ -1333,7 +1479,7 @@ impl RigidBody {
     #[cfg(feature = "dim3")]
     #[profiling::function]
     pub fn apply_torque_impulse(&mut self, torque_impulse: Vector, wake_up: bool) {
-        if torque_impulse != Vector::ZERO && self.body_type == RigidBodyType::Dynamic {
+        if torque_impulse != Vector::ZERO && self.body_type.is_dynamic() {
             self.vels.angvel += self.mprops.effective_world_inv_inertia * torque_impulse;
 
             if wake_up {
@@ -1373,7 +1519,7 @@ impl RigidBody {
     /// This is the sum of all `add_force()` calls since the last physics step.
     /// Returns zero for non-dynamic bodies.
     pub fn user_force(&self) -> Vector {
-        if self.body_type == RigidBodyType::Dynamic {
+        if self.body_type.is_dynamic() {
             self.forces.user_force
         } else {
             Vector::ZERO
@@ -1385,7 +1531,7 @@ impl RigidBody {
     /// This is the sum of all `add_torque()` calls since the last physics step.
     /// Returns zero for non-dynamic bodies.
     pub fn user_torque(&self) -> AngVector {
-        if self.body_type == RigidBodyType::Dynamic {
+        if self.body_type.is_dynamic() {
             self.forces.user_torque
         } else {
             #[cfg(feature = "dim2")]
@@ -1539,6 +1685,11 @@ pub struct RigidBodyBuilder {
     ///
     /// See [`RigidBody::set_additional_solver_iterations`] for additional information.
     pub additional_solver_iterations: usize,
+    /// The additional number of internal PGS iterations run per substep for the island
+    /// component of this rigid-body.
+    ///
+    /// See [`RigidBody::set_additional_pgs_iterations`] for additional information.
+    pub additional_pgs_iterations: usize,
     /// Are gyroscopic forces enabled for this rigid-body?
     pub gyroscopic_forces_enabled: bool,
 }
@@ -1576,6 +1727,7 @@ impl RigidBodyBuilder {
             enabled: true,
             user_data: 0,
             additional_solver_iterations: 0,
+            additional_pgs_iterations: 0,
             gyroscopic_forces_enabled: true,
         }
     }
@@ -1650,6 +1802,15 @@ impl RigidBodyBuilder {
     /// See [`RigidBody::set_additional_solver_iterations`] for additional information.
     pub fn additional_solver_iterations(mut self, additional_iterations: usize) -> Self {
         self.additional_solver_iterations = additional_iterations;
+        self
+    }
+
+    /// Sets the additional number of internal PGS iterations run per substep for the island
+    /// component of this rigid-body.
+    ///
+    /// See [`RigidBody::set_additional_pgs_iterations`] for additional information.
+    pub fn additional_pgs_iterations(mut self, additional_iterations: usize) -> Self {
+        self.additional_pgs_iterations = additional_iterations;
         self
     }
 
@@ -1974,6 +2135,7 @@ impl RigidBodyBuilder {
         rb.body_type = self.body_type;
         rb.user_data = self.user_data;
         rb.additional_solver_iterations = self.additional_solver_iterations;
+        rb.additional_pgs_iterations = self.additional_pgs_iterations;
 
         if self.additional_mass_properties
             != RigidBodyAdditionalMassProps::MassProps(MassProperties::default())

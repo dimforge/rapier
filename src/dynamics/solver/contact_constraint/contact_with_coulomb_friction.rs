@@ -41,9 +41,9 @@ impl<N: ScalarType> Default for CoulombContactPointInfos<N> {
 pub(crate) struct ContactWithCoulombFrictionBuilder {
     infos: [CoulombContactPointInfos<SimdReal>; MAX_MANIFOLD_POINTS],
     /// The contact normal in the first body's (com-centered) local frame, so
-    /// `refresh` can re-derive the world normal without touching the manifold.
+    /// `update` can re-derive the world normal without touching the manifold.
     local_n1: <SimdReal as ScalarType>::Vector,
-    /// The pair's restitution coefficient (needed by `refresh` to recompute the
+    /// The pair's restitution coefficient (needed by `update` to recompute the
     /// restitution rhs seed).
     restitution: SimdReal,
 }
@@ -165,7 +165,7 @@ impl ContactWithCoulombFrictionBuilder {
 
             // Warm-start impulses and contact newness read straight off the manifold points
             // (not duplicated on the solver contacts): a zero `impulse` means the contact never
-            // carried a load — exactly what the emission-time is-new bit encoded.
+            // bore a load, exactly what the emission-time is-new bit encoded.
             let cids = solver_contact.contact_indices();
             let pt_data = |ii: usize| &manifolds[ii].points[cids[ii] as usize].data;
             let warmstart_impulse = SimdReal::from(gather![|ii| pt_data(ii).warmstart_impulse]);
@@ -195,7 +195,7 @@ impl ContactWithCoulombFrictionBuilder {
 
             // Reconstruct the world contact points and separation from the body-local anchors
             // and solver poses (a world-attached side gathers the identity pose, so its anchor
-            // passes through). This replaces the narrow-phase's per-frame refresh of recycled contacts.
+            // passes through). Recycled contacts are updated here, not per frame by the narrow phase.
             let p1 = poses1.transform_point(solver_contact.anchor1);
             let p2 = poses2.transform_point(solver_contact.anchor2);
             let dist = (p1 - p2).gdot(force_dir1);
@@ -347,8 +347,8 @@ impl ContactWithCoulombFrictionBuilder {
                 // Degenerate (redundant contacts) or partially-active lanes clear the block
                 // flag: `solve_pair` then solves the two points sequentially instead.
                 let block = is_invertible & pair_active;
-                // `k12` stays on every lane: the degraded path carries the first point's
-                // impulse change over to the second.
+                // `k12` stays on every lane: the degraded path propagates the first point's
+                // impulse change to the second.
                 out_constraint.normal_part[k0].r_mat_elts =
                     [k12, SimdReal::splat(1.0).select(block, SimdReal::zero())];
                 out_constraint.normal_part[k1].r_mat_elts = [SimdReal::zero(); 2];
@@ -454,10 +454,10 @@ impl ContactWithCoulombFrictionBuilder {
         constraint.cfm_factor = cfm_factor;
     }
 
-    /// Relax-pass refresh: recompute the unbiased rhs (speculative term included)
+    /// Relax-pass update: recompute the unbiased rhs (speculative term included)
     /// from the CURRENT solver poses and strip softness and penetration bias. See
-    /// `ContactWithTwistFrictionBuilder::refresh_rhs_wo_bias` for why stale separations are unusable.
-    pub fn refresh_rhs_wo_bias(
+    /// `ContactWithTwistFrictionBuilder::update_rhs_wo_bias` for why stale separations are unusable.
+    pub fn update_rhs_wo_bias(
         &self,
         params: &IntegrationParameters,
         solved_dt: Real,
@@ -500,7 +500,7 @@ impl ContactWithCoulombFrictionBuilder {
 
     /// End-of-step restitution pass (box2d-style): after all substeps, drive each bouncy
     /// point's normal velocity to its prepare-time `restitution * approach_velocity`, gated
-    /// on the point having carried an impulse. See `ContactConstraintNormalPart::solve_restitution`.
+    /// on the point having applied an impulse. See `ContactConstraintNormalPart::solve_restitution`.
     pub fn apply_restitution(
         &self,
         constraint: &mut ContactWithCoulombFriction<SimdReal>,

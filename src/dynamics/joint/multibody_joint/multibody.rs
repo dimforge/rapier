@@ -70,7 +70,7 @@ fn concat_rb_mass_matrix(
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 pub struct MultibodyDofCoupling {
-    /// Internal id of the link carrying the first joint.
+    /// Internal id of the link owning the first joint.
     pub link1: usize,
     /// Local free-DoF index of the coupled DoF within `link1` (its position in
     /// that link's slice of the generalized vectors).
@@ -78,7 +78,7 @@ pub struct MultibodyDofCoupling {
     /// Spatial-coordinate axis (`0..6`) of `link1`'s coupled DoF, used to read
     /// its generalized position from the joint coords.
     pub axis1: usize,
-    /// Internal id of the link carrying the second joint.
+    /// Internal id of the link owning the second joint.
     pub link2: usize,
     /// Local free-DoF index of the coupled DoF within `link2`.
     pub dof2: usize,
@@ -1638,12 +1638,12 @@ impl Multibody {
             let jb1 = &self.body_jacobians[link1.internal_id];
             let jb2 = &self.body_jacobians[link2.internal_id];
 
-            // Use the (overwritten below) W·J slot as scratch for J1ᵀ·f1.
-            let (mut out_j, mut scratch) =
+            // Use the (overwritten below) W·J slot as workspace for J1ᵀ·f1.
+            let (mut out_j, mut workspace) =
                 jacobians.rows_range_pair_mut(*j_id..*j_id + self.ndofs, wj_id..wj_id + self.ndofs);
             jb2.tr_mul_to(force2.as_vector(), &mut out_j);
-            jb1.tr_mul_to(force1.as_vector(), &mut scratch);
-            out_j.axpy(-1.0, &scratch, 1.0);
+            jb1.tr_mul_to(force1.as_vector(), &mut workspace);
+            out_j.axpy(-1.0, &workspace, 1.0);
 
             // Cancellation guard: the reference scale is the magnitude of the dot-product operands,
             // not their results (which may be pure cancellation noise when the direction isn’t
@@ -1811,7 +1811,7 @@ mod test {
     use crate::math::{Real, SPATIAL_DIM};
     use crate::prelude::{
         ColliderSet, MultibodyJointHandle, MultibodyJointSet, RevoluteJoint, RigidBodyBuilder,
-        RigidBodySet,
+        RigidBodySet, SoftBodySet,
     };
     use na::{DVector, RowDVector};
 
@@ -1898,6 +1898,7 @@ mod test {
             let mut colliders = ColliderSet::new();
             let mut impulse_joints = ImpulseJointSet::new();
             let mut islands = IslandManager::new();
+            let mut soft_bodies = SoftBodySet::new();
 
             let num_links = 100;
             let mut handles = vec![];
@@ -1939,6 +1940,7 @@ mod test {
                     &mut colliders,
                     &mut impulse_joints,
                     &mut multibody_joints,
+                    &mut soft_bodies,
                     true,
                 );
             }

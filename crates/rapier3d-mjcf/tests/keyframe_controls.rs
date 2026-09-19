@@ -62,6 +62,7 @@ fn run(
     ctrl: &[Real],
 ) -> f32 {
     let mut pipeline = PhysicsPipeline::new();
+    let mut soft_bodies = SoftBodySet::new();
     let ip = IntegrationParameters::default();
     let (mut isl, mut bp, mut np, mut ccd) = (
         IslandManager::new(),
@@ -81,6 +82,7 @@ fn run(
             colliders,
             ij,
             mbj,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

@@ -139,6 +139,7 @@ fn inertia_from_geom_when_no_inertial() {
     // Force a mass-properties update by simulating one step.
     use rapier3d::prelude::*;
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut ccd = CCDSolver::new();
     let mut pipeline = PhysicsPipeline::new();
     let integration_parameters = IntegrationParameters::default();
@@ -158,6 +159,7 @@ fn inertia_from_geom_when_no_inertial() {
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut ccd,
         &physics_hooks,
         &event_handler,

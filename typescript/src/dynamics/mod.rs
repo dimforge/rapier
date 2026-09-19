@@ -7,6 +7,7 @@ pub use self::island_manager::*;
 pub use self::joint::*;
 pub use self::multibody_joint_set::*;
 pub use self::rigid_body_set::*;
+pub use self::soft_body::*;
 
 mod ccd_solver;
 mod impulse_joint;
@@ -18,3 +19,4 @@ mod multibody_joint;
 mod multibody_joint_set;
 mod rigid_body;
 mod rigid_body_set;
+mod soft_body;

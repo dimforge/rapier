@@ -1,12 +1,13 @@
 use crate::dynamics::{
     RawImpulseJointSet, RawIntegrationParameters, RawIslandManager, RawMultibodyJointSet,
-    RawRigidBodySet,
+    RawRigidBodySet, RawSoftBodySet,
 };
 use crate::geometry::{RawBroadPhase, RawColliderSet, RawNarrowPhase};
 use crate::math::RawVector;
 use js_sys::Uint8Array;
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
+    SoftBodySet,
 };
 use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
 use rapier::math::Vector;
@@ -23,6 +24,7 @@ struct SerializableWorld<'a> {
     colliders: &'a ColliderSet,
     impulse_joints: &'a ImpulseJointSet,
     multibody_joints: &'a MultibodyJointSet,
+    soft_bodies: &'a SoftBodySet,
 }
 
 #[derive(Deserialize)]
@@ -36,6 +38,8 @@ struct DeserializableWorld {
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
+    #[serde(default)]
+    soft_bodies: SoftBodySet,
 }
 
 #[wasm_bindgen]
@@ -49,6 +53,7 @@ pub struct RawDeserializedWorld {
     colliders: Option<RawColliderSet>,
     impulse_joints: Option<RawImpulseJointSet>,
     multibody_joints: Option<RawMultibodyJointSet>,
+    soft_bodies: Option<RawSoftBodySet>,
 }
 
 #[wasm_bindgen]
@@ -88,6 +93,10 @@ impl RawDeserializedWorld {
     pub fn takeMultibodyJoints(&mut self) -> Option<RawMultibodyJointSet> {
         self.multibody_joints.take()
     }
+
+    pub fn takeSoftBodies(&mut self) -> Option<RawSoftBodySet> {
+        self.soft_bodies.take()
+    }
 }
 
 #[wasm_bindgen]
@@ -109,6 +118,7 @@ impl RawSerializationPipeline {
         narrowPhase: &RawNarrowPhase,
         bodies: &RawRigidBodySet,
         colliders: &RawColliderSet,
+        soft_bodies: &RawSoftBodySet,
         impulse_joints: &RawImpulseJointSet,
         multibody_joints: &RawMultibodyJointSet,
     ) -> Option<Uint8Array> {
@@ -122,6 +132,7 @@ impl RawSerializationPipeline {
             colliders: &colliders.0,
             impulse_joints: &impulse_joints.0,
             multibody_joints: &multibody_joints.0,
+            soft_bodies: &soft_bodies.0,
         };
         let snap = bincode::serialize(&to_serialize).ok()?;
         Some(Uint8Array::from(&snap[..]))
@@ -140,6 +151,7 @@ impl RawSerializationPipeline {
             colliders: Some(RawColliderSet(d.colliders)),
             impulse_joints: Some(RawImpulseJointSet(d.impulse_joints)),
             multibody_joints: Some(RawMultibodyJointSet(d.multibody_joints)),
+            soft_bodies: Some(RawSoftBodySet(d.soft_bodies)),
         })
     }
 }

@@ -88,7 +88,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
 
     let (collision_send, collision_recv) = std::sync::mpsc::channel();
     let (contact_force_send, _contact_force_recv) = std::sync::mpsc::channel();
-    let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+    let (soft_body_tear_send, _soft_body_tear_recv) = std::sync::mpsc::channel();
+    let event_handler =
+        ChannelEventCollector::new(collision_send, contact_force_send, soft_body_tear_send);
 
     while viewer.render_frame(&mut world).await {
         if viewer.simulating() {

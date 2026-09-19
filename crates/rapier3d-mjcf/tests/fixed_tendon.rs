@@ -84,6 +84,7 @@ fn fixed_tendon_actuator_drives_both_joints() {
     // Drive the single tendon actuator toward 0.5.
     let ctrl = [0.5_f32];
     let mut pipeline = PhysicsPipeline::new();
+    let mut soft_bodies = SoftBodySet::new();
     let ip = IntegrationParameters::default();
     let (mut isl, mut bp, mut np, mut ccd) = (
         IslandManager::new(),
@@ -103,6 +104,7 @@ fn fixed_tendon_actuator_drives_both_joints() {
             &mut colliders,
             &mut ij,
             &mut mbj,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

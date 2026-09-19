@@ -12,6 +12,7 @@ import {
     RawRigidBodySet,
     RawSerializationPipeline,
     RawDebugRenderPipeline,
+    RawSoftBodySet,
 } from "../raw";
 
 import {
@@ -45,6 +46,12 @@ import {
     RigidBodyDesc,
     RigidBodyHandle,
     RigidBodySet,
+    SoftBody,
+    SoftBodyDesc,
+    SoftBodyHandle,
+    SoftBodySet,
+    SoftBodyTearEvent,
+    SoftMeshBinding,
 } from "../dynamics";
 import {Rotation, Vector, VectorOps} from "../math";
 import {PhysicsPipeline} from "./physics_pipeline";
@@ -81,6 +88,7 @@ export class World {
     colliders: ColliderSet;
     impulseJoints: ImpulseJointSet;
     multibodyJoints: MultibodyJointSet;
+    softBodies: SoftBodySet;
     ccdSolver: CCDSolver;
     physicsPipeline: PhysicsPipeline;
     serializationPipeline: SerializationPipeline;
@@ -108,6 +116,7 @@ export class World {
         this.colliders.free();
         this.impulseJoints.free();
         this.multibodyJoints.free();
+        this.softBodies.free();
         this.ccdSolver.free();
         this.physicsPipeline.free();
         this.serializationPipeline.free();
@@ -128,6 +137,7 @@ export class World {
         this.ccdSolver = undefined;
         this.impulseJoints = undefined;
         this.multibodyJoints = undefined;
+        this.softBodies = undefined;
         this.physicsPipeline = undefined;
         this.serializationPipeline = undefined;
         this.debugRenderPipeline = undefined;
@@ -147,6 +157,7 @@ export class World {
         rawNarrowPhase?: RawNarrowPhase,
         rawBodies?: RawRigidBodySet,
         rawColliders?: RawColliderSet,
+        rawSoftBodies?: RawSoftBodySet,
         rawImpulseJoints?: RawImpulseJointSet,
         rawMultibodyJoints?: RawMultibodyJointSet,
         rawCCDSolver?: RawCCDSolver,
@@ -165,6 +176,7 @@ export class World {
         this.colliders = new ColliderSet(rawColliders);
         this.impulseJoints = new ImpulseJointSet(rawImpulseJoints);
         this.multibodyJoints = new MultibodyJointSet(rawMultibodyJoints);
+        this.softBodies = new SoftBodySet(rawSoftBodies);
         this.ccdSolver = new CCDSolver(rawCCDSolver);
         this.physicsPipeline = new PhysicsPipeline(rawPhysicsPipeline);
         this.serializationPipeline = new SerializationPipeline(
@@ -183,6 +195,7 @@ export class World {
         this.impulseJoints.finalizeDeserialization(this.bodies);
         this.bodies.finalizeDeserialization(this.colliders);
         this.colliders.finalizeDeserialization(this.bodies);
+        this.softBodies.finalizeDeserialization(this.bodies, this.colliders);
     }
 
     public static fromRaw(raw: RawDeserializedWorld): World {
@@ -196,6 +209,7 @@ export class World {
             raw.takeNarrowPhase(),
             raw.takeBodies(),
             raw.takeColliders(),
+            raw.takeSoftBodies(),
             raw.takeImpulseJoints(),
             raw.takeMultibodyJoints(),
         );
@@ -216,6 +230,7 @@ export class World {
             this.narrowPhase,
             this.bodies,
             this.colliders,
+            this.softBodies,
             this.impulseJoints,
             this.multibodyJoints,
         );
@@ -245,6 +260,7 @@ export class World {
         this.debugRenderPipeline.render(
             this.bodies,
             this.colliders,
+            this.softBodies,
             this.impulseJoints,
             this.multibodyJoints,
             this.narrowPhase,
@@ -274,12 +290,30 @@ export class World {
             this.narrowPhase,
             this.bodies,
             this.colliders,
+            this.softBodies,
             this.impulseJoints,
             this.multibodyJoints,
             this.ccdSolver,
             eventQueue,
             hooks,
         );
+        // Tears split pieces off into soft bodies of their own, with proxies and colliders.
+        this.mapNewSoftBodies();
+    }
+
+    /**
+     * Wraps the soft bodies, rigid-body proxies and colliders the engine created on its own
+     * during the last step (the pieces tears split off), and drops the wrappers of what it
+     * removed. Called by `World.step`.
+     */
+    public mapNewSoftBodies() {
+        this.softBodies.mapNewSoftBodies(this.bodies, this.colliders);
+        this.bodies.mapNewBodies(this.colliders);
+        this.colliders.mapNewColliders(this.bodies);
+        this.bodies.unmapRemovedBodies();
+        this.colliders.unmapRemovedColliders();
+        this.impulseJoints.unmapRemovedJoints();
+        this.multibodyJoints.unmapRemovedJoints();
     }
 
     /**
@@ -546,6 +580,130 @@ export class World {
     }
 
     /**
+     * Creates a new soft body from the given description, with its hidden root rigid body
+     * and its colliders (a deformable surface, or one ball per particle).
+     *
+     * @param desc - The description of the soft body to create.
+     */
+    public createSoftBody(desc: SoftBodyDesc): SoftBody {
+        return this.softBodies.createSoftBody(
+            this.bodies,
+            this.colliders,
+            desc,
+        );
+    }
+
+    /**
+     * Creates a collider holding a soft body's deformable collision mesh (a polyline in 2D or
+     * a triangle mesh in 3D built with the `DEFORMABLE` flag), bound to the cluster whose
+     * proxy is `parent` (see `SoftBody.rootBody` and `SoftBody.clusterProxy`).
+     *
+     * Returns `null` when the binding fails.
+     *
+     * @param desc - The description of the collider; its shape's vertices are given in the
+     *               collider's local frame relative to the proxy.
+     * @param binding - How the mesh's vertices follow the cluster's particles.
+     * @param parent - The cluster proxy the collider is attached to.
+     */
+    public createDeformableCollider(
+        desc: ColliderDesc,
+        binding: SoftMeshBinding,
+        parent: RigidBody,
+    ): Collider | null {
+        return this.colliders.createDeformableCollider(
+            this.bodies,
+            this.softBodies,
+            desc,
+            binding,
+            parent.handle,
+        );
+    }
+
+    /**
+     * Adds a cluster to a soft body: a rigid proxy over the given particles that joints and
+     * colliders can attach to. Returns the cluster's index, or `null` if no particle was
+     * valid.
+     */
+    public addSoftBodyCluster(
+        body: SoftBody,
+        particles: Uint32Array | number[],
+    ): number | null {
+        return this.softBodies.addCluster(
+            body.handle,
+            particles,
+            this.bodies,
+            this.colliders,
+        );
+    }
+
+    /**
+     * Removes a cluster of a soft body, with its proxy, colliders and joints.
+     */
+    public removeSoftBodyCluster(body: SoftBody, cluster: number): boolean {
+        return this.softBodies.removeCluster(
+            body.handle,
+            cluster,
+            this.islands,
+            this.bodies,
+            this.colliders,
+            this.impulseJoints,
+            this.multibodyJoints,
+        );
+    }
+
+    /**
+     * Tears a soft body at once along the given edges and through the given cells (indices
+     * into `SoftBody.edges` and `SoftBody.cells`), without removing material. Pieces
+     * disconnected by the tear become soft bodies of their own.
+     *
+     * Returns the tear event (to be freed with `.free()`), or `null` when nothing changed.
+     */
+    public tearSoftBody(
+        body: SoftBody,
+        edges: Uint32Array | number[],
+        cells: Uint32Array | number[],
+    ): SoftBodyTearEvent | null {
+        return this.softBodies.tear(
+            body.handle,
+            edges,
+            cells,
+            this.islands,
+            this.bodies,
+            this.colliders,
+            this.impulseJoints,
+            this.multibodyJoints,
+        );
+    }
+
+    /**
+     * Cuts a soft body along a blade: a segment (two points) in 2D, a triangle (three points)
+     * in 3D. Pieces disconnected by the cut become soft bodies of their own.
+     *
+     * Returns the tear event (to be freed with `.free()`), or `null` when nothing changed.
+     */
+    public cutSoftBody(
+        body: SoftBody,
+        blade: Vector[],
+    ): SoftBodyTearEvent | null {
+        return this.softBodies.cut(
+            body.handle,
+            blade,
+            this.islands,
+            this.bodies,
+            this.colliders,
+            this.impulseJoints,
+            this.multibodyJoints,
+        );
+    }
+
+    /**
+     * Wakes a soft body and everything it touches up.
+     */
+    public wakeUpSoftBody(body: SoftBody, strong: boolean) {
+        this.softBodies.wakeUp(body.handle, this.bodies, strong);
+    }
+
+    /**
      * Creates a new impulse joint from the given joint descriptor.
      *
      * @param params - The description of the joint to create.
@@ -627,6 +785,15 @@ export class World {
     }
 
     /**
+     * Retrieves a soft body from its handle.
+     *
+     * @param handle - The integer handle of the soft body to retrieve.
+     */
+    public getSoftBody(handle: SoftBodyHandle): SoftBody {
+        return this.softBodies.get(handle);
+    }
+
+    /**
      * Removes the given rigid-body from this physics world.
      *
      * This will remove this rigid-body as well as all its attached colliders and joints.
@@ -639,6 +806,26 @@ export class World {
             this.bodies.remove(
                 body.handle,
                 this.islands,
+                this.colliders,
+                this.softBodies,
+                this.impulseJoints,
+                this.multibodyJoints,
+            );
+        }
+    }
+
+    /**
+     * Removes the given soft body from this physics world, with its proxies, colliders and
+     * attached joints.
+     *
+     * @param body - The soft body to remove.
+     */
+    public removeSoftBody(body: SoftBody) {
+        if (this.softBodies) {
+            this.softBodies.remove(
+                body.handle,
+                this.islands,
+                this.bodies,
                 this.colliders,
                 this.impulseJoints,
                 this.multibodyJoints,
@@ -658,6 +845,7 @@ export class World {
                 collider.handle,
                 this.islands,
                 this.bodies,
+                this.softBodies,
                 wakeUp,
             );
         }
@@ -716,6 +904,15 @@ export class World {
      */
     public forEachActiveRigidBody(f: (body: RigidBody) => void) {
         this.bodies.forEachActiveRigidBody(this.islands, f);
+    }
+
+    /**
+     * Applies the given closure to each soft body managed by this physics world.
+     *
+     * @param f(body) - The function to apply to each soft body managed by this physics world.
+     */
+    public forEachSoftBody(f: (body: SoftBody) => void) {
+        this.softBodies.forEach(f);
     }
 
     /**

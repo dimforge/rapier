@@ -1,6 +1,7 @@
 #[cfg(feature = "alloc")]
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
 #[cfg(feature = "alloc")]
+use crate::geometry::SoftPairContacts;
 use crate::geometry::{ColliderHandle, ColliderSet, ContactManifold, SolverContacts, SolverFlags};
 #[cfg(feature = "alloc")]
 use crate::math::{Real, Vector};
@@ -39,6 +40,25 @@ pub struct ContactModificationContext<'a> {
     pub rigid_body1: Option<RigidBodyHandle>,
     /// The handle of the first body involved in the potential collision.
     pub rigid_body2: Option<RigidBodyHandle>,
+    /// The contacts to modify, in the form the pair holds them: a manifold's solver contacts,
+    /// or the candidates of two soft surfaces.
+    pub contacts: ModifiableContacts<'a>,
+}
+
+/// The contacts a [`ContactModificationContext`] lets the hook modify (see
+/// [`PhysicsHooks::modify_solver_contacts`]).
+#[cfg(feature = "alloc")]
+pub enum ModifiableContacts<'a> {
+    /// One contact manifold and its solver contacts: every pair but two soft surfaces.
+    Rigid(ModifiableManifold<'a>),
+    /// The contact candidates of two soft surfaces (see [`SoftPairContacts`]), editable in
+    /// place: a candidate's `dir` and `dist`, or `enabled` to drop it.
+    Soft(&'a mut SoftPairContacts),
+}
+
+/// A contact manifold as the hook may modify it (see [`ModifiableContacts::Rigid`]).
+#[cfg(feature = "alloc")]
+pub struct ModifiableManifold<'a> {
     /// The contact manifold.
     pub manifold: &'a ContactManifold,
     /// The solver contacts that can be modified.
@@ -66,6 +86,41 @@ pub struct ContactModificationContext<'a> {
 }
 
 #[cfg(feature = "alloc")]
+impl<'a> ContactModificationContext<'a> {
+    /// The manifold being modified (`None` for a pair of two soft surfaces).
+    pub fn rigid(&self) -> Option<&ModifiableManifold<'a>> {
+        match &self.contacts {
+            ModifiableContacts::Rigid(rigid) => Some(rigid),
+            ModifiableContacts::Soft(_) => None,
+        }
+    }
+
+    /// The manifold being modified (`None` for a pair of two soft surfaces).
+    pub fn rigid_mut(&mut self) -> Option<&mut ModifiableManifold<'a>> {
+        match &mut self.contacts {
+            ModifiableContacts::Rigid(rigid) => Some(rigid),
+            ModifiableContacts::Soft(_) => None,
+        }
+    }
+
+    /// The soft contact candidates being modified (`None` unless the pair is two soft surfaces).
+    pub fn soft(&self) -> Option<&SoftPairContacts> {
+        match &self.contacts {
+            ModifiableContacts::Rigid(_) => None,
+            ModifiableContacts::Soft(soft) => Some(soft),
+        }
+    }
+
+    /// The soft contact candidates being modified (`None` unless the pair is two soft surfaces).
+    pub fn soft_mut(&mut self) -> Option<&mut SoftPairContacts> {
+        match &mut self.contacts {
+            ModifiableContacts::Soft(soft) => Some(soft),
+            ModifiableContacts::Rigid(_) => None,
+        }
+    }
+}
+
+#[cfg(feature = "alloc")]
 impl ContactModificationContext<'_> {
     /// Helper function to update `self` to emulate a oneway-platform.
     ///
@@ -75,37 +130,40 @@ impl ContactModificationContext<'_> {
     ///
     /// To make this method work properly it must be called as part of the
     /// `PhysicsHooks::modify_solver_contacts` method at each timestep, for each
-    /// contact manifold involving a one-way platform. The `self.user_data` field
-    /// must not be modified from the outside of this method.
+    /// contact manifold involving a one-way platform. The manifold's `user_data` field must not be
+    /// modified outside this method; a pair of two soft surfaces (no manifold) is left alone.
     pub fn update_as_oneway_platform(&mut self, allowed_local_n1: Vector, allowed_angle: Real) {
         const CONTACT_CONFIGURATION_UNKNOWN: u32 = 0;
         const CONTACT_CURRENTLY_ALLOWED: u32 = 1;
         const CONTACT_CURRENTLY_FORBIDDEN: u32 = 2;
 
+        let Some(rigid) = self.rigid_mut() else {
+            return;
+        };
         let cang = ComplexField::cos(allowed_angle);
 
         // Test the allowed normal with the local-space contact normal that
         // points towards the exterior of context.collider1.
-        let contact_is_ok = self.manifold.local_n1.dot(allowed_local_n1) >= cang;
+        let contact_is_ok = rigid.manifold.local_n1.dot(allowed_local_n1) >= cang;
 
-        match *self.user_data {
+        match *rigid.user_data {
             CONTACT_CONFIGURATION_UNKNOWN => {
                 if contact_is_ok {
                     // The contact is close enough to the allowed normal.
-                    *self.user_data = CONTACT_CURRENTLY_ALLOWED;
+                    *rigid.user_data = CONTACT_CURRENTLY_ALLOWED;
                 } else {
                     // The contact normal isn't close enough to the allowed
                     // normal, so remove all the contacts and mark further contacts
                     // as forbidden.
-                    self.solver_contacts.clear();
+                    rigid.solver_contacts.clear();
 
                     // NOTE: in some very rare cases `local_n1` will be
                     // zero if the objects are exactly touching at one point.
                     // So in this case we can't really conclude.
                     // If the norm is non-zero, then we can tell we need to forbid
                     // further contacts. Otherwise we have to wait for the next frame.
-                    if self.manifold.local_n1.length_squared() > 0.1 {
-                        *self.user_data = CONTACT_CURRENTLY_FORBIDDEN;
+                    if rigid.manifold.local_n1.length_squared() > 0.1 {
+                        *rigid.user_data = CONTACT_CURRENTLY_FORBIDDEN;
                     }
                 }
             }
@@ -114,18 +172,18 @@ impl ContactModificationContext<'_> {
                 // until all the contacts are non-penetrating again. In that case, if
                 // the contacts are OK with respect to the contact normal, then we can
                 // mark them as allowed.
-                if contact_is_ok && self.solver_contacts.iter().all(|c| c.dist > 0.0) {
-                    *self.user_data = CONTACT_CURRENTLY_ALLOWED;
+                if contact_is_ok && rigid.solver_contacts.iter().all(|c| c.dist > 0.0) {
+                    *rigid.user_data = CONTACT_CURRENTLY_ALLOWED;
                 } else {
                     // Discard all the contacts.
-                    self.solver_contacts.clear();
+                    rigid.solver_contacts.clear();
                 }
             }
             CONTACT_CURRENTLY_ALLOWED => {
                 // We allow all the contacts right now. The configuration becomes
                 // uncertain again when the contact manifold no longer contains any contact.
-                if self.solver_contacts.is_empty() {
-                    *self.user_data = CONTACT_CONFIGURATION_UNKNOWN;
+                if rigid.solver_contacts.is_empty() {
+                    *rigid.user_data = CONTACT_CONFIGURATION_UNKNOWN;
                 }
             }
             _ => unreachable!(),
@@ -196,12 +254,12 @@ pub trait PhysicsHooks: crate::utils::MaybeSync {
     /// not compute any contact manifolds for it.
     /// If this returns `Some`, then the narrow-phase will compute contact manifolds for
     /// this pair of colliders, and configure them with the returned solver flags. For
-    /// example, if this returns `Some(SolverFlags::COMPUTE_IMPULSES)` then the contacts
+    /// example, if this returns `Some(SolverFlags::COMPUTE_RIGID_IMPULSES)` then the contacts
     /// will be taken into account by the constraints solver. If this returns
     /// `Some(SolverFlags::empty())` then the constraints solver will ignore these
     /// contacts.
     fn filter_contact_pair(&self, _context: &PairFilterContext) -> Option<SolverFlags> {
-        Some(SolverFlags::COMPUTE_IMPULSES)
+        Some(SolverFlags::COMPUTE_RIGID_IMPULSES)
     }
 
     /// Applies the intersection pair filter.
@@ -237,10 +295,13 @@ pub trait PhysicsHooks: crate::utils::MaybeSync {
     /// By default, the content of `solver_contacts` is computed from `manifold.points`.
     /// This method will be called on each contact manifold which have the flag `SolverFlags::modify_solver_contacts` set.
     /// This method can be used to modify the set of solver contacts seen by the constraints solver: contacts
-    /// can be removed and modified.
+    /// can be removed and modified. They sit in `context.contacts` (see
+    /// [`ModifiableContacts`]): the manifold's solver contacts for every pair but two soft
+    /// surfaces, whose candidates come instead.
     ///
     /// Note that if all the contacts have to be ignored by the constraint solver, you may simply
-    /// do `context.solver_contacts.clear()`.
+    /// do `context.rigid_mut().unwrap().solver_contacts.clear()` (or `disable_all()` on the
+    /// soft candidates).
     ///
     /// Modifying the solver contacts allow you to achieve various effects, including:
     /// - Simulating conveyor belts by setting the `surface_velocity` of a solver contact.
@@ -252,7 +313,11 @@ pub trait PhysicsHooks: crate::utils::MaybeSync {
     /// timesteps (as long as the contact manifold exists). This user-defined data is initialized
     /// as 0 and can be modified in `context.user_data`.
     ///
-    /// The world-space contact normal can be modified in `context.normal`.
+    /// The world-space contact normal can be modified in the manifold's `normal`.
+    ///
+    /// Soft bodies: a soft surface's contacts with a rigid collider go through this hook like any
+    /// manifold; two soft surfaces' contacts arrive as candidates ([`ModifiableContacts::Soft`])
+    /// whose direction and distance may be edited, or disabled; self contacts never reach the hook.
     fn modify_solver_contacts(&self, _context: &mut ContactModificationContext) {}
 }
 

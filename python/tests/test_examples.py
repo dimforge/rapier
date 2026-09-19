@@ -50,6 +50,12 @@ EXPECTED: dict[str, str | re.Pattern[str]] = {
     # perf/many_bodies prints a timing-dependent ms/frame value; we only
     # assert that it ran with the expected shape.
     "perf/many_bodies.py": "perf: bodies=100 frames=240 ms_per_frame_present=True",
+    # Soft-body positions depend on floating-point details; assert the shape of the
+    # result: the cloth hangs over the ball, the jelly rests on the ground, and the
+    # requested tear was reported (it split one particle: 256 -> 257).
+    "soft/cloth_drop.py": re.compile(
+        r"^soft: cloth particles=257 lowest_y=\+0\.[3-9]\d jelly_y=\+0\.[4-9]\d tears=1$"
+    ),
     "parity/balls3.py": (
         "parity: (1, 1, 1)=(-1.0,+1.5,-1.0) (2, 2, 2)=(-0.0,+2.5,-0.0) "
         "(2, 3, 2)=(-0.0,+3.5,-0.0)"

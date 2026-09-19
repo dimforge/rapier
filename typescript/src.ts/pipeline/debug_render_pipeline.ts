@@ -6,6 +6,7 @@ import {
     ImpulseJointSet,
     MultibodyJointSet,
     RigidBodySet,
+    SoftBodySet,
 } from "../dynamics";
 import {BroadPhase, Collider, ColliderSet, NarrowPhase} from "../geometry";
 import {QueryFilterFlags} from "./query_pipeline";
@@ -64,6 +65,7 @@ export class DebugRenderPipeline {
     public render(
         bodies: RigidBodySet,
         colliders: ColliderSet,
+        soft_bodies: SoftBodySet,
         impulse_joints: ImpulseJointSet,
         multibody_joints: MultibodyJointSet,
         narrow_phase: NarrowPhase,
@@ -73,6 +75,7 @@ export class DebugRenderPipeline {
         this.raw.render(
             bodies.raw,
             colliders.raw,
+            soft_bodies.raw,
             impulse_joints.raw,
             multibody_joints.raw,
             narrow_phase.raw,

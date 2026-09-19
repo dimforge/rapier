@@ -26,6 +26,7 @@ fn main() {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joint_set = ImpulseJointSet::new();
     let mut multibody_joint_set = MultibodyJointSet::new();
+    let mut soft_body_set = SoftBodySet::new();
     let mut ccd_solver = CCDSolver::new();
     let physics_hooks = ();
     let event_handler = ();
@@ -42,6 +43,7 @@ fn main() {
             &mut collider_set,
             &mut impulse_joint_set,
             &mut multibody_joint_set,
+            &mut soft_body_set,
             &mut ccd_solver,
             &physics_hooks,
             &event_handler,

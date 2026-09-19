@@ -118,6 +118,7 @@ export class Graphics {
     highlightedCollider: null | number;
     coll2instance: Map<number, InstanceDesc>;
     coll2mesh: Map<number, THREE.Mesh>;
+    sb2mesh: Map<number, {mesh: THREE.Mesh; topologyVersion: number}>;
     rb2colls: Map<number, Array<RAPIER.Collider>>;
     colorIndex: number;
     colorPalette: Array<number>;
@@ -134,6 +135,7 @@ export class Graphics {
         this.highlightedCollider = null;
         this.coll2instance = new Map();
         this.coll2mesh = new Map();
+        this.sb2mesh = new Map();
         this.rb2colls = new Map();
         this.colorIndex = 0;
         this.colorPalette = [0xf3d9b1, 0x98c1d9, 0x053c5e, 0x1f7a8c, 0xff0000];
@@ -277,7 +279,61 @@ export class Graphics {
         }
 
         this.updatePositions(world);
+        this.updateSoftBodies(world);
         this.renderer.render(this.scene, this.camera);
+    }
+
+    /**
+     * Draws every soft body as the triangle mesh of its boundary, rebuilt when its topology
+     * changes (tears, cuts) and refreshed from its particle positions every frame.
+     */
+    updateSoftBodies(world: RAPIER.World) {
+        let seen = new Set<number>();
+        world.forEachSoftBody((body) => {
+            seen.add(body.handle);
+            let positions = body.particlePositions();
+            let entry = this.sb2mesh.get(body.handle);
+            let version = body.topologyVersion();
+
+            if (!entry || entry.topologyVersion != version) {
+                if (!!entry) {
+                    this.scene.remove(entry.mesh);
+                }
+                this.colorIndex =
+                    (this.colorIndex + 1) % (this.colorPalette.length - 2);
+                let geometry = new THREE.BufferGeometry();
+                geometry.setIndex(Array.from(body.boundary()));
+                geometry.setAttribute(
+                    "position",
+                    new THREE.BufferAttribute(positions, 3),
+                );
+                let material = new THREE.MeshPhongMaterial({
+                    color: this.colorPalette[this.colorIndex + 1],
+                    side: THREE.DoubleSide,
+                    flatShading: true,
+                });
+                let mesh = new THREE.Mesh(geometry, material);
+                this.scene.add(mesh);
+                entry = {mesh, topologyVersion: version};
+                this.sb2mesh.set(body.handle, entry);
+            } else {
+                let attribute = entry.mesh.geometry.getAttribute(
+                    "position",
+                ) as THREE.BufferAttribute;
+                attribute.set(positions);
+                attribute.needsUpdate = true;
+            }
+            entry.mesh.geometry.computeVertexNormals();
+            entry.mesh.geometry.computeBoundingSphere();
+        });
+
+        // Soft bodies removed from the world.
+        this.sb2mesh.forEach((entry, handle) => {
+            if (!seen.has(handle)) {
+                this.scene.remove(entry.mesh);
+                this.sb2mesh.delete(handle);
+            }
+        });
     }
 
     rayAtMousePosition(pos: {x: number; y: number}) {
@@ -383,8 +439,12 @@ export class Graphics {
         this.coll2mesh.forEach((mesh) => {
             this.scene.remove(mesh);
         });
+        this.sb2mesh.forEach((entry) => {
+            this.scene.remove(entry.mesh);
+        });
 
         this.coll2instance = new Map();
+        this.sb2mesh = new Map();
         this.rb2colls = new Map();
         this.colorIndex = 0;
     }
@@ -437,9 +497,14 @@ export class Graphics {
         world: RAPIER.World,
         collider: RAPIER.Collider,
     ) {
+        let parent = collider.parent();
+        // The colliders of a soft body (its deformable surface, or its particles) are drawn
+        // from the soft body itself.
+        if (!!parent && parent.isSoftFrame()) {
+            return;
+        }
         this.colorIndex =
             (this.colorIndex + 1) % (this.colorPalette.length - 2);
-        let parent = collider.parent();
         if (!this.rb2colls.get(parent.handle)) {
             this.rb2colls.set(parent.handle, [collider]);
         } else {

@@ -126,7 +126,7 @@ impl<N: ScalarType, const LANES: usize> JointConstraint<N, LANES> {
 
     /// Applies the currently-accumulated impulse to the body velocities. Only used when
     /// `IntegrationParameters::warmstart_joints` is enabled: the constraint's `impulse` was
-    /// carried from the previous substep (or seeded from last step's writeback) by the update.
+    /// kept from the previous substep (or seeded from last step's writeback) by the update.
     pub fn warmstart_generic(
         &mut self,
         solver_vel1: &mut SolverVel<N>,

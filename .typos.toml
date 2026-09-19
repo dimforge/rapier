@@ -16,6 +16,8 @@ ignore-hidden = false
 [default]
 extend-ignore-re = [
     "\\bPolygon::PN\\b",
+    # Index notation in the strain-constraint docs: `m_ba`, `ε_ba` (the b,a entry).
+    "_ba\\b",
 ]
 
 # Case sensitive, matches entire word.

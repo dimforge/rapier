@@ -127,6 +127,7 @@ pub(crate) fn update_ui(
                 ui.selectable_value(&mut state.selected_tab, UiTab::Examples, "Examples");
                 ui.selectable_value(&mut state.selected_tab, UiTab::Settings, "Settings");
                 ui.selectable_value(&mut state.selected_tab, UiTab::Performance, "Performance");
+                ui.selectable_value(&mut state.selected_tab, UiTab::DebugRender, "Debug");
             });
 
             ui.separator();
@@ -141,10 +142,13 @@ pub(crate) fn update_ui(
                         examples_tab(ui, state);
                     }
                     UiTab::Settings => {
-                        settings_tab(ui, state, world, debug_render);
+                        settings_tab(ui, state, world);
                     }
                     UiTab::Performance => {
                         performance_tab(ui, state, world);
+                    }
+                    UiTab::DebugRender => {
+                        debug_render_tab(ui, debug_render);
                     }
                 });
 
@@ -300,12 +304,7 @@ fn examples_tab(ui: &mut Ui, state: &mut TestbedState) {
     }
 }
 
-fn settings_tab(
-    ui: &mut Ui,
-    state: &mut TestbedState,
-    world: &mut PhysicsWorld,
-    debug_render: &mut DebugRenderPipelineResource,
-) {
+fn settings_tab(ui: &mut Ui, state: &mut TestbedState, world: &mut PhysicsWorld) {
     let integration_parameters = &mut world.integration_parameters;
 
     // ─────────────────────────────────────────────────────────────────
@@ -325,8 +324,24 @@ fn settings_tab(
             .set(TestbedStateFlags::DRAW_SURFACES, draw_surfaces);
     }
 
-    ui.checkbox(&mut debug_render.enabled, "Debug render")
-        .on_hover_text("Show debug wireframes and contacts.");
+    #[cfg(feature = "dim3")]
+    {
+        let mut smooth = state
+            .flags
+            .contains(TestbedStateFlags::SMOOTH_MESH_COLLIDERS);
+        if ui
+            .checkbox(&mut smooth, "Smooth mesh colliders")
+            .on_hover_text(
+                "Shared vertices and per-vertex normals on mesh colliders, soft bodies included \
+                 (flat shading otherwise).",
+            )
+            .changed()
+        {
+            state
+                .flags
+                .set(TestbedStateFlags::SMOOTH_MESH_COLLIDERS, smooth);
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────
     // SIMULATION
@@ -409,6 +424,24 @@ fn settings_tab(
             .text("PGS iters"),
         )
         .on_hover_text("Internal Projected Gauss-Seidel iterations.");
+
+        // Applied to every soft body of the world when moved, so a demo's own per-body
+        // choices stand until the user touches the slider.
+        if ui
+            .add(Slider::new(&mut state.soft_additional_pgs, 0..=15).text("Soft extra PGS iters"))
+            .on_hover_text(
+                "Extra internal PGS iterations per substep for the island components holding \
+                 a soft body (applied to every soft body when moved). Converges the elastic \
+                 rows and the contacts together: stiff or slender soft bodies get closer to \
+                 their nominal stiffness, resting bodies lose their residual roughness, cloth \
+                 stretches less and plastic flow reads the stress it should.",
+            )
+            .changed()
+        {
+            for (_, sb) in world.soft_bodies.iter_mut() {
+                sb.set_additional_pgs_iterations(state.soft_additional_pgs);
+            }
+        }
 
         ui.add(
             Slider::new(
@@ -531,6 +564,13 @@ fn settings_tab(
         )
         .on_hover_text("Continuous collision detection substeps.");
 
+        if world.soft_bodies.iter().next().is_some() {
+            // Edits the testbed-owned copy, stamped onto the world every frame: the
+            // choices survive demo restarts and switches (and app relaunches, through the
+            // saved testbed state).
+            soft_recovery_section(ui, &mut state.soft_recovery);
+        }
+
         #[cfg(feature = "parallel")]
         {
             let max_threads = num_cpus::get();
@@ -561,6 +601,325 @@ fn settings_tab(
     }
 }
 
+/// The soft-body tangle detection and recovery toggles and knobs (see `SoftRecoverySettings`),
+/// edited live on the running world; shown whenever the world contains soft bodies. Re-enabling
+/// a mechanism does not wake bodies that fell asleep while it was off.
+fn soft_recovery_section(ui: &mut Ui, r: &mut rapier::dynamics::SoftRecoverySettings) {
+    use rapier::dynamics::SoftPatchConstraints;
+    egui::CollapsingHeader::new("Soft recovery")
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.label("Prevention");
+            ui.checkbox(&mut r.authored_velocity_margin, "Authored-velocity margin");
+            ui.checkbox(
+                &mut r.edge_speculation,
+                "Edge speculation (3D closed pairs)",
+            );
+            ui.separator();
+            ui.label("Detection");
+            ui.checkbox(&mut r.inverted_cell_detection, "Inverted cells");
+            ui.checkbox(&mut r.self_crossing_detection, "Self-crossings");
+            ui.checkbox(
+                &mut r.detection_motion_gating,
+                "Self-crossing sweep motion gating",
+            );
+            ui.checkbox(&mut r.cross_body_detection, "Cross-body crossings");
+            ui.separator();
+            ui.label("Passive stand-down");
+            ui.checkbox(&mut r.self_stand_down, "Self stand-down");
+            ui.checkbox(&mut r.cross_body_expel_gate, "Cross expel-only gate");
+            ui.checkbox(&mut r.edge_stand_down, "Edge-pass stand-down");
+            ui.checkbox(
+                &mut r.crossing_repulsion,
+                "Crossing repulsion (repel, not drop)",
+            );
+            ui.checkbox(
+                &mut r.crossing_repulsion_guide,
+                "Repulsion guided by the volume normal",
+            );
+            ui.checkbox(
+                &mut r.crossing_repulsion_self_guide,
+                "Self-repulsion guided by the fold's volume normal",
+            );
+            ui.separator();
+            ui.label("Intersection-volume constraints (closed surfaces)");
+            ui.checkbox(&mut r.overlap_constraints, "Overlap constraints (master)");
+            ui.checkbox(&mut r.overlap_skin_volume, "Skin volume");
+            ui.add(
+                Slider::new(&mut r.overlap_kept_depth, 0.0..=1.0)
+                    .text("Kept skin overlap (fraction of skins)"),
+            );
+            ui.checkbox(
+                &mut r.overlap_normal_push,
+                "Push along the normal instead of the gradients",
+            );
+            ui.checkbox(
+                &mut r.overlap_self_regions,
+                "Self-overlaps between distinct regions",
+            );
+            ui.horizontal(|ui| {
+                ui.label("Per-point constraints on the patch's features");
+                for (policy, name) in [
+                    (SoftPatchConstraints::Keep, "Keep"),
+                    (SoftPatchConstraints::StandDown, "Stand down"),
+                    (SoftPatchConstraints::AlongNormal, "Along the normal"),
+                ] {
+                    ui.selectable_value(&mut r.overlap_patch_constraints, policy, name);
+                }
+            });
+            ui.checkbox(&mut r.overlap_multi_volume, "Multi-volume grid (section 5)");
+            ui.add(Slider::new(&mut r.overlap_split, 1..=8).text("Grid cells per tangent axis"));
+            ui.checkbox(&mut r.overlap_rigid, "Against rigid colliders");
+            ui.checkbox(&mut r.overlap_skip_self_tangled, "Skip self-crossed meshes");
+            ui.checkbox(
+                &mut r.overlap_edge_stand_down,
+                "Edge constraints stand down on owned pairs (3D)",
+            );
+            ui.add(
+                Slider::new(&mut r.recovery_pace, 0.05..=8.0)
+                    .logarithmic(true)
+                    .text("Recovery pace (length units / s)"),
+            );
+            ui.add(
+                Slider::new(&mut r.overlap_constraint_pace, 0.05..=64.0)
+                    .logarithmic(true)
+                    .text("Constraint impulse bound (x recovery pace)"),
+            );
+            ui.add(Slider::new(&mut r.overlap_patience, 10..=2000).text("Stall patience (steps)"));
+            ui.add(
+                Slider::new(&mut r.overlap_progress_margin, 0.0..=0.5)
+                    .text("Progress margin (fraction)"),
+            );
+            if ui.button("Reset to defaults").clicked() {
+                *r = Default::default();
+            }
+        });
+}
+
+/// One of the debug renderer's colors, as a color picker. The style stores HSLA; the picker
+/// works in sRGB, so the value round-trips through [`crate::debug_render::rgb_to_hsla`].
+fn debug_color_picker(ui: &mut Ui, label: &str, color: &mut rapier::pipeline::DebugColor) {
+    let rgba = crate::debug_render::hsla_to_rgb(color[0], color[1], color[2], color[3]);
+    let mut srgba = rgba.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
+    ui.horizontal(|ui| {
+        if ui
+            .color_edit_button_srgba_unmultiplied(&mut srgba)
+            .changed()
+        {
+            *color = crate::debug_render::rgb_to_hsla(srgba.map(|c| c as f32 / 255.0));
+        }
+        ui.label(label);
+    });
+}
+
+/// One of the debug renderer's color multipliers (a per-HSLA-component scale, not a color).
+fn debug_multiplier_row(ui: &mut Ui, label: &str, color: &mut rapier::pipeline::DebugColor) {
+    ui.horizontal(|ui| {
+        for (component, prefix) in color.iter_mut().zip(["h ", "s ", "l ", "a "]) {
+            ui.add(
+                egui::DragValue::new(component)
+                    .speed(0.01)
+                    .range(0.0..=1.0)
+                    .prefix(prefix),
+            );
+        }
+        ui.label(label);
+    });
+}
+
+/// What the debug renderer draws, and how it draws it.
+fn debug_render_tab(ui: &mut Ui, debug_render: &mut DebugRenderPipelineResource) {
+    use rapier::pipeline::DebugRenderMode;
+
+    ui.checkbox(&mut debug_render.enabled, "Debug render")
+        .on_hover_text("Draw the physics state over the scene (wireframes, joints, contacts).");
+    ui.add_space(8.0);
+
+    // ─────────────────────────────────────────────────────────────────
+    // WHAT TO DRAW
+    // ─────────────────────────────────────────────────────────────────
+    ui.label(RichText::new("What to draw").strong());
+    ui.add_space(2.0);
+
+    {
+        // The composite `JOINTS` flag is left out: its two halves are here.
+        const FLAGS: &[(DebugRenderMode, &str, &str)] = &[
+            (
+                DebugRenderMode::COLLIDER_SHAPES,
+                "Collider shapes",
+                "The colliders' outlines, colored by their body type.",
+            ),
+            (
+                DebugRenderMode::COLLIDER_AABBS,
+                "Collider AABBs",
+                "The bounding boxes the broad phase sees.",
+            ),
+            (
+                DebugRenderMode::RIGID_BODY_AXES,
+                "Rigid-body axes",
+                "The local frame of every rigid body, at its center of mass.",
+            ),
+            (
+                DebugRenderMode::IMPULSE_JOINTS,
+                "Impulse joints",
+                "The anchors of the impulse joints, and their separation.",
+            ),
+            (
+                DebugRenderMode::MULTIBODY_JOINTS,
+                "Multibody joints",
+                "The anchors of the multibody joints, and their separation.",
+            ),
+            (
+                DebugRenderMode::CONTACTS,
+                "Contacts",
+                "The geometric contact points and their normals.",
+            ),
+            (
+                DebugRenderMode::SOLVER_CONTACTS,
+                "Solver contacts",
+                "The contact points the solver actually used this step.",
+            ),
+            (
+                DebugRenderMode::SOFT_BODIES,
+                "Soft bodies",
+                "The soft bodies' elements (structural and cell edges), their cluster frames, \
+                 and their soft-vs-soft contacts.",
+            ),
+            (
+                DebugRenderMode::PSEUDO_NORMALS,
+                "Pseudo-normals",
+                "The pseudo-normals of the oriented triangle-meshes and polylines, at their \
+                 vertices and edge midpoints.",
+            ),
+            (
+                DebugRenderMode::SOFT_VOLUME_CONTACTS,
+                "Soft volume constraints",
+                "The soft bodies' intersection-volume constraints: each one's normal at its \
+                 patch center, and the volume gradient at every particle it acts on.",
+            ),
+            (
+                DebugRenderMode::SOFT_BODY_STRESS,
+                "Soft-body stress",
+                "Colors the soft bodies' elements by their load, blue when slack to red at \
+                 their tear threshold (by their stretch, full at 50%, for a body that never \
+                 tears). Needs the soft bodies drawn.",
+            ),
+        ];
+
+        for (flag, label, hover) in FLAGS {
+            let mut on = debug_render.pipeline.mode.contains(*flag);
+            if ui.checkbox(&mut on, *label).on_hover_text(*hover).changed() {
+                debug_render.pipeline.mode.set(*flag, on);
+            }
+        }
+
+        ui.horizontal(|ui| {
+            if ui.button("All").clicked() {
+                debug_render.pipeline.mode = DebugRenderMode::all();
+            }
+            if ui.button("None").clicked() {
+                debug_render.pipeline.mode = DebugRenderMode::empty();
+            }
+            if ui.button("Default").clicked() {
+                debug_render.pipeline.mode = DebugRenderMode::default();
+            }
+        });
+
+        ui.add_space(8.0);
+
+        // ─────────────────────────────────────────────────────────────
+        // STYLE
+        // ─────────────────────────────────────────────────────────────
+        ui.label(RichText::new("Style").strong());
+        ui.add_space(2.0);
+
+        let style = &mut debug_render.pipeline.style;
+        ui.add(Slider::new(&mut style.subdivisions, 2..=64).text("Subdivisions"))
+            .on_hover_text("Segments approximating a curved shape (balls, capsules, cones).");
+        ui.add(Slider::new(&mut style.border_subdivisions, 1..=32).text("Border subdivisions"))
+            .on_hover_text("Segments approximating the rounded border of a round shape.");
+        ui.add(Slider::new(&mut style.rigid_body_axes_length, 0.0..=2.0).text("Axes length"))
+            .on_hover_text("Length of the rigid-body axes.");
+        ui.add(Slider::new(&mut style.contact_normal_length, 0.0..=1.0).text("Normal length"))
+            .on_hover_text("Length of the contact normals.");
+        ui.add(
+            Slider::new(&mut style.pseudo_normal_length, 0.0..=1.0).text("Pseudo-normal length"),
+        )
+        .on_hover_text("Length of the meshes' pseudo-normals.");
+
+        ui.collapsing("Colors", |ui| {
+            debug_color_picker(ui, "Dynamic colliders", &mut style.collider_dynamic_color);
+            debug_color_picker(ui, "Fixed colliders", &mut style.collider_fixed_color);
+            debug_color_picker(
+                ui,
+                "Kinematic colliders",
+                &mut style.collider_kinematic_color,
+            );
+            debug_color_picker(
+                ui,
+                "Parentless colliders",
+                &mut style.collider_parentless_color,
+            );
+            debug_color_picker(ui, "Collider AABBs", &mut style.collider_aabb_color);
+            debug_color_picker(
+                ui,
+                "Impulse joint anchors",
+                &mut style.impulse_joint_anchor_color,
+            );
+            debug_color_picker(
+                ui,
+                "Impulse joint separation",
+                &mut style.impulse_joint_separation_color,
+            );
+            debug_color_picker(
+                ui,
+                "Multibody joint anchors",
+                &mut style.multibody_joint_anchor_color,
+            );
+            debug_color_picker(
+                ui,
+                "Multibody joint separation",
+                &mut style.multibody_joint_separation_color,
+            );
+            debug_color_picker(ui, "Contact depth", &mut style.contact_depth_color);
+            debug_color_picker(ui, "Contact normals", &mut style.contact_normal_color);
+            debug_color_picker(ui, "Soft-body elements", &mut style.soft_body_element_color);
+            debug_color_picker(ui, "Soft-body frames", &mut style.soft_body_frame_color);
+            debug_color_picker(
+                ui,
+                "Vertex pseudo-normals",
+                &mut style.vertex_pseudo_normal_color,
+            );
+            debug_color_picker(
+                ui,
+                "Edge pseudo-normals",
+                &mut style.edge_pseudo_normal_color,
+            );
+
+            ui.add_space(4.0);
+            ui.label("Multipliers (per HSLA component)");
+            debug_multiplier_row(ui, "Sleeping", &mut style.sleep_color_multiplier);
+            debug_multiplier_row(
+                ui,
+                "Sleep-ready",
+                &mut style.sleep_eligible_color_multiplier,
+            );
+            debug_multiplier_row(ui, "Disabled", &mut style.disabled_color_multiplier);
+            if ui.button("Reset colors").clicked() {
+                let default = rapier::pipeline::DebugRenderStyle::default();
+                // The scalars above are edited separately: only the colors are reset.
+                *style = rapier::pipeline::DebugRenderStyle {
+                    subdivisions: style.subdivisions,
+                    border_subdivisions: style.border_subdivisions,
+                    rigid_body_axes_length: style.rigid_body_axes_length,
+                    contact_normal_length: style.contact_normal_length,
+                    ..default
+                };
+            }
+        });
+    }
+}
+
 fn performance_tab(ui: &mut Ui, state: &TestbedState, world: &PhysicsWorld) {
     // ─────────────────────────────────────────────────────────────────
     // SCENE INFO
@@ -571,7 +930,12 @@ fn performance_tab(ui: &mut Ui, state: &TestbedState, world: &PhysicsWorld) {
     let num_contacts: usize = world
         .narrow_phase
         .contact_pairs()
-        .map(|pair| pair.manifolds.iter().map(|m| m.points.len()).sum::<usize>())
+        .map(|pair| {
+            pair.manifolds()
+                .iter()
+                .map(|m| m.points.len())
+                .sum::<usize>()
+        })
         .sum();
 
     let num_sleeping = world
@@ -630,13 +994,23 @@ fn performance_tab(ui: &mut Ui, state: &TestbedState, world: &PhysicsWorld) {
     // ─────────────────────────────────────────────────────────────────
     let counters = &world.physics_pipeline.counters;
     let total_ms = counters.step_time_ms();
-    let fps = if total_ms > 0.0 {
-        (1000.0 / total_ms).round()
-    } else {
-        0.0
-    };
+    let (mean_frame_ms, mean_step_ms) = state.frame_stats.mean_ms();
+    let (_, max_step_ms) = state.frame_stats.max_ms();
 
-    ui.label(RichText::new(format!("Total: {:.2}ms - {:.0} FPS", total_ms, fps)).strong());
+    // The step counters only hold the last step: the peaks over the recent frames show the
+    // spikes a single value flickers past. The testbed time is the frame minus the step, with
+    // the frame measured by the viewer without the renderer's present (so no vsync wait).
+    ui.label(
+        RichText::new(format!(
+            "Total physics: {:.2}ms (peak {:.2}ms)",
+            total_ms, max_step_ms
+        ))
+        .strong(),
+    );
+    ui.label(format!(
+        "Testbed: {:.2}ms",
+        (mean_frame_ms - mean_step_ms).max(0.0)
+    ));
     ui.add_space(4.0);
 
     // Collision detection

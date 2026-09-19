@@ -34,7 +34,8 @@ fn sliding_cuboid_contact_reporting_does_not_panic() {
 
     let (collision_send, collision_recv) = channel();
     let (force_send, force_recv) = channel();
-    let events = ChannelEventCollector::new(collision_send, force_send);
+    let (tear_send, _tear_recv) = channel();
+    let events = ChannelEventCollector::new(collision_send, force_send, tear_send);
 
     let mut num_collision_events = 0;
     for _ in 0..300 {

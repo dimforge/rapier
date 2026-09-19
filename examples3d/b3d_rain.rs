@@ -104,7 +104,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let mut world = PhysicsWorld::new();
     world.gravity = Vector::new(0.0, -10.0, 0.0);
 
-    // Static cells: a 10x10 grid, each cell one static body carrying a small
+    // Static cells: a 10x10 grid, each cell one static body with a small
     // grid-mesh floor patch and a torus obstacle.
     let half_mesh_grid_rows = 4;
     let mesh_cell_width = GRID_SIZE / (2.0 * half_mesh_grid_rows as f32);

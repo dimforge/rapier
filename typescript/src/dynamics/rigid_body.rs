@@ -960,6 +960,29 @@ impl RawRigidBodySet {
         self.map(handle, |rb| rb.additional_solver_iterations())
     }
 
+    pub fn rbAdditionalPgsIterations(&self, handle: FlatHandle) -> usize {
+        self.map(handle, |rb| rb.additional_pgs_iterations())
+    }
+
+    pub fn rbSetAdditionalPgsIterations(&mut self, handle: FlatHandle, iters: usize) {
+        self.map_mut(handle, |rb| rb.set_additional_pgs_iterations(iters))
+    }
+
+    /// Is this rigid-body the proxy of a soft-body cluster?
+    pub fn rbIsSoftFrame(&self, handle: FlatHandle) -> bool {
+        self.map(handle, |rb| rb.is_soft_frame())
+    }
+
+    /// The soft body this rigid-body is a cluster proxy of, if any.
+    pub fn rbSoftBody(&self, handle: FlatHandle) -> Option<FlatHandle> {
+        self.map(handle, |rb| rb.soft_body().map(|h| utils::flat_handle(h.0)))
+    }
+
+    /// The index of the cluster this proxy stands for in its soft body, if any.
+    pub fn rbSoftCluster(&self, handle: FlatHandle) -> Option<u32> {
+        self.map(handle, |rb| rb.soft_cluster())
+    }
+
     pub fn rbSetAdditionalSolverIterations(&mut self, handle: FlatHandle, iters: usize) {
         self.map_mut(handle, |rb| {
             rb.set_additional_solver_iterations(iters as usize);

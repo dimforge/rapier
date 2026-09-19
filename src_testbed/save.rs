@@ -9,6 +9,8 @@ pub struct SerializableTestbedState {
     pub flags: TestbedStateFlags,
     pub selected_example: usize,
     pub example_settings: ExampleSettings,
+    pub soft_recovery: rapier::dynamics::SoftRecoverySettings,
+    pub soft_additional_pgs: usize,
     pub camera: Camera,
 }
 
@@ -19,6 +21,8 @@ impl TestbedState {
             flags: self.flags,
             selected_example: self.selected_display_index,
             example_settings: self.example_settings.clone(),
+            soft_recovery: self.soft_recovery,
+            soft_additional_pgs: self.soft_additional_pgs,
             camera,
         }
     }
@@ -29,6 +33,8 @@ impl TestbedState {
         self.flags = state.flags;
         self.selected_display_index = state.selected_example;
         self.example_settings = state.example_settings;
+        self.soft_recovery = state.soft_recovery;
+        self.soft_additional_pgs = state.soft_additional_pgs;
         *camera = state.camera;
     }
 }

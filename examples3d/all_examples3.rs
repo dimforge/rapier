@@ -48,6 +48,7 @@ mod debug_multibody_ang_motor_pos3;
 mod debug_pop3;
 mod debug_prismatic3;
 mod debug_rollback3;
+mod debug_self_intersect3;
 mod debug_shape_modification3;
 mod debug_sleeping_kinematic3;
 mod debug_thin_cube_on_mesh3;
@@ -76,6 +77,21 @@ mod primitives3;
 mod restitution3;
 mod rope_joints3;
 mod sensor3;
+mod soft_bodies3;
+mod soft_cloth3;
+mod soft_cloth_stress3;
+mod soft_dress3;
+mod soft_fem3;
+mod soft_jelly3;
+mod soft_joints3;
+mod soft_meshes3;
+mod soft_pile3;
+mod soft_plasticity3;
+mod soft_surface3;
+mod soft_tearing3;
+mod soft_thin_features3;
+#[cfg(not(target_arch = "wasm32"))]
+mod soft_trimesh3;
 mod spring_joints3;
 mod stress_tests;
 mod trimesh3;
@@ -109,6 +125,7 @@ pub async fn main() {
     const DYNAMICS: &str = "Dynamics";
     const JOINTS: &str = "Joints";
     const CONTROLS: &str = "Controls";
+    const SOFT: &str = "Soft bodies";
     const DEBUG: &str = "Debug";
     const ROBOTICS: &str = "Robotics";
     const STRESS: &str = "Stress tests";
@@ -149,6 +166,22 @@ pub async fn main() {
         JOINTS, "Spring Joints", spring_joints3::run;
         JOINTS, "Joint Motor Position", joint_motor_position3::run;
         JOINTS, "Inverse kinematics", inverse_kinematics3::run;
+        // ── Soft bodies ─────────────────────────────────────────────────────
+        SOFT, "Soft bodies", soft_bodies3::run;
+        SOFT, "Cloth", soft_cloth3::run;
+        SOFT, "Jelly", soft_jelly3::run;
+        SOFT, "Soft joints", soft_joints3::run;
+        SOFT, "Cluster meshes", soft_meshes3::run;
+        SOFT, "Deformable trimeshes", soft_surface3::run;
+        SOFT, "Soft pile", soft_pile3::run;
+        SOFT, "Thin features", soft_thin_features3::run;
+        SOFT, "Cloth stress", soft_cloth_stress3::run;
+        SOFT, "Plasticity", soft_plasticity3::run;
+        SOFT, "Tearing", soft_tearing3::run;
+        SOFT, "Dancing dress", soft_dress3::run;
+        SOFT, "Soft FEM", soft_fem3::run;
+        #[cfg(not(target_arch = "wasm32"))]
+        SOFT, "Soft trimeshes", soft_trimesh3::run;
         // ── Controls ────────────────────────────────────────────────────────
         CONTROLS, "Character controller", character_controller3::run;
         CONTROLS, "Vehicle controller", vehicle_controller3::run;
@@ -174,6 +207,7 @@ pub async fn main() {
         DEBUG, "Dyn. collider add", debug_dynamic_collider_add3::run;
         DEBUG, "Friction", debug_friction3::run;
         DEBUG, "Internal edges", debug_internal_edges3::run;
+        DEBUG, "Self intersect", debug_self_intersect3::run;
         DEBUG, "Long chain", debug_long_chain3::run;
         DEBUG, "High mass ratio: chain", debug_chain_high_mass_ratio3::run;
         DEBUG, "High mass ratio: cube", debug_cube_high_mass_ratio3::run;
@@ -212,6 +246,13 @@ pub async fn main() {
         STRESS, "Many pyramids", stress_tests::many_pyramids3::run;
         STRESS, "Keva tower", stress_tests::keva3::run;
         STRESS, "Ray cast", stress_tests::ray_cast3::run;
+        STRESS, "Soft blobs", stress_tests::soft_blobs3::run;
+        STRESS, "Soft jellies", stress_tests::soft_jellies3::run;
+        STRESS, "Soft ropes", stress_tests::soft_ropes3::run;
+        STRESS, "Soft cloth drape", stress_tests::soft_cloth_drape3::run;
+        STRESS, "Soft cloth on Keva tower", stress_tests::soft_cloth_keva3::run;
+        STRESS, "Soft slab shower", stress_tests::soft_slab3::run;
+        STRESS, "Soft FEM beams", stress_tests::soft_fem_beams3::run;
         // ── Box3D benchmarks (ports of box3d/benchmark) ─────────────────────
         B3D, "Large pyramid", b3d_large_pyramid::run;
         B3D, "Many pyramids", b3d_many_pyramids::run;

@@ -59,6 +59,8 @@ def _autoload_bundled_examples() -> None:
     # New examples ported from ``examples3d/`` should extend this list.
     _bundled = (
         "rapier_testbed.examples3.primitives3",
+        "rapier_testbed.examples3.soft_bodies3",
+        "rapier_testbed.examples3.soft_tearing3",
         # ── 3D examples (first half) ────────────────────────────────
         "rapier_testbed.examples3.ccd3",
         "rapier_testbed.examples3.character_controller3",

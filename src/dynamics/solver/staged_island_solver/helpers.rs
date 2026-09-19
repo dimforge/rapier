@@ -57,13 +57,16 @@ impl VelocitySolver {
         &mut self,
         params: &IntegrationParameters,
         island_bodies: &[RigidBodyHandle],
+        num_awake_soft_mass_points: usize,
         bodies: &mut RigidBodySet,
         multibodies: &mut MultibodyJointSet,
     ) {
         self.multibody_roots.clear();
         self.solver_bodies.clear();
 
-        let aligned_solver_bodies_len = island_bodies.len().div_ceil(SIMD_WIDTH) * SIMD_WIDTH;
+        // The island's rigid bodies, then the awake soft bodies' particles.
+        let aligned_solver_bodies_len =
+            (island_bodies.len() + num_awake_soft_mass_points).div_ceil(SIMD_WIDTH) * SIMD_WIDTH;
         self.solver_bodies.resize(aligned_solver_bodies_len);
 
         self.solver_vels_increment.clear();

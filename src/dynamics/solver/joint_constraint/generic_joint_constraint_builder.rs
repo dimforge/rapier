@@ -116,11 +116,12 @@ impl JointGenericExternalConstraintBuilder {
             return;
         }
 
-        // Each constraint row appends the jacobian and the weighted jacobian for
-        // both sides, i.e. `2 * multibodies_ndof` entries. Reserve exactly the
-        // rows this joint emits: an axis carrying both a motor and a limit
-        // produces two rows, so a joint can exceed `SPATIAL_DIM` of them.
-        let num_rows = joint_num_constraints(joint);
+        // Each row appends `2 * multibodies_ndof` entries (jacobian and weighted jacobian, both
+        // sides); reserve exactly the rows this joint emits (motor plus limit on an axis gives two,
+        // so more than `SPATIAL_DIM`), counted after `strip_soft_frame_angular_axes` runs.
+        let mut masked_data = joint.data;
+        super::strip_soft_frame_angular_axes(&mut masked_data, rb1, rb2);
+        let num_rows = crate::dynamics::solver::joint_data_num_constraints(&masked_data);
         let required_jacobian_len = *j_id + multibodies_ndof * 2 * num_rows;
         *j_id += multibodies_ndof * 2 * num_rows;
 
@@ -131,7 +132,7 @@ impl JointGenericExternalConstraintBuilder {
             jacobians.resize_vertically_mut(required_jacobian_len, 0.0);
         }
 
-        let mut joint_data = joint.data;
+        let mut joint_data = masked_data;
         // NOTE: multibody links are positioned by `link.local_to_world` which is
         //       the body-frame (origin-centered) pose, unlike regular dynamic
         //       bodies whose solver pose is com-centered. So the com shift from

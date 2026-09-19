@@ -1527,6 +1527,7 @@ type _PhysicsWorldOwned = (
     rapier::dynamics::CCDSolver,
     rapier::dynamics::IntegrationParameters,
     crate::na::SVector<Real, 3>,
+    rapier::dynamics::SoftBodySet,
 );
 
 #[pymethods]
@@ -1550,6 +1551,7 @@ impl PhysicsWorld {
         let islands = self.islands.borrow(py);
         let ccd = self.ccd_solver.borrow(py);
         let ip = self.integration_parameters.borrow(py);
+        let sb = self.soft_bodies.borrow(py);
         let tup = (
             &bodies.0,
             &colliders.0,
@@ -1561,6 +1563,7 @@ impl PhysicsWorld {
             &ccd.0,
             &ip.0,
             &self.gravity.0,
+            &sb.0,
         );
         let payload = crate::bincode::serialize(&tup).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
@@ -1576,9 +1579,10 @@ impl PhysicsWorld {
         let body = crate::serde_io::unwrap_bincode(buf)?;
         let owned: _PhysicsWorldOwned =
             crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
-        let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g) = owned;
+        let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g, sbs) = owned;
         let bodies = Py::new(py, RigidBodySet(bs))?;
         let colliders = Py::new(py, ColliderSet(cs))?;
+        let soft_bodies = Py::new(py, crate::soft_body::SoftBodySet(sbs))?;
         let impulse_joints = Py::new(py, ImpulseJointSet(ijs))?;
         let multibody_joints = Py::new(py, MultibodyJointSet(mjs))?;
         let broad_phase = Py::new(py, BroadPhaseBvh(bps))?;
@@ -1604,6 +1608,7 @@ impl PhysicsWorld {
             PhysicsWorld {
                 bodies,
                 colliders,
+                soft_bodies,
                 impulse_joints,
                 multibody_joints,
                 broad_phase,
@@ -1636,6 +1641,7 @@ impl PhysicsWorld {
         let islands = self.islands.borrow(py);
         let ccd = self.ccd_solver.borrow(py);
         let ip = self.integration_parameters.borrow(py);
+        let sb = self.soft_bodies.borrow(py);
         let tup = (
             &bodies.0,
             &colliders.0,
@@ -1647,6 +1653,7 @@ impl PhysicsWorld {
             &ccd.0,
             &ip.0,
             &self.gravity.0,
+            &sb.0,
         );
         let payload = crate::serde_json::to_value(tup).map_err(crate::serde_io::json_err)?;
         let env = crate::serde_io::wrap_json(payload);
@@ -1661,9 +1668,10 @@ impl PhysicsWorld {
         let payload = crate::serde_io::unwrap_json(env)?;
         let owned: _PhysicsWorldOwned =
             crate::serde_json::from_value(payload).map_err(crate::serde_io::json_err)?;
-        let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g) = owned;
+        let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g, sbs) = owned;
         let bodies = Py::new(py, RigidBodySet(bs))?;
         let colliders = Py::new(py, ColliderSet(cs))?;
+        let soft_bodies = Py::new(py, crate::soft_body::SoftBodySet(sbs))?;
         let impulse_joints = Py::new(py, ImpulseJointSet(ijs))?;
         let multibody_joints = Py::new(py, MultibodyJointSet(mjs))?;
         let broad_phase = Py::new(py, BroadPhaseBvh(bps))?;
@@ -1689,6 +1697,7 @@ impl PhysicsWorld {
             PhysicsWorld {
                 bodies,
                 colliders,
+                soft_bodies,
                 impulse_joints,
                 multibody_joints,
                 broad_phase,

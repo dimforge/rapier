@@ -23,7 +23,7 @@ struct UnsyncHooks {
 impl PhysicsHooks for UnsyncHooks {
     fn filter_contact_pair(&self, _: &PairFilterContext) -> Option<SolverFlags> {
         self.filtered.set(self.filtered.get() + 1);
-        Some(SolverFlags::COMPUTE_IMPULSES)
+        Some(SolverFlags::COMPUTE_RIGID_IMPULSES)
     }
 }
 
@@ -52,6 +52,8 @@ impl EventHandler for UnsyncEvents {
         _total_force_magnitude: Real,
     ) {
     }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
 }
 
 /// Enough falling boxes to push the step onto its parallel paths where `parallel` is on.
@@ -102,6 +104,7 @@ fn non_sync_hooks_and_events_are_invoked() {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut ccd_solver = CCDSolver::new();
     let params = IntegrationParameters::default();
 
@@ -119,6 +122,7 @@ fn non_sync_hooks_and_events_are_invoked() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd_solver,
             &hooks,
             &events,
@@ -162,6 +166,7 @@ fn dedicated_pool_is_usable_when_the_caller_enters_it() {
         let mut narrow_phase = NarrowPhase::new();
         let mut impulse_joints = ImpulseJointSet::new();
         let mut multibody_joints = MultibodyJointSet::new();
+        let mut soft_bodies = SoftBodySet::new();
         let mut ccd_solver = CCDSolver::new();
         let params = IntegrationParameters::default();
 
@@ -176,6 +181,7 @@ fn dedicated_pool_is_usable_when_the_caller_enters_it() {
                 &mut colliders,
                 &mut impulse_joints,
                 &mut multibody_joints,
+                &mut soft_bodies,
                 &mut ccd_solver,
                 &hooks,
                 &events,

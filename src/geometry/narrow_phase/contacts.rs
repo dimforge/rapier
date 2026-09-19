@@ -6,12 +6,16 @@ use super::pair_update::{
     self, HintsPtr, OUTCOME_CLEARED_IN_GRAPH, OUTCOME_FULL, OUTCOME_FULL_COMPOSITE,
     OUTCOME_RECYCLED_REQUALIFIED, PairTransition,
 };
+use super::soft_contacts::SoftDetectionCtx;
 use super::{
     NarrowPhase, assign_pair_solver_color, clear_pair_solver_color, collect_pairs_to_update,
     pack_color_body_info, strong_wake_sleeping_side, unpack_color_body_info,
 };
 use crate::alloc_prelude::*;
-use crate::dynamics::{ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodySet};
+use crate::dynamics::{
+    ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
+    SoftBodySet,
+};
 use crate::geometry::{ColliderHandle, ColliderSet, ContactPair};
 use crate::math::Real;
 #[cfg(all(feature = "parallel", feature = "unsync-callbacks"))]
@@ -34,9 +38,21 @@ impl NarrowPhase {
         modified_colliders: &[ColliderHandle],
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
+        // The soft bodies and the step's parameters: the soft contact detection runs on
+        // the soft-surface pairs and, after the transitions, on the awake self-colliding
+        // meshes (`None`: no soft contact detection, as in the collision pipeline).
+        soft_bodies: Option<(&SoftBodySet, &IntegrationParameters)>,
     ) {
-        self.refresh_awake_body_mask(islands);
+        self.update_awake_body_mask(islands);
         let awake_body_mask = core::mem::take(&mut self.awake_body_mask);
+        let soft_ctx = soft_bodies.map(|(soft_bodies, params)| SoftDetectionCtx {
+            soft_bodies,
+            bodies: &*bodies,
+            colliders,
+            params,
+            dt,
+        });
+        let soft_ctx = soft_ctx.as_ref();
 
         // The solver hints follow the contact-graph edge indexing; removals are
         // mirrored eagerly, so this resize only matters for appended pairs (their
@@ -99,6 +115,7 @@ impl NarrowPhase {
                 query_dispatcher,
                 &awake_body_mask,
                 hints_ptr,
+                soft_ctx,
                 &mut transitions,
             )
         };
@@ -125,6 +142,7 @@ impl NarrowPhase {
                 query_dispatcher,
                 &awake_body_mask,
                 hints_ptr,
+                soft_ctx,
                 &snd,
             )
         };
@@ -276,6 +294,19 @@ impl NarrowPhase {
             // coloring state whose layout must not depend on the schedule).
             let mut transitions: Vec<PairTransition> = rcv.iter().collect();
             self.apply_pair_transitions(&mut transitions, islands, bodies, colliders, events);
+        }
+
+        // The self contacts, once the transitions woke the bodies a new pair touches (the context
+        // is rebuilt: the transitions borrowed the bodies mutably).
+        if let Some((soft_bodies, params)) = soft_bodies {
+            let ctx = SoftDetectionCtx {
+                soft_bodies,
+                bodies: &*bodies,
+                colliders,
+                params,
+                dt,
+            };
+            self.update_soft_self_contacts(&ctx, bodies);
         }
 
         self.update_candidates = update_candidates;

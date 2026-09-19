@@ -6,7 +6,7 @@
 //! step after the restore must yield **the same bytes** as the run it resumed.
 //!
 //! Worth its own copy rather than trusting the 3D suite: the serialized state is mostly
-//! dimension-generic, but the scenes that fill it are not — 2D contact manifolds carry two
+//! dimension-generic, but the scenes that fill it are not: 2D contact manifolds have two
 //! points instead of up to eight, `Rot`/angular velocity are scalars, and the solver's
 //! constraint layout differs. A field skipped only on the 2D path would go unseen here
 //! otherwise.
@@ -307,7 +307,7 @@ fn pyramid_stress_scene_full() {
     check_roundtrip("large_pyramids2", world, 100, 20, false, no_edits);
 }
 
-/// Fast CCD-enabled bodies. The CCD solver holds a cache that snapshots do not carry, so
+/// Fast CCD-enabled bodies. The CCD solver holds a cache that snapshots do not include, so
 /// this checks that a restore does not depend on it.
 #[test]
 fn ccd_bodies() {
@@ -369,7 +369,7 @@ fn multibody_articulation() {
 }
 
 /// The testbed's Save/Restore pattern: the world is replaced but the same
-/// [`PhysicsPipeline`] keeps stepping, carrying its workspace across the restore.
+/// [`PhysicsPipeline`] keeps stepping, keeping its workspace across the restore.
 #[test]
 fn restoring_into_a_live_pipeline() {
     check_roundtrip("live pipeline", pile(true), 100, 100, true, no_edits);

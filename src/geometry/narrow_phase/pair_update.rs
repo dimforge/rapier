@@ -17,7 +17,10 @@ use crate::geometry::{
     SolverContact, SolverFlags,
 };
 use crate::math::{MAX_MANIFOLD_POINTS, Real};
-use crate::pipeline::{ActiveHooks, ContactModificationContext, PairFilterContext, PhysicsHooks};
+use crate::pipeline::{
+    ActiveHooks, ContactModificationContext, ModifiableContacts, ModifiableManifold,
+    PairFilterContext, PhysicsHooks,
+};
 use parry::query::PersistentQueryDispatcher;
 use parry::utils::PoseOpt;
 
@@ -80,6 +83,7 @@ pub(super) fn process_pair(
     query_dispatcher: &dyn PersistentQueryDispatcher<ContactManifoldData, ContactData>,
     awake_body_mask: &[bool],
     hints_ptr: &HintsPtr,
+    soft: Option<&super::soft_contacts::SoftDetectionCtx>,
     #[cfg(not(feature = "parallel"))] transitions: &mut Vec<PairTransition>,
     #[cfg(feature = "parallel")] snd: &std::sync::mpsc::Sender<PairTransition>,
 ) -> u8 {
@@ -109,7 +113,7 @@ pub(super) fn process_pair(
     // last full update, skip contact determination entirely. Must run before the
     // `has_any_active_contact` walk below (whose result recycling cannot change).
     if contact_recycle_distance > 0.0 {
-        if let Some(state) = &pair.recycle_state {
+        if let Some(state) = pair.rigid().and_then(|r| r.recycle_state.as_ref()) {
             // Anything beyond a position change (shape, groups, type,
             // enabled flag, ...) requires a full update, as do pairs
             // relying on per-step user hooks.
@@ -189,6 +193,30 @@ pub(super) fn process_pair(
 
         let rb_type1 = rb1.map(|rb| rb.body_type).unwrap_or(RigidBodyType::Fixed);
         let rb_type2 = rb2.map(|rb| rb.body_type).unwrap_or(RigidBodyType::Fixed);
+
+        #[cfg(feature = "dim3")]
+        let soft_surface_pair =
+            co1.deformable_mesh_ref.is_some() || co2.deformable_mesh_ref.is_some();
+        let two_soft_surfaces =
+            co1.deformable_mesh_ref.is_some() && co2.deformable_mesh_ref.is_some();
+
+        // Two colliders of one soft body: its collision meshes decide between themselves (see
+        // `soft_contacts::update_pair`), but a rigid collider hung on a cluster proxy must not
+        // collide with the body it rides; pairs between two clusters of the same body are allowed.
+        let soft_body_of = |co: &crate::geometry::Collider,
+                            rb: Option<&crate::dynamics::RigidBody>| {
+            co.deformable_mesh_ref
+                .map(|mesh| mesh.body)
+                .or_else(|| rb.and_then(|rb| rb.soft_body()))
+        };
+        if let (Some(sb1), Some(sb2)) = (soft_body_of(co1, rb1), soft_body_of(co2, rb2)) {
+            if sb1 == sb2 && !two_soft_surfaces {
+                if clear_filtered_pair(pair) {
+                    outcome = OUTCOME_CLEARED_IN_GRAPH;
+                }
+                break 'emit_events;
+            }
+        }
 
         // Deal with contacts disabled between bodies attached by joints.
         if let (Some(co_parent1), Some(co_parent2)) = (&co1.parent, &co2.parent) {
@@ -277,18 +305,23 @@ pub(super) fn process_pair(
         };
 
         if !co1.flags.solver_groups.test(co2.flags.solver_groups) {
-            solver_flags.remove(SolverFlags::COMPUTE_IMPULSES);
+            solver_flags.remove(SolverFlags::COMPUTE_RIGID_IMPULSES);
         }
 
-        if co1.changes.contains(ColliderChanges::SHAPE)
-            || co2.changes.contains(ColliderChanges::SHAPE)
-        {
-            // The shape changed so the workspace is no longer valid.
-            pair.workspace = None;
+        // Contacts with a soft body (its surface) are solved by the
+        // soft-body solver (as constraints over the touched particles), never by the rigid contact
+        // solver. Events still fire.
+        if co1.is_deformable_collider() || co2.is_deformable_collider() {
+            solver_flags.remove(SolverFlags::COMPUTE_RIGID_IMPULSES);
         }
 
         let pos12 = co1.pos.inv_mul(&co2.pos);
 
+        // Soft bodies add the farthest motion of their particles over the step (speculative
+        // contacts instead of continuous collision detection for deformable geometry).
+        let soft_margin1 = rb1.map_or(0.0, |rb| rb.soft_motion_margin);
+        let soft_margin2 = rb2.map_or(0.0, |rb| rb.soft_motion_margin);
+        let soft_body_prediction = soft_margin1 + soft_margin2;
         let contact_skin_sum = co1.contact_skin() + co2.contact_skin();
         let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
         let soft_ccd_prediction2 = rb2.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);
@@ -314,21 +347,14 @@ pub(super) fn process_pair(
                 break 'emit_events;
             }
 
-            prediction_distance.max(dt * (linvel1 - linvel2).length()) + contact_skin_sum
+            prediction_distance.max(dt * (linvel1 - linvel2).length())
+                + contact_skin_sum
+                + soft_body_prediction
         } else {
-            prediction_distance + contact_skin_sum
+            prediction_distance + contact_skin_sum + soft_body_prediction
         };
 
         outcome = OUTCOME_FULL;
-        let _ = query_dispatcher.contact_manifolds(
-            &pos12,
-            &*co1.shape,
-            &*co2.shape,
-            effective_prediction_distance,
-            &mut pair.manifolds,
-            &mut pair.workspace,
-        );
-
         let friction = CoefficientCombineRule::combine(
             co1.material.friction,
             co2.material.friction,
@@ -342,12 +368,105 @@ pub(super) fn process_pair(
             co2.material.restitution_combine_rule,
         );
 
+        /*
+         *
+         * Handle two soft colliders.
+         *
+         */
+        if two_soft_surfaces {
+            pair.make_soft();
+            let aabb1 = co1.compute_collision_aabb(prediction_distance / 2.0 + soft_margin1);
+            let aabb2 = co2.compute_collision_aabb(prediction_distance / 2.0 + soft_margin2);
+            // TODO(perf): would it be worth it to check if the aabb overlaps the leaves of composite shapes?
+            let touching = aabb1.intersects(&aabb2);
+
+            if !touching {
+                if clear_filtered_pair(pair) {
+                    outcome = OUTCOME_CLEARED_IN_GRAPH;
+                }
+                break 'emit_events;
+            }
+
+            match soft {
+                Some(soft) => {
+                    super::soft_contacts::update_pair_soft_soft(pair, co1, co2, soft);
+                    // The contact-modification hook, on the candidates.
+                    if active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS) {
+                        let (collider1, collider2) = (pair.collider1, pair.collider2);
+
+                        if let Some(candidates) = pair.soft_mut() {
+                            let mut context = ContactModificationContext {
+                                bodies,
+                                colliders,
+                                rigid_body1: rb_handle1,
+                                rigid_body2: rb_handle2,
+                                collider1,
+                                collider2,
+                                contacts: ModifiableContacts::Soft(candidates),
+                            };
+                            hooks.modify_solver_contacts(&mut context);
+                        }
+                    }
+                }
+                // No soft bodies at hand (the collision pipeline): no soft contacts either.
+                None => pair.clear(),
+            }
+
+            // Exit. Everything below is about contact pairs involving at least one rigid-body.
+            break 'emit_events;
+        }
+
+        /*
+         *
+         * Handle soft-vs-rigid and rigid-vs-rigid.
+         *
+         */
+        let (collider1, collider2) = (pair.collider1, pair.collider2);
+
+        let Some(rigid) = pair.rigid_mut() else {
+            break 'emit_events;
+        };
+
+        if co1.changes.contains(ColliderChanges::SHAPE)
+            || co2.changes.contains(ColliderChanges::SHAPE)
+        {
+            // The shape changed so the workspace is no longer valid.
+            rigid.workspace = None;
+        }
+
+        // Rigid-vs-rigid and soft-vs-rigid collisions.
+        let _ = query_dispatcher.contact_manifolds(
+            &pos12,
+            &*co1.shape,
+            &*co2.shape,
+            effective_prediction_distance,
+            &mut rigid.manifolds,
+            &mut rigid.workspace,
+        );
+
+        if let Some(soft) =
+            soft.filter(|_| co1.deformable_mesh_ref.is_some() || co2.deformable_mesh_ref.is_some())
+        {
+            // Soft-vs-rigid: the predictive vertex contacts of the elements the manifolds reached
+            // (within the solver contacts' separation bound), and the intersection volume.
+            super::soft_contacts::update_pair_soft_rigid(
+                rigid,
+                (collider1, co1),
+                (collider2, co2),
+                bodies,
+                prediction_distance + soft_body_prediction,
+                soft,
+            );
+        }
+
         let zero = RigidBodyDominance(0); // The value doesn't matter, it will be MAX because of the effective groups.
         let dominance1 = rb1.map(|rb| rb.dominance).unwrap_or(zero);
         let dominance2 = rb2.map(|rb| rb.dominance).unwrap_or(zero);
 
+        // Soft-surface pairs keep one manifold per triangle: the soft-body solver needs each
+        // point's triangle (the manifold's subshape id), which a cluster loses.
         #[cfg(feature = "dim3")]
-        let use_clusters = contact_clustering && pair.manifolds.len() > 1;
+        let use_clusters = contact_clustering && rigid.manifolds.len() > 1 && !soft_surface_pair;
         #[cfg(not(feature = "dim3"))]
         let use_clusters = {
             // Contact clustering isn’t implemented in 2D (manifolds hold at
@@ -360,17 +479,17 @@ pub(super) fn process_pair(
         if use_clusters {
             // Rebuild the solver clusters, using the clusters solved at the
             // previous step as the warm-start source.
-            core::mem::swap(&mut pair.solver_clusters, &mut pair.solver_clusters_prev);
+            core::mem::swap(&mut rigid.solver_clusters, &mut rigid.solver_clusters_prev);
             crate::geometry::contact_clustering::cluster_manifolds_for_solver(
-                &pair.manifolds,
-                &pair.solver_clusters_prev,
-                &mut pair.solver_clusters,
+                &rigid.manifolds,
+                &rigid.solver_clusters_prev,
+                &mut rigid.solver_clusters,
                 prediction_distance,
             );
 
             // The plain manifolds won't be seen by the solver, but keep their
             // user-facing data coherent.
-            for manifold in &mut pair.manifolds {
+            for manifold in &mut rigid.manifolds {
                 let world_pos1 = manifold.subshape_pos1().prepend_to(&co1.pos);
                 manifold.data.solver_contacts.clear();
                 manifold.data.rigid_body1 = rb_handle1;
@@ -382,22 +501,22 @@ pub(super) fn process_pair(
                     dominance1.effective_group(&rb_type1) - dominance2.effective_group(&rb_type2);
                 manifold.data.normal = world_pos1.rotation * manifold.local_n1;
             }
-        } else if !pair.solver_clusters.is_empty() {
-            // Clustering stopped applying to this pair: carry the warm-start
+        } else if !rigid.solver_clusters.is_empty() {
+            // Clustering stopped applying to this pair: transfer the warm-start
             // data back into the plain manifolds once, then drop the clusters.
-            crate::geometry::contact_clustering::carry_warmstart_data(
-                &pair.solver_clusters,
-                &mut pair.manifolds,
+            crate::geometry::contact_clustering::transfer_warmstart_data(
+                &rigid.solver_clusters,
+                &mut rigid.manifolds,
                 prediction_distance,
             );
-            pair.solver_clusters.clear();
-            pair.solver_clusters_prev.clear();
+            rigid.solver_clusters.clear();
+            rigid.solver_clusters_prev.clear();
         }
 
         let solver_manifolds = if use_clusters {
-            &mut pair.solver_clusters
+            &mut rigid.solver_clusters
         } else {
-            &mut pair.manifolds
+            &mut rigid.manifolds
         };
 
         for manifold in solver_manifolds {
@@ -461,18 +580,19 @@ pub(super) fn process_pair(
                 let contact = &manifold.points[*contact_id];
                 let effective_contact_dist = contact.dist - co1.contact_skin() - co2.contact_skin();
 
-                let keep_solver_contact = effective_contact_dist < prediction_distance || {
-                    let world_pt1 = world_pos1 * contact.local_p1;
-                    let world_pt2 = world_pos2 * contact.local_p2;
-                    let vel1 = rb1
-                        .map(|rb| rb.velocity_at_point(world_pt1))
-                        .unwrap_or_default();
-                    let vel2 = rb2
-                        .map(|rb| rb.velocity_at_point(world_pt2))
-                        .unwrap_or_default();
-                    effective_contact_dist + (vel2 - vel1).dot(manifold.data.normal) * dt
-                        < prediction_distance
-                };
+                let keep_solver_contact =
+                    effective_contact_dist < prediction_distance + soft_body_prediction || {
+                        let world_pt1 = world_pos1 * contact.local_p1;
+                        let world_pt2 = world_pos2 * contact.local_p2;
+                        let vel1 = rb1
+                            .map(|rb| rb.velocity_at_point(world_pt1))
+                            .unwrap_or_default();
+                        let vel2 = rb2
+                            .map(|rb| rb.velocity_at_point(world_pt2))
+                            .unwrap_or_default();
+                        effective_contact_dist + (vel2 - vel1).dot(manifold.data.normal) * dt
+                            < prediction_distance
+                    };
 
                 if keep_solver_contact {
                     // The anchors hold world-space points until the localization pass
@@ -511,14 +631,16 @@ pub(super) fn process_pair(
                     colliders,
                     rigid_body1: rb_handle1,
                     rigid_body2: rb_handle2,
-                    collider1: pair.collider1,
-                    collider2: pair.collider2,
-                    manifold,
-                    solver_contacts: &mut modifiable_solver_contacts,
-                    normal: &mut modifiable_normal,
-                    friction: &mut modifiable_friction,
-                    restitution: &mut modifiable_restitution,
-                    user_data: &mut modifiable_user_data,
+                    collider1,
+                    collider2,
+                    contacts: ModifiableContacts::Rigid(ModifiableManifold {
+                        manifold,
+                        solver_contacts: &mut modifiable_solver_contacts,
+                        normal: &mut modifiable_normal,
+                        friction: &mut modifiable_friction,
+                        restitution: &mut modifiable_restitution,
+                        user_data: &mut modifiable_user_data,
+                    }),
                 };
 
                 hooks.modify_solver_contacts(&mut context);
@@ -532,7 +654,7 @@ pub(super) fn process_pair(
 
             // Localize solver contacts: bake skins (and hook-written `dist`) into the anchors, then
             // express each in its body's CoM frame (world-attached/dominance-superior sides keep world
-            // anchors, matching the solver's identity pose). Riding rigidly lets recycled steps skip refresh.
+            // anchors, matching the solver's identity pose). Riding rigidly lets recycled steps skip updates.
             {
                 let normal = manifold.data.normal;
                 let rel_dom = manifold.data.relative_dominance;
@@ -570,6 +692,7 @@ pub(super) fn process_pair(
                         Some(pose) => pose.inverse_transform_point(p1),
                         None => p1,
                     };
+
                     if let Some(pose) = &com_pose2 {
                         sc.anchor2 = pose.inverse_transform_point(sc.anchor2);
                     }
@@ -585,7 +708,7 @@ pub(super) fn process_pair(
             // shape does, so reuse the previous full update's value.
             let shapes_changed =
                 (co1.changes | co2.changes).contains(crate::geometry::ColliderChanges::SHAPE);
-            let max_extent = match &pair.recycle_state {
+            let max_extent = match &rigid.recycle_state {
                 Some(state) if !shapes_changed => state.max_extent,
                 _ => {
                     let origin_radius = |co: &crate::geometry::Collider| {
@@ -598,12 +721,12 @@ pub(super) fn process_pair(
             // A pair without contacts has an (unknown) separation larger than
             // the prediction distance. Cap its recycle window by the
             // prediction distance so an incoming contact can't be missed.
-            let max_drift = if pair.has_any_active_contact() {
+            let max_drift = if rigid.has_any_active_contact() {
                 contact_recycle_distance
             } else {
                 contact_recycle_distance.min(prediction_distance)
             };
-            pair.recycle_state = Some(crate::geometry::ContactRecycleState {
+            rigid.recycle_state = Some(crate::geometry::ContactRecycleState {
                 pos12,
                 rot1: co1.pos.rotation,
                 rot2: co2.pos.rotation,
@@ -620,6 +743,7 @@ pub(super) fn process_pair(
      * the result independent of the update schedule).
      */
     let has_any_active_contact = pair.has_any_active_contact();
+
     if has_any_active_contact != had_any_active_contact {
         let transition = (edge_id, rb_handle1, rb_handle2, has_any_active_contact);
         #[cfg(not(feature = "parallel"))]
@@ -628,7 +752,7 @@ pub(super) fn process_pair(
         let _ = snd.send(transition);
     }
 
-    // Refresh the pair's solver-qualification hint from its final state
+    // Update the pair's solver-qualification hint from its final state
     // (this point is reached by every path that may have changed the
     // manifolds: full updates and the various pair-clearing branches).
     let mut membership_changed = true;
@@ -670,7 +794,7 @@ pub(super) fn process_pair(
     // Composite pairs have unstable manifold ordinals (see `OUTCOME_FULL_COMPOSITE`),
     // so signal a full rebuild. Must be checked before the `FULL_CLEAN` shortcut: a
     // surviving manifold can look "clean" while a dropped sibling leaked its graph slot.
-    if outcome == OUTCOME_FULL && pair.workspace.is_some() {
+    if outcome == OUTCOME_FULL && pair.rigid().is_some_and(|r| r.workspace.is_some()) {
         return OUTCOME_FULL_COMPOSITE;
     }
     if outcome == OUTCOME_FULL && !membership_changed {

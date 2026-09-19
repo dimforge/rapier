@@ -256,6 +256,8 @@ impl RawCharacterCollision {
             translation_applied: Vector::ZERO,
             translation_remaining: Vector::ZERO,
             hit: ShapeCastHit {
+                subshape1: 0,
+                subshape2: 0,
                 time_of_impact: 0.0,
                 witness1: Vector::ZERO,
                 witness2: Vector::ZERO,

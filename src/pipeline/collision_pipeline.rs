@@ -111,6 +111,7 @@ impl CollisionPipeline {
             modified_colliders,
             hooks,
             events,
+            None,
         );
         narrow_phase.compute_intersections(
             islands,

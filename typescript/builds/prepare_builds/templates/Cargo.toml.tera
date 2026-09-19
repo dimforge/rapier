@@ -40,7 +40,7 @@ rapier{{ dimension }}d = { version = "0.35.0", features = [
 ] }
 # The explicit dependency to parry only needed to pin the version; it must match
 # the version (and math-backend feature set) the in-repo rapier crate depends on.
-parry{{ dimension }}d = { version = "0.29", default-features = false, features = [
+parry{{ dimension }}d = { version = "0.31", default-features = false, features = [
     "required-features",
 ] }
 ref-cast = "1"

@@ -2,6 +2,7 @@ use super::{DebugColor, DebugRenderBackend, outlines};
 use crate::alloc_prelude::*;
 use crate::dynamics::{
     GenericJoint, ImpulseJointSet, MultibodyJointSet, RigidBody, RigidBodySet, RigidBodyType,
+    SoftBodyEdgeKind, SoftBodySet,
 };
 use crate::geometry::{Ball, ColliderSet, Cuboid, NarrowPhase, Shape, TypedShape};
 #[cfg(feature = "dim3")]
@@ -37,6 +38,20 @@ bitflags::bitflags! {
         const CONTACTS = 1 << 5;
         /// If this flag is set, the Aabbs of colliders will be rendered.
         const COLLIDER_AABBS = 1 << 6;
+        /// If this flag is set, the soft bodies' elements (structural edges and cell edges) and
+        /// their soft-vs-soft contacts (vertex-vs-surface and edge-vs-edge) will be rendered.
+        const SOFT_BODIES = 1 << 7;
+        /// If this flag is set, the pseudo-normals of the triangle-meshes (3D) and polylines (2D)
+        /// that have them will be rendered.
+        const PSEUDO_NORMALS = 1 << 8;
+        /// If this flag is set, the soft bodies' volume constraints (the intersection-volume
+        /// constraints) will be rendered: each constraint's normal at its patch center, and the
+        /// volume gradient at every particle it acts on.
+        const SOFT_VOLUME_CONTACTS = 1 << 9;
+        /// With [`Self::SOFT_BODIES`], colors elements by load, not `soft_body_element_color`:
+        /// `soft_body_slack_color` unloaded to `soft_body_loaded_color` at the tear threshold (the
+        /// smoothed element `stress`); without a threshold the load is the stretch, full at 50%.
+        const SOFT_BODY_STRESS = 1 << 10;
     }
 }
 
@@ -63,6 +78,9 @@ pub struct DebugRenderPipeline {
     /// Flags controlling what part of the physics engine need to
     /// be rendered.
     pub mode: DebugRenderMode,
+    /// The soft-body edges to draw for the body being rendered, with their load (a cage edge is
+    /// shared by every cell around it: the largest). Kept here to be reused from frame to frame.
+    drawn_edges: HashMap<[u32; 2], f32>,
 }
 
 impl Default for DebugRenderPipeline {
@@ -78,11 +96,12 @@ impl DebugRenderPipeline {
             instances: outlines::instances(style.subdivisions),
             style,
             mode,
+            drawn_edges: HashMap::default(),
         }
     }
 
     /// The color multiplier for one body's attached entities: disabled, asleep, sleep-eligible,
-    /// or plain awake. `eligible_tint` opts out for entities whose hue already carries meaning.
+    /// or plain awake. `eligible_tint` opts out for entities whose hue already conveys meaning.
     fn body_color_multiplier(
         &self,
         rb: &RigidBody,
@@ -116,11 +135,156 @@ impl DebugRenderPipeline {
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
         narrow_phase: &NarrowPhase,
+        soft_bodies: &SoftBodySet,
     ) {
         self.render_rigid_bodies(backend, bodies);
         self.render_colliders(backend, bodies, colliders);
         self.render_joints(backend, bodies, impulse_joints, multibody_joints);
         self.render_contacts(backend, colliders, narrow_phase);
+        self.render_soft_bodies(backend, soft_bodies);
+    }
+
+    /// Render the soft bodies' elements (structural edges and cell edges as a wireframe, from
+    /// the particles' positions at the end of the last step) and their soft-vs-soft contacts
+    /// (vertex-vs-surface and edge-vs-edge).
+    #[profiling::function]
+    #[allow(clippy::unnecessary_cast)] // Casts are needed for switching between f32/f64.
+    pub fn render_soft_bodies<B: DebugRenderBackend>(
+        &mut self,
+        backend: &mut B,
+        soft_bodies: &SoftBodySet,
+    ) {
+        if self.mode.contains(DebugRenderMode::SOFT_VOLUME_CONTACTS) {
+            self.render_soft_volume_contacts(backend, soft_bodies);
+        }
+        if !self.mode.contains(DebugRenderMode::SOFT_BODIES) {
+            return;
+        }
+        for (handle, sb) in soft_bodies.iter() {
+            let object = DebugRenderObject::SoftBody(handle, sb);
+            if !backend.filter_object(object) {
+                continue;
+            }
+            let element_color = self.style.soft_body_element_color;
+            let by_stress = self.mode.contains(DebugRenderMode::SOFT_BODY_STRESS);
+            // The load an element is drawn with: its smoothed tear load when the material tears,
+            // its stretch (full at 50%) otherwise, so the picture stays meaningful for a body
+            // that never tears.
+            let tears = sb.material().tears();
+            let stretch = |a: u32, b: u32| -> f32 {
+                let (pa, pb) = (&sb.particles()[a as usize], &sb.particles()[b as usize]);
+                let rest = (pa.rest_position() - pb.rest_position()).length();
+                let len = (pa.position() - pb.position()).length();
+                if rest > 0.0 {
+                    ((len / rest - 1.0).abs() / 0.5) as f32
+                } else {
+                    0.0
+                }
+            };
+            // The cage is drawn edge by edge rather than cell by cell (an edge is shared by every
+            // cell around it, and duplicates only thicken the picture); each edge keeps the largest
+            // load of the elements sharing it.
+            self.drawn_edges.clear();
+            let record = |drawn: &mut HashMap<[u32; 2], f32>, e: [u32; 2], load: f32| {
+                let key = [e[0].min(e[1]), e[0].max(e[1])];
+                let slot = drawn.entry(key).or_insert(0.0);
+                *slot = slot.max(load);
+            };
+            for e in sb.edges() {
+                if e.kind == SoftBodyEdgeKind::Structural {
+                    let load = match (by_stress, tears) {
+                        (false, _) => 0.0,
+                        (true, true) => e.stress() as f32,
+                        (true, false) => stretch(e.vertices[0], e.vertices[1]),
+                    };
+                    record(&mut self.drawn_edges, e.vertices, load);
+                }
+            }
+            for c in sb.cells() {
+                for a in 0..DIM + 1 {
+                    for b in a + 1..DIM + 1 {
+                        let edge = [c.vertices[a], c.vertices[b]];
+                        let load = match (by_stress, tears) {
+                            (false, _) => 0.0,
+                            (true, true) => c.stress() as f32,
+                            (true, false) => stretch(edge[0], edge[1]),
+                        };
+                        record(&mut self.drawn_edges, edge, load);
+                    }
+                }
+            }
+            // Sorted: the backend sees the same lines in the same order every frame.
+            let mut edges: Vec<([u32; 2], f32)> =
+                self.drawn_edges.iter().map(|(k, v)| (*k, *v)).collect();
+            edges.sort_unstable_by_key(|e| e.0);
+            for (key, load) in edges {
+                let color = if by_stress {
+                    let t = load.clamp(0.0, 1.0);
+                    let (slack, loaded) = (
+                        self.style.soft_body_slack_color,
+                        self.style.soft_body_loaded_color,
+                    );
+                    core::array::from_fn(|k| slack[k] + (loaded[k] - slack[k]) * t)
+                } else {
+                    element_color
+                };
+                backend.draw_line(
+                    object,
+                    sb.particle_position(key[0] as usize),
+                    sb.particle_position(key[1] as usize),
+                    color,
+                );
+            }
+            // Same reading as the rigid contacts: the depth segment joins the two witness
+            // points, and the normal starts on the surface side. A contact sitting exactly on
+            // the surface has no direction to show, so it gets the segment alone.
+            let depth_color = self.style.contact_depth_color;
+            let normal_color = self.style.contact_normal_color;
+            let normal_length = self.style.contact_normal_length;
+            for (a, b) in sb
+                .edge_contact_segments(soft_bodies)
+                .chain(sb.vertex_contact_segments(soft_bodies))
+            {
+                backend.draw_line(object, a, b, depth_color);
+                if let Some(n) = (a - b).try_normalize() {
+                    backend.draw_line(object, b, b + n * normal_length, normal_color);
+                }
+            }
+        }
+    }
+
+    /// Renders the soft bodies' volume constraints (`SoftVolumeContact`): each one's normal at its
+    /// patch center (owner body toward the other side) and the volume gradient at every particle it
+    /// acts on, scaled so the largest has the normal's length (the push goes the opposite way).
+    #[profiling::function]
+    pub fn render_soft_volume_contacts<B: DebugRenderBackend>(
+        &mut self,
+        backend: &mut B,
+        soft_bodies: &SoftBodySet,
+    ) {
+        let normal_color = self.style.volume_contact_normal_color;
+        let gradient_color = self.style.volume_gradient_color;
+        let length = self.style.contact_normal_length;
+        for (handle, sb) in soft_bodies.iter() {
+            let object = DebugRenderObject::SoftBody(handle, sb);
+            if !backend.filter_object(object) {
+                continue;
+            }
+            for c in sb.volume_contacts() {
+                backend.draw_line(object, c.center, c.center + c.normal * length, normal_color);
+                let g_max = c
+                    .gradients
+                    .iter()
+                    .map(|(_, g)| g.length())
+                    .fold(0.0, crate::math::Real::max);
+                if g_max <= 0.0 {
+                    continue;
+                }
+                for (p, g) in &c.gradients {
+                    backend.draw_line(object, *p, *p + *g * (length / g_max), gradient_color);
+                }
+            }
+        }
     }
 
     /// Render contact.
@@ -139,7 +303,7 @@ impl DebugRenderPipeline {
                     let object = DebugRenderObject::ContactPair(pair, co1, co2);
 
                     if backend.filter_object(object) {
-                        for manifold in &pair.manifolds {
+                        for manifold in pair.manifolds() {
                             for contact in manifold.contacts() {
                                 let world_subshape_pos1 =
                                     manifold.subshape_pos1().prepend_to(co1.position());
@@ -173,7 +337,7 @@ impl DebugRenderPipeline {
                     let object = DebugRenderObject::ContactPair(pair, co1, co2);
 
                     if backend.filter_object(object) {
-                        for manifold in &pair.manifolds {
+                        for manifold in pair.manifolds() {
                             let world_pos1 = manifold.subshape_pos1().prepend_to(co1.position());
                             let world_pos2 = manifold.subshape_pos2().prepend_to(co2.position());
                             for contact in &manifold.data.solver_contacts {
@@ -341,7 +505,9 @@ impl DebugRenderPipeline {
                         let coeff = self.body_color_multiplier(parent, co.is_enabled(), true);
                         let c = match parent.body_type {
                             RigidBodyType::Fixed => self.style.collider_fixed_color,
-                            RigidBodyType::Dynamic => self.style.collider_dynamic_color,
+                            RigidBodyType::Dynamic | RigidBodyType::SoftFrame => {
+                                self.style.collider_dynamic_color
+                            }
                             RigidBodyType::KinematicPositionBased
                             | RigidBodyType::KinematicVelocityBased => {
                                 self.style.collider_kinematic_color
@@ -381,6 +547,118 @@ impl DebugRenderPipeline {
                     );
                 }
             }
+        }
+
+        if self.mode.contains(DebugRenderMode::PSEUDO_NORMALS) {
+            for (h, co) in colliders.iter() {
+                let object = DebugRenderObject::Collider(h, co);
+
+                if backend.filter_object(object) {
+                    self.render_shape_pseudo_normals(object, backend, co.shape(), co.position());
+                }
+            }
+        }
+    }
+
+    /// Renders the pseudo-normals of the polylines reachable from `shape`, if computed (polyline
+    /// `ORIENTED`), each starting at its vertex.
+    #[cfg(feature = "dim2")]
+    #[profiling::function]
+    fn render_shape_pseudo_normals(
+        &mut self,
+        object: DebugRenderObject,
+        backend: &mut impl DebugRenderBackend,
+        shape: &dyn Shape,
+        pos: &Pose,
+    ) {
+        let len = self.style.pseudo_normal_length;
+
+        match shape.as_typed_shape() {
+            TypedShape::Polyline(s) => {
+                let Some(pseudo_normals) = s.pseudo_normals() else {
+                    return;
+                };
+
+                for (vtx, n) in s.vertices().iter().zip(pseudo_normals) {
+                    let Some(n) = n.try_normalize() else {
+                        continue;
+                    };
+                    let a = *pos * *vtx;
+                    backend.draw_line(
+                        object,
+                        a,
+                        a + pos.rotation * n * len,
+                        self.style.vertex_pseudo_normal_color,
+                    );
+                }
+            }
+            TypedShape::Compound(s) => {
+                for (sub_pos, shape) in s.shapes() {
+                    self.render_shape_pseudo_normals(object, backend, &**shape, &(pos * sub_pos))
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Renders the pseudo-normals of the triangle meshes reachable from `shape`, if computed (mesh
+    /// `ORIENTED` or `FIX_INTERNAL_EDGES`), each from its feature: a vertex, or an edge's midpoint.
+    #[cfg(feature = "dim3")]
+    #[profiling::function]
+    fn render_shape_pseudo_normals(
+        &mut self,
+        object: DebugRenderObject,
+        backend: &mut impl DebugRenderBackend,
+        shape: &dyn Shape,
+        pos: &Pose,
+    ) {
+        let len = self.style.pseudo_normal_length;
+
+        match shape.as_typed_shape() {
+            TypedShape::TriMesh(s) => {
+                let Some(pseudo_normals) = s.pseudo_normals() else {
+                    return;
+                };
+                let vertices = s.vertices();
+
+                for (vtx, n) in vertices.iter().zip(&pseudo_normals.vertices_pseudo_normal) {
+                    let Some(n) = n.try_normalize() else {
+                        continue;
+                    };
+                    let a = *pos * *vtx;
+                    backend.draw_line(
+                        object,
+                        a,
+                        a + pos.rotation * n * len,
+                        self.style.vertex_pseudo_normal_color,
+                    );
+                }
+
+                // The per-triangle pseudo-normals are stored in the edge order [ab, bc, ca], as
+                // built by `TriMesh::compute_pseudo_normals`.
+                for (idx, normals) in s.indices().iter().zip(&pseudo_normals.edges_pseudo_normal) {
+                    for (k, n) in normals.iter().enumerate() {
+                        let Some(n) = n.try_normalize() else {
+                            continue;
+                        };
+                        let v0 = vertices[idx[k] as usize];
+                        let v1 = vertices[idx[(k + 1) % 3] as usize];
+                        let a = *pos * ((v0 + v1) * 0.5);
+                        backend.draw_line(
+                            object,
+                            a,
+                            a + pos.rotation * n * len,
+                            self.style.edge_pseudo_normal_color,
+                        );
+                    }
+                }
+            }
+            TypedShape::Compound(s) => {
+                for (sub_pos, shape) in s.shapes() {
+                    self.render_shape_pseudo_normals(object, backend, &**shape, &(pos * sub_pos))
+                }
+            }
+            _ => {}
         }
     }
 

@@ -5,7 +5,7 @@ use crate::alloc_prelude::*;
 
 use crate::dynamics::{
     CCDSolver, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
-    RigidBodyChanges, RigidBodySet, RigidBodyType,
+    RigidBodyChanges, RigidBodySet, RigidBodyType, SoftBodySet,
 };
 #[cfg(feature = "parallel")]
 use crate::geometry::ColliderHandle;
@@ -57,6 +57,7 @@ impl PhysicsPipeline {
         islands: &IslandManager,
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
+        soft_bodies: &SoftBodySet,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
         ccd_solver: &mut CCDSolver,
@@ -71,6 +72,7 @@ impl PhysicsPipeline {
             islands,
             bodies,
             colliders,
+            soft_bodies,
             broad_phase,
             narrow_phase,
             hooks,
@@ -86,9 +88,9 @@ impl PhysicsPipeline {
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
     ) {
-        // Set bodies to their final position, propagate to colliders, refresh world mass-properties
+        // Set bodies to their final position, propagate to colliders, update world mass-properties
         // (user code between steps applies forces w.r.t. the fresh CoM). NOTE: internal motion skips the
-        // user-modification tracking — moved colliders are harvested here for the broad-phase refresh and narrow-phase walk (no flags).
+        // user-modification tracking: moved colliders are harvested here for the broad-phase update and narrow-phase walk (no flags).
         use parry::bounding_volume::BoundingVolume;
 
         self.end_step_collider_aabbs.clear();
@@ -101,7 +103,7 @@ impl PhysicsPipeline {
         let collider_aabb = |co: &crate::geometry::Collider,
                              rb: &crate::dynamics::RigidBody|
          -> crate::geometry::Aabb {
-            let mut aabb = co.compute_collision_aabb(prediction / 2.0);
+            let mut aabb = co.compute_collision_aabb(prediction / 2.0 + rb.soft_motion_margin);
             if rb.soft_ccd_prediction() > 0.0 {
                 let next_pose = rb.predict_position_using_velocity_and_forces_with_max_dist(
                     dt,
@@ -123,7 +125,9 @@ impl PhysicsPipeline {
                 // Non-finite pose: leave the body at its last valid state for
                 // `Quarantine::apply_end_step` to neutralize.
                 if !rb.pos.next_position.is_finite() {
-                    self.quarantine.body_scratch.push((handle, rb.pos.position));
+                    self.quarantine
+                        .body_workspace
+                        .push((handle, rb.pos.position));
                     continue;
                 }
                 rb.pos.position = rb.pos.next_position;
@@ -138,7 +142,7 @@ impl PhysicsPipeline {
                         } else {
                             // Finite body pose but non-finite AABB: the collider's own
                             // geometry is invalid.
-                            self.quarantine.collider_scratch.push(*co_handle);
+                            self.quarantine.collider_workspace.push(*co_handle);
                         }
                     }
                 }
@@ -212,10 +216,10 @@ impl PhysicsPipeline {
             for (chunk, quarantined_bodies, quarantined_colliders) in &moved {
                 self.end_step_collider_aabbs.extend_from_slice(chunk);
                 self.quarantine
-                    .body_scratch
+                    .body_workspace
                     .extend_from_slice(quarantined_bodies);
                 self.quarantine
-                    .collider_scratch
+                    .collider_workspace
                     .extend_from_slice(quarantined_colliders);
             }
         }
@@ -224,7 +228,7 @@ impl PhysicsPipeline {
     /// Feeds the broad-phase the AABBs computed by the last `advance_to_final_positions`
     /// call, through `set_aabb` (whose `pending_set_aabb` protocol makes the next
     /// broad-phase update account for them in change-flag resolution and stale-pair detection).
-    fn refresh_moved_collider_aabbs(
+    fn update_moved_collider_aabbs(
         &mut self,
         integration_parameters: &IntegrationParameters,
         broad_phase: &mut BroadPhaseBvh,
@@ -273,6 +277,7 @@ impl PhysicsPipeline {
         colliders: &mut ColliderSet,
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
+        soft_bodies: &mut SoftBodySet,
         ccd_solver: &mut CCDSolver,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
@@ -299,6 +304,16 @@ impl PhysicsPipeline {
 
         // Quarantine user-introduced non-finite state before it reaches the broad-phase.
         self.quarantine.detect_user_changes(bodies, colliders);
+
+        // Soft bodies whose settings changed must wake up for the change to take effect; the
+        // colliders of the ones whose particles were moved follow them (picked up as modified
+        // colliders below).
+        soft_bodies.apply_user_changes(
+            bodies,
+            colliders,
+            integration_parameters,
+            &mut self.quarantine.soft_bodies,
+        );
 
         // Apply modifications.
         let mut modified_colliders = colliders.take_modified();
@@ -363,10 +378,18 @@ impl PhysicsPipeline {
         }
         let mut mb_chain_events = core::mem::take(&mut multibody_joints.island_chain_events);
         for mb_id in &mb_chain_events {
-            islands.refresh_multibody_chain(bodies, multibody_joints, *mb_id);
+            islands.update_multibody_chain(bodies, multibody_joints, *mb_id);
         }
         mb_chain_events.clear();
         multibody_joints.island_chain_events = mb_chain_events;
+        // Soft bodies inserted/removed or reattached since the last step: update their
+        // attachment links.
+        let mut sb_events = core::mem::take(&mut soft_bodies.island_events);
+        for event in &sb_events {
+            islands.update_soft_body_attachments(bodies, soft_bodies, event.handle);
+        }
+        sb_events.clear();
+        soft_bodies.island_events = sb_events;
         self.counters.stages.user_changes.pause();
 
         // TODO: do this only on user-change.
@@ -378,6 +401,8 @@ impl PhysicsPipeline {
                 .update_rigid_bodies_internal(bodies, true, false, false);
         }
 
+        // The soft meshes' vertex caches, read by the soft contact passes.
+        soft_bodies.refresh_vertex_caches();
         self.detect_collisions(
             integration_parameters,
             islands,
@@ -392,6 +417,7 @@ impl PhysicsPipeline {
             hooks,
             events,
             true,
+            soft_bodies,
         );
 
         self.counters.stages.user_changes.resume();
@@ -486,6 +512,7 @@ impl PhysicsPipeline {
                 colliders,
                 impulse_joints,
                 multibody_joints,
+                soft_bodies,
                 events,
             );
 
@@ -510,6 +537,7 @@ impl PhysicsPipeline {
                         islands,
                         bodies,
                         colliders,
+                        soft_bodies,
                         broad_phase,
                         narrow_phase,
                         ccd_solver,
@@ -531,10 +559,11 @@ impl PhysicsPipeline {
                 // re-running collision detection for the next CCD substep.
                 self.counters.stages.collision_detection_time.resume();
                 self.counters.cd.final_broad_phase_time.resume();
-                self.refresh_moved_collider_aabbs(&integration_parameters, broad_phase);
+                self.update_moved_collider_aabbs(&integration_parameters, broad_phase);
                 self.counters.cd.final_broad_phase_time.pause();
                 self.counters.stages.collision_detection_time.pause();
 
+                soft_bodies.refresh_vertex_caches();
                 self.detect_collisions(
                     &integration_parameters,
                     islands,
@@ -549,6 +578,7 @@ impl PhysicsPipeline {
                     hooks,
                     events,
                     false,
+                    soft_bodies,
                 );
 
                 self.clear_modified_colliders(colliders, &mut modified_colliders);
@@ -559,7 +589,7 @@ impl PhysicsPipeline {
                 // harvested by `advance_to_final_positions`.
                 self.counters.stages.collision_detection_time.resume();
                 self.counters.cd.final_broad_phase_time.resume();
-                self.refresh_moved_collider_aabbs(&integration_parameters, broad_phase);
+                self.update_moved_collider_aabbs(&integration_parameters, broad_phase);
                 self.counters.cd.final_broad_phase_time.pause();
                 self.counters.stages.collision_detection_time.pause();
             }
@@ -571,11 +601,30 @@ impl PhysicsPipeline {
         // TODO: avoid updating the world mass properties twice (here, and
         //       at the beginning of the next timestep) for bodies that were
         //       not modified by the user in the mean time.
-        // NOTE: the world mass-properties of the bodies that moved were refreshed by
+        // NOTE: the world mass-properties of the bodies that moved were updated by
         //       `advance_to_final_positions`.
 
         // Re-insert the modified vector we extracted for the borrow-checker.
         colliders.set_modified(modified_colliders);
+
+        // The tears the solver marked come first: the pieces they leave get their derived state
+        // synced below like any other body.
+        soft_bodies.apply_pending_tears(
+            islands,
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            events,
+        );
+        // Update the soft bodies' derived state (sleep state, surface orientation, substep
+        // requests) and their colliders (picked up by the next step's user-changes handling).
+        soft_bodies.sync_particle_positions(
+            bodies,
+            colliders,
+            &integration_parameters,
+            &mut self.quarantine.soft_bodies,
+        );
 
         self.counters.step_completed();
     }

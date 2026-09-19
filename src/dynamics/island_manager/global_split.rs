@@ -10,7 +10,7 @@ use super::persistent::{INVALID_ISLAND, INVALID_LOC, PersistentIslands, SPLIT_RE
 
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-pub(super) struct SplitScratch {
+pub(super) struct SplitWorkspace {
     uf: UnionFind,
     contact_counts: Vec<u32>,
     joint_counts: Vec<u32>,
@@ -73,29 +73,29 @@ impl PersistentIslands {
             return;
         }
 
-        let mut scratch = core::mem::take(&mut self.split_scratch);
-        scratch.uf.reset(body_count);
-        scratch.contact_counts.clear();
-        scratch.contact_counts.resize(body_count, 0);
-        scratch.joint_counts.clear();
-        scratch.joint_counts.resize(body_count, 0);
+        let mut workspace = core::mem::take(&mut self.split_workspace);
+        workspace.uf.reset(body_count);
+        workspace.contact_counts.clear();
+        workspace.contact_counts.resize(body_count, 0);
+        workspace.joint_counts.clear();
+        workspace.joint_counts.resize(body_count, 0);
 
         // A body's union-find node id is its `island_index`. Rather than read it back from the
         // body arena (random, cache-missing access per link endpoint), index the island's members
-        // by arena index up front — handles carry everything needed, `island.bodies` is all live.
-        scratch.node_map_stamp = scratch.node_map_stamp.wrapping_add(1);
-        if scratch.node_map_stamp == 0 {
+        // by arena index up front; handles hold everything needed, `island.bodies` is all live.
+        workspace.node_map_stamp = workspace.node_map_stamp.wrapping_add(1);
+        if workspace.node_map_stamp == 0 {
             // Wrapped: a zeroed (never-written) entry would alias stamp 0.
-            scratch.node_map.clear();
-            scratch.node_map_stamp = 1;
+            workspace.node_map.clear();
+            workspace.node_map_stamp = 1;
         }
-        let stamp = scratch.node_map_stamp;
+        let stamp = workspace.node_map_stamp;
         for (node, handle) in self.islands[island_id as usize].bodies.iter().enumerate() {
             let (index, generation) = handle.into_raw_parts();
-            if scratch.node_map.len() <= index as usize {
-                scratch.node_map.resize(index as usize + 1, (0, 0, 0));
+            if workspace.node_map.len() <= index as usize {
+                workspace.node_map.resize(index as usize + 1, (0, 0, 0));
             }
-            scratch.node_map[index as usize] = (stamp, generation, node as u32);
+            workspace.node_map[index as usize] = (stamp, generation, node as u32);
         }
 
         // An endpoint that is not a member of this island (fixed body, removed
@@ -110,7 +110,7 @@ impl PersistentIslands {
         // a link goes from island-owned memory alone; `INVALID_ISLAND` marks a link whose two
         // endpoints both left the island (dropped below).
         let island = &self.islands[island_id as usize];
-        let SplitScratch {
+        let SplitWorkspace {
             uf,
             contact_counts,
             joint_counts,
@@ -118,7 +118,7 @@ impl PersistentIslands {
             joint_nodes,
             node_map,
             ..
-        } = &mut scratch;
+        } = &mut workspace;
         contact_nodes.clear();
         contact_nodes.reserve(island.contact_links.len());
         joint_nodes.clear();
@@ -156,15 +156,15 @@ impl PersistentIslands {
         // Flatten so the move passes below can resolve roots with immutable
         // single reads, then pick the biggest component (by the union-find's
         // set sizes, i.e. body counts): it keeps the base island.
-        scratch.uf.flatten();
+        workspace.uf.flatten();
         let mut component_count = 0usize;
         let mut keep_root = 0u32;
         let mut keep_size = 0u32;
         for i in 0..body_count as u32 {
-            if scratch.uf.root(i) == i {
+            if workspace.uf.root(i) == i {
                 component_count += 1;
-                if scratch.uf.size(i) > keep_size {
-                    keep_size = scratch.uf.size(i);
+                if workspace.uf.size(i) > keep_size {
+                    keep_size = workspace.uf.size(i);
                     keep_root = i;
                 }
             }
@@ -173,7 +173,7 @@ impl PersistentIslands {
             let island = &mut self.islands[island_id as usize];
             island.constraint_remove_count = 0;
             island.split_denied_until = self.sleep_scan_stamp + SPLIT_RETRY_COOLDOWN;
-            self.split_scratch = scratch;
+            self.split_workspace = workspace;
             return;
         }
 
@@ -182,36 +182,38 @@ impl PersistentIslands {
         // the final root. Fold them up onto final roots instead of trusting
         // them as-is.
         for i in 0..body_count as u32 {
-            let root = scratch.uf.root(i);
+            let root = workspace.uf.root(i);
             if root != i {
-                scratch.contact_counts[root as usize] += scratch.contact_counts[i as usize];
-                scratch.joint_counts[root as usize] += scratch.joint_counts[i as usize];
-                scratch.contact_counts[i as usize] = 0;
-                scratch.joint_counts[i as usize] = 0;
+                workspace.contact_counts[root as usize] += workspace.contact_counts[i as usize];
+                workspace.joint_counts[root as usize] += workspace.joint_counts[i as usize];
+                workspace.contact_counts[i as usize] = 0;
+                workspace.joint_counts[i as usize] = 0;
             }
         }
 
         // One new island per component, except `keep_root`'s, which stays in
         // the base island (and keeps its sleeping/cooldown state).
         let base_sleeping = self.islands[island_id as usize].sleeping;
-        scratch.root_island.clear();
-        scratch.root_island.resize(body_count, INVALID_ISLAND);
-        scratch.root_island[keep_root as usize] = island_id;
+        workspace.root_island.clear();
+        workspace.root_island.resize(body_count, INVALID_ISLAND);
+        workspace.root_island[keep_root as usize] = island_id;
 
         for i in 0..body_count {
-            let root = scratch.uf.root(i as u32) as usize;
-            if scratch.root_island[root] == INVALID_ISLAND {
+            let root = workspace.uf.root(i as u32) as usize;
+            if workspace.root_island[root] == INVALID_ISLAND {
                 let new_id = self.alloc_island();
                 let island = &mut self.islands[new_id as usize];
                 island.sleeping = base_sleeping;
-                island.bodies.reserve(scratch.uf.size(root as u32) as usize);
+                island
+                    .bodies
+                    .reserve(workspace.uf.size(root as u32) as usize);
                 island
                     .contact_links
-                    .reserve(scratch.contact_counts[root] as usize);
+                    .reserve(workspace.contact_counts[root] as usize);
                 island
                     .joint_links
-                    .reserve(scratch.joint_counts[root] as usize);
-                scratch.root_island[root] = new_id;
+                    .reserve(workspace.joint_counts[root] as usize);
+                workspace.root_island[root] = new_id;
             }
         }
 
@@ -220,12 +222,12 @@ impl PersistentIslands {
         // pulls in an element that stays: everything past the current index was already visited.
         let mut links = core::mem::take(&mut self.islands[island_id as usize].contact_links);
         for i in (0..links.len()).rev() {
-            let node = scratch.contact_nodes[i];
+            let node = workspace.contact_nodes[i];
             let target = if node == INVALID_ISLAND {
                 // Both endpoints left (dead/fixed/disabled): drop the link.
                 INVALID_ISLAND
             } else {
-                scratch.root_island[scratch.uf.root(node) as usize]
+                workspace.root_island[workspace.uf.root(node) as usize]
             };
             if target == island_id {
                 continue;
@@ -249,11 +251,11 @@ impl PersistentIslands {
 
         let mut links = core::mem::take(&mut self.islands[island_id as usize].joint_links);
         for i in (0..links.len()).rev() {
-            let node = scratch.joint_nodes[i];
+            let node = workspace.joint_nodes[i];
             let target = if node == INVALID_ISLAND {
                 INVALID_ISLAND
             } else {
-                scratch.root_island[scratch.uf.root(node) as usize]
+                workspace.root_island[workspace.uf.root(node) as usize]
             };
             if target == island_id {
                 continue;
@@ -281,7 +283,7 @@ impl PersistentIslands {
         // untouched, so the union-find roots stay valid for the rest of the loop.
         let mut island_bodies = core::mem::take(&mut self.islands[island_id as usize].bodies);
         for i in (0..island_bodies.len()).rev() {
-            let target = scratch.root_island[scratch.uf.root(i as u32) as usize];
+            let target = workspace.root_island[workspace.uf.root(i as u32) as usize];
             if target == island_id {
                 continue;
             }
@@ -303,6 +305,6 @@ impl PersistentIslands {
         let island = &mut self.islands[island_id as usize];
         island.constraint_remove_count = 0;
         island.split_denied_until = self.sleep_scan_stamp + SPLIT_RETRY_COOLDOWN;
-        self.split_scratch = scratch;
+        self.split_workspace = workspace;
     }
 }

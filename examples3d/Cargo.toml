@@ -25,10 +25,11 @@ kiss3d = { workspace = true, features = ["rt_switcher"] }
 
 [dependencies.rapier_testbed3d]
 workspace = true
-#features = ["profiler_ui"]
+features = ["fem"]
 
 [dependencies.rapier3d]
 workspace = true
+features = ["fem"]
 
 [dependencies.rapier3d-urdf]
 workspace = true

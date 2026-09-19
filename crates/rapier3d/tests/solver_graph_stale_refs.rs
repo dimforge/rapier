@@ -71,6 +71,7 @@ fn body_churn_keeps_solver_graph_exact() {
                     &mut world.colliders,
                     &mut world.impulse_joints,
                     &mut world.multibody_joints,
+                    &mut world.soft_bodies,
                     true,
                 );
             }

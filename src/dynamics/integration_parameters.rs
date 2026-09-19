@@ -108,16 +108,30 @@ impl<N: SimdRealField<Element = Real> + Copy> SpringCoefficients<N> {
         let one = N::one();
         let erp = self.erp(dt);
         let erp_is_not_zero = erp.simd_ne(N::zero());
-        let inv_erp_minus_one = one / erp - one;
 
-        // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
-        //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
-        // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
-        //     / (dt * inv_erp_minus_one);
-        // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
-        // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
-        let result = inv_erp_minus_one * inv_erp_minus_one
-            / ((one + inv_erp_minus_one) * N::splat(4.0) * self.damping_ratio * self.damping_ratio);
+        let damped = {
+            let inv_erp_minus_one = one / erp - one;
+
+            // let stiffness = 4.0 * damping_ratio * damping_ratio * projected_mass
+            //     / (dt * dt * inv_erp_minus_one * inv_erp_minus_one);
+            // let damping = 4.0 * damping_ratio * damping_ratio * projected_mass
+            //     / (dt * inv_erp_minus_one);
+            // let cfm = 1.0 / (dt * dt * stiffness + dt * damping);
+            // NOTE: This simplifies to cfm = cfm_coeff / projected_mass:
+            inv_erp_minus_one * inv_erp_minus_one
+                / ((one + inv_erp_minus_one)
+                    * N::splat(4.0)
+                    * self.damping_ratio
+                    * self.damping_ratio)
+        };
+        let undamped = {
+            // Undamped version if the damping ratio is zero.
+            let dt_omega = dt * self.angular_frequency();
+            one / (dt_omega * (dt_omega + N::splat(2.0) * self.damping_ratio))
+        };
+
+        let damping_is_zero = self.damping_ratio.simd_eq(N::zero());
+        let result = undamped.select(damping_is_zero, damped);
         result.select(erp_is_not_zero, N::zero())
     }
 
@@ -231,6 +245,14 @@ pub struct IntegrationParameters {
     /// with your chosen units.
     pub length_unit: Real,
 
+    /// Settings shared by every soft body: tangle recovery, strained-constraint re-sweep, impact
+    /// substeps, contact stiffening and FEM solver tuning (see [`SoftBodiesSettings`]).
+    ///
+    /// [`SoftBodiesSettings`]: crate::dynamics::SoftBodiesSettings
+    #[cfg(feature = "alloc")]
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub soft_bodies: crate::dynamics::SoftBodiesSettings,
+
     /// Geometric slop distance (default: `0.005`), e.g. the standoff kept
     /// by the CCD clamp. NOT a deadzone on the position-correction bias: penetrations are corrected
     /// all the way to zero; a deadzone would keep loaded piles wedging and creeping.
@@ -273,7 +295,7 @@ pub struct IntegrationParameters {
     /// into one "cluster" manifold before constraint generation (default: `true`, 3D only), so at
     /// most 4 contact points are solved per contact plane — a large solver win on composite shapes
     /// (meshes, heightfields, compounds, voxels) that emit one manifold per subshape. When clustering
-    /// applies, read solver contacts/impulses from [`crate::geometry::ContactPair::solver_clusters`],
+    /// applies, read solver contacts/impulses from [`crate::geometry::RigidPairContacts::solver_clusters`],
     /// not [`crate::geometry::ContactPair::manifolds`].
     pub contact_clustering: bool,
     /// If enabled, a contact pair whose relative pose moved less than [`Self::contact_recycle_distance`]
@@ -401,6 +423,8 @@ impl Default for IntegrationParameters {
             friction_in_bias_pass: false,
             warmstart_joints: false,
             length_unit: 1.0,
+            #[cfg(feature = "alloc")]
+            soft_bodies: Default::default(),
             #[cfg(feature = "dim3")]
             friction_model: FrictionModel::default(),
         }

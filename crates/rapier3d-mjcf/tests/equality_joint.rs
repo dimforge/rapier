@@ -51,6 +51,7 @@ fn equality_joint_couples_multibody_joints() {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let handles = robot.clone().insert_using_multibody_joints(
         &mut bodies,
         &mut colliders,
@@ -92,6 +93,7 @@ fn equality_joint_couples_multibody_joints() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

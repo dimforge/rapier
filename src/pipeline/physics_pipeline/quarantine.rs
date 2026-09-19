@@ -6,28 +6,30 @@
 //! one is known, and reported through [`Quarantine`].
 
 use crate::alloc_prelude::*;
-use crate::dynamics::{RigidBody, RigidBodyHandle, RigidBodySet, RigidBodyVelocity};
+use crate::dynamics::{
+    RigidBody, RigidBodyHandle, RigidBodySet, RigidBodyVelocity, SoftBodyHandle,
+};
 use crate::geometry::{ColliderHandle, ColliderSet};
 use crate::math::{Pose, Vector};
 use crate::pipeline::PhysicsPipeline;
 
-/// Non-finite (NaN or infinite) state detected and neutralized during the last step.
-///
-/// Reported bodies got rolled back to their last valid pose (when known), their velocities and
-/// user forces zeroed, and disabled; they can be re-enabled with `set_enabled(true)`. Reports
-/// are cleared each step.
+/// Non-finite (NaN or infinite) state detected and neutralized during the last step; reports are
+/// cleared each step. Reported bodies are reset to their last valid pose (when known), zeroed
+/// and disabled (`set_enabled(true)` re-enables them); soft bodies are zeroed and disabled.
 #[derive(Default)]
 pub struct Quarantine {
     /// Bodies disabled because their pose or velocity went non-finite.
     bodies: Vec<RigidBodyHandle>,
     /// Colliders disabled because their own geometry went non-finite.
     colliders: Vec<ColliderHandle>,
+    /// Soft bodies disabled because a particle's position or velocity went non-finite.
+    pub(super) soft_bodies: Vec<SoftBodyHandle>,
     /// Bodies flagged by the end-of-step advance with their last valid pose;
     /// consumed by `apply_end_step`.
-    pub(super) body_scratch: Vec<(RigidBodyHandle, Pose)>,
+    pub(super) body_workspace: Vec<(RigidBodyHandle, Pose)>,
     /// Colliders flagged by the end-of-step advance with a non-finite AABB despite a finite
     /// body pose; consumed by `apply_end_step`.
-    pub(super) collider_scratch: Vec<ColliderHandle>,
+    pub(super) collider_workspace: Vec<ColliderHandle>,
 }
 
 impl Quarantine {
@@ -41,15 +43,23 @@ impl Quarantine {
         &self.colliders
     }
 
+    /// The soft bodies quarantined during the last step: disabled, velocities zeroed, non-finite
+    /// particle positions left as is (fix them with `SoftBody::set_particle_position` before
+    /// `SoftBody::set_enabled`).
+    pub fn soft_bodies(&self) -> &[SoftBodyHandle] {
+        &self.soft_bodies
+    }
+
     /// Was nothing quarantined during the last step?
     pub fn is_empty(&self) -> bool {
-        self.bodies.is_empty() && self.colliders.is_empty()
+        self.bodies.is_empty() && self.colliders.is_empty() && self.soft_bodies.is_empty()
     }
 
     /// Clears the reports at the beginning of a step.
     pub(super) fn clear(&mut self) {
         self.bodies.clear();
         self.colliders.clear();
+        self.soft_bodies.clear();
     }
 
     /// Neutralizes every non-finite value found in `rb`'s velocities and user forces.
@@ -133,12 +143,12 @@ impl Quarantine {
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
     ) {
-        if self.body_scratch.is_empty() && self.collider_scratch.is_empty() {
+        if self.body_workspace.is_empty() && self.collider_workspace.is_empty() {
             return;
         }
 
-        let mut body_scratch = core::mem::take(&mut self.body_scratch);
-        for (handle, prev_pose) in body_scratch.drain(..) {
+        let mut body_workspace = core::mem::take(&mut self.body_workspace);
+        for (handle, prev_pose) in body_workspace.drain(..) {
             let Some(rb) = bodies.get_mut_internal_with_modification_tracking(handle) else {
                 continue;
             };
@@ -157,10 +167,10 @@ impl Quarantine {
                 self.bodies.push(handle);
             }
         }
-        self.body_scratch = body_scratch;
+        self.body_workspace = body_workspace;
 
-        let mut collider_scratch = core::mem::take(&mut self.collider_scratch);
-        for handle in collider_scratch.drain(..) {
+        let mut collider_workspace = core::mem::take(&mut self.collider_workspace);
+        for handle in collider_workspace.drain(..) {
             let Some(co) = colliders.get_mut_internal_with_modification_tracking(handle) else {
                 continue;
             };
@@ -169,7 +179,7 @@ impl Quarantine {
                 self.colliders.push(handle);
             }
         }
-        self.collider_scratch = collider_scratch;
+        self.collider_workspace = collider_workspace;
     }
 }
 

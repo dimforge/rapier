@@ -15,6 +15,7 @@ fn capsule_on_tilted_cuboid_reports_finite_impulses() {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut broad_phase = DefaultBroadPhase::new();
     let mut narrow_phase = NarrowPhase::new();
@@ -57,13 +58,14 @@ fn capsule_on_tilted_cuboid_reports_finite_impulses() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),
         );
 
         for pair in narrow_phase.contact_pairs() {
-            for manifold in &pair.manifolds {
+            for manifold in pair.manifolds() {
                 for pt in &manifold.points {
                     assert!(
                         pt.data.impulse.is_finite(),

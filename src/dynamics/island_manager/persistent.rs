@@ -1,10 +1,12 @@
 //! Persistent islands: eager union-by-size merges, deferred splits over flat per-island link arrays that cache body handles (split never dereferences contact/joint records); fixed bodies are never members, enabled non-fixed bodies are in exactly one island.
 //! Splitting is two-tiered: [`super::local_split`] settles ~all removals (99.98% on a 43k pyramid) at O(smaller piece) and *proves* harmless ones, so contact churn doesn't dirty the island or block sleep; leftovers reach the global O(island) union-find ([`PersistentIslands::split_island_now`]), cooldown-throttled ([`PersistentIsland::split_denied_until`]) and capped at one island/step — running that full scan inline every other step spiked alternating multi-ms.
-//! Location back-references live here only: bodies carry `RigidBodyIds::island_id/island_index`; contact links via [`PersistentIslands::contact_link_locs`] (dense per contact-graph edge id, mirrors the edges vec's swap-removes like `pair_solver_hints`); joint links via a [`JointLinkKey`] map.
+//! Location back-references live here only: bodies store `RigidBodyIds::island_id/island_index`; contact links via [`PersistentIslands::contact_link_locs`] (dense per contact-graph edge id, mirrors the edges vec's swap-removes like `pair_solver_hints`); joint links via a [`JointLinkKey`] map.
 
-use super::global_split::SplitScratch;
+use super::global_split::SplitWorkspace;
 use crate::alloc_prelude::*;
-use crate::dynamics::{MultibodyIndex, MultibodyJointSet, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{
+    MultibodyIndex, MultibodyJointSet, RigidBodyHandle, RigidBodySet, SoftBodyHandle, SoftBodySet,
+};
 use parry::utils::VecMap;
 use parry::utils::hashmap::HashMap;
 
@@ -41,11 +43,25 @@ pub(crate) enum JointLinkKey {
     /// (packed arena index + generation). Multibodies are atomic for sleep: their non-fixed
     /// bodies are chained in link order, rebuilt whenever the multibody's structure changes.
     MultibodyChain { multibody: u64, ordinal: u32 },
+    /// The `ordinal`-th particle attachment of the soft body at `soft_body` (packed arena index +
+    /// generation): a link between the soft body's root body and the rigid body the particle is
+    /// attached to, rebuilt whenever the soft body's attachments change.
+    SoftAttachment { soft_body: u64, ordinal: u32 },
+    /// The `ordinal`-th link of the internal connectivity chain of the soft body at `soft_body`'s
+    /// cluster proxies. A soft body sleeps and wakes as a unit, so its proxies are chained in
+    /// cluster order, rebuilt whenever a cluster is added or removed.
+    SoftProxyChain { soft_body: u64, ordinal: u32 },
 }
 
 /// Packs a multibody arena index (index + generation) into a stable key.
 pub(super) fn multibody_index_key(id: MultibodyIndex) -> u64 {
     let (idx, generation) = id.0.into_raw_parts();
+    ((idx as u64) << 32) | generation as u64
+}
+
+/// Packs a soft-body handle (index + generation) into a stable key.
+pub(super) fn soft_body_key(handle: SoftBodyHandle) -> u64 {
+    let (idx, generation) = handle.into_raw_parts();
     ((idx as u64) << 32) | generation as u64
 }
 
@@ -119,6 +135,12 @@ fn serialize_joint_link_locs<S: serde::Serializer>(
             JointLinkKey::MultibodyChain { multibody, ordinal } => {
                 (1u8, *multibody, *ordinal as u64)
             }
+            JointLinkKey::SoftAttachment { soft_body, ordinal } => {
+                (2u8, *soft_body, *ordinal as u64)
+            }
+            JointLinkKey::SoftProxyChain { soft_body, ordinal } => {
+                (3u8, *soft_body, *ordinal as u64)
+            }
         },
         s,
     )
@@ -144,16 +166,16 @@ pub(crate) struct PersistentIslands {
     pub(super) joint_link_locs: HashMap<JointLinkKey, (u32, u32)>,
     /// The edges unlinked since the last [`Self::resolve_removals`].
     pub(super) removal_journal: Vec<Removal>,
-    /// Scratch for the local split search.
+    /// Workspace for the local split search.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(super) local_split: super::local_split::LocalSplitScratch,
+    pub(super) local_split: super::local_split::LocalSplitWorkspace,
     /// Split candidate chosen last step (the sleepiest island that lost
     /// constraints), consumed by [`Self::run_pending_split`] this step.
     pub(super) split_island: Option<u32>,
-    /// Union-find & counting scratch for the split.
+    /// Union-find & counting workspace for the split.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(super) split_scratch: SplitScratch,
-    /// Per-step sleep-scan scratch, indexed by island id: `(stamp, all_bodies_eligible_so_far)`.
+    pub(super) split_workspace: SplitWorkspace,
+    /// Per-step sleep-scan workspace, indexed by island id: `(stamp, all_bodies_eligible_so_far)`.
     /// Stamped so the scan is O(active bodies), never O(total islands) — sleeping islands are
     /// never touched.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
@@ -418,7 +440,7 @@ impl PersistentIslands {
     /// blocking sleep and buying a global split — once the local search fails to settle it cheaply.
     fn journal_removal(&mut self, body1: RigidBodyHandle, body2: RigidBodyHandle) {
         if body1 == body2 {
-            // Self-loop (two colliders of the *same* body): never carried connectivity, so losing
+            // Self-loop (two colliders of the *same* body): never provided connectivity, so losing
             // it can't disconnect anything — and it would fool the local search (both endpoints
             // seed the same body).
             return;
@@ -540,10 +562,10 @@ impl PersistentIslands {
         }
     }
 
-    /// Refreshes the multibody's internal connectivity chain: unlinks the old chain, then (if it
+    /// Updates the multibody's internal connectivity chain: unlinks the old chain, then (if it
     /// still exists under `mb_id`) re-links one over its non-fixed bodies in link order.
     /// Multibodies are atomic for sleep — branches under a fixed root must share one island, which per-joint edges wouldn't guarantee (an edge to a fixed root doesn't connect).
-    pub fn refresh_multibody_chain(
+    pub fn update_multibody_chain(
         &mut self,
         bodies: &mut RigidBodySet,
         multibody_joints: &MultibodyJointSet,
@@ -594,6 +616,110 @@ impl PersistentIslands {
         }
     }
 
+    /// Updates a soft body's attachment links: unlinks the old ones, then (if the soft body
+    /// still exists) links its root body to every rigid body one of its particles is attached to,
+    /// in attachment order.
+    pub fn update_soft_body_attachments(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        soft_bodies: &SoftBodySet,
+        handle: SoftBodyHandle,
+    ) {
+        self.unlink_soft_body_attachments(handle);
+
+        let Some(sb) = soft_bodies.get(handle) else {
+            return;
+        };
+        let raw = soft_body_key(handle);
+        let root = sb.root_body();
+        for (ordinal, attachment) in sb.particle_attachments().iter().enumerate() {
+            self.link_joint(
+                bodies,
+                JointLinkKey::SoftAttachment {
+                    soft_body: raw,
+                    ordinal: ordinal as u32,
+                },
+                root,
+                attachment.body,
+            );
+        }
+    }
+
+    /// Updates a soft body's proxy chain: unlinks the old one, then (if the soft body still
+    /// exists) chains its live cluster proxies in cluster order. A soft body's proxies must
+    /// share one island (its sleep unit); the whole-body proxy alone needs no link.
+    pub fn update_soft_body_proxy_chain(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        soft_bodies: &SoftBodySet,
+        handle: SoftBodyHandle,
+    ) {
+        self.unlink_soft_body_proxy_chain(handle);
+
+        let Some(sb) = soft_bodies.get(handle) else {
+            return;
+        };
+        let raw = soft_body_key(handle);
+        let mut prev: Option<RigidBodyHandle> = None;
+        let mut ordinal = 0;
+        for (_, cluster) in sb.live_clusters() {
+            let proxy = cluster.proxy();
+            let is_member = bodies
+                .get(proxy)
+                .is_some_and(|rb| !rb.is_fixed() && rb.is_enabled());
+            if !is_member {
+                continue;
+            }
+            if let Some(prev) = prev {
+                self.link_joint(
+                    bodies,
+                    JointLinkKey::SoftProxyChain {
+                        soft_body: raw,
+                        ordinal,
+                    },
+                    prev,
+                    proxy,
+                );
+                ordinal += 1;
+            }
+            prev = Some(proxy);
+        }
+    }
+
+    /// Unlinks a soft body's proxy-chain links (ordinals are dense from 0).
+    pub fn unlink_soft_body_proxy_chain(&mut self, handle: SoftBodyHandle) {
+        let raw = soft_body_key(handle);
+        let mut ordinal = 0;
+        loop {
+            let key = JointLinkKey::SoftProxyChain {
+                soft_body: raw,
+                ordinal,
+            };
+            if !self.joint_link_locs.contains_key(&key) {
+                break;
+            }
+            self.unlink_joint(key);
+            ordinal += 1;
+        }
+    }
+
+    /// Unlinks a soft body's attachment links (ordinals are dense from 0).
+    pub fn unlink_soft_body_attachments(&mut self, handle: SoftBodyHandle) {
+        let raw = soft_body_key(handle);
+        let mut ordinal = 0;
+        loop {
+            let key = JointLinkKey::SoftAttachment {
+                soft_body: raw,
+                ordinal,
+            };
+            if !self.joint_link_locs.contains_key(&key) {
+                break;
+            }
+            self.unlink_joint(key);
+            ordinal += 1;
+        }
+    }
+
     /// Rebuilds everything from the current world state (first step after construction or
     /// deserialization): singleton islands, then every touching contact and enabled joint linked.
     /// Returns sleeping bodies stranded in a *non*-sleeping island (partial-island-era serialized state); the caller must wake them to restore the whole-island invariant.
@@ -603,6 +729,7 @@ impl PersistentIslands {
         touching_pairs: impl Iterator<Item = (u32, Option<RigidBodyHandle>, Option<RigidBodyHandle>)>,
         impulse_joints: &crate::dynamics::ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
+        soft_bodies: &SoftBodySet,
     ) -> Vec<RigidBodyHandle> {
         self.islands = VecMap::default();
         self.free_islands.clear();
@@ -642,7 +769,13 @@ impl PersistentIslands {
             .map(|(id, _)| MultibodyIndex(id))
             .collect();
         for mb_id in mb_ids {
-            self.refresh_multibody_chain(bodies, multibody_joints, mb_id);
+            self.update_multibody_chain(bodies, multibody_joints, mb_id);
+        }
+
+        let sb_handles: Vec<SoftBodyHandle> = soft_bodies.iter().map(|(h, _)| h).collect();
+        for handle in sb_handles {
+            self.update_soft_body_attachments(bodies, soft_bodies, handle);
+            self.update_soft_body_proxy_chain(bodies, soft_bodies, handle);
         }
 
         // Merging propagated `sleeping &=`, so an island is `sleeping` iff

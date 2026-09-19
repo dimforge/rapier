@@ -79,6 +79,7 @@ const _DRO_COLLIDER_AABB: u32 = 2;
 const _DRO_IMPULSE_JOINT: u32 = 3;
 const _DRO_MULTIBODY_JOINT: u32 = 4;
 const _DRO_CONTACT_PAIR: u32 = 5;
+const _DRO_SOFT_BODY: u32 = 6;
 
 #[pymethods]
 impl DebugRenderObject {
@@ -106,6 +107,10 @@ impl DebugRenderObject {
     const CONTACT_PAIR: DebugRenderObject = DebugRenderObject {
         kind: _DRO_CONTACT_PAIR,
     };
+    #[classattr]
+    const SOFT_BODY: DebugRenderObject = DebugRenderObject {
+        kind: _DRO_SOFT_BODY,
+    };
 
     /// Return ``DebugRenderObject.<NAME>`` repr.
     fn __repr__(&self) -> String {
@@ -116,6 +121,7 @@ impl DebugRenderObject {
             3 => "IMPULSE_JOINT",
             4 => "MULTIBODY_JOINT",
             5 => "CONTACT_PAIR",
+            6 => "SOFT_BODY",
             _ => "UNKNOWN",
         };
         format!("DebugRenderObject.{s}")
@@ -145,6 +151,7 @@ fn _dro_kind(obj: rapier::pipeline::DebugRenderObject<'_>) -> u32 {
         rapier::pipeline::DebugRenderObject::ImpulseJoint(..) => _DRO_IMPULSE_JOINT,
         rapier::pipeline::DebugRenderObject::MultibodyJoint(..) => _DRO_MULTIBODY_JOINT,
         rapier::pipeline::DebugRenderObject::ContactPair(..) => _DRO_CONTACT_PAIR,
+        rapier::pipeline::DebugRenderObject::SoftBody(..) => _DRO_SOFT_BODY,
     }
 }
 
@@ -376,6 +383,18 @@ impl DebugRenderMode {
     const COLLIDER_AABBS: DebugRenderMode =
         DebugRenderMode(rapier::pipeline::DebugRenderMode::COLLIDER_AABBS);
     #[classattr]
+    const SOFT_BODIES: DebugRenderMode =
+        DebugRenderMode(rapier::pipeline::DebugRenderMode::SOFT_BODIES);
+    #[classattr]
+    const PSEUDO_NORMALS: DebugRenderMode =
+        DebugRenderMode(rapier::pipeline::DebugRenderMode::PSEUDO_NORMALS);
+    #[classattr]
+    const SOFT_VOLUME_CONTACTS: DebugRenderMode =
+        DebugRenderMode(rapier::pipeline::DebugRenderMode::SOFT_VOLUME_CONTACTS);
+    #[classattr]
+    const SOFT_BODY_STRESS: DebugRenderMode =
+        DebugRenderMode(rapier::pipeline::DebugRenderMode::SOFT_BODY_STRESS);
+    #[classattr]
     const EMPTY: DebugRenderMode = DebugRenderMode(rapier::pipeline::DebugRenderMode::empty());
 
     /// Raw bits as an unsigned int.
@@ -488,6 +507,95 @@ impl DebugRenderStyle {
         self.0.border_subdivisions = v;
     }
 
+    /// Debug color ``soft_body_element_color`` (see the soft-body debug-render modes).
+    #[getter]
+    fn soft_body_element_color(&self) -> DebugColor {
+        DebugColor(self.0.soft_body_element_color)
+    }
+    #[setter]
+    fn set_soft_body_element_color(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.soft_body_element_color = DebugColor::extract_from(v)?;
+        Ok(())
+    }
+    /// Debug color ``soft_body_slack_color`` (see the soft-body debug-render modes).
+    #[getter]
+    fn soft_body_slack_color(&self) -> DebugColor {
+        DebugColor(self.0.soft_body_slack_color)
+    }
+    #[setter]
+    fn set_soft_body_slack_color(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.soft_body_slack_color = DebugColor::extract_from(v)?;
+        Ok(())
+    }
+    /// Debug color ``soft_body_loaded_color`` (see the soft-body debug-render modes).
+    #[getter]
+    fn soft_body_loaded_color(&self) -> DebugColor {
+        DebugColor(self.0.soft_body_loaded_color)
+    }
+    #[setter]
+    fn set_soft_body_loaded_color(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.soft_body_loaded_color = DebugColor::extract_from(v)?;
+        Ok(())
+    }
+    /// Debug color ``soft_body_frame_color`` (see the soft-body debug-render modes).
+    #[getter]
+    fn soft_body_frame_color(&self) -> DebugColor {
+        DebugColor(self.0.soft_body_frame_color)
+    }
+    #[setter]
+    fn set_soft_body_frame_color(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.soft_body_frame_color = DebugColor::extract_from(v)?;
+        Ok(())
+    }
+    /// Debug color ``vertex_pseudo_normal_color`` (see the soft-body debug-render modes).
+    #[getter]
+    fn vertex_pseudo_normal_color(&self) -> DebugColor {
+        DebugColor(self.0.vertex_pseudo_normal_color)
+    }
+    #[setter]
+    fn set_vertex_pseudo_normal_color(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.vertex_pseudo_normal_color = DebugColor::extract_from(v)?;
+        Ok(())
+    }
+    /// Debug color ``edge_pseudo_normal_color`` (see the soft-body debug-render modes).
+    #[getter]
+    fn edge_pseudo_normal_color(&self) -> DebugColor {
+        DebugColor(self.0.edge_pseudo_normal_color)
+    }
+    #[setter]
+    fn set_edge_pseudo_normal_color(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.edge_pseudo_normal_color = DebugColor::extract_from(v)?;
+        Ok(())
+    }
+    /// Debug color ``volume_contact_normal_color`` (see the soft-body debug-render modes).
+    #[getter]
+    fn volume_contact_normal_color(&self) -> DebugColor {
+        DebugColor(self.0.volume_contact_normal_color)
+    }
+    #[setter]
+    fn set_volume_contact_normal_color(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.volume_contact_normal_color = DebugColor::extract_from(v)?;
+        Ok(())
+    }
+    /// Debug color ``volume_gradient_color`` (see the soft-body debug-render modes).
+    #[getter]
+    fn volume_gradient_color(&self) -> DebugColor {
+        DebugColor(self.0.volume_gradient_color)
+    }
+    #[setter]
+    fn set_volume_gradient_color(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.volume_gradient_color = DebugColor::extract_from(v)?;
+        Ok(())
+    }
+    /// Length of the pseudo-normals drawn by ``DebugRenderMode.PSEUDO_NORMALS``.
+    #[getter]
+    fn pseudo_normal_length(&self) -> Real {
+        self.0.pseudo_normal_length
+    }
+    #[setter]
+    fn set_pseudo_normal_length(&mut self, v: Real) {
+        self.0.pseudo_normal_length = v;
+    }
     /// Color for colliders attached to a dynamic rigid body.
     #[getter]
     fn collider_dynamic_color(&self) -> DebugColor {
@@ -943,6 +1051,7 @@ pub struct DebugRenderPipeline {
 }
 
 impl DebugRenderPipeline {
+    #[allow(clippy::too_many_arguments)]
     fn _run_with_backend(
         &mut self,
         bodies: &RigidBodySet,
@@ -950,8 +1059,11 @@ impl DebugRenderPipeline {
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
         narrow_phase: &NarrowPhase,
+        soft_bodies: Option<&crate::soft_body::SoftBodySet>,
         backend: &mut dyn rapier::pipeline::DebugRenderBackend,
     ) {
+        let scratch = rapier::dynamics::SoftBodySet::new();
+        let soft_bodies = soft_bodies.map_or(&scratch, |s| &s.0);
         // The trait method `render` takes `&mut impl DebugRenderBackend`
         // which is not directly object-safe via `&mut dyn`. Wrap it.
         struct DynWrap<'a> {
@@ -976,6 +1088,7 @@ impl DebugRenderPipeline {
             &impulse_joints.0,
             &multibody_joints.0,
             &narrow_phase.0,
+            soft_bodies,
         );
     }
 }
@@ -1037,7 +1150,7 @@ impl DebugRenderPipeline {
     /// :param multibody_joints: :class:`MultibodyJointSet`.
     /// :param narrow_phase: :class:`NarrowPhase`.
     /// :param backend: Collector or Python ``DebugRenderBackend``.
-    #[pyo3(signature = (bodies, colliders, impulse_joints, multibody_joints, narrow_phase, backend))]
+    #[pyo3(signature = (bodies, colliders, impulse_joints, multibody_joints, narrow_phase, backend, soft_bodies=None))]
     #[allow(clippy::too_many_arguments)]
     fn render(
         &mut self,
@@ -1048,6 +1161,7 @@ impl DebugRenderPipeline {
         multibody_joints: &MultibodyJointSet,
         narrow_phase: &NarrowPhase,
         backend: &Bound<'_, PyAny>,
+        soft_bodies: Option<&crate::soft_body::SoftBodySet>,
     ) -> PyResult<()> {
         // Fast path: DebugLineCollector. We bypass the Python callback
         // dispatch entirely.
@@ -1061,6 +1175,7 @@ impl DebugRenderPipeline {
                 impulse_joints,
                 multibody_joints,
                 narrow_phase,
+                soft_bodies,
                 &mut adapter,
             );
             return Ok(());
@@ -1079,6 +1194,7 @@ impl DebugRenderPipeline {
             impulse_joints,
             multibody_joints,
             narrow_phase,
+            soft_bodies,
             &mut adapter,
         );
         drop(adapter);
@@ -1100,12 +1216,13 @@ impl DebugRenderPipeline {
     /// :param impulse_joints: :class:`ImpulseJointSet`.
     /// :param multibody_joints: :class:`MultibodyJointSet`.
     /// :param narrow_phase: :class:`NarrowPhase`.
+    /// :param soft_bodies: :class:`SoftBodySet`, optional.
     /// :returns: A ``(lines, colors, objects)`` tuple where
     ///     ``lines`` is ``(N, 2, D)`` float, ``colors`` is
     ///     ``(N, 4)`` float32 RGBA in ``[0, 1]``, and ``objects``
     ///     is ``(N,)`` uint32 of
     ///     :class:`DebugRenderObject` discriminants.
-    #[pyo3(signature = (bodies, colliders, impulse_joints, multibody_joints, narrow_phase))]
+    #[pyo3(signature = (bodies, colliders, impulse_joints, multibody_joints, narrow_phase, soft_bodies=None))]
     #[allow(clippy::too_many_arguments)]
     fn render_to_arrays<'py>(
         &mut self,
@@ -1115,6 +1232,7 @@ impl DebugRenderPipeline {
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
         narrow_phase: &NarrowPhase,
+        soft_bodies: Option<&crate::soft_body::SoftBodySet>,
     ) -> PyResult<(
         Bound<'py, crate::numpy::PyArray3<Real>>,
         Bound<'py, crate::numpy::PyArray2<f32>>,
@@ -1133,6 +1251,7 @@ impl DebugRenderPipeline {
                 impulse_joints,
                 multibody_joints,
                 narrow_phase,
+                soft_bodies,
                 &mut adapter,
             );
         }

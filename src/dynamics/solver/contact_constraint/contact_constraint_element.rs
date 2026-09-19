@@ -268,7 +268,7 @@ impl<N: ScalarType> ContactConstraintNormalPart<N> {
     /// `-seed` (`restitution * approach_velocity`, captured at prepare), rigidly and AFTER
     /// all substeps — inside the substep rhs the speculative slack truncates the bounce.
     ///
-    /// Gated per lane on the point having carried a normal impulse this step.
+    /// Gated per lane on the point having applied a normal impulse this step.
     #[inline]
     pub fn solve_restitution(
         &mut self,
@@ -354,7 +354,7 @@ impl<N: ScalarType> ContactConstraintNormalPart<N> {
 
         // Degraded lanes (`block_flag` = 0: manifold lacks both points, or the pair matrix
         // wasn't invertible at build time): solve the two points one after the other, exactly
-        // as the feature-off build does, with `k12` carrying the first solve's velocity change.
+        // as the feature-off build does, with `k12` propagating the first solve's velocity change.
         // Use `degraded_dvel_a` rather than `dvel.x` so that this case matches the non-mlcp
         // solve exactly.
         // TODO: measure if using `degraded_dvel_a` instead of `dvel.x` has any performance

@@ -204,7 +204,38 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
     // constraint-generation barrier so every worker agrees. Bounce-free steps (the common
     // case) skip the end-of-step restitution stages entirely.
     let has_bouncy = unsafe { &*ctx.any_bouncy }.load(Ordering::Relaxed);
-    for group in ctx.groups {
+    let has_soft = !unsafe { &*ctx.soft_constraints }.is_empty();
+    // Soft bodies solved by the FEM path: their implicit elastic step is one stage per substep,
+    // and their pass stages live in `solve_pass`. Read-only during the solve, so every worker
+    // takes the same branches.
+    #[cfg(feature = "fem")]
+    let has_fem = !unsafe { &*ctx.soft_fem }.is_empty();
+
+    /*
+     * Stage: the FEM bodies' step factorization and the responses of the constraints acting on
+     * them (parallel over the FEM bodies, each writing its own system, response ranges and
+     * constraint-side gains). Runs before the substeps, whose constraint updates read the gains.
+     */
+    #[cfg(feature = "fem")]
+    if has_fem {
+        let soft_fem = unsafe { &*ctx.soft_fem };
+        let all_bodies = 0..soft_fem.num_active();
+        let stage_work = all_bodies.len();
+        let mut done = 0;
+        while let Some(claimed) = sync.claim(stage, &all_bodies, 1, worker_id) {
+            let claimed_len = claimed.len();
+            for index in claimed {
+                // SAFETY: one worker per claimed index; the body writes only its own system,
+                // pool ranges and constraint sides.
+                unsafe { soft_fem.compute_responses(index, ctx.soft_constraints) };
+            }
+            done += claimed_len;
+        }
+        sync.complete(stage, done, stage_work);
+        stage = sync.sync(stage, stage_work);
+    }
+
+    for (group_index, group) in ctx.groups.iter().enumerate() {
         // This group's substep parameters: identical to `base_params` except
         // for the substep dt. Everything dt-derived downstream (soft erp/cfm,
         // rhs, speculative terms, integration) recomputes from this copy.
@@ -216,7 +247,18 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
         // (island slots only — the omitted padding tail slots hold zero velocities and
         // increments, so skipping them is behavior-preserving).
         let group_bodies = group.bodies.clone();
-        let num_group_bodies = group_bodies.len();
+        // The per-slot stages (velocity increments, integration) cover the group's rigid slots
+        // then its soft-body particle slots, through one virtual index range.
+        let group_soft_slots = group.soft_slots.clone();
+        let num_group_bodies = group_bodies.len() + group_soft_slots.len();
+        let group_slots = 0..num_group_bodies;
+        let slot_of = |i: usize| -> usize {
+            if i < group_bodies.len() {
+                group_bodies.start + i
+            } else {
+                group_soft_slots.start + (i - group_bodies.len())
+            }
+        };
         let num_joint_chunks = group.joint_chunks.len();
         let joint_builders = group.joint_builders.clone();
         // Update-stage virtual claim domain: this group's contact chunks,
@@ -236,10 +278,11 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                 // +1: worker 0's generic increments.
                 let stage_work = num_group_bodies + 1;
                 let mut done = 0;
-                while let Some(claimed) = sync.claim(stage, &group_bodies, BODY_BATCH, worker_id) {
+                while let Some(claimed) = sync.claim(stage, &group_slots, BODY_BATCH, worker_id) {
                     let vs = unsafe { &mut *ctx.velocity_solver };
                     let claimed_len = claimed.len();
                     for i in claimed {
+                        let i = slot_of(i);
                         let incr = vs.solver_vels_increment[i];
                         {
                             let vels = &mut vs.solver_bodies.vels[i];
@@ -280,6 +323,33 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                     vs.generic_solver_vels_increment = incr;
                     sync.complete(stage, 1, stage_work);
                 }
+                stage = sync.sync(stage, stage_work);
+            }
+
+            /*
+             * Stage: the FEM soft bodies' implicit elastic step (parallel over the group's FEM
+             * bodies): assemble `A = M + h D + h² K` and solve `A Δv = h f - (A - M) v`. One body
+             * per claim; nothing else touches its system or particle slots during this stage.
+             */
+            #[cfg(feature = "fem")]
+            if has_fem {
+                let soft_fem = unsafe { &*ctx.soft_fem };
+                let fem_bodies = soft_fem.group(group_index);
+                let stage_work = fem_bodies.len();
+                let mut done = 0;
+                while let Some(claimed) = sync.claim(stage, &fem_bodies, 1, worker_id) {
+                    let solver_bodies = unsafe { &mut (*ctx.velocity_solver).solver_bodies };
+                    let claimed_len = claimed.len();
+                    for index in claimed {
+                        // SAFETY: one worker per claimed index; a body writes only its own
+                        // particles (soft bodies share no particle).
+                        unsafe {
+                            soft_fem.predict(index, solver_bodies, &params.soft_bodies.fem);
+                        }
+                    }
+                    done += claimed_len;
+                }
+                sync.complete(stage, done, stage_work);
                 stage = sync.sync(stage, stage_work);
             }
 
@@ -539,21 +609,27 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
             }
 
             /*
-             * Stages: solve with bias.
+             * Stages: solve with bias. The group's count includes the extra iterations its bodies
+             * request (`RigidBody::additional_pgs_iterations`, 3 by default for soft bodies), so
+             * the substep's constraints converge against each other at the same positions.
              */
-            for pgs_iter in 0..params.num_internal_pgs_iterations {
-                // Joint warm-starting is fused into the first biased pass: each claimed
-                // joint applies its carried impulse right before being solved (sound
-                // within a color; Gauss-Seidel-ordered across colors).
+            for pgs_iter in 0..group.num_pgs_iterations {
+                // Joint warm-starting is fused into the first biased pass: each claimed joint
+                // applies its warm impulse right before being solved. Soft-body constraints do
+                // the same and update their geometry on the first iteration of the pass.
                 let warmstart_joints = params.warmstart_joints && pgs_iter == 0;
+                let soft_warmstart = (pgs_iter == 0 && params.warmstart_coefficient != 0.0)
+                    .then_some(params.warmstart_coefficient);
                 stage = unsafe {
                     solve_pass(
                         ctx,
-                        group,
+                        group_index,
                         worker_id,
                         stage,
                         false,
                         warmstart_joints,
+                        pgs_iter == 0,
+                        soft_warmstart,
                         params,
                         solved_dt,
                     )
@@ -575,10 +651,11 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                 let max_ang = MAX_ROTATION * base_params.inv_dt();
 
                 let mut done = 0;
-                while let Some(claimed) = sync.claim(stage, &group_bodies, BODY_BATCH, worker_id) {
+                while let Some(claimed) = sync.claim(stage, &group_slots, BODY_BATCH, worker_id) {
                     let vs = unsafe { &mut *ctx.velocity_solver };
                     let claimed_len = claimed.len();
                     for i in claimed {
+                        let i = slot_of(i);
                         {
                             let vel = &mut vs.solver_bodies.vels[i];
                             if max_lin != Real::MAX {
@@ -633,15 +710,17 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
             /*
              * Stages: solve without bias.
              */
-            for _ in 0..params.num_internal_stabilization_iterations {
+            for stab_iter in 0..params.num_internal_stabilization_iterations {
                 stage = unsafe {
                     solve_pass(
                         ctx,
-                        group,
+                        group_index,
                         worker_id,
                         stage,
                         true,
                         false,
+                        stab_iter == 0,
+                        None,
                         params,
                         solved_dt + params.dt,
                     )
@@ -651,7 +730,7 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
 
         /*
          * Stages: end-of-step restitution, color by color (box2d-style). Applied ONCE after
-         * all substeps, gated on the point having carried an impulse: inside the substep rhs
+         * all substeps, gated on the point having applied an impulse: inside the substep rhs
          * the speculative `dist * inv_dt` slack would truncate the bounce.
          */
         if has_bouncy {
@@ -802,6 +881,68 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
     }
 
     /*
+     * Stage: write the soft-body impulses back to the soft bodies (parallel over constraints) and
+     * the solved particles back to their bodies (parallel over awake bodies; the virtual claim
+     * range covers the constraints then the bodies); worker 0 also writes back the per-body state.
+     */
+    if has_soft {
+        let soft = unsafe { &*ctx.soft_constraints };
+        let num_constraints = soft.num_element_constraints();
+        let all_units = 0..num_constraints + soft.awake.len();
+        let stage_work = all_units.len() + 1;
+        let mut done = 0;
+        while let Some(claimed) = sync.claim(
+            stage,
+            &all_units,
+            stage_batch(all_units.end, sync.num_workers),
+            worker_id,
+        ) {
+            let claimed_len = claimed.len();
+            let constraints = claimed.start.min(num_constraints)..claimed.end.min(num_constraints);
+            let awake = claimed.start.max(num_constraints) - num_constraints
+                ..claimed.end.max(num_constraints) - num_constraints;
+            // SAFETY: each constraint is claimed by exactly one worker and writes its own element; each
+            // awake body likewise writes its own particles.
+            unsafe {
+                soft.writeback_constraints(constraints, ctx.base_params.dt);
+                let vs = &*ctx.velocity_solver;
+                for ai in awake {
+                    soft.writeback_particles(ai, &vs.solver_bodies, ctx.base_params.dt);
+                }
+            }
+            done += claimed_len;
+        }
+        sync.complete(stage, done, stage_work);
+        if worker_id == 0 {
+            soft.writeback_bodies();
+            sync.complete(stage, 1, stage_work);
+        }
+        stage = sync.sync(stage, stage_work);
+    }
+
+    /*
+     * Stage: write the FEM soft bodies' per-cell state back (the warm-started polar rotation,
+     * the plastic flow and the tearing marks), parallel over the FEM bodies.
+     */
+    #[cfg(feature = "fem")]
+    if has_fem {
+        let set = unsafe { &*ctx.soft_fem };
+        let all_bodies = 0..set.num_active();
+        let stage_work = all_bodies.len();
+        let mut done = 0;
+        while let Some(claimed) = sync.claim(stage, &all_bodies, 1, worker_id) {
+            let claimed_len = claimed.len();
+            for index in claimed {
+                // SAFETY: one worker per claimed index; a body writes only its own cells.
+                unsafe { set.writeback(index, ctx.base_params.dt) };
+            }
+            done += claimed_len;
+        }
+        sync.complete(stage, done, stage_work);
+        stage = sync.sync(stage, stage_work);
+    }
+
+    /*
      * Stage: write velocities and poses back to the rigid-bodies (parallel over
      * claimed island bodies; each writes its own rigid-body). The multibody
      * writeback runs on worker 0 afterwards, exclusively.
@@ -836,7 +977,9 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                 // NOTE: if it's a position-based kinematic body, don't writeback as we want
                 //       to preserve exactly the value given by the user (it might not be
                 //       exactly equal to the integrated position because of rounding errors).
-                if rb.body_type != RigidBodyType::KinematicPositionBased {
+                // A soft-frame proxy's pose is not integrated either: the soft-body sync
+                // re-derives it exactly from the particles at the end of the step.
+                if rb.body_type != RigidBodyType::KinematicPositionBased && !rb.is_soft_frame() {
                     let local_com = -rb.mprops.local_mprops.local_com;
                     rb.pos.next_position = solver_poses.pose().prepend_translation(local_com);
                 }
@@ -844,7 +987,7 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                 // Capture the post-solve velocity used by the CCD sweep — for *every* dynamic
                 // body (fast bodies get CCD vs fixed colliders by default), skipped entirely
                 // when CCD is globally off (`max_ccd_substeps == 0`) so those users pay nothing.
-                if base_params.max_ccd_substeps != 0 && rb.is_dynamic() {
+                if base_params.max_ccd_substeps != 0 && rb.is_dynamic() && !rb.is_soft_frame() {
                     rb.ccd_vels = rb
                         .pos
                         .interpolate_velocity(base_params.inv_dt(), rb.local_center_of_mass());

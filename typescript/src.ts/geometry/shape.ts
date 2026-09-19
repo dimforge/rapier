@@ -97,7 +97,11 @@ export abstract class Shape {
             case RawShapeType.Polyline:
                 vs = rawSet.coVertices(handle);
                 indices = rawSet.coIndices(handle);
-                return new Polyline(vs, indices);
+                return new Polyline(
+                    vs,
+                    indices,
+                    rawSet.coPolylineFlags(handle),
+                );
             case RawShapeType.Triangle:
                 vs = rawSet.coVertices(handle);
 
@@ -291,7 +295,7 @@ export abstract class Shape {
                 case RawShapeType.Polyline:
                     vs = rawShape.vertices();
                     indices = rawShape.indices();
-                    return new Polyline(vs, indices);
+                    return new Polyline(vs, indices, rawShape.polylineFlags());
                 case RawShapeType.Triangle:
                     vs = rawShape.vertices();
 
@@ -821,6 +825,42 @@ export enum HeightFieldFlags {
 
 // #endif
 
+// NOTE: this **must** match the PolylineFlags on the rust side.
+/**
+ * Flags controlling the behavior of a polyline.
+ */
+export enum PolylineFlags {
+    // #if DIM2
+    /**
+     * The polyline is one-sided: a pseudo-normal is computed at every vertex and contact
+     * normals are clamped to the outward side, the right of each segment's direction (the
+     * solid must be wound counter-clockwise). This removes the spurious sideways push a
+     * body gets at a convex corner of a double-sided polyline.
+     */
+    ORIENTED = 0b0000_0001,
+    // #endif
+    /**
+     * The polyline is deformable: its vertices may be moved after its creation. Required
+     * for a polyline used as a soft body's collision mesh (see
+     * `World.createDeformableCollider`).
+     */
+    DEFORMABLE = 0b0000_0010,
+}
+
+// NOTE: this **must** match the CompoundFlags on the rust side.
+/**
+ * Flags controlling the behavior of a compound shape.
+ */
+export enum CompoundFlags {
+    /**
+     * The edges (2D) or faces (3D) where two parts meet are treated as interior to the
+     * union, and contact normals are clamped to the surviving outline. This removes the
+     * ledge a body catches on when it slides across the cut between two parts of a convex
+     * decomposition. Costs a one-off pass over the parts' edges when set.
+     */
+    FIX_INTERNAL_EDGES = 0b0000_0001,
+}
+
 // NOTE: this **must** match the TriMeshFlags on the rust side.
 /**
  * Flags controlling the behavior of the triangle mesh creation and of some
@@ -885,6 +925,18 @@ export enum TriMeshFlags {
      * /!\ NOT SUPPORTED IN THE 2D VERSION OF RAPIER.
      */
     FIX_INTERNAL_EDGES = 0b1000_0000 | TriMeshFlags.MERGE_DUPLICATE_VERTICES,
+    /**
+     * The mesh is deformable: its vertices may be moved after its creation. Required for a
+     * triangle mesh used as a soft body's collision mesh (see
+     * `World.createDeformableCollider`).
+     */
+    DEFORMABLE = 0b1_0000_0000,
+    /**
+     * Like `FIX_INTERNAL_EDGES`, but a contact coming from the back of a triangle is kept and
+     * its normal is constrained by the internal edges too.
+     */
+    FIX_INTERNAL_EDGES_TWO_SIDED = 0b10_0000_0000 |
+        TriMeshFlags.FIX_INTERNAL_EDGES,
 }
 
 /**
@@ -1249,20 +1301,31 @@ export class Polyline extends Shape {
     indices: Uint32Array;
 
     /**
+     * The polyline flags.
+     */
+    flags: PolylineFlags;
+
+    /**
      * Creates a new polyline shape.
      *
      * @param vertices - The coordinates of the polyline's vertices.
      * @param indices - The indices of the polyline's segments. If this is `null` or not provided, then
      *    the vertices are assumed to form a line strip.
+     * @param flags - The polyline flags.
      */
-    constructor(vertices: Float32Array, indices?: Uint32Array) {
+    constructor(
+        vertices: Float32Array,
+        indices?: Uint32Array,
+        flags?: PolylineFlags,
+    ) {
         super();
         this.vertices = vertices;
         this.indices = indices ?? new Uint32Array(0);
+        this.flags = flags ?? (0 as PolylineFlags);
     }
 
     public intoRaw(): RawShape {
-        return RawShape.polyline(this.vertices, this.indices);
+        return RawShape.polyline(this.vertices, this.indices, this.flags);
     }
 }
 
@@ -1337,6 +1400,11 @@ export class Compound extends Shape {
     rotations: Rotation[];
 
     /**
+     * The compound flags.
+     */
+    flags: CompoundFlags;
+
+    /**
      * Creates a new compound shape.
      *
      * @param shapes - The array of shapes composing this compound. Must not be empty,
@@ -1344,8 +1412,14 @@ export class Compound extends Shape {
      *                 are not allowed).
      * @param positions - The array of positions for each shape.
      * @param rotations - The array of rotations for each shape.
+     * @param flags - The compound flags.
      */
-    constructor(shapes: Shape[], positions: Vector[], rotations: Rotation[]) {
+    constructor(
+        shapes: Shape[],
+        positions: Vector[],
+        rotations: Rotation[],
+        flags?: CompoundFlags,
+    ) {
         super();
 
         if (
@@ -1368,6 +1442,7 @@ export class Compound extends Shape {
         this.shapes = shapes;
         this.positions = positions;
         this.rotations = rotations;
+        this.flags = flags ?? (0 as CompoundFlags);
     }
 
     /**
@@ -1396,7 +1471,12 @@ export class Compound extends Shape {
                 );
             }
 
-            return new Compound(shapes, positions, rotations);
+            return new Compound(
+                shapes,
+                positions,
+                rotations,
+                rawShape.compoundFlags(),
+            );
         } finally {
             rawShape.free();
         }
@@ -1435,7 +1515,7 @@ export class Compound extends Shape {
         });
         // #endif
 
-        return RawShape.compound(rawShapes, positions, rotations);
+        return RawShape.compound(rawShapes, positions, rotations, this.flags);
     }
 }
 

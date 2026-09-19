@@ -181,6 +181,7 @@ fn damped_joint_still_swings_under_gravity() {
     let mut broad_phase = DefaultBroadPhase::new();
     let mut narrow_phase = NarrowPhase::new();
     let mut ccd = CCDSolver::new();
+    let mut soft_bodies = SoftBodySet::new();
 
     for _ in 0..60 {
         pipeline.step(
@@ -193,6 +194,7 @@ fn damped_joint_still_swings_under_gravity() {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

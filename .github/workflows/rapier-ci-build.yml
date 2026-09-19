@@ -310,18 +310,34 @@ jobs:
           workspaces: website/docs-examples
       - name: Tests injection + code snippets
         run: cd website/docs-examples && cargo test
-  # Checks the JavaScript documentation snippets build (against the published @dimforge/rapier).
+  # Checks the JavaScript documentation snippets build against the in-tree bindings, so a
+  # snippet may use an API before it is released on npm. The snippet package depends on
+  # `typescript/builds/rapier{2,3}d/pkg` through a `file:` path, which this job builds first
+  # (the same two steps a local checkout runs).
   website-javascript-snippets:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         dimension: [2d, 3d]
-    defaults:
-      run:
-        working-directory: ./website/docs-examples/${{ matrix.dimension }}/javascript
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: typescript
+      - name: Generate the binding crates
+        working-directory: ./typescript
+        run: |
+          npm ci
+          cargo run -p prepare_builds -- -d dim${{ matrix.dimension == '2d' && '2' || '3' }} -f non-deterministic
+      - name: Build the in-tree bindings
+        working-directory: ./typescript/builds/rapier${{ matrix.dimension }}
+        run: |
+          npm i
+          npm run build:wasm
+          npm run build:ts
       - name: Install dependencies
+        working-directory: ./website/docs-examples/${{ matrix.dimension }}/javascript
         run: npm ci
       - name: Builds javascript snippets.
+        working-directory: ./website/docs-examples/${{ matrix.dimension }}/javascript
         run: npm run build

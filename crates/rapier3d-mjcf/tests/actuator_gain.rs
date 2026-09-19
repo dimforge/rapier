@@ -42,6 +42,7 @@ fn drive_to(steps: usize, gain_scale: Real) -> f32 {
     );
     let link = robot.body_name_to_idx["link"];
     let mut pipeline = PhysicsPipeline::new();
+    let mut soft_bodies = SoftBodySet::new();
     let ip = IntegrationParameters::default();
     let (mut isl, mut bp, mut np, mut ccd) = (
         IslandManager::new(),
@@ -61,6 +62,7 @@ fn drive_to(steps: usize, gain_scale: Real) -> f32 {
             &mut colliders,
             &mut ij,
             &mut mbj,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

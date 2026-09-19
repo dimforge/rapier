@@ -31,6 +31,10 @@ bitflags::bitflags! {
         const PARENT_EFFECTIVE_DOMINANCE = 1 << 7; // NF update.
         /// Flag indicating that whether or not the collider is enabled was changed.
         const ENABLED_OR_DISABLED = 1 << 8; // BF & NF updates.
+        /// Flag indicating that the collider's shape was deformed in place (a soft-body surface
+        /// following its particles): BF & NF updates, no NF pair workspace invalidation, never
+        /// recycled.
+        const DEFORMED = 1 << 9;
     }
 }
 
@@ -47,7 +51,8 @@ impl ColliderChanges {
             ColliderChanges::PARENT
                 | ColliderChanges::POSITION
                 | ColliderChanges::SHAPE
-                | ColliderChanges::ENABLED_OR_DISABLED,
+                | ColliderChanges::ENABLED_OR_DISABLED
+                | ColliderChanges::DEFORMED,
         )
     }
 
@@ -331,6 +336,18 @@ impl ActiveCollisionTypes {
         //
         //       Because that test must be symmetric, we perform two similar tests by swapping
         //       rb_type1 and rb_type2.
+
+        // Soft-frame proxies collide as dynamic bodies.
+        let rb_type1 = if rb_type1.is_soft_frame() {
+            RigidBodyType::Dynamic
+        } else {
+            rb_type1
+        };
+        let rb_type2 = if rb_type2.is_soft_frame() {
+            RigidBodyType::Dynamic
+        } else {
+            rb_type2
+        };
         ((self.bits() >> (rb_type1 as u32 * 4)) & 0b0000_1111) & (1 << rb_type2 as u32) != 0
             || ((self.bits() >> (rb_type2 as u32 * 4)) & 0b0000_1111) & (1 << rb_type1 as u32) != 0
     }

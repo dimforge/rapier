@@ -2,7 +2,7 @@
 
 use crate::data::graph::Edge;
 use crate::dynamics::solver::solver_contact_graph::ContactRef;
-use crate::geometry::{ContactManifold, ContactPair};
+use crate::geometry::{ContactManifold, ContactPair, PairContacts, RigidPairContacts};
 
 /// The contact graph's edge-array pointer and length, type-erased (the pointer is held as a
 /// `usize` so the value stays `Send` and holdable across a later exclusive narrow-phase borrow)
@@ -11,6 +11,37 @@ use crate::geometry::{ContactManifold, ContactPair};
 pub(crate) struct ManifoldStoreParts {
     edges_ptr: usize,
     num_edges: usize,
+}
+
+/// The offset of the rigid contacts (the `Rigid` payload) inside [`PairContacts`]: its
+/// representation is fixed, so a raw pointer can be projected to it without materializing a
+/// reference to the whole pair (see the aliasing contract of [`ManifoldStore`]).
+fn rigid_contacts_offset() -> usize {
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    static OFFSET: AtomicUsize = AtomicUsize::new(usize::MAX);
+    let cached = OFFSET.load(Ordering::Relaxed);
+    if cached != usize::MAX {
+        return cached;
+    }
+    let probe = ContactPair::default();
+    let base = &raw const probe.contacts as usize;
+    let PairContacts::Rigid(rigid) = &probe.contacts else {
+        unreachable!("a fresh pair holds rigid contacts");
+    };
+    let offset = &raw const *rigid as usize - base;
+    OFFSET.store(offset, Ordering::Relaxed);
+    offset
+}
+
+/// A raw projection to the rigid contacts of `pair`; the solver graph only ever holds rigid pairs.
+/// # Safety
+/// `pair` must point to a live [`ContactPair`] whose contacts are the `Rigid` variant.
+#[inline]
+unsafe fn rigid_contacts_ptr(pair: *mut ContactPair) -> *mut RigidPairContacts {
+    unsafe {
+        let contacts = &raw mut (*pair).contacts;
+        (contacts as *mut u8).add(rigid_contacts_offset()) as *mut RigidPairContacts
+    }
 }
 
 impl ManifoldStoreParts {
@@ -73,9 +104,10 @@ impl<'a> ManifoldStore<'a> {
         // reference to the whole pair (distinct ordinals of one pair may be
         // resolved concurrently; see the aliasing contract).
         unsafe {
-            let clusters: *mut _ = &raw mut (*pair).solver_clusters;
+            let rigid = rigid_contacts_ptr(pair);
+            let clusters: *mut _ = &raw mut (*rigid).solver_clusters;
             let vec = if (*clusters).is_empty() {
-                &raw mut (*pair).manifolds
+                &raw mut (*rigid).manifolds
             } else {
                 clusters
             };
@@ -117,9 +149,10 @@ impl<'a> ManifoldStore<'a> {
         }
         let pair = self.pair_ptr(r.edge);
         unsafe {
-            let clusters = &raw mut (*pair).solver_clusters;
+            let rigid = rigid_contacts_ptr(pair);
+            let clusters = &raw mut (*rigid).solver_clusters;
             let vec = if (*clusters).is_empty() {
-                &raw mut (*pair).manifolds
+                &raw mut (*rigid).manifolds
             } else {
                 clusters
             };

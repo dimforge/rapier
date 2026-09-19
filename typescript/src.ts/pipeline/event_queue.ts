@@ -1,5 +1,9 @@
-import {RawContactForceEvent, RawEventQueue} from "../raw";
-import {RigidBodyHandle} from "../dynamics";
+import {
+    RawContactForceEvent,
+    RawEventQueue,
+    RawSoftBodyTearEvent,
+} from "../raw";
+import {RigidBodyHandle, SoftBodyTearEvent} from "../dynamics";
 import {Collider, ColliderHandle} from "../geometry";
 import {Vector, VectorOps, scratchBuffer} from "../math";
 
@@ -145,6 +149,25 @@ export class EventQueue {
     public drainContactForceEvents(f: (event: TempContactForceEvent) => void) {
         let event = new TempContactForceEvent();
         this.raw.drainContactForceEvents((raw: RawContactForceEvent) => {
+            event.raw = raw;
+            f(event);
+            event.free();
+        });
+    }
+
+    /**
+     * Applies the given javascript closure on each soft-body tear event of this collector,
+     * then clears the internal tear event buffer.
+     *
+     * The pieces a tear split off are only wrapped once `World.mapNewSoftBodies` (called by
+     * `World.step` after draining) ran; the event itself is only valid inside the closure.
+     *
+     * @param f - JavaScript closure applied to each tear event. The closure must take one
+     *            `SoftBodyTearEvent` argument.
+     */
+    public drainSoftBodyTearEvents(f: (event: SoftBodyTearEvent) => void) {
+        let event = new SoftBodyTearEvent();
+        this.raw.drainSoftBodyTearEvents((raw: RawSoftBodyTearEvent) => {
             event.raw = raw;
             f(event);
             event.free();

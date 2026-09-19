@@ -27,7 +27,7 @@
 use kiss3d::color::Color;
 use kiss3d::event::{Action, Key, WindowEvent};
 use kiss3d::window::Window;
-use rapier::dynamics::{RigidBodyActivation, RigidBodyHandle};
+use rapier::dynamics::{RigidBodyActivation, RigidBodyHandle, SoftBodyHandle};
 use rapier::geometry::{ColliderHandle, SharedShape};
 use rapier::pipeline::PhysicsWorld;
 
@@ -36,6 +36,7 @@ use glamx::Vec3;
 
 use crate::Camera;
 use crate::debug_render::{DebugRenderPipelineResource, debug_render_scene};
+use crate::grab::MouseGrab;
 use crate::graphics::{GraphicsManager, RenderMaterial};
 use crate::mouse::SceneMouse;
 use crate::physics::{restore_world, snapshot_world};
@@ -58,6 +59,7 @@ pub struct TestbedViewer {
     graphics: GraphicsManager,
     camera: Camera,
     scene_mouse: SceneMouse,
+    grab: MouseGrab,
     keys: KeysState,
     debug_render: DebugRenderPipelineResource,
     state: TestbedState,
@@ -116,6 +118,7 @@ impl TestbedViewer {
             graphics: GraphicsManager::new(),
             camera,
             scene_mouse: SceneMouse::new(),
+            grab: MouseGrab::default(),
             keys: KeysState::default(),
             debug_render: DebugRenderPipelineResource::default(),
             state,
@@ -130,6 +133,11 @@ impl TestbedViewer {
     /// requested from the UI.
     pub async fn render_frame(&mut self, world: &mut PhysicsWorld) -> bool {
         profiling::finish_frame!();
+        // A frame spans two calls (the example's step runs in between) minus the render below.
+        self.state.frame_stats.record(
+            self.state.timestep_id,
+            world.physics_pipeline.counters.step_time_ms(),
+        );
 
         #[cfg(feature = "dim3")]
         let keep_open = self
@@ -142,24 +150,43 @@ impl TestbedViewer {
             .render_2d(self.graphics.scene_mut(), &mut self.camera)
             .await;
 
+        self.state.frame_stats.resume();
+
         if !keep_open {
             self.state.transition = Some(Transition::Quit);
             return false;
         }
 
-        self.handle_events();
+        // The testbed owns the soft-recovery settings: stamped onto the (possibly fresh)
+        // world every frame, so the panel's choices survive demo restarts and switches.
+        world.integration_parameters.soft_bodies.recovery = self.state.soft_recovery;
 
+        // Update the world-space cursor before the event pass: a mouse press picks with it.
         let cursor_pos = self.window.cursor_pos();
         self.scene_mouse
             .update_from_window(cursor_pos, self.window.size().into(), &self.camera);
+
+        self.handle_events(world);
+        self.update_grab(world);
 
         self.handle_action_flags(world);
         self.handle_sleep_settings(world);
         self.autosave();
 
         highlight_hovered_body(&mut self.graphics, &self.scene_mouse, world);
-        self.graphics
-            .draw(self.state.flags, &world.bodies, &world.colliders);
+        // The pieces a tear split off during the step, and what moved between bodies.
+        self.graphics.add_missing_soft_body_graphics(
+            &mut self.window,
+            &world.bodies,
+            &world.colliders,
+            &world.soft_bodies,
+        );
+        self.graphics.draw(
+            self.state.flags,
+            &world.bodies,
+            &world.colliders,
+            &world.soft_bodies,
+        );
         debug_render_scene(&mut self.window, &mut self.debug_render, world);
 
         // Snapshot flags before the UI runs (`draw_ui` mutates `state.flags`) so next frame's
@@ -234,10 +261,14 @@ impl TestbedViewer {
     /// between examples). A restart / backend / solver-parameter switch preserves the camera
     /// and the user's setting edits; selecting a different example resets both.
     pub fn clear_scene(&mut self) {
+        // The grabbed handles belong to the world being discarded.
+        self.grab.forget();
         self.graphics.clear();
         self.state.transition = None;
         self.state.snapshot = None;
         self.state.timestep_id = 0;
+        // The next example's scene building is not a frame.
+        self.state.frame_stats = Default::default();
         self.state.action_flags = TestbedActionFlags::empty();
 
         if self.state.preserve_settings_on_switch {
@@ -246,8 +277,19 @@ impl TestbedViewer {
             self.camera = Camera::default();
             self.state.camera_locked = false;
             self.state.example_settings.clear();
+            // An example may switch the debug renderer on for itself (see
+            // `set_debug_render`): the next one starts from the defaults.
+            self.debug_render = DebugRenderPipelineResource::default();
         }
         self.state.preserve_settings_on_switch = false;
+    }
+
+    /// Switches the debug renderer on or off, drawing what `mode` selects (see
+    /// `DebugRenderMode`): what the debug-render tab of the settings panel toggles, for an
+    /// example whose point is a debug overlay. Reset when another example is selected.
+    pub fn set_debug_render(&mut self, enabled: bool, mode: rapier::pipeline::DebugRenderMode) {
+        self.debug_render.enabled = enabled;
+        self.debug_render.pipeline.mode = mode;
     }
 
     // ──────────────────────────── camera / scene ────────────────────────────
@@ -290,19 +332,41 @@ impl TestbedViewer {
         }
     }
 
-    /// Camera orientation as a unit quaternion (3D only).
+    /// Camera orientation as a unit quaternion (3D only). OpenGL convention: the camera looks
+    /// down its local -z, so `rot * z` points from the scene back toward the eye.
     #[cfg(feature = "dim3")]
     pub fn camera_rotation(&self) -> na::UnitQuaternion<f32> {
-        let rot_x = na::UnitQuaternion::from_axis_angle(&na::Vector3::y_axis(), self.camera.at().x);
-        let rot_y =
-            na::UnitQuaternion::from_axis_angle(&(-na::Vector3::x_axis()), self.camera.at().y);
-        rot_x * rot_y
+        use kiss3d::camera::Camera3d;
+        let eye = self.camera.eye();
+        let at = self.camera.at();
+        let backward = na::Vector3::new(eye.x - at.x, eye.y - at.y, eye.z - at.z);
+        let Some(backward) = na::Unit::try_new(backward, 1.0e-6) else {
+            return na::UnitQuaternion::identity();
+        };
+        let backward = backward.into_inner();
+        let up = na::Vector3::new(
+            self.state.up_axis.x as f32,
+            self.state.up_axis.y as f32,
+            self.state.up_axis.z as f32,
+        );
+        // Degenerate up (looking straight along it): substitute any non-parallel axis.
+        let up = if up.dot(&backward).abs() > 0.999 {
+            let alt = na::Vector3::x();
+            if alt.dot(&backward).abs() > 0.999 {
+                na::Vector3::y()
+            } else {
+                alt
+            }
+        } else {
+            up
+        };
+        na::UnitQuaternion::face_towards(&backward, &up)
     }
 
-    /// Camera forward direction (3D only).
+    /// Camera forward direction, from the eye toward the look-at point (3D only).
     #[cfg(feature = "dim3")]
     pub fn camera_fwd_dir(&self) -> na::Vector3<f32> {
-        self.camera_rotation() * na::Vector3::z()
+        self.camera_rotation() * -na::Vector3::z()
     }
 
     /// Recenters the camera so the whole scene fills the viewport (deferred to
@@ -321,6 +385,10 @@ impl TestbedViewer {
 
     pub fn set_initial_collider_color(&mut self, collider: ColliderHandle, color: Color) {
         self.graphics.set_initial_collider_color(collider, color);
+    }
+
+    pub fn set_initial_soft_body_color(&mut self, soft_body: SoftBodyHandle, color: Color) {
+        self.graphics.set_initial_soft_body_color(soft_body, color);
     }
 
     pub fn set_body_wireframe(&mut self, body: RigidBodyHandle, wireframe_enabled: bool) {
@@ -394,7 +462,7 @@ impl TestbedViewer {
         self.graphics.remove_collider_nodes(handle);
     }
 
-    /// Refreshes a collider's render nodes after its shape was modified in place.
+    /// Updates a collider's render nodes after its shape was modified in place.
     pub fn update_collider(&mut self, handle: ColliderHandle, world: &PhysicsWorld) {
         self.graphics.remove_collider_nodes(handle);
         self.graphics
@@ -444,7 +512,7 @@ impl TestbedViewer {
     // ───────────────────────────── registry / loop ──────────────────────────
 
     /// Display index of the example the UI currently has selected, clamped to a
-    /// valid range (a stale autosave may carry an index past the current list).
+    /// valid range (a stale autosave may hold an index past the current list).
     pub fn selected(&self) -> usize {
         self.state
             .selected_display_index
@@ -476,13 +544,46 @@ impl TestbedViewer {
 
     // ───────────────────────────── internals ────────────────────────────────
 
-    fn handle_events(&mut self) {
-        // Collect first so we can mutate `self` freely inside the loop.
-        let events: Vec<WindowEvent> = self.window.events().iter().map(|e| e.value).collect();
+    fn handle_events(&mut self, world: &mut PhysicsWorld) {
+        // Mouse events are handled live so a grab can inhibit them (an inhibited event never
+        // reaches the camera). Key events are collected and processed after the loop, since
+        // their handlers borrow `self` as a whole.
+        let egui_wants_pointer = {
+            let ctx = self.window.egui_context();
+            ctx.egui_wants_pointer_input() || ctx.is_pointer_over_egui()
+        };
 
-        for value in events {
-            match value {
-                WindowEvent::Key(key, Action::Press, _) => {
+        let mut key_events = Vec::new();
+        for mut event in self.window.events().iter() {
+            match event.value {
+                WindowEvent::MouseButton(kiss3d::event::MouseButton::Button1, action, _) => {
+                    match action {
+                        Action::Press => {
+                            if !egui_wants_pointer && self.grab.try_grab(&self.scene_mouse, world) {
+                                event.inhibited = true;
+                            }
+                        }
+                        Action::Release => {
+                            if self.grab.active() {
+                                self.grab.release(world);
+                                event.inhibited = true;
+                            }
+                        }
+                    }
+                }
+                // The cameras poll the button state on cursor moves, so freezing the camera
+                // during a grab means swallowing the cursor events themselves.
+                WindowEvent::CursorPos(..) if self.grab.active() => {
+                    event.inhibited = true;
+                }
+                WindowEvent::Key(key, action, _) => key_events.push((key, action)),
+                _ => {}
+            }
+        }
+
+        for (key, action) in key_events {
+            match action {
+                Action::Press => {
                     if !self.keys.pressed_keys.contains(&key) {
                         self.keys.pressed_keys.push(key);
                     }
@@ -493,7 +594,7 @@ impl TestbedViewer {
                         _ => {}
                     }
                 }
-                WindowEvent::Key(key, Action::Release, _) => {
+                Action::Release => {
                     self.keys.pressed_keys.retain(|k| *k != key);
                     match key {
                         Key::T => {
@@ -511,8 +612,38 @@ impl TestbedViewer {
                         _ => {}
                     }
                 }
-                _ => {}
             }
+        }
+    }
+
+    /// Retargets the mouse joint's kinematic anchor and draws the grab cue line.
+    fn update_grab(&mut self, world: &mut PhysicsWorld) {
+        #[cfg(feature = "dim3")]
+        {
+            let fwd = self.camera_fwd_dir();
+            let fwd = rapier::math::Vector::new(fwd.x as _, fwd.y as _, fwd.z as _);
+            self.grab.update(&self.scene_mouse, fwd, world);
+        }
+        #[cfg(feature = "dim2")]
+        self.grab.update(&self.scene_mouse, world);
+
+        if let Some((a, b)) = self.grab.cue_line(world) {
+            let color = Color::new(0.9, 0.4, 0.1, 1.0);
+            #[cfg(feature = "dim3")]
+            self.window.draw_line(
+                glamx::Vec3::new(a.x as f32, a.y as f32, a.z as f32),
+                glamx::Vec3::new(b.x as f32, b.y as f32, b.z as f32),
+                color,
+                4.0,
+                false,
+            );
+            #[cfg(feature = "dim2")]
+            self.window.draw_line_2d(
+                glamx::Vec2::new(a.x as f32, a.y as f32),
+                glamx::Vec2::new(b.x as f32, b.y as f32),
+                color,
+                4.0,
+            );
         }
     }
 
@@ -557,6 +688,20 @@ impl TestbedViewer {
             self.state
                 .action_flags
                 .set(TestbedActionFlags::RESET_WORLD_GRAPHICS, false);
+            // Soft bodies: one color per soft body, worn by every one of its cluster proxies so
+            // its collision meshes (colliders like any other) come out in that color.
+            for (sb_handle, sb) in world.soft_bodies.iter() {
+                let color = self.graphics.soft_body_color(sb_handle);
+                for (_, cluster) in sb.live_clusters() {
+                    self.graphics.set_initial_body_color(cluster.proxy(), color);
+                }
+            }
+            // The meshes a soft body only draws (its skin) have no collider to be picked up by
+            // the collider pass below.
+            for (sb_handle, _) in world.soft_bodies.iter() {
+                self.graphics
+                    .add_soft_body_meshes(sb_handle, &world.soft_bodies);
+            }
             for (handle, _) in world.bodies.iter() {
                 self.graphics.add_body_colliders(
                     &mut self.window,

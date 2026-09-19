@@ -8,6 +8,7 @@ import {
     RigidBodySet,
     CCDSolver,
     IslandManager,
+    SoftBodySet,
 } from "../dynamics";
 import {
     BroadPhase,
@@ -40,6 +41,7 @@ export class PhysicsPipeline {
         narrowPhase: NarrowPhase,
         bodies: RigidBodySet,
         colliders: ColliderSet,
+        softBodies: SoftBodySet,
         impulseJoints: ImpulseJointSet,
         multibodyJoints: MultibodyJointSet,
         ccdSolver: CCDSolver,
@@ -57,6 +59,7 @@ export class PhysicsPipeline {
                 narrowPhase.raw,
                 bodies.raw,
                 colliders.raw,
+                softBodies.raw,
                 impulseJoints.raw,
                 multibodyJoints.raw,
                 ccdSolver.raw,
@@ -74,6 +77,7 @@ export class PhysicsPipeline {
                 narrowPhase.raw,
                 bodies.raw,
                 colliders.raw,
+                softBodies.raw,
                 impulseJoints.raw,
                 multibodyJoints.raw,
                 ccdSolver.raw,
