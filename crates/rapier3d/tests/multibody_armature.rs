@@ -43,6 +43,7 @@ fn spin_up(armature: Real, steps: usize) -> Real {
     let mut broad_phase = DefaultBroadPhase::new();
     let mut narrow_phase = NarrowPhase::new();
     let mut ccd = CCDSolver::new();
+    let mut soft_bodies = SoftBodySet::new();
 
     let mut step_once = |bodies: &mut RigidBodySet, mbj: &mut MultibodyJointSet| {
         pipeline.step(
@@ -55,6 +56,7 @@ fn spin_up(armature: Real, steps: usize) -> Real {
             &mut colliders,
             &mut impulse_joints,
             mbj,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

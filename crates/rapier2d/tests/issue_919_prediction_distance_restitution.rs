@@ -31,6 +31,7 @@ fn rebound(e: f32, prediction_distance: Option<f32>) -> f32 {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut ccd = CCDSolver::new();
     let mut params = IntegrationParameters::default();
     if let Some(pred) = prediction_distance {
@@ -51,6 +52,7 @@ fn rebound(e: f32, prediction_distance: Option<f32>) -> f32 {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

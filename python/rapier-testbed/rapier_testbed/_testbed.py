@@ -263,6 +263,7 @@ class Testbed:
         self.colliders = ns.ColliderSet()
         self.impulse_joints = ns.ImpulseJointSet()
         self.multibody_joints = ns.MultibodyJointSet()
+        self.soft_bodies = ns.SoftBodySet()
         self.gravity = _DEFAULT_GRAVITY_3D
         self._hooks: Optional[Any] = None
         self._event_handler: Optional[Any] = None
@@ -316,6 +317,9 @@ class Testbed:
         self._on_escape: Optional[Callable[[], None]] = on_escape
         self._known_colliders: set = set()       # ColliderHandle.index seen
         self._show_wireframe: bool = False       # debug-line overlay toggle
+        # One NodePath per soft body, rebuilt on topology changes and refreshed from the
+        # particle positions every frame: ``SoftBodyHandle.index`` → dict.
+        self._soft_nodes: dict = {}
 
         if not self._headless:
             _ensure_panda_config()
@@ -344,15 +348,19 @@ class Testbed:
         colliders: Any,
         impulse_joints: Any,
         multibody_joints: Any,
+        soft_bodies: Optional[Any] = None,
     ) -> None:
         """Bind freshly-built sets as the active simulation state.
 
         Mirrors :meth:`rapier_testbed::Testbed::set_world`. Uses the
         testbed's current :attr:`gravity` (defaulting to ``(0, -9.81, 0)``
-        if the example doesn't override it).
+        if the example doesn't override it). ``soft_bodies`` is the
+        :class:`rapier3d.SoftBodySet` of the scene, or ``None`` for a scene
+        without soft bodies.
         """
         self.set_world_with_params(
-            bodies, colliders, impulse_joints, multibody_joints, self.gravity
+            bodies, colliders, impulse_joints, multibody_joints, self.gravity,
+            soft_bodies=soft_bodies,
         )
 
     def set_world_with_params(
@@ -363,12 +371,14 @@ class Testbed:
         multibody_joints: Any,
         gravity: Any,
         hooks: Optional[Any] = None,
+        soft_bodies: Optional[Any] = None,
     ) -> None:
         """Bind sets + override gravity and (optionally) physics hooks."""
         self.bodies = bodies
         self.colliders = colliders
         self.impulse_joints = impulse_joints
         self.multibody_joints = multibody_joints
+        self.soft_bodies = soft_bodies if soft_bodies is not None else self._ns.SoftBodySet()
         self.gravity = gravity
         self._hooks = hooks
         self._step_count = 0
@@ -474,6 +484,7 @@ class Testbed:
             self._ccd_solver,
             self._hooks,
             self._event_handler,
+            soft_bodies=self.soft_bodies,
         )
         self._step_count += 1
         for cb in self._callbacks:
@@ -497,6 +508,7 @@ class Testbed:
             return
         self._sync_mesh_nodes()
         self._update_transforms()
+        self._sync_soft_body_nodes()
         if self._show_wireframe:
             lines, colors, _objects = self._debug_pipeline.render_to_arrays(
                 self.bodies,
@@ -504,6 +516,7 @@ class Testbed:
                 self.impulse_joints,
                 self.multibody_joints,
                 self._narrow_phase,
+                self.soft_bodies,
             )
             self._upload_lines(lines, colors)
         elif self._line_node is not None:
@@ -525,6 +538,12 @@ class Testbed:
                     pass
         self._mesh_nodes.clear()
         self._known_colliders.clear()
+        for entry in self._soft_nodes.values():
+            try:
+                entry["node"].removeNode()
+            except Exception:
+                pass
+        self._soft_nodes.clear()
 
     def _sync_mesh_nodes(self) -> None:
         """Insert nodes for new colliders; drop nodes for removed ones."""
@@ -553,6 +572,12 @@ class Testbed:
         # 2) Build nodes for new colliders.
         for idx, (handle, col) in current.items():
             if idx in self._known_colliders:
+                continue
+            # The colliders of a soft body (its deformable surface, or its particles) are
+            # drawn from the soft body itself (see ``_sync_soft_body_nodes``).
+            parent = col.parent
+            if parent is not None and parent in self.bodies and self.bodies[parent].is_soft_frame:
+                self._known_colliders.add(idx)
                 continue
             color = self._color_for_collider(col)
             try:
@@ -607,6 +632,71 @@ class Testbed:
             r = iso.rotation
             # Panda3D LQuaternion takes (w, x, y, z) — matches Rapier.
             np_group.setQuat(LQuaternion(float(r.w), float(r.i), float(r.j), float(r.k)))
+
+    def _sync_soft_body_nodes(self) -> None:
+        """Draw every soft body as the flat-shaded triangles of its boundary.
+
+        A body's Geom is rebuilt when its topology changes (tears, cuts) and its
+        vertex buffer is rewritten from the particle positions every frame.
+        """
+        if self._mesh_root is None:
+            return
+        from panda3d.core import Geom, GeomNode, GeomTriangles, GeomVertexData, GeomVertexFormat
+
+        from . import _meshes
+
+        seen = set()
+        for handle, body in self.soft_bodies:
+            idx = int(handle.index)
+            seen.add(idx)
+            boundary = body.boundary
+            positions = body.particle_positions
+            version = body.topology_version
+            entry = self._soft_nodes.get(idx)
+            if entry is None or entry["version"] != version or entry["triangles"] != boundary.shape[0]:
+                if entry is not None:
+                    entry["node"].removeNode()
+                rgba = _meshes.color_for_body(idx + 7919, self._ns.RigidBodyType.DYNAMIC)
+                color_u8 = np.array([max(0, min(255, int(c * 255.0))) for c in rgba], dtype=np.uint8)
+                fmt = GeomVertexFormat.getV3n3c4()
+                nv = int(boundary.shape[0] * 3)
+                vdata = GeomVertexData(f"soft-{idx}", fmt, Geom.UHDynamic)
+                vdata.unclean_set_num_rows(nv)
+                prim = GeomTriangles(Geom.UHStatic)
+                if nv > 0:
+                    prim.setIndexType(Geom.NTUint32)
+                    prim.reserveNumVertices(nv)
+                    for t in range(boundary.shape[0]):
+                        prim.addVertices(3 * t, 3 * t + 1, 3 * t + 2)
+                    prim.closePrimitive()
+                geom = Geom(vdata)
+                geom.addPrimitive(prim)
+                node = GeomNode(f"soft-{idx}")
+                node.addGeom(geom)
+                np_node = self._mesh_root.attachNewNode(node)
+                np_node.setTwoSided(True)
+                np_node.setMaterialOff(1)
+                entry = {
+                    "node": np_node,
+                    "vdata": vdata,
+                    "version": version,
+                    "triangles": int(boundary.shape[0]),
+                    "color": color_u8,
+                }
+                self._soft_nodes[idx] = entry
+            if boundary.shape[0] == 0:
+                continue
+            pos, nrm, _ = _meshes._trimesh_mesh(positions, boundary)
+            buf = np.empty(pos.shape[0], dtype=np.dtype([("pos", np.float32, 3), ("nrm", np.float32, 3), ("color", np.uint8, 4)]))
+            buf["pos"] = pos
+            buf["nrm"] = nrm
+            buf["color"] = entry["color"]
+            entry["vdata"].modifyArrayHandle(0).copyDataFrom(buf.tobytes())
+
+        # Soft bodies removed from the world.
+        for idx in list(self._soft_nodes):
+            if idx not in seen:
+                self._soft_nodes.pop(idx)["node"].removeNode()
 
     def _apply_local_pose(self, np_node: Any, iso: Any) -> None:
         """Apply a sub-shape's local pose to a Compound-child NodePath."""
@@ -770,6 +860,7 @@ class Testbed:
         # Drop per-collider node caches so the next scenario rebuilds.
         self._mesh_nodes.clear()
         self._known_colliders.clear()
+        self._soft_nodes.clear()
         self._mesh_root = None
         # Reset arcball bindings.
         self._arcball = None

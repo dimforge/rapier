@@ -1,5 +1,5 @@
 #[cfg(feature = "alloc")]
-use crate::dynamics::RigidBodySet;
+use crate::dynamics::{RigidBodySet, SoftBodySet, SoftBodyTearEvent};
 #[cfg(all(feature = "std", feature = "alloc"))]
 use crate::geometry::ContactForceEvent;
 #[cfg(feature = "alloc")]
@@ -49,11 +49,13 @@ impl Default for ActiveEvents {
     }
 }
 
-/// A callback interface for receiving physics events (collisions starting/stopping, contact forces).
+/// A callback interface for receiving physics events (collisions starting/stopping, contact forces,
+/// soft-body tears).
 ///
 /// Implement this trait to get notified when:
 /// - Two colliders start or stop touching ([`handle_collision_event`](Self::handle_collision_event))
 /// - Contact forces exceed a threshold ([`handle_contact_force_event`](Self::handle_contact_force_event))
+/// - A soft body tears ([`handle_soft_body_tear_event`](Self::handle_soft_body_tear_event))
 ///
 /// # Common use cases
 /// - Playing sound effects when objects collide
@@ -88,6 +90,7 @@ impl Default for ActiveEvents {
 ///         }
 ///     }
 /// #   fn handle_contact_force_event(&self, _dt: Real, _bodies: &RigidBodySet, _colliders: &ColliderSet, _contact_pair: &ContactPair, _total_force_magnitude: Real) {}
+/// #   fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
 /// }
 /// ```
 #[cfg(feature = "alloc")]
@@ -138,6 +141,11 @@ pub trait EventHandler: crate::utils::MaybeSync {
         contact_pair: &ContactPair,
         total_force_magnitude: Real,
     );
+
+    /// Called at the end of a step for every soft body that tore during it (an element past its
+    /// tear threshold, or a `SoftBody::tear_edge`/`tear_cell` request), once the topology change is
+    /// applied ([`SoftBodyTearEvent`]); immediate `SoftBodySet::tear`/`cut` return theirs instead.
+    fn handle_soft_body_tear_event(&self, soft_bodies: &SoftBodySet, event: &SoftBodyTearEvent);
 }
 
 #[cfg(feature = "alloc")]
@@ -160,6 +168,8 @@ impl EventHandler for () {
         _total_force_magnitude: Real,
     ) {
     }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
 }
 
 /// A ready-to-use event handler that collects events into channels for later processing.
@@ -174,7 +184,9 @@ impl EventHandler for () {
 ///
 /// let (collision_send, collision_recv) = channel();
 /// let (contact_force_send, contact_force_recv) = channel();
-/// let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+/// let (soft_body_tear_send, soft_body_tear_recv) = channel();
+/// let event_handler =
+///     ChannelEventCollector::new(collision_send, contact_force_send, soft_body_tear_send);
 ///
 /// // After physics step:
 /// while let Ok(collision_event) = collision_recv.try_recv() {
@@ -183,23 +195,31 @@ impl EventHandler for () {
 ///         CollisionEvent::Stopped(h1, h2, _) => println!("Separated"),
 ///     }
 /// }
+/// while let Ok(tear_event) = soft_body_tear_recv.try_recv() {
+///     println!("Soft body {:?} tore", tear_event.soft_body);
+/// }
 /// ```
 #[cfg(feature = "std")]
 pub struct ChannelEventCollector {
     collision_event_sender: std::sync::mpsc::Sender<CollisionEvent>,
     contact_force_event_sender: std::sync::mpsc::Sender<ContactForceEvent>,
+    soft_body_tear_event_sender: std::sync::mpsc::Sender<SoftBodyTearEvent>,
 }
 
 #[cfg(feature = "std")]
 impl ChannelEventCollector {
-    /// Initialize a new collision event handler from channel senders.
+    /// Initialize a new event collector from channel senders, one per event kind.
+    ///
+    /// A sender whose receiver was dropped just discards the events of its kind.
     pub fn new(
         collision_event_sender: std::sync::mpsc::Sender<CollisionEvent>,
         contact_force_event_sender: std::sync::mpsc::Sender<ContactForceEvent>,
+        soft_body_tear_event_sender: std::sync::mpsc::Sender<SoftBodyTearEvent>,
     ) -> Self {
         Self {
             collision_event_sender,
             contact_force_event_sender,
+            soft_body_tear_event_sender,
         }
     }
 }
@@ -226,5 +246,9 @@ impl EventHandler for ChannelEventCollector {
     ) {
         let result = ContactForceEvent::from_contact_pair(dt, contact_pair, total_force_magnitude);
         let _ = self.contact_force_event_sender.send(result);
+    }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, event: &SoftBodyTearEvent) {
+        let _ = self.soft_body_tear_event_sender.send(event.clone());
     }
 }

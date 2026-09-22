@@ -22,4 +22,9 @@ impl RigidBodyHandle {
             crate::INVALID_U32,
         ))
     }
+
+    /// Whether this handle is the sentinel returned by [`Self::invalid`].
+    pub fn is_invalid(self) -> bool {
+        self == Self::invalid()
+    }
 }

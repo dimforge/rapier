@@ -1,6 +1,7 @@
 use super::CollisionEvent;
 use crate::alloc_prelude::*;
 use crate::dynamics::{RigidBodyHandle, RigidBodySet};
+use crate::geometry::soft_contacts::{SoftPairContacts, SoftRigidContacts};
 use crate::geometry::{ColliderHandle, ColliderSet, Contact, ContactManifold};
 use crate::math::{Pose, Real, TangentImpulse, Vector};
 use crate::pipeline::EventHandler;
@@ -19,14 +20,15 @@ bitflags::bitflags! {
     /// Flags affecting the behavior of the constraints solver for a given contact manifold.
     pub struct SolverFlags: u32 {
         /// The constraint solver will take this contact manifold into
-        /// account for force computation.
-        const COMPUTE_IMPULSES = 0b001;
+        /// account for force computation between two rigid colliders.
+        const COMPUTE_RIGID_IMPULSES = 0b001;
+        // TODO: add a COMPUTE_SOFT_IMPULSES flag too?
     }
 }
 
 impl Default for SolverFlags {
     fn default() -> Self {
-        SolverFlags::COMPUTE_IMPULSES
+        SolverFlags::COMPUTE_RIGID_IMPULSES
     }
 }
 
@@ -210,6 +212,40 @@ pub struct ContactPair {
     pub collider1: ColliderHandle,
     /// The second collider involved in the contact pair.
     pub collider2: ColliderHandle,
+    /// Event bookkeeping: `CollisionEvent::Started` emission and force-event
+    /// threshold status.
+    pub(crate) event_status: PairEventStatus,
+    /// The pair's contacts, in the form the two colliders call for: contact manifolds, or
+    /// the contact candidates of two soft surfaces.
+    pub contacts: PairContacts,
+}
+
+/// The contacts of a [`ContactPair`], with a fixed layout: the solver addresses a pair's manifolds
+/// through raw pointers (see `ManifoldStore`), so the offset of the rigid contacts must not depend
+/// on the value.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
+#[repr(C, u8)]
+#[allow(clippy::large_enum_variant)] // Boxing would move the manifolds off the fixed layout.
+pub enum PairContacts {
+    /// Contact manifolds: every pair but the pairs of two soft surfaces.
+    Rigid(RigidPairContacts),
+    /// The contact candidates of two soft surfaces (see [`SoftPairContacts`]), rebuilt by
+    /// every update of the pair and turned into constraints by the soft-body solver.
+    Soft {
+        /// Whether some feature of one surface is within contact reach of the other, or the
+        /// two surfaces cross: the pair's touching state.
+        touching: bool,
+        /// The candidates (not serialized: the next update rebuilds them).
+        #[cfg_attr(feature = "serde-serialize", serde(skip))]
+        candidates: Box<SoftPairContacts>,
+    },
+}
+
+/// The contact manifolds of a [`ContactPair`], with the solver's bookkeeping about them.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[derive(Clone)]
+pub struct RigidPairContacts {
     /// The set of contact manifolds between the two colliders.
     ///
     /// All contact manifold contain themselves contact points between the colliders.
@@ -227,7 +263,7 @@ pub struct ContactPair {
     /// [`IntegrationParameters::contact_clustering`]: crate::dynamics::IntegrationParameters::contact_clustering
     pub solver_clusters: Vec<ContactManifold>,
     /// The clusters solved at the previous step, kept as the warm-start source (and
-    /// reused as scratch buffers) when rebuilding `solver_clusters` each frame.
+    /// reused as workspace buffers) when rebuilding `solver_clusters` each frame.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) solver_clusters_prev: Vec<ContactManifold>,
     /// The persistent solver graph color of this pair: same-color active pairs never share
@@ -241,9 +277,6 @@ pub struct ContactPair {
         serde(default = "default_solver_color_bodies")
     )]
     pub(crate) solver_color_bodies: [u32; 2],
-    /// Event bookkeeping: `CollisionEvent::Started` emission and force-event
-    /// threshold status.
-    pub(crate) event_status: PairEventStatus,
     pub(crate) workspace: Option<ContactManifoldsWorkspace>,
     /// State cached at the last full narrow-phase update, allowing the update to be
     /// skipped ("recycled") while the colliders' relative pose stays within
@@ -253,6 +286,62 @@ pub struct ContactPair {
     /// reference pose, or its first update recomputes manifolds (and re-derives the
     /// world-frozen solver anchors) where the uninterrupted run would have recycled.
     pub(crate) recycle_state: Option<ContactRecycleState>,
+    /// The soft contacts of a soft-rigid pair beside its manifolds (the predictive vertex
+    /// contacts and the volume patch, see `SoftRigidContacts`), rebuilt by every update; `None`
+    /// for every other pair.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) soft: Option<Box<SoftRigidContacts>>,
+}
+
+impl RigidPairContacts {
+    fn new() -> Self {
+        Self {
+            manifolds: Vec::new(),
+            solver_clusters: Vec::new(),
+            solver_clusters_prev: Vec::new(),
+            solver_color: SOLVER_COLOR_UNCOLORED,
+            solver_color_bodies: [u32::MAX; 2],
+            workspace: None,
+            recycle_state: None,
+            soft: None,
+        }
+    }
+
+    /// The manifolds actually seen by the constraint solver: the contact clusters if
+    /// clustering applied to this pair, the plain manifolds otherwise.
+    pub fn solver_manifolds(&self) -> &[ContactManifold] {
+        if self.solver_clusters.is_empty() {
+            &self.manifolds
+        } else {
+            &self.solver_clusters
+        }
+    }
+
+    pub(crate) fn solver_manifolds_mut(&mut self) -> &mut [ContactManifold] {
+        if self.solver_clusters.is_empty() {
+            &mut self.manifolds
+        } else {
+            &mut self.solver_clusters
+        }
+    }
+
+    /// Clears the manifolds and the update's caches; the solver colour is left to the pair
+    /// transitions.
+    fn clear(&mut self) {
+        self.manifolds.clear();
+        self.solver_clusters.clear();
+        self.solver_clusters_prev.clear();
+        self.workspace = None;
+        self.recycle_state = None;
+        self.soft = None;
+    }
+
+    /// Is there any active contact among this side's solver manifolds?
+    pub fn has_any_active_contact(&self) -> bool {
+        self.solver_manifolds()
+            .iter()
+            .any(|m| !m.data.solver_contacts.is_empty())
+    }
 }
 
 /// The relative configuration of a contact pair at its last full narrow-phase
@@ -333,14 +422,8 @@ impl ContactPair {
         Self {
             collider1,
             collider2,
-            manifolds: Vec::new(),
-            solver_clusters: Vec::new(),
-            solver_clusters_prev: Vec::new(),
-            solver_color: SOLVER_COLOR_UNCOLORED,
-            solver_color_bodies: [u32::MAX; 2],
             event_status: PairEventStatus::empty(),
-            workspace: None,
-            recycle_state: None,
+            contacts: PairContacts::Rigid(RigidPairContacts::new()),
         }
     }
 
@@ -350,75 +433,145 @@ impl ContactPair {
     pub(crate) fn reset_for_reuse(&mut self, collider1: ColliderHandle, collider2: ColliderHandle) {
         self.collider1 = collider1;
         self.collider2 = collider2;
-        self.manifolds.clear();
-        self.solver_clusters.clear();
-        self.solver_clusters_prev.clear();
-        self.solver_color = SOLVER_COLOR_UNCOLORED;
-        self.solver_color_bodies = [u32::MAX; 2];
         self.event_status = PairEventStatus::empty();
-        self.workspace = None;
-        self.recycle_state = None;
+        match &mut self.contacts {
+            PairContacts::Rigid(rigid) => {
+                rigid.clear();
+                rigid.solver_color = SOLVER_COLOR_UNCOLORED;
+                rigid.solver_color_bodies = [u32::MAX; 2];
+            }
+            PairContacts::Soft { .. } => {
+                self.contacts = PairContacts::Rigid(RigidPairContacts::new());
+            }
+        }
+    }
+
+    /// Turns the pair into a pair of two soft surfaces (see [`PairContacts::Soft`]), keeping
+    /// it if it already is one.
+    pub(crate) fn make_soft(&mut self) {
+        if !matches!(self.contacts, PairContacts::Soft { .. }) {
+            self.contacts = PairContacts::Soft {
+                touching: false,
+                candidates: Box::default(),
+            };
+        }
+    }
+
+    /// The pair's contact manifolds (`None` for a pair of two soft surfaces).
+    pub fn rigid(&self) -> Option<&RigidPairContacts> {
+        match &self.contacts {
+            PairContacts::Rigid(rigid) => Some(rigid),
+            PairContacts::Soft { .. } => None,
+        }
+    }
+
+    pub(crate) fn rigid_mut(&mut self) -> Option<&mut RigidPairContacts> {
+        match &mut self.contacts {
+            PairContacts::Rigid(rigid) => Some(rigid),
+            PairContacts::Soft { .. } => None,
+        }
+    }
+
+    /// The pair's contact candidates (`None` unless the pair is two soft surfaces).
+    pub fn soft(&self) -> Option<&SoftPairContacts> {
+        match &self.contacts {
+            PairContacts::Soft { candidates, .. } => Some(candidates),
+            PairContacts::Rigid(_) => None,
+        }
+    }
+
+    pub(crate) fn soft_mut(&mut self) -> Option<&mut SoftPairContacts> {
+        match &mut self.contacts {
+            PairContacts::Soft { candidates, .. } => Some(candidates),
+            PairContacts::Rigid(_) => None,
+        }
+    }
+
+    /// The pair's contact manifolds (empty for a pair of two soft surfaces, whose contacts
+    /// are its candidates: see [`Self::soft`]).
+    pub fn manifolds(&self) -> &[ContactManifold] {
+        self.rigid().map_or(&[], |r| &r.manifolds)
     }
 
     /// The manifolds actually seen by the constraint solver: the contact clusters if
-    /// clustering applied to this pair, the plain manifolds otherwise.
+    /// clustering applied to this pair, the plain manifolds otherwise (empty for a pair of
+    /// two soft surfaces).
     pub fn solver_manifolds(&self) -> &[ContactManifold] {
-        if self.solver_clusters.is_empty() {
-            &self.manifolds
-        } else {
-            &self.solver_clusters
-        }
+        self.rigid().map_or(&[], |r| r.solver_manifolds())
     }
 
     /// Mutable twin of [`Self::solver_manifolds`]: the manifolds the constraint
     /// solver actually sees (the solver clusters if any, else the plain manifolds).
     #[cfg_attr(feature = "parallel", allow(dead_code))] // Single-threaded solver path.
     pub(crate) fn solver_manifolds_mut(&mut self) -> &mut [ContactManifold] {
-        if self.solver_clusters.is_empty() {
-            &mut self.manifolds
-        } else {
-            &mut self.solver_clusters
-        }
+        self.rigid_mut()
+            .map_or(&mut [], |r| r.solver_manifolds_mut())
+    }
+
+    /// The pair's solver graph colour (`SOLVER_COLOR_UNCOLORED` for a pair of two soft
+    /// surfaces, which the rigid solver never sees).
+    pub(crate) fn solver_color(&self) -> u8 {
+        self.rigid()
+            .map_or(SOLVER_COLOR_UNCOLORED, |r| r.solver_color)
     }
 
     /// Is there any active contact in this contact pair?
     pub fn has_any_active_contact(&self) -> bool {
-        self.solver_manifolds()
-            .iter()
-            .any(|m| !m.data.solver_contacts.is_empty())
+        match &self.contacts {
+            PairContacts::Rigid(rigid) => rigid.has_any_active_contact(),
+            PairContacts::Soft { touching, .. } => *touching,
+        }
     }
 
     /// Clears all the contacts of this contact pair.
     pub fn clear(&mut self) {
-        self.manifolds.clear();
-        self.solver_clusters.clear();
-        self.solver_clusters_prev.clear();
-        self.workspace = None;
-        self.recycle_state = None;
+        match &mut self.contacts {
+            PairContacts::Rigid(rigid) => rigid.clear(),
+            PairContacts::Soft {
+                touching,
+                candidates,
+            } => {
+                *touching = false;
+                candidates.clear();
+            }
+        }
     }
 
     // NOTE: while recycled, a pair's world-space solver data (normal, frozen lever arms — see
     // `ContactData::solver_dp1`) keeps its last-full-update values (anchor freezing): the solver
-    // rebuilds world points/separations from body-local anchors + current poses, so no per-step refresh; user data stays stale within the recycle drift bound.
+    // rebuilds world points/separations from body-local anchors + current poses, so no per-step update; user data stays stale within the recycle drift bound.
 
     /// The total impulse (force × time) applied by all contacts.
     ///
     /// This is the accumulated force that pushed the colliders apart.
     /// Useful for determining impact strength.
     pub fn total_impulse(&self) -> Vector {
-        self.solver_manifolds()
-            .iter()
-            .map(|m| m.total_impulse() * m.data.normal)
-            .sum()
+        match &self.contacts {
+            PairContacts::Rigid(rigid) => rigid
+                .solver_manifolds()
+                .iter()
+                .map(|m| m.total_impulse() * m.data.normal)
+                .sum(),
+            PairContacts::Soft { candidates, .. } => candidates
+                .impulses(self.collider1)
+                .map(|i| i.normal * i.impulse)
+                .sum(),
+        }
     }
 
     /// The total magnitude of all contact impulses (sum of lengths, not length of sum).
     ///
     /// This is what's compared against `contact_force_event_threshold`.
     pub fn total_impulse_magnitude(&self) -> Real {
-        self.solver_manifolds()
-            .iter()
-            .fold(0.0, |a, m| a + m.total_impulse())
+        match &self.contacts {
+            PairContacts::Rigid(rigid) => rigid
+                .solver_manifolds()
+                .iter()
+                .fold(0.0, |a, m| a + m.total_impulse()),
+            PairContacts::Soft { candidates, .. } => candidates
+                .impulses(self.collider1)
+                .fold(0.0, |a, i| a + i.impulse),
+        }
     }
 
     /// Finds the strongest contact impulse and its direction.
@@ -427,11 +580,22 @@ impl ContactPair {
     pub fn max_impulse(&self) -> (Real, Vector) {
         let mut result = (0.0, Vector::ZERO);
 
-        for m in self.solver_manifolds() {
-            let impulse = m.total_impulse();
+        match &self.contacts {
+            PairContacts::Rigid(rigid) => {
+                for m in rigid.solver_manifolds() {
+                    let impulse = m.total_impulse();
 
-            if impulse > result.0 {
-                result = (impulse, m.data.normal);
+                    if impulse > result.0 {
+                        result = (impulse, m.data.normal);
+                    }
+                }
+            }
+            PairContacts::Soft { candidates, .. } => {
+                for i in candidates.impulses(self.collider1) {
+                    if i.impulse > result.0 {
+                        result = (i.impulse, i.normal);
+                    }
+                }
             }
         }
 
@@ -446,7 +610,8 @@ impl ContactPair {
     /// - Determining primary contact direction
     /// - Custom penetration resolution
     ///
-    /// Returns both the contact point and its parent manifold.
+    /// Returns both the contact point and its parent manifold (`None` for a pair of two soft
+    /// surfaces, whose contacts are candidates: see [`Self::soft`]).
     ///
     /// # Example
     /// ```
@@ -462,7 +627,7 @@ impl ContactPair {
     pub fn find_deepest_contact(&self) -> Option<(&ContactManifold, &Contact)> {
         let mut deepest = None;
 
-        for m2 in &self.manifolds {
+        for m2 in self.manifolds() {
             let deepest_candidate = m2.find_deepest_contact();
 
             deepest = match (deepest, deepest_candidate) {
@@ -620,7 +785,7 @@ pub struct SolverContactGeneric<N: ScalarType, const LANES: usize> {
     // on `ContactManifoldData`, is-new in bit 31 of `contact_id`, warm-starts on the manifold points.
     /// The contact point on the first body's surface (contact skin baked in), in that
     /// body's CoM-centered local frame so it rides rigidly with the body — what lets
-    /// contact recycling skip the per-frame world refresh. World-space instead for a side
+    /// contact recycling skip the per-frame world update. World-space instead for a side
     /// without a solver body (none, or world-attached by dominance — fixed bodies included).
     /// Inside [`PhysicsHooks::modify_solver_contacts`] this always holds the fresh
     /// **world-space** point (hooks run before localization).

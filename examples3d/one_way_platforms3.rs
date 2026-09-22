@@ -47,8 +47,10 @@ impl PhysicsHooks for OneWayPlatformHook {
                 12.0
             };
 
-        for contact in context.solver_contacts.iter_mut() {
-            contact.tangent_velocity.z = tangent_velocity;
+        if let Some(rigid) = context.rigid_mut() {
+            for contact in rigid.solver_contacts.iter_mut() {
+                contact.tangent_velocity.z = tangent_velocity;
+            }
         }
     }
 }

@@ -17,10 +17,8 @@ strip = true # Workaround for https://github.com/bevyengine/bevy/issues/16030 (t
 rapier2d = { path = "../crates/rapier2d" }
 rapier3d = { path = "../crates/rapier3d" }
 
-# parry, nalgebra and simba are still pulled from crates.io, matching the
-# versions the in-repo rapier crates depend on. Uncomment to build against local
-# checkouts placed next to this repository during development.
-#parry2d = { path = "../../parry/crates/parry2d" }
-#parry3d = { path = "../../parry/crates/parry3d" }
+# nalgebra and simba are still pulled from crates.io, matching the versions the
+# in-repo rapier crates depend on. Uncomment to build against local checkouts
+# placed next to this repository during development.
 #nalgebra = { path = "../../nalgebra" }
 #simba = { path = "../../simba" }

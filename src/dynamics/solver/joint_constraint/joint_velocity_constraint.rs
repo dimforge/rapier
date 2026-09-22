@@ -39,6 +39,7 @@ pub enum WritebackId {
     Dof(usize),
     Limit(usize),
     Motor(usize),
+    Friction(usize),
 }
 
 // TODO: right now we only use this for impulse_joints.
@@ -125,7 +126,7 @@ impl<N: ScalarType, const LANES: usize> JointConstraint<N, LANES> {
 
     /// Applies the currently-accumulated impulse to the body velocities. Only used when
     /// `IntegrationParameters::warmstart_joints` is enabled: the constraint's `impulse` was
-    /// carried from the previous substep (or seeded from last step's writeback) by the update.
+    /// kept from the previous substep (or seeded from last step's writeback) by the update.
     pub fn warmstart_generic(
         &mut self,
         solver_vel1: &mut SolverVel<N>,
@@ -382,6 +383,7 @@ impl JointConstraint<Real, 1> {
             WritebackId::Dof(i) => joint.impulses[i] = self.impulse,
             WritebackId::Limit(i) => joint.data.limits[i].impulse = self.impulse,
             WritebackId::Motor(i) => joint.data.motors[i].impulse = self.impulse,
+            WritebackId::Friction(_) => {}
         }
     }
 }
@@ -534,6 +536,7 @@ impl JointConstraint<SimdReal, SIMD_WIDTH> {
                 WritebackId::Dof(i) => joint.impulses[i] = impulses[ii],
                 WritebackId::Limit(i) => joint.data.limits[i].impulse = impulses[ii],
                 WritebackId::Motor(i) => joint.data.motors[i].impulse = impulses[ii],
+                WritebackId::Friction(_) => {}
             }
         }
     }

@@ -57,14 +57,20 @@ pub enum CoefficientCombineRule {
 }
 
 impl CoefficientCombineRule {
-    #[allow(dead_code)]
-    pub(crate) fn combine(
+    /// Combines two coefficients according to the given combine rules.
+    ///
+    /// If the two combine rules differ, the one with the higher discriminant wins:
+    ///
+    /// ```text
+    /// GeometricMean > ClampedSum > Max > Multiply > Min > Average
+    /// ```
+    pub fn combine(
         coeff1: Real,
         coeff2: Real,
-        rule_value1: CoefficientCombineRule,
-        rule_value2: CoefficientCombineRule,
+        rule1: CoefficientCombineRule,
+        rule2: CoefficientCombineRule,
     ) -> Real {
-        let effective_rule = rule_value1.max(rule_value2);
+        let effective_rule = rule1.max(rule2);
 
         match effective_rule {
             CoefficientCombineRule::Average => (coeff1 + coeff2) / 2.0,

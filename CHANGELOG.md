@@ -1,3 +1,10 @@
+## v0.35.3 (28 August 2026)
+
+### Fixed
+
+- Multibody: properly support the constraint-based MJCF frictionloss statement instead of emulating
+  it with a motor.
+
 ## v0.35.2 (15 August 2026)
 
 ### Fixed

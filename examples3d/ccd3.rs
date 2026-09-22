@@ -109,7 +109,9 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     viewer.set_world(&mut world);
     let (collision_send, collision_recv) = std::sync::mpsc::channel();
     let (contact_force_send, _contact_force_recv) = std::sync::mpsc::channel();
-    let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+    let (soft_body_tear_send, _soft_body_tear_recv) = std::sync::mpsc::channel();
+    let event_handler =
+        ChannelEventCollector::new(collision_send, contact_force_send, soft_body_tear_send);
     viewer.look_at(Vec3::new(100.0, 100.0, 100.0), Vec3::ZERO);
 
     while viewer.render_frame(&mut world).await {

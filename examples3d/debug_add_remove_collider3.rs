@@ -43,6 +43,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
                     removed_collider_handle,
                     &mut world.islands,
                     &mut world.bodies,
+                    &mut world.soft_bodies,
                     true,
                 )
                 .unwrap();

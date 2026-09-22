@@ -13,6 +13,7 @@ struct PhysicsState {
     pub colliders: ColliderSet,
     pub impulse_joints: ImpulseJointSet,
     pub multibody_joints: MultibodyJointSet,
+    pub soft_bodies: SoftBodySet,
     pub ccd_solver: CCDSolver,
     pub integration_parameters: IntegrationParameters,
     pub gravity: Vector,
@@ -59,6 +60,7 @@ fn setup_physics_scene() -> PhysicsState {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joint_set = ImpulseJointSet::new();
     let mut multibody_joint_set = MultibodyJointSet::new();
+    let mut soft_body_set = SoftBodySet::new();
     let mut ccd_solver = CCDSolver::new();
     let physics_hooks = ();
     let event_handler = ();
@@ -75,6 +77,7 @@ fn setup_physics_scene() -> PhysicsState {
             &mut collider_set,
             &mut impulse_joint_set,
             &mut multibody_joint_set,
+            &mut soft_body_set,
             &mut ccd_solver,
             &physics_hooks,
             &event_handler,
@@ -91,6 +94,7 @@ fn setup_physics_scene() -> PhysicsState {
         colliders: collider_set,
         impulse_joints: impulse_joint_set,
         multibody_joints: multibody_joint_set,
+        soft_bodies: soft_body_set,
         ccd_solver,
         integration_parameters,
         gravity,

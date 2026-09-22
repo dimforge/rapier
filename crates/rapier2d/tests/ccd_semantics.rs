@@ -33,6 +33,8 @@ impl EventHandler for EventCollector {
         _total_force_magnitude: Real,
     ) {
     }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
 }
 
 struct Harness {
@@ -40,6 +42,7 @@ struct Harness {
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
+    soft_bodies: SoftBodySet,
     pipeline: PhysicsPipeline,
     bf: BroadPhaseBvh,
     nf: NarrowPhase,
@@ -57,6 +60,7 @@ impl Harness {
             colliders: ColliderSet::new(),
             impulse_joints: ImpulseJointSet::new(),
             multibody_joints: MultibodyJointSet::new(),
+            soft_bodies: SoftBodySet::new(),
             pipeline: PhysicsPipeline::new(),
             bf: BroadPhaseBvh::new(),
             nf: NarrowPhase::new(),
@@ -80,6 +84,7 @@ impl Harness {
             &mut self.colliders,
             &mut self.impulse_joints,
             &mut self.multibody_joints,
+            &mut self.soft_bodies,
             &mut self.ccd,
             &(),
             &self.events,

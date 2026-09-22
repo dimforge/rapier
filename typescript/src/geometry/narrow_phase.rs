@@ -80,11 +80,12 @@ impl RawContactPair {
     }
 
     pub fn numContactManifolds(&self) -> usize {
-        unsafe { (*self.0).manifolds.len() }
+        unsafe { (*self.0).manifolds().len() }
     }
     pub fn contactManifold(&self, i: usize) -> Option<RawContactManifold> {
         unsafe {
-            (&(*self.0).manifolds)
+            (*self.0)
+                .manifolds()
                 .get(i)
                 .map(|m| RawContactManifold(m as *const ContactManifold))
         }

@@ -1,5 +1,5 @@
 use rapier::data::Index;
-use rapier::dynamics::{ImpulseJointHandle, MultibodyJointHandle, RigidBodyHandle};
+use rapier::dynamics::{ImpulseJointHandle, MultibodyJointHandle, RigidBodyHandle, SoftBodyHandle};
 use rapier::geometry::{Collider, ColliderHandle};
 use wasm_bindgen::JsValue;
 
@@ -13,6 +13,11 @@ pub fn collider_handle(id: FlatHandle) -> ColliderHandle {
 #[inline(always)]
 pub fn body_handle(id: FlatHandle) -> RigidBodyHandle {
     RigidBodyHandle::from_raw_parts(id.to_bits() as u32, (id.to_bits() >> 32) as u32)
+}
+
+#[inline(always)]
+pub fn soft_body_handle(id: FlatHandle) -> SoftBodyHandle {
+    SoftBodyHandle::from_raw_parts(id.to_bits() as u32, (id.to_bits() >> 32) as u32)
 }
 
 #[inline(always)]

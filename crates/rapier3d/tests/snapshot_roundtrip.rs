@@ -304,7 +304,7 @@ fn pyramid_stress_scene_full() {
     check_roundtrip("pyramid50", world, 100, 20, false, no_edits);
 }
 
-/// Fast CCD-enabled bodies. The CCD solver holds a cache that snapshots do not carry, so
+/// Fast CCD-enabled bodies. The CCD solver holds a cache that snapshots do not include, so
 /// this checks that a restore does not depend on it.
 #[test]
 fn ccd_bodies() {
@@ -381,7 +381,7 @@ fn multibody_articulation() {
 }
 
 /// The testbed's Save/Restore pattern: the world is replaced but the same
-/// [`PhysicsPipeline`] keeps stepping, carrying its workspace across the restore.
+/// [`PhysicsPipeline`] keeps stepping, keeping its workspace across the restore.
 #[test]
 fn restoring_into_a_live_pipeline() {
     check_roundtrip("live pipeline", pile(true), 100, 100, true, no_edits);

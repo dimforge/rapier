@@ -16,6 +16,7 @@ struct World {
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
+    soft_bodies: SoftBodySet,
     ccd: CCDSolver,
     params: IntegrationParameters,
 }
@@ -32,6 +33,7 @@ impl World {
             &mut self.colliders,
             &mut self.impulse_joints,
             &mut self.multibody_joints,
+            &mut self.soft_bodies,
             &mut self.ccd,
             &(),
             &(),
@@ -95,6 +97,7 @@ fn box_on_trimesh_floor(contact_clustering: bool) -> (World, RigidBodyHandle, Co
         colliders,
         impulse_joints: ImpulseJointSet::new(),
         multibody_joints: MultibodyJointSet::new(),
+        soft_bodies: SoftBodySet::new(),
         ccd: CCDSolver::new(),
         params: IntegrationParameters {
             contact_clustering,
@@ -138,17 +141,17 @@ fn box_rests_stably_on_trimesh_with_clustering() {
         .contact_pair(box_co, world.colliders.iter().next().unwrap().0)
         .expect("no contact pair between the box and the floor");
     assert!(
-        pair.manifolds.len() > 1,
+        pair.manifolds().len() > 1,
         "test setup must yield multiple per-triangle manifolds, got {}",
-        pair.manifolds.len()
+        pair.manifolds().len()
     );
-    assert_eq!(pair.solver_clusters.len(), 1);
-    let cluster = &pair.solver_clusters[0];
+    assert_eq!(pair.rigid().unwrap().solver_clusters.len(), 1);
+    let cluster = &pair.rigid().unwrap().solver_clusters[0];
     assert!(!cluster.data.solver_contacts.is_empty());
     assert!(cluster.data.solver_contacts.len() <= 4);
 
     // The cluster is what the solver saw: its contacts hold the impulses that support
-    // the box against gravity, and warm-starting must have carried them across steps.
+    // the box against gravity, and warm-starting must have kept them across steps.
     // Only the points selected as solver contacts hold the impulses of the last solve
     // (unselected points may keep stale values, like with parry's contact matching).
     let total_impulse: Real = cluster
@@ -177,11 +180,11 @@ fn box_rests_stably_on_trimesh_with_clustering() {
 
     // The plain manifolds are still exposed for queries, but hold no solver contacts.
     assert!(
-        pair.manifolds
+        pair.manifolds()
             .iter()
             .all(|m| m.data.solver_contacts.is_empty())
     );
-    assert!(pair.manifolds.iter().any(|m| !m.points.is_empty()));
+    assert!(pair.manifolds().iter().any(|m| !m.points.is_empty()));
 }
 
 #[test]

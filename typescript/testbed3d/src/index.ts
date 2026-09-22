@@ -18,6 +18,8 @@ import * as glbToTrimesh from "./demos/glbToTrimesh";
 import * as glbToConvexHull from "./demos/glbtoConvexHull";
 import * as CompoundShapes from "./demos/compoundShapes";
 import * as ConvexDecomposition from "./demos/convexDecomposition";
+import * as SoftBodies from "./demos/softBodies";
+import * as SoftTearing from "./demos/softTearing";
 
 import("@dimforge/rapier3d").then((RAPIER) => {
     let builders = new Map([
@@ -36,6 +38,8 @@ import("@dimforge/rapier3d").then((RAPIER) => {
         ["pid controller", PidController.initWorld],
         ["platform", Platform.initWorld],
         ["pyramid", Pyramid.initWorld],
+        ["soft bodies", SoftBodies.initWorld],
+        ["soft tearing", SoftTearing.initWorld],
         ["triangle mesh", Trimesh.initWorld],
         ["voxels", Voxels.initWorld],
         ["GLTF to convexHull", glbToConvexHull.initWorld],

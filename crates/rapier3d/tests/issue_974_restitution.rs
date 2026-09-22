@@ -36,6 +36,7 @@ fn rebound(e: f32) -> f32 {
     let mut narrow_phase = NarrowPhase::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut ccd = CCDSolver::new();
     let params = IntegrationParameters::default();
     let gravity = Vector::new(0.0, -9.81, 0.0);
@@ -53,6 +54,7 @@ fn rebound(e: f32) -> f32 {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

@@ -1,5 +1,5 @@
 use crate::alloc_prelude::*;
-use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodySet};
+use crate::dynamics::{IntegrationParameters, IslandManager, RigidBodySet, SoftBodySet};
 use crate::geometry::{
     BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, CollisionEvent, NarrowPhase,
 };
@@ -10,8 +10,8 @@ use crate::prelude::{ActiveEvents, CollisionEventFlags};
 use parry::query::sweep_toi::Sweep;
 
 use super::sweeps::{
-    BodyContinuousResult, CcdTargets, PseudoHitMode, collect_fixed_targets, is_bullet,
-    map_bodies_parallel, sweep_fast_body,
+    BodyContinuousResult, CcdTargets, PseudoHitMode, collect_fixed_targets, collect_soft_targets,
+    is_bullet, map_bodies_parallel, sweep_fast_body,
 };
 
 /// Continuous Collision Detection solver preventing fast objects from tunneling:
@@ -19,10 +19,9 @@ use super::sweeps::{
 /// and `next_position` is clamped to the earliest impact — velocities untouched, no re-solve; the
 /// residual approach resolves next step via speculative contacts.
 ///
-/// Fast dynamic bodies automatically sweep against **fixed** colliders; `ccd_enabled` upgrades to
-/// a *bullet* that also sweeps kinematic/dynamic bodies (never other bullets). Mesh-like colliders
-/// are never swept as the *moving* shape (targets are fine), compounds sweep per
-/// convex child, and [`IntegrationParameters::max_ccd_substeps`] `= 0` disables CCD entirely.
+/// Fast dynamic bodies sweep against fixed colliders and soft-body meshes; `ccd_enabled` makes a
+/// bullet that also sweeps kinematic/dynamic bodies (never other bullets); mesh-like colliders are
+/// never the moving shape; compounds sweep per convex child; `max_ccd_substeps = 0` disables CCD.
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct CCDSolver {
@@ -41,6 +40,13 @@ impl CCDSolver {
     /// Initializes a new CCD solver
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Discards the cached fixed-target list used by the non-bullet continuous pass.
+    /// This must be called any time the fixed targets change. If using the physics pipeline,
+    /// it is called for you. If not, it must be called manually.
+    pub fn invalidate_fixed_targets_cache(&mut self) {
+        self.fixed_targets_cache = None;
     }
 
     /// Updates the set of bodies that needs CCD to be resolved.
@@ -149,8 +155,9 @@ impl CCDSolver {
     }
 
     /// Runs the continuous-collision pass on all fast bodies and clamps their `next_position`
-    /// to their earliest time of impact: non-bullets sweep fixed colliders first, then bullets
-    /// sweep every (possibly already clamped) body; velocities are never modified. Sensor
+    /// to their earliest time of impact: non-bullets sweep the automatic targets (fixed
+    /// colliders and soft-body collision meshes) first, then bullets sweep every (possibly
+    /// already clamped) body; velocities are never modified. Sensor
     /// crossings the narrow phase would miss entirely emit paired `Started`/`Stopped`
     /// intersection events.
     #[profiling::function]
@@ -161,14 +168,11 @@ impl CCDSolver {
         islands: &IslandManager,
         bodies: &mut RigidBodySet,
         colliders: &ColliderSet,
+        soft_bodies: &SoftBodySet,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &NarrowPhase,
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
-        // `true` when colliders/bodies were added, removed or modified by the
-        // user since the last step: the only ways a fixed target can appear,
-        // vanish or move, hence the fixed-target cache invalidation signal.
-        scene_changed: bool,
     ) {
         let dt = params.dt;
         let linear_slop = params.allowed_linear_error();
@@ -194,22 +198,23 @@ impl CCDSolver {
             );
             let (bvh, dispatcher) = (query_pipeline.bvh, query_pipeline.dispatcher);
             // Non-bullet fast bodies only hit fixed targets: sweep against the (small) cached
-            // fixed-collider list instead of the full BVH. Rebuilt — a full collider scan —
-            // only on scene changes, since fixed targets can't move otherwise.
+            // fixed-collider list instead of the full BVH.
             let prediction = params.prediction_distance();
-            let cache_valid = !scene_changed
-                && self
-                    .fixed_targets_cache
-                    .as_ref()
-                    .is_some_and(|(p, _)| *p == prediction);
+            let cache_valid = self
+                .fixed_targets_cache
+                .as_ref()
+                .is_some_and(|(p, _)| *p == prediction);
             if !cache_valid {
                 self.fixed_targets_cache = Some((
                     prediction,
                     collect_fixed_targets(bodies, colliders, prediction),
                 ));
             }
+            // Soft-body meshes deform every step without any scene change, so they are
+            // gathered fresh (one AABB per mesh, not a collider scan).
+            let soft = collect_soft_targets(soft_bodies, colliders, prediction);
             let targets = match &self.fixed_targets_cache.as_ref().unwrap().1 {
-                Some(fixed) => CcdTargets::FixedList(fixed),
+                Some(fixed) => CcdTargets::Lists { fixed, soft: &soft },
                 None => CcdTargets::FullBvh(bvh),
             };
             let results = map_bodies_parallel(&non_bullets, hooks, |handle, hooks| {
@@ -295,10 +300,10 @@ impl CCDSolver {
                 let dispatcher = narrow_phase.query_dispatcher();
                 let intersect_before = dispatcher
                     .intersection_test(&prev_pos12, co1.shape.as_ref(), co2.shape.as_ref())
-                    .unwrap_or(false);
+                    .is_ok_and(|hit| hit.intersecting);
                 let intersect_after = dispatcher
                     .intersection_test(&next_pos12, co1.shape.as_ref(), co2.shape.as_ref())
-                    .unwrap_or(false);
+                    .is_ok_and(|hit| hit.intersecting);
 
                 if !intersect_before
                     && !intersect_after

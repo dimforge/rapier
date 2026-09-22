@@ -1,7 +1,8 @@
-use crate::dynamics::{RawIslandManager, RawRigidBodySet};
+use crate::dynamics::{RawIslandManager, RawRigidBodySet, RawSoftBodySet, RawSoftMeshBindingMode};
 use crate::geometry::RawShape;
 use crate::math::{RawRotation, RawVector};
 use crate::utils::{self, FlatHandle};
+use rapier::dynamics::SoftMeshBinding;
 use rapier::prelude::*;
 use wasm_bindgen::prelude::*;
 
@@ -82,6 +83,69 @@ impl RawColliderSet {
         parent: FlatHandle,
         bodies: &mut RawRigidBodySet,
     ) -> Option<FlatHandle> {
+        let collider = Self::build_collider(
+            enabled,
+            shape,
+            translation,
+            rotation,
+            massPropsMode,
+            mass,
+            centerOfMass,
+            principalAngularInertia,
+            #[cfg(feature = "dim3")]
+            angularInertiaFrame,
+            density,
+            friction,
+            restitution,
+            frictionCombineRule,
+            restitutionCombineRule,
+            isSensor,
+            collisionGroups,
+            solverGroups,
+            activeCollisionTypes,
+            activeHooks,
+            activeEvents,
+            contactForceEventThreshold,
+            contactSkin,
+        );
+
+        if hasParent {
+            Some(utils::flat_handle(
+                self.0
+                    .insert_with_parent(collider, utils::body_handle(parent), &mut bodies.0)
+                    .0,
+            ))
+        } else {
+            Some(utils::flat_handle(self.0.insert(collider).0))
+        }
+    }
+
+    /// Builds a collider from the flattened description shared by every creation method.
+    pub fn build_collider(
+        enabled: bool,
+        shape: &RawShape,
+        translation: &RawVector,
+        rotation: &RawRotation,
+        massPropsMode: u32,
+        mass: f32,
+        centerOfMass: &RawVector,
+        #[cfg(feature = "dim2")] principalAngularInertia: f32,
+        #[cfg(feature = "dim3")] principalAngularInertia: &RawVector,
+        #[cfg(feature = "dim3")] angularInertiaFrame: &RawRotation,
+        density: f32,
+        friction: f32,
+        restitution: f32,
+        frictionCombineRule: u32,
+        restitutionCombineRule: u32,
+        isSensor: bool,
+        collisionGroups: u32,
+        solverGroups: u32,
+        activeCollisionTypes: u16,
+        activeHooks: u32,
+        activeEvents: u32,
+        contactForceEventThreshold: f32,
+        contactSkin: f32,
+    ) -> Collider {
         let pos = Pose::from_parts(translation.0.into(), rotation.0);
         let mut builder = ColliderBuilder::new(shape.0.clone())
             .enabled(enabled)
@@ -120,17 +184,89 @@ impl RawColliderSet {
             builder = builder.mass(mass);
         };
 
-        let collider = builder.build();
+        builder.build()
+    }
 
-        if hasParent {
-            Some(utils::flat_handle(
-                self.0
-                    .insert_with_parent(collider, utils::body_handle(parent), &mut bodies.0)
-                    .0,
-            ))
-        } else {
-            Some(utils::flat_handle(self.0.insert(collider).0))
+    /// Inserts a collider holding a soft body's deformable collision mesh, bound to the cluster
+    /// whose proxy is `parent`. Returns `None` when the binding fails (see
+    /// `SoftBindingError`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn do_create_deformable_collider(
+        &mut self,
+        enabled: bool,
+        shape: &RawShape,
+        translation: &RawVector,
+        rotation: &RawRotation,
+        massPropsMode: u32,
+        mass: f32,
+        centerOfMass: &RawVector,
+        #[cfg(feature = "dim2")] principalAngularInertia: f32,
+        #[cfg(feature = "dim3")] principalAngularInertia: &RawVector,
+        #[cfg(feature = "dim3")] angularInertiaFrame: &RawRotation,
+        density: f32,
+        friction: f32,
+        restitution: f32,
+        frictionCombineRule: u32,
+        restitutionCombineRule: u32,
+        isSensor: bool,
+        collisionGroups: u32,
+        solverGroups: u32,
+        activeCollisionTypes: u16,
+        activeHooks: u32,
+        activeEvents: u32,
+        contactForceEventThreshold: f32,
+        contactSkin: f32,
+        bindingMode: RawSoftMeshBindingMode,
+        bindingParticles: Vec<u32>,
+        bindingEps: f32,
+        bindingSelfContacts: bool,
+        parent: FlatHandle,
+        bodies: &mut RawRigidBodySet,
+        softBodies: &mut RawSoftBodySet,
+    ) -> Option<FlatHandle> {
+        let collider = Self::build_collider(
+            enabled,
+            shape,
+            translation,
+            rotation,
+            massPropsMode,
+            mass,
+            centerOfMass,
+            principalAngularInertia,
+            #[cfg(feature = "dim3")]
+            angularInertiaFrame,
+            density,
+            friction,
+            restitution,
+            frictionCombineRule,
+            restitutionCombineRule,
+            isSensor,
+            collisionGroups,
+            solverGroups,
+            activeCollisionTypes,
+            activeHooks,
+            activeEvents,
+            contactForceEventThreshold,
+            contactSkin,
+        );
+        let binding = match bindingMode {
+            RawSoftMeshBindingMode::Direct => SoftMeshBinding::direct(bindingParticles),
+            RawSoftMeshBindingMode::DirectByPosition => {
+                SoftMeshBinding::direct_by_position(bindingEps)
+            }
+            RawSoftMeshBindingMode::Skinned => SoftMeshBinding::skinned(),
         }
+        .self_contacts(bindingSelfContacts);
+        self.0
+            .insert_deformable(
+                collider,
+                binding,
+                utils::body_handle(parent),
+                &mut bodies.0,
+                &mut softBodies.0,
+            )
+            .ok()
+            .map(|handle| utils::flat_handle(handle.0))
     }
 }
 
@@ -269,10 +405,147 @@ impl RawColliderSet {
         handle: FlatHandle,
         islands: &mut RawIslandManager,
         bodies: &mut RawRigidBodySet,
+        softBodies: &mut RawSoftBodySet,
         wakeUp: bool,
     ) {
         let handle = utils::collider_handle(handle);
-        self.0.remove(handle, &mut islands.0, &mut bodies.0, wakeUp);
+        self.0.remove(
+            handle,
+            &mut islands.0,
+            &mut bodies.0,
+            &mut softBodies.0,
+            wakeUp,
+        );
+    }
+
+    #[cfg(feature = "dim2")]
+    pub fn createDeformableCollider(
+        &mut self,
+        enabled: bool,
+        shape: &RawShape,
+        translation: &RawVector,
+        rotation: &RawRotation,
+        massPropsMode: u32,
+        mass: f32,
+        centerOfMass: &RawVector,
+        principalAngularInertia: f32,
+        density: f32,
+        friction: f32,
+        restitution: f32,
+        frictionCombineRule: u32,
+        restitutionCombineRule: u32,
+        isSensor: bool,
+        collisionGroups: u32,
+        solverGroups: u32,
+        activeCollisionTypes: u16,
+        activeHooks: u32,
+        activeEvents: u32,
+        contactForceEventThreshold: f32,
+        contactSkin: f32,
+        bindingMode: RawSoftMeshBindingMode,
+        bindingParticles: Vec<u32>,
+        bindingEps: f32,
+        bindingSelfContacts: bool,
+        parent: FlatHandle,
+        bodies: &mut RawRigidBodySet,
+        softBodies: &mut RawSoftBodySet,
+    ) -> Option<FlatHandle> {
+        self.do_create_deformable_collider(
+            enabled,
+            shape,
+            translation,
+            rotation,
+            massPropsMode,
+            mass,
+            centerOfMass,
+            principalAngularInertia,
+            density,
+            friction,
+            restitution,
+            frictionCombineRule,
+            restitutionCombineRule,
+            isSensor,
+            collisionGroups,
+            solverGroups,
+            activeCollisionTypes,
+            activeHooks,
+            activeEvents,
+            contactForceEventThreshold,
+            contactSkin,
+            bindingMode,
+            bindingParticles,
+            bindingEps,
+            bindingSelfContacts,
+            parent,
+            bodies,
+            softBodies,
+        )
+    }
+
+    #[cfg(feature = "dim3")]
+    pub fn createDeformableCollider(
+        &mut self,
+        enabled: bool,
+        shape: &RawShape,
+        translation: &RawVector,
+        rotation: &RawRotation,
+        massPropsMode: u32,
+        mass: f32,
+        centerOfMass: &RawVector,
+        principalAngularInertia: &RawVector,
+        angularInertiaFrame: &RawRotation,
+        density: f32,
+        friction: f32,
+        restitution: f32,
+        frictionCombineRule: u32,
+        restitutionCombineRule: u32,
+        isSensor: bool,
+        collisionGroups: u32,
+        solverGroups: u32,
+        activeCollisionTypes: u16,
+        activeHooks: u32,
+        activeEvents: u32,
+        contactForceEventThreshold: f32,
+        contactSkin: f32,
+        bindingMode: RawSoftMeshBindingMode,
+        bindingParticles: Vec<u32>,
+        bindingEps: f32,
+        bindingSelfContacts: bool,
+        parent: FlatHandle,
+        bodies: &mut RawRigidBodySet,
+        softBodies: &mut RawSoftBodySet,
+    ) -> Option<FlatHandle> {
+        self.do_create_deformable_collider(
+            enabled,
+            shape,
+            translation,
+            rotation,
+            massPropsMode,
+            mass,
+            centerOfMass,
+            principalAngularInertia,
+            angularInertiaFrame,
+            density,
+            friction,
+            restitution,
+            frictionCombineRule,
+            restitutionCombineRule,
+            isSensor,
+            collisionGroups,
+            solverGroups,
+            activeCollisionTypes,
+            activeHooks,
+            activeEvents,
+            contactForceEventThreshold,
+            contactSkin,
+            bindingMode,
+            bindingParticles,
+            bindingEps,
+            bindingSelfContacts,
+            parent,
+            bodies,
+            softBodies,
+        )
     }
 
     /// Checks if a collider with the given integer handle exists.

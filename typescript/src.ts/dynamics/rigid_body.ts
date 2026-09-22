@@ -41,6 +41,12 @@ export enum RigidBodyType {
      * modified by the user and is independent from any contact or joint it is involved in.
      */
     KinematicVelocityBased,
+    /**
+     * A `RigidBodyType::SoftFrame` body is the proxy of a soft-body cluster: it stands for the
+     * cluster in joints and islands, holds its colliders, and is moved by the cluster's
+     * particles. Its velocity and mass properties come from the cluster.
+     */
+    SoftFrame,
 }
 
 /**
@@ -245,6 +251,45 @@ export class RigidBody {
      */
     public additionalSolverIterations(): number {
         return this.rawSet.rbAdditionalSolverIterations(this.handle);
+    }
+
+    /**
+     * The additional number of internal PGS iterations run per substep for the island
+     * component containing this rigid-body (default: `0`).
+     */
+    public additionalPgsIterations(): number {
+        return this.rawSet.rbAdditionalPgsIterations(this.handle);
+    }
+
+    /**
+     * Sets the additional number of internal PGS iterations run per substep for the island
+     * component containing this rigid-body; the component runs the largest request.
+     */
+    public setAdditionalPgsIterations(iterations: number) {
+        this.rawSet.rbSetAdditionalPgsIterations(this.handle, iterations);
+    }
+
+    /**
+     * Is this rigid-body the proxy of a soft-body cluster?
+     */
+    public isSoftFrame(): boolean {
+        return this.rawSet.rbIsSoftFrame(this.handle);
+    }
+
+    /**
+     * The handle of the soft body this rigid-body is a cluster proxy of, if any.
+     */
+    public softBody(): number | null {
+        let handle = this.rawSet.rbSoftBody(this.handle);
+        return handle === undefined ? null : handle;
+    }
+
+    /**
+     * The index of the cluster this proxy stands for in its soft body, if any.
+     */
+    public softCluster(): number | null {
+        let cluster = this.rawSet.rbSoftCluster(this.handle);
+        return cluster === undefined ? null : cluster;
     }
 
     /**
@@ -1215,6 +1260,7 @@ export class RigidBodyDesc {
     softCcdPrediction: number;
     dominanceGroup: number;
     additionalSolverIterations: number;
+    additionalPgsIterations: number;
     userData?: unknown;
 
     constructor(status: RigidBodyType) {
@@ -1251,6 +1297,7 @@ export class RigidBodyDesc {
         this.softCcdPrediction = 0.0;
         this.dominanceGroup = 0;
         this.additionalSolverIterations = 0;
+        this.additionalPgsIterations = 0;
     }
 
     /**
@@ -1335,6 +1382,17 @@ export class RigidBodyDesc {
      */
     public setAdditionalSolverIterations(iters: number): RigidBodyDesc {
         this.additionalSolverIterations = iters;
+        return this;
+    }
+
+    /**
+     * Sets the additional number of internal PGS iterations run per substep for the island
+     * component of this rigid-body (default: `0`).
+     *
+     * The component runs the largest request of its bodies; soft bodies ask for three.
+     */
+    public setAdditionalPgsIterations(iters: number): RigidBodyDesc {
+        this.additionalPgsIterations = iters;
         return this;
     }
 

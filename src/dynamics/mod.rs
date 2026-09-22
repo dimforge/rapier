@@ -29,6 +29,10 @@ pub use parry::mass_properties::MassProperties;
 pub use self::rigid_body::{RigidBody, RigidBodyBuilder};
 #[cfg(feature = "alloc")]
 pub use self::rigid_body_set::{BodyPair, RigidBodySet};
+#[cfg(feature = "alloc")]
+pub(crate) use self::soft_body::soft_body_crossing_tests;
+#[cfg(feature = "alloc")]
+pub use self::soft_body::*;
 
 #[cfg(feature = "alloc")]
 mod ccd;
@@ -47,3 +51,5 @@ pub(crate) mod solver;
 mod rigid_body;
 #[cfg(feature = "alloc")]
 mod rigid_body_set;
+#[cfg(feature = "alloc")]
+mod soft_body;

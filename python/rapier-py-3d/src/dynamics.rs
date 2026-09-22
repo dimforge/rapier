@@ -156,6 +156,9 @@ pub enum RigidBodyType {
     KINEMATIC_VELOCITY_BASED,
     /// Animated by writing to ``position`` each step.
     KINEMATIC_POSITION_BASED,
+    /// The proxy of a soft-body cluster: stands for the cluster in joints and islands, holds
+    /// its colliders, and is moved by the cluster's particles.
+    SOFT_FRAME,
 }
 
 impl RigidBodyType {
@@ -170,6 +173,7 @@ impl RigidBodyType {
             Self::KINEMATIC_POSITION_BASED => {
                 rapier::dynamics::RigidBodyType::KinematicPositionBased
             }
+            Self::SOFT_FRAME => rapier::dynamics::RigidBodyType::SoftFrame,
         }
     }
     #[inline]
@@ -183,6 +187,7 @@ impl RigidBodyType {
             rapier::dynamics::RigidBodyType::KinematicPositionBased => {
                 Self::KINEMATIC_POSITION_BASED
             }
+            rapier::dynamics::RigidBodyType::SoftFrame => Self::SOFT_FRAME,
         }
     }
 }
@@ -1212,6 +1217,15 @@ impl IntegrationParameters {
     fn set_dt(&mut self, v: Real) {
         self.0.dt = v;
     }
+    /// The settings shared by every soft body (a copy: assign it back to apply changes).
+    #[getter]
+    fn soft_bodies(&self) -> crate::soft_body::SoftBodiesSettings {
+        crate::soft_body::SoftBodiesSettings(self.0.soft_bodies)
+    }
+    #[setter]
+    fn set_soft_bodies(&mut self, v: &crate::soft_body::SoftBodiesSettings) {
+        self.0.soft_bodies = v.0;
+    }
     /// Minimum substep length used by CCD, in seconds.
     #[getter]
     fn min_ccd_dt(&self) -> Real {
@@ -1725,6 +1739,31 @@ impl RigidBody {
     fn additional_solver_iterations(&self) -> usize {
         self.with_ref(|b| b.additional_solver_iterations())
     }
+    /// Extra internal PGS iterations run per substep for the island component containing
+    /// this body (default ``0``); the component runs the largest request.
+    #[getter]
+    fn additional_pgs_iterations(&self) -> usize {
+        self.with_ref(|b| b.additional_pgs_iterations())
+    }
+    #[setter]
+    fn set_additional_pgs_iterations(&mut self, v: usize) {
+        self.with_mut(|b| b.set_additional_pgs_iterations(v))
+    }
+    /// Is this body the proxy of a soft-body cluster?
+    #[getter]
+    fn is_soft_frame(&self) -> bool {
+        self.with_ref(|b| b.is_soft_frame())
+    }
+    /// The soft body this body is a cluster proxy of, if any.
+    #[getter]
+    fn soft_body(&self) -> Option<crate::soft_body::SoftBodyHandle> {
+        self.with_ref(|b| b.soft_body().map(crate::soft_body::SoftBodyHandle))
+    }
+    /// The index of the cluster this proxy stands for in its soft body, if any.
+    #[getter]
+    fn soft_cluster(&self) -> Option<u32> {
+        self.with_ref(|b| b.soft_cluster())
+    }
     /// Set the number of additional solver iterations.
     #[setter]
     fn set_additional_solver_iterations(&mut self, v: usize) {
@@ -2127,6 +2166,10 @@ impl RigidBodyBuilder {
                 let n: usize = v.extract()?;
                 self.builder = self.builder.clone().additional_solver_iterations(n);
             }
+            "additional_pgs_iterations" => {
+                let n: usize = v.extract()?;
+                self.builder = self.builder.clone().additional_pgs_iterations(n);
+            }
             "user_data" => {
                 let d: u128 = v.extract()?;
                 self.builder = self.builder.clone().user_data(d);
@@ -2271,6 +2314,12 @@ impl RigidBodyBuilder {
     fn additional_solver_iterations(&self, n: usize) -> Self {
         Self {
             builder: self.builder.clone().additional_solver_iterations(n),
+        }
+    }
+    /// Extra internal PGS iterations run per substep for the island component of this body.
+    fn additional_pgs_iterations(&self, n: usize) -> Self {
+        Self {
+            builder: self.builder.clone().additional_pgs_iterations(n),
         }
     }
     /// Attach an application-defined ``u128`` payload to the body.
@@ -2646,7 +2695,12 @@ impl RigidBodySet {
     ///
     /// :returns: the removed body, or ``None`` if no body matched
     ///     ``handle``.
-    #[pyo3(signature = (handle, islands, colliders, impulse_joints, multibody_joints, remove_attached_colliders=true))]
+    ///
+    /// ``soft_bodies`` is the world's :class:`SoftBodySet`: removing the proxy of a
+    /// soft-body cluster removes that cluster. It can be left out for a world without soft
+    /// bodies.
+    #[pyo3(signature = (handle, islands, colliders, impulse_joints, multibody_joints, remove_attached_colliders=true, soft_bodies=None))]
+    #[allow(clippy::too_many_arguments)]
     fn remove(
         &mut self,
         handle: &RigidBodyHandle,
@@ -2655,7 +2709,10 @@ impl RigidBodySet {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
         remove_attached_colliders: bool,
+        soft_bodies: Option<&mut crate::soft_body::SoftBodySet>,
     ) -> Option<RigidBody> {
+        let mut scratch = rapier::dynamics::SoftBodySet::new();
+        let soft_bodies = soft_bodies.map_or(&mut scratch, |s| &mut s.0);
         self.0
             .remove(
                 handle.0,
@@ -2663,6 +2720,7 @@ impl RigidBodySet {
                 &mut colliders.0,
                 &mut impulse_joints.0,
                 &mut multibody_joints.0,
+                soft_bodies,
                 remove_attached_colliders,
             )
             .map(RigidBody::new_owned)

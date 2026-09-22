@@ -2,7 +2,7 @@ use super::Island;
 use crate::alloc_prelude::*;
 use crate::dynamics::{
     ImpulseJointSet, MultibodyJointSet, RigidBody, RigidBodyChanges, RigidBodyHandle, RigidBodyIds,
-    RigidBodySet,
+    RigidBodySet, RigidBodyType, SoftBodyHandle, SoftBodySet,
 };
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
@@ -42,7 +42,7 @@ pub struct IslandManager {
     /// awake set (no body has `additional_solver_iterations > 0`).
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) solve_groups: Vec<super::SolveGroup>,
-    /// Scratch buffers for [`Self::update_substep_groups`].
+    /// Workspace buffers for [`Self::update_substep_groups`].
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(super) substep_groups_workspace: super::substep_groups::SubstepGroupsWorkspace,
     /// The persistent islands: connected components of the touching-contact/joint
@@ -162,10 +162,10 @@ impl IslandManager {
         self.persistent.apply_impulse_joint_event(bodies, event);
     }
 
-    /// Refreshes a multibody's island-connectivity chain, first waking its
+    /// Updates a multibody's island-connectivity chain, first waking its
     /// sleeping members if any member is awake (a multibody is atomic: its
     /// bodies must share one sleep state).
-    pub(crate) fn refresh_multibody_chain(
+    pub(crate) fn update_multibody_chain(
         &mut self,
         bodies: &mut RigidBodySet,
         multibody_joints: &MultibodyJointSet,
@@ -192,7 +192,46 @@ impl IslandManager {
             }
         }
         self.persistent
-            .refresh_multibody_chain(bodies, multibody_joints, mb_id);
+            .update_multibody_chain(bodies, multibody_joints, mb_id);
+    }
+
+    /// Updates a soft body's attachment links and its proxy chain, first waking the sleeping
+    /// side of every attachment whose other side is awake, and the sleeping proxies if any
+    /// sibling is awake (a soft body is atomic for sleep, like a multibody).
+    pub(crate) fn update_soft_body_attachments(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        soft_bodies: &SoftBodySet,
+        handle: SoftBodyHandle,
+    ) {
+        if let Some(sb) = soft_bodies.get(handle) {
+            let root = sb.root_body();
+            for attachment in sb.particle_attachments() {
+                self.wake_for_link(bodies, root, attachment.body);
+            }
+            let mut any_awake = false;
+            let mut sleeping = Vec::new();
+            for (_, cluster) in sb.live_clusters() {
+                if let Some(rb) = bodies.get(cluster.proxy()) {
+                    if rb.is_enabled() {
+                        if rb.activation().sleeping {
+                            sleeping.push(cluster.proxy());
+                        } else {
+                            any_awake = true;
+                        }
+                    }
+                }
+            }
+            if any_awake {
+                for proxy in sleeping {
+                    self.wake_up(bodies, proxy, true);
+                }
+            }
+        }
+        self.persistent
+            .update_soft_body_attachments(bodies, soft_bodies, handle);
+        self.persistent
+            .update_soft_body_proxy_chain(bodies, soft_bodies, handle);
     }
 
     /// Wakes the sleeping side of a new link when the other side is awake.
@@ -317,8 +356,23 @@ impl IslandManager {
 
     /// Updates a body's sleep-eligibility timer from its current velocities
     /// and last-step displacement.
-    pub(crate) fn update_body_energy(rb: &mut RigidBody, dt: Real, length_unit: Real) {
-        let sq_linvel = rb.vels.linvel.length_squared();
+    pub(crate) fn update_body_energy(
+        rb: &mut RigidBody,
+        soft_bodies: &SoftBodySet,
+        dt: Real,
+        length_unit: Real,
+    ) {
+        // A soft-frame proxy's velocities are its cluster's average, so the sleep rule reads the
+        // soft body's fastest particle instead.
+        // TODO: have the soft-body code write a frame-velocity estimate into the rigid body?
+        let sq_linvel = if rb.body_type == RigidBodyType::SoftFrame {
+            let speed = soft_bodies
+                .get(rb.soft_body)
+                .map_or(0.0, |sb| sb.sleep_speed);
+            speed * speed
+        } else {
+            rb.vels.linvel.length_squared()
+        };
         let sq_angvel = rb.vels.angvel.gdot(rb.vels.angvel);
         let pose = rb.pos.position;
         rb.activation.update_energy(
@@ -339,6 +393,7 @@ impl IslandManager {
         narrow_phase: &mut NarrowPhase,
         impulse_joints: &ImpulseJointSet,
         multibody_joints: &MultibodyJointSet,
+        soft_bodies: &SoftBodySet,
         sleep_observations: &[(u32, bool)],
     ) {
         // First update after construction or deserialization: rebuild the persistent islands
@@ -350,12 +405,13 @@ impl IslandManager {
                 narrow_phase.touching_pairs_with_ids(colliders),
                 impulse_joints,
                 multibody_joints,
+                soft_bodies,
             );
             for handle in to_wake {
                 self.wake_up(bodies, handle, false);
             }
 
-            // `max_extent` (sleep metric) is only refreshed when colliders
+            // `max_extent` (sleep metric) is only updated when colliders
             // change: seed it for deserialized snapshots that predate it.
             let handles: Vec<RigidBodyHandle> = bodies.iter().map(|(h, _)| h).collect();
             for handle in handles {

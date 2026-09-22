@@ -95,10 +95,9 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
                 rb.colliders
                     .update_positions(colliders, modified_colliders, &rb.pos.position);
 
-                // Refresh the world-space mass-properties. This is the only pre-solver
-                // refresh for user-moved (or newly inserted) bodies: the regular
-                // per-step refresh happens at the end of the step, right after pose
-                // integration.
+                // Update the world-space mass-properties: the only pre-solver update for
+                // user-moved (or newly inserted) bodies; the regular per-step update happens at
+                // the end of the step, right after pose integration.
                 rb.mprops
                     .update_world_mass_properties(rb.body_type, &rb.pos.position);
             }
@@ -203,8 +202,8 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
             if type_changed {
                 // Persistent islands: a link recorded while an endpoint was
                 // fixed doesn't connect (and vice versa), so a type change
-                // must refresh every joint link of this body. (Contact links
-                // are refreshed by the narrow-phase's modified-colliders pass;
+                // must update every joint link of this body. (Contact links
+                // are updated by the narrow-phase's modified-colliders pass;
                 // the body's own island membership by `rigid_body_updated`.)
                 let mut joint_island_events = Vec::new();
                 impulse_joints.map_attached_joints_mut(*handle, |rb1, rb2, joint_handle, joint| {

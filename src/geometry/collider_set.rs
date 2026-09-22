@@ -1,9 +1,11 @@
 use crate::alloc_prelude::*;
 use crate::data::arena::Arena;
 use crate::data::{HasModifiedFlag, ModifiedObjects};
-use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet};
+use crate::dynamics::{
+    IslandManager, RigidBodyHandle, RigidBodySet, SoftBindingError, SoftBodySet, SoftMeshBinding,
+};
 use crate::geometry::{Collider, ColliderChanges, ColliderHandle, ColliderParent};
-use crate::math::Pose;
+use crate::math::{DIM, Pose, Vector};
 use core::ops::{Index, IndexMut};
 
 /// A set of modified colliders
@@ -239,6 +241,79 @@ impl ColliderSet {
         handle
     }
 
+    /// Inserts a collider holding a soft body's deformable collision mesh: a polyline (2D) or
+    /// triangle mesh (3D) whose vertices follow the cluster proxy `parent_handle` via `binding`
+    /// ([`crate::dynamics::SoftBodyCluster::proxy`]); a failed call leaves both sets untouched.
+    pub fn insert_deformable(
+        &mut self,
+        coll: impl Into<Collider>,
+        binding: SoftMeshBinding,
+        parent_handle: RigidBodyHandle,
+        bodies: &mut RigidBodySet,
+        soft_bodies: &mut SoftBodySet,
+    ) -> Result<ColliderHandle, SoftBindingError> {
+        let mut coll = coll.into();
+        // The parent must be a live cluster proxy: it says which body and cluster the mesh
+        // joins, and its pose places the collider like any attached one.
+        let (body_handle, cluster_id, frame) = {
+            let rb = bodies
+                .get(parent_handle)
+                .ok_or(SoftBindingError::NotAClusterProxy)?;
+            let body = rb.soft_body().ok_or(SoftBindingError::NotAClusterProxy)?;
+            (body, rb.soft_cluster, rb.pos.position)
+        };
+        let sb = soft_bodies
+            .get_mut(body_handle)
+            .ok_or(SoftBindingError::NotAClusterProxy)?;
+        if sb
+            .cluster(cluster_id)
+            .is_none_or(|cluster| cluster.proxy() != parent_handle)
+        {
+            return Err(SoftBindingError::NotAClusterProxy);
+        }
+
+        let (vertices, indices) = mesh_geometry(coll.shape())?;
+        // The shape is kept as given, in the collider's own frame: the binding reads its
+        // vertices where the collider's pose relative to the proxy puts them.
+        let pos_wrt_parent = coll
+            .parent
+            .as_ref()
+            .map_or(coll.pos.0, |parent| parent.pos_wrt_parent);
+        let pose = frame * pos_wrt_parent;
+        let vertices: Vec<Vector> = vertices.iter().map(|v| pose * *v).collect();
+        let mut mesh = sb.bind_mesh(cluster_id, &binding, vertices, indices)?;
+        // The shape's `ORIENTED` flag says whether the closed mesh encloses solid matter.
+        #[cfg(feature = "dim2")]
+        let oriented = coll.shape().as_polyline().is_some_and(|polyline| {
+            polyline
+                .flags()
+                .contains(parry::shape::PolylineFlags::ORIENTED)
+        });
+        #[cfg(feature = "dim3")]
+        let oriented = coll.shape().as_trimesh().is_some_and(|trimesh| {
+            trimesh
+                .flags()
+                .contains(parry::shape::TriMeshFlags::ORIENTED)
+        });
+        mesh.oriented = oriented;
+        coll.set_density(0.0);
+        // The contact skin is the thickness of the mesh's vertices in the soft contact
+        // passes: a collider left without one gets the body's particle radius.
+        if coll.contact_skin() <= 0.0 {
+            coll.set_contact_skin(sb.particle_radius());
+        }
+
+        let id = sb.push_mesh(cluster_id, mesh);
+        let handle = self.insert_with_parent(coll, parent_handle, bodies);
+        let co = self.index_mut_internal(handle);
+        co.deformable_mesh_ref = Some(crate::dynamics::SoftMeshRef {
+            body: body_handle,
+            id,
+        });
+        soft_bodies[body_handle].set_mesh_collider(id, handle);
+        Ok(handle)
+    }
+
     /// Changes which rigid body a collider is attached to, or detaches it completely.
     ///
     /// Use this to move a collider from one body to another, or to make it standalone.
@@ -322,17 +397,40 @@ impl ColliderSet {
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut islands = IslandManager::new();
     /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic().build());
+    /// # let mut soft_bodies = SoftBodySet::new();
     /// # let handle = colliders.insert_with_parent(ColliderBuilder::ball(0.5).build(), body_handle, &mut bodies);
     /// if let Some(collider) = colliders.remove(
     ///     handle,
     ///     &mut islands,
     ///     &mut bodies,
+    ///     &mut soft_bodies,
     ///     true  // Wake up the parent body
     /// ) {
     ///     println!("Removed collider with shape: {:?}", collider.shared_shape());
     /// }
     /// ```
     pub fn remove(
+        &mut self,
+        handle: ColliderHandle,
+        islands: &mut IslandManager,
+        bodies: &mut RigidBodySet,
+        soft_bodies: &mut SoftBodySet,
+        wake_up: bool,
+    ) -> Option<Collider> {
+        let collider = self.remove_internal(handle, islands, bodies, wake_up)?;
+        // A removed deformable collider takes its mesh with it: the soft body keeps simulating,
+        // without that mesh's collisions.
+        if let Some(mesh) = collider.deformable_mesh_ref() {
+            if let Some(sb) = soft_bodies.get_mut(mesh.body) {
+                sb.remove_mesh(mesh.id);
+            }
+        }
+        Some(collider)
+    }
+
+    /// Like [`Self::remove`], for internal callers that maintain the soft-body back-references
+    /// themselves.
+    pub(crate) fn remove_internal(
         &mut self,
         handle: ColliderHandle,
         islands: &mut IslandManager,
@@ -473,4 +571,40 @@ impl IndexMut<ColliderHandle> for ColliderSet {
         self.modified_colliders.push_once(handle, collider);
         collider
     }
+}
+
+/// The vertices (world space) and elements of a deformable collider's shape.
+fn mesh_geometry(
+    shape: &dyn crate::geometry::Shape,
+) -> Result<(Vec<Vector>, Vec<[u32; DIM]>), SoftBindingError> {
+    #[cfg(feature = "dim2")]
+    let (deformable, geometry) = {
+        use parry::shape::PolylineFlags;
+        let polyline = shape
+            .as_polyline()
+            .ok_or(SoftBindingError::UnsupportedShape)?;
+        (
+            polyline.flags().contains(PolylineFlags::DEFORMABLE),
+            (polyline.vertices().to_vec(), polyline.indices().to_vec()),
+        )
+    };
+    #[cfg(feature = "dim3")]
+    let (deformable, geometry) = {
+        use parry::shape::TriMeshFlags;
+        let trimesh = shape
+            .as_trimesh()
+            .ok_or(SoftBindingError::UnsupportedShape)?;
+        (
+            trimesh.flags().contains(TriMeshFlags::DEFORMABLE),
+            (trimesh.vertices().to_vec(), trimesh.indices().to_vec()),
+        )
+    };
+    if !deformable {
+        return Err(SoftBindingError::NotDeformable);
+    }
+    let (vertices, indices) = geometry;
+    if vertices.is_empty() || indices.is_empty() {
+        return Err(SoftBindingError::DegenerateMesh);
+    }
+    Ok((vertices, indices))
 }

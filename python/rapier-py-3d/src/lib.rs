@@ -50,6 +50,7 @@ pub mod loaders;
 pub mod math;
 pub mod pipeline;
 pub mod serde_glue;
+pub mod soft_body;
 
 pub use controllers::*;
 pub use conv::*;
@@ -62,6 +63,7 @@ pub use joints::*;
 pub use loaders::*;
 pub use math::*;
 pub use pipeline::*;
+pub use soft_body::*;
 
 use pyo3::prelude::*;
 
@@ -79,6 +81,7 @@ fn _rapier3d(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_loaders(py, m)?;
     register_controllers(py, m)?;
     register_debug_render(py, m)?;
+    register_soft_bodies(py, m)?;
     m.add("__version__", RAPIER_PY_VERSION)?;
     Ok(())
 }

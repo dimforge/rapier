@@ -38,7 +38,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     let ground_delta_y = 2.0 * extent * (base_count as f32 + 1.0);
     let ground_width = 2.0 * extent * column_count as f32 * (base_count as f32 + 1.0);
 
-    // Ground: one static body carrying `row_count` horizontal segments.
+    // Ground: one static body with `row_count` horizontal segments.
     let ground = world.insert_body(RigidBodyBuilder::fixed());
     let mut ground_y = 0.0f32;
     for _ in 0..row_count {

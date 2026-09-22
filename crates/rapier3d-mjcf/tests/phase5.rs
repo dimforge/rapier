@@ -11,6 +11,7 @@ fn step(
     n: usize,
 ) {
     let mut ccd = CCDSolver::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let integration_parameters = IntegrationParameters::default();
     let mut islands = IslandManager::new();
@@ -30,6 +31,7 @@ fn step(
             colliders,
             impulse_joints,
             multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &physics_hooks,
             &event_handler,
@@ -165,6 +167,7 @@ fn drive_servo_to(target: Real, multibody: bool) -> Real {
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
 
     enum Ctl {
         Impulse(rapier3d_mjcf::MjcfRobotHandles<ImpulseJointHandle>),
@@ -213,6 +216,7 @@ fn drive_servo_to(target: Real, multibody: bool) -> Real {
             &mut colliders,
             &mut impulse_joints,
             &mut multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &(),
             &(),

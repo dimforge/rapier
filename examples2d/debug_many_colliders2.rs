@@ -1,9 +1,9 @@
-//! Reproduction of issue #970: a single always-awake dynamic body carrying 2,210 convex
+//! Reproduction of issue #970: a single always-awake dynamic body with 2,210 convex
 //! colliders (130 copies of a 17-part convex decomposition, all at the same pose), in a
 //! zero-gravity world with nothing else. The body spins forever, so the step cost is
 //! entirely spent processing the moving colliders of that one body.
 //!
-//! Set [`WITH_COMPOUND_COMPARISON`] to `true` to also spawn a second body carrying the
+//! Set [`WITH_COMPOUND_COMPARISON`] to `true` to also spawn a second body with the
 //! very same parts as one compound-shape collider per copy: the broad phase then sees
 //! 130 colliders for it instead of 2,210.
 
@@ -12,7 +12,7 @@ use rapier2d::prelude::*;
 
 /// The poster's 17 convex polygons (a convex decomposition of a complex outline),
 /// in the original 0.01-scaled coordinates.
-// The vertex data is verbatim from the issue's JS reproduction, where two vertices carry
+// The vertex data is verbatim from the issue's JS reproduction, where two vertices have
 // f64 precision.
 #[allow(clippy::excessive_precision)]
 fn decomposition_parts() -> Vec<Vec<Vector>> {

@@ -17,6 +17,7 @@ fn run_push(body_translation: Vector, collider_offset: Vector) -> (Vector, Vecto
     let mut colliders = ColliderSet::new();
     let mut impulse_joints = ImpulseJointSet::new();
     let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let mut islands = IslandManager::new();
     let mut broad_phase = DefaultBroadPhase::new();
@@ -41,6 +42,7 @@ fn run_push(body_translation: Vector, collider_offset: Vector) -> (Vector, Vecto
         &mut colliders,
         &mut impulse_joints,
         &mut multibody_joints,
+        &mut soft_bodies,
         &mut CCDSolver::new(),
         &(),
         &(),
@@ -96,7 +98,7 @@ fn run_push(body_translation: Vector, collider_offset: Vector) -> (Vector, Vecto
 fn impulse_applied_at_collider_world_point() {
     // Same physical scene, two representations:
     // - baseline: the collider's offset is baked into the body position;
-    // - offset: the body sits at the origin and the collider carries the offset.
+    // - offset: the body sits at the origin and the collider has the offset.
     let (baseline_linvel, baseline_angvel) = run_push(Vector::new(0.0, 3.0, 0.0), Vector::ZERO);
     let (offset_linvel, offset_angvel) = run_push(Vector::ZERO, Vector::new(0.0, 3.0, 0.0));
 

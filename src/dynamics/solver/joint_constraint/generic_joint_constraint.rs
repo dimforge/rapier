@@ -313,6 +313,8 @@ impl GenericJointConstraint {
                 WritebackId::Dof(i) => joint.impulses[i] = self.impulse,
                 WritebackId::Limit(i) => joint.data.limits[i].impulse = self.impulse,
                 WritebackId::Motor(i) => joint.data.motors[i].impulse = self.impulse,
+                // Writeback not supported yet for internal friction.
+                WritebackId::Friction(_) => {}
             }
         }
     }

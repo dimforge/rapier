@@ -145,6 +145,20 @@ impl NarrowPhase {
             .map(|c| c.2)
     }
 
+    /// Mutable access to the contact pair involving two specific colliders (the soft-body
+    /// solver writes its contact impulses back through it).
+    pub(crate) fn contact_pair_mut(
+        &mut self,
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+    ) -> Option<&mut ContactPair> {
+        let id1 = self.graph_indices.get(collider1.0)?;
+        let id2 = self.graph_indices.get(collider2.0)?;
+        self.contact_graph
+            .interaction_pair_mut(id1.contact_graph_index, id2.contact_graph_index)
+            .map(|c| c.2)
+    }
+
     /// The intersection pair involving two specific colliders.
     ///
     /// It is strongly recommended to use the [`NarrowPhase::intersection_pair`] method instead. This

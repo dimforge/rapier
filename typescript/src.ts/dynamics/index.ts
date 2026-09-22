@@ -8,3 +8,5 @@ export * from "./multibody_joint_set";
 export * from "./coefficient_combine_rule";
 export * from "./ccd_solver";
 export * from "./island_manager";
+export * from "./soft_body";
+export * from "./soft_body_set";

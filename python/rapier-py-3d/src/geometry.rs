@@ -1023,6 +1023,16 @@ impl TriMeshFlags {
     #[classattr]
     const FIX_INTERNAL_EDGES: TriMeshFlags =
         TriMeshFlags(rapier::parry::shape::TriMeshFlags::FIX_INTERNAL_EDGES);
+    /// The mesh is deformable: its vertices may be moved after its creation. Required for a
+    /// triangle mesh used as a soft body's collision mesh (see
+    /// :meth:`ColliderSet.insert_deformable`).
+    #[classattr]
+    const DEFORMABLE: TriMeshFlags = TriMeshFlags(rapier::parry::shape::TriMeshFlags::DEFORMABLE);
+    /// Like ``FIX_INTERNAL_EDGES``, but a contact coming from the back of a triangle is kept
+    /// and its normal is constrained by the internal edges too.
+    #[classattr]
+    const FIX_INTERNAL_EDGES_TWO_SIDED: TriMeshFlags =
+        TriMeshFlags(rapier::parry::shape::TriMeshFlags::FIX_INTERNAL_EDGES_TWO_SIDED);
 
     /// Raw bit pattern of the flag set.
     #[getter]
@@ -2618,7 +2628,7 @@ impl ContactPair {
     #[getter]
     fn manifolds(&self) -> Vec<ContactManifold> {
         self.0
-            .manifolds
+            .manifolds()
             .iter()
             .map(|m| {
                 let normal_v: crate::na::SVector<Real, 3> = m.data.normal.into();
@@ -3064,6 +3074,12 @@ impl Collider {
     #[getter]
     fn parent(&self) -> Option<RigidBodyHandle> {
         self.with_ref(|c| c.parent()).map(RigidBodyHandle)
+    }
+
+    /// The soft-body collision mesh this collider holds, if it is a deformable collider.
+    #[getter]
+    fn deformable_mesh_ref(&self) -> Option<crate::soft_body::SoftMeshRef> {
+        self.with_ref(|c| c.deformable_mesh_ref().map(crate::soft_body::SoftMeshRef))
     }
 
     // ---- position / translation / rotation ----
@@ -4023,17 +4039,62 @@ impl ColliderSet {
     /// :param wake_parent: If True, wakes the parent rigid-body so
     ///     islands re-evaluate. Defaults to True.
     /// :returns: The removed `Collider`, or `None` if `handle` is unknown.
-    #[pyo3(signature = (handle, islands, bodies, wake_parent=true))]
+    #[pyo3(signature = (handle, islands, bodies, wake_parent=true, soft_bodies=None))]
     fn remove(
         &mut self,
         handle: &ColliderHandle,
         islands: &mut IslandManager,
         bodies: &mut RigidBodySet,
         wake_parent: bool,
+        soft_bodies: Option<&mut crate::soft_body::SoftBodySet>,
     ) -> Option<Collider> {
+        let mut scratch = rapier::dynamics::SoftBodySet::new();
+        let soft_bodies = soft_bodies.map_or(&mut scratch, |s| &mut s.0);
         self.0
-            .remove(handle.0, &mut islands.0, &mut bodies.0, wake_parent)
+            .remove(
+                handle.0,
+                &mut islands.0,
+                &mut bodies.0,
+                soft_bodies,
+                wake_parent,
+            )
             .map(Collider::new_owned)
+    }
+
+    /// Insert a collider holding a soft body's deformable collision mesh: a triangle mesh
+    /// built with ``TriMeshFlags.DEFORMABLE`` whose vertices follow the cluster of ``parent``
+    /// (a cluster proxy, see :attr:`SoftBody.root_body` and :meth:`SoftBody.cluster_proxy`)
+    /// through ``binding``.
+    ///
+    /// :raises SoftBindingError: if the parent is not a live cluster proxy, the shape is not a
+    ///     deformable mesh, or a vertex could not be bound.
+    pub fn insert_deformable(
+        &mut self,
+        builder: &Bound<'_, PyAny>,
+        binding: &crate::soft_body::SoftMeshBinding,
+        parent: &RigidBodyHandle,
+        bodies: &mut RigidBodySet,
+        soft_bodies: &mut crate::soft_body::SoftBodySet,
+    ) -> PyResult<ColliderHandle> {
+        let coll = if let Ok(b) = builder.extract::<PyRef<'_, ColliderBuilder>>() {
+            b.builder.clone().build()
+        } else if let Ok(c) = builder.extract::<PyRef<'_, Collider>>() {
+            c.to_owned_collider()
+        } else {
+            return Err(PyTypeError::new_err(
+                "ColliderSet.insert_deformable expects a Collider or ColliderBuilder",
+            ));
+        };
+        self.0
+            .insert_deformable(
+                coll,
+                binding.0.clone(),
+                parent.0,
+                &mut bodies.0,
+                &mut soft_bodies.0,
+            )
+            .map(ColliderHandle)
+            .map_err(|e| crate::soft_body::SoftBindingError::new_err(e.to_string()))
     }
 
     /// Return a live **view** of the collider for `handle`, or `None`

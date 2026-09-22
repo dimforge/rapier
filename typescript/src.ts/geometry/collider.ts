@@ -32,7 +32,9 @@ import {
     ConvexPolyhedron,
     RoundConvexPolyhedron,
     HeightFieldFlags,
-    // #endif
+    // #endif,
+    PolylineFlags,
+    CompoundFlags,
 } from "./shape";
 import {Ray, RayIntersection} from "./ray";
 import {PointProjection} from "./point";
@@ -981,6 +983,23 @@ export class Collider {
     }
 
     /**
+     * The handle of the soft body whose deformable collision mesh this collider holds, if
+     * any.
+     */
+    public softBody(): number | null {
+        let handle = this.colliderSet.raw.coSoftBody(this.handle);
+        return handle === undefined ? null : handle;
+    }
+
+    /**
+     * Does this collider hold a soft body's deformable collision mesh? Its vertices then
+     * follow the soft body's particles: read them back with `SoftBody.meshVertices`.
+     */
+    public isDeformable(): boolean {
+        return this.colliderSet.raw.coIsDeformable(this.handle);
+    }
+
+    /**
      * The friction coefficient of this collider.
      */
     public friction(): number {
@@ -1512,8 +1531,9 @@ export class ColliderDesc {
     public static polyline(
         vertices: Float32Array,
         indices?: Uint32Array | null,
+        flags?: PolylineFlags,
     ): ColliderDesc {
-        const shape = new Polyline(vertices, indices);
+        const shape = new Polyline(vertices, indices, flags);
         return new ColliderDesc(shape);
     }
 
@@ -1835,13 +1855,15 @@ export class ColliderDesc {
      *                 not allowed).
      * @param positions - The array of positions for each shape (relative to the compound's origin).
      * @param rotations - The array of rotations for each shape (relative to the compound's orientation).
+     * @param flags - The compound flags.
      */
     public static compound(
         shapes: Shape[],
         positions: Vector[],
         rotations: Rotation[],
+        flags?: CompoundFlags,
     ): ColliderDesc {
-        const shape = new Compound(shapes, positions, rotations);
+        const shape = new Compound(shapes, positions, rotations, flags);
         return new ColliderDesc(shape);
     }
 
@@ -1852,6 +1874,7 @@ export class ColliderDesc {
      * @param vertices - The coordinates of the mesh's vertices.
      * @param indices - The indices of the mesh's triangles (in 3D) or segments (in 2D).
      * @param params - Optional VHACD parameters to control the decomposition.
+     * @param flags - The flags of the resulting compound shape.
      * @returns The collider descriptor, or `null` if the decomposition did not produce
      *          any convex part (e.g. if the input mesh is degenerate).
      */
@@ -1859,8 +1882,10 @@ export class ColliderDesc {
         vertices: Float32Array,
         indices: Uint32Array,
         params?: VHACDParameters,
+        flags?: CompoundFlags,
     ): ColliderDesc | null {
         let rawShape: RawShape;
+        const rawFlags = flags ?? 0;
 
         if (params) {
             // Convert TypeScript params to Rust params
@@ -1886,10 +1911,15 @@ export class ColliderDesc {
                 vertices,
                 indices,
                 rawParams,
+                rawFlags,
             );
             rawParams.free();
         } else {
-            rawShape = RawShape.convexDecomposition(vertices, indices);
+            rawShape = RawShape.convexDecomposition(
+                vertices,
+                indices,
+                rawFlags,
+            );
         }
 
         if (!rawShape) {

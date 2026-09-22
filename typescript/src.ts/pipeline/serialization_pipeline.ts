@@ -6,6 +6,7 @@ import {
     ImpulseJointSet,
     MultibodyJointSet,
     RigidBodySet,
+    SoftBodySet,
 } from "../dynamics";
 import {BroadPhase, ColliderSet, NarrowPhase} from "../geometry";
 import {World} from "./world";
@@ -52,6 +53,7 @@ export class SerializationPipeline {
         narrowPhase: NarrowPhase,
         bodies: RigidBodySet,
         colliders: ColliderSet,
+        softBodies: SoftBodySet,
         impulseJoints: ImpulseJointSet,
         multibodyJoints: MultibodyJointSet,
     ): Uint8Array {
@@ -65,6 +67,7 @@ export class SerializationPipeline {
             narrowPhase.raw,
             bodies.raw,
             colliders.raw,
+            softBodies.raw,
             impulseJoints.raw,
             multibodyJoints.raw,
         );

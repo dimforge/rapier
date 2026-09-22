@@ -1,5 +1,7 @@
+use crate::dynamics::RawSoftBodyTearEvent;
 use crate::utils;
 use crate::utils::FlatHandle;
+use rapier::dynamics::SoftBodyTearEvent;
 use rapier::geometry::{CollisionEvent, ContactForceEvent};
 use rapier::pipeline::ChannelEventCollector;
 use std::sync::mpsc::Receiver;
@@ -12,6 +14,7 @@ pub struct RawEventQueue {
     pub(crate) collector: ChannelEventCollector,
     collision_events: Receiver<CollisionEvent>,
     contact_force_events: Receiver<ContactForceEvent>,
+    soft_body_tear_events: Receiver<SoftBodyTearEvent>,
     pub(crate) auto_drain: bool,
 }
 
@@ -87,12 +90,18 @@ impl RawEventQueue {
     pub fn new(autoDrain: bool) -> Self {
         let collision_channel = std::sync::mpsc::channel();
         let contact_force_channel = std::sync::mpsc::channel();
-        let collector = ChannelEventCollector::new(collision_channel.0, contact_force_channel.0);
+        let soft_body_tear_channel = std::sync::mpsc::channel();
+        let collector = ChannelEventCollector::new(
+            collision_channel.0,
+            contact_force_channel.0,
+            soft_body_tear_channel.0,
+        );
 
         Self {
             collector,
             collision_events: collision_channel.1,
             contact_force_events: contact_force_channel.1,
+            soft_body_tear_events: soft_body_tear_channel.1,
             auto_drain: autoDrain,
         }
     }
@@ -140,8 +149,19 @@ impl RawEventQueue {
         }
     }
 
+    /// Applies the given javascript closure on each soft-body tear event of this collector,
+    /// then clears the internal tear event buffer.
+    pub fn drainSoftBodyTearEvents(&mut self, f: &js_sys::Function) {
+        let this = JsValue::null();
+        while let Ok(event) = self.soft_body_tear_events.try_recv() {
+            let _ = f.call1(&this, &JsValue::from(RawSoftBodyTearEvent(event)));
+        }
+    }
+
     /// Removes all events contained by this collector.
     pub fn clear(&self) {
         while let Ok(_) = self.collision_events.try_recv() {}
+        while let Ok(_) = self.contact_force_events.try_recv() {}
+        while let Ok(_) = self.soft_body_tear_events.try_recv() {}
     }
 }

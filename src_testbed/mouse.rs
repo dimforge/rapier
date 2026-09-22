@@ -4,6 +4,9 @@ use glamx::Vec2;
 pub struct SceneMouse {
     #[cfg(feature = "dim2")]
     pub point: Option<Vec2>,
+    /// World-space size of a ~10-pixel picking tolerance at the current zoom (2D only).
+    #[cfg(feature = "dim2")]
+    pub pick_radius: f32,
     #[cfg(feature = "dim3")]
     pub ray: Option<(glamx::Vec3, glamx::Vec3)>,
 }
@@ -28,6 +31,8 @@ impl SceneMouse {
             let window_size = Vec2::new(window_size.0 as f32, window_size.1 as f32);
             let world_pos = camera.unproject(cursor, window_size);
             self.point = Some(world_pos);
+            let offset = camera.unproject(cursor + Vec2::new(10.0, 0.0), window_size);
+            self.pick_radius = (offset - world_pos).length();
         } else {
             self.point = None;
         }

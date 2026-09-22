@@ -22,6 +22,7 @@ struct World {
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
+    soft_bodies: SoftBodySet,
     islands: IslandManager,
     broad_phase: DefaultBroadPhase,
     narrow_phase: NarrowPhase,
@@ -38,6 +39,7 @@ impl World {
             colliders: ColliderSet::new(),
             impulse_joints: ImpulseJointSet::new(),
             multibody_joints: MultibodyJointSet::new(),
+            soft_bodies: SoftBodySet::new(),
             islands: IslandManager::new(),
             broad_phase: DefaultBroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
@@ -59,6 +61,7 @@ impl World {
             &mut self.colliders,
             &mut self.impulse_joints,
             &mut self.multibody_joints,
+            &mut self.soft_bodies,
             &mut self.ccd,
             &(),
             &(),
@@ -216,6 +219,7 @@ fn body_removal_midrun() {
         &mut w.colliders,
         &mut w.impulse_joints,
         &mut w.multibody_joints,
+        &mut w.soft_bodies,
         true,
     );
     w.run(60);

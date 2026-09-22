@@ -62,6 +62,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
                     &mut world.colliders,
                     &mut world.impulse_joints,
                     &mut world.multibody_joints,
+                    &mut world.soft_bodies,
                     true,
                 );
 

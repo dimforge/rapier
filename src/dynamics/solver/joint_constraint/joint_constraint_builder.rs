@@ -58,14 +58,18 @@ impl JointConstraintBuilder {
         // Since solver body poses are given in center-of-mass space,
         // we need to transform the anchors to that space.
         out_builder.joint.transform_to_solver_body_space(rb1, rb2);
+        // A rank-deficient soft-frame side has no orientation: its angular axes are
+        // stripped (the reserved row count must match the stripped lowering).
+        super::strip_soft_frame_angular_axes(&mut out_builder.joint, rb1, rb2);
 
-        *out_constraint_id += joint_num_constraints(joint);
+        *out_constraint_id +=
+            crate::dynamics::solver::joint_data_num_constraints(&out_builder.joint);
     }
 
-    /// Refreshes the warm-start seeds (the impulses written back at the end of
+    /// Updates the warm-start seeds (the impulses written back at the end of
     /// the previous step) of a builder recycled across steps by the persistent
     /// joint assembly.
-    pub fn refresh_warmstart_seeds(&mut self, joints_all: &[crate::dynamics::JointGraphEdge]) {
+    pub fn update_warmstart_seeds(&mut self, joints_all: &[crate::dynamics::JointGraphEdge]) {
         let joint = &joints_all[self.joint_id].weight;
         self.prev_dof_impulses = joint.impulses;
         for i in 0..SPATIAL_DIM {
@@ -108,7 +112,7 @@ impl JointConstraintBuilder {
 
         let out_rows = &mut out[self.constraint_id..];
 
-        // When warm-starting, carry the impulses accumulated by the previous substep
+        // When warm-starting, keep the impulses accumulated by the previous substep
         // across the row rebuild (the row layout only depends on the static joint
         // configuration, so it is stable across the substeps of a step).
         const MAX_ROWS: usize = 4 * SPATIAL_DIM;
@@ -140,6 +144,7 @@ impl JointConstraintBuilder {
                         WritebackId::Dof(i) => self.prev_dof_impulses[i],
                         WritebackId::Limit(i) => self.joint.limits[i].impulse,
                         WritebackId::Motor(i) => self.joint.motors[i].impulse,
+                        WritebackId::Friction(_) => 0.0,
                     };
                     row.impulse = seed * coeff;
                 }
@@ -199,7 +204,7 @@ pub struct JointConstraintBuilderSimd {
     /// Like `prev_dof_impulses`, for the limit rows.
     prev_limit_impulses: [SimdReal; SPATIAL_DIM],
     /// The bodies' effective inverse masses/angular inertias, cached by the substep-0 update.
-    /// Step-constant (solver-body mass properties refresh once per step), so later substeps
+    /// Step-constant (solver-body mass properties are updated once per step), so later substeps
     /// only gather the transform part of the solver poses — about half the transposition work.
     im1: <SimdReal as ScalarType>::Vector,
     ii1: <SimdReal as ScalarType>::AngInertia,
@@ -328,10 +333,10 @@ impl JointConstraintBuilderSimd {
         *out_constraint_id += joint_num_constraints(joint[0]);
     }
 
-    /// Refreshes the warm-start seeds (the impulses written back at the end of
+    /// Updates the warm-start seeds (the impulses written back at the end of
     /// the previous step) of a builder recycled across steps by the persistent
     /// joint assembly.
-    pub fn refresh_warmstart_seeds(&mut self, joints_all: &[crate::dynamics::JointGraphEdge]) {
+    pub fn update_warmstart_seeds(&mut self, joints_all: &[crate::dynamics::JointGraphEdge]) {
         let joint = array![|ii| &joints_all[self.joint_id[ii]].weight];
         self.prev_dof_impulses =
             core::array::from_fn(|axis| array![|ii| joint[ii].impulses[axis]].into());
@@ -441,7 +446,7 @@ impl JointConstraintBuilderSimd {
         #[cfg(feature = "dim3")]
         let ang_motor_params: Option<MotorParameters<SimdReal>> = None;
 
-        // See the scalar builder: carry impulses across the row rebuild when warm-starting.
+        // See the scalar builder: keep impulses across the row rebuild when warm-starting.
         // The SIMD builder emits at most one motor row, one row per locked axis and one per
         // (uncoupled) limited axis; the masks are disjoint.
         const MAX_WIDE_ROWS: usize = SPATIAL_DIM + 1;
@@ -484,6 +489,9 @@ impl JointConstraintBuilderSimd {
                         }
                         #[cfg(feature = "dim3")]
                         WritebackId::Motor(_) => {}
+                        // Impulse-joint rows only; friction rows are
+                        // multibody-internal and are never built here.
+                        WritebackId::Friction(_) => {}
                     }
                 }
             } else {

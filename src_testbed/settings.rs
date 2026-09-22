@@ -77,6 +77,14 @@ impl ExampleSettings {
         &self.non_restart_keys
     }
 
+    /// Removes a setting, so an example can drop the entries that stopped being relevant
+    /// (a parameter of a mode that is no longer selected). The remaining entries keep
+    /// their order.
+    pub fn remove(&mut self, key: &str) {
+        let _ = self.values.shift_remove(key);
+        self.non_restart_keys.remove(key);
+    }
+
     pub fn len(&self) -> usize {
         self.values.len()
     }

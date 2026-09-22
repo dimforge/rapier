@@ -16,7 +16,7 @@ pub enum RunMode {
 }
 
 /// A loop transition requested from the UI: stop entirely, or switch to another
-/// example (or re-run the current one). The target is carried in
+/// example (or re-run the current one). The target is stored in
 /// [`TestbedState::selected_display_index`]; this only signals the
 /// example-owned `while viewer.render_frame()` loop to exit so the outer demo
 /// runner can dispatch the next example.
@@ -41,6 +41,9 @@ bitflags! {
         const WIREFRAME = 1 << 8;
         const STATISTICS = 1 << 9;
         const DRAW_SURFACES = 1 << 10;
+        /// Soft-body surfaces rendered with shared vertices (smooth per-vertex normals)
+        /// instead of flat-shaded triangles (3D).
+        const SMOOTH_MESH_COLLIDERS = 1 << 11;
     }
 }
 
@@ -75,6 +78,8 @@ pub enum UiTab {
     Examples,
     Settings,
     Performance,
+    /// What the debug renderer draws, and how.
+    DebugRender,
 }
 
 /// Information about an example for UI display.
@@ -87,6 +92,64 @@ pub struct ExampleEntry {
 impl ExampleEntry {
     pub fn new(group: &'static str, name: &'static str) -> Self {
         Self { name, group }
+    }
+}
+
+/// Wall-clock times of the recent frames, for the performance tab: the step counters only hold
+/// the last step, and a frame also spends time outside of it (scene update, UI). The renderer's
+/// present (which waits for vsync) is left out, so the numbers do not saturate at the refresh rate.
+#[derive(Default)]
+pub struct FrameStats {
+    /// When the renderer last handed control back, or `None` before the first render.
+    resumed_at: Option<web_time::Instant>,
+    last_timestep: usize,
+    /// `(frame_ms, step_ms)` of the recent frames, oldest first.
+    samples: std::collections::VecDeque<(f64, f64)>,
+}
+
+impl FrameStats {
+    /// The number of frames the statistics cover.
+    pub const WINDOW: usize = 60;
+
+    /// Records the frame that just ended (everything since the last [`Self::resume`]), with
+    /// `step_ms` counted only if a step ran during it. Called right before rendering.
+    pub fn record(&mut self, timestep_id: usize, step_ms: f64) {
+        if let Some(resumed_at) = self.resumed_at.take() {
+            let step_ms = if timestep_id != self.last_timestep {
+                step_ms
+            } else {
+                0.0
+            };
+            if self.samples.len() == Self::WINDOW {
+                let _ = self.samples.pop_front();
+            }
+            let frame_ms = resumed_at.elapsed().as_secs_f64() * 1000.0;
+            self.samples.push_back((frame_ms, step_ms));
+        }
+        self.last_timestep = timestep_id;
+    }
+
+    /// Starts timing the next frame. Called right after the renderer returns, so the time it
+    /// spends presenting (and waiting for vsync) is not counted.
+    pub fn resume(&mut self) {
+        self.resumed_at = Some(web_time::Instant::now());
+    }
+
+    /// The mean `(frame, step)` times over the window, in milliseconds.
+    pub fn mean_ms(&self) -> (f64, f64) {
+        let n = self.samples.len().max(1) as f64;
+        let (frame, step) = self
+            .samples
+            .iter()
+            .fold((0.0, 0.0), |acc, s| (acc.0 + s.0, acc.1 + s.1));
+        (frame / n, step / n)
+    }
+
+    /// The longest `(frame, step)` times over the window, in milliseconds.
+    pub fn max_ms(&self) -> (f64, f64) {
+        self.samples
+            .iter()
+            .fold((0.0, 0.0), |acc, s| (acc.0.max(s.0), acc.1.max(s.1)))
     }
 }
 
@@ -110,10 +173,16 @@ pub struct TestbedState {
     /// Currently selected position in the display order
     pub selected_display_index: usize,
     pub example_settings: ExampleSettings,
+    /// The soft-body recovery toggles (see `SoftRecoverySettings`): owned by the testbed
+    /// and stamped onto the running world every frame, so the panel's choices survive
+    /// demo restarts and switches.
+    pub soft_recovery: rapier::dynamics::SoftRecoverySettings,
+    /// Extra PGS iterations the solver panel's slider applies to every soft body when moved.
+    pub soft_additional_pgs: usize,
     pub broad_phase_type: RapierBroadPhaseType,
     pub snapshot: Option<PhysicsSnapshot>,
     /// Number of physics steps run since the example was (re)started. Bumped by
-    /// [`crate::TestbedViewer::simulating`], and carried through snapshot
+    /// [`crate::TestbedViewer::simulating`], and kept through snapshot
     /// save/restore so a restored world reports the step it was saved at.
     pub timestep_id: usize,
     pub camera_locked: bool,
@@ -125,6 +194,8 @@ pub struct TestbedState {
     /// (`-up_axis`) instead of the hard-coded Y-axis it used to assume.
     /// Defaults to `Vector::Y`.
     pub up_axis: rapier::math::Vector,
+    /// Recent frame and step times, shown by the performance tab.
+    pub frame_stats: FrameStats,
     /// Thread pool running the physics step, shared across example reloads: sized
     /// to the performance cores (efficiency cores stall the solver's
     /// barrier-paced parallel stages). Built lazily on the first `set_world`.
@@ -148,12 +219,15 @@ impl Default for TestbedState {
             examples: Vec::new(),
             example_groups: Vec::new(),
             example_settings: ExampleSettings::default(),
+            soft_recovery: Default::default(),
+            soft_additional_pgs: 3,
             selected_display_index: 0,
             broad_phase_type: RapierBroadPhaseType::default(),
             camera_locked: false,
             selected_tab: UiTab::default(),
             prev_save_data: SerializableTestbedState::default(),
             up_axis: rapier::math::Vector::Y,
+            frame_stats: FrameStats::default(),
             #[cfg(feature = "parallel")]
             physics_thread_pool: None,
         }

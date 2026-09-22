@@ -36,6 +36,25 @@ const RAPIER_SVG_STR: &str = r#"
 </svg>
 "#;
 
+/// The outline of a tessellated shape: the edges belonging to a single triangle, which for a fill
+/// tessellation are the shape's contours, its holes included.
+///
+/// That closed polyline is what `SoftBodyBuilder::volumetric` fills with simulation cells.
+pub fn outline(triangles: &[[u32; 3]]) -> Vec<[u32; 2]> {
+    let mut count: std::collections::HashMap<[u32; 2], u32> = Default::default();
+    for tri in triangles {
+        for k in 0..3 {
+            let (a, b) = (tri[k], tri[(k + 1) % 3]);
+            *count.entry([a.min(b), a.max(b)]).or_insert(0) += 1;
+        }
+    }
+    triangles
+        .iter()
+        .flat_map(|tri| (0..3).map(move |k| [tri[k], tri[(k + 1) % 3]]))
+        .filter(|e| count[&[e[0].min(e[1]), e[0].max(e[1])]] == 1)
+        .collect()
+}
+
 pub fn rapier_logo() -> Vec<(Vec<Vector>, Vec<[u32; 3]>)> {
     tessellate_svg_str(RAPIER_SVG_STR)
 }
@@ -207,4 +226,63 @@ impl StrokeVertexConstructor<GpuVertex> for VertexCtor {
 struct GpuVertex {
     position: [f32; 2],
     prim_id: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each glyph outline closes, and filling it at the resolution the demo uses keeps its area
+    /// and gives well-shaped cells.
+    #[test]
+    fn logo_outlines_are_closed_and_fillable() {
+        for (i, (vtx, idx)) in rapier_logo().iter().enumerate() {
+            let outline = outline(idx);
+
+            // Every vertex of a closed polyline is used by exactly two segments, once as the
+            // start and once as the end.
+            let mut degree: std::collections::HashMap<u32, (i32, i32)> = Default::default();
+            for e in &outline {
+                degree.entry(e[0]).or_default().0 += 1;
+                degree.entry(e[1]).or_default().1 += 1;
+            }
+            for (v, (out, inc)) in &degree {
+                assert_eq!((*out, *inc), (1, 1), "glyph {i}: vertex {v} is a dead end");
+            }
+
+            let tessellated: Real = idx
+                .iter()
+                .map(|t| {
+                    let (a, b, c) = (vtx[t[0] as usize], vtx[t[1] as usize], vtx[t[2] as usize]);
+                    ((b - a).perp_dot(c - a) * 0.5).abs()
+                })
+                .sum();
+
+            let mesh = SoftBodyBuilder::volumetric(vtx, &outline, 0.4)
+                .unwrap_or_else(|| panic!("glyph {i} could not be filled"));
+            let mut filled = 0.0;
+            let mut min_angle = Real::MAX;
+
+            for cell in &mesh.cells {
+                let p = cell.map(|v| mesh.positions[v as usize]);
+                filled += (p[1] - p[0]).perp_dot(p[2] - p[0]) * 0.5;
+
+                for k in 0..3 {
+                    let (a, b, c) = (p[k], p[(k + 1) % 3], p[(k + 2) % 3]);
+                    let angle = (b - a)
+                        .normalize()
+                        .dot((c - a).normalize())
+                        .clamp(-1.0, 1.0)
+                        .acos();
+                    min_angle = min_angle.min(angle.to_degrees());
+                }
+            }
+
+            assert!(
+                (filled - tessellated).abs() < tessellated * 0.01,
+                "glyph {i}: filled {filled} vs tessellated {tessellated}"
+            );
+            assert!(min_angle > 25.0, "glyph {i}: smallest angle {min_angle}");
+        }
+    }
 }

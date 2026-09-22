@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class EventHandler(Protocol):
-    """A receiver of collision / contact-force events.
+    """A receiver of collision, contact-force and soft-body tear events.
 
     Assign an instance of any class implementing this protocol to
     ``world.event_handler``. The methods are called from the physics solver
@@ -64,6 +64,18 @@ class EventHandler(Protocol):
 
         At least one of the involved colliders must have
         ``ActiveEvents.CONTACT_FORCE_EVENTS`` set.
+        """
+        ...
+
+    def handle_soft_body_tear_event(self, soft_bodies: Any, event: Any) -> None:
+        """Called at the end of a step for every soft body that tore during it,
+        once the topology change is applied.
+
+        ``event`` is a ``SoftBodyTearEvent``: the torn elements, the split
+        particles and the pieces that became soft bodies of their own.
+        ``soft_bodies`` is passed as ``None`` (see the note above). Immediate
+        ``SoftBodySet.tear`` / ``cut`` calls return their event instead. The
+        method is optional: a handler without it receives no tear events.
         """
         ...
 

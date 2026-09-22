@@ -53,6 +53,7 @@ fn step_n(
     n: usize,
 ) {
     let mut ccd = CCDSolver::new();
+    let mut soft_bodies = SoftBodySet::new();
     let mut pipeline = PhysicsPipeline::new();
     let integration_parameters = IntegrationParameters::default();
     let mut islands = IslandManager::new();
@@ -72,6 +73,7 @@ fn step_n(
             colliders,
             impulse_joints,
             multibody_joints,
+            &mut soft_bodies,
             &mut ccd,
             &physics_hooks,
             &event_handler,

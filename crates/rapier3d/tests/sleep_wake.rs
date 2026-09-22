@@ -46,6 +46,7 @@ fn woken_body_is_supported_by_recycled_contacts() {
             colliders,
             impulse_joints,
             multibody_joints,
+            &mut SoftBodySet::new(),
             ccd,
             &(),
             &(),
@@ -104,6 +105,7 @@ struct World {
     colliders: ColliderSet,
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
+    soft_bodies: SoftBodySet,
     pipeline: PhysicsPipeline,
     bf: BroadPhaseBvh,
     nf: NarrowPhase,
@@ -119,6 +121,7 @@ impl World {
             colliders: ColliderSet::new(),
             impulse_joints: ImpulseJointSet::new(),
             multibody_joints: MultibodyJointSet::new(),
+            soft_bodies: SoftBodySet::new(),
             pipeline: PhysicsPipeline::new(),
             bf: BroadPhaseBvh::new(),
             nf: NarrowPhase::new(),
@@ -158,6 +161,7 @@ impl World {
             &mut self.colliders,
             &mut self.impulse_joints,
             &mut self.multibody_joints,
+            &mut self.soft_bodies,
             &mut self.ccd,
             &(),
             &(),
@@ -554,7 +558,7 @@ fn slow_dynamic_intruder_wakes_sleeping_body() {
 }
 
 /// Domino-spiral variant of the load-band wake: the wedge tip already touches
-/// (carrying ~no load) when the standing dominoes fall asleep, so the sleep-time
+/// (bearing ~no load) when the standing dominoes fall asleep, so the sleep-time
 /// monitor must stay load-armed (unloaded reference) or the ring never falls.
 #[test]
 fn grazing_wedge_wakes_sleeping_chain() {

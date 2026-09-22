@@ -581,3 +581,70 @@ fn issue_907_contact_with_branch_off_fixed_root() {
     );
     assert!(world.bodies[child].translation().y.is_finite());
 }
+
+/// Builds a one-link pendulum hinged at the origin, its rod along +X so gravity
+/// torques the hinge, steps it through the start of its descent, and returns
+/// how far the link's centre fell.
+///
+/// The horizon is deliberately short: a free pendulum reaches the bottom in
+/// roughly half a second and swings back up, so drop-at-a-fixed-time only
+/// decreases with friction while every case is still descending.
+#[cfg(feature = "dim3")]
+fn friction_pendulum_drop(friction: Real) -> Real {
+    const LINK_LEN: Real = 1.0;
+    let mut world = PhysicsWorld::new();
+
+    let root = world.insert_body(RigidBodyBuilder::fixed());
+    let link = world.insert_body(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(LINK_LEN, 0.0, 0.0))
+            .additional_mass(1.0),
+    );
+
+    let handle = world
+        .insert_multibody_joint(
+            root,
+            link,
+            RevoluteJointBuilder::new(Vector::new(0.0, 0.0, 1.0))
+                .local_anchor1(Vector::ZERO)
+                .local_anchor2(Vector::new(-LINK_LEN, 0.0, 0.0)),
+        )
+        .unwrap();
+
+    if friction > 0.0 {
+        let (multibody, _) = world.multibody_joints.get_mut(handle).unwrap();
+        multibody.frictions_mut().fill(friction);
+    }
+
+    for _ in 0..15 {
+        world.step();
+    }
+    -world.bodies[link].translation().y
+}
+
+/// Joint dry friction (MuJoCo `frictionloss`).
+#[test]
+#[cfg(feature = "dim3")]
+fn joint_friction_bounds_the_joint_force() {
+    // Gravity torque about the hinge for a 1 kg rod of length 1 m.
+    let gravity_torque = 1.0 * 9.81 * 1.0;
+
+    let free = friction_pendulum_drop(0.0);
+    let weak = friction_pendulum_drop(0.25 * gravity_torque);
+    let locked = friction_pendulum_drop(4.0 * gravity_torque);
+    let extreme = friction_pendulum_drop(1000.0 * gravity_torque);
+
+    assert!(free > 0.05, "frictionless pendulum should fall: {free}");
+    assert!(
+        weak < free * 0.9,
+        "sub-gravity friction should slow the fall: {weak} vs {free}"
+    );
+    assert!(
+        locked.abs() < 1.0e-4,
+        "friction above the gravity torque should hold the joint at rest: {locked}"
+    );
+    assert!(
+        extreme.abs() < 1.0e-4,
+        "an oversized friction bound must stay inert, not chatter: {extreme}"
+    );
+}
