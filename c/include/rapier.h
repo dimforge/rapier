@@ -3883,67 +3883,66 @@ extern "C" {
  * Return native default soft body material. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R2SoftBodyMaterial r2DefaultSoftBodyMaterial(void);
+RAPIER_API struct R2SoftBodyMaterial RAPIER_CALL r2DefaultSoftBodyMaterial(void);
 
 /**
  * Return native default soft recovery settings. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R2SoftRecoverySettings r2DefaultSoftRecoverySettings(void);
+RAPIER_API struct R2SoftRecoverySettings RAPIER_CALL r2DefaultSoftRecoverySettings(void);
 
 #if defined(RAPIER_FEM)
 /**
  * Return native default soft fem parameters. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R2SoftFemParameters r2DefaultSoftFemParameters(void);
+RAPIER_API struct R2SoftFemParameters RAPIER_CALL r2DefaultSoftFemParameters(void);
 #endif
 
 /**
  * Return native default soft bodies settings. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R2SoftBodiesSettings r2DefaultSoftBodiesSettings(void);
+RAPIER_API struct R2SoftBodiesSettings RAPIER_CALL r2DefaultSoftBodiesSettings(void);
 
 /**
  * Return native default integration parameters. This POD value owns no resources.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R2IntegrationParameters r2DefaultIntegrationParameters(void);
+RAPIER_API struct R2IntegrationParameters RAPIER_CALL r2DefaultIntegrationParameters(void);
 
 /**
  * Return a copy of all world integration settings.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-struct R2IntegrationParameters r2IntegrationParameters(const struct R2World *world);
+RAPIER_API struct R2IntegrationParameters RAPIER_CALL r2IntegrationParameters(const struct R2World *world);
 
 /**
  * Copies validated values; does not expose a writable alias to Rust memory.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetIntegrationParameters(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2SetIntegrationParameters(struct R2World *world,
                                          const struct R2IntegrationParameters *data);
 
 /**
  * Return native default joint desc. This POD value owns no resources.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R2JointDesc r2DefaultJointDesc(void);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2DefaultJointDesc(void);
 
 /**
  * Return a fixed joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R2JointDesc r2FixedJointDesc(void);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2FixedJointDesc(void);
 
 #if defined(RAPIER_DIM2)
 /**
  * Return a revolute joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R2JointDesc r2RevoluteJointDesc(void);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2RevoluteJointDesc(void);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -3951,27 +3950,27 @@ RAPIER_API RAPIER_CALL struct R2JointDesc r2RevoluteJointDesc(void);
  * Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R2JointDesc r2RevoluteJointDesc(struct R2Vector axis_vector);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2RevoluteJointDesc(struct R2Vector axis_vector);
 #endif
 
 /**
  * Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R2JointDesc r2PrismaticJointDesc(struct R2Vector axis_vector);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2PrismaticJointDesc(struct R2Vector axis_vector);
 
 /**
  * Return a rope joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R2JointDesc r2RopeJointDesc(R2Real length);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2RopeJointDesc(R2Real length);
 
 /**
  * Return a spring joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R2JointDesc r2SpringJointDesc(R2Real length,
+RAPIER_API
+struct R2JointDesc RAPIER_CALL r2SpringJointDesc(R2Real length,
                                           R2Real stiffness,
                                           R2Real damping);
 
@@ -3980,7 +3979,7 @@ struct R2JointDesc r2SpringJointDesc(R2Real length,
  * Return a spherical joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R2JointDesc r2SphericalJointDesc(void);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2SphericalJointDesc(void);
 #endif
 
 #if defined(RAPIER_DIM2)
@@ -3988,7 +3987,7 @@ RAPIER_API RAPIER_CALL struct R2JointDesc r2SphericalJointDesc(void);
  * Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R2JointDesc r2PinSlotJointDesc(struct R2Vector axis_vector);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2PinSlotJointDesc(struct R2Vector axis_vector);
 #endif
 
 /**
@@ -3996,8 +3995,8 @@ RAPIER_API RAPIER_CALL struct R2JointDesc r2PinSlotJointDesc(struct R2Vector axi
  * wake_up wakes the connected bodies.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R2ImpulseJointHandle r2InsertImpulseJoint(struct R2RigidBodyHandle body1,
+RAPIER_API
+struct R2ImpulseJointHandle RAPIER_CALL r2InsertImpulseJoint(struct R2RigidBodyHandle body1,
                                                       struct R2RigidBodyHandle body2,
                                                       const struct R2JointDesc *joint);
 
@@ -4006,8 +4005,8 @@ struct R2ImpulseJointHandle r2InsertImpulseJoint(struct R2RigidBodyHandle body1,
  * failure; check r2LastStatus.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R2MultibodyJointHandle r2InsertMultibodyJoint(struct R2RigidBodyHandle body1,
+RAPIER_API
+struct R2MultibodyJointHandle RAPIER_CALL r2InsertMultibodyJoint(struct R2RigidBodyHandle body1,
                                                           struct R2RigidBodyHandle body2,
                                                           const struct R2JointDesc *joint);
 
@@ -4015,29 +4014,29 @@ struct R2MultibodyJointHandle r2InsertMultibodyJoint(struct R2RigidBodyHandle bo
  * Return native default soft body desc. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R2SoftBodyDesc r2DefaultSoftBodyDesc(void);
+RAPIER_API struct R2SoftBodyDesc RAPIER_CALL r2DefaultSoftBodyDesc(void);
 
 /**
  * Consumes no caller-owned resources. All borrowed arrays may be released on return.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyHandle r2InsertSoftBody(struct R2World *world,
+RAPIER_API
+struct R2SoftBodyHandle RAPIER_CALL r2InsertSoftBody(struct R2World *world,
                                               const struct R2SoftBodyDesc *desc);
 
 /**
  * Return native default soft mesh binding desc. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R2SoftMeshBindingDesc r2DefaultSoftMeshBindingDesc(void);
+RAPIER_API struct R2SoftMeshBindingDesc RAPIER_CALL r2DefaultSoftMeshBindingDesc(void);
 
 /**
  * Create a deformable collider bound to a soft-body cluster. The world owns the collider; binding
  * arrays are borrowed only during insertion.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderHandle r2InsertDeformableCollider(const struct R2ColliderDesc *collider,
+RAPIER_API
+struct R2ColliderHandle RAPIER_CALL r2InsertDeformableCollider(const struct R2ColliderDesc *collider,
                                                         const struct R2SoftMeshBindingDesc *binding,
                                                         struct R2RigidBodyHandle parent);
 
@@ -4045,7 +4044,7 @@ struct R2ColliderHandle r2InsertDeformableCollider(const struct R2ColliderDesc *
  * Return native default query options. This POD value owns no resources.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL struct R2QueryOptions r2DefaultQueryOptions(void);
+RAPIER_API struct R2QueryOptions RAPIER_CALL r2DefaultQueryOptions(void);
 
 /**
  * Return the closest ray hit, or report R2_NOT_FOUND on a miss. The ray is origin + direction * t
@@ -4055,8 +4054,8 @@ RAPIER_API RAPIER_CALL struct R2QueryOptions r2DefaultQueryOptions(void);
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-struct R2RayHit r2CastRay(const struct R2World *world,
+RAPIER_API
+struct R2RayHit RAPIER_CALL r2CastRay(const struct R2World *world,
                               const struct R2QueryOptions *query_options,
                               struct R2Vector origin,
                               struct R2Vector direction,
@@ -4070,8 +4069,8 @@ struct R2RayHit r2CastRay(const struct R2World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-struct R2PointProjection r2ProjectPoint(const struct R2World *world,
+RAPIER_API
+struct R2PointProjection RAPIER_CALL r2ProjectPoint(const struct R2World *world,
                                             const struct R2QueryOptions *query_options,
                                             struct R2Vector point,
                                             R2Real max_distance,
@@ -4084,8 +4083,8 @@ struct R2PointProjection r2ProjectPoint(const struct R2World *world,
  * DetectCollisions call.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R2ShapeCastHit r2CastShape(const struct R2World *world,
+RAPIER_API
+struct R2ShapeCastHit RAPIER_CALL r2CastShape(const struct R2World *world,
                                       const struct R2QueryOptions *query_options,
                                       struct R2Pose pose,
                                       struct R2Vector velocity,
@@ -4099,8 +4098,8 @@ struct R2ShapeCastHit r2CastShape(const struct R2World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-size_t r2IntersectPoint(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2IntersectPoint(const struct R2World *world,
                            const struct R2QueryOptions *query_options,
                            struct R2Vector point,
                            struct R2ColliderHandle *buffer,
@@ -4114,8 +4113,8 @@ size_t r2IntersectPoint(const struct R2World *world,
  * DetectCollisions call.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r2IntersectShape(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2IntersectShape(const struct R2World *world,
                            const struct R2QueryOptions *query_options,
                            struct R2Pose pose,
                            const R2SharedShape *shape,
@@ -4130,8 +4129,8 @@ size_t r2IntersectShape(const struct R2World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-size_t r2IntersectAabbConservative(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2IntersectAabbConservative(const struct R2World *world,
                                        const struct R2QueryOptions *query_options,
                                        struct R2Aabb aabb,
                                        struct R2ColliderHandle *buffer,
@@ -4144,8 +4143,8 @@ size_t r2IntersectAabbConservative(const struct R2World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-struct R2RayToi r2CastRayToi(const struct R2World *world,
+RAPIER_API
+struct R2RayToi RAPIER_CALL r2CastRayToi(const struct R2World *world,
                                   const struct R2QueryOptions *query_options,
                                   struct R2Vector origin,
                                   struct R2Vector direction,
@@ -4159,8 +4158,8 @@ struct R2RayToi r2CastRayToi(const struct R2World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-struct R2OptionalRayHit r2TryCastRay(const struct R2World *world,
+RAPIER_API
+struct R2OptionalRayHit RAPIER_CALL r2TryCastRay(const struct R2World *world,
                                           const struct R2QueryOptions *query_options,
                                           struct R2Vector origin,
                                           struct R2Vector direction,
@@ -4171,66 +4170,65 @@ struct R2OptionalRayHit r2TryCastRay(const struct R2World *world,
  * Return a dynamic rigid-body description with native defaults; no allocation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R2RigidBodyDesc r2DynamicRigidBodyDesc(void);
+RAPIER_API struct R2RigidBodyDesc RAPIER_CALL r2DynamicRigidBodyDesc(void);
 
 /**
  * Return a fixed rigid-body description with native defaults; no allocation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R2RigidBodyDesc r2FixedRigidBodyDesc(void);
+RAPIER_API struct R2RigidBodyDesc RAPIER_CALL r2FixedRigidBodyDesc(void);
 
 /**
  * Return a kinematic position based rigid-body description with native defaults; no allocation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R2RigidBodyDesc r2KinematicPositionBasedRigidBodyDesc(void);
+RAPIER_API struct R2RigidBodyDesc RAPIER_CALL r2KinematicPositionBasedRigidBodyDesc(void);
 
 /**
  * Return a kinematic velocity based rigid-body description with native defaults; no allocation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R2RigidBodyDesc r2KinematicVelocityBasedRigidBodyDesc(void);
+RAPIER_API struct R2RigidBodyDesc RAPIER_CALL r2KinematicVelocityBasedRigidBodyDesc(void);
 
 /**
  * Return native default shape desc. This POD value owns no resources.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL struct R2ShapeDesc r2DefaultShapeDesc(void);
+RAPIER_API struct R2ShapeDesc RAPIER_CALL r2DefaultShapeDesc(void);
 
 /**
  * Build an owned shared shape from a description; release it with r2FreeSharedShape. Borrowed
  * inputs may be released after this call.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2SharedShape *r2ShapeDesc_Build(const struct R2ShapeDesc *desc);
+RAPIER_API R2SharedShape *RAPIER_CALL r2ShapeDesc_Build(const struct R2ShapeDesc *desc);
 
 /**
  * Return native default collider desc. This POD value owns no resources.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R2ColliderDesc r2DefaultColliderDesc(void);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2DefaultColliderDesc(void);
 
 /**
  * Return a ball description with the supplied radius.
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R2ColliderDesc r2BallColliderDesc(R2Real radius);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2BallColliderDesc(R2Real radius);
 
 /**
  * Return an axis-aligned box description with the supplied half-extents.
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2CuboidColliderDesc(struct R2Vector half_extents);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2CuboidColliderDesc(struct R2Vector half_extents);
 
 /**
  * Create a body from the description and return its world-bound handle. The world owns the body.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2RigidBodyHandle r2InsertRigidBody(struct R2World *world,
+RAPIER_API
+struct R2RigidBodyHandle RAPIER_CALL r2InsertRigidBody(struct R2World *world,
                                                 const struct R2RigidBodyDesc *desc);
 
 /**
@@ -4239,8 +4237,8 @@ struct R2RigidBodyHandle r2InsertRigidBody(struct R2World *world,
  * Invalid or removed parents fail without inserting a collider.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderHandle r2InsertCollider(struct R2RigidBodyHandle parent,
+RAPIER_API
+struct R2ColliderHandle RAPIER_CALL r2InsertCollider(struct R2RigidBodyHandle parent,
                                              const struct R2ColliderDesc *desc);
 
 /**
@@ -4248,62 +4246,61 @@ struct R2ColliderHandle r2InsertCollider(struct R2RigidBodyHandle parent,
  * The description is borrowed through this call.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderHandle r2InsertColliderWithoutParent(struct R2World *world,
+RAPIER_API
+struct R2ColliderHandle RAPIER_CALL r2InsertColliderWithoutParent(struct R2World *world,
                                                             const struct R2ColliderDesc *desc);
 
 /**
  * Return POD structure sizes for checking foreign-language layouts against this library.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL struct R2PodLayout r2PodLayout(void);
+RAPIER_API struct R2PodLayout RAPIER_CALL r2PodLayout(void);
 
 /**
  * Allocate a character controller with native defaults; release it with
  * r2FreeKinematicCharacterController.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R2KinematicCharacterController *r2NewKinematicCharacterController(void);
+RAPIER_API struct R2KinematicCharacterController *RAPIER_CALL r2NewKinematicCharacterController(void);
 
 /**
  * Release an owned kinematic character controller. NULL is allowed. Do not pass borrowed pointers
  * or free the object twice.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2FreeKinematicCharacterController(struct R2KinematicCharacterController *controller);
+RAPIER_API
+R2Status RAPIER_CALL r2FreeKinematicCharacterController(struct R2KinematicCharacterController *controller);
 
 /**
  * Set the up direction; it must be finite and nonzero and is normalized on input.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2KinematicCharacterController_SetUp(struct R2KinematicCharacterController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2KinematicCharacterController_SetUp(struct R2KinematicCharacterController *controller,
                                                     struct R2Vector up);
 
 /**
  * Set the collision separation margin; use a positive absolute or relative character length.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2KinematicCharacterController_SetOffset(struct R2KinematicCharacterController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2KinematicCharacterController_SetOffset(struct R2KinematicCharacterController *controller,
                                                         struct R2CharacterLength offset);
 
 /**
  * Enable or disable sliding along obstacles.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2KinematicCharacterController_SetSlide(struct R2KinematicCharacterController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2KinematicCharacterController_SetSlide(struct R2KinematicCharacterController *controller,
                                                        R2Bool enabled);
 
 /**
  * Set the maximum climb angle and minimum slide angle, in radians.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2KinematicCharacterController_SetSlopes(struct R2KinematicCharacterController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2KinematicCharacterController_SetSlopes(struct R2KinematicCharacterController *controller,
                                                         R2Real max_climb_angle,
                                                         R2Real min_slide_angle);
 
@@ -4311,8 +4308,8 @@ R2Status r2KinematicCharacterController_SetSlopes(struct R2KinematicCharacterCon
  * Configure automatic stepping over obstacles. enabled = 0 disables it.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2KinematicCharacterController_SetAutostep(struct R2KinematicCharacterController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2KinematicCharacterController_SetAutostep(struct R2KinematicCharacterController *controller,
                                                           R2Bool enabled,
                                                           struct R2CharacterLength max_height,
                                                           struct R2CharacterLength min_width,
@@ -4322,8 +4319,8 @@ R2Status r2KinematicCharacterController_SetAutostep(struct R2KinematicCharacterC
  * Configure downward ground snapping. enabled = 0 disables it.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2KinematicCharacterController_SetSnapToGround(struct R2KinematicCharacterController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2KinematicCharacterController_SetSnapToGround(struct R2KinematicCharacterController *controller,
                                                                 R2Bool enabled,
                                                                 struct R2CharacterLength distance);
 
@@ -4334,8 +4331,8 @@ R2Status r2KinematicCharacterController_SetSnapToGround(struct R2KinematicCharac
  * DetectCollisions call.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R2CharacterMovement r2KinematicCharacterController_MoveShape(const struct R2World *world,
+RAPIER_API
+struct R2CharacterMovement RAPIER_CALL r2KinematicCharacterController_MoveShape(const struct R2World *world,
                                                                           const struct R2QueryOptions *options,
                                                                           struct R2KinematicCharacterController *controller,
                                                                           R2Real dt,
@@ -4348,8 +4345,8 @@ struct R2CharacterMovement r2KinematicCharacterController_MoveShape(const struct
  * @see @ref output_buffers
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-size_t r2KinematicCharacterController_Collisions(const struct R2KinematicCharacterController *controller,
+RAPIER_API
+size_t RAPIER_CALL r2KinematicCharacterController_Collisions(const struct R2KinematicCharacterController *controller,
                                                      struct R2CharacterCollision *buffer,
                                                      size_t capacity);
 
@@ -4358,8 +4355,8 @@ size_t r2KinematicCharacterController_Collisions(const struct R2KinematicCharact
  * filter.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2KinematicCharacterController_SolveCharacterCollisionImpulses(const struct R2KinematicCharacterController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2KinematicCharacterController_SolveCharacterCollisionImpulses(const struct R2KinematicCharacterController *controller,
                                                                                 const R2SharedShape *shape,
                                                                                 R2Real dt,
                                                                                 R2Real mass,
@@ -4370,44 +4367,43 @@ R2Status r2KinematicCharacterController_SolveCharacterCollisionImpulses(const st
  * r2FreePidController.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL struct R2PidController *r2NewPidController(void);
+RAPIER_API struct R2PidController *RAPIER_CALL r2NewPidController(void);
 
 /**
  * Release an owned pid controller. NULL is allowed. Do not pass borrowed pointers or free the
  * object twice.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL R2Status r2FreePidController(struct R2PidController *controller);
+RAPIER_API R2Status RAPIER_CALL r2FreePidController(struct R2PidController *controller);
 
 /**
  * Return a copy of the proportional, integral, and derivative gains.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R2PidGains r2PidController_Gains(const struct R2PidController *controller);
+RAPIER_API struct R2PidGains RAPIER_CALL r2PidController_Gains(const struct R2PidController *controller);
 
 /**
  * Replace the proportional, integral, and derivative gains.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2PidController_SetGains(struct R2PidController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2PidController_SetGains(struct R2PidController *controller,
                                        struct R2PidGains gains);
 
 /**
  * AxesMask bits match Rapier: linear X/Y/Z are 1/2/4, angular X/Y/Z are 8/16/32.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2PidController_SetAxes(struct R2PidController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2PidController_SetAxes(struct R2PidController *controller,
                                       uint32_t axes);
 
 /**
  * Compute a velocity correction, preserving the body's state and updating PID integrals.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R2VelocityCorrection r2PidController_RigidBodyCorrection(struct R2PidController *controller,
+RAPIER_API
+struct R2VelocityCorrection RAPIER_CALL r2PidController_RigidBodyCorrection(struct R2PidController *controller,
                                                                       R2Real dt,
                                                                       struct R2RigidBodyHandle body,
                                                                       struct R2Pose target_pose,
@@ -4418,15 +4414,15 @@ struct R2VelocityCorrection r2PidController_RigidBodyCorrection(struct R2PidCont
  * Return a copy of slide, slope, and ground-snap settings.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R2CharacterControllerSettings r2KinematicCharacterController_Settings(const struct R2KinematicCharacterController *controller);
+RAPIER_API
+struct R2CharacterControllerSettings RAPIER_CALL r2KinematicCharacterController_Settings(const struct R2KinematicCharacterController *controller);
 
 #if defined(RAPIER_DIM3)
 /**
  * Return native default wheel tuning. This POD value owns no resources.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL struct R2WheelTuning r2DefaultWheelTuning(void);
+RAPIER_API struct R2WheelTuning RAPIER_CALL r2DefaultWheelTuning(void);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -4435,8 +4431,8 @@ RAPIER_API RAPIER_CALL struct R2WheelTuning r2DefaultWheelTuning(void);
  * controller. Release with r2FreeDynamicRayCastVehicleController.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R2DynamicRayCastVehicleController *r2NewDynamicRayCastVehicleController(struct R2RigidBodyHandle chassis);
+RAPIER_API
+struct R2DynamicRayCastVehicleController *RAPIER_CALL r2NewDynamicRayCastVehicleController(struct R2RigidBodyHandle chassis);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -4445,8 +4441,8 @@ struct R2DynamicRayCastVehicleController *r2NewDynamicRayCastVehicleController(s
  * pointers or free the object twice.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2FreeDynamicRayCastVehicleController(struct R2DynamicRayCastVehicleController *controller);
+RAPIER_API
+R2Status RAPIER_CALL r2FreeDynamicRayCastVehicleController(struct R2DynamicRayCastVehicleController *controller);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -4455,8 +4451,8 @@ R2Status r2FreeDynamicRayCastVehicleController(struct R2DynamicRayCastVehicleCon
  * are in chassis-local coordinates.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-size_t r2DynamicRayCastVehicleController_AddWheel(struct R2DynamicRayCastVehicleController *controller,
+RAPIER_API
+size_t RAPIER_CALL r2DynamicRayCastVehicleController_AddWheel(struct R2DynamicRayCastVehicleController *controller,
                                                          struct R2Vector connection,
                                                          struct R2Vector direction,
                                                          struct R2Vector axle,
@@ -4470,8 +4466,8 @@ size_t r2DynamicRayCastVehicleController_AddWheel(struct R2DynamicRayCastVehicle
  * Set the chassis up/forward axis indices (0 = X, 1 = Y, 2 = Z).
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2DynamicRayCastVehicleController_SetAxes(struct R2DynamicRayCastVehicleController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2DynamicRayCastVehicleController_SetAxes(struct R2DynamicRayCastVehicleController *controller,
                                                            size_t up,
                                                            size_t forward);
 #endif
@@ -4481,8 +4477,8 @@ R2Status r2DynamicRayCastVehicleController_SetAxes(struct R2DynamicRayCastVehicl
  * Set a wheel engine force, brake force, and steering angle in radians.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2DynamicRayCastVehicleController_SetWheelControls(struct R2DynamicRayCastVehicleController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2DynamicRayCastVehicleController_SetWheelControls(struct R2DynamicRayCastVehicleController *controller,
                                                                      size_t index,
                                                                      R2Real steering,
                                                                      R2Real engine_force,
@@ -4494,8 +4490,8 @@ R2Status r2DynamicRayCastVehicleController_SetWheelControls(struct R2DynamicRayC
  * Ray-cast wheel contacts and apply vehicle forces for dt seconds. Does not step the world.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Status r2DynamicRayCastVehicleController_UpdateVehicle(struct R2DynamicRayCastVehicleController *controller,
+RAPIER_API
+R2Status RAPIER_CALL r2DynamicRayCastVehicleController_UpdateVehicle(struct R2DynamicRayCastVehicleController *controller,
                                                                  R2Real dt,
                                                                  const struct R2QueryFilter *filter);
 #endif
@@ -4505,8 +4501,8 @@ R2Status r2DynamicRayCastVehicleController_UpdateVehicle(struct R2DynamicRayCast
  * Return signed chassis speed along its forward direction.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R2Real r2DynamicRayCastVehicleController_CurrentVehicleSpeed(const struct R2DynamicRayCastVehicleController *controller);
+RAPIER_API
+R2Real RAPIER_CALL r2DynamicRayCastVehicleController_CurrentVehicleSpeed(const struct R2DynamicRayCastVehicleController *controller);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -4515,8 +4511,8 @@ R2Real r2DynamicRayCastVehicleController_CurrentVehicleSpeed(const struct R2Dyna
  * @see @ref output_buffers
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-size_t r2DynamicRayCastVehicleController_Wheels(const struct R2DynamicRayCastVehicleController *controller,
+RAPIER_API
+size_t RAPIER_CALL r2DynamicRayCastVehicleController_Wheels(const struct R2DynamicRayCastVehicleController *controller,
                                                       struct R2WheelState *buffer,
                                                       size_t capacity);
 #endif
@@ -4526,16 +4522,16 @@ size_t r2DynamicRayCastVehicleController_Wheels(const struct R2DynamicRayCastVeh
  * querying the broad phase.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBodyPropagateModifiedBodyPositionsToColliders(struct R2World *world);
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBodyPropagateModifiedBodyPositionsToColliders(struct R2World *world);
 
 /**
  * Copies the island manager's active body handles.
  * @see @ref output_buffers
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-size_t r2ActiveRigidBodies(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2ActiveRigidBodies(const struct R2World *world,
                                struct R2RigidBodyHandle *buffer,
                                size_t capacity);
 
@@ -4543,9 +4539,7 @@ size_t r2ActiveRigidBodies(const struct R2World *world,
  * Wake a body by handle, including a soft-body cluster proxy.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_WakeUp(struct R2RigidBodyHandle handle,
-                                 R2Bool strong);
+RAPIER_API R2Status RAPIER_CALL r2RigidBody_WakeUp(struct R2RigidBodyHandle handle, R2Bool strong);
 
 /**
  * Replace this thread's error handler and return the previous handler so it can
@@ -4554,7 +4548,7 @@ R2Status r2RigidBody_WakeUp(struct R2RigidBodyHandle handle,
  * handler may terminate the process. Includes R2_NOT_FOUND query misses.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL struct R2ErrorHandler r2SetErrorHandler(struct R2ErrorHandler handler);
+RAPIER_API struct R2ErrorHandler RAPIER_CALL r2SetErrorHandler(struct R2ErrorHandler handler);
 
 /**
  * Status of the most recent fallible operation on this thread. Reading this or
@@ -4563,40 +4557,40 @@ RAPIER_API RAPIER_CALL struct R2ErrorHandler r2SetErrorHandler(struct R2ErrorHan
  * from errors instead of using a fail-fast error callback.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL R2Status r2LastStatus(void);
+RAPIER_API R2Status RAPIER_CALL r2LastStatus(void);
 
 /**
  * Thread-local UTF-8 diagnostic, valid until the next fallible call on this thread.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL const char *r2LastError(void);
+RAPIER_API const char *RAPIER_CALL r2LastError(void);
 
 /**
  * Create an owned ball shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2SharedShape *r2BallSharedShape(R2Real radius);
+RAPIER_API R2SharedShape *RAPIER_CALL r2BallSharedShape(R2Real radius);
 
 /**
  * Create an owned cuboid shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2SharedShape *r2CuboidSharedShape(struct R2Vector half_extents);
+RAPIER_API R2SharedShape *RAPIER_CALL r2CuboidSharedShape(struct R2Vector half_extents);
 
 /**
  * Create an owned round cuboid shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2RoundCuboidSharedShape(struct R2Vector half_extents,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2RoundCuboidSharedShape(struct R2Vector half_extents,
                                               R2Real border_radius);
 
 /**
  * Create an owned capsule shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2CapsuleSharedShape(struct R2Vector a,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2CapsuleSharedShape(struct R2Vector a,
                                          struct R2Vector b,
                                          R2Real radius);
 
@@ -4604,16 +4598,14 @@ R2SharedShape *r2CapsuleSharedShape(struct R2Vector a,
  * Create an owned segment shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2SegmentSharedShape(struct R2Vector a,
-                                         struct R2Vector b);
+RAPIER_API R2SharedShape *RAPIER_CALL r2SegmentSharedShape(struct R2Vector a, struct R2Vector b);
 
 /**
  * Create an owned triangle shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2TriangleSharedShape(struct R2Vector a,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2TriangleSharedShape(struct R2Vector a,
                                           struct R2Vector b,
                                           struct R2Vector c);
 
@@ -4621,16 +4613,14 @@ R2SharedShape *r2TriangleSharedShape(struct R2Vector a,
  * Create an owned halfspace shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2SharedShape *r2HalfspaceSharedShape(struct R2Vector normal);
+RAPIER_API R2SharedShape *RAPIER_CALL r2HalfspaceSharedShape(struct R2Vector normal);
 
 #if defined(RAPIER_DIM3)
 /**
  * Create an owned cylinder shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2CylinderSharedShape(R2Real half_height,
-                                          R2Real radius);
+RAPIER_API R2SharedShape *RAPIER_CALL r2CylinderSharedShape(R2Real half_height, R2Real radius);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -4638,7 +4628,7 @@ R2SharedShape *r2CylinderSharedShape(R2Real half_height,
  * Create an owned cone shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2SharedShape *r2ConeSharedShape(R2Real half_height, R2Real radius);
+RAPIER_API R2SharedShape *RAPIER_CALL r2ConeSharedShape(R2Real half_height, R2Real radius);
 #endif
 
 /**
@@ -4646,32 +4636,27 @@ RAPIER_API RAPIER_CALL R2SharedShape *r2ConeSharedShape(R2Real half_height, R2Re
  * shared, not consumed. Release with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2CompoundSharedShape(struct R2CompoundShapeView children);
+RAPIER_API R2SharedShape *RAPIER_CALL r2CompoundSharedShape(struct R2CompoundShapeView children);
 
 /**
  * Remove the collider and update its parent body mass properties. wake_up wakes the parent.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RemoveCollider(struct R2ColliderHandle handle,
-                              R2Bool wake_up);
+RAPIER_API R2Status RAPIER_CALL r2RemoveCollider(struct R2ColliderHandle handle, R2Bool wake_up);
 
 /**
  * Remove an impulse joint. wake_up wakes its connected bodies.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RemoveImpulseJoint(struct R2ImpulseJointHandle handle,
-                                   R2Bool wake_up);
+RAPIER_API R2Status RAPIER_CALL r2RemoveImpulseJoint(struct R2ImpulseJointHandle handle, R2Bool wake_up);
 
 /**
  * Copy entity handles.
  * @see @ref output_buffers
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-size_t r2ImpulseJointHandles(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2ImpulseJointHandles(const struct R2World *world,
                                  struct R2ImpulseJointHandle *buffer,
                                  size_t capacity);
 
@@ -4679,8 +4664,8 @@ size_t r2ImpulseJointHandles(const struct R2World *world,
  * Remove an articulation joint. wake_up wakes affected bodies.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RemoveMultibodyJoint(struct R2MultibodyJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RemoveMultibodyJoint(struct R2MultibodyJointHandle handle,
                                      R2Bool wake_up);
 
 /**
@@ -4688,8 +4673,8 @@ R2Status r2RemoveMultibodyJoint(struct R2MultibodyJointHandle handle,
  * @see @ref output_buffers
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-size_t r2MultibodyJointHandles(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2MultibodyJointHandles(const struct R2World *world,
                                    struct R2MultibodyJointHandle *buffer,
                                    size_t capacity);
 
@@ -4697,28 +4682,26 @@ size_t r2MultibodyJointHandles(const struct R2World *world,
  * Return the two bodies connected by an impulse joint.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R2JointBodies r2ImpulseJoint_Bodies(struct R2ImpulseJointHandle handle);
+RAPIER_API struct R2JointBodies RAPIER_CALL r2ImpulseJoint_Bodies(struct R2ImpulseJointHandle handle);
 
 /**
  * Return native default inverse kinematics options. This POD value owns no resources.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R2InverseKinematicsOptions r2DefaultInverseKinematicsOptions(void);
+RAPIER_API struct R2InverseKinematicsOptions RAPIER_CALL r2DefaultInverseKinematicsOptions(void);
 
 /**
  * Return the articulation degrees of freedom associated with the joint.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL size_t r2MultibodyJoint_Ndofs(struct R2MultibodyJointHandle handle);
+RAPIER_API size_t RAPIER_CALL r2MultibodyJoint_Ndofs(struct R2MultibodyJointHandle handle);
 
 /**
  * Read/write displacement buffer must contain exactly ndofs entries; zero it for a fresh solve.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2MultibodyJoint_InverseKinematics(struct R2MultibodyJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2MultibodyJoint_InverseKinematics(struct R2MultibodyJointHandle handle,
                                                  const struct R2InverseKinematicsOptions *options,
                                                  struct R2Pose target,
                                                  R2IkJointCanMove can_move,
@@ -4730,8 +4713,8 @@ R2Status r2MultibodyJoint_InverseKinematics(struct R2MultibodyJointHandle handle
  * Apply generalized articulation displacements in native degree-of-freedom order.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2MultibodyJoint_ApplyDisplacements(struct R2MultibodyJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2MultibodyJoint_ApplyDisplacements(struct R2MultibodyJointHandle handle,
                                                   const R2Real *displacements,
                                                   size_t count);
 
@@ -4739,28 +4722,28 @@ R2Status r2MultibodyJoint_ApplyDisplacements(struct R2MultibodyJointHandle handl
  * Frees an owned object; NULL is allowed. Never free a borrowed pointer.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeSharedShape(R2SharedShape *object);
+RAPIER_API R2Status RAPIER_CALL r2FreeSharedShape(R2SharedShape *object);
 
 /**
  * Create an owned wrapper sharing the same immutable geometry. Release it with
  * r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2SharedShape *r2SharedShape_Clone(const R2SharedShape *object);
+RAPIER_API R2SharedShape *RAPIER_CALL r2SharedShape_Clone(const R2SharedShape *object);
 
 /**
  * Return the number of rigid body objects in the world.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL size_t r2RigidBodyCount(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2RigidBodyCount(const struct R2World *world);
 
 /**
  * Copy entity handles.
  * @see @ref output_buffers
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2RigidBodyHandles(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2RigidBodyHandles(const struct R2World *world,
                               struct R2RigidBodyHandle *buffer,
                               size_t capacity);
 
@@ -4769,21 +4752,21 @@ size_t r2RigidBodyHandles(const struct R2World *world,
  * false.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_Contains(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_Contains(struct R2RigidBodyHandle handle);
 
 /**
  * Return the number of collider objects in the world.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL size_t r2ColliderCount(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2ColliderCount(const struct R2World *world);
 
 /**
  * Copy entity handles.
  * @see @ref output_buffers
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-size_t r2ColliderHandles(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2ColliderHandles(const struct R2World *world,
                             struct R2ColliderHandle *buffer,
                             size_t capacity);
 
@@ -4791,21 +4774,21 @@ size_t r2ColliderHandles(const struct R2World *world,
  * Test whether the live world contains this collider handle. A removed/stale handle returns false.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Bool r2Collider_Contains(struct R2ColliderHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2Collider_Contains(struct R2ColliderHandle handle);
 
 /**
  * Return the number of soft body objects in the world.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL size_t r2SoftBodyCount(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2SoftBodyCount(const struct R2World *world);
 
 /**
  * Copy entity handles.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyHandles(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyHandles(const struct R2World *world,
                              struct R2SoftBodyHandle *buffer,
                              size_t capacity);
 
@@ -4814,283 +4797,265 @@ size_t r2SoftBodyHandles(const struct R2World *world,
  * false.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2SoftBody_Contains(struct R2SoftBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2SoftBody_Contains(struct R2SoftBodyHandle handle);
 
 /**
  * Remove a body and its joints, optionally keeping colliders as standalone objects.
  * Returns whether a body was removed; a stale handle returns false without error.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2RemoveRigidBody(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Bool RAPIER_CALL r2RemoveRigidBody(struct R2RigidBodyHandle handle,
                               R2Bool remove_attached_colliders);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::dt.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Real r2TimeStep(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2TimeStep(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::dt.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetTimeStep(struct R2World *world, R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SetTimeStep(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::minCcdDt.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Real r2MinCcdDt(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2MinCcdDt(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::minCcdDt.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetMinCcdDt(struct R2World *world, R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SetMinCcdDt(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::lengthUnit.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Real r2LengthUnit(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2LengthUnit(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::lengthUnit.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetLengthUnit(struct R2World *world, R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SetLengthUnit(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::warmstartCoefficient.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Real r2WarmstartCoefficient(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2WarmstartCoefficient(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::warmstartCoefficient.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetWarmstartCoefficient(struct R2World *world,
-                                        R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SetWarmstartCoefficient(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::normalizedAllowedLinearError.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Real r2NormalizedAllowedLinearError(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2NormalizedAllowedLinearError(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::normalizedAllowedLinearError.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetNormalizedAllowedLinearError(struct R2World *world,
-                                                  R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SetNormalizedAllowedLinearError(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by
  * R2IntegrationParameters::normalizedMaxCorrectiveVelocity.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Real r2NormalizedMaxCorrectiveVelocity(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2NormalizedMaxCorrectiveVelocity(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::normalizedMaxCorrectiveVelocity.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetNormalizedMaxCorrectiveVelocity(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2SetNormalizedMaxCorrectiveVelocity(struct R2World *world,
                                                      R2Real value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::normalizedPredictionDistance.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Real r2NormalizedPredictionDistance(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2NormalizedPredictionDistance(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::normalizedPredictionDistance.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetNormalizedPredictionDistance(struct R2World *world,
-                                                 R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SetNormalizedPredictionDistance(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::normalizedMaxLinearVelocity.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Real r2NormalizedMaxLinearVelocity(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2NormalizedMaxLinearVelocity(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::normalizedMaxLinearVelocity.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetNormalizedMaxLinearVelocity(struct R2World *world,
-                                                 R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SetNormalizedMaxLinearVelocity(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by
  * R2IntegrationParameters::normalizedContactRecycleDistance.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Real r2NormalizedContactRecycleDistance(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2NormalizedContactRecycleDistance(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::normalizedContactRecycleDistance.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetNormalizedContactRecycleDistance(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2SetNormalizedContactRecycleDistance(struct R2World *world,
                                                       R2Real value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::numSolverIterations.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL size_t r2NumSolverIterations(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2NumSolverIterations(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::numSolverIterations.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetNumSolverIterations(struct R2World *world,
-                                        size_t value);
+RAPIER_API R2Status RAPIER_CALL r2SetNumSolverIterations(struct R2World *world, size_t value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::numInternalPgsIterations.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL size_t r2NumInternalPgsIterations(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2NumInternalPgsIterations(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::numInternalPgsIterations.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetNumInternalPgsIterations(struct R2World *world,
-                                              size_t value);
+RAPIER_API R2Status RAPIER_CALL r2SetNumInternalPgsIterations(struct R2World *world, size_t value);
 
 /**
  * Return the world setting documented by
  * R2IntegrationParameters::numInternalStabilizationIterations.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL
-size_t r2NumInternalStabilizationIterations(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2NumInternalStabilizationIterations(const struct R2World *world);
 
 /**
  * Set the world setting documented by
  * R2IntegrationParameters::numInternalStabilizationIterations.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetNumInternalStabilizationIterations(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2SetNumInternalStabilizationIterations(struct R2World *world,
                                                         size_t value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::maxCcdSubsteps.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL size_t r2MaxCcdSubsteps(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2MaxCcdSubsteps(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::maxCcdSubsteps.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetMaxCcdSubsteps(struct R2World *world, size_t value);
+RAPIER_API R2Status RAPIER_CALL r2SetMaxCcdSubsteps(struct R2World *world, size_t value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::contactClustering.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Bool r2ContactClustering(const struct R2World *world);
+RAPIER_API R2Bool RAPIER_CALL r2ContactClustering(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::contactClustering.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetContactClustering(struct R2World *world, R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2SetContactClustering(struct R2World *world, R2Bool value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::contactRecycling.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Bool r2ContactRecycling(const struct R2World *world);
+RAPIER_API R2Bool RAPIER_CALL r2ContactRecycling(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::contactRecycling.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetContactRecycling(struct R2World *world, R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2SetContactRecycling(struct R2World *world, R2Bool value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::frictionInBiasPass.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Bool r2FrictionInBiasPass(const struct R2World *world);
+RAPIER_API R2Bool RAPIER_CALL r2FrictionInBiasPass(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::frictionInBiasPass.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetFrictionInBiasPass(struct R2World *world,
-                                        R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2SetFrictionInBiasPass(struct R2World *world, R2Bool value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::warmstartJoints.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL R2Bool r2WarmstartJoints(const struct R2World *world);
+RAPIER_API R2Bool RAPIER_CALL r2WarmstartJoints(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::warmstartJoints.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL R2Status r2SetWarmstartJoints(struct R2World *world, R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2SetWarmstartJoints(struct R2World *world, R2Bool value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::contactSoftness.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SpringCoefficients r2ContactSoftness(const struct R2World *world);
+RAPIER_API struct R2SpringCoefficients RAPIER_CALL r2ContactSoftness(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::contactSoftness.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetContactSoftness(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2SetContactSoftness(struct R2World *world,
                                    struct R2SpringCoefficients value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::staticContactSoftness.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SpringCoefficients r2StaticContactSoftness(const struct R2World *world);
+RAPIER_API struct R2SpringCoefficients RAPIER_CALL r2StaticContactSoftness(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::staticContactSoftness.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SetStaticContactSoftness(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2SetStaticContactSoftness(struct R2World *world,
                                           struct R2SpringCoefficients value);
 
 /**
  * Applies Rapier's persistent one-way platform logic to the borrowed manifold.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ContactModificationContext_UpdateAsOnewayPlatform(struct R2ContactModificationContext *context,
+RAPIER_API
+R2Status RAPIER_CALL r2ContactModificationContext_UpdateAsOnewayPlatform(struct R2ContactModificationContext *context,
                                                                      struct R2Vector allowed_local_n1,
                                                                      R2Real allowed_angle);
 
@@ -5098,36 +5063,36 @@ R2Status r2ContactModificationContext_UpdateAsOnewayPlatform(struct R2ContactMod
  * Sets the tangent velocity of every rigid solver contact in this manifold.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ContactModificationContext_SetTangentVelocity(struct R2ContactModificationContext *context,
+RAPIER_API
+R2Status RAPIER_CALL r2ContactModificationContext_SetTangentVelocity(struct R2ContactModificationContext *context,
                                                                 struct R2Vector velocity);
 
 /**
  * Allocate an empty event collector; release it with r2FreeEventCollector.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL struct R2EventCollector *r2NewEventCollector(void);
+RAPIER_API struct R2EventCollector *RAPIER_CALL r2NewEventCollector(void);
 
 /**
  * Release an owned event collector. NULL is allowed. Do not pass borrowed pointers or free the
  * object twice.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeEventCollector(struct R2EventCollector *events);
+RAPIER_API R2Status RAPIER_CALL r2FreeEventCollector(struct R2EventCollector *events);
 
 /**
  * Discard all collected events. Does not change the world.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL R2Status r2EventCollector_Clear(struct R2EventCollector *events);
+RAPIER_API R2Status RAPIER_CALL r2EventCollector_Clear(struct R2EventCollector *events);
 
 /**
  * Copy the collected collision start/stop events without removing them.
  * @see @ref output_buffers
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r2EventCollector_CollisionEvents(const struct R2EventCollector *events,
+RAPIER_API
+size_t RAPIER_CALL r2EventCollector_CollisionEvents(const struct R2EventCollector *events,
                                             struct R2CollisionEvent *buffer,
                                             size_t capacity);
 
@@ -5136,8 +5101,8 @@ size_t r2EventCollector_CollisionEvents(const struct R2EventCollector *events,
  * @see @ref output_buffers
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r2EventCollector_ContactForceEvents(const struct R2EventCollector *events,
+RAPIER_API
+size_t RAPIER_CALL r2EventCollector_ContactForceEvents(const struct R2EventCollector *events,
                                                 struct R2ContactForceEvent *buffer,
                                                 size_t capacity);
 
@@ -5145,37 +5110,36 @@ size_t r2EventCollector_ContactForceEvents(const struct R2EventCollector *events
  * Return the number of queued soft-body tear events.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r2EventCollector_TearEventCount(const struct R2EventCollector *events);
+RAPIER_API size_t RAPIER_CALL r2EventCollector_TearEventCount(const struct R2EventCollector *events);
 
 /**
  * Return an owned copy of a queued tear event; release with r2FreeSoftBodyTearEvent. Does
  * not remove the queued event.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyTearEvent *r2EventCollector_TearEvent(const struct R2EventCollector *events,
+RAPIER_API
+struct R2SoftBodyTearEvent *RAPIER_CALL r2EventCollector_TearEvent(const struct R2EventCollector *events,
                                                             size_t index);
 
 /**
  * Return the world-space gravitational acceleration.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R2Vector r2Gravity(const struct R2World *world);
+RAPIER_API struct R2Vector RAPIER_CALL r2Gravity(const struct R2World *world);
 
 /**
  * Set the world-space gravitational acceleration.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetGravity(struct R2World *world, struct R2Vector value);
+RAPIER_API R2Status RAPIER_CALL r2SetGravity(struct R2World *world, struct R2Vector value);
 
 /**
  * Hooks and events may be NULL. This call invalidates all borrowed set-element pointers.
  * Advance simulation by one timestep. Hooks and events may be NULL.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Step(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2Step(struct R2World *world,
                    const struct R2PhysicsHooks *hooks,
                    const struct R2EventCollector *events);
 
@@ -5183,8 +5147,8 @@ R2Status r2Step(struct R2World *world,
  * Refresh collision detection without advancing simulation. Hooks and events may be NULL.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R2Status r2DetectCollisions(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2DetectCollisions(struct R2World *world,
                                 const struct R2PhysicsHooks *hooks,
                                 const struct R2EventCollector *events);
 
@@ -5193,36 +5157,36 @@ R2Status r2DetectCollisions(struct R2World *world,
  * pointer.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R2ByteView r2Bytes_Data(const struct R2Bytes *bytes);
+RAPIER_API struct R2ByteView RAPIER_CALL r2Bytes_Data(const struct R2Bytes *bytes);
 
 /**
  * Release an owned snapshot byte buffer. NULL is allowed. Do not pass borrowed pointers or free
  * the object twice.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeBytes(struct R2Bytes *bytes);
+RAPIER_API R2Status RAPIER_CALL r2FreeBytes(struct R2Bytes *bytes);
 
 /**
  * Return owned snapshot bytes; release them with r2FreeBytes. See @ref snapshots for
  * restoration and handle lifetimes.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R2Bytes *r2SerializeWorld(const struct R2World *world);
+RAPIER_API struct R2Bytes *RAPIER_CALL r2SerializeWorld(const struct R2World *world);
 
 /**
  * Restore ONLY trusted snapshots produced by the identical Rapier build. Snapshots are not a
  * stable file format.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R2World *r2DeserializeWorld(const uint8_t *data, size_t count);
+RAPIER_API struct R2World *RAPIER_CALL r2DeserializeWorld(const uint8_t *data, size_t count);
 
 /**
  * Color is HSLA (hue in degrees), matching Rapier DebugColor. mode uses DebugRenderMode bits.
  * @see @ref output_buffers
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-size_t r2DebugRender(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2DebugRender(const struct R2World *world,
                         uint32_t mode,
                         struct R2DebugLine *buffer,
                         size_t capacity);
@@ -5231,234 +5195,200 @@ size_t r2DebugRender(const struct R2World *world,
  * Set the world setting documented by R2SoftBodiesSettings::resweepStrain.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodiesSetResweepStrain(struct R2World *world,
-                                             R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SoftBodiesSetResweepStrain(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by R2SoftBodiesSettings::resweepStrain.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2SoftBodiesResweepStrain(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2SoftBodiesResweepStrain(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2SoftBodiesSettings::contactStiffening.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodiesSetContactStiffening(struct R2World *world,
-                                                 R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2SoftBodiesSetContactStiffening(struct R2World *world, R2Real value);
 
 /**
  * Return the world setting documented by R2SoftBodiesSettings::contactStiffening.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2SoftBodiesContactStiffening(const struct R2World *world);
+RAPIER_API R2Real RAPIER_CALL r2SoftBodiesContactStiffening(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2SoftBodiesSettings::maxExtraSubsteps.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodiesSetMaxExtraSubsteps(struct R2World *world,
-                                                 size_t value);
+RAPIER_API R2Status RAPIER_CALL r2SoftBodiesSetMaxExtraSubsteps(struct R2World *world, size_t value);
 
 /**
  * Return the world setting documented by R2SoftBodiesSettings::maxExtraSubsteps.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL size_t r2SoftBodiesMaxExtraSubsteps(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2SoftBodiesMaxExtraSubsteps(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::authoredVelocityMargin.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetAuthoredVelocityMargin(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetAuthoredVelocityMargin(struct R2World *world,
                                                     R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::edgeSpeculation.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetEdgeSpeculation(struct R2World *world,
-                                            R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetEdgeSpeculation(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::invertedCellDetection.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetInvertedCellDetection(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetInvertedCellDetection(struct R2World *world,
                                                    R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::selfCrossingDetection.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetSelfCrossingDetection(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetSelfCrossingDetection(struct R2World *world,
                                                    R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::detectionMotionGating.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetDetectionMotionGating(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetDetectionMotionGating(struct R2World *world,
                                                    R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::crossBodyDetection.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetCrossBodyDetection(struct R2World *world,
-                                                R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetCrossBodyDetection(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::selfStandDown.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetSelfStandDown(struct R2World *world,
-                                           R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetSelfStandDown(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::crossBodyExpelGate.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetCrossBodyExpelGate(struct R2World *world,
-                                                 R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetCrossBodyExpelGate(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::edgeStandDown.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetEdgeStandDown(struct R2World *world,
-                                           R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetEdgeStandDown(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::crossingRepulsion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetCrossingRepulsion(struct R2World *world,
-                                              R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetCrossingRepulsion(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::crossingRepulsionGuide.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetCrossingRepulsionGuide(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetCrossingRepulsionGuide(struct R2World *world,
                                                     R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::crossingRepulsionSelfGuide.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetCrossingRepulsionSelfGuide(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetCrossingRepulsionSelfGuide(struct R2World *world,
                                                          R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::recoveryPace.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetRecoveryPace(struct R2World *world,
-                                         R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetRecoveryPace(struct R2World *world, R2Real value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapConstraints.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapConstraints(struct R2World *world,
-                                               R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapConstraints(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapRigid.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapRigid(struct R2World *world,
-                                         R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapRigid(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapSkipSelfTangled.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapSkipSelfTangled(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetOverlapSkipSelfTangled(struct R2World *world,
                                                      R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapEdgeStandDown.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapEdgeStandDown(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetOverlapEdgeStandDown(struct R2World *world,
                                                    R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapConstraintPace.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapConstraintPace(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetOverlapConstraintPace(struct R2World *world,
                                                    R2Real value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapSkinVolume.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapSkinVolume(struct R2World *world,
-                                               R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapSkinVolume(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapKeptDepth.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapKeptDepth(struct R2World *world,
-                                              R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapKeptDepth(struct R2World *world, R2Real value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapSelfRegions.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapSelfRegions(struct R2World *world,
-                                                R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapSelfRegions(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapNormalPush.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapNormalPush(struct R2World *world,
-                                               R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapNormalPush(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapMultiVolume.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapMultiVolume(struct R2World *world,
-                                                R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapMultiVolume(struct R2World *world, R2Bool value);
 
 /**
  * Set the world setting documented by R2SoftRecoverySettings::overlapProgressMargin.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RecoverySetOverlapProgressMargin(struct R2World *world,
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetOverlapProgressMargin(struct R2World *world,
                                                    R2Real value);
 
 #if defined(RAPIER_FEM)
@@ -5466,9 +5396,7 @@ R2Status r2RecoverySetOverlapProgressMargin(struct R2World *world,
  * Set the world setting documented by R2SoftFemParameters::linearTolerance.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2FemSetLinearTolerance(struct R2World *world,
-                                       R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2FemSetLinearTolerance(struct R2World *world, R2Real value);
 #endif
 
 #if defined(RAPIER_FEM)
@@ -5476,9 +5404,7 @@ R2Status r2FemSetLinearTolerance(struct R2World *world,
  * Set the world setting documented by R2SoftFemParameters::maxLinearIterations.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2FemSetMaxLinearIterations(struct R2World *world,
-                                            size_t value);
+RAPIER_API R2Status RAPIER_CALL r2FemSetMaxLinearIterations(struct R2World *world, size_t value);
 #endif
 
 #if defined(RAPIER_FEM)
@@ -5486,7 +5412,7 @@ R2Status r2FemSetMaxLinearIterations(struct R2World *world,
  * Set the world setting documented by R2SoftFemParameters::maxDenseDofs.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Status r2FemSetMaxDenseDofs(struct R2World *world, size_t value);
+RAPIER_API R2Status RAPIER_CALL r2FemSetMaxDenseDofs(struct R2World *world, size_t value);
 #endif
 
 /**
@@ -5496,7 +5422,7 @@ RAPIER_API RAPIER_CALL R2Status r2FemSetMaxDenseDofs(struct R2World *world, size
  * pool when constructing the new one fails. The pool is not included in snapshots.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetNumThreads(struct R2World *world, size_t num_threads);
+RAPIER_API R2Status RAPIER_CALL r2SetNumThreads(struct R2World *world, size_t num_threads);
 
 /**
  * Removes the world's dedicated pool. A parallel build then uses the calling
@@ -5504,21 +5430,21 @@ RAPIER_API RAPIER_CALL R2Status r2SetNumThreads(struct R2World *world, size_t nu
  * Returns R2_UNSUPPORTED in a build without the parallel feature.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2ClearThreadPool(struct R2World *world);
+RAPIER_API R2Status RAPIER_CALL r2ClearThreadPool(struct R2World *world);
 
 /**
  * Size of the world's dedicated pool, or zero if a parallel build has no dedicated
  * pool configured. Returns one for a build without the parallel feature.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL size_t r2NumThreads(const struct R2World *world);
+RAPIER_API size_t RAPIER_CALL r2NumThreads(const struct R2World *world);
 
 /**
  * Enable or disable the native pipeline profiling counters. Enabling returns
  * R2_UNSUPPORTED if the library was built without the profiler feature.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2SetCountersEnabled(struct R2World *world, R2Bool enabled);
+RAPIER_API R2Status RAPIER_CALL r2SetCountersEnabled(struct R2World *world, R2Bool enabled);
 
 /**
  * Native engine time of the most recent step, in milliseconds, as in the Rust testbed.
@@ -5526,64 +5452,63 @@ RAPIER_API RAPIER_CALL R2Status r2SetCountersEnabled(struct R2World *world, R2Bo
  * and dispatch into a dedicated thread pool; remains unchanged while paused.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL double r2StepTimeMs(const struct R2World *world);
+RAPIER_API double RAPIER_CALL r2StepTimeMs(const struct R2World *world);
 
 /**
  * Read ONLY trusted legacy rigid-world snapshots from debug_deserialize3.rs,
  * produced by the identical Rapier build. This is not a stable interchange format.
+ *
  * Import trusted legacy Rust testbed rigid-state bytes into a new owned world. Release with
  * r2FreeWorld; see @ref snapshots.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-struct R2World *r2DeserializeRigidState(const uint8_t *data,
-                                             size_t count);
+RAPIER_API struct R2World *RAPIER_CALL r2DeserializeRigidState(const uint8_t *data, size_t count);
 
 /**
  * Return native default query filter. This POD value owns no resources.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL struct R2QueryFilter r2DefaultQueryFilter(void);
+RAPIER_API struct R2QueryFilter RAPIER_CALL r2DefaultQueryFilter(void);
 
 /**
  * Return native default shape cast options. This POD value owns no resources.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL struct R2ShapeCastOptions r2DefaultShapeCastOptions(void);
+RAPIER_API struct R2ShapeCastOptions RAPIER_CALL r2DefaultShapeCastOptions(void);
 
 /**
  * Remove a soft body and its associated simulation objects. Invalidates its handle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Status r2RemoveSoftBody(struct R2SoftBodyHandle handle);
+RAPIER_API R2Status RAPIER_CALL r2RemoveSoftBody(struct R2SoftBodyHandle handle);
 
 /**
  * Wake the soft body and its rigid proxies.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Status r2SoftBody_WakeUp(struct R2SoftBodyHandle handle);
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_WakeUp(struct R2SoftBodyHandle handle);
 
 /**
  * Release an owned soft body tear event. NULL is allowed. Do not pass borrowed pointers or free
  * the object twice.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeSoftBodyTearEvent(struct R2SoftBodyTearEvent *event);
+RAPIER_API R2Status RAPIER_CALL r2FreeSoftBodyTearEvent(struct R2SoftBodyTearEvent *event);
 
 /**
  * Return the source soft-body handle for this tear event.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyHandle r2SoftBodyTearEvent_SoftBody(const struct R2SoftBodyTearEvent *event);
+RAPIER_API
+struct R2SoftBodyHandle RAPIER_CALL r2SoftBodyTearEvent_SoftBody(const struct R2SoftBodyTearEvent *event);
 
 /**
  * Copy the soft-body handles produced by the tear.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_Bodies(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_Bodies(const struct R2SoftBodyTearEvent *event,
                                        struct R2SoftBodyHandle *buffer,
                                        size_t capacity);
 
@@ -5591,8 +5516,8 @@ size_t r2SoftBodyTearEvent_Bodies(const struct R2SoftBodyTearEvent *event,
  * Return the destination body and particle index for an original particle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2ParticleDestination r2SoftBodyTearEvent_ParticleDestination(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+struct R2ParticleDestination RAPIER_CALL r2SoftBodyTearEvent_ParticleDestination(const struct R2SoftBodyTearEvent *event,
                                                                             uint32_t particle);
 
 /**
@@ -5600,8 +5525,8 @@ struct R2ParticleDestination r2SoftBodyTearEvent_ParticleDestination(const struc
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_TornEdges(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_TornEdges(const struct R2SoftBodyTearEvent *event,
                                            uint32_t *buffer,
                                            size_t capacity);
 
@@ -5610,8 +5535,8 @@ size_t r2SoftBodyTearEvent_TornEdges(const struct R2SoftBodyTearEvent *event,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_TornCells(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_TornCells(const struct R2SoftBodyTearEvent *event,
                                            uint32_t *buffer,
                                            size_t capacity);
 
@@ -5620,8 +5545,8 @@ size_t r2SoftBodyTearEvent_TornCells(const struct R2SoftBodyTearEvent *event,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_RemovedEdges(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_RemovedEdges(const struct R2SoftBodyTearEvent *event,
                                               uint32_t *buffer,
                                               size_t capacity);
 
@@ -5630,8 +5555,8 @@ size_t r2SoftBodyTearEvent_RemovedEdges(const struct R2SoftBodyTearEvent *event,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_SplitParticles(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_SplitParticles(const struct R2SoftBodyTearEvent *event,
                                                 uint32_t *buffer,
                                                 size_t capacity);
 
@@ -5640,8 +5565,8 @@ size_t r2SoftBodyTearEvent_SplitParticles(const struct R2SoftBodyTearEvent *even
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_InsertedParticles(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_InsertedParticles(const struct R2SoftBodyTearEvent *event,
                                                    uint32_t *buffer,
                                                    size_t capacity);
 
@@ -5650,8 +5575,8 @@ size_t r2SoftBodyTearEvent_InsertedParticles(const struct R2SoftBodyTearEvent *e
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_PieceParticles(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_PieceParticles(const struct R2SoftBodyTearEvent *event,
                                                 size_t piece_index,
                                                 uint32_t *buffer,
                                                 size_t capacity);
@@ -5661,8 +5586,8 @@ size_t r2SoftBodyTearEvent_PieceParticles(const struct R2SoftBodyTearEvent *even
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_Clusters(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_Clusters(const struct R2SoftBodyTearEvent *event,
                                          struct R2SoftClusterSplit *buffer,
                                          size_t capacity);
 
@@ -5671,8 +5596,8 @@ size_t r2SoftBodyTearEvent_Clusters(const struct R2SoftBodyTearEvent *event,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyTearEvent_MovedJoints(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyTearEvent_MovedJoints(const struct R2SoftBodyTearEvent *event,
                                              struct R2SoftJointMove *buffer,
                                              size_t capacity);
 
@@ -5681,8 +5606,8 @@ size_t r2SoftBodyTearEvent_MovedJoints(const struct R2SoftBodyTearEvent *event,
  * r2FreeSoftBodyTearEvent.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyTearEvent *r2SoftBody_Tear(struct R2SoftBodyHandle handle,
+RAPIER_API
+struct R2SoftBodyTearEvent *RAPIER_CALL r2SoftBody_Tear(struct R2SoftBodyHandle handle,
                                                 const uint32_t *edges,
                                                 size_t edge_count,
                                                 const uint32_t *cells,
@@ -5692,8 +5617,8 @@ struct R2SoftBodyTearEvent *r2SoftBody_Tear(struct R2SoftBodyHandle handle,
  * Create a rigid proxy cluster from the supplied particle indices and return its cluster index.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-uint32_t r2SoftBody_AddCluster(struct R2SoftBodyHandle handle,
+RAPIER_API
+uint32_t RAPIER_CALL r2SoftBody_AddCluster(struct R2SoftBodyHandle handle,
                                    const uint32_t *particles,
                                    size_t count);
 
@@ -5701,8 +5626,8 @@ uint32_t r2SoftBody_AddCluster(struct R2SoftBodyHandle handle,
  * Remove the selected cluster and its rigid proxy.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_RemoveCluster(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_RemoveCluster(struct R2SoftBodyHandle handle,
                                        uint32_t cluster);
 
 /**
@@ -5710,8 +5635,8 @@ R2Status r2SoftBody_RemoveCluster(struct R2SoftBodyHandle handle,
  * found to false; body/index are only written when a destination exists.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2OptionalParticleDestination r2SoftBodyTearEvent_TryParticleDestination(const struct R2SoftBodyTearEvent *event,
+RAPIER_API
+struct R2OptionalParticleDestination RAPIER_CALL r2SoftBodyTearEvent_TryParticleDestination(const struct R2SoftBodyTearEvent *event,
                                                                                         uint32_t particle);
 
 /**
@@ -5719,8 +5644,8 @@ struct R2OptionalParticleDestination r2SoftBodyTearEvent_TryParticleDestination(
  * The optional owned event must be freed with FreeSoftBodyTearEvent.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyTearEvent *r2CutSoftBody(struct R2SoftBodyHandle handle,
+RAPIER_API
+struct R2SoftBodyTearEvent *RAPIER_CALL r2CutSoftBody(struct R2SoftBodyHandle handle,
                                                const struct R2Vector *blade);
 
 /**
@@ -5728,14 +5653,13 @@ struct R2SoftBodyTearEvent *r2CutSoftBody(struct R2SoftBodyHandle handle,
  * destructor.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-struct R2VolumeMeshParameters r2NewVolumeMeshParameters(R2Real cell_size);
+RAPIER_API struct R2VolumeMeshParameters RAPIER_CALL r2NewVolumeMeshParameters(R2Real cell_size);
 
 /**
  * Return ABI version, dimension, scalar size, and pointer size of the linked library.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL struct R2BuildInfo r2BuildInfo(void);
+RAPIER_API struct R2BuildInfo RAPIER_CALL r2BuildInfo(void);
 
 /**
  * Release version of the loaded C bindings, e.g. "0.35.3+c.2".
@@ -5744,7 +5668,7 @@ RAPIER_API RAPIER_CALL struct R2BuildInfo r2BuildInfo(void);
  * This release identifier is independent of the ABI compatibility version.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL const char *r2Version(void);
+RAPIER_API const char *RAPIER_CALL r2Version(void);
 
 /**
  * Cargo profile of the loaded physics library: "debug" or "release".
@@ -5753,21 +5677,21 @@ RAPIER_API RAPIER_CALL const char *r2Version(void);
  * This is independent of the consumer's build mode and of per-package optimization overrides.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL const char *r2BuildProfile(void);
+RAPIER_API const char *RAPIER_CALL r2BuildProfile(void);
 
 /**
  * Return profiling, SIMD width, and parallelism of the linked library.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL struct R2BuildFeatures r2BuildFeatures(void);
+RAPIER_API struct R2BuildFeatures RAPIER_CALL r2BuildFeatures(void);
 
 /**
  * Create an owned heightfield shape from copied samples. 3D samples are column-major, with rows *
  * columns entries. Release with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2HeightfieldSharedShape(struct R2RealView heights,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2HeightfieldSharedShape(struct R2RealView heights,
                                              size_t rows,
                                              size_t columns,
                                              struct R2Vector scale);
@@ -5776,24 +5700,24 @@ R2SharedShape *r2HeightfieldSharedShape(struct R2RealView heights,
  * Compute the shape axis-aligned bounds at the supplied world-space pose.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R2Aabb r2SharedShape_ComputeAabb(const R2SharedShape *shape,
+RAPIER_API
+struct R2Aabb RAPIER_CALL r2SharedShape_ComputeAabb(const R2SharedShape *shape,
                                              struct R2Pose pose);
 
 /**
  * Compute local mass properties for the supplied nonnegative density.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R2MassProperties r2SharedShape_MassProperties(const R2SharedShape *shape,
+RAPIER_API
+struct R2MassProperties RAPIER_CALL r2SharedShape_MassProperties(const R2SharedShape *shape,
                                                           R2Real density);
 
 /**
  * Test whether the world-space point lies inside the shape at pose.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2SharedShape_ContainsPoint(const R2SharedShape *shape,
+RAPIER_API
+R2Bool RAPIER_CALL r2SharedShape_ContainsPoint(const R2SharedShape *shape,
                                         struct R2Pose pose,
                                         struct R2Vector point);
 
@@ -5802,8 +5726,8 @@ R2Bool r2SharedShape_ContainsPoint(const R2SharedShape *shape,
  * @see @ref output_buffers
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r2ContactPairs(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2ContactPairs(const struct R2World *world,
                          struct R2ContactPair *buffer,
                          size_t capacity);
 
@@ -5811,8 +5735,8 @@ size_t r2ContactPairs(const struct R2World *world,
  * Return the narrow-phase contact pair for two colliders, or report R2_NOT_FOUND.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-struct R2ContactPair r2ContactPair(struct R2ColliderHandle collider1,
+RAPIER_API
+struct R2ContactPair RAPIER_CALL r2ContactPair(struct R2ColliderHandle collider1,
                                        struct R2ColliderHandle collider2);
 
 /**
@@ -5820,8 +5744,8 @@ struct R2ContactPair r2ContactPair(struct R2ColliderHandle collider1,
  * @see @ref output_buffers
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r2IntersectionPairs(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2IntersectionPairs(const struct R2World *world,
                               struct R2IntersectionPair *buffer,
                               size_t capacity);
 
@@ -5832,8 +5756,8 @@ size_t r2IntersectionPairs(const struct R2World *world,
  * @see @ref output_buffers
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-size_t r2ContactPoints(struct R2ColliderHandle collider1,
+RAPIER_API
+size_t RAPIER_CALL r2ContactPoints(struct R2ColliderHandle collider1,
                           struct R2ColliderHandle collider2,
                           struct R2ContactPoint *buffer,
                           size_t capacity);
@@ -5843,8 +5767,8 @@ size_t r2ContactPoints(struct R2ColliderHandle collider1,
  * @see @ref output_buffers
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-size_t r2MultibodyJoint_GeneralizedVelocity(struct R2MultibodyJointHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2MultibodyJoint_GeneralizedVelocity(struct R2MultibodyJointHandle handle,
                                                 R2Real *buffer,
                                                 size_t capacity);
 
@@ -5852,8 +5776,8 @@ size_t r2MultibodyJoint_GeneralizedVelocity(struct R2MultibodyJointHandle handle
  * Replace articulation generalized velocities; the array length must match its degrees of freedom.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2MultibodyJoint_SetGeneralizedVelocity(struct R2MultibodyJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2MultibodyJoint_SetGeneralizedVelocity(struct R2MultibodyJointHandle handle,
                                                        const R2Real *values,
                                                        size_t count);
 
@@ -5861,8 +5785,8 @@ R2Status r2MultibodyJoint_SetGeneralizedVelocity(struct R2MultibodyJointHandle h
  * Check this before passing any dimension/precision-dependent structs across the ABI.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL
-R2Status r2CheckAbi(uint32_t version,
+RAPIER_API
+R2Status RAPIER_CALL r2CheckAbi(uint32_t version,
                         uint32_t dimension,
                         size_t real_size,
                         size_t vector_size,
@@ -5873,8 +5797,8 @@ R2Status r2CheckAbi(uint32_t version,
  * controls curved-shape resolution.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R2ShapeMesh *r2SharedShape_Tessellate(const R2SharedShape *shape,
+RAPIER_API
+struct R2ShapeMesh *RAPIER_CALL r2SharedShape_Tessellate(const R2SharedShape *shape,
                                                  uint32_t subdivisions);
 
 /**
@@ -5882,8 +5806,8 @@ struct R2ShapeMesh *r2SharedShape_Tessellate(const R2SharedShape *shape,
  * @see @ref output_buffers
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r2ShapeMesh_Triangles(const struct R2ShapeMesh *mesh,
+RAPIER_API
+size_t RAPIER_CALL r2ShapeMesh_Triangles(const struct R2ShapeMesh *mesh,
                                 struct R2Vector *buffer,
                                 size_t capacity);
 
@@ -5892,8 +5816,8 @@ size_t r2ShapeMesh_Triangles(const struct R2ShapeMesh *mesh,
  * @see @ref output_buffers
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r2ShapeMesh_Lines(const struct R2ShapeMesh *mesh,
+RAPIER_API
+size_t RAPIER_CALL r2ShapeMesh_Lines(const struct R2ShapeMesh *mesh,
                             struct R2Vector *buffer,
                             size_t capacity);
 
@@ -5902,15 +5826,15 @@ size_t r2ShapeMesh_Lines(const struct R2ShapeMesh *mesh,
  * twice.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeShapeMesh(struct R2ShapeMesh *mesh);
+RAPIER_API R2Status RAPIER_CALL r2FreeShapeMesh(struct R2ShapeMesh *mesh);
 
 #if defined(RAPIER_DIM3)
 /**
  * Create an owned round cylinder shape. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2RoundCylinderSharedShape(R2Real half_height,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2RoundCylinderSharedShape(R2Real half_height,
                                                 R2Real radius,
                                                 R2Real border_radius);
 #endif
@@ -5921,8 +5845,8 @@ R2SharedShape *r2RoundCylinderSharedShape(R2Real half_height,
  * Cuboids, cones, cylinders, convex polyhedra, trimeshes, and heightfields are also supported.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R2TriMeshData *r2SharedShape_ToTrimesh(const R2SharedShape *shape,
+RAPIER_API
+struct R2TriMeshData *RAPIER_CALL r2SharedShape_ToTrimesh(const R2SharedShape *shape,
                                                    uint32_t ntheta,
                                                    uint32_t nphi);
 #endif
@@ -5933,8 +5857,8 @@ struct R2TriMeshData *r2SharedShape_ToTrimesh(const R2SharedShape *shape,
  * @see @ref output_buffers
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r2TriMeshData_Vertices(const struct R2TriMeshData *mesh,
+RAPIER_API
+size_t RAPIER_CALL r2TriMeshData_Vertices(const struct R2TriMeshData *mesh,
                                   struct R2Vector *buffer,
                                   size_t capacity);
 #endif
@@ -5945,8 +5869,8 @@ size_t r2TriMeshData_Vertices(const struct R2TriMeshData *mesh,
  * @see @ref output_buffers
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r2TriMeshData_Indices(const struct R2TriMeshData *mesh,
+RAPIER_API
+size_t RAPIER_CALL r2TriMeshData_Indices(const struct R2TriMeshData *mesh,
                                  uint32_t *buffer,
                                  size_t capacity);
 #endif
@@ -5957,7 +5881,7 @@ size_t r2TriMeshData_Indices(const struct R2TriMeshData *mesh,
  * object twice.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeTriMeshData(struct R2TriMeshData *mesh);
+RAPIER_API R2Status RAPIER_CALL r2FreeTriMeshData(struct R2TriMeshData *mesh);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -5965,7 +5889,7 @@ RAPIER_API RAPIER_CALL R2Status r2FreeTriMeshData(struct R2TriMeshData *mesh);
  * Return native default urdf loader options. This POD value owns no resources.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL struct R2UrdfLoaderOptions r2DefaultUrdfLoaderOptions(void);
+RAPIER_API struct R2UrdfLoaderOptions RAPIER_CALL r2DefaultUrdfLoaderOptions(void);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -5974,7 +5898,7 @@ RAPIER_API RAPIER_CALL struct R2UrdfLoaderOptions r2DefaultUrdfLoaderOptions(voi
  * twice.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeUrdfRobot(struct R2UrdfRobot *object);
+RAPIER_API R2Status RAPIER_CALL r2FreeUrdfRobot(struct R2UrdfRobot *object);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -5983,8 +5907,8 @@ RAPIER_API RAPIER_CALL R2Status r2FreeUrdfRobot(struct R2UrdfRobot *object);
  * Options and their blueprint resources are borrowed through this call; the robot is owned.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R2UrdfRobot *r2UrdfRobotFromFile(const char *path,
+RAPIER_API
+struct R2UrdfRobot *RAPIER_CALL r2UrdfRobotFromFile(const char *path,
                                               const struct R2UrdfLoaderOptions *options);
 #endif
 
@@ -5993,8 +5917,8 @@ struct R2UrdfRobot *r2UrdfRobotFromFile(const char *path,
  * Apply an additional transform to the loaded robot before insertion.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R2Status r2UrdfRobot_AppendTransform(struct R2UrdfRobot *robot,
+RAPIER_API
+R2Status RAPIER_CALL r2UrdfRobot_AppendTransform(struct R2UrdfRobot *robot,
                                           struct R2Pose transform);
 #endif
 
@@ -6004,7 +5928,7 @@ R2Status r2UrdfRobot_AppendTransform(struct R2UrdfRobot *robot,
  * object twice.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeUrdfRobotHandles(struct R2UrdfRobotHandles *handles);
+RAPIER_API R2Status RAPIER_CALL r2FreeUrdfRobotHandles(struct R2UrdfRobotHandles *handles);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6012,8 +5936,8 @@ RAPIER_API RAPIER_CALL R2Status r2FreeUrdfRobotHandles(struct R2UrdfRobotHandles
  * Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R2UrdfRobotHandles *r2UrdfRobot_InsertUsingImpulseJoints(struct R2World *world,
+RAPIER_API
+struct R2UrdfRobotHandles *RAPIER_CALL r2UrdfRobot_InsertUsingImpulseJoints(struct R2World *world,
                                                                        const struct R2UrdfRobot *robot);
 #endif
 
@@ -6022,8 +5946,8 @@ struct R2UrdfRobotHandles *r2UrdfRobot_InsertUsingImpulseJoints(struct R2World *
  * Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R2UrdfRobotHandles *r2UrdfRobot_InsertUsingMultibodyJoints(struct R2World *world,
+RAPIER_API
+struct R2UrdfRobotHandles *RAPIER_CALL r2UrdfRobot_InsertUsingMultibodyJoints(struct R2World *world,
                                                                          const struct R2UrdfRobot *robot,
                                                                          uint8_t options);
 #endif
@@ -6034,8 +5958,8 @@ struct R2UrdfRobotHandles *r2UrdfRobot_InsertUsingMultibodyJoints(struct R2World
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2UrdfRobotHandles_Bodies(const struct R2UrdfRobotHandles *handles,
+RAPIER_API
+size_t RAPIER_CALL r2UrdfRobotHandles_Bodies(const struct R2UrdfRobotHandles *handles,
                                      struct R2RigidBodyHandle *buffer,
                                      size_t capacity);
 #endif
@@ -6045,7 +5969,7 @@ size_t r2UrdfRobotHandles_Bodies(const struct R2UrdfRobotHandles *handles,
  * Return native default mjcf loader options. This POD value owns no resources.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL struct R2MjcfLoaderOptions r2DefaultMjcfLoaderOptions(void);
+RAPIER_API struct R2MjcfLoaderOptions RAPIER_CALL r2DefaultMjcfLoaderOptions(void);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6054,7 +5978,7 @@ RAPIER_API RAPIER_CALL struct R2MjcfLoaderOptions r2DefaultMjcfLoaderOptions(voi
  * twice.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeMjcfRobot(struct R2MjcfRobot *object);
+RAPIER_API R2Status RAPIER_CALL r2FreeMjcfRobot(struct R2MjcfRobot *object);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6063,8 +5987,8 @@ RAPIER_API RAPIER_CALL R2Status r2FreeMjcfRobot(struct R2MjcfRobot *object);
  * Options and their blueprint resources are borrowed through this call; the robot is owned.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R2MjcfRobot *r2MjcfRobotFromFile(const char *path,
+RAPIER_API
+struct R2MjcfRobot *RAPIER_CALL r2MjcfRobotFromFile(const char *path,
                                               const struct R2MjcfLoaderOptions *options);
 #endif
 
@@ -6073,8 +5997,8 @@ struct R2MjcfRobot *r2MjcfRobotFromFile(const char *path,
  * Apply an additional transform to the loaded robot before insertion.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R2Status r2MjcfRobot_AppendTransform(struct R2MjcfRobot *robot,
+RAPIER_API
+R2Status RAPIER_CALL r2MjcfRobot_AppendTransform(struct R2MjcfRobot *robot,
                                           struct R2Pose transform);
 #endif
 
@@ -6084,7 +6008,7 @@ R2Status r2MjcfRobot_AppendTransform(struct R2MjcfRobot *robot,
  * object twice.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeMjcfRobotHandles(struct R2MjcfRobotHandles *handles);
+RAPIER_API R2Status RAPIER_CALL r2FreeMjcfRobotHandles(struct R2MjcfRobotHandles *handles);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6092,8 +6016,8 @@ RAPIER_API RAPIER_CALL R2Status r2FreeMjcfRobotHandles(struct R2MjcfRobotHandles
  * Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R2MjcfRobotHandles *r2MjcfRobot_InsertUsingImpulseJoints(struct R2World *world,
+RAPIER_API
+struct R2MjcfRobotHandles *RAPIER_CALL r2MjcfRobot_InsertUsingImpulseJoints(struct R2World *world,
                                                                        const struct R2MjcfRobot *robot);
 #endif
 
@@ -6102,8 +6026,8 @@ struct R2MjcfRobotHandles *r2MjcfRobot_InsertUsingImpulseJoints(struct R2World *
  * Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R2MjcfRobotHandles *r2MjcfRobot_InsertUsingMultibodyJoints(struct R2World *world,
+RAPIER_API
+struct R2MjcfRobotHandles *RAPIER_CALL r2MjcfRobot_InsertUsingMultibodyJoints(struct R2World *world,
                                                                          const struct R2MjcfRobot *robot,
                                                                          uint8_t options);
 #endif
@@ -6114,8 +6038,8 @@ struct R2MjcfRobotHandles *r2MjcfRobot_InsertUsingMultibodyJoints(struct R2World
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfRobotHandles_Bodies(const struct R2MjcfRobotHandles *handles,
+RAPIER_API
+size_t RAPIER_CALL r2MjcfRobotHandles_Bodies(const struct R2MjcfRobotHandles *handles,
                                      struct R2RigidBodyHandle *buffer,
                                      size_t capacity);
 #endif
@@ -6125,7 +6049,7 @@ size_t r2MjcfRobotHandles_Bodies(const struct R2MjcfRobotHandles *handles,
  * Resolved model gravity before the caller chooses a world convention.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL struct R2Vector r2MjcfRobot_Gravity(const struct R2MjcfRobot *robot);
+RAPIER_API struct R2Vector RAPIER_CALL r2MjcfRobot_Gravity(const struct R2MjcfRobot *robot);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6133,7 +6057,7 @@ RAPIER_API RAPIER_CALL struct R2Vector r2MjcfRobot_Gravity(const struct R2MjcfRo
  * Return the number of source MJCF bodies.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL size_t r2MjcfRobot_BodyCount(const struct R2MjcfRobot *robot);
+RAPIER_API size_t RAPIER_CALL r2MjcfRobot_BodyCount(const struct R2MjcfRobot *robot);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6141,9 +6065,7 @@ RAPIER_API RAPIER_CALL size_t r2MjcfRobot_BodyCount(const struct R2MjcfRobot *ro
  * Return the collider count for a source body index.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfRobot_BodyColliderCount(const struct R2MjcfRobot *robot,
-                                          size_t body);
+RAPIER_API size_t RAPIER_CALL r2MjcfRobot_BodyColliderCount(const struct R2MjcfRobot *robot, size_t body);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6151,8 +6073,8 @@ size_t r2MjcfRobot_BodyColliderCount(const struct R2MjcfRobot *robot,
  * Set collision groups on a collider in the loaded robot, before insertion.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R2Status r2MjcfRobot_SetBodyColliderCollisionGroups(struct R2MjcfRobot *robot,
+RAPIER_API
+R2Status RAPIER_CALL r2MjcfRobot_SetBodyColliderCollisionGroups(struct R2MjcfRobot *robot,
                                                             size_t body,
                                                             size_t collider,
                                                             struct R2InteractionGroups groups);
@@ -6163,7 +6085,7 @@ R2Status r2MjcfRobot_SetBodyColliderCollisionGroups(struct R2MjcfRobot *robot,
  * Return the number of imported keyframes.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL size_t r2MjcfRobot_KeyframeCount(const struct R2MjcfRobot *robot);
+RAPIER_API size_t RAPIER_CALL r2MjcfRobot_KeyframeCount(const struct R2MjcfRobot *robot);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6172,8 +6094,8 @@ RAPIER_API RAPIER_CALL size_t r2MjcfRobot_KeyframeCount(const struct R2MjcfRobot
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfRobot_KeyframeName(const struct R2MjcfRobot *robot,
+RAPIER_API
+size_t RAPIER_CALL r2MjcfRobot_KeyframeName(const struct R2MjcfRobot *robot,
                                     size_t key,
                                     char *buffer,
                                     size_t capacity);
@@ -6184,8 +6106,8 @@ size_t r2MjcfRobot_KeyframeName(const struct R2MjcfRobot *robot,
  * Append a keyframe from the source MJCF model to the loaded robot.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R2Status r2MjcfRobot_AppendKeyframe(struct R2MjcfRobot *robot,
+RAPIER_API
+R2Status RAPIER_CALL r2MjcfRobot_AppendKeyframe(struct R2MjcfRobot *robot,
                                          const struct R2MjcfRobot *source,
                                          size_t key);
 #endif
@@ -6196,8 +6118,8 @@ R2Status r2MjcfRobot_AppendKeyframe(struct R2MjcfRobot *robot,
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfRobot_KeyframeControls(const struct R2MjcfRobot *robot,
+RAPIER_API
+size_t RAPIER_CALL r2MjcfRobot_KeyframeControls(const struct R2MjcfRobot *robot,
                                         size_t key,
                                         R2Real *buffer,
                                         size_t capacity);
@@ -6208,8 +6130,7 @@ size_t r2MjcfRobot_KeyframeControls(const struct R2MjcfRobot *robot,
  * Return the number of imported actuators.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfRobotHandles_ActuatorCount(const struct R2MjcfRobotHandles *handles);
+RAPIER_API size_t RAPIER_CALL r2MjcfRobotHandles_ActuatorCount(const struct R2MjcfRobotHandles *handles);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6217,8 +6138,8 @@ size_t r2MjcfRobotHandles_ActuatorCount(const struct R2MjcfRobotHandles *handles
  * Apply the selected keyframe to the inserted robot.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R2Status r2MjcfRobotHandles_ApplyKeyframe(const struct R2MjcfRobotHandles *handles,
+RAPIER_API
+R2Status RAPIER_CALL r2MjcfRobotHandles_ApplyKeyframe(const struct R2MjcfRobotHandles *handles,
                                                 const struct R2MjcfRobot *robot,
                                                 size_t key);
 #endif
@@ -6228,8 +6149,8 @@ R2Status r2MjcfRobotHandles_ApplyKeyframe(const struct R2MjcfRobotHandles *handl
  * Apply actuator controls with per-actuator scaling to the inserted robot.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R2Status r2MjcfRobotHandles_ApplyControlsScaled(const struct R2MjcfRobotHandles *handles,
+RAPIER_API
+R2Status RAPIER_CALL r2MjcfRobotHandles_ApplyControlsScaled(const struct R2MjcfRobotHandles *handles,
                                                        const R2Real *controls,
                                                        size_t count,
                                                        R2Real gain);
@@ -6240,9 +6161,7 @@ R2Status r2MjcfRobotHandles_ApplyControlsScaled(const struct R2MjcfRobotHandles 
  * Return the number of visual meshes for a source body.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfRobot_BodyVisualCount(const struct R2MjcfRobot *robot,
-                                        size_t body);
+RAPIER_API size_t RAPIER_CALL r2MjcfRobot_BodyVisualCount(const struct R2MjcfRobot *robot, size_t body);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6251,8 +6170,8 @@ size_t r2MjcfRobot_BodyVisualCount(const struct R2MjcfRobot *robot,
  * changes; never free this pointer.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-const R2MjcfVisualMesh *r2MjcfRobot_BodyVisual(const struct R2MjcfRobot *robot,
+RAPIER_API
+const R2MjcfVisualMesh *RAPIER_CALL r2MjcfRobot_BodyVisual(const struct R2MjcfRobot *robot,
                                                     size_t body,
                                                     size_t visual);
 #endif
@@ -6262,8 +6181,7 @@ const R2MjcfVisualMesh *r2MjcfRobot_BodyVisual(const struct R2MjcfRobot *robot,
  * Return a copy of visual pose, color, material, and geometry-kind flags.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R2MjcfVisualMeshInfo r2MjcfVisualMesh_Info(const R2MjcfVisualMesh *visual);
+RAPIER_API struct R2MjcfVisualMeshInfo RAPIER_CALL r2MjcfVisualMesh_Info(const R2MjcfVisualMesh *visual);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6272,8 +6190,7 @@ struct R2MjcfVisualMeshInfo r2MjcfVisualMesh_Info(const R2MjcfVisualMesh *visual
  * Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2MjcfVisualMesh_CloneShape(const R2MjcfVisualMesh *visual);
+RAPIER_API R2SharedShape *RAPIER_CALL r2MjcfVisualMesh_CloneShape(const R2MjcfVisualMesh *visual);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -6282,8 +6199,8 @@ R2SharedShape *r2MjcfVisualMesh_CloneShape(const R2MjcfVisualMesh *visual);
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfVisualMesh_Uvs(const R2MjcfVisualMesh *visual,
+RAPIER_API
+size_t RAPIER_CALL r2MjcfVisualMesh_Uvs(const R2MjcfVisualMesh *visual,
                                 float *buffer,
                                 size_t capacity);
 #endif
@@ -6294,8 +6211,8 @@ size_t r2MjcfVisualMesh_Uvs(const R2MjcfVisualMesh *visual,
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfVisualMesh_Normals(const R2MjcfVisualMesh *visual,
+RAPIER_API
+size_t RAPIER_CALL r2MjcfVisualMesh_Normals(const R2MjcfVisualMesh *visual,
                                     float *buffer,
                                     size_t capacity);
 #endif
@@ -6306,8 +6223,8 @@ size_t r2MjcfVisualMesh_Normals(const R2MjcfVisualMesh *visual,
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r2MjcfVisualMesh_Texture(const R2MjcfVisualMesh *visual,
+RAPIER_API
+size_t RAPIER_CALL r2MjcfVisualMesh_Texture(const R2MjcfVisualMesh *visual,
                                     char *buffer,
                                     size_t capacity);
 #endif
@@ -6316,53 +6233,51 @@ size_t r2MjcfVisualMesh_Texture(const R2MjcfVisualMesh *visual,
  * Return the rigid body world-space pose.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R2Pose r2RigidBody_Position(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2Pose RAPIER_CALL r2RigidBody_Position(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space translation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2RigidBody_Translation(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2Vector RAPIER_CALL r2RigidBody_Translation(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space linear velocity.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R2Vector r2RigidBody_Linvel(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2Vector RAPIER_CALL r2RigidBody_Linvel(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space angular velocity (radians per second).
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2AngVector r2RigidBody_Angvel(struct R2RigidBodyHandle handle);
+RAPIER_API R2AngVector RAPIER_CALL r2RigidBody_Angvel(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is sleeping.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsSleeping(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsSleeping(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is enabled.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsEnabled(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsEnabled(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body application-owned 128-bit user value.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2UserData r2RigidBody_UserData(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2UserData RAPIER_CALL r2RigidBody_UserData(struct R2RigidBodyHandle handle);
 
 /**
  * Set the rigid body world-space pose.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetPosition(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetPosition(struct R2RigidBodyHandle handle,
                                       struct R2Pose value,
                                       R2Bool wake_up);
 
@@ -6371,8 +6286,8 @@ R2Status r2RigidBody_SetPosition(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetTranslation(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetTranslation(struct R2RigidBodyHandle handle,
                                          struct R2Vector value,
                                          R2Bool wake_up);
 
@@ -6381,8 +6296,8 @@ R2Status r2RigidBody_SetTranslation(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetLinvel(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetLinvel(struct R2RigidBodyHandle handle,
                                     struct R2Vector value,
                                     R2Bool wake_up);
 
@@ -6391,8 +6306,8 @@ R2Status r2RigidBody_SetLinvel(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetAngvel(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetAngvel(struct R2RigidBodyHandle handle,
                                     R2AngVector value,
                                     R2Bool wake_up);
 
@@ -6400,16 +6315,16 @@ R2Status r2RigidBody_SetAngvel(struct R2RigidBodyHandle handle,
  * Set the rigid body next kinematic world-space pose.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetNextKinematicPosition(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetNextKinematicPosition(struct R2RigidBodyHandle handle,
                                                      struct R2Pose value);
 
 /**
  * Set the rigid body next kinematic world-space translation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetNextKinematicTranslation(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetNextKinematicTranslation(struct R2RigidBodyHandle handle,
                                                         struct R2Vector value);
 
 /**
@@ -6417,8 +6332,8 @@ R2Status r2RigidBody_SetNextKinematicTranslation(struct R2RigidBodyHandle handle
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetGravityScale(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetGravityScale(struct R2RigidBodyHandle handle,
                                            R2Real value,
                                            R2Bool wake_up);
 
@@ -6426,32 +6341,30 @@ R2Status r2RigidBody_SetGravityScale(struct R2RigidBodyHandle handle,
  * Set the rigid body linear damping coefficient.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetLinearDamping(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetLinearDamping(struct R2RigidBodyHandle handle,
                                             R2Real value);
 
 /**
  * Set the rigid body angular damping coefficient.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetAngularDamping(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetAngularDamping(struct R2RigidBodyHandle handle,
                                              R2Real value);
 
 /**
  * Enable or disable the rigid body.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetEnabled(struct R2RigidBodyHandle handle,
-                                     R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2RigidBody_SetEnabled(struct R2RigidBodyHandle handle, R2Bool value);
 
 /**
  * Set the rigid body application-owned 128-bit user value.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetUserData(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetUserData(struct R2RigidBodyHandle handle,
                                        struct R2UserData value);
 
 /**
@@ -6459,8 +6372,8 @@ R2Status r2RigidBody_SetUserData(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_ApplyImpulse(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_ApplyImpulse(struct R2RigidBodyHandle handle,
                                        struct R2Vector value,
                                        R2Bool wake_up);
 
@@ -6469,8 +6382,8 @@ R2Status r2RigidBody_ApplyImpulse(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_ApplyImpulseAtPoint(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_ApplyImpulseAtPoint(struct R2RigidBodyHandle handle,
                                                 struct R2Vector value,
                                                 struct R2Vector point,
                                                 R2Bool wake_up);
@@ -6480,8 +6393,8 @@ R2Status r2RigidBody_ApplyImpulseAtPoint(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_AddForce(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_AddForce(struct R2RigidBodyHandle handle,
                                    struct R2Vector value,
                                    R2Bool wake_up);
 
@@ -6490,115 +6403,106 @@ R2Status r2RigidBody_AddForce(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_ResetForces(struct R2RigidBodyHandle handle,
-                                      R2Bool wake_up);
+RAPIER_API R2Status RAPIER_CALL r2RigidBody_ResetForces(struct R2RigidBodyHandle handle, R2Bool wake_up);
 
 /**
  * Put the body to sleep.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Status r2RigidBody_Sleep(struct R2RigidBodyHandle handle);
+RAPIER_API R2Status RAPIER_CALL r2RigidBody_Sleep(struct R2RigidBodyHandle handle);
 
 /**
  * Return the collider world-space pose.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R2Pose r2Collider_Position(struct R2ColliderHandle handle);
+RAPIER_API struct R2Pose RAPIER_CALL r2Collider_Position(struct R2ColliderHandle handle);
 
 /**
  * Return the collider world-space translation.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R2Vector r2Collider_Translation(struct R2ColliderHandle handle);
+RAPIER_API struct R2Vector RAPIER_CALL r2Collider_Translation(struct R2ColliderHandle handle);
 
 /**
  * Return the collider friction coefficient.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Real r2Collider_Friction(struct R2ColliderHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2Collider_Friction(struct R2ColliderHandle handle);
 
 /**
  * Return the collider restitution coefficient.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Real r2Collider_Restitution(struct R2ColliderHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2Collider_Restitution(struct R2ColliderHandle handle);
 
 /**
  * Return whether the collider is a sensor (detects overlaps without contact forces).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Bool r2Collider_IsSensor(struct R2ColliderHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2Collider_IsSensor(struct R2ColliderHandle handle);
 
 /**
  * Return the parent body handle, or an invalid handle with OK status for a standalone collider.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2RigidBodyHandle r2Collider_Parent(struct R2ColliderHandle handle);
+RAPIER_API struct R2RigidBodyHandle RAPIER_CALL r2Collider_Parent(struct R2ColliderHandle handle);
 
 /**
  * Set the collider world-space pose.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetPosition(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetPosition(struct R2ColliderHandle handle,
                                     struct R2Pose value);
 
 /**
  * Set the collider world-space translation.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetTranslation(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetTranslation(struct R2ColliderHandle handle,
                                        struct R2Vector value);
 
 /**
  * Set the collider friction coefficient.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetFriction(struct R2ColliderHandle handle,
-                                    R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2Collider_SetFriction(struct R2ColliderHandle handle, R2Real value);
 
 /**
  * Set the collider restitution coefficient.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetRestitution(struct R2ColliderHandle handle,
-                                       R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2Collider_SetRestitution(struct R2ColliderHandle handle, R2Real value);
 
 /**
  * Enable or disable a sensor (detects overlaps without contact forces) for the collider.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetSensor(struct R2ColliderHandle handle,
-                                  R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2Collider_SetSensor(struct R2ColliderHandle handle, R2Bool value);
 
 /**
  * Set the collider collision filtering groups.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetCollisionGroups(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetCollisionGroups(struct R2ColliderHandle handle,
                                             struct R2InteractionGroups value);
 
 /**
  * Set the collider application-owned 128-bit user value.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetUserData(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetUserData(struct R2ColliderHandle handle,
                                      struct R2UserData value);
 
 /**
  * Return the world-space position of the indexed particle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2SoftBody_ParticlePosition(struct R2SoftBodyHandle handle,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2SoftBody_ParticlePosition(struct R2SoftBodyHandle handle,
                                                  size_t index);
 
 /**
@@ -6606,8 +6510,8 @@ struct R2Vector r2SoftBody_ParticlePosition(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_ParticlePositions(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_ParticlePositions(struct R2SoftBodyHandle handle,
                                         struct R2Vector *buffer,
                                         size_t capacity);
 
@@ -6615,15 +6519,14 @@ size_t r2SoftBody_ParticlePositions(struct R2SoftBodyHandle handle,
  * Return a copy of the soft body material parameters.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyMaterial r2SoftBody_Material(struct R2SoftBodyHandle handle);
+RAPIER_API struct R2SoftBodyMaterial RAPIER_CALL r2SoftBody_Material(struct R2SoftBodyHandle handle);
 
 /**
  * Set the world-space position of the indexed particle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetParticlePosition(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetParticlePosition(struct R2SoftBodyHandle handle,
                                               size_t index,
                                               struct R2Vector value);
 
@@ -6631,8 +6534,8 @@ R2Status r2SoftBody_SetParticlePosition(struct R2SoftBodyHandle handle,
  * Copy material parameters into the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetMaterial(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetMaterial(struct R2SoftBodyHandle handle,
                                      const struct R2SoftBodyMaterial *data);
 
 /**
@@ -6640,8 +6543,8 @@ R2Status r2SoftBody_SetMaterial(struct R2SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_AddParticleForce(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_AddParticleForce(struct R2SoftBodyHandle handle,
                                            size_t index,
                                            struct R2Vector value,
                                            R2Bool wake_up);
@@ -6652,8 +6555,8 @@ R2Status r2SoftBody_AddParticleForce(struct R2SoftBodyHandle handle,
  * NULL/0 is a size query. BUFFER_TOO_SMALL returns the required count and leaves states untouched.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2RigidBodyReadStates(const struct R2World *world,
+RAPIER_API
+size_t RAPIER_CALL r2RigidBodyReadStates(const struct R2World *world,
                                   const struct R2RigidBodyHandle *handles,
                                   size_t handle_count,
                                   struct R2RigidBodyState *states,
@@ -6663,16 +6566,15 @@ size_t r2RigidBodyReadStates(const struct R2World *world,
  * Copies joint configuration without returning a borrowed joint pointer.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R2JointDesc r2ImpulseJoint_Desc(struct R2ImpulseJointHandle handle);
+RAPIER_API struct R2JointDesc RAPIER_CALL r2ImpulseJoint_Desc(struct R2ImpulseJointHandle handle);
 
 /**
  * Replaces configuration after validation, resetting cached limit/motor impulses.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetDesc(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetDesc(struct R2ImpulseJointHandle handle,
                                      const struct R2JointDesc *desc,
                                      R2Bool wake_up);
 
@@ -6682,8 +6584,8 @@ R2Status r2ImpulseJoint_SetDesc(struct R2ImpulseJointHandle handle,
  * Geometry and flags are validated when the description is built or inserted.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ShapeDesc_SetTrimesh(struct R2ShapeDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2ShapeDesc_SetTrimesh(struct R2ShapeDesc *desc,
                                      struct R2VectorView vertices,
                                      struct R2TriangleView indices,
                                      uint32_t flags);
@@ -6694,8 +6596,8 @@ R2Status r2ShapeDesc_SetTrimesh(struct R2ShapeDesc *desc,
  * Geometry and flags are validated when the description is built or inserted.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ShapeDesc_SetPolyline(struct R2ShapeDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2ShapeDesc_SetPolyline(struct R2ShapeDesc *desc,
                                       struct R2VectorView vertices,
                                       struct R2EdgeView indices,
                                       uint32_t flags);
@@ -6704,24 +6606,24 @@ R2Status r2ShapeDesc_SetPolyline(struct R2ShapeDesc *desc,
  * Replace the shape geometry with a borrowed convex hull point cloud.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ShapeDesc_SetConvexHull(struct R2ShapeDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2ShapeDesc_SetConvexHull(struct R2ShapeDesc *desc,
                                          struct R2VectorView vertices);
 
 /**
  * Select an explicit particle recipe and borrow its positions. Other fields are preserved.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetParticles(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetParticles(struct R2SoftBodyDesc *desc,
                                            struct R2VectorView positions);
 
 /**
  * Select a surface recipe and borrow its vertices and elements. Other fields are preserved.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetSurfaceMesh(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetSurfaceMesh(struct R2SoftBodyDesc *desc,
                                               struct R2VectorView vertices,
                                               R2SurfaceElementView elements);
 
@@ -6729,8 +6631,8 @@ R2Status r2SoftBodyDesc_SetSurfaceMesh(struct R2SoftBodyDesc *desc,
  * Borrow skin geometry. Other fields, including skinCollision, are preserved.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetSkin(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetSkin(struct R2SoftBodyDesc *desc,
                                       struct R2VectorView vertices,
                                       R2SurfaceElementView elements);
 
@@ -6741,8 +6643,8 @@ R2Status r2SoftBodyDesc_SetSkin(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetMasses(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetMasses(struct R2SoftBodyDesc *desc,
                                         struct R2RealView view);
 
 /**
@@ -6752,8 +6654,8 @@ R2Status r2SoftBodyDesc_SetMasses(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetPinnedParticles(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetPinnedParticles(struct R2SoftBodyDesc *desc,
                                                   struct R2IndexView view);
 
 /**
@@ -6763,8 +6665,8 @@ R2Status r2SoftBodyDesc_SetPinnedParticles(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetEdges(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetEdges(struct R2SoftBodyDesc *desc,
                                        struct R2EdgeView view);
 
 /**
@@ -6774,8 +6676,8 @@ R2Status r2SoftBodyDesc_SetEdges(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetBendEdges(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetBendEdges(struct R2SoftBodyDesc *desc,
                                             struct R2EdgeView view);
 
 /**
@@ -6785,9 +6687,7 @@ R2Status r2SoftBodyDesc_SetBendEdges(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetCells(struct R2SoftBodyDesc *desc,
-                                       R2CellView view);
+RAPIER_API R2Status RAPIER_CALL r2SoftBodyDesc_SetCells(struct R2SoftBodyDesc *desc, R2CellView view);
 
 /**
  * Borrow surface; preserve all other fields. No allocation or element reads.
@@ -6796,8 +6696,8 @@ R2Status r2SoftBodyDesc_SetCells(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetSurface(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetSurface(struct R2SoftBodyDesc *desc,
                                          R2SurfaceElementView view);
 
 /**
@@ -6807,8 +6707,8 @@ R2Status r2SoftBodyDesc_SetSurface(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetTensionOnlyEdges(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetTensionOnlyEdges(struct R2SoftBodyDesc *desc,
                                                     struct R2IndexView view);
 
 #if defined(RAPIER_DIM3)
@@ -6819,8 +6719,8 @@ R2Status r2SoftBodyDesc_SetTensionOnlyEdges(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetDihedrals(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetDihedrals(struct R2SoftBodyDesc *desc,
                                            struct R2DihedralView view);
 #endif
 
@@ -6832,8 +6732,8 @@ R2Status r2SoftBodyDesc_SetDihedrals(struct R2SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBodyDesc_SetWire(struct R2SoftBodyDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetWire(struct R2SoftBodyDesc *desc,
                                       struct R2EdgeView view);
 #endif
 
@@ -6842,8 +6742,8 @@ R2Status r2SoftBodyDesc_SetWire(struct R2SoftBodyDesc *desc,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2RoundCuboidColliderDesc(struct R2Vector half_extents,
+RAPIER_API
+struct R2ColliderDesc RAPIER_CALL r2RoundCuboidColliderDesc(struct R2Vector half_extents,
                                                       R2Real border_radius);
 
 /**
@@ -6851,8 +6751,8 @@ struct R2ColliderDesc r2RoundCuboidColliderDesc(struct R2Vector half_extents,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2CapsuleColliderDesc(struct R2Vector a,
+RAPIER_API
+struct R2ColliderDesc RAPIER_CALL r2CapsuleColliderDesc(struct R2Vector a,
                                                  struct R2Vector b,
                                                  R2Real radius);
 
@@ -6861,17 +6761,15 @@ struct R2ColliderDesc r2CapsuleColliderDesc(struct R2Vector a,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2SegmentColliderDesc(struct R2Vector a,
-                                                 struct R2Vector b);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2SegmentColliderDesc(struct R2Vector a, struct R2Vector b);
 
 /**
  * Return a triangle description with vertices a, b, and c.
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2TriangleColliderDesc(struct R2Vector a,
+RAPIER_API
+struct R2ColliderDesc RAPIER_CALL r2TriangleColliderDesc(struct R2Vector a,
                                                   struct R2Vector b,
                                                   struct R2Vector c);
 
@@ -6880,7 +6778,7 @@ struct R2ColliderDesc r2TriangleColliderDesc(struct R2Vector a,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R2ColliderDesc r2HalfspaceColliderDesc(struct R2Vector normal);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2HalfspaceColliderDesc(struct R2Vector normal);
 
 #if defined(RAPIER_DIM3)
 /**
@@ -6888,9 +6786,7 @@ RAPIER_API RAPIER_CALL struct R2ColliderDesc r2HalfspaceColliderDesc(struct R2Ve
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2CylinderColliderDesc(R2Real half_height,
-                                                  R2Real radius);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2CylinderColliderDesc(R2Real half_height, R2Real radius);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -6899,9 +6795,7 @@ struct R2ColliderDesc r2CylinderColliderDesc(R2Real half_height,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2ConeColliderDesc(R2Real half_height,
-                                              R2Real radius);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2ConeColliderDesc(R2Real half_height, R2Real radius);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -6910,8 +6804,8 @@ struct R2ColliderDesc r2ConeColliderDesc(R2Real half_height,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2RoundCylinderColliderDesc(R2Real half_height,
+RAPIER_API
+struct R2ColliderDesc RAPIER_CALL r2RoundCylinderColliderDesc(R2Real half_height,
                                                         R2Real radius,
                                                         R2Real border_radius);
 #endif
@@ -6921,18 +6815,14 @@ struct R2ColliderDesc r2RoundCylinderColliderDesc(R2Real half_height,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2CapsuleXColliderDesc(R2Real half_height,
-                                                   R2Real radius);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2CapsuleXColliderDesc(R2Real half_height, R2Real radius);
 
 /**
  * Return a Y-aligned capsule description; half_height is half the segment length, excluding caps.
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2CapsuleYColliderDesc(R2Real half_height,
-                                                   R2Real radius);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2CapsuleYColliderDesc(R2Real half_height, R2Real radius);
 
 #if defined(RAPIER_DIM3)
 /**
@@ -6940,9 +6830,7 @@ struct R2ColliderDesc r2CapsuleYColliderDesc(R2Real half_height,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2ColliderDesc r2CapsuleZColliderDesc(R2Real half_height,
-                                                   R2Real radius);
+RAPIER_API struct R2ColliderDesc RAPIER_CALL r2CapsuleZColliderDesc(R2Real half_height, R2Real radius);
 #endif
 
 /**
@@ -6950,8 +6838,8 @@ struct R2ColliderDesc r2CapsuleZColliderDesc(R2Real half_height,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyDesc r2RopeSoftBodyDesc(struct R2Vector a,
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2RopeSoftBodyDesc(struct R2Vector a,
                                                struct R2Vector b,
                                                size_t particles);
 
@@ -6961,8 +6849,8 @@ struct R2SoftBodyDesc r2RopeSoftBodyDesc(struct R2Vector a,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyDesc r2GridSoftBodyDesc(struct R2Vector center,
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2GridSoftBodyDesc(struct R2Vector center,
                                                struct R2Vector half_extents,
                                                size_t nx,
                                                size_t ny);
@@ -6974,8 +6862,8 @@ struct R2SoftBodyDesc r2GridSoftBodyDesc(struct R2Vector center,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyDesc r2CuboidSoftBodyDesc(struct R2Vector center,
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2CuboidSoftBodyDesc(struct R2Vector center,
                                                  struct R2Vector half_extents,
                                                  size_t nx,
                                                  size_t ny,
@@ -6988,8 +6876,8 @@ struct R2SoftBodyDesc r2CuboidSoftBodyDesc(struct R2Vector center,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyDesc r2ClothSoftBodyDesc(struct R2Vector origin,
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2ClothSoftBodyDesc(struct R2Vector origin,
                                                 struct R2Vector du,
                                                 struct R2Vector dv,
                                                 size_t nu,
@@ -7003,8 +6891,8 @@ struct R2SoftBodyDesc r2ClothSoftBodyDesc(struct R2Vector origin,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyDesc r2DiskSoftBodyDesc(struct R2Vector center,
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2DiskSoftBodyDesc(struct R2Vector center,
                                                R2Real radius,
                                                size_t particles);
 #endif
@@ -7015,8 +6903,8 @@ struct R2SoftBodyDesc r2DiskSoftBodyDesc(struct R2Vector center,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyDesc r2SphereSoftBodyDesc(struct R2Vector center,
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2SphereSoftBodyDesc(struct R2Vector center,
                                                  R2Real radius,
                                                  uint32_t subdivisions);
 #endif
@@ -7028,8 +6916,8 @@ struct R2SoftBodyDesc r2SphereSoftBodyDesc(struct R2Vector center,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyDesc r2ClothTubeSoftBodyDesc(struct R2Vector origin,
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2ClothTubeSoftBodyDesc(struct R2Vector origin,
                                                      struct R2Vector axis,
                                                      R2Real radius_start,
                                                      R2Real radius_end,
@@ -7041,8 +6929,8 @@ struct R2SoftBodyDesc r2ClothTubeSoftBodyDesc(struct R2Vector origin,
  * Initializes a borrowed meshing recipe. Mesh generation happens on preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyDesc r2VolumetricSoftBodyDesc(struct R2VectorView vertices,
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2VolumetricSoftBodyDesc(struct R2VectorView vertices,
                                                      R2SurfaceElementView surface,
                                                      struct R2VolumeMeshParameters parameters);
 
@@ -7050,16 +6938,16 @@ struct R2SoftBodyDesc r2VolumetricSoftBodyDesc(struct R2VectorView vertices,
  * Returns a material with the same softness for each constraint family.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyMaterial r2UniformSoftBodyMaterial(struct R2SpringCoefficients value);
+RAPIER_API
+struct R2SoftBodyMaterial RAPIER_CALL r2UniformSoftBodyMaterial(struct R2SpringCoefficients value);
 
 /**
  * Copies generated particle positions into caller-owned storage; no persistent builder.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyDesc_ParticlePositions(const struct R2SoftBodyDesc *desc,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyDesc_ParticlePositions(const struct R2SoftBodyDesc *desc,
                                              struct R2Vector *buffer,
                                              size_t capacity);
 
@@ -7068,8 +6956,8 @@ size_t r2SoftBodyDesc_ParticlePositions(const struct R2SoftBodyDesc *desc,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBodyDesc_CellIndices(const struct R2SoftBodyDesc *desc,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBodyDesc_CellIndices(const struct R2SoftBodyDesc *desc,
                                        uint32_t *buffer,
                                        size_t capacity);
 
@@ -7078,78 +6966,76 @@ size_t r2SoftBodyDesc_CellIndices(const struct R2SoftBodyDesc *desc,
  * clone alive while using it as a cache key.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL size_t r2Collider_ShapeIdentity(struct R2ColliderHandle handle);
+RAPIER_API size_t RAPIER_CALL r2Collider_ShapeIdentity(struct R2ColliderHandle handle);
 
 /**
  * Return the soft body particle count.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL size_t r2SoftBody_NumParticles(struct R2SoftBodyHandle handle);
+RAPIER_API size_t RAPIER_CALL r2SoftBody_NumParticles(struct R2SoftBodyHandle handle);
 
 /**
  * Return a counter that changes when particle connectivity changes; use it to invalidate mesh
  * caches.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL uint32_t r2SoftBody_TopologyVersion(struct R2SoftBodyHandle handle);
+RAPIER_API uint32_t RAPIER_CALL r2SoftBody_TopologyVersion(struct R2SoftBodyHandle handle);
 
 /**
  * Return the soft body mass.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2SoftBody_Mass(struct R2SoftBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2SoftBody_Mass(struct R2SoftBodyHandle handle);
 
 /**
  * Return the soft body current volume.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2SoftBody_Volume(struct R2SoftBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2SoftBody_Volume(struct R2SoftBodyHandle handle);
 
 /**
  * Return the soft body undeformed volume.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2SoftBody_RestVolume(struct R2SoftBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2SoftBody_RestVolume(struct R2SoftBodyHandle handle);
 
 /**
  * Return the soft body target volume multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2SoftBody_VolumeFactor(struct R2SoftBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2SoftBody_VolumeFactor(struct R2SoftBodyHandle handle);
 
 /**
  * Return the soft body world-space center of mass.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2SoftBody_CenterOfMass(struct R2SoftBodyHandle handle);
+RAPIER_API struct R2Vector RAPIER_CALL r2SoftBody_CenterOfMass(struct R2SoftBodyHandle handle);
 
 /**
  * Return the soft body root rigid-proxy handle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2RigidBodyHandle r2SoftBody_RootBody(struct R2SoftBodyHandle handle);
+RAPIER_API struct R2RigidBodyHandle RAPIER_CALL r2SoftBody_RootBody(struct R2SoftBodyHandle handle);
 
 /**
  * Return whether the soft body is enabled.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2SoftBody_IsEnabled(struct R2SoftBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2SoftBody_IsEnabled(struct R2SoftBodyHandle handle);
 
 /**
  * Return whether the soft body is sleeping.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2SoftBody_IsSleeping(struct R2SoftBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2SoftBody_IsSleeping(struct R2SoftBodyHandle handle);
 
 /**
  * Copy world-space particle velocities.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_ParticleVelocities(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_ParticleVelocities(struct R2SoftBodyHandle handle,
                                          struct R2Vector *buffer,
                                          size_t capacity);
 
@@ -7158,8 +7044,8 @@ size_t r2SoftBody_ParticleVelocities(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_Edges(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_Edges(struct R2SoftBodyHandle handle,
                            uint32_t *buffer,
                            size_t capacity);
 
@@ -7168,8 +7054,8 @@ size_t r2SoftBody_Edges(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_Cells(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_Cells(struct R2SoftBodyHandle handle,
                            uint32_t *buffer,
                            size_t capacity);
 
@@ -7178,8 +7064,8 @@ size_t r2SoftBody_Cells(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_Boundary(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_Boundary(struct R2SoftBodyHandle handle,
                               uint32_t *buffer,
                               size_t capacity);
 
@@ -7188,8 +7074,8 @@ size_t r2SoftBody_Boundary(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_Pieces(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_Pieces(struct R2SoftBodyHandle handle,
                             struct R2SoftBodyHandle *buffer,
                             size_t capacity);
 
@@ -7197,8 +7083,8 @@ size_t r2SoftBody_Pieces(struct R2SoftBodyHandle handle,
  * Set the soft body particle world-space velocity.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetParticleVelocity(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetParticleVelocity(struct R2SoftBodyHandle handle,
                                               size_t index,
                                               struct R2Vector value);
 
@@ -7206,8 +7092,8 @@ R2Status r2SoftBody_SetParticleVelocity(struct R2SoftBodyHandle handle,
  * Set the next world-space target position of a pinned particle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetParticleKinematicTarget(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetParticleKinematicTarget(struct R2SoftBodyHandle handle,
                                                       size_t index,
                                                       struct R2Vector value);
 
@@ -7215,8 +7101,8 @@ R2Status r2SoftBody_SetParticleKinematicTarget(struct R2SoftBodyHandle handle,
  * Enable or disable pinning the particle for the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetParticlePinned(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetParticlePinned(struct R2SoftBodyHandle handle,
                                             size_t index,
                                             R2Bool value);
 
@@ -7225,8 +7111,8 @@ R2Status r2SoftBody_SetParticlePinned(struct R2SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_ApplyParticleImpulse(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_ApplyParticleImpulse(struct R2SoftBodyHandle handle,
                                                size_t index,
                                                struct R2Vector value,
                                                R2Bool wake_up);
@@ -7236,8 +7122,8 @@ R2Status r2SoftBody_ApplyParticleImpulse(struct R2SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_AddForce(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_AddForce(struct R2SoftBodyHandle handle,
                                   struct R2Vector value,
                                   R2Bool wake_up);
 
@@ -7246,8 +7132,8 @@ R2Status r2SoftBody_AddForce(struct R2SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_ApplyImpulse(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_ApplyImpulse(struct R2SoftBodyHandle handle,
                                       struct R2Vector value,
                                       R2Bool wake_up);
 
@@ -7256,32 +7142,28 @@ R2Status r2SoftBody_ApplyImpulse(struct R2SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_ResetForces(struct R2SoftBodyHandle handle,
-                                     R2Bool wake_up);
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_ResetForces(struct R2SoftBodyHandle handle, R2Bool wake_up);
 
 /**
  * Enable or disable the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetEnabled(struct R2SoftBodyHandle handle,
-                                    R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_SetEnabled(struct R2SoftBodyHandle handle, R2Bool value);
 
 /**
  * Set the soft body target volume multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetVolumeFactor(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetVolumeFactor(struct R2SoftBodyHandle handle,
                                           R2Real value);
 
 /**
  * Attach a particle to a rigid body at the supplied body-local anchor.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_AttachParticle(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_AttachParticle(struct R2SoftBodyHandle handle,
                                         size_t index,
                                         struct R2RigidBodyHandle rigid_body);
 
@@ -7289,17 +7171,15 @@ R2Status r2SoftBody_AttachParticle(struct R2SoftBodyHandle handle,
  * Remove a particle attachment to a rigid body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_DetachParticle(struct R2SoftBodyHandle handle,
-                                        size_t index);
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_DetachParticle(struct R2SoftBodyHandle handle, size_t index);
 
 /**
  * Copy cluster indices.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_Clusters(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_Clusters(struct R2SoftBodyHandle handle,
                               uint32_t *buffer,
                               size_t capacity);
 
@@ -7307,8 +7187,8 @@ size_t r2SoftBody_Clusters(struct R2SoftBodyHandle handle,
  * Return the rigid proxy for the selected cluster.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2RigidBodyHandle r2SoftBody_ClusterProxy(struct R2SoftBodyHandle handle,
+RAPIER_API
+struct R2RigidBodyHandle RAPIER_CALL r2SoftBody_ClusterProxy(struct R2SoftBodyHandle handle,
                                                       uint32_t cluster);
 
 /**
@@ -7316,8 +7196,8 @@ struct R2RigidBodyHandle r2SoftBody_ClusterProxy(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_ClusterParticles(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_ClusterParticles(struct R2SoftBodyHandle handle,
                                        uint32_t cluster,
                                        uint32_t *buffer,
                                        size_t capacity);
@@ -7326,8 +7206,8 @@ size_t r2SoftBody_ClusterParticles(struct R2SoftBodyHandle handle,
  * Enable or disable pinning the cluster for the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetClusterPinned(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetClusterPinned(struct R2SoftBodyHandle handle,
                                            uint32_t cluster,
                                            R2Bool value);
 
@@ -7335,8 +7215,8 @@ R2Status r2SoftBody_SetClusterPinned(struct R2SoftBodyHandle handle,
  * Set the next world-space target pose of a pinned cluster.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetClusterKinematicTarget(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetClusterKinematicTarget(struct R2SoftBodyHandle handle,
                                                      uint32_t cluster,
                                                      struct R2Pose value);
 
@@ -7344,8 +7224,8 @@ R2Status r2SoftBody_SetClusterKinematicTarget(struct R2SoftBodyHandle handle,
  * Enable or disable using cluster shape matching for the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetClusterShapeMatchingEnabled(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetClusterShapeMatchingEnabled(struct R2SoftBodyHandle handle,
                                                            uint32_t cluster,
                                                            R2Bool value);
 
@@ -7353,8 +7233,8 @@ R2Status r2SoftBody_SetClusterShapeMatchingEnabled(struct R2SoftBodyHandle handl
  * Set the soft body cluster shape-matching stiffness multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetClusterStiffnessScale(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetClusterStiffnessScale(struct R2SoftBodyHandle handle,
                                                     uint32_t cluster,
                                                     R2Real value);
 
@@ -7362,8 +7242,8 @@ R2Status r2SoftBody_SetClusterStiffnessScale(struct R2SoftBodyHandle handle,
  * Set the soft body cluster tear-resistance multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetClusterTearResistance(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetClusterTearResistance(struct R2SoftBodyHandle handle,
                                                     uint32_t cluster,
                                                     R2Real value);
 
@@ -7372,8 +7252,8 @@ R2Status r2SoftBody_SetClusterTearResistance(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_Meshes(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_Meshes(struct R2SoftBodyHandle handle,
                             struct R2SoftMeshInfo *buffer,
                             size_t capacity);
 
@@ -7382,8 +7262,8 @@ size_t r2SoftBody_Meshes(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_MeshVerticesById(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_MeshVerticesById(struct R2SoftBodyHandle handle,
                                          struct R2SoftMeshId id,
                                          struct R2Vector *buffer,
                                          size_t capacity);
@@ -7393,8 +7273,8 @@ size_t r2SoftBody_MeshVerticesById(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_MeshIndicesById(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_MeshIndicesById(struct R2SoftBodyHandle handle,
                                         struct R2SoftMeshId id,
                                         uint32_t *buffer,
                                         size_t capacity);
@@ -7404,8 +7284,8 @@ size_t r2SoftBody_MeshIndicesById(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_MeshColliders(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_MeshColliders(struct R2SoftBodyHandle handle,
                                     struct R2ColliderHandle *buffer,
                                     size_t capacity);
 
@@ -7414,8 +7294,8 @@ size_t r2SoftBody_MeshColliders(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_MeshVertices(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_MeshVertices(struct R2SoftBodyHandle handle,
                                    struct R2ColliderHandle collider,
                                    struct R2Vector *buffer,
                                    size_t capacity);
@@ -7425,8 +7305,8 @@ size_t r2SoftBody_MeshVertices(struct R2SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_MeshIndices(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_MeshIndices(struct R2SoftBodyHandle handle,
                                   struct R2ColliderHandle collider,
                                   uint32_t *buffer,
                                   size_t capacity);
@@ -7435,16 +7315,16 @@ size_t r2SoftBody_MeshIndices(struct R2SoftBodyHandle handle,
  * Return indices per collision-mesh element (2 for segments, 3 for triangles).
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2SoftBody_MeshArity(struct R2SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2SoftBody_MeshArity(struct R2SoftBodyHandle handle,
                                 struct R2ColliderHandle collider);
 
 /**
  * Return the selected collision mesh topology revision for cache invalidation.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-uint32_t r2SoftBody_MeshTopologyVersion(struct R2SoftBodyHandle handle,
+RAPIER_API
+uint32_t RAPIER_CALL r2SoftBody_MeshTopologyVersion(struct R2SoftBodyHandle handle,
                                              struct R2ColliderHandle collider);
 
 #if defined(RAPIER_FEM)
@@ -7452,17 +7332,15 @@ uint32_t r2SoftBody_MeshTopologyVersion(struct R2SoftBodyHandle handle,
  * Set the soft body soft solver kind (R2_SOFT_SOLVER_*).
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetSolver(struct R2SoftBodyHandle handle,
-                                   uint32_t solver);
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_SetSolver(struct R2SoftBodyHandle handle, uint32_t solver);
 #endif
 
 /**
  * Set the soft body cluster shape-matching target pose.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetClusterShapeMatchingTarget(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetClusterShapeMatchingTarget(struct R2SoftBodyHandle handle,
                                                           uint32_t cluster,
                                                           const struct R2Pose *target);
 
@@ -7470,8 +7348,8 @@ R2Status r2SoftBody_SetClusterShapeMatchingTarget(struct R2SoftBodyHandle handle
  * Set the soft body edge tear-resistance multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2SoftBody_SetEdgeTearResistance(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetEdgeTearResistance(struct R2SoftBodyHandle handle,
                                                  size_t index,
                                                  R2Real resistance);
 
@@ -7479,8 +7357,8 @@ R2Status r2SoftBody_SetEdgeTearResistance(struct R2SoftBodyHandle handle,
  * Return whether the selected collision mesh is closed.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2SoftBody_MeshIsClosed(struct R2SoftBodyHandle handle,
+RAPIER_API
+R2Bool RAPIER_CALL r2SoftBody_MeshIsClosed(struct R2SoftBodyHandle handle,
                                      struct R2ColliderHandle collider);
 
 /**
@@ -7488,8 +7366,8 @@ R2Bool r2SoftBody_MeshIsClosed(struct R2SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetAdditionalMassProperties(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetAdditionalMassProperties(struct R2RigidBodyHandle handle,
                                                         struct R2MassProperties properties,
                                                         R2Bool wake_up);
 
@@ -7497,31 +7375,30 @@ R2Status r2RigidBody_SetAdditionalMassProperties(struct R2RigidBodyHandle handle
  * Recompute body mass and inertia from attached colliders and additional mass properties.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_RecomputeMassPropertiesFromColliders(struct R2RigidBodyHandle handle);
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_RecomputeMassPropertiesFromColliders(struct R2RigidBodyHandle handle);
 
 /**
  * Set the collider local mass properties.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetMassProperties(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetMassProperties(struct R2ColliderHandle handle,
                                            struct R2MassProperties properties);
 
 /**
  * Return the collider local mass properties.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2MassProperties r2Collider_MassProperties(struct R2ColliderHandle handle);
+RAPIER_API struct R2MassProperties RAPIER_CALL r2Collider_MassProperties(struct R2ColliderHandle handle);
 
 /**
  * Set the rigid body translation/rotation lock bitmask.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetLockedAxes(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetLockedAxes(struct R2RigidBodyHandle handle,
                                          uint8_t axes,
                                          R2Bool wake_up);
 
@@ -7529,28 +7406,28 @@ R2Status r2RigidBody_SetLockedAxes(struct R2RigidBodyHandle handle,
  * Return the rigid body translation/rotation lock bitmask.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL uint8_t r2RigidBody_LockedAxes(struct R2RigidBodyHandle handle);
+RAPIER_API uint8_t RAPIER_CALL r2RigidBody_LockedAxes(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the collider is a voxel shape.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Bool r2Collider_IsVoxels(struct R2ColliderHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2Collider_IsVoxels(struct R2ColliderHandle handle);
 
 /**
  * Return voxel information at a flat index; found = 0 if absent.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2VoxelQuery r2Collider_VoxelAtFlatId(struct R2ColliderHandle handle,
+RAPIER_API
+struct R2VoxelQuery RAPIER_CALL r2Collider_VoxelAtFlatId(struct R2ColliderHandle handle,
                                                    uint32_t id);
 
 /**
  * Fill or clear the voxel at key; the collider must have a voxel shape.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetVoxel(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetVoxel(struct R2ColliderHandle handle,
                                  struct R2VoxelKey key,
                                  R2Bool filled);
 
@@ -7558,139 +7435,135 @@ R2Status r2Collider_SetVoxel(struct R2ColliderHandle handle,
  * Return the rigid body next kinematic world-space pose.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2Pose r2RigidBody_NextPosition(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2Pose RAPIER_CALL r2RigidBody_NextPosition(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space rotation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R2Rotation r2RigidBody_Rotation(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2Rotation RAPIER_CALL r2RigidBody_Rotation(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space center of mass.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2RigidBody_CenterOfMass(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2Vector RAPIER_CALL r2RigidBody_CenterOfMass(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body body-local center of mass.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2RigidBody_LocalCenterOfMass(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2Vector RAPIER_CALL r2RigidBody_LocalCenterOfMass(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body accumulated user-applied world-space force.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R2Vector r2RigidBody_UserForce(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2Vector RAPIER_CALL r2RigidBody_UserForce(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body accumulated user-applied world-space torque.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2AngVector r2RigidBody_UserTorque(struct R2RigidBodyHandle handle);
+RAPIER_API R2AngVector RAPIER_CALL r2RigidBody_UserTorque(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body body type (R2_DYNAMIC, R2_FIXED, or a kinematic kind).
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL uint32_t r2RigidBody_BodyType(struct R2RigidBodyHandle handle);
+RAPIER_API uint32_t RAPIER_CALL r2RigidBody_BodyType(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body mass.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2RigidBody_Mass(struct R2RigidBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2RigidBody_Mass(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body gravity multiplier.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2RigidBody_GravityScale(struct R2RigidBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2RigidBody_GravityScale(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body linear damping coefficient.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2RigidBody_LinearDamping(struct R2RigidBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2RigidBody_LinearDamping(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body angular damping coefficient.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2RigidBody_AngularDamping(struct R2RigidBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2RigidBody_AngularDamping(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body kinetic energy.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2RigidBody_KineticEnergy(struct R2RigidBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2RigidBody_KineticEnergy(struct R2RigidBodyHandle handle);
 
 /**
  * Return the rigid body soft-CCD prediction distance.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Real r2RigidBody_SoftCcdPrediction(struct R2RigidBodyHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2RigidBody_SoftCcdPrediction(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is using continuous collision detection.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsCcdEnabled(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsCcdEnabled(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is dynamic.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsDynamic(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsDynamic(struct R2RigidBodyHandle handle);
 
 /**
  * Return the associated soft-body handle, or an invalid handle if this is not a soft proxy.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyHandle r2RigidBody_SoftBody(struct R2RigidBodyHandle handle);
+RAPIER_API struct R2SoftBodyHandle RAPIER_CALL r2RigidBody_SoftBody(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is a soft-body proxy.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsSoftFrame(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsSoftFrame(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is fixed.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsFixed(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsFixed(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is kinematic.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsKinematic(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsKinematic(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is moving.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsMoving(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsMoving(struct R2RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is currently using CCD for its motion.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Bool r2RigidBody_IsCcdActive(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsCcdActive(struct R2RigidBodyHandle handle);
 
 /**
  * Set the rigid body world-space rotation.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetRotation(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetRotation(struct R2RigidBodyHandle handle,
                                       struct R2Rotation value,
                                       R2Bool wake_up);
 
@@ -7699,8 +7572,8 @@ R2Status r2RigidBody_SetRotation(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetBodyType(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetBodyType(struct R2RigidBodyHandle handle,
                                        uint32_t value,
                                        R2Bool wake_up);
 
@@ -7708,8 +7581,8 @@ R2Status r2RigidBody_SetBodyType(struct R2RigidBodyHandle handle,
  * Set the rigid body next kinematic world-space rotation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetNextKinematicRotation(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetNextKinematicRotation(struct R2RigidBodyHandle handle,
                                                      struct R2Rotation value);
 
 /**
@@ -7717,8 +7590,8 @@ R2Status r2RigidBody_SetNextKinematicRotation(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetAdditionalMass(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetAdditionalMass(struct R2RigidBodyHandle handle,
                                              R2Real value,
                                              R2Bool wake_up);
 
@@ -7726,16 +7599,16 @@ R2Status r2RigidBody_SetAdditionalMass(struct R2RigidBodyHandle handle,
  * Set the rigid body soft-CCD prediction distance.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetSoftCcdPrediction(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetSoftCcdPrediction(struct R2RigidBodyHandle handle,
                                                  R2Real value);
 
 /**
  * Enable or disable using continuous collision detection for the rigid body.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetCcdEnabled(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetCcdEnabled(struct R2RigidBodyHandle handle,
                                          R2Bool value);
 
 /**
@@ -7743,8 +7616,8 @@ R2Status r2RigidBody_SetCcdEnabled(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetTranslationsLocked(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetTranslationsLocked(struct R2RigidBodyHandle handle,
                                                  R2Bool value,
                                                  R2Bool wake_up);
 
@@ -7753,8 +7626,8 @@ R2Status r2RigidBody_SetTranslationsLocked(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetRotationsLocked(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetRotationsLocked(struct R2RigidBodyHandle handle,
                                               R2Bool value,
                                               R2Bool wake_up);
 
@@ -7762,24 +7635,24 @@ R2Status r2RigidBody_SetRotationsLocked(struct R2RigidBodyHandle handle,
  * Set the rigid body signed dominance group.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetDominanceGroup(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetDominanceGroup(struct R2RigidBodyHandle handle,
                                              int8_t value);
 
 /**
  * Set the rigid body additional solver iterations for connected bodies.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetAdditionalSolverIterations(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetAdditionalSolverIterations(struct R2RigidBodyHandle handle,
                                                           size_t value);
 
 /**
  * Set the rigid body additional PGS iterations.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetAdditionalPgsIterations(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetAdditionalPgsIterations(struct R2RigidBodyHandle handle,
                                                        size_t value);
 
 /**
@@ -7787,8 +7660,8 @@ R2Status r2RigidBody_SetAdditionalPgsIterations(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_AddTorque(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_AddTorque(struct R2RigidBodyHandle handle,
                                     R2AngVector value,
                                     R2Bool wake_up);
 
@@ -7797,8 +7670,8 @@ R2Status r2RigidBody_AddTorque(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_ApplyTorqueImpulse(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_ApplyTorqueImpulse(struct R2RigidBodyHandle handle,
                                               R2AngVector value,
                                               R2Bool wake_up);
 
@@ -7807,8 +7680,8 @@ R2Status r2RigidBody_ApplyTorqueImpulse(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_AddForceAtPoint(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_AddForceAtPoint(struct R2RigidBodyHandle handle,
                                             struct R2Vector value,
                                             struct R2Vector point,
                                             R2Bool wake_up);
@@ -7818,16 +7691,16 @@ R2Status r2RigidBody_AddForceAtPoint(struct R2RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_ResetTorques(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_ResetTorques(struct R2RigidBodyHandle handle,
                                        R2Bool wake_up);
 
 /**
  * Return world-space velocity at a world-space point, including angular motion.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2RigidBody_VelocityAtPoint(struct R2RigidBodyHandle handle,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2RigidBody_VelocityAtPoint(struct R2RigidBodyHandle handle,
                                                   struct R2Vector point);
 
 /**
@@ -7835,8 +7708,8 @@ struct R2Vector r2RigidBody_VelocityAtPoint(struct R2RigidBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r2RigidBody_Colliders(struct R2RigidBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r2RigidBody_Colliders(struct R2RigidBodyHandle handle,
                                 struct R2ColliderHandle *buffer,
                                 size_t capacity);
 
@@ -7845,8 +7718,7 @@ size_t r2RigidBody_Colliders(struct R2RigidBodyHandle handle,
  * Return whether the rigid body is using gyroscopic forces.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2RigidBody_GyroscopicForcesEnabled(struct R2RigidBodyHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_GyroscopicForcesEnabled(struct R2RigidBodyHandle handle);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -7854,8 +7726,8 @@ R2Bool r2RigidBody_GyroscopicForcesEnabled(struct R2RigidBodyHandle handle);
  * Enable or disable using gyroscopic forces for the rigid body.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2RigidBody_SetGyroscopicForcesEnabled(struct R2RigidBodyHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetGyroscopicForcesEnabled(struct R2RigidBodyHandle handle,
                                                        R2Bool enabled);
 #endif
 
@@ -7863,187 +7735,175 @@ R2Status r2RigidBody_SetGyroscopicForcesEnabled(struct R2RigidBodyHandle handle,
  * Set the collider mass per unit volume.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetDensity(struct R2ColliderHandle handle,
-                                   R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2Collider_SetDensity(struct R2ColliderHandle handle, R2Real value);
 
 /**
  * Set the collider mass.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetMass(struct R2ColliderHandle handle,
-                                R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2Collider_SetMass(struct R2ColliderHandle handle, R2Real value);
 
 /**
  * Enable or disable the collider.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetEnabled(struct R2ColliderHandle handle,
-                                   R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2Collider_SetEnabled(struct R2ColliderHandle handle, R2Bool value);
 
 /**
  * Set the collider contact-force filtering groups.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetSolverGroups(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetSolverGroups(struct R2ColliderHandle handle,
                                          struct R2InteractionGroups value);
 
 /**
  * Set the collider friction combination rule (R2_COMBINE_*).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetFrictionCombineRule(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetFrictionCombineRule(struct R2ColliderHandle handle,
                                                  uint32_t value);
 
 /**
  * Set the collider restitution combination rule (R2_COMBINE_*).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetRestitutionCombineRule(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetRestitutionCombineRule(struct R2ColliderHandle handle,
                                                     uint32_t value);
 
 /**
  * Set the collider extra separation skin around the shape.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetContactSkin(struct R2ColliderHandle handle,
-                                        R2Real value);
+RAPIER_API R2Status RAPIER_CALL r2Collider_SetContactSkin(struct R2ColliderHandle handle, R2Real value);
 
 /**
  * Set the collider force threshold for contact-force events.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetContactForceEventThreshold(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetContactForceEventThreshold(struct R2ColliderHandle handle,
                                                          R2Real value);
 
 /**
  * Set the collider event-generation bitmask (R2_COLLISION_EVENTS and R2_CONTACT_FORCE_EVENTS).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetActiveEvents(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetActiveEvents(struct R2ColliderHandle handle,
                                          uint32_t value);
 
 /**
  * Set the collider physics-hook activation bitmask.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetActiveHooks(struct R2ColliderHandle handle,
-                                        uint32_t value);
+RAPIER_API R2Status RAPIER_CALL r2Collider_SetActiveHooks(struct R2ColliderHandle handle, uint32_t value);
 
 /**
  * Set the collider body-type collision activation bitmask.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetActiveCollisionTypes(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetActiveCollisionTypes(struct R2ColliderHandle handle,
                                                   uint16_t value);
 
 /**
  * Return the collider world-space rotation.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R2Rotation r2Collider_Rotation(struct R2ColliderHandle handle);
+RAPIER_API struct R2Rotation RAPIER_CALL r2Collider_Rotation(struct R2ColliderHandle handle);
 
 /**
  * Return the collider collision filtering groups.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2InteractionGroups r2Collider_CollisionGroups(struct R2ColliderHandle handle);
+RAPIER_API
+struct R2InteractionGroups RAPIER_CALL r2Collider_CollisionGroups(struct R2ColliderHandle handle);
 
 /**
  * Return the collider contact-force filtering groups.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R2InteractionGroups r2Collider_SolverGroups(struct R2ColliderHandle handle);
+RAPIER_API struct R2InteractionGroups RAPIER_CALL r2Collider_SolverGroups(struct R2ColliderHandle handle);
 
 /**
  * Return the collider application-owned 128-bit user value.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R2UserData r2Collider_UserData(struct R2ColliderHandle handle);
+RAPIER_API struct R2UserData RAPIER_CALL r2Collider_UserData(struct R2ColliderHandle handle);
 
 /**
  * Return the collider event-generation bitmask (R2_COLLISION_EVENTS and
  * R2_CONTACT_FORCE_EVENTS).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL uint32_t r2Collider_ActiveEvents(struct R2ColliderHandle handle);
+RAPIER_API uint32_t RAPIER_CALL r2Collider_ActiveEvents(struct R2ColliderHandle handle);
 
 /**
  * Return the collider mass.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Real r2Collider_Mass(struct R2ColliderHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2Collider_Mass(struct R2ColliderHandle handle);
 
 /**
  * Return the collider mass per unit volume.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Real r2Collider_Density(struct R2ColliderHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2Collider_Density(struct R2ColliderHandle handle);
 
 /**
  * Return the collider current volume.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Real r2Collider_Volume(struct R2ColliderHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2Collider_Volume(struct R2ColliderHandle handle);
 
 /**
  * Return the collider extra separation skin around the shape.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Real r2Collider_ContactSkin(struct R2ColliderHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2Collider_ContactSkin(struct R2ColliderHandle handle);
 
 /**
  * Return the collider force threshold for contact-force events.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Real r2Collider_ContactForceEventThreshold(struct R2ColliderHandle handle);
+RAPIER_API R2Real RAPIER_CALL r2Collider_ContactForceEventThreshold(struct R2ColliderHandle handle);
 
 /**
  * Return whether the collider is enabled.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Bool r2Collider_IsEnabled(struct R2ColliderHandle handle);
+RAPIER_API R2Bool RAPIER_CALL r2Collider_IsEnabled(struct R2ColliderHandle handle);
 
 /**
  * Return the current world-space axis-aligned bounds.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R2Aabb r2Collider_ComputeAabb(struct R2ColliderHandle handle);
+RAPIER_API struct R2Aabb RAPIER_CALL r2Collider_ComputeAabb(struct R2ColliderHandle handle);
 
 /**
  * Return an owned wrapper sharing the collider geometry. Release with r2FreeSharedShape.
  * Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2SharedShape *r2Collider_CloneShape(struct R2ColliderHandle handle);
+RAPIER_API R2SharedShape *RAPIER_CALL r2Collider_CloneShape(struct R2ColliderHandle handle);
 
 /**
  * Replace collider geometry by sharing shape; the supplied wrapper is not consumed.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetShape(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetShape(struct R2ColliderHandle handle,
                                  const R2SharedShape *shape);
 
 /**
  * Set the collider pose relative to the parent rigid body.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R2Status r2Collider_SetPositionWrtParent(struct R2ColliderHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetPositionWrtParent(struct R2ColliderHandle handle,
                                                struct R2Pose value);
 
 /**
@@ -8051,28 +7911,28 @@ R2Status r2Collider_SetPositionWrtParent(struct R2ColliderHandle handle,
  * has already been freed.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R2Status r2RigidBody_ValidateHandle(struct R2RigidBodyHandle handle);
+RAPIER_API R2Status RAPIER_CALL r2RigidBody_ValidateHandle(struct R2RigidBodyHandle handle);
 
 /**
  * Validate the index and generation in the live owning world. Cannot detect a world pointer that
  * has already been freed.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R2Status r2Collider_ValidateHandle(struct R2ColliderHandle handle);
+RAPIER_API R2Status RAPIER_CALL r2Collider_ValidateHandle(struct R2ColliderHandle handle);
 
 /**
  * Validate the index and generation in the live owning world. Cannot detect a world pointer that
  * has already been freed.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R2Status r2SoftBody_ValidateHandle(struct R2SoftBodyHandle handle);
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_ValidateHandle(struct R2SoftBodyHandle handle);
 
 /**
  * Set the joint desc joint frame relative to body 1.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLocalFrame1(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetLocalFrame1(struct R2JointDesc *desc,
                                           struct R2Pose value);
 
 /**
@@ -8080,8 +7940,8 @@ R2Status r2JointDesc_SetLocalFrame1(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLocalFrame1(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLocalFrame1(struct R2ImpulseJointHandle handle,
                                              struct R2Pose value,
                                              R2Bool wake_up);
 
@@ -8089,8 +7949,8 @@ R2Status r2ImpulseJoint_SetLocalFrame1(struct R2ImpulseJointHandle handle,
  * Set the joint desc joint frame relative to body 2.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLocalFrame2(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetLocalFrame2(struct R2JointDesc *desc,
                                           struct R2Pose value);
 
 /**
@@ -8098,8 +7958,8 @@ R2Status r2JointDesc_SetLocalFrame2(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLocalFrame2(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLocalFrame2(struct R2ImpulseJointHandle handle,
                                              struct R2Pose value,
                                              R2Bool wake_up);
 
@@ -8107,8 +7967,8 @@ R2Status r2ImpulseJoint_SetLocalFrame2(struct R2ImpulseJointHandle handle,
  * Set the joint desc joint anchor relative to body 1.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLocalAnchor1(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetLocalAnchor1(struct R2JointDesc *desc,
                                            struct R2Vector value);
 
 /**
@@ -8116,8 +7976,8 @@ R2Status r2JointDesc_SetLocalAnchor1(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLocalAnchor1(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLocalAnchor1(struct R2ImpulseJointHandle handle,
                                               struct R2Vector value,
                                               R2Bool wake_up);
 
@@ -8125,8 +7985,8 @@ R2Status r2ImpulseJoint_SetLocalAnchor1(struct R2ImpulseJointHandle handle,
  * Set the joint desc joint anchor relative to body 2.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLocalAnchor2(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetLocalAnchor2(struct R2JointDesc *desc,
                                            struct R2Vector value);
 
 /**
@@ -8134,8 +7994,8 @@ R2Status r2JointDesc_SetLocalAnchor2(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLocalAnchor2(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLocalAnchor2(struct R2ImpulseJointHandle handle,
                                               struct R2Vector value,
                                               R2Bool wake_up);
 
@@ -8143,17 +8003,15 @@ R2Status r2ImpulseJoint_SetLocalAnchor2(struct R2ImpulseJointHandle handle,
  * Enable or disable allowing contacts between connected bodies for the joint desc.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetContactsEnabled(struct R2JointDesc *desc,
-                                              R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2JointDesc_SetContactsEnabled(struct R2JointDesc *desc, R2Bool value);
 
 /**
  * Enable or disable allowing contacts between connected bodies for the impulse joint.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetContactsEnabled(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetContactsEnabled(struct R2ImpulseJointHandle handle,
                                                  R2Bool value,
                                                  R2Bool wake_up);
 
@@ -8161,17 +8019,15 @@ R2Status r2ImpulseJoint_SetContactsEnabled(struct R2ImpulseJointHandle handle,
  * Enable or disable the joint desc.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetEnabled(struct R2JointDesc *desc,
-                                     R2Bool value);
+RAPIER_API R2Status RAPIER_CALL r2JointDesc_SetEnabled(struct R2JointDesc *desc, R2Bool value);
 
 /**
  * Enable or disable the impulse joint.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetEnabled(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetEnabled(struct R2ImpulseJointHandle handle,
                                         R2Bool value,
                                         R2Bool wake_up);
 
@@ -8179,8 +8035,8 @@ R2Status r2ImpulseJoint_SetEnabled(struct R2ImpulseJointHandle handle,
  * Set the joint desc joint spring coefficients.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetSoftness(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetSoftness(struct R2JointDesc *desc,
                                       struct R2SpringCoefficients value);
 
 /**
@@ -8188,8 +8044,8 @@ R2Status r2JointDesc_SetSoftness(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetSoftness(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetSoftness(struct R2ImpulseJointHandle handle,
                                          struct R2SpringCoefficients value,
                                          R2Bool wake_up);
 
@@ -8197,17 +8053,15 @@ R2Status r2ImpulseJoint_SetSoftness(struct R2ImpulseJointHandle handle,
  * Set the joint desc translation/rotation lock bitmask.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLockedAxes(struct R2JointDesc *desc,
-                                         uint8_t value);
+RAPIER_API R2Status RAPIER_CALL r2JointDesc_SetLockedAxes(struct R2JointDesc *desc, uint8_t value);
 
 /**
  * Set the impulse joint translation/rotation lock bitmask.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLockedAxes(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLockedAxes(struct R2ImpulseJointHandle handle,
                                             uint8_t value,
                                             R2Bool wake_up);
 
@@ -8215,17 +8069,15 @@ R2Status r2ImpulseJoint_SetLockedAxes(struct R2ImpulseJointHandle handle,
  * Set the joint desc joint axis mask with limits enabled.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLimitAxes(struct R2JointDesc *desc,
-                                        uint8_t value);
+RAPIER_API R2Status RAPIER_CALL r2JointDesc_SetLimitAxes(struct R2JointDesc *desc, uint8_t value);
 
 /**
  * Set the impulse joint joint axis mask with limits enabled.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLimitAxes(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLimitAxes(struct R2ImpulseJointHandle handle,
                                            uint8_t value,
                                            R2Bool wake_up);
 
@@ -8233,17 +8085,15 @@ R2Status r2ImpulseJoint_SetLimitAxes(struct R2ImpulseJointHandle handle,
  * Set the joint desc joint axis mask with motors enabled.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetMotorAxes(struct R2JointDesc *desc,
-                                        uint8_t value);
+RAPIER_API R2Status RAPIER_CALL r2JointDesc_SetMotorAxes(struct R2JointDesc *desc, uint8_t value);
 
 /**
  * Set the impulse joint joint axis mask with motors enabled.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetMotorAxes(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetMotorAxes(struct R2ImpulseJointHandle handle,
                                            uint8_t value,
                                            R2Bool wake_up);
 
@@ -8251,17 +8101,15 @@ R2Status r2ImpulseJoint_SetMotorAxes(struct R2ImpulseJointHandle handle,
  * Set the joint desc coupled joint axis mask.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetCoupledAxes(struct R2JointDesc *desc,
-                                          uint8_t value);
+RAPIER_API R2Status RAPIER_CALL r2JointDesc_SetCoupledAxes(struct R2JointDesc *desc, uint8_t value);
 
 /**
  * Set the impulse joint coupled joint axis mask.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetCoupledAxes(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetCoupledAxes(struct R2ImpulseJointHandle handle,
                                              uint8_t value,
                                              R2Bool wake_up);
 
@@ -8269,8 +8117,8 @@ R2Status r2ImpulseJoint_SetCoupledAxes(struct R2ImpulseJointHandle handle,
  * Set the joint desc joint principal axis in body 1 local coordinates.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLocalAxis1(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetLocalAxis1(struct R2JointDesc *desc,
                                          struct R2Vector value);
 
 /**
@@ -8278,8 +8126,8 @@ R2Status r2JointDesc_SetLocalAxis1(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLocalAxis1(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLocalAxis1(struct R2ImpulseJointHandle handle,
                                             struct R2Vector value,
                                             R2Bool wake_up);
 
@@ -8287,8 +8135,8 @@ R2Status r2ImpulseJoint_SetLocalAxis1(struct R2ImpulseJointHandle handle,
  * Set the joint desc joint principal axis in body 2 local coordinates.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLocalAxis2(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetLocalAxis2(struct R2JointDesc *desc,
                                          struct R2Vector value);
 
 /**
@@ -8296,8 +8144,8 @@ R2Status r2JointDesc_SetLocalAxis2(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLocalAxis2(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLocalAxis2(struct R2ImpulseJointHandle handle,
                                             struct R2Vector value,
                                             R2Bool wake_up);
 
@@ -8305,8 +8153,8 @@ R2Status r2ImpulseJoint_SetLocalAxis2(struct R2ImpulseJointHandle handle,
  * Set the joint desc minimum and maximum limits on an axis (linear distance or angular radians).
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetLimits(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetLimits(struct R2JointDesc *desc,
                                     uint32_t joint_axis,
                                     R2Real min,
                                     R2Real max);
@@ -8317,8 +8165,8 @@ R2Status r2JointDesc_SetLimits(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetLimits(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetLimits(struct R2ImpulseJointHandle handle,
                                        uint32_t joint_axis,
                                        R2Real min,
                                        R2Real max,
@@ -8328,8 +8176,8 @@ R2Status r2ImpulseJoint_SetLimits(struct R2ImpulseJointHandle handle,
  * Set the joint desc motor position/velocity targets and spring coefficients on an axis.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetMotor(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetMotor(struct R2JointDesc *desc,
                                    uint32_t joint_axis,
                                    R2Real target_position,
                                    R2Real target_velocity,
@@ -8341,8 +8189,8 @@ R2Status r2JointDesc_SetMotor(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetMotor(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetMotor(struct R2ImpulseJointHandle handle,
                                       uint32_t joint_axis,
                                       R2Real target_position,
                                       R2Real target_velocity,
@@ -8354,8 +8202,8 @@ R2Status r2ImpulseJoint_SetMotor(struct R2ImpulseJointHandle handle,
  * Set the joint desc maximum motor force or torque on an axis.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetMotorMaxForce(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetMotorMaxForce(struct R2JointDesc *desc,
                                              uint32_t joint_axis,
                                              R2Real max_force);
 
@@ -8364,8 +8212,8 @@ R2Status r2JointDesc_SetMotorMaxForce(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetMotorMaxForce(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetMotorMaxForce(struct R2ImpulseJointHandle handle,
                                                 uint32_t joint_axis,
                                                 R2Real max_force,
                                                 R2Bool wake_up);
@@ -8374,8 +8222,8 @@ R2Status r2ImpulseJoint_SetMotorMaxForce(struct R2ImpulseJointHandle handle,
  * Set the joint desc motor model on an axis (0 = acceleration-based, 1 = force-based).
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetMotorModel(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetMotorModel(struct R2JointDesc *desc,
                                          uint32_t joint_axis,
                                          uint32_t model);
 
@@ -8384,8 +8232,8 @@ R2Status r2JointDesc_SetMotorModel(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetMotorModel(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetMotorModel(struct R2ImpulseJointHandle handle,
                                             uint32_t joint_axis,
                                             uint32_t model,
                                             R2Bool wake_up);
@@ -8394,8 +8242,8 @@ R2Status r2ImpulseJoint_SetMotorModel(struct R2ImpulseJointHandle handle,
  * Set the joint desc application-owned 128-bit user value.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetUserData(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetUserData(struct R2JointDesc *desc,
                                        struct R2UserData value);
 
 /**
@@ -8403,8 +8251,8 @@ R2Status r2JointDesc_SetUserData(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetUserData(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetUserData(struct R2ImpulseJointHandle handle,
                                           struct R2UserData value,
                                           R2Bool wake_up);
 
@@ -8412,8 +8260,8 @@ R2Status r2ImpulseJoint_SetUserData(struct R2ImpulseJointHandle handle,
  * Set the joint desc motor position target and spring coefficients on an axis.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetMotorPosition(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetMotorPosition(struct R2JointDesc *desc,
                                             uint32_t joint_axis,
                                             R2Real target_position,
                                             R2Real stiffness,
@@ -8424,8 +8272,8 @@ R2Status r2JointDesc_SetMotorPosition(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetMotorPosition(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetMotorPosition(struct R2ImpulseJointHandle handle,
                                                uint32_t joint_axis,
                                                R2Real target_position,
                                                R2Real stiffness,
@@ -8436,8 +8284,8 @@ R2Status r2ImpulseJoint_SetMotorPosition(struct R2ImpulseJointHandle handle,
  * Set the joint desc motor velocity target and damping factor on an axis.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2JointDesc_SetMotorVelocity(struct R2JointDesc *desc,
+RAPIER_API
+R2Status RAPIER_CALL r2JointDesc_SetMotorVelocity(struct R2JointDesc *desc,
                                             uint32_t joint_axis,
                                             R2Real target_velocity,
                                             R2Real factor);
@@ -8447,8 +8295,8 @@ R2Status r2JointDesc_SetMotorVelocity(struct R2JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ImpulseJoint_SetMotorVelocity(struct R2ImpulseJointHandle handle,
+RAPIER_API
+R2Status RAPIER_CALL r2ImpulseJoint_SetMotorVelocity(struct R2ImpulseJointHandle handle,
                                                uint32_t joint_axis,
                                                R2Real target_velocity,
                                                R2Real factor,
@@ -8460,8 +8308,8 @@ R2Status r2ImpulseJoint_SetMotorVelocity(struct R2ImpulseJointHandle handle,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2ConvexDecompositionSharedShape(struct R2VectorView vertices,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2ConvexDecompositionSharedShape(struct R2VectorView vertices,
                                                       R2SurfaceElementView indices);
 
 /**
@@ -8470,8 +8318,8 @@ R2SharedShape *r2ConvexDecompositionSharedShape(struct R2VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2VoxelsSharedShapeFromPoints(struct R2Vector voxel_size,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2VoxelsSharedShapeFromPoints(struct R2Vector voxel_size,
                                                     struct R2VectorView points);
 
 /**
@@ -8480,8 +8328,8 @@ R2SharedShape *r2VoxelsSharedShapeFromPoints(struct R2Vector voxel_size,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2VoxelizedMeshSharedShape(struct R2VectorView vertices,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2VoxelizedMeshSharedShape(struct R2VectorView vertices,
                                                 R2SurfaceElementView indices,
                                                 R2Real voxel_size);
 
@@ -8490,7 +8338,7 @@ R2SharedShape *r2VoxelizedMeshSharedShape(struct R2VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R2SharedShape *r2ConvexHullSharedShape(struct R2VectorView vertices);
+RAPIER_API R2SharedShape *RAPIER_CALL r2ConvexHullSharedShape(struct R2VectorView vertices);
 
 /**
  * Create an owned triangle mesh from vertices and triangle indices. Release it with
@@ -8498,8 +8346,8 @@ RAPIER_API RAPIER_CALL R2SharedShape *r2ConvexHullSharedShape(struct R2VectorVie
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2TrimeshSharedShape(struct R2VectorView vertices,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2TrimeshSharedShape(struct R2VectorView vertices,
                                          struct R2TriangleView indices);
 
 /**
@@ -8507,8 +8355,8 @@ R2SharedShape *r2TrimeshSharedShape(struct R2VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2PolylineSharedShape(struct R2VectorView vertices,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2PolylineSharedShape(struct R2VectorView vertices,
                                           struct R2EdgeView indices);
 
 #if defined(RAPIER_DIM2)
@@ -8518,8 +8366,8 @@ R2SharedShape *r2PolylineSharedShape(struct R2VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2OrientedPolylineSharedShape(struct R2VectorView vertices,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2OrientedPolylineSharedShape(struct R2VectorView vertices,
                                                    struct R2EdgeView indices);
 #endif
 
@@ -8530,8 +8378,7 @@ R2SharedShape *r2OrientedPolylineSharedShape(struct R2VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2ConvexPolylineSharedShape(struct R2VectorView vertices);
+RAPIER_API R2SharedShape *RAPIER_CALL r2ConvexPolylineSharedShape(struct R2VectorView vertices);
 #endif
 
 /**
@@ -8539,8 +8386,8 @@ R2SharedShape *r2ConvexPolylineSharedShape(struct R2VectorView vertices);
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2RoundConvexHullSharedShape(struct R2VectorView vertices,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2RoundConvexHullSharedShape(struct R2VectorView vertices,
                                                    R2Real border_radius);
 
 /**
@@ -8549,8 +8396,8 @@ R2SharedShape *r2RoundConvexHullSharedShape(struct R2VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2TrimeshSharedShapeWithFlags(struct R2VectorView vertices,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2TrimeshSharedShapeWithFlags(struct R2VectorView vertices,
                                                     struct R2TriangleView indices,
                                                     uint32_t flags);
 
@@ -8558,22 +8405,22 @@ R2SharedShape *r2TrimeshSharedShapeWithFlags(struct R2VectorView vertices,
  * Create an owned world. Release it with FreeWorld.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R2World *r2NewWorld(void);
+RAPIER_API struct R2World *RAPIER_CALL r2NewWorld(void);
 
 /**
  * Free a world. NULL is allowed. Rejects destruction from an active callback.
  * The caller must prevent other threads from starting calls during destruction.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R2Status r2FreeWorld(struct R2World *world);
+RAPIER_API R2Status RAPIER_CALL r2FreeWorld(struct R2World *world);
 
 /**
  * Compute a velocity correction from callback-visible body state, updating the PID controller
  * history. The context is valid only during its callback.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2VelocityCorrection r2ReadPidController_RigidBodyCorrection(const struct R2ReadContext *context,
+RAPIER_API
+struct R2VelocityCorrection RAPIER_CALL r2ReadPidController_RigidBodyCorrection(const struct R2ReadContext *context,
                                                                            struct R2PidController *controller,
                                                                            R2Real dt,
                                                                            struct R2RigidBodyHandle body,
@@ -8586,15 +8433,15 @@ struct R2VelocityCorrection r2ReadPidController_RigidBodyCorrection(const struct
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL size_t r2ReadRigidBodyCount(const struct R2ReadContext *context);
+RAPIER_API size_t RAPIER_CALL r2ReadRigidBodyCount(const struct R2ReadContext *context);
 
 /**
  * Copy entity handles. Uses only the callback-scoped read context; never retain the context.
  * @see @ref output_buffers
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r2ReadRigidBodyHandles(const struct R2ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r2ReadRigidBodyHandles(const struct R2ReadContext *context,
                                    struct R2RigidBodyHandle *buffer,
                                    size_t capacity);
 
@@ -8603,8 +8450,8 @@ size_t r2ReadRigidBodyHandles(const struct R2ReadContext *context,
  * false. Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_Contains(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_Contains(const struct R2ReadContext *context,
                                      struct R2RigidBodyHandle handle);
 
 /**
@@ -8612,15 +8459,15 @@ R2Bool r2ReadRigidBody_Contains(const struct R2ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL size_t r2ReadColliderCount(const struct R2ReadContext *context);
+RAPIER_API size_t RAPIER_CALL r2ReadColliderCount(const struct R2ReadContext *context);
 
 /**
  * Copy entity handles. Uses only the callback-scoped read context; never retain the context.
  * @see @ref output_buffers
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r2ReadColliderHandles(const struct R2ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r2ReadColliderHandles(const struct R2ReadContext *context,
                                  struct R2ColliderHandle *buffer,
                                  size_t capacity);
 
@@ -8629,8 +8476,8 @@ size_t r2ReadColliderHandles(const struct R2ReadContext *context,
  * Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadCollider_Contains(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadCollider_Contains(const struct R2ReadContext *context,
                                    struct R2ColliderHandle handle);
 
 /**
@@ -8639,8 +8486,8 @@ R2Bool r2ReadCollider_Contains(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r2ReadCollider_ShapeIdentity(const struct R2ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r2ReadCollider_ShapeIdentity(const struct R2ReadContext *context,
                                         struct R2ColliderHandle handle);
 
 /**
@@ -8648,8 +8495,8 @@ size_t r2ReadCollider_ShapeIdentity(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2MassProperties r2ReadCollider_MassProperties(const struct R2ReadContext *context,
+RAPIER_API
+struct R2MassProperties RAPIER_CALL r2ReadCollider_MassProperties(const struct R2ReadContext *context,
                                                            struct R2ColliderHandle handle);
 
 /**
@@ -8657,8 +8504,8 @@ struct R2MassProperties r2ReadCollider_MassProperties(const struct R2ReadContext
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-uint8_t r2ReadRigidBody_LockedAxes(const struct R2ReadContext *context,
+RAPIER_API
+uint8_t RAPIER_CALL r2ReadRigidBody_LockedAxes(const struct R2ReadContext *context,
                                         struct R2RigidBodyHandle handle);
 
 /**
@@ -8666,8 +8513,8 @@ uint8_t r2ReadRigidBody_LockedAxes(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadCollider_IsVoxels(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadCollider_IsVoxels(const struct R2ReadContext *context,
                                     struct R2ColliderHandle handle);
 
 /**
@@ -8675,8 +8522,8 @@ R2Bool r2ReadCollider_IsVoxels(const struct R2ReadContext *context,
  * read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2VoxelQuery r2ReadCollider_VoxelAtFlatId(const struct R2ReadContext *context,
+RAPIER_API
+struct R2VoxelQuery RAPIER_CALL r2ReadCollider_VoxelAtFlatId(const struct R2ReadContext *context,
                                                         struct R2ColliderHandle handle,
                                                         uint32_t id);
 
@@ -8685,8 +8532,8 @@ struct R2VoxelQuery r2ReadCollider_VoxelAtFlatId(const struct R2ReadContext *con
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Pose r2ReadRigidBody_NextPosition(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Pose RAPIER_CALL r2ReadRigidBody_NextPosition(const struct R2ReadContext *context,
                                                  struct R2RigidBodyHandle handle);
 
 /**
@@ -8694,8 +8541,8 @@ struct R2Pose r2ReadRigidBody_NextPosition(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Rotation r2ReadRigidBody_Rotation(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Rotation RAPIER_CALL r2ReadRigidBody_Rotation(const struct R2ReadContext *context,
                                                 struct R2RigidBodyHandle handle);
 
 /**
@@ -8703,8 +8550,8 @@ struct R2Rotation r2ReadRigidBody_Rotation(const struct R2ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2ReadRigidBody_CenterOfMass(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2ReadRigidBody_CenterOfMass(const struct R2ReadContext *context,
                                                     struct R2RigidBodyHandle handle);
 
 /**
@@ -8712,8 +8559,8 @@ struct R2Vector r2ReadRigidBody_CenterOfMass(const struct R2ReadContext *context
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2ReadRigidBody_LocalCenterOfMass(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2ReadRigidBody_LocalCenterOfMass(const struct R2ReadContext *context,
                                                           struct R2RigidBodyHandle handle);
 
 /**
@@ -8721,8 +8568,8 @@ struct R2Vector r2ReadRigidBody_LocalCenterOfMass(const struct R2ReadContext *co
  * read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2ReadRigidBody_UserForce(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2ReadRigidBody_UserForce(const struct R2ReadContext *context,
                                                 struct R2RigidBodyHandle handle);
 
 /**
@@ -8730,8 +8577,8 @@ struct R2Vector r2ReadRigidBody_UserForce(const struct R2ReadContext *context,
  * read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2AngVector r2ReadRigidBody_UserTorque(const struct R2ReadContext *context,
+RAPIER_API
+R2AngVector RAPIER_CALL r2ReadRigidBody_UserTorque(const struct R2ReadContext *context,
                                              struct R2RigidBodyHandle handle);
 
 /**
@@ -8739,8 +8586,8 @@ R2AngVector r2ReadRigidBody_UserTorque(const struct R2ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-uint32_t r2ReadRigidBody_BodyType(const struct R2ReadContext *context,
+RAPIER_API
+uint32_t RAPIER_CALL r2ReadRigidBody_BodyType(const struct R2ReadContext *context,
                                        struct R2RigidBodyHandle handle);
 
 /**
@@ -8748,8 +8595,8 @@ uint32_t r2ReadRigidBody_BodyType(const struct R2ReadContext *context,
  * context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadRigidBody_Mass(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadRigidBody_Mass(const struct R2ReadContext *context,
                                  struct R2RigidBodyHandle handle);
 
 /**
@@ -8757,8 +8604,8 @@ R2Real r2ReadRigidBody_Mass(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadRigidBody_GravityScale(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadRigidBody_GravityScale(const struct R2ReadContext *context,
                                           struct R2RigidBodyHandle handle);
 
 /**
@@ -8766,8 +8613,8 @@ R2Real r2ReadRigidBody_GravityScale(const struct R2ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadRigidBody_LinearDamping(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadRigidBody_LinearDamping(const struct R2ReadContext *context,
                                            struct R2RigidBodyHandle handle);
 
 /**
@@ -8775,8 +8622,8 @@ R2Real r2ReadRigidBody_LinearDamping(const struct R2ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadRigidBody_AngularDamping(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadRigidBody_AngularDamping(const struct R2ReadContext *context,
                                             struct R2RigidBodyHandle handle);
 
 /**
@@ -8784,8 +8631,8 @@ R2Real r2ReadRigidBody_AngularDamping(const struct R2ReadContext *context,
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadRigidBody_KineticEnergy(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadRigidBody_KineticEnergy(const struct R2ReadContext *context,
                                            struct R2RigidBodyHandle handle);
 
 /**
@@ -8793,8 +8640,8 @@ R2Real r2ReadRigidBody_KineticEnergy(const struct R2ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadRigidBody_SoftCcdPrediction(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadRigidBody_SoftCcdPrediction(const struct R2ReadContext *context,
                                                 struct R2RigidBodyHandle handle);
 
 /**
@@ -8802,8 +8649,8 @@ R2Real r2ReadRigidBody_SoftCcdPrediction(const struct R2ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsCcdEnabled(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsCcdEnabled(const struct R2ReadContext *context,
                                            struct R2RigidBodyHandle handle);
 
 /**
@@ -8811,8 +8658,8 @@ R2Bool r2ReadRigidBody_IsCcdEnabled(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsDynamic(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsDynamic(const struct R2ReadContext *context,
                                        struct R2RigidBodyHandle handle);
 
 /**
@@ -8820,8 +8667,8 @@ R2Bool r2ReadRigidBody_IsDynamic(const struct R2ReadContext *context,
  * only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2SoftBodyHandle r2ReadRigidBody_SoftBody(const struct R2ReadContext *context,
+RAPIER_API
+struct R2SoftBodyHandle RAPIER_CALL r2ReadRigidBody_SoftBody(const struct R2ReadContext *context,
                                                        struct R2RigidBodyHandle handle);
 
 /**
@@ -8829,8 +8676,8 @@ struct R2SoftBodyHandle r2ReadRigidBody_SoftBody(const struct R2ReadContext *con
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsSoftFrame(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsSoftFrame(const struct R2ReadContext *context,
                                           struct R2RigidBodyHandle handle);
 
 /**
@@ -8838,8 +8685,8 @@ R2Bool r2ReadRigidBody_IsSoftFrame(const struct R2ReadContext *context,
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsFixed(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsFixed(const struct R2ReadContext *context,
                                      struct R2RigidBodyHandle handle);
 
 /**
@@ -8847,8 +8694,8 @@ R2Bool r2ReadRigidBody_IsFixed(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsKinematic(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsKinematic(const struct R2ReadContext *context,
                                          struct R2RigidBodyHandle handle);
 
 /**
@@ -8856,8 +8703,8 @@ R2Bool r2ReadRigidBody_IsKinematic(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsMoving(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsMoving(const struct R2ReadContext *context,
                                       struct R2RigidBodyHandle handle);
 
 /**
@@ -8865,8 +8712,8 @@ R2Bool r2ReadRigidBody_IsMoving(const struct R2ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsCcdActive(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsCcdActive(const struct R2ReadContext *context,
                                           struct R2RigidBodyHandle handle);
 
 /**
@@ -8874,8 +8721,8 @@ R2Bool r2ReadRigidBody_IsCcdActive(const struct R2ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2ReadRigidBody_VelocityAtPoint(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2ReadRigidBody_VelocityAtPoint(const struct R2ReadContext *context,
                                                        struct R2RigidBodyHandle handle,
                                                        struct R2Vector point);
 
@@ -8885,8 +8732,8 @@ struct R2Vector r2ReadRigidBody_VelocityAtPoint(const struct R2ReadContext *cont
  * @see @ref output_buffers
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r2ReadRigidBody_Colliders(const struct R2ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r2ReadRigidBody_Colliders(const struct R2ReadContext *context,
                                      struct R2RigidBodyHandle handle,
                                      struct R2ColliderHandle *buffer,
                                      size_t capacity);
@@ -8897,8 +8744,8 @@ size_t r2ReadRigidBody_Colliders(const struct R2ReadContext *context,
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_GyroscopicForcesEnabled(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_GyroscopicForcesEnabled(const struct R2ReadContext *context,
                                                       struct R2RigidBodyHandle handle);
 #endif
 
@@ -8907,8 +8754,8 @@ R2Bool r2ReadRigidBody_GyroscopicForcesEnabled(const struct R2ReadContext *conte
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Rotation r2ReadCollider_Rotation(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Rotation RAPIER_CALL r2ReadCollider_Rotation(const struct R2ReadContext *context,
                                               struct R2ColliderHandle handle);
 
 /**
@@ -8916,8 +8763,8 @@ struct R2Rotation r2ReadCollider_Rotation(const struct R2ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2InteractionGroups r2ReadCollider_CollisionGroups(const struct R2ReadContext *context,
+RAPIER_API
+struct R2InteractionGroups RAPIER_CALL r2ReadCollider_CollisionGroups(const struct R2ReadContext *context,
                                                                struct R2ColliderHandle handle);
 
 /**
@@ -8925,8 +8772,8 @@ struct R2InteractionGroups r2ReadCollider_CollisionGroups(const struct R2ReadCon
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2InteractionGroups r2ReadCollider_SolverGroups(const struct R2ReadContext *context,
+RAPIER_API
+struct R2InteractionGroups RAPIER_CALL r2ReadCollider_SolverGroups(const struct R2ReadContext *context,
                                                             struct R2ColliderHandle handle);
 
 /**
@@ -8934,8 +8781,8 @@ struct R2InteractionGroups r2ReadCollider_SolverGroups(const struct R2ReadContex
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2UserData r2ReadCollider_UserData(const struct R2ReadContext *context,
+RAPIER_API
+struct R2UserData RAPIER_CALL r2ReadCollider_UserData(const struct R2ReadContext *context,
                                                struct R2ColliderHandle handle);
 
 /**
@@ -8943,16 +8790,16 @@ struct R2UserData r2ReadCollider_UserData(const struct R2ReadContext *context,
  * R2_CONTACT_FORCE_EVENTS). Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-uint32_t r2ReadCollider_ActiveEvents(const struct R2ReadContext *context,
+RAPIER_API
+uint32_t RAPIER_CALL r2ReadCollider_ActiveEvents(const struct R2ReadContext *context,
                                          struct R2ColliderHandle handle);
 
 /**
  * Return the collider mass. Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadCollider_Mass(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadCollider_Mass(const struct R2ReadContext *context,
                                struct R2ColliderHandle handle);
 
 /**
@@ -8960,8 +8807,8 @@ R2Real r2ReadCollider_Mass(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadCollider_Density(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadCollider_Density(const struct R2ReadContext *context,
                                   struct R2ColliderHandle handle);
 
 /**
@@ -8969,8 +8816,8 @@ R2Real r2ReadCollider_Density(const struct R2ReadContext *context,
  * context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadCollider_Volume(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadCollider_Volume(const struct R2ReadContext *context,
                                  struct R2ColliderHandle handle);
 
 /**
@@ -8978,8 +8825,8 @@ R2Real r2ReadCollider_Volume(const struct R2ReadContext *context,
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadCollider_ContactSkin(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadCollider_ContactSkin(const struct R2ReadContext *context,
                                        struct R2ColliderHandle handle);
 
 /**
@@ -8987,8 +8834,8 @@ R2Real r2ReadCollider_ContactSkin(const struct R2ReadContext *context,
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadCollider_ContactForceEventThreshold(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadCollider_ContactForceEventThreshold(const struct R2ReadContext *context,
                                                         struct R2ColliderHandle handle);
 
 /**
@@ -8996,8 +8843,8 @@ R2Real r2ReadCollider_ContactForceEventThreshold(const struct R2ReadContext *con
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadCollider_IsEnabled(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadCollider_IsEnabled(const struct R2ReadContext *context,
                                      struct R2ColliderHandle handle);
 
 /**
@@ -9005,8 +8852,8 @@ R2Bool r2ReadCollider_IsEnabled(const struct R2ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Aabb r2ReadCollider_ComputeAabb(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Aabb RAPIER_CALL r2ReadCollider_ComputeAabb(const struct R2ReadContext *context,
                                               struct R2ColliderHandle handle);
 
 /**
@@ -9015,8 +8862,8 @@ struct R2Aabb r2ReadCollider_ComputeAabb(const struct R2ReadContext *context,
  * Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2SharedShape *r2ReadCollider_CloneShape(const struct R2ReadContext *context,
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2ReadCollider_CloneShape(const struct R2ReadContext *context,
                                               struct R2ColliderHandle handle);
 
 /**
@@ -9024,8 +8871,8 @@ R2SharedShape *r2ReadCollider_CloneShape(const struct R2ReadContext *context,
  * has already been freed. Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ReadRigidBody_ValidateHandle(const struct R2ReadContext *context,
+RAPIER_API
+R2Status RAPIER_CALL r2ReadRigidBody_ValidateHandle(const struct R2ReadContext *context,
                                               struct R2RigidBodyHandle handle);
 
 /**
@@ -9033,8 +8880,8 @@ R2Status r2ReadRigidBody_ValidateHandle(const struct R2ReadContext *context,
  * has already been freed. Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Status r2ReadCollider_ValidateHandle(const struct R2ReadContext *context,
+RAPIER_API
+R2Status RAPIER_CALL r2ReadCollider_ValidateHandle(const struct R2ReadContext *context,
                                             struct R2ColliderHandle handle);
 
 /**
@@ -9042,8 +8889,8 @@ R2Status r2ReadCollider_ValidateHandle(const struct R2ReadContext *context,
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Pose r2ReadRigidBody_Position(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Pose RAPIER_CALL r2ReadRigidBody_Position(const struct R2ReadContext *context,
                                             struct R2RigidBodyHandle handle);
 
 /**
@@ -9051,8 +8898,8 @@ struct R2Pose r2ReadRigidBody_Position(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2ReadRigidBody_Translation(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2ReadRigidBody_Translation(const struct R2ReadContext *context,
                                                  struct R2RigidBodyHandle handle);
 
 /**
@@ -9060,8 +8907,8 @@ struct R2Vector r2ReadRigidBody_Translation(const struct R2ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2ReadRigidBody_Linvel(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2ReadRigidBody_Linvel(const struct R2ReadContext *context,
                                             struct R2RigidBodyHandle handle);
 
 /**
@@ -9069,8 +8916,8 @@ struct R2Vector r2ReadRigidBody_Linvel(const struct R2ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2AngVector r2ReadRigidBody_Angvel(const struct R2ReadContext *context,
+RAPIER_API
+R2AngVector RAPIER_CALL r2ReadRigidBody_Angvel(const struct R2ReadContext *context,
                                         struct R2RigidBodyHandle handle);
 
 /**
@@ -9078,8 +8925,8 @@ R2AngVector r2ReadRigidBody_Angvel(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsSleeping(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsSleeping(const struct R2ReadContext *context,
                                         struct R2RigidBodyHandle handle);
 
 /**
@@ -9087,8 +8934,8 @@ R2Bool r2ReadRigidBody_IsSleeping(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadRigidBody_IsEnabled(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsEnabled(const struct R2ReadContext *context,
                                        struct R2RigidBodyHandle handle);
 
 /**
@@ -9096,8 +8943,8 @@ R2Bool r2ReadRigidBody_IsEnabled(const struct R2ReadContext *context,
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2UserData r2ReadRigidBody_UserData(const struct R2ReadContext *context,
+RAPIER_API
+struct R2UserData RAPIER_CALL r2ReadRigidBody_UserData(const struct R2ReadContext *context,
                                                  struct R2RigidBodyHandle handle);
 
 /**
@@ -9105,8 +8952,8 @@ struct R2UserData r2ReadRigidBody_UserData(const struct R2ReadContext *context,
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Pose r2ReadCollider_Position(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Pose RAPIER_CALL r2ReadCollider_Position(const struct R2ReadContext *context,
                                           struct R2ColliderHandle handle);
 
 /**
@@ -9114,8 +8961,8 @@ struct R2Pose r2ReadCollider_Position(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2Vector r2ReadCollider_Translation(const struct R2ReadContext *context,
+RAPIER_API
+struct R2Vector RAPIER_CALL r2ReadCollider_Translation(const struct R2ReadContext *context,
                                                struct R2ColliderHandle handle);
 
 /**
@@ -9123,8 +8970,8 @@ struct R2Vector r2ReadCollider_Translation(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadCollider_Friction(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadCollider_Friction(const struct R2ReadContext *context,
                                    struct R2ColliderHandle handle);
 
 /**
@@ -9132,8 +8979,8 @@ R2Real r2ReadCollider_Friction(const struct R2ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Real r2ReadCollider_Restitution(const struct R2ReadContext *context,
+RAPIER_API
+R2Real RAPIER_CALL r2ReadCollider_Restitution(const struct R2ReadContext *context,
                                       struct R2ColliderHandle handle);
 
 /**
@@ -9141,8 +8988,8 @@ R2Real r2ReadCollider_Restitution(const struct R2ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R2Bool r2ReadCollider_IsSensor(const struct R2ReadContext *context,
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadCollider_IsSensor(const struct R2ReadContext *context,
                                     struct R2ColliderHandle handle);
 
 /**
@@ -9150,8 +8997,8 @@ R2Bool r2ReadCollider_IsSensor(const struct R2ReadContext *context,
  * with OK status.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R2RigidBodyHandle r2ReadCollider_Parent(const struct R2ReadContext *context,
+RAPIER_API
+struct R2RigidBodyHandle RAPIER_CALL r2ReadCollider_Parent(const struct R2ReadContext *context,
                                                    struct R2ColliderHandle handle);
 
 /**
@@ -9160,8 +9007,8 @@ struct R2RigidBodyHandle r2ReadCollider_Parent(const struct R2ReadContext *conte
  * @see @ref output_buffers
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r2ReadRigidBodyReadStates(const struct R2ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r2ReadRigidBodyReadStates(const struct R2ReadContext *context,
                                        const struct R2RigidBodyHandle *handles,
                                        size_t handle_count,
                                        struct R2RigidBodyState *states,
@@ -12992,67 +12839,66 @@ extern "C" {
  * Return native default soft body material. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R3SoftBodyMaterial r3DefaultSoftBodyMaterial(void);
+RAPIER_API struct R3SoftBodyMaterial RAPIER_CALL r3DefaultSoftBodyMaterial(void);
 
 /**
  * Return native default soft recovery settings. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R3SoftRecoverySettings r3DefaultSoftRecoverySettings(void);
+RAPIER_API struct R3SoftRecoverySettings RAPIER_CALL r3DefaultSoftRecoverySettings(void);
 
 #if defined(RAPIER_FEM)
 /**
  * Return native default soft fem parameters. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R3SoftFemParameters r3DefaultSoftFemParameters(void);
+RAPIER_API struct R3SoftFemParameters RAPIER_CALL r3DefaultSoftFemParameters(void);
 #endif
 
 /**
  * Return native default soft bodies settings. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R3SoftBodiesSettings r3DefaultSoftBodiesSettings(void);
+RAPIER_API struct R3SoftBodiesSettings RAPIER_CALL r3DefaultSoftBodiesSettings(void);
 
 /**
  * Return native default integration parameters. This POD value owns no resources.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R3IntegrationParameters r3DefaultIntegrationParameters(void);
+RAPIER_API struct R3IntegrationParameters RAPIER_CALL r3DefaultIntegrationParameters(void);
 
 /**
  * Return a copy of all world integration settings.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-struct R3IntegrationParameters r3IntegrationParameters(const struct R3World *world);
+RAPIER_API struct R3IntegrationParameters RAPIER_CALL r3IntegrationParameters(const struct R3World *world);
 
 /**
  * Copies validated values; does not expose a writable alias to Rust memory.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetIntegrationParameters(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3SetIntegrationParameters(struct R3World *world,
                                          const struct R3IntegrationParameters *data);
 
 /**
  * Return native default joint desc. This POD value owns no resources.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R3JointDesc r3DefaultJointDesc(void);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3DefaultJointDesc(void);
 
 /**
  * Return a fixed joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R3JointDesc r3FixedJointDesc(void);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3FixedJointDesc(void);
 
 #if defined(RAPIER_DIM2)
 /**
  * Return a revolute joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R3JointDesc r3RevoluteJointDesc(void);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3RevoluteJointDesc(void);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -13060,27 +12906,27 @@ RAPIER_API RAPIER_CALL struct R3JointDesc r3RevoluteJointDesc(void);
  * Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R3JointDesc r3RevoluteJointDesc(struct R3Vector axis_vector);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3RevoluteJointDesc(struct R3Vector axis_vector);
 #endif
 
 /**
  * Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R3JointDesc r3PrismaticJointDesc(struct R3Vector axis_vector);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3PrismaticJointDesc(struct R3Vector axis_vector);
 
 /**
  * Return a rope joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R3JointDesc r3RopeJointDesc(R3Real length);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3RopeJointDesc(R3Real length);
 
 /**
  * Return a spring joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R3JointDesc r3SpringJointDesc(R3Real length,
+RAPIER_API
+struct R3JointDesc RAPIER_CALL r3SpringJointDesc(R3Real length,
                                           R3Real stiffness,
                                           R3Real damping);
 
@@ -13089,7 +12935,7 @@ struct R3JointDesc r3SpringJointDesc(R3Real length,
  * Return a spherical joint description with native defaults; no allocation.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R3JointDesc r3SphericalJointDesc(void);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3SphericalJointDesc(void);
 #endif
 
 #if defined(RAPIER_DIM2)
@@ -13097,7 +12943,7 @@ RAPIER_API RAPIER_CALL struct R3JointDesc r3SphericalJointDesc(void);
  * Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL struct R3JointDesc r3PinSlotJointDesc(struct R3Vector axis_vector);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3PinSlotJointDesc(struct R3Vector axis_vector);
 #endif
 
 /**
@@ -13105,8 +12951,8 @@ RAPIER_API RAPIER_CALL struct R3JointDesc r3PinSlotJointDesc(struct R3Vector axi
  * wake_up wakes the connected bodies.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R3ImpulseJointHandle r3InsertImpulseJoint(struct R3RigidBodyHandle body1,
+RAPIER_API
+struct R3ImpulseJointHandle RAPIER_CALL r3InsertImpulseJoint(struct R3RigidBodyHandle body1,
                                                       struct R3RigidBodyHandle body2,
                                                       const struct R3JointDesc *joint);
 
@@ -13115,8 +12961,8 @@ struct R3ImpulseJointHandle r3InsertImpulseJoint(struct R3RigidBodyHandle body1,
  * failure; check r3LastStatus.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R3MultibodyJointHandle r3InsertMultibodyJoint(struct R3RigidBodyHandle body1,
+RAPIER_API
+struct R3MultibodyJointHandle RAPIER_CALL r3InsertMultibodyJoint(struct R3RigidBodyHandle body1,
                                                           struct R3RigidBodyHandle body2,
                                                           const struct R3JointDesc *joint);
 
@@ -13124,29 +12970,29 @@ struct R3MultibodyJointHandle r3InsertMultibodyJoint(struct R3RigidBodyHandle bo
  * Return native default soft body desc. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R3SoftBodyDesc r3DefaultSoftBodyDesc(void);
+RAPIER_API struct R3SoftBodyDesc RAPIER_CALL r3DefaultSoftBodyDesc(void);
 
 /**
  * Consumes no caller-owned resources. All borrowed arrays may be released on return.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyHandle r3InsertSoftBody(struct R3World *world,
+RAPIER_API
+struct R3SoftBodyHandle RAPIER_CALL r3InsertSoftBody(struct R3World *world,
                                               const struct R3SoftBodyDesc *desc);
 
 /**
  * Return native default soft mesh binding desc. This POD value owns no resources.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL struct R3SoftMeshBindingDesc r3DefaultSoftMeshBindingDesc(void);
+RAPIER_API struct R3SoftMeshBindingDesc RAPIER_CALL r3DefaultSoftMeshBindingDesc(void);
 
 /**
  * Create a deformable collider bound to a soft-body cluster. The world owns the collider; binding
  * arrays are borrowed only during insertion.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderHandle r3InsertDeformableCollider(const struct R3ColliderDesc *collider,
+RAPIER_API
+struct R3ColliderHandle RAPIER_CALL r3InsertDeformableCollider(const struct R3ColliderDesc *collider,
                                                         const struct R3SoftMeshBindingDesc *binding,
                                                         struct R3RigidBodyHandle parent);
 
@@ -13154,7 +13000,7 @@ struct R3ColliderHandle r3InsertDeformableCollider(const struct R3ColliderDesc *
  * Return native default query options. This POD value owns no resources.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL struct R3QueryOptions r3DefaultQueryOptions(void);
+RAPIER_API struct R3QueryOptions RAPIER_CALL r3DefaultQueryOptions(void);
 
 /**
  * Return the closest ray hit, or report R3_NOT_FOUND on a miss. The ray is origin + direction * t
@@ -13164,8 +13010,8 @@ RAPIER_API RAPIER_CALL struct R3QueryOptions r3DefaultQueryOptions(void);
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-struct R3RayHit r3CastRay(const struct R3World *world,
+RAPIER_API
+struct R3RayHit RAPIER_CALL r3CastRay(const struct R3World *world,
                               const struct R3QueryOptions *query_options,
                               struct R3Vector origin,
                               struct R3Vector direction,
@@ -13179,8 +13025,8 @@ struct R3RayHit r3CastRay(const struct R3World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-struct R3PointProjection r3ProjectPoint(const struct R3World *world,
+RAPIER_API
+struct R3PointProjection RAPIER_CALL r3ProjectPoint(const struct R3World *world,
                                             const struct R3QueryOptions *query_options,
                                             struct R3Vector point,
                                             R3Real max_distance,
@@ -13193,8 +13039,8 @@ struct R3PointProjection r3ProjectPoint(const struct R3World *world,
  * DetectCollisions call.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R3ShapeCastHit r3CastShape(const struct R3World *world,
+RAPIER_API
+struct R3ShapeCastHit RAPIER_CALL r3CastShape(const struct R3World *world,
                                       const struct R3QueryOptions *query_options,
                                       struct R3Pose pose,
                                       struct R3Vector velocity,
@@ -13208,8 +13054,8 @@ struct R3ShapeCastHit r3CastShape(const struct R3World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-size_t r3IntersectPoint(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3IntersectPoint(const struct R3World *world,
                            const struct R3QueryOptions *query_options,
                            struct R3Vector point,
                            struct R3ColliderHandle *buffer,
@@ -13223,8 +13069,8 @@ size_t r3IntersectPoint(const struct R3World *world,
  * DetectCollisions call.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r3IntersectShape(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3IntersectShape(const struct R3World *world,
                            const struct R3QueryOptions *query_options,
                            struct R3Pose pose,
                            const R3SharedShape *shape,
@@ -13239,8 +13085,8 @@ size_t r3IntersectShape(const struct R3World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-size_t r3IntersectAabbConservative(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3IntersectAabbConservative(const struct R3World *world,
                                        const struct R3QueryOptions *query_options,
                                        struct R3Aabb aabb,
                                        struct R3ColliderHandle *buffer,
@@ -13253,8 +13099,8 @@ size_t r3IntersectAabbConservative(const struct R3World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-struct R3RayToi r3CastRayToi(const struct R3World *world,
+RAPIER_API
+struct R3RayToi RAPIER_CALL r3CastRayToi(const struct R3World *world,
                                   const struct R3QueryOptions *query_options,
                                   struct R3Vector origin,
                                   struct R3Vector direction,
@@ -13268,8 +13114,8 @@ struct R3RayToi r3CastRayToi(const struct R3World *world,
  * DetectCollisions call.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL
-struct R3OptionalRayHit r3TryCastRay(const struct R3World *world,
+RAPIER_API
+struct R3OptionalRayHit RAPIER_CALL r3TryCastRay(const struct R3World *world,
                                           const struct R3QueryOptions *query_options,
                                           struct R3Vector origin,
                                           struct R3Vector direction,
@@ -13280,66 +13126,65 @@ struct R3OptionalRayHit r3TryCastRay(const struct R3World *world,
  * Return a dynamic rigid-body description with native defaults; no allocation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R3RigidBodyDesc r3DynamicRigidBodyDesc(void);
+RAPIER_API struct R3RigidBodyDesc RAPIER_CALL r3DynamicRigidBodyDesc(void);
 
 /**
  * Return a fixed rigid-body description with native defaults; no allocation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R3RigidBodyDesc r3FixedRigidBodyDesc(void);
+RAPIER_API struct R3RigidBodyDesc RAPIER_CALL r3FixedRigidBodyDesc(void);
 
 /**
  * Return a kinematic position based rigid-body description with native defaults; no allocation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R3RigidBodyDesc r3KinematicPositionBasedRigidBodyDesc(void);
+RAPIER_API struct R3RigidBodyDesc RAPIER_CALL r3KinematicPositionBasedRigidBodyDesc(void);
 
 /**
  * Return a kinematic velocity based rigid-body description with native defaults; no allocation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R3RigidBodyDesc r3KinematicVelocityBasedRigidBodyDesc(void);
+RAPIER_API struct R3RigidBodyDesc RAPIER_CALL r3KinematicVelocityBasedRigidBodyDesc(void);
 
 /**
  * Return native default shape desc. This POD value owns no resources.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL struct R3ShapeDesc r3DefaultShapeDesc(void);
+RAPIER_API struct R3ShapeDesc RAPIER_CALL r3DefaultShapeDesc(void);
 
 /**
  * Build an owned shared shape from a description; release it with r3FreeSharedShape. Borrowed
  * inputs may be released after this call.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3SharedShape *r3ShapeDesc_Build(const struct R3ShapeDesc *desc);
+RAPIER_API R3SharedShape *RAPIER_CALL r3ShapeDesc_Build(const struct R3ShapeDesc *desc);
 
 /**
  * Return native default collider desc. This POD value owns no resources.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R3ColliderDesc r3DefaultColliderDesc(void);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3DefaultColliderDesc(void);
 
 /**
  * Return a ball description with the supplied radius.
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R3ColliderDesc r3BallColliderDesc(R3Real radius);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3BallColliderDesc(R3Real radius);
 
 /**
  * Return an axis-aligned box description with the supplied half-extents.
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3CuboidColliderDesc(struct R3Vector half_extents);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3CuboidColliderDesc(struct R3Vector half_extents);
 
 /**
  * Create a body from the description and return its world-bound handle. The world owns the body.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3RigidBodyHandle r3InsertRigidBody(struct R3World *world,
+RAPIER_API
+struct R3RigidBodyHandle RAPIER_CALL r3InsertRigidBody(struct R3World *world,
                                                 const struct R3RigidBodyDesc *desc);
 
 /**
@@ -13348,8 +13193,8 @@ struct R3RigidBodyHandle r3InsertRigidBody(struct R3World *world,
  * Invalid or removed parents fail without inserting a collider.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderHandle r3InsertCollider(struct R3RigidBodyHandle parent,
+RAPIER_API
+struct R3ColliderHandle RAPIER_CALL r3InsertCollider(struct R3RigidBodyHandle parent,
                                              const struct R3ColliderDesc *desc);
 
 /**
@@ -13357,62 +13202,61 @@ struct R3ColliderHandle r3InsertCollider(struct R3RigidBodyHandle parent,
  * The description is borrowed through this call.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderHandle r3InsertColliderWithoutParent(struct R3World *world,
+RAPIER_API
+struct R3ColliderHandle RAPIER_CALL r3InsertColliderWithoutParent(struct R3World *world,
                                                             const struct R3ColliderDesc *desc);
 
 /**
  * Return POD structure sizes for checking foreign-language layouts against this library.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL struct R3PodLayout r3PodLayout(void);
+RAPIER_API struct R3PodLayout RAPIER_CALL r3PodLayout(void);
 
 /**
  * Allocate a character controller with native defaults; release it with
  * r3FreeKinematicCharacterController.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R3KinematicCharacterController *r3NewKinematicCharacterController(void);
+RAPIER_API struct R3KinematicCharacterController *RAPIER_CALL r3NewKinematicCharacterController(void);
 
 /**
  * Release an owned kinematic character controller. NULL is allowed. Do not pass borrowed pointers
  * or free the object twice.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3FreeKinematicCharacterController(struct R3KinematicCharacterController *controller);
+RAPIER_API
+R3Status RAPIER_CALL r3FreeKinematicCharacterController(struct R3KinematicCharacterController *controller);
 
 /**
  * Set the up direction; it must be finite and nonzero and is normalized on input.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3KinematicCharacterController_SetUp(struct R3KinematicCharacterController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3KinematicCharacterController_SetUp(struct R3KinematicCharacterController *controller,
                                                     struct R3Vector up);
 
 /**
  * Set the collision separation margin; use a positive absolute or relative character length.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3KinematicCharacterController_SetOffset(struct R3KinematicCharacterController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3KinematicCharacterController_SetOffset(struct R3KinematicCharacterController *controller,
                                                         struct R3CharacterLength offset);
 
 /**
  * Enable or disable sliding along obstacles.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3KinematicCharacterController_SetSlide(struct R3KinematicCharacterController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3KinematicCharacterController_SetSlide(struct R3KinematicCharacterController *controller,
                                                        R3Bool enabled);
 
 /**
  * Set the maximum climb angle and minimum slide angle, in radians.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3KinematicCharacterController_SetSlopes(struct R3KinematicCharacterController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3KinematicCharacterController_SetSlopes(struct R3KinematicCharacterController *controller,
                                                         R3Real max_climb_angle,
                                                         R3Real min_slide_angle);
 
@@ -13420,8 +13264,8 @@ R3Status r3KinematicCharacterController_SetSlopes(struct R3KinematicCharacterCon
  * Configure automatic stepping over obstacles. enabled = 0 disables it.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3KinematicCharacterController_SetAutostep(struct R3KinematicCharacterController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3KinematicCharacterController_SetAutostep(struct R3KinematicCharacterController *controller,
                                                           R3Bool enabled,
                                                           struct R3CharacterLength max_height,
                                                           struct R3CharacterLength min_width,
@@ -13431,8 +13275,8 @@ R3Status r3KinematicCharacterController_SetAutostep(struct R3KinematicCharacterC
  * Configure downward ground snapping. enabled = 0 disables it.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3KinematicCharacterController_SetSnapToGround(struct R3KinematicCharacterController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3KinematicCharacterController_SetSnapToGround(struct R3KinematicCharacterController *controller,
                                                                 R3Bool enabled,
                                                                 struct R3CharacterLength distance);
 
@@ -13443,8 +13287,8 @@ R3Status r3KinematicCharacterController_SetSnapToGround(struct R3KinematicCharac
  * DetectCollisions call.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R3CharacterMovement r3KinematicCharacterController_MoveShape(const struct R3World *world,
+RAPIER_API
+struct R3CharacterMovement RAPIER_CALL r3KinematicCharacterController_MoveShape(const struct R3World *world,
                                                                           const struct R3QueryOptions *options,
                                                                           struct R3KinematicCharacterController *controller,
                                                                           R3Real dt,
@@ -13457,8 +13301,8 @@ struct R3CharacterMovement r3KinematicCharacterController_MoveShape(const struct
  * @see @ref output_buffers
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-size_t r3KinematicCharacterController_Collisions(const struct R3KinematicCharacterController *controller,
+RAPIER_API
+size_t RAPIER_CALL r3KinematicCharacterController_Collisions(const struct R3KinematicCharacterController *controller,
                                                      struct R3CharacterCollision *buffer,
                                                      size_t capacity);
 
@@ -13467,8 +13311,8 @@ size_t r3KinematicCharacterController_Collisions(const struct R3KinematicCharact
  * filter.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3KinematicCharacterController_SolveCharacterCollisionImpulses(const struct R3KinematicCharacterController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3KinematicCharacterController_SolveCharacterCollisionImpulses(const struct R3KinematicCharacterController *controller,
                                                                                 const R3SharedShape *shape,
                                                                                 R3Real dt,
                                                                                 R3Real mass,
@@ -13479,44 +13323,43 @@ R3Status r3KinematicCharacterController_SolveCharacterCollisionImpulses(const st
  * r3FreePidController.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL struct R3PidController *r3NewPidController(void);
+RAPIER_API struct R3PidController *RAPIER_CALL r3NewPidController(void);
 
 /**
  * Release an owned pid controller. NULL is allowed. Do not pass borrowed pointers or free the
  * object twice.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL R3Status r3FreePidController(struct R3PidController *controller);
+RAPIER_API R3Status RAPIER_CALL r3FreePidController(struct R3PidController *controller);
 
 /**
  * Return a copy of the proportional, integral, and derivative gains.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R3PidGains r3PidController_Gains(const struct R3PidController *controller);
+RAPIER_API struct R3PidGains RAPIER_CALL r3PidController_Gains(const struct R3PidController *controller);
 
 /**
  * Replace the proportional, integral, and derivative gains.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3PidController_SetGains(struct R3PidController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3PidController_SetGains(struct R3PidController *controller,
                                        struct R3PidGains gains);
 
 /**
  * AxesMask bits match Rapier: linear X/Y/Z are 1/2/4, angular X/Y/Z are 8/16/32.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3PidController_SetAxes(struct R3PidController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3PidController_SetAxes(struct R3PidController *controller,
                                       uint32_t axes);
 
 /**
  * Compute a velocity correction, preserving the body's state and updating PID integrals.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R3VelocityCorrection r3PidController_RigidBodyCorrection(struct R3PidController *controller,
+RAPIER_API
+struct R3VelocityCorrection RAPIER_CALL r3PidController_RigidBodyCorrection(struct R3PidController *controller,
                                                                       R3Real dt,
                                                                       struct R3RigidBodyHandle body,
                                                                       struct R3Pose target_pose,
@@ -13527,15 +13370,15 @@ struct R3VelocityCorrection r3PidController_RigidBodyCorrection(struct R3PidCont
  * Return a copy of slide, slope, and ground-snap settings.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R3CharacterControllerSettings r3KinematicCharacterController_Settings(const struct R3KinematicCharacterController *controller);
+RAPIER_API
+struct R3CharacterControllerSettings RAPIER_CALL r3KinematicCharacterController_Settings(const struct R3KinematicCharacterController *controller);
 
 #if defined(RAPIER_DIM3)
 /**
  * Return native default wheel tuning. This POD value owns no resources.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL struct R3WheelTuning r3DefaultWheelTuning(void);
+RAPIER_API struct R3WheelTuning RAPIER_CALL r3DefaultWheelTuning(void);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -13544,8 +13387,8 @@ RAPIER_API RAPIER_CALL struct R3WheelTuning r3DefaultWheelTuning(void);
  * controller. Release with r3FreeDynamicRayCastVehicleController.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-struct R3DynamicRayCastVehicleController *r3NewDynamicRayCastVehicleController(struct R3RigidBodyHandle chassis);
+RAPIER_API
+struct R3DynamicRayCastVehicleController *RAPIER_CALL r3NewDynamicRayCastVehicleController(struct R3RigidBodyHandle chassis);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -13554,8 +13397,8 @@ struct R3DynamicRayCastVehicleController *r3NewDynamicRayCastVehicleController(s
  * pointers or free the object twice.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3FreeDynamicRayCastVehicleController(struct R3DynamicRayCastVehicleController *controller);
+RAPIER_API
+R3Status RAPIER_CALL r3FreeDynamicRayCastVehicleController(struct R3DynamicRayCastVehicleController *controller);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -13564,8 +13407,8 @@ R3Status r3FreeDynamicRayCastVehicleController(struct R3DynamicRayCastVehicleCon
  * are in chassis-local coordinates.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-size_t r3DynamicRayCastVehicleController_AddWheel(struct R3DynamicRayCastVehicleController *controller,
+RAPIER_API
+size_t RAPIER_CALL r3DynamicRayCastVehicleController_AddWheel(struct R3DynamicRayCastVehicleController *controller,
                                                          struct R3Vector connection,
                                                          struct R3Vector direction,
                                                          struct R3Vector axle,
@@ -13579,8 +13422,8 @@ size_t r3DynamicRayCastVehicleController_AddWheel(struct R3DynamicRayCastVehicle
  * Set the chassis up/forward axis indices (0 = X, 1 = Y, 2 = Z).
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3DynamicRayCastVehicleController_SetAxes(struct R3DynamicRayCastVehicleController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3DynamicRayCastVehicleController_SetAxes(struct R3DynamicRayCastVehicleController *controller,
                                                            size_t up,
                                                            size_t forward);
 #endif
@@ -13590,8 +13433,8 @@ R3Status r3DynamicRayCastVehicleController_SetAxes(struct R3DynamicRayCastVehicl
  * Set a wheel engine force, brake force, and steering angle in radians.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3DynamicRayCastVehicleController_SetWheelControls(struct R3DynamicRayCastVehicleController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3DynamicRayCastVehicleController_SetWheelControls(struct R3DynamicRayCastVehicleController *controller,
                                                                      size_t index,
                                                                      R3Real steering,
                                                                      R3Real engine_force,
@@ -13603,8 +13446,8 @@ R3Status r3DynamicRayCastVehicleController_SetWheelControls(struct R3DynamicRayC
  * Ray-cast wheel contacts and apply vehicle forces for dt seconds. Does not step the world.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Status r3DynamicRayCastVehicleController_UpdateVehicle(struct R3DynamicRayCastVehicleController *controller,
+RAPIER_API
+R3Status RAPIER_CALL r3DynamicRayCastVehicleController_UpdateVehicle(struct R3DynamicRayCastVehicleController *controller,
                                                                  R3Real dt,
                                                                  const struct R3QueryFilter *filter);
 #endif
@@ -13614,8 +13457,8 @@ R3Status r3DynamicRayCastVehicleController_UpdateVehicle(struct R3DynamicRayCast
  * Return signed chassis speed along its forward direction.
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-R3Real r3DynamicRayCastVehicleController_CurrentVehicleSpeed(const struct R3DynamicRayCastVehicleController *controller);
+RAPIER_API
+R3Real RAPIER_CALL r3DynamicRayCastVehicleController_CurrentVehicleSpeed(const struct R3DynamicRayCastVehicleController *controller);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -13624,8 +13467,8 @@ R3Real r3DynamicRayCastVehicleController_CurrentVehicleSpeed(const struct R3Dyna
  * @see @ref output_buffers
  * @ingroup controllers
  */
-RAPIER_API RAPIER_CALL
-size_t r3DynamicRayCastVehicleController_Wheels(const struct R3DynamicRayCastVehicleController *controller,
+RAPIER_API
+size_t RAPIER_CALL r3DynamicRayCastVehicleController_Wheels(const struct R3DynamicRayCastVehicleController *controller,
                                                       struct R3WheelState *buffer,
                                                       size_t capacity);
 #endif
@@ -13635,16 +13478,16 @@ size_t r3DynamicRayCastVehicleController_Wheels(const struct R3DynamicRayCastVeh
  * querying the broad phase.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBodyPropagateModifiedBodyPositionsToColliders(struct R3World *world);
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBodyPropagateModifiedBodyPositionsToColliders(struct R3World *world);
 
 /**
  * Copies the island manager's active body handles.
  * @see @ref output_buffers
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-size_t r3ActiveRigidBodies(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3ActiveRigidBodies(const struct R3World *world,
                                struct R3RigidBodyHandle *buffer,
                                size_t capacity);
 
@@ -13652,9 +13495,7 @@ size_t r3ActiveRigidBodies(const struct R3World *world,
  * Wake a body by handle, including a soft-body cluster proxy.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_WakeUp(struct R3RigidBodyHandle handle,
-                                 R3Bool strong);
+RAPIER_API R3Status RAPIER_CALL r3RigidBody_WakeUp(struct R3RigidBodyHandle handle, R3Bool strong);
 
 /**
  * Replace this thread's error handler and return the previous handler so it can
@@ -13663,7 +13504,7 @@ R3Status r3RigidBody_WakeUp(struct R3RigidBodyHandle handle,
  * handler may terminate the process. Includes R3_NOT_FOUND query misses.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL struct R3ErrorHandler r3SetErrorHandler(struct R3ErrorHandler handler);
+RAPIER_API struct R3ErrorHandler RAPIER_CALL r3SetErrorHandler(struct R3ErrorHandler handler);
 
 /**
  * Status of the most recent fallible operation on this thread. Reading this or
@@ -13672,40 +13513,40 @@ RAPIER_API RAPIER_CALL struct R3ErrorHandler r3SetErrorHandler(struct R3ErrorHan
  * from errors instead of using a fail-fast error callback.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL R3Status r3LastStatus(void);
+RAPIER_API R3Status RAPIER_CALL r3LastStatus(void);
 
 /**
  * Thread-local UTF-8 diagnostic, valid until the next fallible call on this thread.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL const char *r3LastError(void);
+RAPIER_API const char *RAPIER_CALL r3LastError(void);
 
 /**
  * Create an owned ball shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3SharedShape *r3BallSharedShape(R3Real radius);
+RAPIER_API R3SharedShape *RAPIER_CALL r3BallSharedShape(R3Real radius);
 
 /**
  * Create an owned cuboid shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3SharedShape *r3CuboidSharedShape(struct R3Vector half_extents);
+RAPIER_API R3SharedShape *RAPIER_CALL r3CuboidSharedShape(struct R3Vector half_extents);
 
 /**
  * Create an owned round cuboid shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3RoundCuboidSharedShape(struct R3Vector half_extents,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3RoundCuboidSharedShape(struct R3Vector half_extents,
                                               R3Real border_radius);
 
 /**
  * Create an owned capsule shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3CapsuleSharedShape(struct R3Vector a,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3CapsuleSharedShape(struct R3Vector a,
                                          struct R3Vector b,
                                          R3Real radius);
 
@@ -13713,16 +13554,14 @@ R3SharedShape *r3CapsuleSharedShape(struct R3Vector a,
  * Create an owned segment shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3SegmentSharedShape(struct R3Vector a,
-                                         struct R3Vector b);
+RAPIER_API R3SharedShape *RAPIER_CALL r3SegmentSharedShape(struct R3Vector a, struct R3Vector b);
 
 /**
  * Create an owned triangle shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3TriangleSharedShape(struct R3Vector a,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3TriangleSharedShape(struct R3Vector a,
                                           struct R3Vector b,
                                           struct R3Vector c);
 
@@ -13730,16 +13569,14 @@ R3SharedShape *r3TriangleSharedShape(struct R3Vector a,
  * Create an owned halfspace shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3SharedShape *r3HalfspaceSharedShape(struct R3Vector normal);
+RAPIER_API R3SharedShape *RAPIER_CALL r3HalfspaceSharedShape(struct R3Vector normal);
 
 #if defined(RAPIER_DIM3)
 /**
  * Create an owned cylinder shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3CylinderSharedShape(R3Real half_height,
-                                          R3Real radius);
+RAPIER_API R3SharedShape *RAPIER_CALL r3CylinderSharedShape(R3Real half_height, R3Real radius);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -13747,7 +13584,7 @@ R3SharedShape *r3CylinderSharedShape(R3Real half_height,
  * Create an owned cone shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3SharedShape *r3ConeSharedShape(R3Real half_height, R3Real radius);
+RAPIER_API R3SharedShape *RAPIER_CALL r3ConeSharedShape(R3Real half_height, R3Real radius);
 #endif
 
 /**
@@ -13755,32 +13592,27 @@ RAPIER_API RAPIER_CALL R3SharedShape *r3ConeSharedShape(R3Real half_height, R3Re
  * shared, not consumed. Release with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3CompoundSharedShape(struct R3CompoundShapeView children);
+RAPIER_API R3SharedShape *RAPIER_CALL r3CompoundSharedShape(struct R3CompoundShapeView children);
 
 /**
  * Remove the collider and update its parent body mass properties. wake_up wakes the parent.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RemoveCollider(struct R3ColliderHandle handle,
-                              R3Bool wake_up);
+RAPIER_API R3Status RAPIER_CALL r3RemoveCollider(struct R3ColliderHandle handle, R3Bool wake_up);
 
 /**
  * Remove an impulse joint. wake_up wakes its connected bodies.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RemoveImpulseJoint(struct R3ImpulseJointHandle handle,
-                                   R3Bool wake_up);
+RAPIER_API R3Status RAPIER_CALL r3RemoveImpulseJoint(struct R3ImpulseJointHandle handle, R3Bool wake_up);
 
 /**
  * Copy entity handles.
  * @see @ref output_buffers
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-size_t r3ImpulseJointHandles(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3ImpulseJointHandles(const struct R3World *world,
                                  struct R3ImpulseJointHandle *buffer,
                                  size_t capacity);
 
@@ -13788,8 +13620,8 @@ size_t r3ImpulseJointHandles(const struct R3World *world,
  * Remove an articulation joint. wake_up wakes affected bodies.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RemoveMultibodyJoint(struct R3MultibodyJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RemoveMultibodyJoint(struct R3MultibodyJointHandle handle,
                                      R3Bool wake_up);
 
 /**
@@ -13797,8 +13629,8 @@ R3Status r3RemoveMultibodyJoint(struct R3MultibodyJointHandle handle,
  * @see @ref output_buffers
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-size_t r3MultibodyJointHandles(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3MultibodyJointHandles(const struct R3World *world,
                                    struct R3MultibodyJointHandle *buffer,
                                    size_t capacity);
 
@@ -13806,28 +13638,26 @@ size_t r3MultibodyJointHandles(const struct R3World *world,
  * Return the two bodies connected by an impulse joint.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R3JointBodies r3ImpulseJoint_Bodies(struct R3ImpulseJointHandle handle);
+RAPIER_API struct R3JointBodies RAPIER_CALL r3ImpulseJoint_Bodies(struct R3ImpulseJointHandle handle);
 
 /**
  * Return native default inverse kinematics options. This POD value owns no resources.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R3InverseKinematicsOptions r3DefaultInverseKinematicsOptions(void);
+RAPIER_API struct R3InverseKinematicsOptions RAPIER_CALL r3DefaultInverseKinematicsOptions(void);
 
 /**
  * Return the articulation degrees of freedom associated with the joint.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL size_t r3MultibodyJoint_Ndofs(struct R3MultibodyJointHandle handle);
+RAPIER_API size_t RAPIER_CALL r3MultibodyJoint_Ndofs(struct R3MultibodyJointHandle handle);
 
 /**
  * Read/write displacement buffer must contain exactly ndofs entries; zero it for a fresh solve.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3MultibodyJoint_InverseKinematics(struct R3MultibodyJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3MultibodyJoint_InverseKinematics(struct R3MultibodyJointHandle handle,
                                                  const struct R3InverseKinematicsOptions *options,
                                                  struct R3Pose target,
                                                  R3IkJointCanMove can_move,
@@ -13839,8 +13669,8 @@ R3Status r3MultibodyJoint_InverseKinematics(struct R3MultibodyJointHandle handle
  * Apply generalized articulation displacements in native degree-of-freedom order.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3MultibodyJoint_ApplyDisplacements(struct R3MultibodyJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3MultibodyJoint_ApplyDisplacements(struct R3MultibodyJointHandle handle,
                                                   const R3Real *displacements,
                                                   size_t count);
 
@@ -13848,28 +13678,28 @@ R3Status r3MultibodyJoint_ApplyDisplacements(struct R3MultibodyJointHandle handl
  * Frees an owned object; NULL is allowed. Never free a borrowed pointer.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeSharedShape(R3SharedShape *object);
+RAPIER_API R3Status RAPIER_CALL r3FreeSharedShape(R3SharedShape *object);
 
 /**
  * Create an owned wrapper sharing the same immutable geometry. Release it with
  * r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3SharedShape *r3SharedShape_Clone(const R3SharedShape *object);
+RAPIER_API R3SharedShape *RAPIER_CALL r3SharedShape_Clone(const R3SharedShape *object);
 
 /**
  * Return the number of rigid body objects in the world.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL size_t r3RigidBodyCount(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3RigidBodyCount(const struct R3World *world);
 
 /**
  * Copy entity handles.
  * @see @ref output_buffers
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3RigidBodyHandles(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3RigidBodyHandles(const struct R3World *world,
                               struct R3RigidBodyHandle *buffer,
                               size_t capacity);
 
@@ -13878,21 +13708,21 @@ size_t r3RigidBodyHandles(const struct R3World *world,
  * false.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_Contains(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_Contains(struct R3RigidBodyHandle handle);
 
 /**
  * Return the number of collider objects in the world.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL size_t r3ColliderCount(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3ColliderCount(const struct R3World *world);
 
 /**
  * Copy entity handles.
  * @see @ref output_buffers
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-size_t r3ColliderHandles(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3ColliderHandles(const struct R3World *world,
                             struct R3ColliderHandle *buffer,
                             size_t capacity);
 
@@ -13900,21 +13730,21 @@ size_t r3ColliderHandles(const struct R3World *world,
  * Test whether the live world contains this collider handle. A removed/stale handle returns false.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Bool r3Collider_Contains(struct R3ColliderHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3Collider_Contains(struct R3ColliderHandle handle);
 
 /**
  * Return the number of soft body objects in the world.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL size_t r3SoftBodyCount(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3SoftBodyCount(const struct R3World *world);
 
 /**
  * Copy entity handles.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyHandles(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyHandles(const struct R3World *world,
                              struct R3SoftBodyHandle *buffer,
                              size_t capacity);
 
@@ -13923,283 +13753,265 @@ size_t r3SoftBodyHandles(const struct R3World *world,
  * false.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3SoftBody_Contains(struct R3SoftBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3SoftBody_Contains(struct R3SoftBodyHandle handle);
 
 /**
  * Remove a body and its joints, optionally keeping colliders as standalone objects.
  * Returns whether a body was removed; a stale handle returns false without error.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3RemoveRigidBody(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Bool RAPIER_CALL r3RemoveRigidBody(struct R3RigidBodyHandle handle,
                               R3Bool remove_attached_colliders);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::dt.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Real r3TimeStep(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3TimeStep(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::dt.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetTimeStep(struct R3World *world, R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SetTimeStep(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::minCcdDt.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Real r3MinCcdDt(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3MinCcdDt(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::minCcdDt.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetMinCcdDt(struct R3World *world, R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SetMinCcdDt(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::lengthUnit.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Real r3LengthUnit(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3LengthUnit(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::lengthUnit.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetLengthUnit(struct R3World *world, R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SetLengthUnit(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::warmstartCoefficient.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Real r3WarmstartCoefficient(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3WarmstartCoefficient(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::warmstartCoefficient.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetWarmstartCoefficient(struct R3World *world,
-                                        R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SetWarmstartCoefficient(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::normalizedAllowedLinearError.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Real r3NormalizedAllowedLinearError(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3NormalizedAllowedLinearError(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::normalizedAllowedLinearError.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetNormalizedAllowedLinearError(struct R3World *world,
-                                                  R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SetNormalizedAllowedLinearError(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by
  * R3IntegrationParameters::normalizedMaxCorrectiveVelocity.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Real r3NormalizedMaxCorrectiveVelocity(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3NormalizedMaxCorrectiveVelocity(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::normalizedMaxCorrectiveVelocity.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetNormalizedMaxCorrectiveVelocity(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3SetNormalizedMaxCorrectiveVelocity(struct R3World *world,
                                                      R3Real value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::normalizedPredictionDistance.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Real r3NormalizedPredictionDistance(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3NormalizedPredictionDistance(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::normalizedPredictionDistance.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetNormalizedPredictionDistance(struct R3World *world,
-                                                 R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SetNormalizedPredictionDistance(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::normalizedMaxLinearVelocity.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Real r3NormalizedMaxLinearVelocity(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3NormalizedMaxLinearVelocity(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::normalizedMaxLinearVelocity.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetNormalizedMaxLinearVelocity(struct R3World *world,
-                                                 R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SetNormalizedMaxLinearVelocity(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by
  * R3IntegrationParameters::normalizedContactRecycleDistance.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Real r3NormalizedContactRecycleDistance(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3NormalizedContactRecycleDistance(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::normalizedContactRecycleDistance.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetNormalizedContactRecycleDistance(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3SetNormalizedContactRecycleDistance(struct R3World *world,
                                                       R3Real value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::numSolverIterations.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL size_t r3NumSolverIterations(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3NumSolverIterations(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::numSolverIterations.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetNumSolverIterations(struct R3World *world,
-                                        size_t value);
+RAPIER_API R3Status RAPIER_CALL r3SetNumSolverIterations(struct R3World *world, size_t value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::numInternalPgsIterations.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL size_t r3NumInternalPgsIterations(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3NumInternalPgsIterations(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::numInternalPgsIterations.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetNumInternalPgsIterations(struct R3World *world,
-                                              size_t value);
+RAPIER_API R3Status RAPIER_CALL r3SetNumInternalPgsIterations(struct R3World *world, size_t value);
 
 /**
  * Return the world setting documented by
  * R3IntegrationParameters::numInternalStabilizationIterations.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL
-size_t r3NumInternalStabilizationIterations(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3NumInternalStabilizationIterations(const struct R3World *world);
 
 /**
  * Set the world setting documented by
  * R3IntegrationParameters::numInternalStabilizationIterations.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetNumInternalStabilizationIterations(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3SetNumInternalStabilizationIterations(struct R3World *world,
                                                         size_t value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::maxCcdSubsteps.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL size_t r3MaxCcdSubsteps(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3MaxCcdSubsteps(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::maxCcdSubsteps.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetMaxCcdSubsteps(struct R3World *world, size_t value);
+RAPIER_API R3Status RAPIER_CALL r3SetMaxCcdSubsteps(struct R3World *world, size_t value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::contactClustering.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Bool r3ContactClustering(const struct R3World *world);
+RAPIER_API R3Bool RAPIER_CALL r3ContactClustering(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::contactClustering.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetContactClustering(struct R3World *world, R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3SetContactClustering(struct R3World *world, R3Bool value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::contactRecycling.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Bool r3ContactRecycling(const struct R3World *world);
+RAPIER_API R3Bool RAPIER_CALL r3ContactRecycling(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::contactRecycling.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetContactRecycling(struct R3World *world, R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3SetContactRecycling(struct R3World *world, R3Bool value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::frictionInBiasPass.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Bool r3FrictionInBiasPass(const struct R3World *world);
+RAPIER_API R3Bool RAPIER_CALL r3FrictionInBiasPass(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::frictionInBiasPass.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetFrictionInBiasPass(struct R3World *world,
-                                        R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3SetFrictionInBiasPass(struct R3World *world, R3Bool value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::warmstartJoints.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL R3Bool r3WarmstartJoints(const struct R3World *world);
+RAPIER_API R3Bool RAPIER_CALL r3WarmstartJoints(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::warmstartJoints.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL R3Status r3SetWarmstartJoints(struct R3World *world, R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3SetWarmstartJoints(struct R3World *world, R3Bool value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::contactSoftness.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SpringCoefficients r3ContactSoftness(const struct R3World *world);
+RAPIER_API struct R3SpringCoefficients RAPIER_CALL r3ContactSoftness(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::contactSoftness.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetContactSoftness(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3SetContactSoftness(struct R3World *world,
                                    struct R3SpringCoefficients value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::staticContactSoftness.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SpringCoefficients r3StaticContactSoftness(const struct R3World *world);
+RAPIER_API struct R3SpringCoefficients RAPIER_CALL r3StaticContactSoftness(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::staticContactSoftness.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SetStaticContactSoftness(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3SetStaticContactSoftness(struct R3World *world,
                                           struct R3SpringCoefficients value);
 
 /**
  * Applies Rapier's persistent one-way platform logic to the borrowed manifold.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ContactModificationContext_UpdateAsOnewayPlatform(struct R3ContactModificationContext *context,
+RAPIER_API
+R3Status RAPIER_CALL r3ContactModificationContext_UpdateAsOnewayPlatform(struct R3ContactModificationContext *context,
                                                                      struct R3Vector allowed_local_n1,
                                                                      R3Real allowed_angle);
 
@@ -14207,36 +14019,36 @@ R3Status r3ContactModificationContext_UpdateAsOnewayPlatform(struct R3ContactMod
  * Sets the tangent velocity of every rigid solver contact in this manifold.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ContactModificationContext_SetTangentVelocity(struct R3ContactModificationContext *context,
+RAPIER_API
+R3Status RAPIER_CALL r3ContactModificationContext_SetTangentVelocity(struct R3ContactModificationContext *context,
                                                                 struct R3Vector velocity);
 
 /**
  * Allocate an empty event collector; release it with r3FreeEventCollector.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL struct R3EventCollector *r3NewEventCollector(void);
+RAPIER_API struct R3EventCollector *RAPIER_CALL r3NewEventCollector(void);
 
 /**
  * Release an owned event collector. NULL is allowed. Do not pass borrowed pointers or free the
  * object twice.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeEventCollector(struct R3EventCollector *events);
+RAPIER_API R3Status RAPIER_CALL r3FreeEventCollector(struct R3EventCollector *events);
 
 /**
  * Discard all collected events. Does not change the world.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL R3Status r3EventCollector_Clear(struct R3EventCollector *events);
+RAPIER_API R3Status RAPIER_CALL r3EventCollector_Clear(struct R3EventCollector *events);
 
 /**
  * Copy the collected collision start/stop events without removing them.
  * @see @ref output_buffers
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r3EventCollector_CollisionEvents(const struct R3EventCollector *events,
+RAPIER_API
+size_t RAPIER_CALL r3EventCollector_CollisionEvents(const struct R3EventCollector *events,
                                             struct R3CollisionEvent *buffer,
                                             size_t capacity);
 
@@ -14245,8 +14057,8 @@ size_t r3EventCollector_CollisionEvents(const struct R3EventCollector *events,
  * @see @ref output_buffers
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r3EventCollector_ContactForceEvents(const struct R3EventCollector *events,
+RAPIER_API
+size_t RAPIER_CALL r3EventCollector_ContactForceEvents(const struct R3EventCollector *events,
                                                 struct R3ContactForceEvent *buffer,
                                                 size_t capacity);
 
@@ -14254,37 +14066,36 @@ size_t r3EventCollector_ContactForceEvents(const struct R3EventCollector *events
  * Return the number of queued soft-body tear events.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r3EventCollector_TearEventCount(const struct R3EventCollector *events);
+RAPIER_API size_t RAPIER_CALL r3EventCollector_TearEventCount(const struct R3EventCollector *events);
 
 /**
  * Return an owned copy of a queued tear event; release with r3FreeSoftBodyTearEvent. Does
  * not remove the queued event.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyTearEvent *r3EventCollector_TearEvent(const struct R3EventCollector *events,
+RAPIER_API
+struct R3SoftBodyTearEvent *RAPIER_CALL r3EventCollector_TearEvent(const struct R3EventCollector *events,
                                                             size_t index);
 
 /**
  * Return the world-space gravitational acceleration.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R3Vector r3Gravity(const struct R3World *world);
+RAPIER_API struct R3Vector RAPIER_CALL r3Gravity(const struct R3World *world);
 
 /**
  * Set the world-space gravitational acceleration.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetGravity(struct R3World *world, struct R3Vector value);
+RAPIER_API R3Status RAPIER_CALL r3SetGravity(struct R3World *world, struct R3Vector value);
 
 /**
  * Hooks and events may be NULL. This call invalidates all borrowed set-element pointers.
  * Advance simulation by one timestep. Hooks and events may be NULL.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Step(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3Step(struct R3World *world,
                    const struct R3PhysicsHooks *hooks,
                    const struct R3EventCollector *events);
 
@@ -14292,8 +14103,8 @@ R3Status r3Step(struct R3World *world,
  * Refresh collision detection without advancing simulation. Hooks and events may be NULL.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-R3Status r3DetectCollisions(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3DetectCollisions(struct R3World *world,
                                 const struct R3PhysicsHooks *hooks,
                                 const struct R3EventCollector *events);
 
@@ -14302,36 +14113,36 @@ R3Status r3DetectCollisions(struct R3World *world,
  * pointer.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R3ByteView r3Bytes_Data(const struct R3Bytes *bytes);
+RAPIER_API struct R3ByteView RAPIER_CALL r3Bytes_Data(const struct R3Bytes *bytes);
 
 /**
  * Release an owned snapshot byte buffer. NULL is allowed. Do not pass borrowed pointers or free
  * the object twice.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeBytes(struct R3Bytes *bytes);
+RAPIER_API R3Status RAPIER_CALL r3FreeBytes(struct R3Bytes *bytes);
 
 /**
  * Return owned snapshot bytes; release them with r3FreeBytes. See @ref snapshots for
  * restoration and handle lifetimes.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R3Bytes *r3SerializeWorld(const struct R3World *world);
+RAPIER_API struct R3Bytes *RAPIER_CALL r3SerializeWorld(const struct R3World *world);
 
 /**
  * Restore ONLY trusted snapshots produced by the identical Rapier build. Snapshots are not a
  * stable file format.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R3World *r3DeserializeWorld(const uint8_t *data, size_t count);
+RAPIER_API struct R3World *RAPIER_CALL r3DeserializeWorld(const uint8_t *data, size_t count);
 
 /**
  * Color is HSLA (hue in degrees), matching Rapier DebugColor. mode uses DebugRenderMode bits.
  * @see @ref output_buffers
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-size_t r3DebugRender(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3DebugRender(const struct R3World *world,
                         uint32_t mode,
                         struct R3DebugLine *buffer,
                         size_t capacity);
@@ -14340,234 +14151,200 @@ size_t r3DebugRender(const struct R3World *world,
  * Set the world setting documented by R3SoftBodiesSettings::resweepStrain.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodiesSetResweepStrain(struct R3World *world,
-                                             R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SoftBodiesSetResweepStrain(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by R3SoftBodiesSettings::resweepStrain.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3SoftBodiesResweepStrain(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3SoftBodiesResweepStrain(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3SoftBodiesSettings::contactStiffening.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodiesSetContactStiffening(struct R3World *world,
-                                                 R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3SoftBodiesSetContactStiffening(struct R3World *world, R3Real value);
 
 /**
  * Return the world setting documented by R3SoftBodiesSettings::contactStiffening.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3SoftBodiesContactStiffening(const struct R3World *world);
+RAPIER_API R3Real RAPIER_CALL r3SoftBodiesContactStiffening(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3SoftBodiesSettings::maxExtraSubsteps.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodiesSetMaxExtraSubsteps(struct R3World *world,
-                                                 size_t value);
+RAPIER_API R3Status RAPIER_CALL r3SoftBodiesSetMaxExtraSubsteps(struct R3World *world, size_t value);
 
 /**
  * Return the world setting documented by R3SoftBodiesSettings::maxExtraSubsteps.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL size_t r3SoftBodiesMaxExtraSubsteps(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3SoftBodiesMaxExtraSubsteps(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::authoredVelocityMargin.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetAuthoredVelocityMargin(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetAuthoredVelocityMargin(struct R3World *world,
                                                     R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::edgeSpeculation.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetEdgeSpeculation(struct R3World *world,
-                                            R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetEdgeSpeculation(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::invertedCellDetection.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetInvertedCellDetection(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetInvertedCellDetection(struct R3World *world,
                                                    R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::selfCrossingDetection.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetSelfCrossingDetection(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetSelfCrossingDetection(struct R3World *world,
                                                    R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::detectionMotionGating.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetDetectionMotionGating(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetDetectionMotionGating(struct R3World *world,
                                                    R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::crossBodyDetection.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetCrossBodyDetection(struct R3World *world,
-                                                R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetCrossBodyDetection(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::selfStandDown.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetSelfStandDown(struct R3World *world,
-                                           R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetSelfStandDown(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::crossBodyExpelGate.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetCrossBodyExpelGate(struct R3World *world,
-                                                 R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetCrossBodyExpelGate(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::edgeStandDown.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetEdgeStandDown(struct R3World *world,
-                                           R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetEdgeStandDown(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::crossingRepulsion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetCrossingRepulsion(struct R3World *world,
-                                              R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetCrossingRepulsion(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::crossingRepulsionGuide.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetCrossingRepulsionGuide(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetCrossingRepulsionGuide(struct R3World *world,
                                                     R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::crossingRepulsionSelfGuide.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetCrossingRepulsionSelfGuide(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetCrossingRepulsionSelfGuide(struct R3World *world,
                                                          R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::recoveryPace.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetRecoveryPace(struct R3World *world,
-                                         R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetRecoveryPace(struct R3World *world, R3Real value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapConstraints.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapConstraints(struct R3World *world,
-                                               R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapConstraints(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapRigid.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapRigid(struct R3World *world,
-                                         R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapRigid(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapSkipSelfTangled.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapSkipSelfTangled(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetOverlapSkipSelfTangled(struct R3World *world,
                                                      R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapEdgeStandDown.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapEdgeStandDown(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetOverlapEdgeStandDown(struct R3World *world,
                                                    R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapConstraintPace.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapConstraintPace(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetOverlapConstraintPace(struct R3World *world,
                                                    R3Real value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapSkinVolume.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapSkinVolume(struct R3World *world,
-                                               R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapSkinVolume(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapKeptDepth.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapKeptDepth(struct R3World *world,
-                                              R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapKeptDepth(struct R3World *world, R3Real value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapSelfRegions.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapSelfRegions(struct R3World *world,
-                                                R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapSelfRegions(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapNormalPush.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapNormalPush(struct R3World *world,
-                                               R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapNormalPush(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapMultiVolume.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapMultiVolume(struct R3World *world,
-                                                R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapMultiVolume(struct R3World *world, R3Bool value);
 
 /**
  * Set the world setting documented by R3SoftRecoverySettings::overlapProgressMargin.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RecoverySetOverlapProgressMargin(struct R3World *world,
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetOverlapProgressMargin(struct R3World *world,
                                                    R3Real value);
 
 #if defined(RAPIER_FEM)
@@ -14575,9 +14352,7 @@ R3Status r3RecoverySetOverlapProgressMargin(struct R3World *world,
  * Set the world setting documented by R3SoftFemParameters::linearTolerance.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3FemSetLinearTolerance(struct R3World *world,
-                                       R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3FemSetLinearTolerance(struct R3World *world, R3Real value);
 #endif
 
 #if defined(RAPIER_FEM)
@@ -14585,9 +14360,7 @@ R3Status r3FemSetLinearTolerance(struct R3World *world,
  * Set the world setting documented by R3SoftFemParameters::maxLinearIterations.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3FemSetMaxLinearIterations(struct R3World *world,
-                                            size_t value);
+RAPIER_API R3Status RAPIER_CALL r3FemSetMaxLinearIterations(struct R3World *world, size_t value);
 #endif
 
 #if defined(RAPIER_FEM)
@@ -14595,7 +14368,7 @@ R3Status r3FemSetMaxLinearIterations(struct R3World *world,
  * Set the world setting documented by R3SoftFemParameters::maxDenseDofs.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Status r3FemSetMaxDenseDofs(struct R3World *world, size_t value);
+RAPIER_API R3Status RAPIER_CALL r3FemSetMaxDenseDofs(struct R3World *world, size_t value);
 #endif
 
 /**
@@ -14605,7 +14378,7 @@ RAPIER_API RAPIER_CALL R3Status r3FemSetMaxDenseDofs(struct R3World *world, size
  * pool when constructing the new one fails. The pool is not included in snapshots.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetNumThreads(struct R3World *world, size_t num_threads);
+RAPIER_API R3Status RAPIER_CALL r3SetNumThreads(struct R3World *world, size_t num_threads);
 
 /**
  * Removes the world's dedicated pool. A parallel build then uses the calling
@@ -14613,21 +14386,21 @@ RAPIER_API RAPIER_CALL R3Status r3SetNumThreads(struct R3World *world, size_t nu
  * Returns R3_UNSUPPORTED in a build without the parallel feature.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3ClearThreadPool(struct R3World *world);
+RAPIER_API R3Status RAPIER_CALL r3ClearThreadPool(struct R3World *world);
 
 /**
  * Size of the world's dedicated pool, or zero if a parallel build has no dedicated
  * pool configured. Returns one for a build without the parallel feature.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL size_t r3NumThreads(const struct R3World *world);
+RAPIER_API size_t RAPIER_CALL r3NumThreads(const struct R3World *world);
 
 /**
  * Enable or disable the native pipeline profiling counters. Enabling returns
  * R3_UNSUPPORTED if the library was built without the profiler feature.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3SetCountersEnabled(struct R3World *world, R3Bool enabled);
+RAPIER_API R3Status RAPIER_CALL r3SetCountersEnabled(struct R3World *world, R3Bool enabled);
 
 /**
  * Native engine time of the most recent step, in milliseconds, as in the Rust testbed.
@@ -14635,64 +14408,63 @@ RAPIER_API RAPIER_CALL R3Status r3SetCountersEnabled(struct R3World *world, R3Bo
  * and dispatch into a dedicated thread pool; remains unchanged while paused.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL double r3StepTimeMs(const struct R3World *world);
+RAPIER_API double RAPIER_CALL r3StepTimeMs(const struct R3World *world);
 
 /**
  * Read ONLY trusted legacy rigid-world snapshots from debug_deserialize3.rs,
  * produced by the identical Rapier build. This is not a stable interchange format.
+ *
  * Import trusted legacy Rust testbed rigid-state bytes into a new owned world. Release with
  * r3FreeWorld; see @ref snapshots.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-struct R3World *r3DeserializeRigidState(const uint8_t *data,
-                                             size_t count);
+RAPIER_API struct R3World *RAPIER_CALL r3DeserializeRigidState(const uint8_t *data, size_t count);
 
 /**
  * Return native default query filter. This POD value owns no resources.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL struct R3QueryFilter r3DefaultQueryFilter(void);
+RAPIER_API struct R3QueryFilter RAPIER_CALL r3DefaultQueryFilter(void);
 
 /**
  * Return native default shape cast options. This POD value owns no resources.
  * @ingroup queries
  */
-RAPIER_API RAPIER_CALL struct R3ShapeCastOptions r3DefaultShapeCastOptions(void);
+RAPIER_API struct R3ShapeCastOptions RAPIER_CALL r3DefaultShapeCastOptions(void);
 
 /**
  * Remove a soft body and its associated simulation objects. Invalidates its handle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Status r3RemoveSoftBody(struct R3SoftBodyHandle handle);
+RAPIER_API R3Status RAPIER_CALL r3RemoveSoftBody(struct R3SoftBodyHandle handle);
 
 /**
  * Wake the soft body and its rigid proxies.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Status r3SoftBody_WakeUp(struct R3SoftBodyHandle handle);
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_WakeUp(struct R3SoftBodyHandle handle);
 
 /**
  * Release an owned soft body tear event. NULL is allowed. Do not pass borrowed pointers or free
  * the object twice.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeSoftBodyTearEvent(struct R3SoftBodyTearEvent *event);
+RAPIER_API R3Status RAPIER_CALL r3FreeSoftBodyTearEvent(struct R3SoftBodyTearEvent *event);
 
 /**
  * Return the source soft-body handle for this tear event.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyHandle r3SoftBodyTearEvent_SoftBody(const struct R3SoftBodyTearEvent *event);
+RAPIER_API
+struct R3SoftBodyHandle RAPIER_CALL r3SoftBodyTearEvent_SoftBody(const struct R3SoftBodyTearEvent *event);
 
 /**
  * Copy the soft-body handles produced by the tear.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_Bodies(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_Bodies(const struct R3SoftBodyTearEvent *event,
                                        struct R3SoftBodyHandle *buffer,
                                        size_t capacity);
 
@@ -14700,8 +14472,8 @@ size_t r3SoftBodyTearEvent_Bodies(const struct R3SoftBodyTearEvent *event,
  * Return the destination body and particle index for an original particle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3ParticleDestination r3SoftBodyTearEvent_ParticleDestination(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+struct R3ParticleDestination RAPIER_CALL r3SoftBodyTearEvent_ParticleDestination(const struct R3SoftBodyTearEvent *event,
                                                                             uint32_t particle);
 
 /**
@@ -14709,8 +14481,8 @@ struct R3ParticleDestination r3SoftBodyTearEvent_ParticleDestination(const struc
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_TornEdges(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_TornEdges(const struct R3SoftBodyTearEvent *event,
                                            uint32_t *buffer,
                                            size_t capacity);
 
@@ -14719,8 +14491,8 @@ size_t r3SoftBodyTearEvent_TornEdges(const struct R3SoftBodyTearEvent *event,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_TornCells(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_TornCells(const struct R3SoftBodyTearEvent *event,
                                            uint32_t *buffer,
                                            size_t capacity);
 
@@ -14729,8 +14501,8 @@ size_t r3SoftBodyTearEvent_TornCells(const struct R3SoftBodyTearEvent *event,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_RemovedEdges(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_RemovedEdges(const struct R3SoftBodyTearEvent *event,
                                               uint32_t *buffer,
                                               size_t capacity);
 
@@ -14739,8 +14511,8 @@ size_t r3SoftBodyTearEvent_RemovedEdges(const struct R3SoftBodyTearEvent *event,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_SplitParticles(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_SplitParticles(const struct R3SoftBodyTearEvent *event,
                                                 uint32_t *buffer,
                                                 size_t capacity);
 
@@ -14749,8 +14521,8 @@ size_t r3SoftBodyTearEvent_SplitParticles(const struct R3SoftBodyTearEvent *even
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_InsertedParticles(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_InsertedParticles(const struct R3SoftBodyTearEvent *event,
                                                    uint32_t *buffer,
                                                    size_t capacity);
 
@@ -14759,8 +14531,8 @@ size_t r3SoftBodyTearEvent_InsertedParticles(const struct R3SoftBodyTearEvent *e
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_PieceParticles(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_PieceParticles(const struct R3SoftBodyTearEvent *event,
                                                 size_t piece_index,
                                                 uint32_t *buffer,
                                                 size_t capacity);
@@ -14770,8 +14542,8 @@ size_t r3SoftBodyTearEvent_PieceParticles(const struct R3SoftBodyTearEvent *even
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_Clusters(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_Clusters(const struct R3SoftBodyTearEvent *event,
                                          struct R3SoftClusterSplit *buffer,
                                          size_t capacity);
 
@@ -14780,8 +14552,8 @@ size_t r3SoftBodyTearEvent_Clusters(const struct R3SoftBodyTearEvent *event,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyTearEvent_MovedJoints(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyTearEvent_MovedJoints(const struct R3SoftBodyTearEvent *event,
                                              struct R3SoftJointMove *buffer,
                                              size_t capacity);
 
@@ -14790,8 +14562,8 @@ size_t r3SoftBodyTearEvent_MovedJoints(const struct R3SoftBodyTearEvent *event,
  * r3FreeSoftBodyTearEvent.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyTearEvent *r3SoftBody_Tear(struct R3SoftBodyHandle handle,
+RAPIER_API
+struct R3SoftBodyTearEvent *RAPIER_CALL r3SoftBody_Tear(struct R3SoftBodyHandle handle,
                                                 const uint32_t *edges,
                                                 size_t edge_count,
                                                 const uint32_t *cells,
@@ -14801,8 +14573,8 @@ struct R3SoftBodyTearEvent *r3SoftBody_Tear(struct R3SoftBodyHandle handle,
  * Create a rigid proxy cluster from the supplied particle indices and return its cluster index.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-uint32_t r3SoftBody_AddCluster(struct R3SoftBodyHandle handle,
+RAPIER_API
+uint32_t RAPIER_CALL r3SoftBody_AddCluster(struct R3SoftBodyHandle handle,
                                    const uint32_t *particles,
                                    size_t count);
 
@@ -14810,8 +14582,8 @@ uint32_t r3SoftBody_AddCluster(struct R3SoftBodyHandle handle,
  * Remove the selected cluster and its rigid proxy.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_RemoveCluster(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_RemoveCluster(struct R3SoftBodyHandle handle,
                                        uint32_t cluster);
 
 /**
@@ -14819,8 +14591,8 @@ R3Status r3SoftBody_RemoveCluster(struct R3SoftBodyHandle handle,
  * found to false; body/index are only written when a destination exists.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3OptionalParticleDestination r3SoftBodyTearEvent_TryParticleDestination(const struct R3SoftBodyTearEvent *event,
+RAPIER_API
+struct R3OptionalParticleDestination RAPIER_CALL r3SoftBodyTearEvent_TryParticleDestination(const struct R3SoftBodyTearEvent *event,
                                                                                         uint32_t particle);
 
 /**
@@ -14828,8 +14600,8 @@ struct R3OptionalParticleDestination r3SoftBodyTearEvent_TryParticleDestination(
  * The optional owned event must be freed with FreeSoftBodyTearEvent.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyTearEvent *r3CutSoftBody(struct R3SoftBodyHandle handle,
+RAPIER_API
+struct R3SoftBodyTearEvent *RAPIER_CALL r3CutSoftBody(struct R3SoftBodyHandle handle,
                                                const struct R3Vector *blade);
 
 /**
@@ -14837,14 +14609,13 @@ struct R3SoftBodyTearEvent *r3CutSoftBody(struct R3SoftBodyHandle handle,
  * destructor.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-struct R3VolumeMeshParameters r3NewVolumeMeshParameters(R3Real cell_size);
+RAPIER_API struct R3VolumeMeshParameters RAPIER_CALL r3NewVolumeMeshParameters(R3Real cell_size);
 
 /**
  * Return ABI version, dimension, scalar size, and pointer size of the linked library.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL struct R3BuildInfo r3BuildInfo(void);
+RAPIER_API struct R3BuildInfo RAPIER_CALL r3BuildInfo(void);
 
 /**
  * Release version of the loaded C bindings, e.g. "0.35.3+c.2".
@@ -14853,7 +14624,7 @@ RAPIER_API RAPIER_CALL struct R3BuildInfo r3BuildInfo(void);
  * This release identifier is independent of the ABI compatibility version.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL const char *r3Version(void);
+RAPIER_API const char *RAPIER_CALL r3Version(void);
 
 /**
  * Cargo profile of the loaded physics library: "debug" or "release".
@@ -14862,21 +14633,21 @@ RAPIER_API RAPIER_CALL const char *r3Version(void);
  * This is independent of the consumer's build mode and of per-package optimization overrides.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL const char *r3BuildProfile(void);
+RAPIER_API const char *RAPIER_CALL r3BuildProfile(void);
 
 /**
  * Return profiling, SIMD width, and parallelism of the linked library.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL struct R3BuildFeatures r3BuildFeatures(void);
+RAPIER_API struct R3BuildFeatures RAPIER_CALL r3BuildFeatures(void);
 
 /**
  * Create an owned heightfield shape from copied samples. 3D samples are column-major, with rows *
  * columns entries. Release with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3HeightfieldSharedShape(struct R3RealView heights,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3HeightfieldSharedShape(struct R3RealView heights,
                                              size_t rows,
                                              size_t columns,
                                              struct R3Vector scale);
@@ -14885,24 +14656,24 @@ R3SharedShape *r3HeightfieldSharedShape(struct R3RealView heights,
  * Compute the shape axis-aligned bounds at the supplied world-space pose.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R3Aabb r3SharedShape_ComputeAabb(const R3SharedShape *shape,
+RAPIER_API
+struct R3Aabb RAPIER_CALL r3SharedShape_ComputeAabb(const R3SharedShape *shape,
                                              struct R3Pose pose);
 
 /**
  * Compute local mass properties for the supplied nonnegative density.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R3MassProperties r3SharedShape_MassProperties(const R3SharedShape *shape,
+RAPIER_API
+struct R3MassProperties RAPIER_CALL r3SharedShape_MassProperties(const R3SharedShape *shape,
                                                           R3Real density);
 
 /**
  * Test whether the world-space point lies inside the shape at pose.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3SharedShape_ContainsPoint(const R3SharedShape *shape,
+RAPIER_API
+R3Bool RAPIER_CALL r3SharedShape_ContainsPoint(const R3SharedShape *shape,
                                         struct R3Pose pose,
                                         struct R3Vector point);
 
@@ -14911,8 +14682,8 @@ R3Bool r3SharedShape_ContainsPoint(const R3SharedShape *shape,
  * @see @ref output_buffers
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r3ContactPairs(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3ContactPairs(const struct R3World *world,
                          struct R3ContactPair *buffer,
                          size_t capacity);
 
@@ -14920,8 +14691,8 @@ size_t r3ContactPairs(const struct R3World *world,
  * Return the narrow-phase contact pair for two colliders, or report R3_NOT_FOUND.
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-struct R3ContactPair r3ContactPair(struct R3ColliderHandle collider1,
+RAPIER_API
+struct R3ContactPair RAPIER_CALL r3ContactPair(struct R3ColliderHandle collider1,
                                        struct R3ColliderHandle collider2);
 
 /**
@@ -14929,8 +14700,8 @@ struct R3ContactPair r3ContactPair(struct R3ColliderHandle collider1,
  * @see @ref output_buffers
  * @ingroup events
  */
-RAPIER_API RAPIER_CALL
-size_t r3IntersectionPairs(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3IntersectionPairs(const struct R3World *world,
                               struct R3IntersectionPair *buffer,
                               size_t capacity);
 
@@ -14941,8 +14712,8 @@ size_t r3IntersectionPairs(const struct R3World *world,
  * @see @ref output_buffers
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL
-size_t r3ContactPoints(struct R3ColliderHandle collider1,
+RAPIER_API
+size_t RAPIER_CALL r3ContactPoints(struct R3ColliderHandle collider1,
                           struct R3ColliderHandle collider2,
                           struct R3ContactPoint *buffer,
                           size_t capacity);
@@ -14952,8 +14723,8 @@ size_t r3ContactPoints(struct R3ColliderHandle collider1,
  * @see @ref output_buffers
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-size_t r3MultibodyJoint_GeneralizedVelocity(struct R3MultibodyJointHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3MultibodyJoint_GeneralizedVelocity(struct R3MultibodyJointHandle handle,
                                                 R3Real *buffer,
                                                 size_t capacity);
 
@@ -14961,8 +14732,8 @@ size_t r3MultibodyJoint_GeneralizedVelocity(struct R3MultibodyJointHandle handle
  * Replace articulation generalized velocities; the array length must match its degrees of freedom.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3MultibodyJoint_SetGeneralizedVelocity(struct R3MultibodyJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3MultibodyJoint_SetGeneralizedVelocity(struct R3MultibodyJointHandle handle,
                                                        const R3Real *values,
                                                        size_t count);
 
@@ -14970,8 +14741,8 @@ R3Status r3MultibodyJoint_SetGeneralizedVelocity(struct R3MultibodyJointHandle h
  * Check this before passing any dimension/precision-dependent structs across the ABI.
  * @ingroup errors
  */
-RAPIER_API RAPIER_CALL
-R3Status r3CheckAbi(uint32_t version,
+RAPIER_API
+R3Status RAPIER_CALL r3CheckAbi(uint32_t version,
                         uint32_t dimension,
                         size_t real_size,
                         size_t vector_size,
@@ -14982,8 +14753,8 @@ R3Status r3CheckAbi(uint32_t version,
  * controls curved-shape resolution.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R3ShapeMesh *r3SharedShape_Tessellate(const R3SharedShape *shape,
+RAPIER_API
+struct R3ShapeMesh *RAPIER_CALL r3SharedShape_Tessellate(const R3SharedShape *shape,
                                                  uint32_t subdivisions);
 
 /**
@@ -14991,8 +14762,8 @@ struct R3ShapeMesh *r3SharedShape_Tessellate(const R3SharedShape *shape,
  * @see @ref output_buffers
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r3ShapeMesh_Triangles(const struct R3ShapeMesh *mesh,
+RAPIER_API
+size_t RAPIER_CALL r3ShapeMesh_Triangles(const struct R3ShapeMesh *mesh,
                                 struct R3Vector *buffer,
                                 size_t capacity);
 
@@ -15001,8 +14772,8 @@ size_t r3ShapeMesh_Triangles(const struct R3ShapeMesh *mesh,
  * @see @ref output_buffers
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r3ShapeMesh_Lines(const struct R3ShapeMesh *mesh,
+RAPIER_API
+size_t RAPIER_CALL r3ShapeMesh_Lines(const struct R3ShapeMesh *mesh,
                             struct R3Vector *buffer,
                             size_t capacity);
 
@@ -15011,15 +14782,15 @@ size_t r3ShapeMesh_Lines(const struct R3ShapeMesh *mesh,
  * twice.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeShapeMesh(struct R3ShapeMesh *mesh);
+RAPIER_API R3Status RAPIER_CALL r3FreeShapeMesh(struct R3ShapeMesh *mesh);
 
 #if defined(RAPIER_DIM3)
 /**
  * Create an owned round cylinder shape. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3RoundCylinderSharedShape(R3Real half_height,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3RoundCylinderSharedShape(R3Real half_height,
                                                 R3Real radius,
                                                 R3Real border_radius);
 #endif
@@ -15030,8 +14801,8 @@ R3SharedShape *r3RoundCylinderSharedShape(R3Real half_height,
  * Cuboids, cones, cylinders, convex polyhedra, trimeshes, and heightfields are also supported.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-struct R3TriMeshData *r3SharedShape_ToTrimesh(const R3SharedShape *shape,
+RAPIER_API
+struct R3TriMeshData *RAPIER_CALL r3SharedShape_ToTrimesh(const R3SharedShape *shape,
                                                    uint32_t ntheta,
                                                    uint32_t nphi);
 #endif
@@ -15042,8 +14813,8 @@ struct R3TriMeshData *r3SharedShape_ToTrimesh(const R3SharedShape *shape,
  * @see @ref output_buffers
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r3TriMeshData_Vertices(const struct R3TriMeshData *mesh,
+RAPIER_API
+size_t RAPIER_CALL r3TriMeshData_Vertices(const struct R3TriMeshData *mesh,
                                   struct R3Vector *buffer,
                                   size_t capacity);
 #endif
@@ -15054,8 +14825,8 @@ size_t r3TriMeshData_Vertices(const struct R3TriMeshData *mesh,
  * @see @ref output_buffers
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-size_t r3TriMeshData_Indices(const struct R3TriMeshData *mesh,
+RAPIER_API
+size_t RAPIER_CALL r3TriMeshData_Indices(const struct R3TriMeshData *mesh,
                                  uint32_t *buffer,
                                  size_t capacity);
 #endif
@@ -15066,7 +14837,7 @@ size_t r3TriMeshData_Indices(const struct R3TriMeshData *mesh,
  * object twice.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeTriMeshData(struct R3TriMeshData *mesh);
+RAPIER_API R3Status RAPIER_CALL r3FreeTriMeshData(struct R3TriMeshData *mesh);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15074,7 +14845,7 @@ RAPIER_API RAPIER_CALL R3Status r3FreeTriMeshData(struct R3TriMeshData *mesh);
  * Return native default urdf loader options. This POD value owns no resources.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL struct R3UrdfLoaderOptions r3DefaultUrdfLoaderOptions(void);
+RAPIER_API struct R3UrdfLoaderOptions RAPIER_CALL r3DefaultUrdfLoaderOptions(void);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15083,7 +14854,7 @@ RAPIER_API RAPIER_CALL struct R3UrdfLoaderOptions r3DefaultUrdfLoaderOptions(voi
  * twice.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeUrdfRobot(struct R3UrdfRobot *object);
+RAPIER_API R3Status RAPIER_CALL r3FreeUrdfRobot(struct R3UrdfRobot *object);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15092,8 +14863,8 @@ RAPIER_API RAPIER_CALL R3Status r3FreeUrdfRobot(struct R3UrdfRobot *object);
  * Options and their blueprint resources are borrowed through this call; the robot is owned.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R3UrdfRobot *r3UrdfRobotFromFile(const char *path,
+RAPIER_API
+struct R3UrdfRobot *RAPIER_CALL r3UrdfRobotFromFile(const char *path,
                                               const struct R3UrdfLoaderOptions *options);
 #endif
 
@@ -15102,8 +14873,8 @@ struct R3UrdfRobot *r3UrdfRobotFromFile(const char *path,
  * Apply an additional transform to the loaded robot before insertion.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R3Status r3UrdfRobot_AppendTransform(struct R3UrdfRobot *robot,
+RAPIER_API
+R3Status RAPIER_CALL r3UrdfRobot_AppendTransform(struct R3UrdfRobot *robot,
                                           struct R3Pose transform);
 #endif
 
@@ -15113,7 +14884,7 @@ R3Status r3UrdfRobot_AppendTransform(struct R3UrdfRobot *robot,
  * object twice.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeUrdfRobotHandles(struct R3UrdfRobotHandles *handles);
+RAPIER_API R3Status RAPIER_CALL r3FreeUrdfRobotHandles(struct R3UrdfRobotHandles *handles);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15121,8 +14892,8 @@ RAPIER_API RAPIER_CALL R3Status r3FreeUrdfRobotHandles(struct R3UrdfRobotHandles
  * Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R3UrdfRobotHandles *r3UrdfRobot_InsertUsingImpulseJoints(struct R3World *world,
+RAPIER_API
+struct R3UrdfRobotHandles *RAPIER_CALL r3UrdfRobot_InsertUsingImpulseJoints(struct R3World *world,
                                                                        const struct R3UrdfRobot *robot);
 #endif
 
@@ -15131,8 +14902,8 @@ struct R3UrdfRobotHandles *r3UrdfRobot_InsertUsingImpulseJoints(struct R3World *
  * Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R3UrdfRobotHandles *r3UrdfRobot_InsertUsingMultibodyJoints(struct R3World *world,
+RAPIER_API
+struct R3UrdfRobotHandles *RAPIER_CALL r3UrdfRobot_InsertUsingMultibodyJoints(struct R3World *world,
                                                                          const struct R3UrdfRobot *robot,
                                                                          uint8_t options);
 #endif
@@ -15143,8 +14914,8 @@ struct R3UrdfRobotHandles *r3UrdfRobot_InsertUsingMultibodyJoints(struct R3World
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3UrdfRobotHandles_Bodies(const struct R3UrdfRobotHandles *handles,
+RAPIER_API
+size_t RAPIER_CALL r3UrdfRobotHandles_Bodies(const struct R3UrdfRobotHandles *handles,
                                      struct R3RigidBodyHandle *buffer,
                                      size_t capacity);
 #endif
@@ -15154,7 +14925,7 @@ size_t r3UrdfRobotHandles_Bodies(const struct R3UrdfRobotHandles *handles,
  * Return native default mjcf loader options. This POD value owns no resources.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL struct R3MjcfLoaderOptions r3DefaultMjcfLoaderOptions(void);
+RAPIER_API struct R3MjcfLoaderOptions RAPIER_CALL r3DefaultMjcfLoaderOptions(void);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15163,7 +14934,7 @@ RAPIER_API RAPIER_CALL struct R3MjcfLoaderOptions r3DefaultMjcfLoaderOptions(voi
  * twice.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeMjcfRobot(struct R3MjcfRobot *object);
+RAPIER_API R3Status RAPIER_CALL r3FreeMjcfRobot(struct R3MjcfRobot *object);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15172,8 +14943,8 @@ RAPIER_API RAPIER_CALL R3Status r3FreeMjcfRobot(struct R3MjcfRobot *object);
  * Options and their blueprint resources are borrowed through this call; the robot is owned.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R3MjcfRobot *r3MjcfRobotFromFile(const char *path,
+RAPIER_API
+struct R3MjcfRobot *RAPIER_CALL r3MjcfRobotFromFile(const char *path,
                                               const struct R3MjcfLoaderOptions *options);
 #endif
 
@@ -15182,8 +14953,8 @@ struct R3MjcfRobot *r3MjcfRobotFromFile(const char *path,
  * Apply an additional transform to the loaded robot before insertion.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R3Status r3MjcfRobot_AppendTransform(struct R3MjcfRobot *robot,
+RAPIER_API
+R3Status RAPIER_CALL r3MjcfRobot_AppendTransform(struct R3MjcfRobot *robot,
                                           struct R3Pose transform);
 #endif
 
@@ -15193,7 +14964,7 @@ R3Status r3MjcfRobot_AppendTransform(struct R3MjcfRobot *robot,
  * object twice.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeMjcfRobotHandles(struct R3MjcfRobotHandles *handles);
+RAPIER_API R3Status RAPIER_CALL r3FreeMjcfRobotHandles(struct R3MjcfRobotHandles *handles);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15201,8 +14972,8 @@ RAPIER_API RAPIER_CALL R3Status r3FreeMjcfRobotHandles(struct R3MjcfRobotHandles
  * Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R3MjcfRobotHandles *r3MjcfRobot_InsertUsingImpulseJoints(struct R3World *world,
+RAPIER_API
+struct R3MjcfRobotHandles *RAPIER_CALL r3MjcfRobot_InsertUsingImpulseJoints(struct R3World *world,
                                                                        const struct R3MjcfRobot *robot);
 #endif
 
@@ -15211,8 +14982,8 @@ struct R3MjcfRobotHandles *r3MjcfRobot_InsertUsingImpulseJoints(struct R3World *
  * Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R3MjcfRobotHandles *r3MjcfRobot_InsertUsingMultibodyJoints(struct R3World *world,
+RAPIER_API
+struct R3MjcfRobotHandles *RAPIER_CALL r3MjcfRobot_InsertUsingMultibodyJoints(struct R3World *world,
                                                                          const struct R3MjcfRobot *robot,
                                                                          uint8_t options);
 #endif
@@ -15223,8 +14994,8 @@ struct R3MjcfRobotHandles *r3MjcfRobot_InsertUsingMultibodyJoints(struct R3World
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfRobotHandles_Bodies(const struct R3MjcfRobotHandles *handles,
+RAPIER_API
+size_t RAPIER_CALL r3MjcfRobotHandles_Bodies(const struct R3MjcfRobotHandles *handles,
                                      struct R3RigidBodyHandle *buffer,
                                      size_t capacity);
 #endif
@@ -15234,7 +15005,7 @@ size_t r3MjcfRobotHandles_Bodies(const struct R3MjcfRobotHandles *handles,
  * Resolved model gravity before the caller chooses a world convention.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL struct R3Vector r3MjcfRobot_Gravity(const struct R3MjcfRobot *robot);
+RAPIER_API struct R3Vector RAPIER_CALL r3MjcfRobot_Gravity(const struct R3MjcfRobot *robot);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15242,7 +15013,7 @@ RAPIER_API RAPIER_CALL struct R3Vector r3MjcfRobot_Gravity(const struct R3MjcfRo
  * Return the number of source MJCF bodies.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL size_t r3MjcfRobot_BodyCount(const struct R3MjcfRobot *robot);
+RAPIER_API size_t RAPIER_CALL r3MjcfRobot_BodyCount(const struct R3MjcfRobot *robot);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15250,9 +15021,7 @@ RAPIER_API RAPIER_CALL size_t r3MjcfRobot_BodyCount(const struct R3MjcfRobot *ro
  * Return the collider count for a source body index.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfRobot_BodyColliderCount(const struct R3MjcfRobot *robot,
-                                          size_t body);
+RAPIER_API size_t RAPIER_CALL r3MjcfRobot_BodyColliderCount(const struct R3MjcfRobot *robot, size_t body);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15260,8 +15029,8 @@ size_t r3MjcfRobot_BodyColliderCount(const struct R3MjcfRobot *robot,
  * Set collision groups on a collider in the loaded robot, before insertion.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R3Status r3MjcfRobot_SetBodyColliderCollisionGroups(struct R3MjcfRobot *robot,
+RAPIER_API
+R3Status RAPIER_CALL r3MjcfRobot_SetBodyColliderCollisionGroups(struct R3MjcfRobot *robot,
                                                             size_t body,
                                                             size_t collider,
                                                             struct R3InteractionGroups groups);
@@ -15272,7 +15041,7 @@ R3Status r3MjcfRobot_SetBodyColliderCollisionGroups(struct R3MjcfRobot *robot,
  * Return the number of imported keyframes.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL size_t r3MjcfRobot_KeyframeCount(const struct R3MjcfRobot *robot);
+RAPIER_API size_t RAPIER_CALL r3MjcfRobot_KeyframeCount(const struct R3MjcfRobot *robot);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15281,8 +15050,8 @@ RAPIER_API RAPIER_CALL size_t r3MjcfRobot_KeyframeCount(const struct R3MjcfRobot
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfRobot_KeyframeName(const struct R3MjcfRobot *robot,
+RAPIER_API
+size_t RAPIER_CALL r3MjcfRobot_KeyframeName(const struct R3MjcfRobot *robot,
                                     size_t key,
                                     char *buffer,
                                     size_t capacity);
@@ -15293,8 +15062,8 @@ size_t r3MjcfRobot_KeyframeName(const struct R3MjcfRobot *robot,
  * Append a keyframe from the source MJCF model to the loaded robot.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R3Status r3MjcfRobot_AppendKeyframe(struct R3MjcfRobot *robot,
+RAPIER_API
+R3Status RAPIER_CALL r3MjcfRobot_AppendKeyframe(struct R3MjcfRobot *robot,
                                          const struct R3MjcfRobot *source,
                                          size_t key);
 #endif
@@ -15305,8 +15074,8 @@ R3Status r3MjcfRobot_AppendKeyframe(struct R3MjcfRobot *robot,
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfRobot_KeyframeControls(const struct R3MjcfRobot *robot,
+RAPIER_API
+size_t RAPIER_CALL r3MjcfRobot_KeyframeControls(const struct R3MjcfRobot *robot,
                                         size_t key,
                                         R3Real *buffer,
                                         size_t capacity);
@@ -15317,8 +15086,7 @@ size_t r3MjcfRobot_KeyframeControls(const struct R3MjcfRobot *robot,
  * Return the number of imported actuators.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfRobotHandles_ActuatorCount(const struct R3MjcfRobotHandles *handles);
+RAPIER_API size_t RAPIER_CALL r3MjcfRobotHandles_ActuatorCount(const struct R3MjcfRobotHandles *handles);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15326,8 +15094,8 @@ size_t r3MjcfRobotHandles_ActuatorCount(const struct R3MjcfRobotHandles *handles
  * Apply the selected keyframe to the inserted robot.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R3Status r3MjcfRobotHandles_ApplyKeyframe(const struct R3MjcfRobotHandles *handles,
+RAPIER_API
+R3Status RAPIER_CALL r3MjcfRobotHandles_ApplyKeyframe(const struct R3MjcfRobotHandles *handles,
                                                 const struct R3MjcfRobot *robot,
                                                 size_t key);
 #endif
@@ -15337,8 +15105,8 @@ R3Status r3MjcfRobotHandles_ApplyKeyframe(const struct R3MjcfRobotHandles *handl
  * Apply actuator controls with per-actuator scaling to the inserted robot.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R3Status r3MjcfRobotHandles_ApplyControlsScaled(const struct R3MjcfRobotHandles *handles,
+RAPIER_API
+R3Status RAPIER_CALL r3MjcfRobotHandles_ApplyControlsScaled(const struct R3MjcfRobotHandles *handles,
                                                        const R3Real *controls,
                                                        size_t count,
                                                        R3Real gain);
@@ -15349,9 +15117,7 @@ R3Status r3MjcfRobotHandles_ApplyControlsScaled(const struct R3MjcfRobotHandles 
  * Return the number of visual meshes for a source body.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfRobot_BodyVisualCount(const struct R3MjcfRobot *robot,
-                                        size_t body);
+RAPIER_API size_t RAPIER_CALL r3MjcfRobot_BodyVisualCount(const struct R3MjcfRobot *robot, size_t body);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15360,8 +15126,8 @@ size_t r3MjcfRobot_BodyVisualCount(const struct R3MjcfRobot *robot,
  * changes; never free this pointer.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-const R3MjcfVisualMesh *r3MjcfRobot_BodyVisual(const struct R3MjcfRobot *robot,
+RAPIER_API
+const R3MjcfVisualMesh *RAPIER_CALL r3MjcfRobot_BodyVisual(const struct R3MjcfRobot *robot,
                                                     size_t body,
                                                     size_t visual);
 #endif
@@ -15371,8 +15137,7 @@ const R3MjcfVisualMesh *r3MjcfRobot_BodyVisual(const struct R3MjcfRobot *robot,
  * Return a copy of visual pose, color, material, and geometry-kind flags.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-struct R3MjcfVisualMeshInfo r3MjcfVisualMesh_Info(const R3MjcfVisualMesh *visual);
+RAPIER_API struct R3MjcfVisualMeshInfo RAPIER_CALL r3MjcfVisualMesh_Info(const R3MjcfVisualMesh *visual);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15381,8 +15146,7 @@ struct R3MjcfVisualMeshInfo r3MjcfVisualMesh_Info(const R3MjcfVisualMesh *visual
  * Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3MjcfVisualMesh_CloneShape(const R3MjcfVisualMesh *visual);
+RAPIER_API R3SharedShape *RAPIER_CALL r3MjcfVisualMesh_CloneShape(const R3MjcfVisualMesh *visual);
 #endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -15391,8 +15155,8 @@ R3SharedShape *r3MjcfVisualMesh_CloneShape(const R3MjcfVisualMesh *visual);
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfVisualMesh_Uvs(const R3MjcfVisualMesh *visual,
+RAPIER_API
+size_t RAPIER_CALL r3MjcfVisualMesh_Uvs(const R3MjcfVisualMesh *visual,
                                 float *buffer,
                                 size_t capacity);
 #endif
@@ -15403,8 +15167,8 @@ size_t r3MjcfVisualMesh_Uvs(const R3MjcfVisualMesh *visual,
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfVisualMesh_Normals(const R3MjcfVisualMesh *visual,
+RAPIER_API
+size_t RAPIER_CALL r3MjcfVisualMesh_Normals(const R3MjcfVisualMesh *visual,
                                     float *buffer,
                                     size_t capacity);
 #endif
@@ -15415,8 +15179,8 @@ size_t r3MjcfVisualMesh_Normals(const R3MjcfVisualMesh *visual,
  * @see @ref output_buffers
  * @ingroup robotics
  */
-RAPIER_API RAPIER_CALL
-size_t r3MjcfVisualMesh_Texture(const R3MjcfVisualMesh *visual,
+RAPIER_API
+size_t RAPIER_CALL r3MjcfVisualMesh_Texture(const R3MjcfVisualMesh *visual,
                                     char *buffer,
                                     size_t capacity);
 #endif
@@ -15425,53 +15189,51 @@ size_t r3MjcfVisualMesh_Texture(const R3MjcfVisualMesh *visual,
  * Return the rigid body world-space pose.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R3Pose r3RigidBody_Position(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3Pose RAPIER_CALL r3RigidBody_Position(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space translation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3RigidBody_Translation(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3Vector RAPIER_CALL r3RigidBody_Translation(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space linear velocity.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R3Vector r3RigidBody_Linvel(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3Vector RAPIER_CALL r3RigidBody_Linvel(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space angular velocity (radians per second).
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3AngVector r3RigidBody_Angvel(struct R3RigidBodyHandle handle);
+RAPIER_API R3AngVector RAPIER_CALL r3RigidBody_Angvel(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is sleeping.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsSleeping(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsSleeping(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is enabled.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsEnabled(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsEnabled(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body application-owned 128-bit user value.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3UserData r3RigidBody_UserData(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3UserData RAPIER_CALL r3RigidBody_UserData(struct R3RigidBodyHandle handle);
 
 /**
  * Set the rigid body world-space pose.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetPosition(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetPosition(struct R3RigidBodyHandle handle,
                                       struct R3Pose value,
                                       R3Bool wake_up);
 
@@ -15480,8 +15242,8 @@ R3Status r3RigidBody_SetPosition(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetTranslation(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetTranslation(struct R3RigidBodyHandle handle,
                                          struct R3Vector value,
                                          R3Bool wake_up);
 
@@ -15490,8 +15252,8 @@ R3Status r3RigidBody_SetTranslation(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetLinvel(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetLinvel(struct R3RigidBodyHandle handle,
                                     struct R3Vector value,
                                     R3Bool wake_up);
 
@@ -15500,8 +15262,8 @@ R3Status r3RigidBody_SetLinvel(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetAngvel(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetAngvel(struct R3RigidBodyHandle handle,
                                     R3AngVector value,
                                     R3Bool wake_up);
 
@@ -15509,16 +15271,16 @@ R3Status r3RigidBody_SetAngvel(struct R3RigidBodyHandle handle,
  * Set the rigid body next kinematic world-space pose.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetNextKinematicPosition(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetNextKinematicPosition(struct R3RigidBodyHandle handle,
                                                      struct R3Pose value);
 
 /**
  * Set the rigid body next kinematic world-space translation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetNextKinematicTranslation(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetNextKinematicTranslation(struct R3RigidBodyHandle handle,
                                                         struct R3Vector value);
 
 /**
@@ -15526,8 +15288,8 @@ R3Status r3RigidBody_SetNextKinematicTranslation(struct R3RigidBodyHandle handle
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetGravityScale(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetGravityScale(struct R3RigidBodyHandle handle,
                                            R3Real value,
                                            R3Bool wake_up);
 
@@ -15535,32 +15297,30 @@ R3Status r3RigidBody_SetGravityScale(struct R3RigidBodyHandle handle,
  * Set the rigid body linear damping coefficient.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetLinearDamping(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetLinearDamping(struct R3RigidBodyHandle handle,
                                             R3Real value);
 
 /**
  * Set the rigid body angular damping coefficient.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetAngularDamping(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetAngularDamping(struct R3RigidBodyHandle handle,
                                              R3Real value);
 
 /**
  * Enable or disable the rigid body.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetEnabled(struct R3RigidBodyHandle handle,
-                                     R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3RigidBody_SetEnabled(struct R3RigidBodyHandle handle, R3Bool value);
 
 /**
  * Set the rigid body application-owned 128-bit user value.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetUserData(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetUserData(struct R3RigidBodyHandle handle,
                                        struct R3UserData value);
 
 /**
@@ -15568,8 +15328,8 @@ R3Status r3RigidBody_SetUserData(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_ApplyImpulse(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_ApplyImpulse(struct R3RigidBodyHandle handle,
                                        struct R3Vector value,
                                        R3Bool wake_up);
 
@@ -15578,8 +15338,8 @@ R3Status r3RigidBody_ApplyImpulse(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_ApplyImpulseAtPoint(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_ApplyImpulseAtPoint(struct R3RigidBodyHandle handle,
                                                 struct R3Vector value,
                                                 struct R3Vector point,
                                                 R3Bool wake_up);
@@ -15589,8 +15349,8 @@ R3Status r3RigidBody_ApplyImpulseAtPoint(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_AddForce(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_AddForce(struct R3RigidBodyHandle handle,
                                    struct R3Vector value,
                                    R3Bool wake_up);
 
@@ -15599,115 +15359,106 @@ R3Status r3RigidBody_AddForce(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_ResetForces(struct R3RigidBodyHandle handle,
-                                      R3Bool wake_up);
+RAPIER_API R3Status RAPIER_CALL r3RigidBody_ResetForces(struct R3RigidBodyHandle handle, R3Bool wake_up);
 
 /**
  * Put the body to sleep.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Status r3RigidBody_Sleep(struct R3RigidBodyHandle handle);
+RAPIER_API R3Status RAPIER_CALL r3RigidBody_Sleep(struct R3RigidBodyHandle handle);
 
 /**
  * Return the collider world-space pose.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R3Pose r3Collider_Position(struct R3ColliderHandle handle);
+RAPIER_API struct R3Pose RAPIER_CALL r3Collider_Position(struct R3ColliderHandle handle);
 
 /**
  * Return the collider world-space translation.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R3Vector r3Collider_Translation(struct R3ColliderHandle handle);
+RAPIER_API struct R3Vector RAPIER_CALL r3Collider_Translation(struct R3ColliderHandle handle);
 
 /**
  * Return the collider friction coefficient.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Real r3Collider_Friction(struct R3ColliderHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3Collider_Friction(struct R3ColliderHandle handle);
 
 /**
  * Return the collider restitution coefficient.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Real r3Collider_Restitution(struct R3ColliderHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3Collider_Restitution(struct R3ColliderHandle handle);
 
 /**
  * Return whether the collider is a sensor (detects overlaps without contact forces).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Bool r3Collider_IsSensor(struct R3ColliderHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3Collider_IsSensor(struct R3ColliderHandle handle);
 
 /**
  * Return the parent body handle, or an invalid handle with OK status for a standalone collider.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3RigidBodyHandle r3Collider_Parent(struct R3ColliderHandle handle);
+RAPIER_API struct R3RigidBodyHandle RAPIER_CALL r3Collider_Parent(struct R3ColliderHandle handle);
 
 /**
  * Set the collider world-space pose.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetPosition(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetPosition(struct R3ColliderHandle handle,
                                     struct R3Pose value);
 
 /**
  * Set the collider world-space translation.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetTranslation(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetTranslation(struct R3ColliderHandle handle,
                                        struct R3Vector value);
 
 /**
  * Set the collider friction coefficient.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetFriction(struct R3ColliderHandle handle,
-                                    R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3Collider_SetFriction(struct R3ColliderHandle handle, R3Real value);
 
 /**
  * Set the collider restitution coefficient.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetRestitution(struct R3ColliderHandle handle,
-                                       R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3Collider_SetRestitution(struct R3ColliderHandle handle, R3Real value);
 
 /**
  * Enable or disable a sensor (detects overlaps without contact forces) for the collider.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetSensor(struct R3ColliderHandle handle,
-                                  R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3Collider_SetSensor(struct R3ColliderHandle handle, R3Bool value);
 
 /**
  * Set the collider collision filtering groups.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetCollisionGroups(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetCollisionGroups(struct R3ColliderHandle handle,
                                             struct R3InteractionGroups value);
 
 /**
  * Set the collider application-owned 128-bit user value.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetUserData(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetUserData(struct R3ColliderHandle handle,
                                      struct R3UserData value);
 
 /**
  * Return the world-space position of the indexed particle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3SoftBody_ParticlePosition(struct R3SoftBodyHandle handle,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3SoftBody_ParticlePosition(struct R3SoftBodyHandle handle,
                                                  size_t index);
 
 /**
@@ -15715,8 +15466,8 @@ struct R3Vector r3SoftBody_ParticlePosition(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_ParticlePositions(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_ParticlePositions(struct R3SoftBodyHandle handle,
                                         struct R3Vector *buffer,
                                         size_t capacity);
 
@@ -15724,15 +15475,14 @@ size_t r3SoftBody_ParticlePositions(struct R3SoftBodyHandle handle,
  * Return a copy of the soft body material parameters.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyMaterial r3SoftBody_Material(struct R3SoftBodyHandle handle);
+RAPIER_API struct R3SoftBodyMaterial RAPIER_CALL r3SoftBody_Material(struct R3SoftBodyHandle handle);
 
 /**
  * Set the world-space position of the indexed particle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetParticlePosition(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetParticlePosition(struct R3SoftBodyHandle handle,
                                               size_t index,
                                               struct R3Vector value);
 
@@ -15740,8 +15490,8 @@ R3Status r3SoftBody_SetParticlePosition(struct R3SoftBodyHandle handle,
  * Copy material parameters into the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetMaterial(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetMaterial(struct R3SoftBodyHandle handle,
                                      const struct R3SoftBodyMaterial *data);
 
 /**
@@ -15749,8 +15499,8 @@ R3Status r3SoftBody_SetMaterial(struct R3SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_AddParticleForce(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_AddParticleForce(struct R3SoftBodyHandle handle,
                                            size_t index,
                                            struct R3Vector value,
                                            R3Bool wake_up);
@@ -15761,8 +15511,8 @@ R3Status r3SoftBody_AddParticleForce(struct R3SoftBodyHandle handle,
  * NULL/0 is a size query. BUFFER_TOO_SMALL returns the required count and leaves states untouched.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3RigidBodyReadStates(const struct R3World *world,
+RAPIER_API
+size_t RAPIER_CALL r3RigidBodyReadStates(const struct R3World *world,
                                   const struct R3RigidBodyHandle *handles,
                                   size_t handle_count,
                                   struct R3RigidBodyState *states,
@@ -15772,16 +15522,15 @@ size_t r3RigidBodyReadStates(const struct R3World *world,
  * Copies joint configuration without returning a borrowed joint pointer.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-struct R3JointDesc r3ImpulseJoint_Desc(struct R3ImpulseJointHandle handle);
+RAPIER_API struct R3JointDesc RAPIER_CALL r3ImpulseJoint_Desc(struct R3ImpulseJointHandle handle);
 
 /**
  * Replaces configuration after validation, resetting cached limit/motor impulses.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetDesc(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetDesc(struct R3ImpulseJointHandle handle,
                                      const struct R3JointDesc *desc,
                                      R3Bool wake_up);
 
@@ -15791,8 +15540,8 @@ R3Status r3ImpulseJoint_SetDesc(struct R3ImpulseJointHandle handle,
  * Geometry and flags are validated when the description is built or inserted.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ShapeDesc_SetTrimesh(struct R3ShapeDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3ShapeDesc_SetTrimesh(struct R3ShapeDesc *desc,
                                      struct R3VectorView vertices,
                                      struct R3TriangleView indices,
                                      uint32_t flags);
@@ -15803,8 +15552,8 @@ R3Status r3ShapeDesc_SetTrimesh(struct R3ShapeDesc *desc,
  * Geometry and flags are validated when the description is built or inserted.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ShapeDesc_SetPolyline(struct R3ShapeDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3ShapeDesc_SetPolyline(struct R3ShapeDesc *desc,
                                       struct R3VectorView vertices,
                                       struct R3EdgeView indices,
                                       uint32_t flags);
@@ -15813,24 +15562,24 @@ R3Status r3ShapeDesc_SetPolyline(struct R3ShapeDesc *desc,
  * Replace the shape geometry with a borrowed convex hull point cloud.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ShapeDesc_SetConvexHull(struct R3ShapeDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3ShapeDesc_SetConvexHull(struct R3ShapeDesc *desc,
                                          struct R3VectorView vertices);
 
 /**
  * Select an explicit particle recipe and borrow its positions. Other fields are preserved.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetParticles(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetParticles(struct R3SoftBodyDesc *desc,
                                            struct R3VectorView positions);
 
 /**
  * Select a surface recipe and borrow its vertices and elements. Other fields are preserved.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetSurfaceMesh(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetSurfaceMesh(struct R3SoftBodyDesc *desc,
                                               struct R3VectorView vertices,
                                               R3SurfaceElementView elements);
 
@@ -15838,8 +15587,8 @@ R3Status r3SoftBodyDesc_SetSurfaceMesh(struct R3SoftBodyDesc *desc,
  * Borrow skin geometry. Other fields, including skinCollision, are preserved.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetSkin(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetSkin(struct R3SoftBodyDesc *desc,
                                       struct R3VectorView vertices,
                                       R3SurfaceElementView elements);
 
@@ -15850,8 +15599,8 @@ R3Status r3SoftBodyDesc_SetSkin(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetMasses(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetMasses(struct R3SoftBodyDesc *desc,
                                         struct R3RealView view);
 
 /**
@@ -15861,8 +15610,8 @@ R3Status r3SoftBodyDesc_SetMasses(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetPinnedParticles(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetPinnedParticles(struct R3SoftBodyDesc *desc,
                                                   struct R3IndexView view);
 
 /**
@@ -15872,8 +15621,8 @@ R3Status r3SoftBodyDesc_SetPinnedParticles(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetEdges(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetEdges(struct R3SoftBodyDesc *desc,
                                        struct R3EdgeView view);
 
 /**
@@ -15883,8 +15632,8 @@ R3Status r3SoftBodyDesc_SetEdges(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetBendEdges(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetBendEdges(struct R3SoftBodyDesc *desc,
                                             struct R3EdgeView view);
 
 /**
@@ -15894,9 +15643,7 @@ R3Status r3SoftBodyDesc_SetBendEdges(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetCells(struct R3SoftBodyDesc *desc,
-                                       R3CellView view);
+RAPIER_API R3Status RAPIER_CALL r3SoftBodyDesc_SetCells(struct R3SoftBodyDesc *desc, R3CellView view);
 
 /**
  * Borrow surface; preserve all other fields. No allocation or element reads.
@@ -15905,8 +15652,8 @@ R3Status r3SoftBodyDesc_SetCells(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetSurface(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetSurface(struct R3SoftBodyDesc *desc,
                                          R3SurfaceElementView view);
 
 /**
@@ -15916,8 +15663,8 @@ R3Status r3SoftBodyDesc_SetSurface(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetTensionOnlyEdges(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetTensionOnlyEdges(struct R3SoftBodyDesc *desc,
                                                     struct R3IndexView view);
 
 #if defined(RAPIER_DIM3)
@@ -15928,8 +15675,8 @@ R3Status r3SoftBodyDesc_SetTensionOnlyEdges(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetDihedrals(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetDihedrals(struct R3SoftBodyDesc *desc,
                                            struct R3DihedralView view);
 #endif
 
@@ -15941,8 +15688,8 @@ R3Status r3SoftBodyDesc_SetDihedrals(struct R3SoftBodyDesc *desc,
  * Invalid view metadata leaves the description unchanged.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBodyDesc_SetWire(struct R3SoftBodyDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetWire(struct R3SoftBodyDesc *desc,
                                       struct R3EdgeView view);
 #endif
 
@@ -15951,8 +15698,8 @@ R3Status r3SoftBodyDesc_SetWire(struct R3SoftBodyDesc *desc,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3RoundCuboidColliderDesc(struct R3Vector half_extents,
+RAPIER_API
+struct R3ColliderDesc RAPIER_CALL r3RoundCuboidColliderDesc(struct R3Vector half_extents,
                                                       R3Real border_radius);
 
 /**
@@ -15960,8 +15707,8 @@ struct R3ColliderDesc r3RoundCuboidColliderDesc(struct R3Vector half_extents,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3CapsuleColliderDesc(struct R3Vector a,
+RAPIER_API
+struct R3ColliderDesc RAPIER_CALL r3CapsuleColliderDesc(struct R3Vector a,
                                                  struct R3Vector b,
                                                  R3Real radius);
 
@@ -15970,17 +15717,15 @@ struct R3ColliderDesc r3CapsuleColliderDesc(struct R3Vector a,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3SegmentColliderDesc(struct R3Vector a,
-                                                 struct R3Vector b);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3SegmentColliderDesc(struct R3Vector a, struct R3Vector b);
 
 /**
  * Return a triangle description with vertices a, b, and c.
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3TriangleColliderDesc(struct R3Vector a,
+RAPIER_API
+struct R3ColliderDesc RAPIER_CALL r3TriangleColliderDesc(struct R3Vector a,
                                                   struct R3Vector b,
                                                   struct R3Vector c);
 
@@ -15989,7 +15734,7 @@ struct R3ColliderDesc r3TriangleColliderDesc(struct R3Vector a,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R3ColliderDesc r3HalfspaceColliderDesc(struct R3Vector normal);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3HalfspaceColliderDesc(struct R3Vector normal);
 
 #if defined(RAPIER_DIM3)
 /**
@@ -15997,9 +15742,7 @@ RAPIER_API RAPIER_CALL struct R3ColliderDesc r3HalfspaceColliderDesc(struct R3Ve
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3CylinderColliderDesc(R3Real half_height,
-                                                  R3Real radius);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3CylinderColliderDesc(R3Real half_height, R3Real radius);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -16008,9 +15751,7 @@ struct R3ColliderDesc r3CylinderColliderDesc(R3Real half_height,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3ConeColliderDesc(R3Real half_height,
-                                              R3Real radius);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3ConeColliderDesc(R3Real half_height, R3Real radius);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -16019,8 +15760,8 @@ struct R3ColliderDesc r3ConeColliderDesc(R3Real half_height,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3RoundCylinderColliderDesc(R3Real half_height,
+RAPIER_API
+struct R3ColliderDesc RAPIER_CALL r3RoundCylinderColliderDesc(R3Real half_height,
                                                         R3Real radius,
                                                         R3Real border_radius);
 #endif
@@ -16030,18 +15771,14 @@ struct R3ColliderDesc r3RoundCylinderColliderDesc(R3Real half_height,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3CapsuleXColliderDesc(R3Real half_height,
-                                                   R3Real radius);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3CapsuleXColliderDesc(R3Real half_height, R3Real radius);
 
 /**
  * Return a Y-aligned capsule description; half_height is half the segment length, excluding caps.
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3CapsuleYColliderDesc(R3Real half_height,
-                                                   R3Real radius);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3CapsuleYColliderDesc(R3Real half_height, R3Real radius);
 
 #if defined(RAPIER_DIM3)
 /**
@@ -16049,9 +15786,7 @@ struct R3ColliderDesc r3CapsuleYColliderDesc(R3Real half_height,
  * Returns a description without allocating or validating. Build/insert validates its fields.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3ColliderDesc r3CapsuleZColliderDesc(R3Real half_height,
-                                                   R3Real radius);
+RAPIER_API struct R3ColliderDesc RAPIER_CALL r3CapsuleZColliderDesc(R3Real half_height, R3Real radius);
 #endif
 
 /**
@@ -16059,8 +15794,8 @@ struct R3ColliderDesc r3CapsuleZColliderDesc(R3Real half_height,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyDesc r3RopeSoftBodyDesc(struct R3Vector a,
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3RopeSoftBodyDesc(struct R3Vector a,
                                                struct R3Vector b,
                                                size_t particles);
 
@@ -16070,8 +15805,8 @@ struct R3SoftBodyDesc r3RopeSoftBodyDesc(struct R3Vector a,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyDesc r3GridSoftBodyDesc(struct R3Vector center,
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3GridSoftBodyDesc(struct R3Vector center,
                                                struct R3Vector half_extents,
                                                size_t nx,
                                                size_t ny);
@@ -16083,8 +15818,8 @@ struct R3SoftBodyDesc r3GridSoftBodyDesc(struct R3Vector center,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyDesc r3CuboidSoftBodyDesc(struct R3Vector center,
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3CuboidSoftBodyDesc(struct R3Vector center,
                                                  struct R3Vector half_extents,
                                                  size_t nx,
                                                  size_t ny,
@@ -16097,8 +15832,8 @@ struct R3SoftBodyDesc r3CuboidSoftBodyDesc(struct R3Vector center,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyDesc r3ClothSoftBodyDesc(struct R3Vector origin,
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3ClothSoftBodyDesc(struct R3Vector origin,
                                                 struct R3Vector du,
                                                 struct R3Vector dv,
                                                 size_t nu,
@@ -16112,8 +15847,8 @@ struct R3SoftBodyDesc r3ClothSoftBodyDesc(struct R3Vector origin,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyDesc r3DiskSoftBodyDesc(struct R3Vector center,
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3DiskSoftBodyDesc(struct R3Vector center,
                                                R3Real radius,
                                                size_t particles);
 #endif
@@ -16124,8 +15859,8 @@ struct R3SoftBodyDesc r3DiskSoftBodyDesc(struct R3Vector center,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyDesc r3SphereSoftBodyDesc(struct R3Vector center,
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3SphereSoftBodyDesc(struct R3Vector center,
                                                  R3Real radius,
                                                  uint32_t subdivisions);
 #endif
@@ -16137,8 +15872,8 @@ struct R3SoftBodyDesc r3SphereSoftBodyDesc(struct R3Vector center,
  * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyDesc r3ClothTubeSoftBodyDesc(struct R3Vector origin,
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3ClothTubeSoftBodyDesc(struct R3Vector origin,
                                                      struct R3Vector axis,
                                                      R3Real radius_start,
                                                      R3Real radius_end,
@@ -16150,8 +15885,8 @@ struct R3SoftBodyDesc r3ClothTubeSoftBodyDesc(struct R3Vector origin,
  * Initializes a borrowed meshing recipe. Mesh generation happens on preview/insertion.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyDesc r3VolumetricSoftBodyDesc(struct R3VectorView vertices,
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3VolumetricSoftBodyDesc(struct R3VectorView vertices,
                                                      R3SurfaceElementView surface,
                                                      struct R3VolumeMeshParameters parameters);
 
@@ -16159,16 +15894,16 @@ struct R3SoftBodyDesc r3VolumetricSoftBodyDesc(struct R3VectorView vertices,
  * Returns a material with the same softness for each constraint family.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyMaterial r3UniformSoftBodyMaterial(struct R3SpringCoefficients value);
+RAPIER_API
+struct R3SoftBodyMaterial RAPIER_CALL r3UniformSoftBodyMaterial(struct R3SpringCoefficients value);
 
 /**
  * Copies generated particle positions into caller-owned storage; no persistent builder.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyDesc_ParticlePositions(const struct R3SoftBodyDesc *desc,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyDesc_ParticlePositions(const struct R3SoftBodyDesc *desc,
                                              struct R3Vector *buffer,
                                              size_t capacity);
 
@@ -16177,8 +15912,8 @@ size_t r3SoftBodyDesc_ParticlePositions(const struct R3SoftBodyDesc *desc,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBodyDesc_CellIndices(const struct R3SoftBodyDesc *desc,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBodyDesc_CellIndices(const struct R3SoftBodyDesc *desc,
                                        uint32_t *buffer,
                                        size_t capacity);
 
@@ -16187,78 +15922,76 @@ size_t r3SoftBodyDesc_CellIndices(const struct R3SoftBodyDesc *desc,
  * clone alive while using it as a cache key.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL size_t r3Collider_ShapeIdentity(struct R3ColliderHandle handle);
+RAPIER_API size_t RAPIER_CALL r3Collider_ShapeIdentity(struct R3ColliderHandle handle);
 
 /**
  * Return the soft body particle count.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL size_t r3SoftBody_NumParticles(struct R3SoftBodyHandle handle);
+RAPIER_API size_t RAPIER_CALL r3SoftBody_NumParticles(struct R3SoftBodyHandle handle);
 
 /**
  * Return a counter that changes when particle connectivity changes; use it to invalidate mesh
  * caches.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL uint32_t r3SoftBody_TopologyVersion(struct R3SoftBodyHandle handle);
+RAPIER_API uint32_t RAPIER_CALL r3SoftBody_TopologyVersion(struct R3SoftBodyHandle handle);
 
 /**
  * Return the soft body mass.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3SoftBody_Mass(struct R3SoftBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3SoftBody_Mass(struct R3SoftBodyHandle handle);
 
 /**
  * Return the soft body current volume.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3SoftBody_Volume(struct R3SoftBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3SoftBody_Volume(struct R3SoftBodyHandle handle);
 
 /**
  * Return the soft body undeformed volume.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3SoftBody_RestVolume(struct R3SoftBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3SoftBody_RestVolume(struct R3SoftBodyHandle handle);
 
 /**
  * Return the soft body target volume multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3SoftBody_VolumeFactor(struct R3SoftBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3SoftBody_VolumeFactor(struct R3SoftBodyHandle handle);
 
 /**
  * Return the soft body world-space center of mass.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3SoftBody_CenterOfMass(struct R3SoftBodyHandle handle);
+RAPIER_API struct R3Vector RAPIER_CALL r3SoftBody_CenterOfMass(struct R3SoftBodyHandle handle);
 
 /**
  * Return the soft body root rigid-proxy handle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3RigidBodyHandle r3SoftBody_RootBody(struct R3SoftBodyHandle handle);
+RAPIER_API struct R3RigidBodyHandle RAPIER_CALL r3SoftBody_RootBody(struct R3SoftBodyHandle handle);
 
 /**
  * Return whether the soft body is enabled.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3SoftBody_IsEnabled(struct R3SoftBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3SoftBody_IsEnabled(struct R3SoftBodyHandle handle);
 
 /**
  * Return whether the soft body is sleeping.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3SoftBody_IsSleeping(struct R3SoftBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3SoftBody_IsSleeping(struct R3SoftBodyHandle handle);
 
 /**
  * Copy world-space particle velocities.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_ParticleVelocities(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_ParticleVelocities(struct R3SoftBodyHandle handle,
                                          struct R3Vector *buffer,
                                          size_t capacity);
 
@@ -16267,8 +16000,8 @@ size_t r3SoftBody_ParticleVelocities(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_Edges(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_Edges(struct R3SoftBodyHandle handle,
                            uint32_t *buffer,
                            size_t capacity);
 
@@ -16277,8 +16010,8 @@ size_t r3SoftBody_Edges(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_Cells(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_Cells(struct R3SoftBodyHandle handle,
                            uint32_t *buffer,
                            size_t capacity);
 
@@ -16287,8 +16020,8 @@ size_t r3SoftBody_Cells(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_Boundary(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_Boundary(struct R3SoftBodyHandle handle,
                               uint32_t *buffer,
                               size_t capacity);
 
@@ -16297,8 +16030,8 @@ size_t r3SoftBody_Boundary(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_Pieces(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_Pieces(struct R3SoftBodyHandle handle,
                             struct R3SoftBodyHandle *buffer,
                             size_t capacity);
 
@@ -16306,8 +16039,8 @@ size_t r3SoftBody_Pieces(struct R3SoftBodyHandle handle,
  * Set the soft body particle world-space velocity.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetParticleVelocity(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetParticleVelocity(struct R3SoftBodyHandle handle,
                                               size_t index,
                                               struct R3Vector value);
 
@@ -16315,8 +16048,8 @@ R3Status r3SoftBody_SetParticleVelocity(struct R3SoftBodyHandle handle,
  * Set the next world-space target position of a pinned particle.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetParticleKinematicTarget(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetParticleKinematicTarget(struct R3SoftBodyHandle handle,
                                                       size_t index,
                                                       struct R3Vector value);
 
@@ -16324,8 +16057,8 @@ R3Status r3SoftBody_SetParticleKinematicTarget(struct R3SoftBodyHandle handle,
  * Enable or disable pinning the particle for the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetParticlePinned(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetParticlePinned(struct R3SoftBodyHandle handle,
                                             size_t index,
                                             R3Bool value);
 
@@ -16334,8 +16067,8 @@ R3Status r3SoftBody_SetParticlePinned(struct R3SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_ApplyParticleImpulse(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_ApplyParticleImpulse(struct R3SoftBodyHandle handle,
                                                size_t index,
                                                struct R3Vector value,
                                                R3Bool wake_up);
@@ -16345,8 +16078,8 @@ R3Status r3SoftBody_ApplyParticleImpulse(struct R3SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_AddForce(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_AddForce(struct R3SoftBodyHandle handle,
                                   struct R3Vector value,
                                   R3Bool wake_up);
 
@@ -16355,8 +16088,8 @@ R3Status r3SoftBody_AddForce(struct R3SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_ApplyImpulse(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_ApplyImpulse(struct R3SoftBodyHandle handle,
                                       struct R3Vector value,
                                       R3Bool wake_up);
 
@@ -16365,32 +16098,28 @@ R3Status r3SoftBody_ApplyImpulse(struct R3SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_ResetForces(struct R3SoftBodyHandle handle,
-                                     R3Bool wake_up);
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_ResetForces(struct R3SoftBodyHandle handle, R3Bool wake_up);
 
 /**
  * Enable or disable the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetEnabled(struct R3SoftBodyHandle handle,
-                                    R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_SetEnabled(struct R3SoftBodyHandle handle, R3Bool value);
 
 /**
  * Set the soft body target volume multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetVolumeFactor(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetVolumeFactor(struct R3SoftBodyHandle handle,
                                           R3Real value);
 
 /**
  * Attach a particle to a rigid body at the supplied body-local anchor.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_AttachParticle(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_AttachParticle(struct R3SoftBodyHandle handle,
                                         size_t index,
                                         struct R3RigidBodyHandle rigid_body);
 
@@ -16398,17 +16127,15 @@ R3Status r3SoftBody_AttachParticle(struct R3SoftBodyHandle handle,
  * Remove a particle attachment to a rigid body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_DetachParticle(struct R3SoftBodyHandle handle,
-                                        size_t index);
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_DetachParticle(struct R3SoftBodyHandle handle, size_t index);
 
 /**
  * Copy cluster indices.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_Clusters(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_Clusters(struct R3SoftBodyHandle handle,
                               uint32_t *buffer,
                               size_t capacity);
 
@@ -16416,8 +16143,8 @@ size_t r3SoftBody_Clusters(struct R3SoftBodyHandle handle,
  * Return the rigid proxy for the selected cluster.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3RigidBodyHandle r3SoftBody_ClusterProxy(struct R3SoftBodyHandle handle,
+RAPIER_API
+struct R3RigidBodyHandle RAPIER_CALL r3SoftBody_ClusterProxy(struct R3SoftBodyHandle handle,
                                                       uint32_t cluster);
 
 /**
@@ -16425,8 +16152,8 @@ struct R3RigidBodyHandle r3SoftBody_ClusterProxy(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_ClusterParticles(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_ClusterParticles(struct R3SoftBodyHandle handle,
                                        uint32_t cluster,
                                        uint32_t *buffer,
                                        size_t capacity);
@@ -16435,8 +16162,8 @@ size_t r3SoftBody_ClusterParticles(struct R3SoftBodyHandle handle,
  * Enable or disable pinning the cluster for the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetClusterPinned(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetClusterPinned(struct R3SoftBodyHandle handle,
                                            uint32_t cluster,
                                            R3Bool value);
 
@@ -16444,8 +16171,8 @@ R3Status r3SoftBody_SetClusterPinned(struct R3SoftBodyHandle handle,
  * Set the next world-space target pose of a pinned cluster.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetClusterKinematicTarget(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetClusterKinematicTarget(struct R3SoftBodyHandle handle,
                                                      uint32_t cluster,
                                                      struct R3Pose value);
 
@@ -16453,8 +16180,8 @@ R3Status r3SoftBody_SetClusterKinematicTarget(struct R3SoftBodyHandle handle,
  * Enable or disable using cluster shape matching for the soft body.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetClusterShapeMatchingEnabled(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetClusterShapeMatchingEnabled(struct R3SoftBodyHandle handle,
                                                            uint32_t cluster,
                                                            R3Bool value);
 
@@ -16462,8 +16189,8 @@ R3Status r3SoftBody_SetClusterShapeMatchingEnabled(struct R3SoftBodyHandle handl
  * Set the soft body cluster shape-matching stiffness multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetClusterStiffnessScale(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetClusterStiffnessScale(struct R3SoftBodyHandle handle,
                                                     uint32_t cluster,
                                                     R3Real value);
 
@@ -16471,8 +16198,8 @@ R3Status r3SoftBody_SetClusterStiffnessScale(struct R3SoftBodyHandle handle,
  * Set the soft body cluster tear-resistance multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetClusterTearResistance(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetClusterTearResistance(struct R3SoftBodyHandle handle,
                                                     uint32_t cluster,
                                                     R3Real value);
 
@@ -16481,8 +16208,8 @@ R3Status r3SoftBody_SetClusterTearResistance(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_Meshes(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_Meshes(struct R3SoftBodyHandle handle,
                             struct R3SoftMeshInfo *buffer,
                             size_t capacity);
 
@@ -16491,8 +16218,8 @@ size_t r3SoftBody_Meshes(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_MeshVerticesById(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_MeshVerticesById(struct R3SoftBodyHandle handle,
                                          struct R3SoftMeshId id,
                                          struct R3Vector *buffer,
                                          size_t capacity);
@@ -16502,8 +16229,8 @@ size_t r3SoftBody_MeshVerticesById(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_MeshIndicesById(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_MeshIndicesById(struct R3SoftBodyHandle handle,
                                         struct R3SoftMeshId id,
                                         uint32_t *buffer,
                                         size_t capacity);
@@ -16513,8 +16240,8 @@ size_t r3SoftBody_MeshIndicesById(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_MeshColliders(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_MeshColliders(struct R3SoftBodyHandle handle,
                                     struct R3ColliderHandle *buffer,
                                     size_t capacity);
 
@@ -16523,8 +16250,8 @@ size_t r3SoftBody_MeshColliders(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_MeshVertices(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_MeshVertices(struct R3SoftBodyHandle handle,
                                    struct R3ColliderHandle collider,
                                    struct R3Vector *buffer,
                                    size_t capacity);
@@ -16534,8 +16261,8 @@ size_t r3SoftBody_MeshVertices(struct R3SoftBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_MeshIndices(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_MeshIndices(struct R3SoftBodyHandle handle,
                                   struct R3ColliderHandle collider,
                                   uint32_t *buffer,
                                   size_t capacity);
@@ -16544,16 +16271,16 @@ size_t r3SoftBody_MeshIndices(struct R3SoftBodyHandle handle,
  * Return indices per collision-mesh element (2 for segments, 3 for triangles).
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3SoftBody_MeshArity(struct R3SoftBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3SoftBody_MeshArity(struct R3SoftBodyHandle handle,
                                 struct R3ColliderHandle collider);
 
 /**
  * Return the selected collision mesh topology revision for cache invalidation.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-uint32_t r3SoftBody_MeshTopologyVersion(struct R3SoftBodyHandle handle,
+RAPIER_API
+uint32_t RAPIER_CALL r3SoftBody_MeshTopologyVersion(struct R3SoftBodyHandle handle,
                                              struct R3ColliderHandle collider);
 
 #if defined(RAPIER_FEM)
@@ -16561,17 +16288,15 @@ uint32_t r3SoftBody_MeshTopologyVersion(struct R3SoftBodyHandle handle,
  * Set the soft body soft solver kind (R3_SOFT_SOLVER_*).
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetSolver(struct R3SoftBodyHandle handle,
-                                   uint32_t solver);
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_SetSolver(struct R3SoftBodyHandle handle, uint32_t solver);
 #endif
 
 /**
  * Set the soft body cluster shape-matching target pose.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetClusterShapeMatchingTarget(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetClusterShapeMatchingTarget(struct R3SoftBodyHandle handle,
                                                           uint32_t cluster,
                                                           const struct R3Pose *target);
 
@@ -16579,8 +16304,8 @@ R3Status r3SoftBody_SetClusterShapeMatchingTarget(struct R3SoftBodyHandle handle
  * Set the soft body edge tear-resistance multiplier.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3SoftBody_SetEdgeTearResistance(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetEdgeTearResistance(struct R3SoftBodyHandle handle,
                                                  size_t index,
                                                  R3Real resistance);
 
@@ -16588,8 +16313,8 @@ R3Status r3SoftBody_SetEdgeTearResistance(struct R3SoftBodyHandle handle,
  * Return whether the selected collision mesh is closed.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3SoftBody_MeshIsClosed(struct R3SoftBodyHandle handle,
+RAPIER_API
+R3Bool RAPIER_CALL r3SoftBody_MeshIsClosed(struct R3SoftBodyHandle handle,
                                      struct R3ColliderHandle collider);
 
 /**
@@ -16597,8 +16322,8 @@ R3Bool r3SoftBody_MeshIsClosed(struct R3SoftBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetAdditionalMassProperties(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetAdditionalMassProperties(struct R3RigidBodyHandle handle,
                                                         struct R3MassProperties properties,
                                                         R3Bool wake_up);
 
@@ -16606,31 +16331,30 @@ R3Status r3RigidBody_SetAdditionalMassProperties(struct R3RigidBodyHandle handle
  * Recompute body mass and inertia from attached colliders and additional mass properties.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_RecomputeMassPropertiesFromColliders(struct R3RigidBodyHandle handle);
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_RecomputeMassPropertiesFromColliders(struct R3RigidBodyHandle handle);
 
 /**
  * Set the collider local mass properties.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetMassProperties(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetMassProperties(struct R3ColliderHandle handle,
                                            struct R3MassProperties properties);
 
 /**
  * Return the collider local mass properties.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3MassProperties r3Collider_MassProperties(struct R3ColliderHandle handle);
+RAPIER_API struct R3MassProperties RAPIER_CALL r3Collider_MassProperties(struct R3ColliderHandle handle);
 
 /**
  * Set the rigid body translation/rotation lock bitmask.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetLockedAxes(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetLockedAxes(struct R3RigidBodyHandle handle,
                                          uint8_t axes,
                                          R3Bool wake_up);
 
@@ -16638,28 +16362,28 @@ R3Status r3RigidBody_SetLockedAxes(struct R3RigidBodyHandle handle,
  * Return the rigid body translation/rotation lock bitmask.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL uint8_t r3RigidBody_LockedAxes(struct R3RigidBodyHandle handle);
+RAPIER_API uint8_t RAPIER_CALL r3RigidBody_LockedAxes(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the collider is a voxel shape.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Bool r3Collider_IsVoxels(struct R3ColliderHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3Collider_IsVoxels(struct R3ColliderHandle handle);
 
 /**
  * Return voxel information at a flat index; found = 0 if absent.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3VoxelQuery r3Collider_VoxelAtFlatId(struct R3ColliderHandle handle,
+RAPIER_API
+struct R3VoxelQuery RAPIER_CALL r3Collider_VoxelAtFlatId(struct R3ColliderHandle handle,
                                                    uint32_t id);
 
 /**
  * Fill or clear the voxel at key; the collider must have a voxel shape.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetVoxel(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetVoxel(struct R3ColliderHandle handle,
                                  struct R3VoxelKey key,
                                  R3Bool filled);
 
@@ -16667,139 +16391,135 @@ R3Status r3Collider_SetVoxel(struct R3ColliderHandle handle,
  * Return the rigid body next kinematic world-space pose.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3Pose r3RigidBody_NextPosition(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3Pose RAPIER_CALL r3RigidBody_NextPosition(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space rotation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R3Rotation r3RigidBody_Rotation(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3Rotation RAPIER_CALL r3RigidBody_Rotation(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body world-space center of mass.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3RigidBody_CenterOfMass(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3Vector RAPIER_CALL r3RigidBody_CenterOfMass(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body body-local center of mass.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3RigidBody_LocalCenterOfMass(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3Vector RAPIER_CALL r3RigidBody_LocalCenterOfMass(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body accumulated user-applied world-space force.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL struct R3Vector r3RigidBody_UserForce(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3Vector RAPIER_CALL r3RigidBody_UserForce(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body accumulated user-applied world-space torque.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3AngVector r3RigidBody_UserTorque(struct R3RigidBodyHandle handle);
+RAPIER_API R3AngVector RAPIER_CALL r3RigidBody_UserTorque(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body body type (R3_DYNAMIC, R3_FIXED, or a kinematic kind).
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL uint32_t r3RigidBody_BodyType(struct R3RigidBodyHandle handle);
+RAPIER_API uint32_t RAPIER_CALL r3RigidBody_BodyType(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body mass.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3RigidBody_Mass(struct R3RigidBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3RigidBody_Mass(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body gravity multiplier.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3RigidBody_GravityScale(struct R3RigidBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3RigidBody_GravityScale(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body linear damping coefficient.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3RigidBody_LinearDamping(struct R3RigidBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3RigidBody_LinearDamping(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body angular damping coefficient.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3RigidBody_AngularDamping(struct R3RigidBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3RigidBody_AngularDamping(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body kinetic energy.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3RigidBody_KineticEnergy(struct R3RigidBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3RigidBody_KineticEnergy(struct R3RigidBodyHandle handle);
 
 /**
  * Return the rigid body soft-CCD prediction distance.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Real r3RigidBody_SoftCcdPrediction(struct R3RigidBodyHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3RigidBody_SoftCcdPrediction(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is using continuous collision detection.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsCcdEnabled(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsCcdEnabled(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is dynamic.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsDynamic(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsDynamic(struct R3RigidBodyHandle handle);
 
 /**
  * Return the associated soft-body handle, or an invalid handle if this is not a soft proxy.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyHandle r3RigidBody_SoftBody(struct R3RigidBodyHandle handle);
+RAPIER_API struct R3SoftBodyHandle RAPIER_CALL r3RigidBody_SoftBody(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is a soft-body proxy.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsSoftFrame(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsSoftFrame(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is fixed.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsFixed(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsFixed(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is kinematic.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsKinematic(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsKinematic(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is moving.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsMoving(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsMoving(struct R3RigidBodyHandle handle);
 
 /**
  * Return whether the rigid body is currently using CCD for its motion.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Bool r3RigidBody_IsCcdActive(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsCcdActive(struct R3RigidBodyHandle handle);
 
 /**
  * Set the rigid body world-space rotation.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetRotation(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetRotation(struct R3RigidBodyHandle handle,
                                       struct R3Rotation value,
                                       R3Bool wake_up);
 
@@ -16808,8 +16528,8 @@ R3Status r3RigidBody_SetRotation(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetBodyType(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetBodyType(struct R3RigidBodyHandle handle,
                                        uint32_t value,
                                        R3Bool wake_up);
 
@@ -16817,8 +16537,8 @@ R3Status r3RigidBody_SetBodyType(struct R3RigidBodyHandle handle,
  * Set the rigid body next kinematic world-space rotation.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetNextKinematicRotation(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetNextKinematicRotation(struct R3RigidBodyHandle handle,
                                                      struct R3Rotation value);
 
 /**
@@ -16826,8 +16546,8 @@ R3Status r3RigidBody_SetNextKinematicRotation(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetAdditionalMass(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetAdditionalMass(struct R3RigidBodyHandle handle,
                                              R3Real value,
                                              R3Bool wake_up);
 
@@ -16835,16 +16555,16 @@ R3Status r3RigidBody_SetAdditionalMass(struct R3RigidBodyHandle handle,
  * Set the rigid body soft-CCD prediction distance.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetSoftCcdPrediction(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetSoftCcdPrediction(struct R3RigidBodyHandle handle,
                                                  R3Real value);
 
 /**
  * Enable or disable using continuous collision detection for the rigid body.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetCcdEnabled(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetCcdEnabled(struct R3RigidBodyHandle handle,
                                          R3Bool value);
 
 /**
@@ -16852,8 +16572,8 @@ R3Status r3RigidBody_SetCcdEnabled(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetTranslationsLocked(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetTranslationsLocked(struct R3RigidBodyHandle handle,
                                                  R3Bool value,
                                                  R3Bool wake_up);
 
@@ -16862,8 +16582,8 @@ R3Status r3RigidBody_SetTranslationsLocked(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetRotationsLocked(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetRotationsLocked(struct R3RigidBodyHandle handle,
                                               R3Bool value,
                                               R3Bool wake_up);
 
@@ -16871,24 +16591,24 @@ R3Status r3RigidBody_SetRotationsLocked(struct R3RigidBodyHandle handle,
  * Set the rigid body signed dominance group.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetDominanceGroup(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetDominanceGroup(struct R3RigidBodyHandle handle,
                                              int8_t value);
 
 /**
  * Set the rigid body additional solver iterations for connected bodies.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetAdditionalSolverIterations(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetAdditionalSolverIterations(struct R3RigidBodyHandle handle,
                                                           size_t value);
 
 /**
  * Set the rigid body additional PGS iterations.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetAdditionalPgsIterations(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetAdditionalPgsIterations(struct R3RigidBodyHandle handle,
                                                        size_t value);
 
 /**
@@ -16896,8 +16616,8 @@ R3Status r3RigidBody_SetAdditionalPgsIterations(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_AddTorque(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_AddTorque(struct R3RigidBodyHandle handle,
                                     R3AngVector value,
                                     R3Bool wake_up);
 
@@ -16906,8 +16626,8 @@ R3Status r3RigidBody_AddTorque(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_ApplyTorqueImpulse(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_ApplyTorqueImpulse(struct R3RigidBodyHandle handle,
                                               R3AngVector value,
                                               R3Bool wake_up);
 
@@ -16916,8 +16636,8 @@ R3Status r3RigidBody_ApplyTorqueImpulse(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_AddForceAtPoint(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_AddForceAtPoint(struct R3RigidBodyHandle handle,
                                             struct R3Vector value,
                                             struct R3Vector point,
                                             R3Bool wake_up);
@@ -16927,16 +16647,16 @@ R3Status r3RigidBody_AddForceAtPoint(struct R3RigidBodyHandle handle,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_ResetTorques(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_ResetTorques(struct R3RigidBodyHandle handle,
                                        R3Bool wake_up);
 
 /**
  * Return world-space velocity at a world-space point, including angular motion.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3RigidBody_VelocityAtPoint(struct R3RigidBodyHandle handle,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3RigidBody_VelocityAtPoint(struct R3RigidBodyHandle handle,
                                                   struct R3Vector point);
 
 /**
@@ -16944,8 +16664,8 @@ struct R3Vector r3RigidBody_VelocityAtPoint(struct R3RigidBodyHandle handle,
  * @see @ref output_buffers
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-size_t r3RigidBody_Colliders(struct R3RigidBodyHandle handle,
+RAPIER_API
+size_t RAPIER_CALL r3RigidBody_Colliders(struct R3RigidBodyHandle handle,
                                 struct R3ColliderHandle *buffer,
                                 size_t capacity);
 
@@ -16954,8 +16674,7 @@ size_t r3RigidBody_Colliders(struct R3RigidBodyHandle handle,
  * Return whether the rigid body is using gyroscopic forces.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3RigidBody_GyroscopicForcesEnabled(struct R3RigidBodyHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_GyroscopicForcesEnabled(struct R3RigidBodyHandle handle);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -16963,8 +16682,8 @@ R3Bool r3RigidBody_GyroscopicForcesEnabled(struct R3RigidBodyHandle handle);
  * Enable or disable using gyroscopic forces for the rigid body.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3RigidBody_SetGyroscopicForcesEnabled(struct R3RigidBodyHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetGyroscopicForcesEnabled(struct R3RigidBodyHandle handle,
                                                        R3Bool enabled);
 #endif
 
@@ -16972,187 +16691,175 @@ R3Status r3RigidBody_SetGyroscopicForcesEnabled(struct R3RigidBodyHandle handle,
  * Set the collider mass per unit volume.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetDensity(struct R3ColliderHandle handle,
-                                   R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3Collider_SetDensity(struct R3ColliderHandle handle, R3Real value);
 
 /**
  * Set the collider mass.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetMass(struct R3ColliderHandle handle,
-                                R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3Collider_SetMass(struct R3ColliderHandle handle, R3Real value);
 
 /**
  * Enable or disable the collider.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetEnabled(struct R3ColliderHandle handle,
-                                   R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3Collider_SetEnabled(struct R3ColliderHandle handle, R3Bool value);
 
 /**
  * Set the collider contact-force filtering groups.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetSolverGroups(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetSolverGroups(struct R3ColliderHandle handle,
                                          struct R3InteractionGroups value);
 
 /**
  * Set the collider friction combination rule (R3_COMBINE_*).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetFrictionCombineRule(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetFrictionCombineRule(struct R3ColliderHandle handle,
                                                  uint32_t value);
 
 /**
  * Set the collider restitution combination rule (R3_COMBINE_*).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetRestitutionCombineRule(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetRestitutionCombineRule(struct R3ColliderHandle handle,
                                                     uint32_t value);
 
 /**
  * Set the collider extra separation skin around the shape.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetContactSkin(struct R3ColliderHandle handle,
-                                        R3Real value);
+RAPIER_API R3Status RAPIER_CALL r3Collider_SetContactSkin(struct R3ColliderHandle handle, R3Real value);
 
 /**
  * Set the collider force threshold for contact-force events.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetContactForceEventThreshold(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetContactForceEventThreshold(struct R3ColliderHandle handle,
                                                          R3Real value);
 
 /**
  * Set the collider event-generation bitmask (R3_COLLISION_EVENTS and R3_CONTACT_FORCE_EVENTS).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetActiveEvents(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetActiveEvents(struct R3ColliderHandle handle,
                                          uint32_t value);
 
 /**
  * Set the collider physics-hook activation bitmask.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetActiveHooks(struct R3ColliderHandle handle,
-                                        uint32_t value);
+RAPIER_API R3Status RAPIER_CALL r3Collider_SetActiveHooks(struct R3ColliderHandle handle, uint32_t value);
 
 /**
  * Set the collider body-type collision activation bitmask.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetActiveCollisionTypes(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetActiveCollisionTypes(struct R3ColliderHandle handle,
                                                   uint16_t value);
 
 /**
  * Return the collider world-space rotation.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R3Rotation r3Collider_Rotation(struct R3ColliderHandle handle);
+RAPIER_API struct R3Rotation RAPIER_CALL r3Collider_Rotation(struct R3ColliderHandle handle);
 
 /**
  * Return the collider collision filtering groups.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3InteractionGroups r3Collider_CollisionGroups(struct R3ColliderHandle handle);
+RAPIER_API
+struct R3InteractionGroups RAPIER_CALL r3Collider_CollisionGroups(struct R3ColliderHandle handle);
 
 /**
  * Return the collider contact-force filtering groups.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-struct R3InteractionGroups r3Collider_SolverGroups(struct R3ColliderHandle handle);
+RAPIER_API struct R3InteractionGroups RAPIER_CALL r3Collider_SolverGroups(struct R3ColliderHandle handle);
 
 /**
  * Return the collider application-owned 128-bit user value.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R3UserData r3Collider_UserData(struct R3ColliderHandle handle);
+RAPIER_API struct R3UserData RAPIER_CALL r3Collider_UserData(struct R3ColliderHandle handle);
 
 /**
  * Return the collider event-generation bitmask (R3_COLLISION_EVENTS and
  * R3_CONTACT_FORCE_EVENTS).
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL uint32_t r3Collider_ActiveEvents(struct R3ColliderHandle handle);
+RAPIER_API uint32_t RAPIER_CALL r3Collider_ActiveEvents(struct R3ColliderHandle handle);
 
 /**
  * Return the collider mass.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Real r3Collider_Mass(struct R3ColliderHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3Collider_Mass(struct R3ColliderHandle handle);
 
 /**
  * Return the collider mass per unit volume.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Real r3Collider_Density(struct R3ColliderHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3Collider_Density(struct R3ColliderHandle handle);
 
 /**
  * Return the collider current volume.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Real r3Collider_Volume(struct R3ColliderHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3Collider_Volume(struct R3ColliderHandle handle);
 
 /**
  * Return the collider extra separation skin around the shape.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Real r3Collider_ContactSkin(struct R3ColliderHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3Collider_ContactSkin(struct R3ColliderHandle handle);
 
 /**
  * Return the collider force threshold for contact-force events.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Real r3Collider_ContactForceEventThreshold(struct R3ColliderHandle handle);
+RAPIER_API R3Real RAPIER_CALL r3Collider_ContactForceEventThreshold(struct R3ColliderHandle handle);
 
 /**
  * Return whether the collider is enabled.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Bool r3Collider_IsEnabled(struct R3ColliderHandle handle);
+RAPIER_API R3Bool RAPIER_CALL r3Collider_IsEnabled(struct R3ColliderHandle handle);
 
 /**
  * Return the current world-space axis-aligned bounds.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL struct R3Aabb r3Collider_ComputeAabb(struct R3ColliderHandle handle);
+RAPIER_API struct R3Aabb RAPIER_CALL r3Collider_ComputeAabb(struct R3ColliderHandle handle);
 
 /**
  * Return an owned wrapper sharing the collider geometry. Release with r3FreeSharedShape.
  * Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3SharedShape *r3Collider_CloneShape(struct R3ColliderHandle handle);
+RAPIER_API R3SharedShape *RAPIER_CALL r3Collider_CloneShape(struct R3ColliderHandle handle);
 
 /**
  * Replace collider geometry by sharing shape; the supplied wrapper is not consumed.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetShape(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetShape(struct R3ColliderHandle handle,
                                  const R3SharedShape *shape);
 
 /**
  * Set the collider pose relative to the parent rigid body.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL
-R3Status r3Collider_SetPositionWrtParent(struct R3ColliderHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetPositionWrtParent(struct R3ColliderHandle handle,
                                                struct R3Pose value);
 
 /**
@@ -17160,28 +16867,28 @@ R3Status r3Collider_SetPositionWrtParent(struct R3ColliderHandle handle,
  * has already been freed.
  * @ingroup rigid_bodies
  */
-RAPIER_API RAPIER_CALL R3Status r3RigidBody_ValidateHandle(struct R3RigidBodyHandle handle);
+RAPIER_API R3Status RAPIER_CALL r3RigidBody_ValidateHandle(struct R3RigidBodyHandle handle);
 
 /**
  * Validate the index and generation in the live owning world. Cannot detect a world pointer that
  * has already been freed.
  * @ingroup colliders
  */
-RAPIER_API RAPIER_CALL R3Status r3Collider_ValidateHandle(struct R3ColliderHandle handle);
+RAPIER_API R3Status RAPIER_CALL r3Collider_ValidateHandle(struct R3ColliderHandle handle);
 
 /**
  * Validate the index and generation in the live owning world. Cannot detect a world pointer that
  * has already been freed.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL R3Status r3SoftBody_ValidateHandle(struct R3SoftBodyHandle handle);
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_ValidateHandle(struct R3SoftBodyHandle handle);
 
 /**
  * Set the joint desc joint frame relative to body 1.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLocalFrame1(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetLocalFrame1(struct R3JointDesc *desc,
                                           struct R3Pose value);
 
 /**
@@ -17189,8 +16896,8 @@ R3Status r3JointDesc_SetLocalFrame1(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLocalFrame1(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLocalFrame1(struct R3ImpulseJointHandle handle,
                                              struct R3Pose value,
                                              R3Bool wake_up);
 
@@ -17198,8 +16905,8 @@ R3Status r3ImpulseJoint_SetLocalFrame1(struct R3ImpulseJointHandle handle,
  * Set the joint desc joint frame relative to body 2.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLocalFrame2(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetLocalFrame2(struct R3JointDesc *desc,
                                           struct R3Pose value);
 
 /**
@@ -17207,8 +16914,8 @@ R3Status r3JointDesc_SetLocalFrame2(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLocalFrame2(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLocalFrame2(struct R3ImpulseJointHandle handle,
                                              struct R3Pose value,
                                              R3Bool wake_up);
 
@@ -17216,8 +16923,8 @@ R3Status r3ImpulseJoint_SetLocalFrame2(struct R3ImpulseJointHandle handle,
  * Set the joint desc joint anchor relative to body 1.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLocalAnchor1(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetLocalAnchor1(struct R3JointDesc *desc,
                                            struct R3Vector value);
 
 /**
@@ -17225,8 +16932,8 @@ R3Status r3JointDesc_SetLocalAnchor1(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLocalAnchor1(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLocalAnchor1(struct R3ImpulseJointHandle handle,
                                               struct R3Vector value,
                                               R3Bool wake_up);
 
@@ -17234,8 +16941,8 @@ R3Status r3ImpulseJoint_SetLocalAnchor1(struct R3ImpulseJointHandle handle,
  * Set the joint desc joint anchor relative to body 2.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLocalAnchor2(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetLocalAnchor2(struct R3JointDesc *desc,
                                            struct R3Vector value);
 
 /**
@@ -17243,8 +16950,8 @@ R3Status r3JointDesc_SetLocalAnchor2(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLocalAnchor2(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLocalAnchor2(struct R3ImpulseJointHandle handle,
                                               struct R3Vector value,
                                               R3Bool wake_up);
 
@@ -17252,17 +16959,15 @@ R3Status r3ImpulseJoint_SetLocalAnchor2(struct R3ImpulseJointHandle handle,
  * Enable or disable allowing contacts between connected bodies for the joint desc.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetContactsEnabled(struct R3JointDesc *desc,
-                                              R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3JointDesc_SetContactsEnabled(struct R3JointDesc *desc, R3Bool value);
 
 /**
  * Enable or disable allowing contacts between connected bodies for the impulse joint.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetContactsEnabled(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetContactsEnabled(struct R3ImpulseJointHandle handle,
                                                  R3Bool value,
                                                  R3Bool wake_up);
 
@@ -17270,17 +16975,15 @@ R3Status r3ImpulseJoint_SetContactsEnabled(struct R3ImpulseJointHandle handle,
  * Enable or disable the joint desc.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetEnabled(struct R3JointDesc *desc,
-                                     R3Bool value);
+RAPIER_API R3Status RAPIER_CALL r3JointDesc_SetEnabled(struct R3JointDesc *desc, R3Bool value);
 
 /**
  * Enable or disable the impulse joint.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetEnabled(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetEnabled(struct R3ImpulseJointHandle handle,
                                         R3Bool value,
                                         R3Bool wake_up);
 
@@ -17288,8 +16991,8 @@ R3Status r3ImpulseJoint_SetEnabled(struct R3ImpulseJointHandle handle,
  * Set the joint desc joint spring coefficients.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetSoftness(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetSoftness(struct R3JointDesc *desc,
                                       struct R3SpringCoefficients value);
 
 /**
@@ -17297,8 +17000,8 @@ R3Status r3JointDesc_SetSoftness(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetSoftness(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetSoftness(struct R3ImpulseJointHandle handle,
                                          struct R3SpringCoefficients value,
                                          R3Bool wake_up);
 
@@ -17306,17 +17009,15 @@ R3Status r3ImpulseJoint_SetSoftness(struct R3ImpulseJointHandle handle,
  * Set the joint desc translation/rotation lock bitmask.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLockedAxes(struct R3JointDesc *desc,
-                                         uint8_t value);
+RAPIER_API R3Status RAPIER_CALL r3JointDesc_SetLockedAxes(struct R3JointDesc *desc, uint8_t value);
 
 /**
  * Set the impulse joint translation/rotation lock bitmask.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLockedAxes(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLockedAxes(struct R3ImpulseJointHandle handle,
                                             uint8_t value,
                                             R3Bool wake_up);
 
@@ -17324,17 +17025,15 @@ R3Status r3ImpulseJoint_SetLockedAxes(struct R3ImpulseJointHandle handle,
  * Set the joint desc joint axis mask with limits enabled.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLimitAxes(struct R3JointDesc *desc,
-                                        uint8_t value);
+RAPIER_API R3Status RAPIER_CALL r3JointDesc_SetLimitAxes(struct R3JointDesc *desc, uint8_t value);
 
 /**
  * Set the impulse joint joint axis mask with limits enabled.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLimitAxes(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLimitAxes(struct R3ImpulseJointHandle handle,
                                            uint8_t value,
                                            R3Bool wake_up);
 
@@ -17342,17 +17041,15 @@ R3Status r3ImpulseJoint_SetLimitAxes(struct R3ImpulseJointHandle handle,
  * Set the joint desc joint axis mask with motors enabled.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetMotorAxes(struct R3JointDesc *desc,
-                                        uint8_t value);
+RAPIER_API R3Status RAPIER_CALL r3JointDesc_SetMotorAxes(struct R3JointDesc *desc, uint8_t value);
 
 /**
  * Set the impulse joint joint axis mask with motors enabled.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetMotorAxes(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetMotorAxes(struct R3ImpulseJointHandle handle,
                                            uint8_t value,
                                            R3Bool wake_up);
 
@@ -17360,17 +17057,15 @@ R3Status r3ImpulseJoint_SetMotorAxes(struct R3ImpulseJointHandle handle,
  * Set the joint desc coupled joint axis mask.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetCoupledAxes(struct R3JointDesc *desc,
-                                          uint8_t value);
+RAPIER_API R3Status RAPIER_CALL r3JointDesc_SetCoupledAxes(struct R3JointDesc *desc, uint8_t value);
 
 /**
  * Set the impulse joint coupled joint axis mask.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetCoupledAxes(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetCoupledAxes(struct R3ImpulseJointHandle handle,
                                              uint8_t value,
                                              R3Bool wake_up);
 
@@ -17378,8 +17073,8 @@ R3Status r3ImpulseJoint_SetCoupledAxes(struct R3ImpulseJointHandle handle,
  * Set the joint desc joint principal axis in body 1 local coordinates.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLocalAxis1(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetLocalAxis1(struct R3JointDesc *desc,
                                          struct R3Vector value);
 
 /**
@@ -17387,8 +17082,8 @@ R3Status r3JointDesc_SetLocalAxis1(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLocalAxis1(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLocalAxis1(struct R3ImpulseJointHandle handle,
                                             struct R3Vector value,
                                             R3Bool wake_up);
 
@@ -17396,8 +17091,8 @@ R3Status r3ImpulseJoint_SetLocalAxis1(struct R3ImpulseJointHandle handle,
  * Set the joint desc joint principal axis in body 2 local coordinates.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLocalAxis2(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetLocalAxis2(struct R3JointDesc *desc,
                                          struct R3Vector value);
 
 /**
@@ -17405,8 +17100,8 @@ R3Status r3JointDesc_SetLocalAxis2(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLocalAxis2(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLocalAxis2(struct R3ImpulseJointHandle handle,
                                             struct R3Vector value,
                                             R3Bool wake_up);
 
@@ -17414,8 +17109,8 @@ R3Status r3ImpulseJoint_SetLocalAxis2(struct R3ImpulseJointHandle handle,
  * Set the joint desc minimum and maximum limits on an axis (linear distance or angular radians).
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetLimits(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetLimits(struct R3JointDesc *desc,
                                     uint32_t joint_axis,
                                     R3Real min,
                                     R3Real max);
@@ -17426,8 +17121,8 @@ R3Status r3JointDesc_SetLimits(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetLimits(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetLimits(struct R3ImpulseJointHandle handle,
                                        uint32_t joint_axis,
                                        R3Real min,
                                        R3Real max,
@@ -17437,8 +17132,8 @@ R3Status r3ImpulseJoint_SetLimits(struct R3ImpulseJointHandle handle,
  * Set the joint desc motor position/velocity targets and spring coefficients on an axis.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetMotor(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetMotor(struct R3JointDesc *desc,
                                    uint32_t joint_axis,
                                    R3Real target_position,
                                    R3Real target_velocity,
@@ -17450,8 +17145,8 @@ R3Status r3JointDesc_SetMotor(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetMotor(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetMotor(struct R3ImpulseJointHandle handle,
                                       uint32_t joint_axis,
                                       R3Real target_position,
                                       R3Real target_velocity,
@@ -17463,8 +17158,8 @@ R3Status r3ImpulseJoint_SetMotor(struct R3ImpulseJointHandle handle,
  * Set the joint desc maximum motor force or torque on an axis.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetMotorMaxForce(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetMotorMaxForce(struct R3JointDesc *desc,
                                              uint32_t joint_axis,
                                              R3Real max_force);
 
@@ -17473,8 +17168,8 @@ R3Status r3JointDesc_SetMotorMaxForce(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetMotorMaxForce(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetMotorMaxForce(struct R3ImpulseJointHandle handle,
                                                 uint32_t joint_axis,
                                                 R3Real max_force,
                                                 R3Bool wake_up);
@@ -17483,8 +17178,8 @@ R3Status r3ImpulseJoint_SetMotorMaxForce(struct R3ImpulseJointHandle handle,
  * Set the joint desc motor model on an axis (0 = acceleration-based, 1 = force-based).
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetMotorModel(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetMotorModel(struct R3JointDesc *desc,
                                          uint32_t joint_axis,
                                          uint32_t model);
 
@@ -17493,8 +17188,8 @@ R3Status r3JointDesc_SetMotorModel(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetMotorModel(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetMotorModel(struct R3ImpulseJointHandle handle,
                                             uint32_t joint_axis,
                                             uint32_t model,
                                             R3Bool wake_up);
@@ -17503,8 +17198,8 @@ R3Status r3ImpulseJoint_SetMotorModel(struct R3ImpulseJointHandle handle,
  * Set the joint desc application-owned 128-bit user value.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetUserData(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetUserData(struct R3JointDesc *desc,
                                        struct R3UserData value);
 
 /**
@@ -17512,8 +17207,8 @@ R3Status r3JointDesc_SetUserData(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetUserData(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetUserData(struct R3ImpulseJointHandle handle,
                                           struct R3UserData value,
                                           R3Bool wake_up);
 
@@ -17521,8 +17216,8 @@ R3Status r3ImpulseJoint_SetUserData(struct R3ImpulseJointHandle handle,
  * Set the joint desc motor position target and spring coefficients on an axis.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetMotorPosition(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetMotorPosition(struct R3JointDesc *desc,
                                             uint32_t joint_axis,
                                             R3Real target_position,
                                             R3Real stiffness,
@@ -17533,8 +17228,8 @@ R3Status r3JointDesc_SetMotorPosition(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetMotorPosition(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetMotorPosition(struct R3ImpulseJointHandle handle,
                                                uint32_t joint_axis,
                                                R3Real target_position,
                                                R3Real stiffness,
@@ -17545,8 +17240,8 @@ R3Status r3ImpulseJoint_SetMotorPosition(struct R3ImpulseJointHandle handle,
  * Set the joint desc motor velocity target and damping factor on an axis.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3JointDesc_SetMotorVelocity(struct R3JointDesc *desc,
+RAPIER_API
+R3Status RAPIER_CALL r3JointDesc_SetMotorVelocity(struct R3JointDesc *desc,
                                             uint32_t joint_axis,
                                             R3Real target_velocity,
                                             R3Real factor);
@@ -17556,8 +17251,8 @@ R3Status r3JointDesc_SetMotorVelocity(struct R3JointDesc *desc,
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup joints
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ImpulseJoint_SetMotorVelocity(struct R3ImpulseJointHandle handle,
+RAPIER_API
+R3Status RAPIER_CALL r3ImpulseJoint_SetMotorVelocity(struct R3ImpulseJointHandle handle,
                                                uint32_t joint_axis,
                                                R3Real target_velocity,
                                                R3Real factor,
@@ -17569,8 +17264,8 @@ R3Status r3ImpulseJoint_SetMotorVelocity(struct R3ImpulseJointHandle handle,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3ConvexDecompositionSharedShape(struct R3VectorView vertices,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3ConvexDecompositionSharedShape(struct R3VectorView vertices,
                                                       R3SurfaceElementView indices);
 
 /**
@@ -17579,8 +17274,8 @@ R3SharedShape *r3ConvexDecompositionSharedShape(struct R3VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3VoxelsSharedShapeFromPoints(struct R3Vector voxel_size,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3VoxelsSharedShapeFromPoints(struct R3Vector voxel_size,
                                                     struct R3VectorView points);
 
 /**
@@ -17589,8 +17284,8 @@ R3SharedShape *r3VoxelsSharedShapeFromPoints(struct R3Vector voxel_size,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3VoxelizedMeshSharedShape(struct R3VectorView vertices,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3VoxelizedMeshSharedShape(struct R3VectorView vertices,
                                                 R3SurfaceElementView indices,
                                                 R3Real voxel_size);
 
@@ -17599,7 +17294,7 @@ R3SharedShape *r3VoxelizedMeshSharedShape(struct R3VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL R3SharedShape *r3ConvexHullSharedShape(struct R3VectorView vertices);
+RAPIER_API R3SharedShape *RAPIER_CALL r3ConvexHullSharedShape(struct R3VectorView vertices);
 
 /**
  * Create an owned triangle mesh from vertices and triangle indices. Release it with
@@ -17607,8 +17302,8 @@ RAPIER_API RAPIER_CALL R3SharedShape *r3ConvexHullSharedShape(struct R3VectorVie
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3TrimeshSharedShape(struct R3VectorView vertices,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3TrimeshSharedShape(struct R3VectorView vertices,
                                          struct R3TriangleView indices);
 
 /**
@@ -17616,8 +17311,8 @@ R3SharedShape *r3TrimeshSharedShape(struct R3VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3PolylineSharedShape(struct R3VectorView vertices,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3PolylineSharedShape(struct R3VectorView vertices,
                                           struct R3EdgeView indices);
 
 #if defined(RAPIER_DIM2)
@@ -17627,8 +17322,8 @@ R3SharedShape *r3PolylineSharedShape(struct R3VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3OrientedPolylineSharedShape(struct R3VectorView vertices,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3OrientedPolylineSharedShape(struct R3VectorView vertices,
                                                    struct R3EdgeView indices);
 #endif
 
@@ -17639,8 +17334,7 @@ R3SharedShape *r3OrientedPolylineSharedShape(struct R3VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3ConvexPolylineSharedShape(struct R3VectorView vertices);
+RAPIER_API R3SharedShape *RAPIER_CALL r3ConvexPolylineSharedShape(struct R3VectorView vertices);
 #endif
 
 /**
@@ -17648,8 +17342,8 @@ R3SharedShape *r3ConvexPolylineSharedShape(struct R3VectorView vertices);
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3RoundConvexHullSharedShape(struct R3VectorView vertices,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3RoundConvexHullSharedShape(struct R3VectorView vertices,
                                                    R3Real border_radius);
 
 /**
@@ -17658,8 +17352,8 @@ R3SharedShape *r3RoundConvexHullSharedShape(struct R3VectorView vertices,
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3TrimeshSharedShapeWithFlags(struct R3VectorView vertices,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3TrimeshSharedShapeWithFlags(struct R3VectorView vertices,
                                                     struct R3TriangleView indices,
                                                     uint32_t flags);
 
@@ -17667,22 +17361,22 @@ R3SharedShape *r3TrimeshSharedShapeWithFlags(struct R3VectorView vertices,
  * Create an owned world. Release it with FreeWorld.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL struct R3World *r3NewWorld(void);
+RAPIER_API struct R3World *RAPIER_CALL r3NewWorld(void);
 
 /**
  * Free a world. NULL is allowed. Rejects destruction from an active callback.
  * The caller must prevent other threads from starting calls during destruction.
  * @ingroup worlds
  */
-RAPIER_API RAPIER_CALL R3Status r3FreeWorld(struct R3World *world);
+RAPIER_API R3Status RAPIER_CALL r3FreeWorld(struct R3World *world);
 
 /**
  * Compute a velocity correction from callback-visible body state, updating the PID controller
  * history. The context is valid only during its callback.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3VelocityCorrection r3ReadPidController_RigidBodyCorrection(const struct R3ReadContext *context,
+RAPIER_API
+struct R3VelocityCorrection RAPIER_CALL r3ReadPidController_RigidBodyCorrection(const struct R3ReadContext *context,
                                                                            struct R3PidController *controller,
                                                                            R3Real dt,
                                                                            struct R3RigidBodyHandle body,
@@ -17695,15 +17389,15 @@ struct R3VelocityCorrection r3ReadPidController_RigidBodyCorrection(const struct
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL size_t r3ReadRigidBodyCount(const struct R3ReadContext *context);
+RAPIER_API size_t RAPIER_CALL r3ReadRigidBodyCount(const struct R3ReadContext *context);
 
 /**
  * Copy entity handles. Uses only the callback-scoped read context; never retain the context.
  * @see @ref output_buffers
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r3ReadRigidBodyHandles(const struct R3ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r3ReadRigidBodyHandles(const struct R3ReadContext *context,
                                    struct R3RigidBodyHandle *buffer,
                                    size_t capacity);
 
@@ -17712,8 +17406,8 @@ size_t r3ReadRigidBodyHandles(const struct R3ReadContext *context,
  * false. Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_Contains(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_Contains(const struct R3ReadContext *context,
                                      struct R3RigidBodyHandle handle);
 
 /**
@@ -17721,15 +17415,15 @@ R3Bool r3ReadRigidBody_Contains(const struct R3ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL size_t r3ReadColliderCount(const struct R3ReadContext *context);
+RAPIER_API size_t RAPIER_CALL r3ReadColliderCount(const struct R3ReadContext *context);
 
 /**
  * Copy entity handles. Uses only the callback-scoped read context; never retain the context.
  * @see @ref output_buffers
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r3ReadColliderHandles(const struct R3ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r3ReadColliderHandles(const struct R3ReadContext *context,
                                  struct R3ColliderHandle *buffer,
                                  size_t capacity);
 
@@ -17738,8 +17432,8 @@ size_t r3ReadColliderHandles(const struct R3ReadContext *context,
  * Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadCollider_Contains(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadCollider_Contains(const struct R3ReadContext *context,
                                    struct R3ColliderHandle handle);
 
 /**
@@ -17748,8 +17442,8 @@ R3Bool r3ReadCollider_Contains(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r3ReadCollider_ShapeIdentity(const struct R3ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r3ReadCollider_ShapeIdentity(const struct R3ReadContext *context,
                                         struct R3ColliderHandle handle);
 
 /**
@@ -17757,8 +17451,8 @@ size_t r3ReadCollider_ShapeIdentity(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3MassProperties r3ReadCollider_MassProperties(const struct R3ReadContext *context,
+RAPIER_API
+struct R3MassProperties RAPIER_CALL r3ReadCollider_MassProperties(const struct R3ReadContext *context,
                                                            struct R3ColliderHandle handle);
 
 /**
@@ -17766,8 +17460,8 @@ struct R3MassProperties r3ReadCollider_MassProperties(const struct R3ReadContext
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-uint8_t r3ReadRigidBody_LockedAxes(const struct R3ReadContext *context,
+RAPIER_API
+uint8_t RAPIER_CALL r3ReadRigidBody_LockedAxes(const struct R3ReadContext *context,
                                         struct R3RigidBodyHandle handle);
 
 /**
@@ -17775,8 +17469,8 @@ uint8_t r3ReadRigidBody_LockedAxes(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadCollider_IsVoxels(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadCollider_IsVoxels(const struct R3ReadContext *context,
                                     struct R3ColliderHandle handle);
 
 /**
@@ -17784,8 +17478,8 @@ R3Bool r3ReadCollider_IsVoxels(const struct R3ReadContext *context,
  * read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3VoxelQuery r3ReadCollider_VoxelAtFlatId(const struct R3ReadContext *context,
+RAPIER_API
+struct R3VoxelQuery RAPIER_CALL r3ReadCollider_VoxelAtFlatId(const struct R3ReadContext *context,
                                                         struct R3ColliderHandle handle,
                                                         uint32_t id);
 
@@ -17794,8 +17488,8 @@ struct R3VoxelQuery r3ReadCollider_VoxelAtFlatId(const struct R3ReadContext *con
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Pose r3ReadRigidBody_NextPosition(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Pose RAPIER_CALL r3ReadRigidBody_NextPosition(const struct R3ReadContext *context,
                                                  struct R3RigidBodyHandle handle);
 
 /**
@@ -17803,8 +17497,8 @@ struct R3Pose r3ReadRigidBody_NextPosition(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Rotation r3ReadRigidBody_Rotation(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Rotation RAPIER_CALL r3ReadRigidBody_Rotation(const struct R3ReadContext *context,
                                                 struct R3RigidBodyHandle handle);
 
 /**
@@ -17812,8 +17506,8 @@ struct R3Rotation r3ReadRigidBody_Rotation(const struct R3ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3ReadRigidBody_CenterOfMass(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3ReadRigidBody_CenterOfMass(const struct R3ReadContext *context,
                                                     struct R3RigidBodyHandle handle);
 
 /**
@@ -17821,8 +17515,8 @@ struct R3Vector r3ReadRigidBody_CenterOfMass(const struct R3ReadContext *context
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3ReadRigidBody_LocalCenterOfMass(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3ReadRigidBody_LocalCenterOfMass(const struct R3ReadContext *context,
                                                           struct R3RigidBodyHandle handle);
 
 /**
@@ -17830,8 +17524,8 @@ struct R3Vector r3ReadRigidBody_LocalCenterOfMass(const struct R3ReadContext *co
  * read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3ReadRigidBody_UserForce(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3ReadRigidBody_UserForce(const struct R3ReadContext *context,
                                                 struct R3RigidBodyHandle handle);
 
 /**
@@ -17839,8 +17533,8 @@ struct R3Vector r3ReadRigidBody_UserForce(const struct R3ReadContext *context,
  * read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3AngVector r3ReadRigidBody_UserTorque(const struct R3ReadContext *context,
+RAPIER_API
+R3AngVector RAPIER_CALL r3ReadRigidBody_UserTorque(const struct R3ReadContext *context,
                                              struct R3RigidBodyHandle handle);
 
 /**
@@ -17848,8 +17542,8 @@ R3AngVector r3ReadRigidBody_UserTorque(const struct R3ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-uint32_t r3ReadRigidBody_BodyType(const struct R3ReadContext *context,
+RAPIER_API
+uint32_t RAPIER_CALL r3ReadRigidBody_BodyType(const struct R3ReadContext *context,
                                        struct R3RigidBodyHandle handle);
 
 /**
@@ -17857,8 +17551,8 @@ uint32_t r3ReadRigidBody_BodyType(const struct R3ReadContext *context,
  * context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadRigidBody_Mass(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadRigidBody_Mass(const struct R3ReadContext *context,
                                  struct R3RigidBodyHandle handle);
 
 /**
@@ -17866,8 +17560,8 @@ R3Real r3ReadRigidBody_Mass(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadRigidBody_GravityScale(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadRigidBody_GravityScale(const struct R3ReadContext *context,
                                           struct R3RigidBodyHandle handle);
 
 /**
@@ -17875,8 +17569,8 @@ R3Real r3ReadRigidBody_GravityScale(const struct R3ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadRigidBody_LinearDamping(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadRigidBody_LinearDamping(const struct R3ReadContext *context,
                                            struct R3RigidBodyHandle handle);
 
 /**
@@ -17884,8 +17578,8 @@ R3Real r3ReadRigidBody_LinearDamping(const struct R3ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadRigidBody_AngularDamping(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadRigidBody_AngularDamping(const struct R3ReadContext *context,
                                             struct R3RigidBodyHandle handle);
 
 /**
@@ -17893,8 +17587,8 @@ R3Real r3ReadRigidBody_AngularDamping(const struct R3ReadContext *context,
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadRigidBody_KineticEnergy(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadRigidBody_KineticEnergy(const struct R3ReadContext *context,
                                            struct R3RigidBodyHandle handle);
 
 /**
@@ -17902,8 +17596,8 @@ R3Real r3ReadRigidBody_KineticEnergy(const struct R3ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadRigidBody_SoftCcdPrediction(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadRigidBody_SoftCcdPrediction(const struct R3ReadContext *context,
                                                 struct R3RigidBodyHandle handle);
 
 /**
@@ -17911,8 +17605,8 @@ R3Real r3ReadRigidBody_SoftCcdPrediction(const struct R3ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsCcdEnabled(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsCcdEnabled(const struct R3ReadContext *context,
                                            struct R3RigidBodyHandle handle);
 
 /**
@@ -17920,8 +17614,8 @@ R3Bool r3ReadRigidBody_IsCcdEnabled(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsDynamic(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsDynamic(const struct R3ReadContext *context,
                                        struct R3RigidBodyHandle handle);
 
 /**
@@ -17929,8 +17623,8 @@ R3Bool r3ReadRigidBody_IsDynamic(const struct R3ReadContext *context,
  * only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3SoftBodyHandle r3ReadRigidBody_SoftBody(const struct R3ReadContext *context,
+RAPIER_API
+struct R3SoftBodyHandle RAPIER_CALL r3ReadRigidBody_SoftBody(const struct R3ReadContext *context,
                                                        struct R3RigidBodyHandle handle);
 
 /**
@@ -17938,8 +17632,8 @@ struct R3SoftBodyHandle r3ReadRigidBody_SoftBody(const struct R3ReadContext *con
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsSoftFrame(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsSoftFrame(const struct R3ReadContext *context,
                                           struct R3RigidBodyHandle handle);
 
 /**
@@ -17947,8 +17641,8 @@ R3Bool r3ReadRigidBody_IsSoftFrame(const struct R3ReadContext *context,
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsFixed(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsFixed(const struct R3ReadContext *context,
                                      struct R3RigidBodyHandle handle);
 
 /**
@@ -17956,8 +17650,8 @@ R3Bool r3ReadRigidBody_IsFixed(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsKinematic(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsKinematic(const struct R3ReadContext *context,
                                          struct R3RigidBodyHandle handle);
 
 /**
@@ -17965,8 +17659,8 @@ R3Bool r3ReadRigidBody_IsKinematic(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsMoving(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsMoving(const struct R3ReadContext *context,
                                       struct R3RigidBodyHandle handle);
 
 /**
@@ -17974,8 +17668,8 @@ R3Bool r3ReadRigidBody_IsMoving(const struct R3ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsCcdActive(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsCcdActive(const struct R3ReadContext *context,
                                           struct R3RigidBodyHandle handle);
 
 /**
@@ -17983,8 +17677,8 @@ R3Bool r3ReadRigidBody_IsCcdActive(const struct R3ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3ReadRigidBody_VelocityAtPoint(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3ReadRigidBody_VelocityAtPoint(const struct R3ReadContext *context,
                                                        struct R3RigidBodyHandle handle,
                                                        struct R3Vector point);
 
@@ -17994,8 +17688,8 @@ struct R3Vector r3ReadRigidBody_VelocityAtPoint(const struct R3ReadContext *cont
  * @see @ref output_buffers
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r3ReadRigidBody_Colliders(const struct R3ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r3ReadRigidBody_Colliders(const struct R3ReadContext *context,
                                      struct R3RigidBodyHandle handle,
                                      struct R3ColliderHandle *buffer,
                                      size_t capacity);
@@ -18006,8 +17700,8 @@ size_t r3ReadRigidBody_Colliders(const struct R3ReadContext *context,
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_GyroscopicForcesEnabled(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_GyroscopicForcesEnabled(const struct R3ReadContext *context,
                                                       struct R3RigidBodyHandle handle);
 #endif
 
@@ -18016,8 +17710,8 @@ R3Bool r3ReadRigidBody_GyroscopicForcesEnabled(const struct R3ReadContext *conte
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Rotation r3ReadCollider_Rotation(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Rotation RAPIER_CALL r3ReadCollider_Rotation(const struct R3ReadContext *context,
                                               struct R3ColliderHandle handle);
 
 /**
@@ -18025,8 +17719,8 @@ struct R3Rotation r3ReadCollider_Rotation(const struct R3ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3InteractionGroups r3ReadCollider_CollisionGroups(const struct R3ReadContext *context,
+RAPIER_API
+struct R3InteractionGroups RAPIER_CALL r3ReadCollider_CollisionGroups(const struct R3ReadContext *context,
                                                                struct R3ColliderHandle handle);
 
 /**
@@ -18034,8 +17728,8 @@ struct R3InteractionGroups r3ReadCollider_CollisionGroups(const struct R3ReadCon
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3InteractionGroups r3ReadCollider_SolverGroups(const struct R3ReadContext *context,
+RAPIER_API
+struct R3InteractionGroups RAPIER_CALL r3ReadCollider_SolverGroups(const struct R3ReadContext *context,
                                                             struct R3ColliderHandle handle);
 
 /**
@@ -18043,8 +17737,8 @@ struct R3InteractionGroups r3ReadCollider_SolverGroups(const struct R3ReadContex
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3UserData r3ReadCollider_UserData(const struct R3ReadContext *context,
+RAPIER_API
+struct R3UserData RAPIER_CALL r3ReadCollider_UserData(const struct R3ReadContext *context,
                                                struct R3ColliderHandle handle);
 
 /**
@@ -18052,16 +17746,16 @@ struct R3UserData r3ReadCollider_UserData(const struct R3ReadContext *context,
  * R3_CONTACT_FORCE_EVENTS). Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-uint32_t r3ReadCollider_ActiveEvents(const struct R3ReadContext *context,
+RAPIER_API
+uint32_t RAPIER_CALL r3ReadCollider_ActiveEvents(const struct R3ReadContext *context,
                                          struct R3ColliderHandle handle);
 
 /**
  * Return the collider mass. Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadCollider_Mass(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadCollider_Mass(const struct R3ReadContext *context,
                                struct R3ColliderHandle handle);
 
 /**
@@ -18069,8 +17763,8 @@ R3Real r3ReadCollider_Mass(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadCollider_Density(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadCollider_Density(const struct R3ReadContext *context,
                                   struct R3ColliderHandle handle);
 
 /**
@@ -18078,8 +17772,8 @@ R3Real r3ReadCollider_Density(const struct R3ReadContext *context,
  * context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadCollider_Volume(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadCollider_Volume(const struct R3ReadContext *context,
                                  struct R3ColliderHandle handle);
 
 /**
@@ -18087,8 +17781,8 @@ R3Real r3ReadCollider_Volume(const struct R3ReadContext *context,
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadCollider_ContactSkin(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadCollider_ContactSkin(const struct R3ReadContext *context,
                                        struct R3ColliderHandle handle);
 
 /**
@@ -18096,8 +17790,8 @@ R3Real r3ReadCollider_ContactSkin(const struct R3ReadContext *context,
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadCollider_ContactForceEventThreshold(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadCollider_ContactForceEventThreshold(const struct R3ReadContext *context,
                                                         struct R3ColliderHandle handle);
 
 /**
@@ -18105,8 +17799,8 @@ R3Real r3ReadCollider_ContactForceEventThreshold(const struct R3ReadContext *con
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadCollider_IsEnabled(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadCollider_IsEnabled(const struct R3ReadContext *context,
                                      struct R3ColliderHandle handle);
 
 /**
@@ -18114,8 +17808,8 @@ R3Bool r3ReadCollider_IsEnabled(const struct R3ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Aabb r3ReadCollider_ComputeAabb(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Aabb RAPIER_CALL r3ReadCollider_ComputeAabb(const struct R3ReadContext *context,
                                               struct R3ColliderHandle handle);
 
 /**
@@ -18124,8 +17818,8 @@ struct R3Aabb r3ReadCollider_ComputeAabb(const struct R3ReadContext *context,
  * Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3SharedShape *r3ReadCollider_CloneShape(const struct R3ReadContext *context,
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3ReadCollider_CloneShape(const struct R3ReadContext *context,
                                               struct R3ColliderHandle handle);
 
 /**
@@ -18133,8 +17827,8 @@ R3SharedShape *r3ReadCollider_CloneShape(const struct R3ReadContext *context,
  * has already been freed. Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ReadRigidBody_ValidateHandle(const struct R3ReadContext *context,
+RAPIER_API
+R3Status RAPIER_CALL r3ReadRigidBody_ValidateHandle(const struct R3ReadContext *context,
                                               struct R3RigidBodyHandle handle);
 
 /**
@@ -18142,8 +17836,8 @@ R3Status r3ReadRigidBody_ValidateHandle(const struct R3ReadContext *context,
  * has already been freed. Uses only the callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Status r3ReadCollider_ValidateHandle(const struct R3ReadContext *context,
+RAPIER_API
+R3Status RAPIER_CALL r3ReadCollider_ValidateHandle(const struct R3ReadContext *context,
                                             struct R3ColliderHandle handle);
 
 /**
@@ -18151,8 +17845,8 @@ R3Status r3ReadCollider_ValidateHandle(const struct R3ReadContext *context,
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Pose r3ReadRigidBody_Position(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Pose RAPIER_CALL r3ReadRigidBody_Position(const struct R3ReadContext *context,
                                             struct R3RigidBodyHandle handle);
 
 /**
@@ -18160,8 +17854,8 @@ struct R3Pose r3ReadRigidBody_Position(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3ReadRigidBody_Translation(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3ReadRigidBody_Translation(const struct R3ReadContext *context,
                                                  struct R3RigidBodyHandle handle);
 
 /**
@@ -18169,8 +17863,8 @@ struct R3Vector r3ReadRigidBody_Translation(const struct R3ReadContext *context,
  * never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3ReadRigidBody_Linvel(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3ReadRigidBody_Linvel(const struct R3ReadContext *context,
                                             struct R3RigidBodyHandle handle);
 
 /**
@@ -18178,8 +17872,8 @@ struct R3Vector r3ReadRigidBody_Linvel(const struct R3ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3AngVector r3ReadRigidBody_Angvel(const struct R3ReadContext *context,
+RAPIER_API
+R3AngVector RAPIER_CALL r3ReadRigidBody_Angvel(const struct R3ReadContext *context,
                                         struct R3RigidBodyHandle handle);
 
 /**
@@ -18187,8 +17881,8 @@ R3AngVector r3ReadRigidBody_Angvel(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsSleeping(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsSleeping(const struct R3ReadContext *context,
                                         struct R3RigidBodyHandle handle);
 
 /**
@@ -18196,8 +17890,8 @@ R3Bool r3ReadRigidBody_IsSleeping(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadRigidBody_IsEnabled(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsEnabled(const struct R3ReadContext *context,
                                        struct R3RigidBodyHandle handle);
 
 /**
@@ -18205,8 +17899,8 @@ R3Bool r3ReadRigidBody_IsEnabled(const struct R3ReadContext *context,
  * context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3UserData r3ReadRigidBody_UserData(const struct R3ReadContext *context,
+RAPIER_API
+struct R3UserData RAPIER_CALL r3ReadRigidBody_UserData(const struct R3ReadContext *context,
                                                  struct R3RigidBodyHandle handle);
 
 /**
@@ -18214,8 +17908,8 @@ struct R3UserData r3ReadRigidBody_UserData(const struct R3ReadContext *context,
  * the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Pose r3ReadCollider_Position(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Pose RAPIER_CALL r3ReadCollider_Position(const struct R3ReadContext *context,
                                           struct R3ColliderHandle handle);
 
 /**
@@ -18223,8 +17917,8 @@ struct R3Pose r3ReadCollider_Position(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3Vector r3ReadCollider_Translation(const struct R3ReadContext *context,
+RAPIER_API
+struct R3Vector RAPIER_CALL r3ReadCollider_Translation(const struct R3ReadContext *context,
                                                struct R3ColliderHandle handle);
 
 /**
@@ -18232,8 +17926,8 @@ struct R3Vector r3ReadCollider_Translation(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadCollider_Friction(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadCollider_Friction(const struct R3ReadContext *context,
                                    struct R3ColliderHandle handle);
 
 /**
@@ -18241,8 +17935,8 @@ R3Real r3ReadCollider_Friction(const struct R3ReadContext *context,
  * retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Real r3ReadCollider_Restitution(const struct R3ReadContext *context,
+RAPIER_API
+R3Real RAPIER_CALL r3ReadCollider_Restitution(const struct R3ReadContext *context,
                                       struct R3ColliderHandle handle);
 
 /**
@@ -18250,8 +17944,8 @@ R3Real r3ReadCollider_Restitution(const struct R3ReadContext *context,
  * callback-scoped read context; never retain the context.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-R3Bool r3ReadCollider_IsSensor(const struct R3ReadContext *context,
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadCollider_IsSensor(const struct R3ReadContext *context,
                                     struct R3ColliderHandle handle);
 
 /**
@@ -18259,8 +17953,8 @@ R3Bool r3ReadCollider_IsSensor(const struct R3ReadContext *context,
  * with OK status.
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-struct R3RigidBodyHandle r3ReadCollider_Parent(const struct R3ReadContext *context,
+RAPIER_API
+struct R3RigidBodyHandle RAPIER_CALL r3ReadCollider_Parent(const struct R3ReadContext *context,
                                                    struct R3ColliderHandle handle);
 
 /**
@@ -18269,8 +17963,8 @@ struct R3RigidBodyHandle r3ReadCollider_Parent(const struct R3ReadContext *conte
  * @see @ref output_buffers
  * @ingroup callbacks
  */
-RAPIER_API RAPIER_CALL
-size_t r3ReadRigidBodyReadStates(const struct R3ReadContext *context,
+RAPIER_API
+size_t RAPIER_CALL r3ReadRigidBodyReadStates(const struct R3ReadContext *context,
                                        const struct R3RigidBodyHandle *handles,
                                        size_t handle_count,
                                        struct R3RigidBodyState *states,

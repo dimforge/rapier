@@ -67,6 +67,6 @@ header = """
 "feature = parallel" = "RAPIER_PARALLEL"
 "feature = robotics" = "RAPIER_ROBOTICS"
 [fn]
-prefix = "RAPIER_API RAPIER_CALL"
+prefix = "RAPIER_API"
 [parse]
 parse_deps = false

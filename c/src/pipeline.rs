@@ -2274,7 +2274,7 @@ pub unsafe extern "C" fn rpr_step_time_ms(world: *const RprWorld) -> f64 {
 
 /// Read ONLY trusted legacy rigid-world snapshots from debug_deserialize3.rs,
 /// produced by the identical Rapier build. This is not a stable interchange format.
-
+///
 /// Import trusted legacy Rust testbed rigid-state bytes into a new owned world. Release with
 /// rpr_free_world; see @ref snapshots.
 /// @ingroup worlds

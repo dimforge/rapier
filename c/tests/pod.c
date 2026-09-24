@@ -53,7 +53,7 @@ static void test_world_and_deformable_bindings(void) {
 
     RAPIER_TYPE(SoftBodyDesc) soft;
     RAPIER_TYPE(SoftBodyHandle) softHandle;
-    RAPIER_TYPE(Vector) vertices[3] = {{0}, {0}, {0}};
+    RAPIER_TYPE(Vector) vertices[3] = {0};
     vertices[1].x = 1;
     vertices[2].y = 1;
     soft = RAPIER_FN(DefaultSoftBodyDesc)();
@@ -205,7 +205,7 @@ int main(void) {
 
     /* A copied description borrows arrays until insertion. The world then owns copies. */
     RAPIER_TYPE(SoftBodyDesc) soft = RAPIER_FN(DefaultSoftBodyDesc)();
-    RAPIER_TYPE(Vector) particles[2] = {{0}, {0}};
+    RAPIER_TYPE(Vector) particles[2] = {0};
     particles[0].y = particles[1].y = 10;
     particles[1].x = 1;
     RAPIER_TYPE(Edge) edges[] = {{0, 1}};

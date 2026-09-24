@@ -44,7 +44,9 @@ int main(void) {
     assert(filter.exclude_collider.index == UINT32_MAX &&
            filter.exclude_rigid_body.index == UINT32_MAX);
     RAPIER_TYPE(QueryOptions) query = RAPIER_FN(DefaultQueryOptions)();
-    query.filter = *(&filter);
+    assert(!query.predicate && !query.userData);
+    assert(query.filter.exclude_collider.index == UINT32_MAX &&
+           query.filter.exclude_rigid_body.index == UINT32_MAX);
     RAPIER_TYPE(ShapeCastOptions) options = RAPIER_FN(DefaultShapeCastOptions)();
     assert(options.max_time_of_impact > 0);
     assert(RAPIER_CONST(INVALID_COLLIDER_HANDLE).index == UINT32_MAX);

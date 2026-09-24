@@ -44,6 +44,11 @@ robotics = []
         "--crate", "rapier-c-header", "--output", str(raw),
     ], cwd=project, check=True)
     text = raw.read_text()
+    # MSVC requires __cdecl after the return type, notably for struct returns.
+    # cbindgen's function prefix goes before that type, so insert the calling
+    # convention at the function declarator instead.
+    text = re.sub(r"(RAPIER_API\s+[\w\s*]+?)\b(rpr_[a-z0-9_]+)\(",
+                  r"\1RAPIER_CALL \2(", text)
     # Transparent native wrappers remain opaque to C.
     for source in sources:
         for name, native in re.findall(r"pub struct (Rpr\w+)\(pub\(crate\) (\w+)\)", source.read_text()):
