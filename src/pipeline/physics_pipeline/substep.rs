@@ -103,7 +103,7 @@ impl PhysicsPipeline {
         let collider_aabb = |co: &crate::geometry::Collider,
                              rb: &crate::dynamics::RigidBody|
          -> crate::geometry::Aabb {
-            let mut aabb = co.compute_collision_aabb(prediction / 2.0 + rb.soft_motion_margin);
+            let mut aabb = co.compute_collision_aabb(prediction / 2.0 + co.soft_motion_margin(rb));
             if rb.soft_ccd_prediction() > 0.0 {
                 let next_pose = rb.predict_position_using_velocity_and_forces_with_max_dist(
                     dt,
@@ -131,18 +131,22 @@ impl PhysicsPipeline {
                     continue;
                 }
                 rb.pos.position = rb.pos.next_position;
-                for co_handle in rb.colliders.0.iter() {
-                    let co = colliders.index_mut_internal(*co_handle);
-                    let new_pos = rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
-                    co.pos = crate::geometry::ColliderPosition(new_pos);
-                    if co.is_enabled() {
-                        let aabb = collider_aabb(co, rb);
-                        if aabb.mins.is_finite() && aabb.maxs.is_finite() {
-                            self.end_step_collider_aabbs.push((*co_handle, aabb));
-                        } else {
-                            // Finite body pose but non-finite AABB: the collider's own
-                            // geometry is invalid.
-                            self.quarantine.collider_workspace.push(*co_handle);
+                // A cluster proxy's pose isn't integrated: the end-of-step soft-body sync moves
+                // its colliders to its fresh pose and refreshes their AABBs instead.
+                if !rb.is_soft_frame() {
+                    for co_handle in rb.colliders.0.iter() {
+                        let co = colliders.index_mut_internal(*co_handle);
+                        let new_pos = rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
+                        co.pos = crate::geometry::ColliderPosition(new_pos);
+                        if co.is_enabled() {
+                            let aabb = collider_aabb(co, rb);
+                            if aabb.mins.is_finite() && aabb.maxs.is_finite() {
+                                self.end_step_collider_aabbs.push((*co_handle, aabb));
+                            } else {
+                                // Finite body pose but non-finite AABB: the collider's own
+                                // geometry is invalid.
+                                self.quarantine.collider_workspace.push(*co_handle);
+                            }
                         }
                     }
                 }
@@ -189,17 +193,20 @@ impl PhysicsPipeline {
                         }
                         rb.pos.position = rb.pos.next_position;
 
-                        for co_handle in rb.colliders.0.iter() {
-                            let co = colliders.index_mut_internal(*co_handle);
-                            let new_pos =
-                                rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
-                            co.pos = crate::geometry::ColliderPosition(new_pos);
-                            if co.is_enabled() {
-                                let aabb = collider_aabb(co, rb);
-                                if aabb.mins.is_finite() && aabb.maxs.is_finite() {
-                                    moved.push((*co_handle, aabb));
-                                } else {
-                                    quarantined_colliders.push(*co_handle);
+                        // Cluster proxies' colliders: see the serial branch.
+                        if !rb.is_soft_frame() {
+                            for co_handle in rb.colliders.0.iter() {
+                                let co = colliders.index_mut_internal(*co_handle);
+                                let new_pos =
+                                    rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
+                                co.pos = crate::geometry::ColliderPosition(new_pos);
+                                if co.is_enabled() {
+                                    let aabb = collider_aabb(co, rb);
+                                    if aabb.mins.is_finite() && aabb.maxs.is_finite() {
+                                        moved.push((*co_handle, aabb));
+                                    } else {
+                                        quarantined_colliders.push(*co_handle);
+                                    }
                                 }
                             }
                         }
@@ -238,6 +245,37 @@ impl PhysicsPipeline {
 
         for (handle, aabb) in &self.end_step_collider_aabbs {
             broad_phase.set_aabb(integration_parameters, *handle, *aabb);
+        }
+    }
+
+    /// Feeds the broad-phase the AABBs of the colliders the soft-body sync deformed or moved to
+    /// their proxies' fresh poses, like `update_moved_collider_aabbs` does for the advanced bodies.
+    fn update_soft_synced_collider_aabbs(
+        &mut self,
+        integration_parameters: &IntegrationParameters,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        broad_phase: &mut BroadPhaseBvh,
+    ) {
+        if self.soft_synced_colliders.is_empty() {
+            return;
+        }
+        self.join_deferred_bvh_optimize(broad_phase);
+
+        for handle in &self.soft_synced_colliders {
+            let Some(co) = colliders.get(*handle) else {
+                continue;
+            };
+            if !co.is_enabled() {
+                continue;
+            }
+            // The AABB the next broad-phase update computes (soft-body motion margin included
+            // for the deformable colliders only).
+            let aabb = co.compute_broad_phase_aabb(integration_parameters, bodies);
+            // A non-finite AABB would corrupt the tree; the next steps' quarantine handles it.
+            if aabb.mins.is_finite() && aabb.maxs.is_finite() {
+                broad_phase.set_aabb(integration_parameters, *handle, aabb);
+            }
         }
     }
 
@@ -443,6 +481,9 @@ impl PhysicsPipeline {
         }
 
         let mut remaining_time = integration_parameters.dt;
+        // The CCD passes shrink `integration_parameters.dt`: what predicts the next step (the
+        // end-of-step soft-body sync) reads the full step's parameters instead.
+        let step_parameters = *integration_parameters;
         let mut integration_parameters = *integration_parameters;
 
         // CCD substeps are only reported when the CCD had to act during the step.
@@ -644,12 +685,22 @@ impl PhysicsPipeline {
         );
         // Update the soft bodies' derived state (sleep state, surface orientation, substep
         // requests) and their colliders (picked up by the next step's user-changes handling).
-        soft_bodies.sync_particle_positions(
+        self.soft_synced_colliders.clear();
+        soft_bodies.sync_particle_positions_and_collect(
             bodies,
             colliders,
-            &integration_parameters,
+            &step_parameters,
+            integration_parameters.dt,
             &mut self.quarantine.soft_bodies,
+            &mut self.soft_synced_colliders,
         );
+        // The surfaces followed the particles and the rigid colliders on the proxies moved with
+        // them: the broad phase follows, so scene queries between steps see their final geometry.
+        self.counters.stages.collision_detection_time.resume();
+        self.counters.cd.final_broad_phase_time.resume();
+        self.update_soft_synced_collider_aabbs(&step_parameters, bodies, colliders, broad_phase);
+        self.counters.cd.final_broad_phase_time.pause();
+        self.counters.stages.collision_detection_time.pause();
 
         self.counters.step_completed();
     }

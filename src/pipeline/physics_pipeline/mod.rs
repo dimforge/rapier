@@ -56,6 +56,9 @@ pub struct PhysicsPipeline {
     /// AABBs, fed to the broad-phase update without the user-modification tracking. AABBs are
     /// computed inside the advance loop while body/collider are in cache.
     end_step_collider_aabbs: Vec<(ColliderHandle, crate::geometry::Aabb)>,
+    /// Colliders the end-of-step soft-body sync deformed or moved to their cluster proxy's fresh
+    /// pose, whose broad-phase AABBs follow them.
+    soft_synced_colliders: Vec<ColliderHandle>,
     /// Non-finite state detected and neutralized during the last step.
     quarantine: Quarantine,
     /// Workspace buffer holding the active body handles (parallel body update).
@@ -118,6 +121,7 @@ impl PhysicsPipeline {
             joint_selection_primed: false,
             broad_phase_events: vec![],
             end_step_collider_aabbs: vec![],
+            soft_synced_colliders: vec![],
             quarantine: Quarantine::default(),
         }
     }

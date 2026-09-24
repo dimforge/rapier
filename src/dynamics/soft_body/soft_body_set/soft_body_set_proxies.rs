@@ -197,8 +197,8 @@ pub(super) fn spawn_proxy(
 /// What `SoftBodySet::sync_particle_positions` computed for one soft body, applied to the shared
 /// sets afterwards.
 pub(super) struct SyncOutcome {
-    /// The speculative margin of the body's colliders for the coming step (`None`: asleep, left
-    /// alone).
+    /// The speculative margin of the body's deformable colliders for the coming step (`None`:
+    /// asleep, left alone).
     pub(super) margin: Option<Real>,
     /// The substep request written on the body's root body.
     pub(super) additional_solver_iterations: usize,
@@ -207,13 +207,16 @@ pub(super) struct SyncOutcome {
 }
 
 /// The per-body part of `SoftBodySet::sync_particle_positions`: updates the state derived
-/// from the particle positions, then computes the colliders' speculative margin and the substep
-/// request of an active body (`inactive`: asleep or disabled).
+/// from the particle positions, then computes the deformable colliders' speculative margin and
+/// the substep request of an active body (`inactive`: asleep or disabled). `params` are the full
+/// step's; `last_pass_dt` is the length of its last CCD pass, over which the contact load was summed.
 pub(super) fn sync_soft_body(
     sb: &mut SoftBody,
     inactive: bool,
     params: &IntegrationParameters,
+    last_pass_dt: Real,
 ) -> SyncOutcome {
+    // The coming step's length: the margin and the impact substeps predict its travel.
     let dt = params.dt;
     // Inactive: asleep, or disabled (then not asleep, just out of the simulation).
     let sleeping = inactive && sb.enabled;
@@ -285,7 +288,8 @@ pub(super) fn sync_soft_body(
     // as 10 length units/s^2), released with hysteresis at half those loads so the island's
     // partition does not flicker.
     let mass: Real = sb.particles.iter().map(|p| p.mass).sum();
-    let load = sb.contact_load / (dt * mass.max(1.0e-9) * 10.0 * params.length_unit);
+    // The load is the impulse of the last pass's solve: averaged over that pass.
+    let load = sb.contact_load / (last_pass_dt * mass.max(1.0e-9) * 10.0 * params.length_unit);
     let load_extra = match sb.load_extra_substeps {
         0 if load > 20.0 => 1,
         1 if load > 60.0 => 2,

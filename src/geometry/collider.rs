@@ -82,6 +82,16 @@ impl Collider {
         self.deformable_mesh_ref.is_some()
     }
 
+    /// The soft-body motion margin padding this collider's broad-phase AABB and contact
+    /// prediction: its parent proxy's for a deformable collider, zero for a rigid one.
+    pub(crate) fn soft_motion_margin(&self, parent: &crate::dynamics::RigidBody) -> Real {
+        if self.is_deformable_collider() {
+            parent.soft_motion_margin
+        } else {
+            0.0
+        }
+    }
+
     /// Deforms the shape of a soft-body surface collider in place through `f` without
     /// invalidating the narrow-phase pair workspaces (its topology and identity are unchanged).
     pub(crate) fn deform_shape(&mut self, f: impl FnOnce(&mut dyn Shape)) {
@@ -625,7 +635,7 @@ impl Collider {
                 ) * p.pos_wrt_parent
             })
         });
-        let soft_motion_margin = parent.map_or(0.0, |(_, parent)| parent.soft_motion_margin);
+        let soft_motion_margin = parent.map_or(0.0, |(_, parent)| self.soft_motion_margin(parent));
 
         let prediction_distance = params.prediction_distance();
         let mut aabb = self.compute_collision_aabb(prediction_distance / 2.0 + soft_motion_margin);

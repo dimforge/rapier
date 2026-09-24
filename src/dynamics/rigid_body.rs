@@ -76,8 +76,9 @@ pub struct RigidBody {
     /// (`u32::MAX` for regular rigid bodies).
     #[cfg_attr(feature = "serde-serialize", serde(default = "invalid_soft_cluster"))]
     pub(crate) soft_cluster: u32,
-    /// The speculative margin of a soft-frame proxy's colliders, set by the soft-body step: the
-    /// farthest particle travel of its soft body over the coming step (zero for regular bodies).
+    /// The speculative margin of a soft-frame proxy's deformable colliders, set by the soft-body
+    /// step: the farthest particle travel of its soft body over the coming step (zero for
+    /// regular bodies).
     pub(crate) soft_motion_margin: Real,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
