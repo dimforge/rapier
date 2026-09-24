@@ -21,9 +21,16 @@ with A will be reported first, and the collision with B will be reported second.
 </rapier>
 <bevy>
 
+The character collisions are stored in the `KinematicCharacterControllerOutput::collisions` field
+after each update of the character controller:
+
 ```rust
 <load path='/2d/bevy/examples/character_controller2.rs' marker='Collisions1' />
 ```
+
+The `hit` field of each collision has the same form as the result of a
+[shape-casting](./scene_queries.mdx#shape-casting): its first witness point and normal are on the obstacle, in
+world-space, whereas its second witness point and normal are on the character, in its local-space.
 
 </bevy>
 <js>
@@ -33,6 +40,41 @@ with A will be reported first, and the collision with B will be reported second.
 ```
 
 </js>
+<c>
+
+The character collisions are recorded by the character controller during each call to
+`r3KinematicCharacterController_MoveShape`, and remain available until its next call. They are copied into a buffer of
+`R3CharacterCollision` with `r3KinematicCharacterController_Collisions` (call it once with a `NULL` buffer and a zero
+capacity to get the number of collisions, then a second time to copy them):
+
+```c
+<load path='/2d/c/examples/character_controller2.c' marker='Collisions1' />
+```
+
+Each collision gives the handle of the `collider` hit, the pose of the character at the time of the hit
+(`character_pos`), as well as the parts of the desired translation already applied (`translation_applied`) and
+remaining (`translation_remaining`) at that time. Its `hit` field has the same form as the result of a
+[shape-casting](./scene_queries.mdx#shape-casting): its first witness point and normal are on the obstacle, in
+world-space, whereas its second witness point and normal are on the character, in its local-space.
+
+</c>
+<py>
+
+The character collisions are given to the optional `events_callback` argument of
+`KinematicCharacterController.move_shape`: a callable invoked with each `CharacterCollision` while the movement is
+being calculated (an exception raised by that callable is re-raised by `move_shape`):
+
+```python
+<load path='/3d/python/character_controller.py' marker='Collisions1' />
+```
+
+Each collision gives the `handle` of the collider hit, the pose of the character at the time of the hit
+(`character_pos`), as well as the parts of the desired translation already applied (`translation_applied`) and
+remaining (`translation_remaining`) at that time. Its `hit` property is a `ShapeCastHit`, i.e., it has the same form
+as the result of a [shape-casting](./scene_queries.mdx#shape-casting): its first witness point and normal are on the
+obstacle, in world-space, whereas its second witness point and normal are on the character, in its local-space.
+
+</py>
 
 Unless dynamic bodies are filtered-out by the character controller’s filters, they may be hit during the resolution
 of the character movement. If that happens, these dynamic bodies will generally not react to (i.e. not be pushed by) the
@@ -57,6 +99,9 @@ forces for you if needed:
 <load path='/2d/bevy/examples/character_controller2.rs' marker='Collisions3' />
 ```
 
+The mass of the character taken into account for computing these impulses is the mass of the rigid-body it is
+attached to, unless `KinematicCharacterController::custom_mass` is set.
+
 </bevy>
 <js>
 
@@ -65,3 +110,33 @@ forces for you if needed:
 ```
 
 </js>
+<c>
+
+```c
+<load path='/2d/c/examples/character_controller2.c' marker='Collisions2' />
+```
+
+The impulses are computed from the collisions recorded by the last `r3KinematicCharacterController_MoveShape` call
+of the character controller, and applied to the rigid-bodies of the world given to that call. The mass of the
+character is given explicitly: it can be, for example, the mass of the rigid-body it is attached to (as given by
+`r3RigidBody_Mass`). The `R3QueryOptions` should be the same as the ones given to the movement calculation. Unlike
+`r3KinematicCharacterController_MoveShape`, this calls the `predicate` of the options, if any, once for every collider
+of the world before applying the impulses, while the world is locked for writing: it may only use the `Read`
+functions of its `R3ReadContext`.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/character_controller.py' marker='Collisions2' />
+```
+
+The impulses are computed from the collisions collected during the `move_shape` call (each of them stores the pose
+of the character when it happened, so the `character_pos` argument is unused and can be `None`), and applied to the
+rigid-bodies of the given rigid-body set (which, like the collider set, must be the one of the query pipeline). The
+shape and filter given to `solve_character_collision_impulses` should be the same as the ones given to `move_shape`.
+Unlike `move_shape`, this calls the `predicate` of the filter, if any, once for every collider before applying the
+impulses, while the sets are locked: it must not modify them. The mass of the character is given explicitly: it can
+be, for example, the mass of the rigid-body it is attached to (as given by its `RigidBody.mass` property).
+
+</py>

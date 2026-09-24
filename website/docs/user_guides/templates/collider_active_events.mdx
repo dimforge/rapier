@@ -7,7 +7,7 @@ notified when two colliders start/stop touching. By default no collision event i
 the narrow-phase. In order to enable a collision event for a pair of colliders, at
 least one of the involved colliders must have the corresponding event set as active. An event is activated for a collider
 by setting its corresponding active events bit to `1`:
-- Setting the <notjs>`ActiveEvents::COLLISION_EVENTS`</notjs><js>`ActiveEvents.COLLISION_EVENTS`</js> bit to 1
+- Setting the <notjs>`ActiveEvents::COLLISION_EVENTS`</notjs><js>`ActiveEvents.COLLISION_EVENTS`</js><c>`R3_COLLISION_EVENTS`</c><py>`ActiveEvents.COLLISION_EVENTS`</py> bit to 1
   enables the [collision events](./advanced_collision_detection.mdx#collision-and-contact-force-events) involving the collider.
 
 The active events of a collider can be set when the collider is created or after its creation:
@@ -42,3 +42,23 @@ The active events of a collider can be set when the collider is created or after
 ```
 
 </js>
+<c>
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='ActiveEvents1' />
+```
+```c
+<load path='/2d/c/examples/colliders2.c' marker='ActiveEvents2' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='ActiveEvents1' />
+```
+```python
+<load path='/3d/python/colliders.py' marker='ActiveEvents2' />
+```
+
+</py>

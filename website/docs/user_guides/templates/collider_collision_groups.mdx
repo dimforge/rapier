@@ -28,16 +28,40 @@ Because the `membership` and `filter` bit masks are `u32` there is a total of 32
 :::
 
 </notjs>
+<c>
+
+The collision groups and solver groups (the `collisionGroups` and `solverGroups` fields of the collider description)
+are given by a `R3InteractionGroups` structure containing both bit masks, as `memberships` and `filter`, as well as a
+`test_mode` explained at the end of this section.
+
+:::info
+Because the `memberships` and `filter` bit masks are `uint32_t` there is a total of 32 groups. By default all bits
+are set to 1: the collider is part of every group, and can interact with every group.
+:::
+
+</c>
 <js>
 
 The `membership` and `filter` are both 16-bit bit masks packed into a single 32-bits value. The 16 left-most bits
 contain the memberships whereas the 16 right-most bits contain the filter.
 
 </js>
+<py>
+
+The collision groups and solver groups are given by an `InteractionGroups` containing both bit masks, as its
+`memberships` and `filter` attributes, as well as a `test_mode` explained at the end of this section. Each bit mask is
+a `Group`, built by combining the `Group.GROUP_0` to `Group.GROUP_31` flags with the `|` operator.
+
+:::info
+Because the `memberships` and `filter` bit masks are 32-bits there is a total of 32 groups. By default all bits are set
+to 1 (`Group.ALL`): the collider is part of every group, and can interact with every group.
+:::
+
+</py>
 
 For example, let's say we want our collider `A` to be part of the groups `[0, 2, 3]` and to be able to interact
 with the groups `[2]`, then its groups membership is <notjs>`0b1101` and its groups filter is
-`0b0100`.</notjs> <js>`0b0000_0000_0000_1101 = 0x000D` and its groups filter is `0b0000_0000_0000_0100 = 0x0004`. The
+`0b0100`.</notjs><c>`0b1101 = 0xD` and its groups filter is `0b0100 = 0x4`.</c><py>`0b1101` (i.e., `Group.GROUP_0 | Group.GROUP_2 | Group.GROUP_3`) and its groups filter is `0b0100` (i.e., `Group.GROUP_2`).</py> <js>`0b0000_0000_0000_1101 = 0x000D` and its groups filter is `0b0000_0000_0000_0100 = 0x0004`. The
 corresponding packed bit mask is `0x000D0004`.</js> The collision groups and solver groups of a collider can be set 
 during or after its creation:
 
@@ -71,6 +95,26 @@ during or after its creation:
 ```
 
 </js>
+<c>
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Groups1' />
+```
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Groups2' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='Groups1' />
+```
+```python
+<load path='/3d/python/colliders.py' marker='Groups2' />
+```
+
+</py>
 
 After the broad-phase detects that two colliders `A` and `B` may start being in contact, the narrow-phase will check the collision
 groups of both colliders to see if it needs to compute contacts. The check operates as follows:
@@ -94,7 +138,54 @@ groups of both colliders to see if it needs to compute contacts. The check opera
 ```
 
 </js>
+<c>
+
+```c
+   (r3Collider_CollisionGroups(a).memberships & r3Collider_CollisionGroups(b).filter) != 0
+&& (r3Collider_CollisionGroups(b).memberships & r3Collider_CollisionGroups(a).filter) != 0
+```
+
+</c>
+<py>
+
+```python
+    (a.collision_groups.memberships & b.collision_groups.filter).bits != 0
+and (b.collision_groups.memberships & a.collision_groups.filter).bits != 0
+```
+
+This test is also performed by `InteractionGroups.test`, e.g., `a.collision_groups.test(b.collision_groups)`.
+
+</py>
 
 If this test succeeds, then the narrow-phase will compute the contacts. Then it will check the solver groups of both
 colliders, using the same kind of tests as described before but using the `solver_groups` instead of `collision_groups`.
 If the test succeeds then the constraints solver will compute forces for these contacts. Otherwise, it won't.
+
+<bevy>
+
+:::info
+This is the behavior of the default `InteractionTestMode::And` test mode. If both colliders use the
+`InteractionTestMode::Or` test mode (set with `CollisionGroups::with_test_mode` or `SolverGroups::with_test_mode`),
+then satisfying only one of these two conditions is enough for the contacts (or forces) to be computed.
+:::
+
+</bevy>
+<c>
+
+:::info
+This is the behavior of the default `R3_GROUPS_AND` test mode (the `test_mode` field of `R3InteractionGroups`). If
+both colliders use the `R3_GROUPS_OR` test mode, then satisfying only one of these two conditions is enough for the
+contacts (or forces) to be computed.
+:::
+
+</c>
+<py>
+
+:::info
+This is the behavior of the default `InteractionTestMode.AND` test mode (the `test_mode` of `InteractionGroups`). If
+both colliders use the `InteractionTestMode.OR` test mode, then satisfying only one of these two conditions is enough
+for the contacts (or forces) to be computed.
+:::
+
+</py>
+

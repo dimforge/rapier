@@ -88,6 +88,34 @@ pub unsafe extern "C" fn rpr_convex_hull_shared_shape(
         })
     })
 }
+/// Create an owned convex polyhedron from vertices and triangle indices assumed to form a convex
+/// mesh (no convex hull is computed); fails on degenerate input. Release it with rpr_free_shared_shape.
+/// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
+#[cfg(feature = "dim3")]
+#[rapier_export]
+pub unsafe extern "C" fn rpr_convex_mesh_shared_shape(
+    vertices: RprVectorView,
+    indices: RprTriangleView,
+) -> *mut RprSharedShape {
+    ffi_value(|out: *mut *mut RprSharedShape| {
+        ffi(|| unsafe {
+            crate::array_views::validate_view(vertices.data, vertices.count)?;
+            crate::array_views::validate_view(indices.data, indices.count)?;
+            out_ptr(out)?;
+            let points = input(vertices.data, vertices.count)?
+                .iter()
+                .copied()
+                .map(RprVector::raw)
+                .collect::<Result<Vec<_>>>()?;
+            let indices = indices_array::<3>(indices.data.cast(), indices.count, points.len())?;
+            ensure(!indices.is_empty(), "empty mesh")?;
+            let shape = SharedShape::convex_mesh(points, &indices)
+                .ok_or_else(|| invalid("degenerate convex mesh"))?;
+            output(out, Box::into_raw(Box::new(RprSharedShape(shape))))
+        })
+    })
+}
 /// Create an owned triangle mesh from vertices and triangle indices. Release it with
 /// rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
@@ -112,6 +140,7 @@ pub unsafe extern "C" fn rpr_trimesh_shared_shape(
     })
 }
 /// Create an owned polyline from vertices and edge indices. Release it with rpr_free_shared_shape.
+/// Empty indices connect the vertices in order (a line strip).
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
 /// @ingroup shapes
 #[rapier_export]

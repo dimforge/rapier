@@ -3,11 +3,14 @@ import TabItem from '@theme/TabItem';
 
 Intersection tests will find all the colliders with a shape intersecting a given shape. This can be useful for, e.g.,
 selecting all the objects that intersect a given area. There are two kind of intersection tests:
-- The exact intersection test <rapier>`QueryPipeline::intersections_with_shape`</rapier><bevy>`RapierContext::intersections_with_shape`</bevy><js>`World.intersectionsWithShape`</js>
+- The exact intersection test <rapier>`QueryPipeline::intersect_shape`</rapier><bevy>`RapierContext::intersect_shape`</bevy><js>`World.intersectionsWithShape`</js><c>`r3IntersectShape`</c><py>`QueryPipeline.intersect_shape`</py>
   searches for all the colliders with shapes intersecting the given shape.
-- The approximate intersection test <rapier>`QueryPipeline::colliders_with_aabb_intersecting_aabb`</rapier><bevy>`RapierContext::colliders_with_aabb_intersecting_aabb`</bevy><js>`World.collidersWithAabbIntersectingAabb`</js> searches
+- The approximate intersection test <rapier>`QueryPipeline::intersect_aabb_conservative`</rapier><bevy>`RapierContext::intersect_aabb_conservative`</bevy><js>`World.collidersWithAabbIntersectingAabb`</js><c>`r3IntersectAabbConservative`</c><py>`QueryPipeline.intersect_aabb_conservative`</py> searches
 for all the colliders with an AABB intersecting the given AABB. This does not check if the actual shapes of these colliders
-intersect the AABB.
+intersect the AABB.<rapier> Note that the AABB taken into account is the one currently stored in the BVH of the
+broad-phase: it isn't recomputed from the latest collider positions.</rapier><bevy> Note that the AABB taken into
+account is the one currently stored in the BVH of the broad-phase (updated by each simulation step): it isn't
+recomputed from the latest collider positions.</bevy><c> Note that the AABB taken into account is the one currently stored in the BVH of the broad-phase (updated by each call to `r3Step`): it isn't recomputed from the latest collider positions.</c><py> Note that the AABB taken into account is the one currently stored in the BVH of the broad-phase (updated by each call to `PhysicsWorld.step`): it isn't recomputed from the latest collider positions.</py>
 
 :::info
 See the [ray-casting](./scene_queries.mdx#ray-casting) section for details about intersection tests between a ray and the colliders on the scene.
@@ -66,6 +69,10 @@ a point.
 </TabItem>
 </Tabs>
 
+The closures given to these methods are called with the entity of each collider found, as well as its Rapier collider
+(`rapier::geometry::Collider`), and can return `false` to stop the search. The AABB to test is given as a Bevy
+`Aabb2d` in 2D, or `Aabb3d` in 3D.
+
 </bevy>
 <js>
 
@@ -93,5 +100,46 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/scene_queries2.c' marker='IntersectionTest' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/scene_queries3.c' marker='IntersectionTest' />
+```
+
+</TabItem>
+</Tabs>
+
+Both functions copy the handles of the colliders found into a buffer given by the application, as described at the
+beginning of this page. The AABB to test is an `R3Aabb`, given by its minimum (`mins`) and maximum (`maxs`) corners.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/scene_queries.py' marker='IntersectionTest' />
+```
+
+Both methods call the given function with the handle of each collider found, until this function returns `False`. The
+AABB to test is an `Aabb`, given by its minimum (`mins`) and maximum (`maxs`) corners. If you only need to know
+whether at least one collider has an AABB intersecting the given AABB, `QueryPipeline.test_aabb` returns this as a
+boolean.
+
+</py>
 
 It is possible to only apply the scene query to a subsets of the colliders using [a query filter](./scene_queries.mdx#query-filters)

@@ -50,6 +50,12 @@ Install each dimension/precision configuration to a separate prefix. When shippi
 a shared-library build, include the library and configure its runtime search path
 (on Windows, place the DLL beside your executable).
 
+Without CMake, define `RAPIER_DIM2`/`RAPIER_DIM3`, `RAPIER_F32`/`RAPIER_F64`, and
+`RAPIER_FEM`, `RAPIER_ROBOTICS`, `RAPIER_PARALLEL` for the enabled library features
+yourself. Call `r3CheckAbi` (or `r2CheckAbi`) at startup, as in the
+[C example](examples/falling_ball.c): it fails when these defines change a structure
+layout of the linked library.
+
 ## Run the testbed
 
 ```sh

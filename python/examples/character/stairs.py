@@ -15,7 +15,7 @@ import rapier3d as rp
 
 
 def main() -> None:
-    world = rp.PhysicsWorld(gravity=(0, -9.81, 0), auto_update_query=True)
+    world = rp.PhysicsWorld(gravity=(0, -9.81, 0))
 
     # Big flat ground.
     world.add_body(

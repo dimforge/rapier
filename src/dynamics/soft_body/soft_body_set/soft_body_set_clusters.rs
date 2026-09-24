@@ -98,8 +98,9 @@ impl SoftBodySet {
     }
 
     /// Dissolves a cluster: tombstones it, removes the particles it uniquely covered (with their
-    /// elements, attachments and particle-ball colliders), re-points the root body if needed, and
-    /// removes the body with its last cluster. Keeps the proxy body; returns counts and its handle.
+    /// elements and attachments), rebuilds the surface shape, re-points the root body if needed,
+    /// and removes the body with its last cluster. Keeps the proxy body; returns counts and its
+    /// handle.
     fn dissolve_cluster(
         &mut self,
         handle: SoftBodyHandle,

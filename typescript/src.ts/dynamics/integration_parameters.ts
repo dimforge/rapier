@@ -1,4 +1,5 @@
 import {RawIntegrationParameters} from "../raw";
+import {SoftRecoverySettings} from "./soft_body";
 
 export class IntegrationParameters {
     raw: RawIntegrationParameters;
@@ -46,7 +47,7 @@ export class IntegrationParameters {
     }
 
     /**
-     * The maximal normalized distance separating two objects that will generate predictive contacts (default: `0.002`).
+     * The maximal normalized distance separating two objects that will generate predictive contacts (default: `0.02`).
      *
      * This threshold considered by the physics engine is this value multiplied by the `lengthUnit`.
      */
@@ -99,6 +100,39 @@ export class IntegrationParameters {
         return this.raw.softBodiesContactStiffening;
     }
 
+    /**
+     * The tangle detection and recovery settings shared by every soft body of the world.
+     *
+     * This gives back a copy: change it and assign it back to apply it.
+     */
+    get softBodiesRecovery(): SoftRecoverySettings {
+        return SoftRecoverySettings.fromRaw(this.raw.softBodiesRecovery);
+    }
+
+    /**
+     * Relative residual at which the conjugate gradient of the FEM soft-body solver stops
+     * (default: `1.0e-5`).
+     */
+    get softBodiesFemLinearTolerance(): number {
+        return this.raw.softBodiesFemLinearTolerance;
+    }
+
+    /**
+     * Hard cap on the conjugate-gradient iterations of the FEM soft-body solver, whatever the
+     * residual (default: `20`).
+     */
+    get softBodiesFemMaxLinearIterations(): number {
+        return this.raw.softBodiesFemMaxLinearIterations;
+    }
+
+    /**
+     * Largest number of degrees of freedom for which a FEM soft body is factorized directly
+     * (default: `600`); the larger ones rely on the conjugate gradient.
+     */
+    get softBodiesFemMaxDenseDofs(): number {
+        return this.raw.softBodiesFemMaxDenseDofs;
+    }
+
     set dt(value: number) {
         this.raw.dt = value;
     }
@@ -113,6 +147,24 @@ export class IntegrationParameters {
 
     set softBodiesContactStiffening(value: number) {
         this.raw.softBodiesContactStiffening = value;
+    }
+
+    set softBodiesRecovery(value: SoftRecoverySettings) {
+        let raw = value.intoRaw();
+        this.raw.softBodiesRecovery = raw;
+        raw.free();
+    }
+
+    set softBodiesFemLinearTolerance(value: number) {
+        this.raw.softBodiesFemLinearTolerance = value;
+    }
+
+    set softBodiesFemMaxLinearIterations(value: number) {
+        this.raw.softBodiesFemMaxLinearIterations = value;
+    }
+
+    set softBodiesFemMaxDenseDofs(value: number) {
+        this.raw.softBodiesFemMaxDenseDofs = value;
     }
 
     set contact_natural_frequency(value: number) {

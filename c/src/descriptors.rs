@@ -202,6 +202,9 @@ pub const RPR_SHAPE_DESC_COMPOUND: u32 = 14;
 /// @ingroup shapes
 /// ShapeDesc kind selecting a round cylinder.
 pub const RPR_SHAPE_DESC_ROUND_CYLINDER: u32 = 15;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a round cone.
+pub const RPR_SHAPE_DESC_ROUND_CONE: u32 = 16;
 
 /// Non-owning shape description. Only fields selected by kind are read.
 /// a = cuboid half extents, capsule/segment endpoint, triangle vertex, or halfspace normal.
@@ -224,7 +227,7 @@ pub struct RprShapeDesc {
     pub radius: RprReal,
     /// Half the height of a cylinder or cone.
     pub halfHeight: RprReal,
-    /// Rounding radius for a rounded shape.
+    /// Rounding radius of a round cylinder or round cone (the round cuboid reads radius instead).
     pub borderRadius: RprReal,
     /// Borrowed vertex positions.
     pub vertices: RprVectorView,
@@ -326,6 +329,12 @@ impl RprShapeDesc {
             }
             #[cfg(feature = "dim3")]
             RPR_SHAPE_DESC_ROUND_CYLINDER => SharedShape::round_cylinder(
+                positive(self.halfHeight)?,
+                positive(self.radius)?,
+                nonnegative(self.borderRadius)?,
+            ),
+            #[cfg(feature = "dim3")]
+            RPR_SHAPE_DESC_ROUND_CONE => SharedShape::round_cone(
                 positive(self.halfHeight)?,
                 positive(self.radius)?,
                 nonnegative(self.borderRadius)?,
@@ -506,9 +515,9 @@ pub struct RprColliderDesc {
     pub friction: RprReal,
     /// Nonnegative restitution coefficient.
     pub restitution: RprReal,
-    /// RPR_COMBINE_AVERAGE, MIN, MULTIPLY, or MAX.
+    /// RPR_COMBINE_AVERAGE, MIN, MULTIPLY, MAX, CLAMPED_SUM, or GEOMETRIC_MEAN.
     pub frictionCombineRule: u32,
-    /// RPR_COMBINE_AVERAGE, MIN, MULTIPLY, or MAX.
+    /// RPR_COMBINE_AVERAGE, MIN, MULTIPLY, MAX, CLAMPED_SUM, or GEOMETRIC_MEAN.
     pub restitutionCombineRule: u32,
     /// 1 detects intersections without generating contact forces.
     pub isSensor: RprBool,

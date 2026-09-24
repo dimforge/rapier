@@ -210,4 +210,12 @@ let world = new RAPIER.World({ x: 0.0, y: -9.81 });
     /* Set the active hooks after the collider creation. */
     collider.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
     // DOCUSAURUS: ActiveHooks2 stop
+
+    // DOCUSAURUS: ContactSkin start
+    /* Set the contact skin when the collider is created. */
+    let skinColliderDesc = RAPIER.ColliderDesc.ball(0.5).setContactSkin(0.01);
+    let skinCollider = world.createCollider(skinColliderDesc);
+    /* Set the contact skin after the collider creation. */
+    skinCollider.setContactSkin(0.01);
+    // DOCUSAURUS: ContactSkin stop
 }

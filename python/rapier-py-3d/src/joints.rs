@@ -40,8 +40,8 @@ use rapier3d as rapier;
 /// ``DISABLED_BY_ATTACHED_BODY`` is set automatically by the engine
 /// when one of the bodies the joint is attached to becomes disabled;
 /// the joint re-enables itself once the body is re-enabled.
-#[pyclass(name = "JointEnabled", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "JointEnabled", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum JointEnabled {
     /// Joint participates normally in the constraint solver.
     ENABLED,
@@ -101,8 +101,8 @@ impl JointEnabled {
 /// versions but was removed. To drive a pure velocity target,
 /// configure a motor with ``stiffness=0`` and the desired
 /// ``target_vel`` (see :py:meth:`set_motor_velocity`).
-#[pyclass(name = "MotorModel", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "MotorModel", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MotorModel {
     /// PID output is interpreted as a desired acceleration; the
     /// engine scales by effective mass before applying. Behaviour
@@ -432,8 +432,8 @@ impl JointAxesMask {
 /// (``LIN_X``/``LIN_Y``/``LIN_Z``) and three angular
 /// (``ANG_X``/``ANG_Y``/``ANG_Z``) expressed in the joint's local
 /// frame. Pair with :class:`JointAxesMask` for set operations.
-#[pyclass(name = "JointAxis", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "JointAxis", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum JointAxis {
     /// Translation along the body-local X axis.
     LIN_X,
@@ -789,8 +789,12 @@ impl InverseKinematicsOption {
     /// Return a developer-readable representation.
     fn __repr__(&self) -> String {
         format!(
-            "InverseKinematicsOption(damping={}, max_iters={}, epsilon_linear={}, epsilon_angular={})",
-            self.damping, self.max_iters, self.epsilon_linear, self.epsilon_angular
+            "InverseKinematicsOption(damping={}, max_iters={}, constrained_axes=JointAxesMask(bits={:#010b}), epsilon_linear={}, epsilon_angular={})",
+            self.damping,
+            self.max_iters,
+            self.constrained_axes.0.bits(),
+            self.epsilon_linear,
+            self.epsilon_angular
         )
     }
 }
@@ -837,7 +841,7 @@ impl FixedJoint {
     /// :param kwargs: Optional keyword args forwarded to the
     ///     builder; accepted keys are ``local_anchor1``,
     ///     ``local_anchor2``, ``local_frame1``, ``local_frame2``,
-    ///     ``contacts_enabled``.
+    ///     ``contacts_enabled``, ``softness``.
     #[staticmethod]
     #[pyo3(signature = (body_a=None, body_b=None, **kwargs))]
     fn builder(
@@ -971,6 +975,10 @@ impl FixedJointBuilder {
                         let b: bool = v.extract()?;
                         me.0 = me.0.contacts_enabled(b);
                     }
+                    "softness" => {
+                        let c: SpringCoefficients = v.extract()?;
+                        me.0 = me.0.softness(c.0);
+                    }
                     _ => {
                         return Err(PyTypeError::new_err(format!(
                             "unknown FixedJointBuilder kwarg: '{}'",
@@ -1067,7 +1075,8 @@ impl RevoluteJoint {
     /// :param axis: Rotation axis (required in 3D, ignored in 2D).
     /// :param kwargs: Optional keyword args forwarded to the
     ///     builder; accepted keys are ``local_anchor1``,
-    ///     ``local_anchor2``, ``limits``, ``contacts_enabled``.
+    ///     ``local_anchor2``, ``limits``, ``contacts_enabled``,
+    ///     ``softness``.
     #[staticmethod]
     #[pyo3(signature = (axis=None, **kwargs))]
     fn builder(
@@ -1231,6 +1240,10 @@ impl RevoluteJointBuilder {
                         let b: bool = v.extract()?;
                         me.0 = me.0.contacts_enabled(b);
                     }
+                    "softness" => {
+                        let c: SpringCoefficients = v.extract()?;
+                        me.0 = me.0.softness(c.0);
+                    }
                     _ => {
                         return Err(PyTypeError::new_err(format!(
                             "unknown RevoluteJointBuilder kwarg: '{}'",
@@ -1345,7 +1358,7 @@ impl PrismaticJoint {
     /// :param kwargs: Optional keyword args forwarded to the
     ///     builder; accepted keys include ``local_anchor1``,
     ///     ``local_anchor2``, ``local_axis1``, ``local_axis2``,
-    ///     ``limits``, ``contacts_enabled``.
+    ///     ``limits``, ``contacts_enabled``, ``softness``.
     #[staticmethod]
     #[pyo3(signature = (axis, **kwargs))]
     fn builder(
@@ -1519,6 +1532,10 @@ impl PrismaticJointBuilder {
                         let b: bool = v.extract()?;
                         me.0 = me.0.contacts_enabled(b);
                     }
+                    "softness" => {
+                        let c: SpringCoefficients = v.extract()?;
+                        me.0 = me.0.softness(c.0);
+                    }
                     _ => {
                         return Err(PyTypeError::new_err(format!(
                             "unknown PrismaticJointBuilder kwarg: '{}'",
@@ -1578,6 +1595,11 @@ impl PrismaticJointBuilder {
     fn motor_position(&self, target_pos: Real, stiffness: Real, damping: Real) -> Self {
         Self(self.0.motor_position(target_pos, stiffness, damping))
     }
+    /// Fully configure the motor with both position and velocity
+    /// setpoints.
+    fn motor(&self, target_pos: Real, target_vel: Real, stiffness: Real, damping: Real) -> Self {
+        Self(self.0.set_motor(target_pos, target_vel, stiffness, damping))
+    }
     /// Clamp the maximum force the motor can apply.
     fn motor_max_force(&self, max_force: Real) -> Self {
         Self(self.0.motor_max_force(max_force))
@@ -1627,7 +1649,7 @@ impl RopeJoint {
     /// :param max_distance: Maximum rope length (world units).
     /// :param kwargs: Optional keyword args; accepted keys are
     ///     ``local_anchor1``, ``local_anchor2``, ``max_distance``,
-    ///     ``contacts_enabled``.
+    ///     ``contacts_enabled``, ``softness``.
     #[staticmethod]
     #[pyo3(signature = (max_distance, **kwargs))]
     fn builder(
@@ -1705,6 +1727,37 @@ impl RopeJoint {
             .unwrap_or(0.0)
     }
 
+    /// Return the motor acting on the rope length, if configured.
+    fn motor(&self) -> Option<JointMotor> {
+        self.0
+            .motor(rapier::dynamics::JointAxis::LinX)
+            .map(JointMotor::from_rapier)
+    }
+    /// Configure a velocity-target motor on the rope length, with damping.
+    ///
+    /// :param target_vel: Desired stretching velocity (world units per second).
+    /// :param factor: Damping coefficient.
+    fn set_motor_velocity(&mut self, target_vel: Real, factor: Real) {
+        self.0.set_motor_velocity(target_vel, factor);
+    }
+    /// Configure a spring-damper motor pulling the rope length toward
+    /// ``target_pos`` (world units).
+    fn set_motor_position(&mut self, target_pos: Real, stiffness: Real, damping: Real) {
+        self.0.set_motor_position(target_pos, stiffness, damping);
+    }
+    /// Fully configure the motor with position and velocity setpoints.
+    fn set_motor(&mut self, target_pos: Real, target_vel: Real, stiffness: Real, damping: Real) {
+        self.0.set_motor(target_pos, target_vel, stiffness, damping);
+    }
+    /// Clamp the maximum force the motor can apply.
+    fn set_motor_max_force(&mut self, max_force: Real) {
+        self.0.set_motor_max_force(max_force);
+    }
+    /// Select the motor model (see :class:`MotorModel`).
+    fn set_motor_model(&mut self, model: MotorModel) {
+        self.0.set_motor_model(model.to_rapier());
+    }
+
     /// Access the underlying :class:`GenericJoint` description.
     #[getter]
     fn data(&self) -> GenericJoint {
@@ -1759,6 +1812,10 @@ impl RopeJointBuilder {
                         let b: bool = v.extract()?;
                         me.0 = me.0.contacts_enabled(b);
                     }
+                    "softness" => {
+                        let c: SpringCoefficients = v.extract()?;
+                        me.0 = me.0.softness(c.0);
+                    }
                     _ => {
                         return Err(PyTypeError::new_err(format!(
                             "unknown RopeJointBuilder kwarg: '{}'",
@@ -1795,6 +1852,28 @@ impl RopeJointBuilder {
     /// Override the maximum rope length.
     fn max_distance(&self, d: Real) -> Self {
         Self(self.0.max_distance(d))
+    }
+    /// Configure a velocity-target motor on the rope length, with damping.
+    fn motor_velocity(&self, target_vel: Real, factor: Real) -> Self {
+        Self(self.0.motor_velocity(target_vel, factor))
+    }
+    /// Configure a spring-damper motor pulling the rope length toward
+    /// ``target_pos`` (world units).
+    fn motor_position(&self, target_pos: Real, stiffness: Real, damping: Real) -> Self {
+        Self(self.0.motor_position(target_pos, stiffness, damping))
+    }
+    /// Fully configure the motor with both position and velocity
+    /// setpoints.
+    fn motor(&self, target_pos: Real, target_vel: Real, stiffness: Real, damping: Real) -> Self {
+        Self(self.0.set_motor(target_pos, target_vel, stiffness, damping))
+    }
+    /// Clamp the maximum force the motor can apply.
+    fn motor_max_force(&self, max_force: Real) -> Self {
+        Self(self.0.motor_max_force(max_force))
+    }
+    /// Select the motor model (see :class:`MotorModel`).
+    fn motor_model(&self, model: MotorModel) -> Self {
+        Self(self.0.motor_model(model.to_rapier()))
     }
     /// Enable or disable contacts between the attached bodies.
     fn contacts_enabled(&self, b: bool) -> Self {
@@ -2078,13 +2157,17 @@ pub struct GenericJoint {
 
 /// Storage backing a `GenericJoint`: a standalone owned value, or a
 /// live view into the `data` of a joint stored in an `ImpulseJointSet`
-/// (so `impulse_joint.data.set_limits(..)` persists in place).
+/// or a `MultibodyJointSet` (so `joint.data.set_limits(..)` persists in place).
 #[derive(Debug)]
 pub enum GenericJointBacking {
     Owned(Box<rapier::dynamics::GenericJoint>),
     ImpulseJointData {
         set: Py<ImpulseJointSet>,
         handle: rapier::dynamics::ImpulseJointHandle,
+    },
+    MultibodyJointData {
+        set: Py<MultibodyJointSet>,
+        handle: rapier::dynamics::MultibodyJointHandle,
     },
 }
 
@@ -2094,6 +2177,12 @@ impl Clone for GenericJointBacking {
             GenericJointBacking::Owned(g) => GenericJointBacking::Owned(g.clone()),
             GenericJointBacking::ImpulseJointData { set, handle } => {
                 Python::with_gil(|py| GenericJointBacking::ImpulseJointData {
+                    set: set.clone_ref(py),
+                    handle: *handle,
+                })
+            }
+            GenericJointBacking::MultibodyJointData { set, handle } => {
+                Python::with_gil(|py| GenericJointBacking::MultibodyJointData {
                     set: set.clone_ref(py),
                     handle: *handle,
                 })
@@ -2115,34 +2204,66 @@ impl GenericJoint {
             backing: GenericJointBacking::Owned(Box::new(joint)),
         }
     }
-    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::GenericJoint) -> R) -> R {
+    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::GenericJoint) -> R) -> PyResult<R> {
         match &self.backing {
-            GenericJointBacking::Owned(g) => f(g),
+            GenericJointBacking::Owned(g) => Ok(f(g)),
             GenericJointBacking::ImpulseJointData { set, handle } => Python::with_gil(|py| {
-                let set = set.bind(py).borrow();
+                let set = crate::errors::try_borrow(set.bind(py))?;
                 let joint = set
                     .0
                     .get(*handle)
-                    .expect("GenericJoint refers to a joint that was removed from its set");
-                f(&joint.data)
+                    .ok_or_else(|| crate::errors::stale_view("GenericJoint"))?;
+                Ok(f(&joint.data))
+            }),
+            GenericJointBacking::MultibodyJointData { set, handle } => Python::with_gil(|py| {
+                let set = crate::errors::try_borrow(set.bind(py))?;
+                let link = set
+                    .0
+                    .get(*handle)
+                    .and_then(|(mb, id)| mb.link(id))
+                    .ok_or_else(|| crate::errors::stale_view("GenericJoint"))?;
+                Ok(f(&link.joint.data))
             }),
         }
     }
-    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::GenericJoint) -> R) -> R {
+    fn with_mut<R>(
+        &mut self,
+        f: impl FnOnce(&mut rapier::dynamics::GenericJoint) -> R,
+    ) -> PyResult<R> {
         match &mut self.backing {
-            GenericJointBacking::Owned(g) => f(g),
+            GenericJointBacking::Owned(g) => Ok(f(g)),
             GenericJointBacking::ImpulseJointData { set, handle } => Python::with_gil(|py| {
-                let mut set = set.bind(py).borrow_mut();
+                let mut set = crate::errors::try_borrow_mut(set.bind(py))?;
                 let joint = set
                     .0
                     .get_mut(*handle, true)
-                    .expect("GenericJoint refers to a joint that was removed from its set");
-                f(&mut joint.data)
+                    .ok_or_else(|| crate::errors::stale_view("GenericJoint"))?;
+                Ok(f(&mut joint.data))
+            }),
+            GenericJointBacking::MultibodyJointData { set, handle } => Python::with_gil(|py| {
+                let mut set = crate::errors::try_borrow_mut(set.bind(py))?;
+                set.modify_joint(*handle, |joint| f(&mut joint.data))
+                    .ok_or_else(|| crate::errors::stale_view("GenericJoint"))
             }),
         }
     }
+    /// Reject a change of the locked axes of a multibody joint: they define
+    /// its degrees of freedom, so changing them would corrupt the multibody.
+    fn ensure_locked_axes_unchanged(
+        &self,
+        new_locked_axes: rapier::dynamics::JointAxesMask,
+    ) -> PyResult<()> {
+        if matches!(self.backing, GenericJointBacking::MultibodyJointData { .. })
+            && self.with_ref(|g| g.locked_axes)? != new_locked_axes
+        {
+            return Err(PyValueError::new_err(
+                "the locked axes of a multibody joint cannot change (they define its degrees of freedom)",
+            ));
+        }
+        Ok(())
+    }
     /// Copy the underlying joint out (it is `Copy` upstream).
-    pub fn to_owned_generic(&self) -> rapier::dynamics::GenericJoint {
+    pub fn to_owned_generic(&self) -> PyResult<rapier::dynamics::GenericJoint> {
         self.with_ref(|g| *g)
     }
 }
@@ -2167,7 +2288,8 @@ impl GenericJoint {
     /// :param kwargs: Optional keyword args; accepted keys include
     ///     ``local_anchor1``, ``local_anchor2``, ``local_axis1``,
     ///     ``local_axis2``, ``local_frame1``, ``local_frame2``,
-    ///     ``locked_axes``, ``coupled_axes``, ``contacts_enabled``.
+    ///     ``locked_axes``, ``coupled_axes``, ``contacts_enabled``,
+    ///     ``softness``.
     #[staticmethod]
     #[pyo3(signature = (locked_axes=None, **kwargs))]
     fn builder(
@@ -2182,192 +2304,203 @@ impl GenericJoint {
 
     /// Body-local frame (position + orientation) on body 1.
     #[getter]
-    fn local_frame1(&self) -> Isometry3 {
-        let pose: crate::na::Isometry<Real, _, 3> = self.with_ref(|g| g.local_frame1).into();
-        Isometry3(pose)
+    fn local_frame1(&self) -> PyResult<Isometry3> {
+        let pose: crate::na::Isometry<Real, _, 3> = self.with_ref(|g| g.local_frame1)?.into();
+        Ok(Isometry3(pose))
     }
     /// Set the body-local frame on body 1.
     #[setter]
-    fn set_local_frame1(&mut self, iso: PyIsometry) {
+    fn set_local_frame1(&mut self, iso: PyIsometry) -> PyResult<()> {
         let p: rapier::math::Pose = iso.0.into();
         self.with_mut(|g| {
             g.set_local_frame1(p);
-        });
+        })?;
+        Ok(())
     }
     /// Body-local frame on body 2.
     #[getter]
-    fn local_frame2(&self) -> Isometry3 {
-        let pose: crate::na::Isometry<Real, _, 3> = self.with_ref(|g| g.local_frame2).into();
-        Isometry3(pose)
+    fn local_frame2(&self) -> PyResult<Isometry3> {
+        let pose: crate::na::Isometry<Real, _, 3> = self.with_ref(|g| g.local_frame2)?.into();
+        Ok(Isometry3(pose))
     }
     /// Set the body-local frame on body 2.
     #[setter]
-    fn set_local_frame2(&mut self, iso: PyIsometry) {
+    fn set_local_frame2(&mut self, iso: PyIsometry) -> PyResult<()> {
         let p: rapier::math::Pose = iso.0.into();
         self.with_mut(|g| {
             g.set_local_frame2(p);
-        });
+        })?;
+        Ok(())
     }
     /// Body-local point on body 1 (origin of ``local_frame1``).
     #[getter]
-    fn local_anchor1(&self) -> Point3 {
-        let v: crate::na::SVector<Real, 3> = self.with_ref(|g| g.local_anchor1()).into();
-        Point3(crate::na::Point::from(v))
+    fn local_anchor1(&self) -> PyResult<Point3> {
+        let v: crate::na::SVector<Real, 3> = self.with_ref(|g| g.local_anchor1())?.into();
+        Ok(Point3(crate::na::Point::from(v)))
     }
     /// Set the body-local anchor on body 1.
     #[setter]
-    fn set_local_anchor1(&mut self, p: PyPoint) {
+    fn set_local_anchor1(&mut self, p: PyPoint) -> PyResult<()> {
         let g: rapier::math::Vector = p.0.coords.into();
         self.with_mut(|gj| {
             gj.set_local_anchor1(g);
-        });
+        })?;
+        Ok(())
     }
     /// Body-local point on body 2 (origin of ``local_frame2``).
     #[getter]
-    fn local_anchor2(&self) -> Point3 {
-        let v: crate::na::SVector<Real, 3> = self.with_ref(|g| g.local_anchor2()).into();
-        Point3(crate::na::Point::from(v))
+    fn local_anchor2(&self) -> PyResult<Point3> {
+        let v: crate::na::SVector<Real, 3> = self.with_ref(|g| g.local_anchor2())?.into();
+        Ok(Point3(crate::na::Point::from(v)))
     }
     /// Set the body-local anchor on body 2.
     #[setter]
-    fn set_local_anchor2(&mut self, p: PyPoint) {
+    fn set_local_anchor2(&mut self, p: PyPoint) -> PyResult<()> {
         let g: rapier::math::Vector = p.0.coords.into();
         self.with_mut(|gj| {
             gj.set_local_anchor2(g);
-        });
+        })?;
+        Ok(())
     }
     /// Reference axis on body 1 (X axis of ``local_frame1``).
     #[getter]
-    fn local_axis1(&self) -> Vec3 {
-        let v: crate::na::SVector<Real, 3> = self.with_ref(|g| g.local_axis1()).into();
-        Vec3(v)
+    fn local_axis1(&self) -> PyResult<Vec3> {
+        let v: crate::na::SVector<Real, 3> = self.with_ref(|g| g.local_axis1())?.into();
+        Ok(Vec3(v))
     }
     /// Set the reference axis on body 1.
     #[setter]
-    fn set_local_axis1(&mut self, v: PyVector) {
+    fn set_local_axis1(&mut self, v: PyVector) -> PyResult<()> {
         let g: rapier::math::Vector = v.0.into();
         self.with_mut(|gj| {
             gj.set_local_axis1(g);
-        });
+        })?;
+        Ok(())
     }
     /// Reference axis on body 2 (X axis of ``local_frame2``).
     #[getter]
-    fn local_axis2(&self) -> Vec3 {
-        let v: crate::na::SVector<Real, 3> = self.with_ref(|g| g.local_axis2()).into();
-        Vec3(v)
+    fn local_axis2(&self) -> PyResult<Vec3> {
+        let v: crate::na::SVector<Real, 3> = self.with_ref(|g| g.local_axis2())?.into();
+        Ok(Vec3(v))
     }
     /// Set the reference axis on body 2.
     #[setter]
-    fn set_local_axis2(&mut self, v: PyVector) {
+    fn set_local_axis2(&mut self, v: PyVector) -> PyResult<()> {
         let g: rapier::math::Vector = v.0.into();
         self.with_mut(|gj| {
             gj.set_local_axis2(g);
-        });
+        })?;
+        Ok(())
     }
 
     /// Mask of axes that are rigidly locked by this joint.
     #[getter]
-    fn locked_axes(&self) -> JointAxesMask {
-        JointAxesMask(self.with_ref(|g| g.locked_axes))
+    fn locked_axes(&self) -> PyResult<JointAxesMask> {
+        Ok(JointAxesMask(self.with_ref(|g| g.locked_axes)?))
     }
     /// Replace the set of locked axes.
+    ///
+    /// :raises ValueError: If this is the live data of a multibody joint and
+    ///     the locked axes change (they define its degrees of freedom).
     #[setter]
-    fn set_locked_axes(&mut self, v: JointAxesMask) {
-        self.with_mut(|g| g.locked_axes = v.0);
+    fn set_locked_axes(&mut self, v: JointAxesMask) -> PyResult<()> {
+        self.ensure_locked_axes_unchanged(v.0)?;
+        self.with_mut(|g| g.locked_axes = v.0)?;
+        Ok(())
     }
 
     /// Mask of axes that carry a :class:`JointLimits` configuration.
     #[getter]
-    fn limit_axes(&self) -> JointAxesMask {
-        JointAxesMask(self.with_ref(|g| g.limit_axes))
+    fn limit_axes(&self) -> PyResult<JointAxesMask> {
+        Ok(JointAxesMask(self.with_ref(|g| g.limit_axes)?))
     }
     /// Mask of axes that carry a :class:`JointMotor` configuration.
     #[getter]
-    fn motor_axes(&self) -> JointAxesMask {
-        JointAxesMask(self.with_ref(|g| g.motor_axes))
+    fn motor_axes(&self) -> PyResult<JointAxesMask> {
+        Ok(JointAxesMask(self.with_ref(|g| g.motor_axes)?))
     }
     /// Mask of axes that share their limits / motor (e.g. coupled
     /// linear axes giving a spherical distance constraint).
     #[getter]
-    fn coupled_axes(&self) -> JointAxesMask {
-        JointAxesMask(self.with_ref(|g| g.coupled_axes))
+    fn coupled_axes(&self) -> PyResult<JointAxesMask> {
+        Ok(JointAxesMask(self.with_ref(|g| g.coupled_axes)?))
     }
     /// Replace the set of coupled axes.
     #[setter]
-    fn set_coupled_axes(&mut self, v: JointAxesMask) {
-        self.with_mut(|g| g.coupled_axes = v.0);
+    fn set_coupled_axes(&mut self, v: JointAxesMask) -> PyResult<()> {
+        self.with_mut(|g| g.coupled_axes = v.0)
     }
     /// Spring coefficients controlling the softness of this joint's
     /// constraints (see :class:`SpringCoefficients`).
     #[getter]
-    fn softness(&self) -> SpringCoefficients {
-        SpringCoefficients(self.with_ref(|g| g.softness))
+    fn softness(&self) -> PyResult<SpringCoefficients> {
+        Ok(SpringCoefficients(self.with_ref(|g| g.softness)?))
     }
     /// Set the spring coefficients controlling this joint's softness.
     #[setter]
-    fn set_softness(&mut self, v: SpringCoefficients) {
-        self.with_mut(|g| g.softness = v.0);
+    fn set_softness(&mut self, v: SpringCoefficients) -> PyResult<()> {
+        self.with_mut(|g| g.softness = v.0)
     }
 
     /// Whether collision detection is enabled between the
     /// attached bodies.
     #[getter]
-    fn contacts_enabled(&self) -> bool {
+    fn contacts_enabled(&self) -> PyResult<bool> {
         self.with_ref(|g| g.contacts_enabled)
     }
     /// Enable or disable contacts between the attached bodies.
     #[setter]
-    fn set_contacts_enabled(&mut self, v: bool) {
+    fn set_contacts_enabled(&mut self, v: bool) -> PyResult<()> {
         self.with_mut(|g| {
             g.set_contacts_enabled(v);
-        });
+        })
     }
 
     /// Current :class:`JointEnabled` state.
     #[getter]
-    fn enabled(&self) -> JointEnabled {
-        JointEnabled::from_rapier(self.with_ref(|g| g.enabled))
+    fn enabled(&self) -> PyResult<JointEnabled> {
+        Ok(JointEnabled::from_rapier(self.with_ref(|g| g.enabled)?))
     }
     /// Explicitly enable or disable the joint.
     ///
     /// Maps to :py:attr:`JointEnabled.ENABLED` /
     /// :py:attr:`JointEnabled.DISABLED`.
-    fn set_enabled(&mut self, b: bool) {
+    fn set_enabled(&mut self, b: bool) -> PyResult<()> {
         self.with_mut(|g| {
             g.set_enabled(b);
-        });
+        })
     }
     /// Return ``True`` iff ``enabled == ENABLED``.
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self) -> PyResult<bool> {
         self.with_ref(|g| g.is_enabled())
     }
 
     /// Opaque user-data integer carried by the joint.
     #[getter]
-    fn user_data(&self) -> u128 {
+    fn user_data(&self) -> PyResult<u128> {
         self.with_ref(|g| g.user_data)
     }
     /// Set the user-data integer.
     #[setter]
-    fn set_user_data(&mut self, v: u128) {
-        self.with_mut(|g| g.user_data = v);
+    fn set_user_data(&mut self, v: u128) -> PyResult<()> {
+        self.with_mut(|g| g.user_data = v)
     }
 
     /// Return the limits configured on ``axis``, if any.
-    fn limits(&self, axis: JointAxis) -> Option<JointLimits> {
+    fn limits(&self, axis: JointAxis) -> PyResult<Option<JointLimits>> {
         self.with_ref(|g| g.limits(axis.to_rapier()).map(JointLimits::from_rapier))
     }
     /// Configure ``[min, max]`` limits on ``axis``.
     ///
     /// Units are radians for angular axes and world units for
     /// linear axes.
-    fn set_limits(&mut self, axis: JointAxis, min: Real, max: Real) {
+    fn set_limits(&mut self, axis: JointAxis, min: Real, max: Real) -> PyResult<()> {
         self.with_mut(|g| {
             g.set_limits(axis.to_rapier(), [min, max]);
-        });
+        })
     }
     /// Return the motor configured on ``axis``, if any.
-    fn motor(&self, axis: JointAxis) -> Option<JointMotor> {
+    fn motor(&self, axis: JointAxis) -> PyResult<Option<JointMotor>> {
         self.with_ref(|g| g.motor(axis.to_rapier()).map(JointMotor::from_rapier))
     }
     /// Fully configure the motor on ``axis``.
@@ -2378,16 +2511,21 @@ impl GenericJoint {
         target_vel: Real,
         stiffness: Real,
         damping: Real,
-    ) {
+    ) -> PyResult<()> {
         self.with_mut(|g| {
             g.set_motor(axis.to_rapier(), target_pos, target_vel, stiffness, damping);
-        });
+        })
     }
     /// Configure ``axis`` as a velocity-target motor with damping.
-    fn set_motor_velocity(&mut self, axis: JointAxis, target_vel: Real, factor: Real) {
+    fn set_motor_velocity(
+        &mut self,
+        axis: JointAxis,
+        target_vel: Real,
+        factor: Real,
+    ) -> PyResult<()> {
         self.with_mut(|g| {
             g.set_motor_velocity(axis.to_rapier(), target_vel, factor);
-        });
+        })
     }
     /// Configure ``axis`` as a spring-damper motor toward
     /// ``target_pos``.
@@ -2397,41 +2535,47 @@ impl GenericJoint {
         target_pos: Real,
         stiffness: Real,
         damping: Real,
-    ) {
+    ) -> PyResult<()> {
         self.with_mut(|g| {
             g.set_motor_position(axis.to_rapier(), target_pos, stiffness, damping);
-        });
+        })
     }
     /// Clamp the maximum force the motor on ``axis`` can apply.
-    fn set_motor_max_force(&mut self, axis: JointAxis, max_force: Real) {
+    fn set_motor_max_force(&mut self, axis: JointAxis, max_force: Real) -> PyResult<()> {
         self.with_mut(|g| {
             g.set_motor_max_force(axis.to_rapier(), max_force);
-        });
+        })
     }
     /// Select the motor model on ``axis`` (see :class:`MotorModel`).
-    fn set_motor_model(&mut self, axis: JointAxis, model: MotorModel) {
+    fn set_motor_model(&mut self, axis: JointAxis, model: MotorModel) -> PyResult<()> {
         self.with_mut(|g| {
             g.set_motor_model(axis.to_rapier(), model.to_rapier());
-        });
+        })
     }
     /// Return the motor model on ``axis``, if a motor is configured.
-    fn motor_model(&self, axis: JointAxis) -> Option<MotorModel> {
+    fn motor_model(&self, axis: JointAxis) -> PyResult<Option<MotorModel>> {
         self.with_ref(|g| g.motor_model(axis.to_rapier()).map(MotorModel::from_rapier))
     }
     /// Add ``axes`` to the set of locked axes.
-    fn lock_axes(&mut self, axes: JointAxesMask) {
+    ///
+    /// :raises ValueError: If this is the live data of a multibody joint and
+    ///     the locked axes change (they define its degrees of freedom).
+    fn lock_axes(&mut self, axes: JointAxesMask) -> PyResult<()> {
+        let new_locked_axes = self.with_ref(|g| g.locked_axes)? | axes.0;
+        self.ensure_locked_axes_unchanged(new_locked_axes)?;
         self.with_mut(|g| {
             g.lock_axes(axes.0);
-        });
+        })?;
+        Ok(())
     }
 
     /// Return a developer-readable representation.
-    fn __repr__(&self) -> String {
-        format!(
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!(
             "GenericJoint(locked_axes={:#010b}, enabled={:?})",
-            self.with_ref(|g| g.locked_axes).bits(),
-            self.with_ref(|g| g.enabled)
-        )
+            self.with_ref(|g| g.locked_axes)?.bits(),
+            self.with_ref(|g| g.enabled)?
+        ))
     }
 }
 
@@ -2495,6 +2639,10 @@ impl GenericJointBuilder {
                     "contacts_enabled" => {
                         let b: bool = v.extract()?;
                         me.0 = me.0.contacts_enabled(b);
+                    }
+                    "softness" => {
+                        let c: SpringCoefficients = v.extract()?;
+                        me.0 = me.0.softness(c.0);
                     }
                     _ => {
                         return Err(PyTypeError::new_err(format!(
@@ -2677,29 +2825,32 @@ impl ImpulseJoint {
             backing: ImpulseJointBacking::Owned(Box::new(joint)),
         }
     }
-    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::ImpulseJoint) -> R) -> R {
+    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::ImpulseJoint) -> R) -> PyResult<R> {
         match &self.backing {
-            ImpulseJointBacking::Owned(j) => f(j),
+            ImpulseJointBacking::Owned(j) => Ok(f(j)),
             ImpulseJointBacking::InSet { set, handle } => Python::with_gil(|py| {
-                let set = set.bind(py).borrow();
+                let set = crate::errors::try_borrow(set.bind(py))?;
                 let j = set
                     .0
                     .get(*handle)
-                    .expect("ImpulseJoint refers to a joint that was removed from its set");
-                f(j)
+                    .ok_or_else(|| crate::errors::stale_view("ImpulseJoint"))?;
+                Ok(f(j))
             }),
         }
     }
-    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::ImpulseJoint) -> R) -> R {
+    fn with_mut<R>(
+        &mut self,
+        f: impl FnOnce(&mut rapier::dynamics::ImpulseJoint) -> R,
+    ) -> PyResult<R> {
         match &mut self.backing {
-            ImpulseJointBacking::Owned(j) => f(j),
+            ImpulseJointBacking::Owned(j) => Ok(f(j)),
             ImpulseJointBacking::InSet { set, handle } => Python::with_gil(|py| {
-                let mut set = set.bind(py).borrow_mut();
+                let mut set = crate::errors::try_borrow_mut(set.bind(py))?;
                 let j = set
                     .0
                     .get_mut(*handle, true)
-                    .expect("ImpulseJoint refers to a joint that was removed from its set");
-                f(j)
+                    .ok_or_else(|| crate::errors::stale_view("ImpulseJoint"))?;
+                Ok(f(j))
             }),
         }
     }
@@ -2709,12 +2860,12 @@ impl ImpulseJoint {
 impl ImpulseJoint {
     /// Handle of the first attached body.
     #[getter]
-    fn body1(&self) -> RigidBodyHandle {
+    fn body1(&self) -> PyResult<RigidBodyHandle> {
         self.with_ref(|j| RigidBodyHandle(j.body1()))
     }
     /// Handle of the second attached body.
     #[getter]
-    fn body2(&self) -> RigidBodyHandle {
+    fn body2(&self) -> PyResult<RigidBodyHandle> {
         self.with_ref(|j| RigidBodyHandle(j.body2()))
     }
     /// Underlying :class:`GenericJoint` description (read+write).
@@ -2737,23 +2888,24 @@ impl ImpulseJoint {
     }
     /// Replace the joint description (persists for an in-set joint).
     #[setter]
-    fn set_data(&mut self, data: GenericJoint) {
-        let g = data.to_owned_generic();
-        self.with_mut(|j| j.data = g);
+    fn set_data(&mut self, data: GenericJoint) -> PyResult<()> {
+        let g = data.to_owned_generic()?;
+        self.with_mut(|j| j.data = g)?;
+        Ok(())
     }
     /// Per-axis impulses applied by the solver on the last step.
     ///
     /// :returns: Flat list of length 3 in 2D (lin_x, lin_y, ang_x)
     ///     and 6 in 3D (lin_x, lin_y, lin_z, ang_x, ang_y, ang_z).
     #[getter]
-    fn impulses(&self) -> Vec<Real> {
+    fn impulses(&self) -> PyResult<Vec<Real>> {
         self.with_ref(|j| {
             let v = j.impulses;
             v.to_vec()
         })
     }
     /// Return a developer-readable representation.
-    fn __repr__(&self) -> String {
+    fn __repr__(&self) -> PyResult<String> {
         self.with_ref(|j| {
             let (i1, g1) = j.body1().0.into_raw_parts();
             let (i2, g2) = j.body2().0.into_raw_parts();
@@ -2778,7 +2930,7 @@ impl ImpulseJoint {
 ///
 /// Supports ``len()``, ``in``, ``set[handle]``, and iteration
 /// (yielding ``(ImpulseJointHandle, ImpulseJoint)`` pairs).
-#[pyclass(name = "ImpulseJointSet", module = "rapier", unsendable)]
+#[pyclass(name = "ImpulseJointSet", module = "rapier")]
 pub struct ImpulseJointSet(pub rapier::dynamics::ImpulseJointSet);
 
 #[pymethods]
@@ -2812,7 +2964,7 @@ impl ImpulseJointSet {
             let obj = joint;
             let result: crate::pyo3::PyResult<rapier::dynamics::GenericJoint> = (|| {
                 if let Ok(j) = obj.extract::<crate::pyo3::PyRef<'_, GenericJoint>>() {
-                    return Ok(j.to_owned_generic());
+                    return j.to_owned_generic();
                 }
                 if let Ok(b) = obj.extract::<crate::pyo3::PyRef<'_, GenericJointBuilder>>() {
                     return Ok(b.0.build());
@@ -2911,14 +3063,16 @@ impl ImpulseJointSet {
 
     /// Return a live **view** of the joint pointed at by ``handle``,
     /// if any. Assigning ``joint.data = gj`` persists in place.
-    fn get(slf: &Bound<'_, Self>, handle: &ImpulseJointHandle) -> Option<ImpulseJoint> {
-        slf.borrow().0.get(handle.0)?;
-        Some(ImpulseJoint {
+    fn get(slf: &Bound<'_, Self>, handle: &ImpulseJointHandle) -> PyResult<Option<ImpulseJoint>> {
+        if crate::errors::try_borrow(slf)?.0.get(handle.0).is_none() {
+            return Ok(None);
+        }
+        Ok(Some(ImpulseJoint {
             backing: ImpulseJointBacking::InSet {
                 set: slf.clone().unbind(),
                 handle: handle.0,
             },
-        })
+        }))
     }
 
     /// Indexed access (``self[handle]``) — returns a live view.
@@ -2926,7 +3080,7 @@ impl ImpulseJointSet {
     /// :raises InvalidHandle: If ``handle`` does not point to a
     ///     joint in this set.
     fn __getitem__(slf: &Bound<'_, Self>, handle: &ImpulseJointHandle) -> PyResult<ImpulseJoint> {
-        if slf.borrow().0.get(handle.0).is_none() {
+        if crate::errors::try_borrow(slf)?.0.get(handle.0).is_none() {
             return Err(crate::errors::InvalidHandle::new_err(format!(
                 "no impulse joint for {:?}",
                 handle.0.into_raw_parts()
@@ -2957,8 +3111,11 @@ impl ImpulseJointSet {
 
     /// Iterate over ``(handle, joint)`` pairs.
     fn __iter__(slf: &Bound<'_, Self>) -> PyResult<Py<ImpulseJointSetIter>> {
-        let handles: Vec<rapier::dynamics::ImpulseJointHandle> =
-            slf.borrow().0.iter().map(|(h, _)| h).collect();
+        let handles: Vec<rapier::dynamics::ImpulseJointHandle> = crate::errors::try_borrow(slf)?
+            .0
+            .iter()
+            .map(|(h, _)| h)
+            .collect();
         Py::new(
             slf.py(),
             ImpulseJointSetIter {
@@ -3148,26 +3305,29 @@ impl Clone for Multibody {
 }
 
 impl Multibody {
-    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::Multibody) -> R) -> R {
+    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::Multibody) -> R) -> PyResult<R> {
         Python::with_gil(|py| {
-            let set = self.set.bind(py).borrow();
+            let set = crate::errors::try_borrow(self.set.bind(py))?;
             let mb = match self.key {
                 MultibodyKey::Index(i) => set.0.get_multibody(i),
                 MultibodyKey::Joint(h) => set.0.get(h).map(|(mb, _)| mb),
             }
-            .expect("Multibody refers to an articulation no longer in its set");
-            f(mb)
+            .ok_or_else(|| crate::errors::stale_view("Multibody"))?;
+            Ok(f(mb))
         })
     }
-    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::Multibody) -> R) -> R {
+    fn with_mut<R>(
+        &mut self,
+        f: impl FnOnce(&mut rapier::dynamics::Multibody) -> R,
+    ) -> PyResult<R> {
         Python::with_gil(|py| {
-            let mut set = self.set.bind(py).borrow_mut();
+            let mut set = crate::errors::try_borrow_mut(self.set.bind(py))?;
             let mb = match self.key {
                 MultibodyKey::Index(i) => set.0.get_multibody_mut(i),
                 MultibodyKey::Joint(h) => set.0.get_mut(h).map(|(mb, _)| mb),
             }
-            .expect("Multibody refers to an articulation no longer in its set");
-            f(mb)
+            .ok_or_else(|| crate::errors::stale_view("Multibody"))?;
+            Ok(f(mb))
         })
     }
 }
@@ -3176,44 +3336,44 @@ impl Multibody {
 impl Multibody {
     /// Handle of the root link's rigid body.
     #[getter]
-    fn root_handle(&self) -> RigidBodyHandle {
+    fn root_handle(&self) -> PyResult<RigidBodyHandle> {
         self.with_ref(|mb| RigidBodyHandle(mb.root().rigid_body_handle()))
     }
     /// Total number of links in the articulation.
     #[getter]
-    fn num_links(&self) -> usize {
+    fn num_links(&self) -> PyResult<usize> {
         self.with_ref(|mb| mb.num_links())
     }
     /// Total number of degrees of freedom across all joints.
     #[getter]
-    fn ndofs(&self) -> usize {
+    fn ndofs(&self) -> PyResult<usize> {
         self.with_ref(|mb| mb.ndofs())
     }
     /// Return the link with index ``idx``, or ``None`` if out of
     /// range.
-    fn get_link(&self, idx: usize) -> Option<MultibodyLink> {
+    fn get_link(&self, idx: usize) -> PyResult<Option<MultibodyLink>> {
         self.with_ref(|mb| mb.link(idx).copied().map(MultibodyLink))
     }
     /// Iterate over the links in depth-first order from the root.
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<MultibodyLinkIter>> {
         let links: Vec<MultibodyLink> =
-            slf.with_ref(|mb| mb.links().copied().map(MultibodyLink).collect());
+            slf.with_ref(|mb| mb.links().copied().map(MultibodyLink).collect())?;
         Py::new(slf.py(), MultibodyLinkIter { links, i: 0 })
     }
     /// Return ``True`` iff contacts between links of this
     /// articulation are enabled.
-    fn self_contacts_enabled(&self) -> bool {
+    fn self_contacts_enabled(&self) -> PyResult<bool> {
         self.with_ref(|mb| mb.self_contacts_enabled())
     }
     /// Enable or disable contacts between links of this
     /// articulation.
-    fn set_self_contacts_enabled(&mut self, v: bool) {
-        self.with_mut(|mb| mb.set_self_contacts_enabled(v));
+    fn set_self_contacts_enabled(&mut self, v: bool) -> PyResult<()> {
+        self.with_mut(|mb| mb.set_self_contacts_enabled(v))
     }
 
     /// Per-degree-of-freedom joint damping coefficients
     /// (length :attr:`ndofs`).
-    fn damping(&self) -> Vec<Real> {
+    fn damping(&self) -> PyResult<Vec<Real>> {
         self.with_ref(|mb| mb.damping().iter().copied().collect())
     }
     /// Set the per-DOF joint damping coefficients.
@@ -3233,10 +3393,10 @@ impl Multibody {
                 d[i] = *v;
             }
             Ok(())
-        })
+        })?
     }
     /// Generalized velocity vector (one entry per DOF).
-    fn generalized_velocity(&self) -> Vec<Real> {
+    fn generalized_velocity(&self) -> PyResult<Vec<Real>> {
         self.with_ref(|mb| mb.generalized_velocity().iter().copied().collect())
     }
     /// Set the generalized velocity vector.
@@ -3256,20 +3416,42 @@ impl Multibody {
                 v[i] = *x;
             }
             Ok(())
-        })
+        })?
+    }
+    /// Add ``displacements`` (one entry per degree of freedom, e.g. the
+    /// result of :meth:`MultibodyJointSet.inverse_kinematics_for_link`) to
+    /// the generalized coordinates of the joints.
+    ///
+    /// The link poses and their rigid-bodies are updated by the next
+    /// simulation step, or right away by :meth:`forward_kinematics`
+    /// followed by :meth:`update_rigid_bodies`.
+    ///
+    /// :raises ValueError: If ``displacements`` length differs from `ndofs`.
+    fn apply_displacements(&mut self, displacements: Vec<Real>) -> PyResult<()> {
+        self.with_mut(|mb| {
+            if displacements.len() != mb.ndofs() {
+                return Err(PyValueError::new_err(format!(
+                    "expected {} displacements (ndofs), got {}",
+                    mb.ndofs(),
+                    displacements.len()
+                )));
+            }
+            mb.apply_displacements(&displacements);
+            Ok(())
+        })?
     }
     /// Generalized acceleration vector from the last solver step.
-    fn generalized_acceleration(&self) -> Vec<Real> {
+    fn generalized_acceleration(&self) -> PyResult<Vec<Real>> {
         self.with_ref(|mb| mb.generalized_acceleration().iter().copied().collect())
     }
     /// Velocity DOFs belonging to a single ``link``.
-    fn joint_velocity(&self, link: &MultibodyLink) -> Vec<Real> {
+    fn joint_velocity(&self, link: &MultibodyLink) -> PyResult<Vec<Real>> {
         self.with_ref(|mb| mb.joint_velocity(&link.0).iter().copied().collect())
     }
     /// The body Jacobian of link ``link_id`` as a row-major nested
     /// list with ``2*dim`` rows (linear then angular) and `ndofs`
     /// columns.
-    fn body_jacobian(&self, link_id: usize) -> Vec<Vec<Real>> {
+    fn body_jacobian(&self, link_id: usize) -> PyResult<Vec<Vec<Real>>> {
         self.with_ref(|mb| {
             let j = mb.body_jacobian(link_id);
             (0..j.nrows())
@@ -3279,13 +3461,17 @@ impl Multibody {
     }
     /// Link indices on the path from the root to ``link_id``
     /// (inclusive).
-    fn kinematic_branch(&self, link_id: usize) -> Vec<usize> {
+    fn kinematic_branch(&self, link_id: usize) -> PyResult<Vec<usize>> {
         self.with_ref(|mb| mb.kinematic_branch(link_id))
     }
     /// Write each link's pose (and optionally mass properties) into
     /// ``bodies`` from this multibody's current generalized state.
-    fn update_rigid_bodies(&self, bodies: &mut RigidBodySet, update_mass_properties: bool) {
-        self.with_ref(|mb| mb.update_rigid_bodies(&mut bodies.0, update_mass_properties));
+    fn update_rigid_bodies(
+        &self,
+        bodies: &mut RigidBodySet,
+        update_mass_properties: bool,
+    ) -> PyResult<()> {
+        self.with_ref(|mb| mb.update_rigid_bodies(&mut bodies.0, update_mass_properties))
     }
     /// Recompute link poses from the generalized coordinates
     /// (forward kinematics).
@@ -3294,8 +3480,12 @@ impl Multibody {
     /// :param read_root_pose_from_rigid_body: If ``True``, seed the
     ///     root link's pose from its rigid body first.
     #[pyo3(signature = (bodies, read_root_pose_from_rigid_body=false))]
-    fn forward_kinematics(&mut self, bodies: &RigidBodySet, read_root_pose_from_rigid_body: bool) {
-        self.with_mut(|mb| mb.forward_kinematics(&bodies.0, read_root_pose_from_rigid_body));
+    fn forward_kinematics(
+        &mut self,
+        bodies: &RigidBodySet,
+        read_root_pose_from_rigid_body: bool,
+    ) -> PyResult<()> {
+        self.with_mut(|mb| mb.forward_kinematics(&bodies.0, read_root_pose_from_rigid_body))
     }
 }
 
@@ -3325,6 +3515,127 @@ impl MultibodyLinkIter {
 }
 
 // =================================================================
+// MultibodyJoint (view)
+// =================================================================
+fn invalid_multibody_joint(handle: rapier::dynamics::MultibodyJointHandle) -> PyErr {
+    crate::errors::InvalidHandle::new_err(format!(
+        "no multibody joint for {:?}",
+        handle.0.into_raw_parts()
+    ))
+}
+
+/// Live view of one joint stored in a :class:`MultibodyJointSet`,
+/// returned by ``multibody_joints[handle]``.
+///
+/// Modifying :attr:`data` modifies the joint stored in the set (and
+/// wakes up its rigid-bodies at the next step), like for
+/// :class:`ImpulseJoint`. The locked axes of a multibody joint define
+/// its degrees of freedom so they can't be changed.
+///
+/// :raises InvalidHandle: When accessed after the joint was removed.
+#[pyclass(name = "MultibodyJoint", module = "rapier")]
+pub struct MultibodyJoint {
+    set: Py<MultibodyJointSet>,
+    handle: rapier::dynamics::MultibodyJointHandle,
+}
+
+impl MultibodyJoint {
+    fn with_ref<R>(
+        &self,
+        py: Python<'_>,
+        f: impl FnOnce(&rapier::dynamics::Multibody, &rapier::dynamics::MultibodyLink) -> R,
+    ) -> PyResult<R> {
+        let set = crate::errors::try_borrow(self.set.bind(py))?;
+        let (mb, id) = set
+            .0
+            .get(self.handle)
+            .ok_or_else(|| invalid_multibody_joint(self.handle))?;
+        let link = mb
+            .link(id)
+            .ok_or_else(|| invalid_multibody_joint(self.handle))?;
+        Ok(f(mb, link))
+    }
+}
+
+#[pymethods]
+impl MultibodyJoint {
+    /// The :class:`GenericJoint` description of the joint, as a live view.
+    ///
+    /// Mutating it in place persists, e.g.
+    /// ``joint.data.set_motor_velocity(JointAxis.ANG_X, 1.0, 0.5)``.
+    /// Assigning a whole :class:`GenericJoint` (``joint.data = gj``)
+    /// also works.
+    ///
+    /// :raises ValueError: On assignment or mutation, if the locked axes
+    ///     change.
+    #[getter]
+    fn data(&self, py: Python<'_>) -> PyResult<GenericJoint> {
+        self.with_ref(py, |_, _| ())?;
+        Ok(GenericJoint {
+            backing: GenericJointBacking::MultibodyJointData {
+                set: self.set.clone_ref(py),
+                handle: self.handle,
+            },
+        })
+    }
+    /// Replace the joint description (same locked axes required).
+    #[setter]
+    fn set_data(&mut self, py: Python<'_>, data: &GenericJoint) -> PyResult<()> {
+        let new_data = data.to_owned_generic()?;
+        let locked_axes = self.with_ref(py, |_, link| link.joint.data.locked_axes)?;
+        if new_data.locked_axes != locked_axes {
+            return Err(PyValueError::new_err(
+                "the locked axes of a multibody joint cannot change (they define its degrees of freedom)",
+            ));
+        }
+        crate::errors::try_borrow_mut(self.set.bind(py))?
+            .modify_joint(self.handle, |joint| joint.data = new_data)
+            .ok_or_else(|| invalid_multibody_joint(self.handle))
+    }
+    /// Whether the joint is kinematic (inserted with
+    /// :meth:`MultibodyJointSet.insert_kinematic`): its velocity is never
+    /// changed by the physics engine.
+    #[getter]
+    fn kinematic(&self, py: Python<'_>) -> PyResult<bool> {
+        self.with_ref(py, |_, link| link.joint.kinematic)
+    }
+    /// Generalized coordinates of the joint: ``[lin_x, lin_y, lin_z,
+    /// ang_x, ang_y, ang_z]``, only meaningful on its free axes (e.g. the
+    /// angle of a revolute joint is ``coords[3]``).
+    #[getter]
+    fn coords(&self, py: Python<'_>) -> PyResult<Vec<Real>> {
+        self.with_ref(py, |_, link| link.joint.coords().to_vec())
+    }
+    /// Index of the link the joint attaches to its parent, within its
+    /// :attr:`multibody`.
+    #[getter]
+    fn link_id(&self, py: Python<'_>) -> PyResult<usize> {
+        self.with_ref(py, |_, link| link.link_id())
+    }
+    /// The :class:`Multibody` (live view) the joint belongs to.
+    #[getter]
+    fn multibody(&self, py: Python<'_>) -> PyResult<Multibody> {
+        self.with_ref(py, |_, _| ())?;
+        Ok(Multibody {
+            set: self.set.clone_ref(py),
+            key: MultibodyKey::Joint(self.handle),
+        })
+    }
+    /// Return a developer-readable representation.
+    fn __repr__(&self, py: Python<'_>) -> String {
+        let (i, g) = self.handle.0.into_raw_parts();
+        let handle = format!("MultibodyJointHandle(index={i}, generation={g})");
+        match self.with_ref(py, |_, link| (link.link_id(), link.joint.kinematic)) {
+            Ok((link_id, kinematic)) => format!(
+                "MultibodyJoint(handle={handle}, link_id={link_id}, kinematic={})",
+                if kinematic { "True" } else { "False" }
+            ),
+            Err(_) => format!("MultibodyJoint(handle={handle}, removed)"),
+        }
+    }
+}
+
+// =================================================================
 // MultibodyJointSet
 // =================================================================
 /// Container of reduced-coordinate multibody articulations.
@@ -3337,16 +3648,57 @@ impl MultibodyLinkIter {
 /// flexibility of arbitrary topologies (use
 /// :class:`ImpulseJointSet` for those).
 ///
-/// Supports ``len()`` and iteration over joint handles.
-#[pyclass(name = "MultibodyJointSet", module = "rapier", unsendable)]
-pub struct MultibodyJointSet(pub rapier::dynamics::MultibodyJointSet);
+/// Supports ``len()``, ``set[handle]`` (a live :class:`MultibodyJoint`)
+/// and iteration over joint handles.
+#[pyclass(name = "MultibodyJointSet", module = "rapier")]
+pub struct MultibodyJointSet(
+    pub rapier::dynamics::MultibodyJointSet,
+    /// Rigid-bodies attached to joints modified through a live view, woken
+    /// up by the next step (`MultibodyJointSet::get_mut` doesn't track them).
+    pub Vec<rapier::dynamics::RigidBodyHandle>,
+);
+
+impl MultibodyJointSet {
+    pub(crate) fn wrap(set: rapier::dynamics::MultibodyJointSet) -> Self {
+        Self(set, Vec::new())
+    }
+
+    /// Mutate the joint `handle`, then queue its two rigid-bodies for waking up.
+    pub(crate) fn modify_joint<R>(
+        &mut self,
+        handle: rapier::dynamics::MultibodyJointHandle,
+        f: impl FnOnce(&mut rapier::dynamics::MultibodyJoint) -> R,
+    ) -> Option<R> {
+        let (mb, id) = self.0.get_mut(handle)?;
+        let parent = mb
+            .link(id)?
+            .parent_id()
+            .and_then(|p| mb.link(p))
+            .map(|l| l.rigid_body_handle());
+        let link = mb.link_mut(id)?;
+        let body = link.rigid_body_handle();
+        let result = f(&mut link.joint);
+        self.1.push(body);
+        self.1.extend(parent);
+        Some(result)
+    }
+
+    /// Wake up the rigid-bodies queued by `modify_joint`.
+    pub(crate) fn wake_up_modified_bodies(&mut self, bodies: &mut rapier::dynamics::RigidBodySet) {
+        for handle in self.1.drain(..) {
+            if let Some(body) = bodies.get_mut(handle) {
+                body.wake_up(true);
+            }
+        }
+    }
+}
 
 #[pymethods]
 impl MultibodyJointSet {
     /// Construct an empty :class:`MultibodyJointSet`.
     #[new]
     fn new() -> Self {
-        Self(rapier::dynamics::MultibodyJointSet::new())
+        Self::wrap(rapier::dynamics::MultibodyJointSet::new())
     }
 
     /// Insert a dynamic joint between ``parent`` and ``link_body``.
@@ -3373,7 +3725,7 @@ impl MultibodyJointSet {
             let obj = joint;
             let result: crate::pyo3::PyResult<rapier::dynamics::GenericJoint> = (|| {
                 if let Ok(j) = obj.extract::<crate::pyo3::PyRef<'_, GenericJoint>>() {
-                    return Ok(j.to_owned_generic());
+                    return j.to_owned_generic();
                 }
                 if let Ok(b) = obj.extract::<crate::pyo3::PyRef<'_, GenericJointBuilder>>() {
                     return Ok(b.0.build());
@@ -3455,7 +3807,7 @@ impl MultibodyJointSet {
             let obj = joint;
             let result: crate::pyo3::PyResult<rapier::dynamics::GenericJoint> = (|| {
                 if let Ok(j) = obj.extract::<crate::pyo3::PyRef<'_, GenericJoint>>() {
-                    return Ok(j.to_owned_generic());
+                    return j.to_owned_generic();
                 }
                 if let Ok(b) = obj.extract::<crate::pyo3::PyRef<'_, GenericJointBuilder>>() {
                     return Ok(b.0.build());
@@ -3525,24 +3877,38 @@ impl MultibodyJointSet {
 
     /// Return the ``(multibody, link_id)`` pair containing the joint.
     /// The multibody is a live **view** into the set.
-    fn get(slf: &Bound<'_, Self>, handle: &MultibodyJointHandle) -> Option<(Multibody, usize)> {
-        let id = slf.borrow().0.get(handle.0).map(|(_, id)| id)?;
-        Some((
+    fn get(
+        slf: &Bound<'_, Self>,
+        handle: &MultibodyJointHandle,
+    ) -> PyResult<Option<(Multibody, usize)>> {
+        let Some(id) = crate::errors::try_borrow(slf)?
+            .0
+            .get(handle.0)
+            .map(|(_, id)| id)
+        else {
+            return Ok(None);
+        };
+        Ok(Some((
             Multibody {
                 set: slf.clone().unbind(),
                 key: MultibodyKey::Joint(handle.0),
             },
             id,
-        ))
+        )))
     }
 
     /// Return the :class:`Multibody` (live view) containing the joint.
-    fn multibody(slf: &Bound<'_, Self>, handle: &MultibodyJointHandle) -> Option<Multibody> {
-        slf.borrow().0.get(handle.0)?;
-        Some(Multibody {
+    fn multibody(
+        slf: &Bound<'_, Self>,
+        handle: &MultibodyJointHandle,
+    ) -> PyResult<Option<Multibody>> {
+        if crate::errors::try_borrow(slf)?.0.get(handle.0).is_none() {
+            return Ok(None);
+        }
+        Ok(Some(Multibody {
             set: slf.clone().unbind(),
             key: MultibodyKey::Joint(handle.0),
-        })
+        }))
     }
 
     /// Return the :class:`MultibodyLinkId` of ``body`` if it
@@ -3552,12 +3918,18 @@ impl MultibodyJointSet {
     }
 
     /// Return the articulation (live view) referred to by ``index``.
-    fn get_multibody(slf: &Bound<'_, Self>, index: &MultibodyIndex) -> Option<Multibody> {
-        slf.borrow().0.get_multibody(index.0)?;
-        Some(Multibody {
+    fn get_multibody(slf: &Bound<'_, Self>, index: &MultibodyIndex) -> PyResult<Option<Multibody>> {
+        if crate::errors::try_borrow(slf)?
+            .0
+            .get_multibody(index.0)
+            .is_none()
+        {
+            return Ok(None);
+        }
+        Ok(Some(Multibody {
             set: slf.clone().unbind(),
             key: MultibodyKey::Index(index.0),
-        })
+        }))
     }
 
     /// Find the multibody joint connecting two bodies, if they are
@@ -3585,9 +3957,27 @@ impl MultibodyJointSet {
         ))
     }
 
-    /// Number of articulations currently stored.
+    /// Number of joints currently stored (the number of handles yielded
+    /// by iteration).
     fn __len__(&self) -> usize {
-        self.0.multibodies().count()
+        self.0.iter().count()
+    }
+
+    /// Indexed access (``self[handle]``): a live view of the joint.
+    ///
+    /// :raises InvalidHandle: If ``handle`` does not point to a
+    ///     joint in this set.
+    fn __getitem__(
+        slf: &Bound<'_, Self>,
+        handle: &MultibodyJointHandle,
+    ) -> PyResult<MultibodyJoint> {
+        if crate::errors::try_borrow(slf)?.0.get(handle.0).is_none() {
+            return Err(invalid_multibody_joint(handle.0));
+        }
+        Ok(MultibodyJoint {
+            set: slf.clone().unbind(),
+            handle: handle.0,
+        })
     }
 
     /// Iterate over every joint handle in the set.
@@ -3630,28 +4020,33 @@ impl MultibodyJointSet {
     /// :param target_pose: Desired world-space pose for the link.
     /// :param option: Solver tuning; defaults to a sensible
     ///     starting point if omitted.
+    /// :param joint_can_move: Optional callable
+    ///     ``joint_can_move(link: MultibodyLink) -> bool`` called once for
+    ///     each link from the root to the target link; the joints of the
+    ///     links it returns ``False`` for are left unchanged. By default
+    ///     every joint can move.
     /// :returns: Flat list of length :py:attr:`Multibody.ndofs`
     ///     giving the joint-coordinate displacement that achieves
-    ///     the IK target.
+    ///     the IK target (apply it with
+    ///     :meth:`Multibody.apply_displacements`).
     /// :raises InvalidHandle: If ``handle`` is stale.
     // Inverse kinematics passthrough for a single link of a multibody.
     //
     // This is a thin wrapper around `Multibody::inverse_kinematics`
     // that returns the resulting displacement vector.
-    #[pyo3(signature = (bodies, handle, target_pose, option=None))]
+    #[pyo3(signature = (bodies, handle, target_pose, option=None, joint_can_move=None))]
     fn inverse_kinematics_for_link(
         &self,
         bodies: &RigidBodySet,
         handle: &MultibodyJointHandle,
         target_pose: PyIsometry,
         option: Option<&InverseKinematicsOption>,
+        joint_can_move: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Vec<Real>> {
-        let (mb, link_id) = self.0.get(handle.0).ok_or_else(|| {
-            crate::errors::InvalidHandle::new_err(format!(
-                "no multibody joint for {:?}",
-                handle.0.into_raw_parts()
-            ))
-        })?;
+        let (mb, link_id) = self
+            .0
+            .get(handle.0)
+            .ok_or_else(|| invalid_multibody_joint(handle.0))?;
         let opts = option.copied().unwrap_or_else(|| InverseKinematicsOption {
             damping: 1.0,
             max_iters: 10,
@@ -3662,14 +4057,37 @@ impl MultibodyJointSet {
         let rapier_opts = opts.to_rapier();
         let target: rapier::math::Pose = target_pose.0.into();
         let mut displacements = crate::na::DVector::<Real>::zeros(mb.ndofs());
+        // The first error raised by `joint_can_move` is re-raised once the solver returns.
+        let callback_err: std::cell::RefCell<Option<PyErr>> = std::cell::RefCell::new(None);
+        let can_move = |link: &rapier::dynamics::MultibodyLink| -> bool {
+            let Some(callback) = joint_can_move else {
+                return true;
+            };
+            if callback_err.borrow().is_some() {
+                return false;
+            }
+            match callback
+                .call1((MultibodyLink(*link),))
+                .and_then(|r| r.is_truthy())
+            {
+                Ok(can_move) => can_move,
+                Err(e) => {
+                    *callback_err.borrow_mut() = Some(e);
+                    false
+                }
+            }
+        };
         mb.inverse_kinematics(
             &bodies.0,
             link_id,
             &rapier_opts,
             &target,
-            |_| true,
+            can_move,
             &mut displacements,
         );
+        if let Some(e) = callback_err.into_inner() {
+            return Err(e);
+        }
         Ok(displacements.iter().copied().collect())
     }
 }
@@ -3768,7 +4186,7 @@ impl SphericalJoint {
     /// :param kwargs: Optional keyword args forwarded to the
     ///     builder; accepted keys are ``local_anchor1``,
     ///     ``local_anchor2``, ``local_frame1``, ``local_frame2``,
-    ///     ``contacts_enabled``.
+    ///     ``contacts_enabled``, ``softness``.
     #[staticmethod]
     #[pyo3(signature = (body_a=None, body_b=None, **kwargs))]
     fn builder(
@@ -3967,6 +4385,10 @@ impl SphericalJointBuilder {
                     "contacts_enabled" => {
                         let b: bool = v.extract()?;
                         me.0 = me.0.contacts_enabled(b);
+                    }
+                    "softness" => {
+                        let c: SpringCoefficients = v.extract()?;
+                        me.0 = me.0.softness(c.0);
                     }
                     _ => {
                         return Err(PyTypeError::new_err(format!(
@@ -4168,6 +4590,7 @@ pub fn register_joints(
     m.add_class::<ImpulseJointHandleIter>()?;
     m.add_class::<MultibodyLink>()?;
     m.add_class::<Multibody>()?;
+    m.add_class::<MultibodyJoint>()?;
     m.add_class::<MultibodyLinkIter>()?;
     m.add_class::<MultibodyJointSet>()?;
     m.add_class::<MultibodyJointSetIter>()?;

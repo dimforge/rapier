@@ -139,7 +139,7 @@ with tempfile.TemporaryDirectory(prefix="rapier-c-tests-") as directory:
             source.write_text(f'''#include "rapier.h"
 int run{dim}(void) {{
     R{dim}World *world = 0;
-    if (r{dim}CheckAbi(R{dim}_ABI_VERSION, {dim}, sizeof(R{dim}Real), sizeof(R{dim}Vector), sizeof(R{dim}Pose))) return 1;
+    if (r{dim}CheckAbi(R{dim}_ABI_VERSION, {dim}, sizeof(R{dim}Real), sizeof(R{dim}Vector), sizeof(R{dim}Pose), R{dim}_ABI_FEATURES)) return 1;
     world = r{dim}NewWorld();
     if (r{dim}LastStatus()) return 2;
     R{dim}Status status = r{dim}Step(world, 0, 0);

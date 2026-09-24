@@ -5,8 +5,8 @@ import TabItem from '@theme/TabItem';
 <rapier>
 
 A collider is created by a `ColliderBuilder` structure that is based on the builder pattern. Then it needs
-to be inserted into the `ColliderSet` that will be processed by the physics-pipeline, collision-pipeline, or
-query-pipeline.
+to be inserted into the [physics world](./simulation_structures.mdx#physics-world), i.e., into its `ColliderSet`,
+which is processed by the physics-pipeline, collision-pipeline, and query-pipeline.
 
 :::info
 The following example shows several setters that can be called to customize the
@@ -41,7 +41,8 @@ values={[
 <bevy>
 
 A collider is created by adding the `Collider` component. Other components like `Transform`,
-`Sensor`, `Friction`, etc. can be added to customize the collider.
+`Sensor`, `Friction`, etc. can be added to customize the collider. Removing one of these optional components
+afterwards resets the corresponding property of the collider to its default value.
 
 :::info
 The following example shows several initializations of components to customize
@@ -126,3 +127,83 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+A collider is described by a `R3ColliderDesc` structure, initialized by one of its constructors (e.g.
+`r3BallColliderDesc`, `r3CuboidColliderDesc`, `r3CapsuleYColliderDesc`, or `r3DefaultColliderDesc`) which set
+meaningful default values to all its fields. Its geometric shape is given by its `shape` field, a `R3ShapeDesc`
+whose `kind` (e.g. `R3_SHAPE_DESC_CUBOID`) selects which of its fields are actually read. Then it needs to be
+inserted into the [physics world](./simulation_structures.mdx#physics-world): with `r3InsertCollider` to attach it
+to a rigid-body, or with `r3InsertColliderWithoutParent` otherwise. Both return the `R3ColliderHandle` identifying
+the new collider.
+
+The arrays referenced by a description (vertex buffers, index buffers, compound children, etc.) are only borrowed
+until its insertion returns: they can be freed or reused right after. This is also the case of the **shared
+shapes** (`R3SharedShape`) a description can point to, with the `R3_SHAPE_DESC_SHARED` kind. A shared shape is an
+immutable geometry created by one of the `r3...SharedShape` functions (e.g. `r3BallSharedShape`), which can be given
+to any number of colliders, and must be freed with `r3FreeSharedShape`. Some shapes, like convex decompositions or
+voxels, can only be created as shared shapes.
+
+:::info
+The following example shows several fields that can be set to customize the collider being described. The input
+values are just random so using this example as-is will not lead to a useful result.
+:::
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/colliders3.c' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+A collider can also be disabled, by setting the `enabled` field of its description to 0 or, after its creation, with
+`r3Collider_SetEnabled`. A disabled collider is excluded from all the collision-detection and physics until it is
+enabled again, which is useful to "turn off" a collider temporarily without removing it (a collider is removed from
+the world with `r3RemoveCollider`).
+
+</c>
+<py>
+
+A collider is created by a `ColliderBuilder` that is based on the builder pattern: it is returned by one of the shape
+constructors of the `Collider` class (e.g. `Collider.ball`, `Collider.cuboid`, or `Collider.new` which takes any
+`SharedShape`), each of its methods returns a builder with the corresponding property set, and its `build` method
+returns the `Collider`. These properties can also be given as keyword arguments of the shape constructors, e.g.,
+`Collider.ball(0.5, density=2.0, friction=0.3)`. Then it needs to be inserted into the [physics world](./simulation_structures.mdx#physics-world)
+with `PhysicsWorld.add_collider`, which attaches it to the rigid-body given as its optional `parent` argument, and
+returns the `ColliderHandle` identifying the new collider. Colliders can also be inserted together with the rigid-body
+they are attached to with the `colliders` argument of `PhysicsWorld.add_body`. Once inserted, the collider is accessed
+with `world.colliders[handle]`, which returns a live view: assigning one of its properties modifies the collider of
+the physics world directly.
+
+:::info
+The following example shows several setters that can be called to customize the
+collider being built. The input values are just random so using this example as-is will not
+lead to a useful result.
+:::
+
+```python
+<load path='/3d/python/colliders.py' marker='Creation' />
+```
+
+A collider can also be disabled, with `ColliderBuilder.enabled(False)` or, after its creation, by setting its
+`is_enabled` property to `False`. A disabled collider is excluded from all the collision-detection and physics until
+it is enabled again, which is useful to "turn off" a collider temporarily without removing it (a collider is removed
+from the world with `PhysicsWorld.remove_collider`).
+
+</py>

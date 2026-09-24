@@ -223,18 +223,7 @@ pub unsafe extern "C" fn rpr_cast_shape(
                 let (h, r) = q
                     .cast_shape(&p, v, &*get(shape)?.0, o)
                     .ok_or((RPR_NOT_FOUND, "shape missed".into()))?;
-                output(
-                    out,
-                    RprShapeCastHit {
-                        collider: h.into(),
-                        time_of_impact: r.time_of_impact,
-                        witness1: r.witness1.into(),
-                        witness2: r.witness2.into(),
-                        normal1: r.normal1.into(),
-                        normal2: r.normal2.into(),
-                        status: r.status as u32,
-                    },
-                )
+                output(out, shape_cast_hit(h, r))
             })
         })
     })

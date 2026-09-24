@@ -1,3 +1,4 @@
+use crate::dynamics::RawSoftRecoverySettings;
 use rapier::dynamics::IntegrationParameters;
 use wasm_bindgen::prelude::*;
 
@@ -79,6 +80,46 @@ impl RawIntegrationParameters {
     #[wasm_bindgen(setter)]
     pub fn set_softBodiesContactStiffening(&mut self, value: f32) {
         self.0.soft_bodies.contact_stiffening = value;
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesRecovery(&self) -> RawSoftRecoverySettings {
+        RawSoftRecoverySettings(self.0.soft_bodies.recovery)
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_softBodiesRecovery(&mut self, value: &RawSoftRecoverySettings) {
+        self.0.soft_bodies.recovery = value.0;
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesFemLinearTolerance(&self) -> f32 {
+        self.0.soft_bodies.fem.linear_tolerance
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_softBodiesFemLinearTolerance(&mut self, value: f32) {
+        self.0.soft_bodies.fem.linear_tolerance = value;
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesFemMaxLinearIterations(&self) -> usize {
+        self.0.soft_bodies.fem.max_linear_iterations
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_softBodiesFemMaxLinearIterations(&mut self, value: usize) {
+        self.0.soft_bodies.fem.max_linear_iterations = value;
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesFemMaxDenseDofs(&self) -> usize {
+        self.0.soft_bodies.fem.max_dense_dofs
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_softBodiesFemMaxDenseDofs(&mut self, value: usize) {
+        self.0.soft_bodies.fem.max_dense_dofs = value;
     }
 
     #[wasm_bindgen(setter)]

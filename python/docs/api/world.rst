@@ -6,9 +6,10 @@ PhysicsWorld — the main entry point
 :class:`PhysicsWorld` is the recommended starting point for almost every
 program. It bundles **all** of rapier's sub-state — the rigid-body,
 collider, and joint sets, the broad/narrow phase, island manager, CCD
-solver, integration parameters, and the physics + query pipelines — into
-a single object, and drives the whole simulation with one
-:meth:`~PhysicsWorld.step` call.
+solver, integration parameters, and the physics, collision and query
+pipelines — into a single object, and drives the whole simulation with one
+:meth:`~PhysicsWorld.step` call. Its gravity is zero unless given to the
+constructor (unlike the Rust ``PhysicsWorld::new()``).
 
 Reach for the individual pieces (documented under
 :doc:`dynamics`, :doc:`geometry`, :doc:`joints`, and :doc:`pipeline`)

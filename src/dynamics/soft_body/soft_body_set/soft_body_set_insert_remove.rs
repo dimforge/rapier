@@ -11,9 +11,9 @@ use crate::geometry::ColliderSet;
 use crate::math::{Pose, Rotation};
 
 impl SoftBodySet {
-    /// Inserts a soft body, creating its root rigid body and its colliders from the collider
-    /// template (the deformable surface collider, or one ball per surface particle for a body
-    /// colliding through its particles); its element topology must index valid particles.
+    /// Inserts a soft body, creating its root rigid body and the deformable colliders of its
+    /// collision meshes from the collider template; its element topology must index valid
+    /// particles.
     pub fn insert(
         &mut self,
         soft_body_builder: SoftBodyBuilder,

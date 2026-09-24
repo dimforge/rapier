@@ -8,16 +8,20 @@ package wrapping the 3D, `f32` engine:
 | ------------- | -------------- | ------------------ | --- | ------ |
 | `rapier3d`    | `rapier3d`     | `rapier-py-3d`     | 3D  | f32    |
 
-`rapier-py-core` holds the shared PyO3 binding macros (compiled into the
-package; it is not published on its own). The Panda3D visual testbed lives in
-the separate `rapier-testbed` package.
+The Panda3D visual testbed lives in the separate `rapier-testbed` package.
 
 Full documentation lives in [`docs/`](docs/).
 
-> **Note:** this is not yet published on PyPI. The instructions below build
-> the package locally from this checkout. There is currently no source
-> distribution (sdist), so building requires the full git repository plus a
-> Rust toolchain.
+## Installing from PyPI
+
+```bash
+pip install rapier3d
+```
+
+The rest of this page is about building the package from this checkout, e.g. to
+develop the bindings or use unreleased engine changes. There is currently no
+source distribution (sdist), so building requires the full git repository plus
+a Rust toolchain.
 
 ## Prerequisites
 
@@ -65,18 +69,24 @@ python -c "import rapier3d; print(rapier3d.__version__)"   # smoke check
 ### Threads
 
 The engine is always built multi-threaded, and `step()` releases the GIL while
-it runs. A world defaults to one worker per logical CPU; each world owns its
-pool, so worlds stepped from different Python threads don't compete:
+it runs. By default, every world runs its parallel stages on rayon's global
+pool (one worker per logical CPU), shared by all the worlds of the process.
+`set_num_threads(n)` gives a world its own pool of `n` workers, so worlds
+stepped from different Python threads don't compete for the same workers:
 
 ```python
-world.set_num_threads(4)     # four workers for this world
+world.set_num_threads(4)     # a pool of four workers for this world alone
 world.num_threads            # -> 4
 world.set_num_threads(1)     # everything inline on the calling thread
-world.set_num_threads(None)  # back to one worker per logical CPU
+world.set_num_threads(None)  # back to the shared global pool
 ```
 
 The worker count never changes the result: the same scene stepped with 1 and
 with 8 workers gives bit-identical states.
+
+A world can be used from any Python thread, but not by two threads at once:
+while it is being stepped, using it (or one of its sets or objects) from
+another thread raises `RuntimeError`.
 
 ### Run the test suite
 
@@ -105,9 +115,9 @@ examples ported from the Rust `examples3d/`. It drives the 3D engine.
 
 ### Install
 
-The testbed depends on `rapier3d`. Since it isn't on PyPI yet, build it first
-(step 1 above), then install the testbed with `--no-deps` so pip uses your
-local build instead of trying to fetch it.
+The testbed depends on `rapier3d`. To run it against your local build, build
+the package first (step 1 above), then install the testbed with `--no-deps` so
+pip uses your local build instead of fetching the published one.
 Run this **from the repository root** (the `./python/...` path is relative to
 it, like the build steps above):
 

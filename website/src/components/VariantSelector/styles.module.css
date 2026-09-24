@@ -1,0 +1,79 @@
+.variantSelector {
+  position: sticky;
+  top: var(--ifm-navbar-height);
+  z-index: calc(var(--ifm-z-index-fixed) - 1);
+  margin-bottom: 1rem;
+  padding: 0.5rem 0;
+  background: var(--ifm-background-surface-color);
+  border-bottom: 2px solid var(--ifm-toc-border-color);
+  transition: top var(--ifm-transition-fast) ease;
+}
+
+/* The navbar hides itself when scrolling down: the bar then sticks to the top of the window. */
+:global(html:has(nav.navbar[class*='navbarHidden'])) .variantSelector {
+  top: 0;
+}
+
+/* A single centered row of joined buttons, scrolled horizontally if the column is too narrow for it. */
+.variants {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.variant {
+  flex: none;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  color: var(--ifm-font-color-base);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.variant + .variant {
+  margin-left: -1px;
+}
+
+/* Centered with auto margins rather than `justify-content`, which would make the start of an overflowing row
+unreachable. */
+.variant:first-child {
+  margin-left: auto;
+  border-radius: var(--ifm-global-radius) 0 0 var(--ifm-global-radius);
+}
+
+.variant:last-child {
+  margin-right: auto;
+  border-radius: 0 var(--ifm-global-radius) var(--ifm-global-radius) 0;
+}
+
+.variant:hover {
+  position: relative;
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+}
+
+.selected,
+.selected:hover {
+  position: relative;
+  background: var(--ifm-color-primary);
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-color-white);
+}
+
+/* A variant without this page: not clickable. */
+.missing,
+.missing:hover {
+  border-color: var(--ifm-color-emphasis-300);
+  color: var(--ifm-color-emphasis-500);
+  cursor: not-allowed;
+}
+
+/* Fits the row on phones. */
+@media (max-width: 480px) {
+  .variant {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.8rem;
+  }
+}

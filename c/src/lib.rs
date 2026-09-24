@@ -38,6 +38,9 @@ pub use types::*;
 mod extra;
 pub use extra::*;
 
+mod world_extras;
+pub use world_extras::*;
+
 #[cfg(test)]
 mod tests;
 
@@ -64,11 +67,19 @@ pub use shape_desc::*;
 mod soft_recipes;
 pub use soft_recipes::*;
 
+mod soft_extras;
+pub use soft_extras::*;
+#[cfg(test)]
+mod soft_extras_tests;
+
 mod scoped_access;
 pub use scoped_access::*;
 
 mod joint_access;
 pub use joint_access::*;
+
+mod joint_extras;
+pub use joint_extras::*;
 
 mod geometry_views;
 pub use geometry_views::*;
@@ -86,6 +97,9 @@ pub use return_values::*;
 
 mod handle_world;
 use handle_world::*;
+
+mod queries_extras;
+pub use queries_extras::*;
 
 #[cfg(test)]
 mod owner_handle_tests;

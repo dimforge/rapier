@@ -294,3 +294,109 @@ def test_update_query_pipeline_refreshes_bvh(ns):
     ray = ns.Ray(ns.Point3(0, 5, 0), (0, -1, 0))
     hit = qp.cast_ray(ray, 100.0, True)
     assert hit is not None
+
+
+def test_queries_are_fresh_after_step_without_manual_update(ns):
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0))
+    b = w.add_body(ns.RigidBody.dynamic(translation=(0, 10, 0)), colliders=[ns.Collider.ball(0.5)])
+    for _ in range(60):
+        w.step()
+    y = w.rigid_bodies[b].translation.y
+    assert y < 9.0
+    hit = w.query_pipeline.cast_ray(ns.Ray((0, 20, 0), (0, -1, 0)), 100.0, True)
+    assert hit is not None
+    assert hit[1] == pytest.approx(20.0 - (y + 0.5), abs=1e-3)
+
+
+def test_update_query_pipeline_then_step_after_removal(ns):
+    # Consuming the removed colliders in `update_query_pipeline` made the next step panic.
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0))
+    w.add_collider(ns.Collider.cuboid(10, 0.1, 10))
+    b = w.add_body(ns.RigidBody.dynamic(translation=(0, 0.55, 0)), colliders=[ns.Collider.ball(0.5)])
+    for _ in range(5):
+        w.step()
+    assert len(w.narrow_phase.contact_pairs()) == 1
+    w.remove_collider(w.rigid_bodies[b].colliders[0])
+    w.update_query_pipeline()
+    w.query_pipeline.update(w.rigid_bodies, w.colliders)
+    w.step()
+    assert len(w.narrow_phase.contact_pairs()) == 0
+    hit = w.query_pipeline.cast_ray(ns.Ray((0, 5, 0), (0, -1, 0)), 100.0, True)
+    assert hit is not None and hit[1] == pytest.approx(4.9, abs=1e-4)
+
+
+def test_update_query_pipeline_keeps_changes_for_the_step(ns):
+    # The step still sees the colliders added or moved before a manual refresh.
+    w = ns.PhysicsWorld(gravity=(0, 0, 0))
+    body = w.add_body(ns.RigidBody.dynamic(translation=(0, 0.55, 0)), colliders=[ns.Collider.ball(0.5)])
+    ball = w.rigid_bodies[body].colliders[0]
+    w.step()
+    ground = w.add_collider(ns.Collider.cuboid(10, 0.1, 10).translation((20, 0, 0)))
+    w.update_query_pipeline()
+    hit = w.query_pipeline.cast_ray(ns.Ray((20, 5, 0), (0, -1, 0)), 100.0, True)
+    assert hit is not None and hit[0] == ground
+    w.colliders[ground].translation = (0, 0, 0)
+    w.update_query_pipeline()
+    hit = w.query_pipeline.cast_ray(ns.Ray((20, 5, 0), (0, -1, 0)), 100.0, True)
+    assert hit is None
+    w.step()
+    assert w.narrow_phase.contact_pair(ground, ball) is not None
+
+
+def test_update_query_pipeline_sees_moved_bodies(ns):
+    w = ns.PhysicsWorld()
+    b = w.add_body(ns.RigidBody.fixed(), colliders=[ns.Collider.cuboid(1, 1, 1)])
+    w.step()
+    w.rigid_bodies[b].translation = (10, 0, 0)
+    w.update_query_pipeline()
+    ray = ns.Ray((10, 5, 0), (0, -1, 0))
+    assert w.query_pipeline.cast_ray(ray, 100.0, True) is not None
+    w.step()
+    assert w.query_pipeline.cast_ray(ray, 100.0, True) is not None
+
+
+def test_auto_update_query_is_accepted(ns):
+    w = ns.PhysicsWorld(auto_update_query=True)
+    assert w.auto_update_query
+    w.add_collider(ns.Collider.cuboid(1, 1, 1))
+    w.step()
+    assert w.query_pipeline.cast_ray(ns.Ray((0, 5, 0), (0, -1, 0)), 100.0, True) is not None
+
+
+def test_project_point_max_dist(ns):
+    w, handles = _stack_world(ns, n=1, gap=3.0)
+    qp = w.query_pipeline
+    # The cube spans y in [2, 4]: the origin is 2 away from it.
+    hit = qp.project_point((0, 0, 0), True)
+    assert hit is not None
+    assert hit[1].point.y == pytest.approx(2.0)
+    assert qp.project_point((0, 0, 0), True, max_dist=1.0) is None
+    hit = qp.project_point((0, 0, 0), True, filter=ns.QueryFilter(), max_dist=2.5)
+    assert hit is not None and not hit[1].is_inside
+
+
+def test_query_filter_getters(ns):
+    groups = ns.InteractionGroups(ns.Group.GROUP_1, ns.Group.GROUP_2)
+    pred = lambda h, c: True  # noqa: E731
+    f = ns.QueryFilter.exclude_dynamic().groups(groups).predicate(pred)
+    assert f.interaction_groups.memberships == ns.Group.GROUP_1
+    assert f.interaction_groups.filter == ns.Group.GROUP_2
+    assert f.predicate_fn is pred
+    assert ns.QueryFilterFlags.EXCLUDE_DYNAMIC in f.flags
+    assert ns.QueryFilter().interaction_groups is None
+    assert ns.QueryFilter().predicate_fn is None
+
+
+def test_shape_cast_hit_frames(ns):
+    # witness1/normal1: hit collider, world space; witness2/normal2: cast shape, local space.
+    w, _ = _stack_world(ns, n=1, gap=3.0)
+    shape = ns.SharedShape.ball(0.5)
+    pos = ns.Isometry3(translation=(0.0, 10.0, 0.0))
+    hit = w.query_pipeline.cast_shape(pos, (0, -1, 0), shape, ns.ShapeCastOptions())
+    assert hit is not None
+    _, hit = hit
+    assert hit.time_of_impact == pytest.approx(5.5, abs=1e-3)
+    assert (hit.witness1.x, hit.witness1.y, hit.witness1.z) == pytest.approx((0, 4, 0), abs=1e-3)
+    assert (hit.normal1.x, hit.normal1.y, hit.normal1.z) == pytest.approx((0, 1, 0), abs=1e-3)
+    assert (hit.witness2.x, hit.witness2.y, hit.witness2.z) == pytest.approx((0, -0.5, 0), abs=1e-3)
+    assert (hit.normal2.x, hit.normal2.y, hit.normal2.z) == pytest.approx((0, -1, 0), abs=1e-3)

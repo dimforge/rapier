@@ -16,6 +16,7 @@ fn main() {
         .add_systems(Update, modify_collider_active_collision_types)
         .add_systems(Update, modify_collider_active_events)
         .add_systems(Update, modify_collider_active_hooks)
+        .add_systems(Update, modify_collider_contact_skin)
         .run();
 }
 
@@ -91,7 +92,7 @@ fn setup_physics(mut commands: Commands) {
         .insert(Transform::from_xyz(1.0, 2.0, 0.0));
     // DOCUSAURUS: Position1 stop
 
-    // DOCUSAURUS: Position2 start
+    // DOCUSAURUS: Position3 start
     // Attach the collider to the rigid-body. The collider is attached as its
     // children, so the collider’s `Transform` components sets its position
     // relative to the parent rigid-body.
@@ -102,7 +103,7 @@ fn setup_physics(mut commands: Commands) {
                 .spawn(Collider::cuboid(0.5, 0.5))
                 .insert(Transform::from_xyz(1.0, 2.0, 0.0));
         });
-    // DOCUSAURUS: Position2 stop
+    // DOCUSAURUS: Position3 stop
 
     // DOCUSAURUS: Friction1 start
     /* Set the friction coefficient and friction combine rule
@@ -126,10 +127,14 @@ fn setup_physics(mut commands: Commands) {
     /* Set the collision and/or solver groups when the collider is created. */
     commands
         .spawn(Collider::ball(0.5))
-        .insert(CollisionGroups::new(
-            Group::GROUP_1 | Group::GROUP_3 | Group::GROUP_4,
-            Group::GROUP_3,
-        ))
+        .insert(
+            CollisionGroups::new(
+                Group::GROUP_1 | Group::GROUP_3 | Group::GROUP_4,
+                Group::GROUP_3,
+            )
+            // Optional: `InteractionTestMode::And` is the default test mode.
+            .with_test_mode(InteractionTestMode::And),
+        )
         .insert(SolverGroups::new(
             Group::GROUP_1 | Group::GROUP_2,
             Group::GROUP_1 | Group::GROUP_2 | Group::GROUP_4,
@@ -156,6 +161,33 @@ fn setup_physics(mut commands: Commands) {
         .spawn(Collider::ball(0.5))
         .insert(ActiveHooks::FILTER_CONTACT_PAIRS | ActiveHooks::MODIFY_SOLVER_CONTACTS);
     // DOCUSAURUS: ActiveHooks1 stop
+
+    // DOCUSAURUS: ContactSkin1 start
+    /* Set the contact skin when the collider is created. */
+    commands.spawn((Collider::ball(0.5), ContactSkin(0.01)));
+    // DOCUSAURUS: ContactSkin1 stop
+
+    // DOCUSAURUS: VoxelsPoints start
+    // A voxels shape from arbitrary points.
+    let collider = Collider::voxels_from_points(
+        Vec2::new(1.0, 1.0),
+        &[
+            Vec2::new(0.0, 0.0),
+            Vec2::new(1.0, 1.0),
+            Vec2::new(-1.0, 1.0),
+        ],
+    );
+    commands.spawn(collider);
+    // DOCUSAURUS: VoxelsPoints stop
+
+    let vertices = vec![Vec2::new(0.0, 0.0), Vec2::new(0.0, 10.0)];
+    let indices: Vec<_> = (0..vertices.len() as u32)
+        .map(|i| [i, (i + 1) % vertices.len() as u32])
+        .collect();
+    // DOCUSAURUS: VoxelsMesh start
+    let collider = Collider::voxelized_mesh(&vertices, &indices, 0.2, FillMode::default());
+    // DOCUSAURUS: VoxelsMesh stop
+    commands.spawn(collider);
 }
 
 // DOCUSAURUS: ColliderType2 start
@@ -167,14 +199,14 @@ fn modify_collider_type(mut commands: Commands, sensors: Query<Entity, With<Sens
 }
 // DOCUSAURUS: ColliderType2 stop
 
-// DOCUSAURUS: Position3 start
+// DOCUSAURUS: Position2 start
 /* Set the collider position inside of a system. */
 fn modify_collider_position(mut positions: Query<&mut Transform, With<Collider>>) {
     for mut position in positions.iter_mut() {
         position.translation.x = 2.0;
     }
 }
-// DOCUSAURUS: Position3 stop
+// DOCUSAURUS: Position2 stop
 
 // DOCUSAURUS: Friction2 start
 /* Set the friction coefficient and friction combine rule
@@ -220,7 +252,7 @@ fn modify_collider_groups(
 /* Set the active collision types inside of a system. */
 fn modify_collider_active_collision_types(mut active_types: Query<&mut ActiveCollisionTypes>) {
     for mut active_types in active_types.iter_mut() {
-        *active_types = (ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_STATIC);
+        *active_types = ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_STATIC;
     }
 }
 // DOCUSAURUS: ActiveCollisionTypes2 stop
@@ -242,3 +274,12 @@ fn modify_collider_active_hooks(mut active_hooks: Query<&mut ActiveHooks>) {
     }
 }
 // DOCUSAURUS: ActiveHooks2 stop
+
+// DOCUSAURUS: ContactSkin2 start
+/* Set the contact skin inside of a system. */
+fn modify_collider_contact_skin(mut contact_skins: Query<&mut ContactSkin>) {
+    for mut contact_skin in contact_skins.iter_mut() {
+        contact_skin.0 = 0.01;
+    }
+}
+// DOCUSAURUS: ContactSkin2 stop

@@ -11,6 +11,7 @@ fn main() {
         .add_systems(Startup, setup_physics_more)
         .add_systems(FixedUpdate, update_system)
         .add_systems(FixedUpdate, read_result_system)
+        .add_systems(FixedUpdate, move_character_manually)
         .add_systems(
             Update,
             modify_character_controller_up.run_if(input_just_pressed(KeyCode::KeyG)),
@@ -43,6 +44,12 @@ fn setup_physics_more(mut commands: Commands) {
             ..default()
         });
     // DOCUSAURUS: UpVector1 stop
+
+    commands.spawn((
+        Collider::capsule_y(0.5, 0.3),
+        Transform::from_xyz(2.0, 1.0, 0.0),
+        ManualCharacter,
+    ));
 }
 
 // DOCUSAURUS: Setup start
@@ -71,6 +78,45 @@ fn read_result_system(controllers: Query<(Entity, &KinematicCharacterControllerO
     }
 }
 // DOCUSAURUS: Setup stop
+
+// DOCUSAURUS: MoveShape start
+/// Marks a character moved without the `KinematicCharacterController` component.
+#[derive(Component)]
+struct ManualCharacter;
+
+fn move_character_manually(
+    time: Res<Time>,
+    mut context: WriteRapierContext,
+    mut characters: Query<(Entity, &Collider, &mut Transform), With<ManualCharacter>>,
+) -> Result {
+    let mut context = context.single_mut()?;
+    for (entity, collider, mut transform) in characters.iter_mut() {
+        // The translation we would like to apply if there were no obstacles.
+        let desired_translation = Vec3::new(1.0, -5.0, -1.0) * time.delta_secs();
+        // Configure the controller like with the `KinematicCharacterController` component.
+        let options = MoveShapeOptions {
+            snap_to_ground: Some(CharacterLength::Absolute(0.5)),
+            ..default()
+        };
+        // Make sure the character we are trying to move isn’t considered an obstacle.
+        let filter = QueryFilter::default().exclude_collider(entity);
+        // Calculate the possible movement.
+        let output = context.move_shape(
+            desired_translation,
+            collider,              // The character’s shape.
+            transform.translation, // The character’s initial position.
+            transform.rotation,    // The character’s rotation.
+            1.0, // The character’s mass, for the impulses applied to dynamic bodies.
+            &options,
+            filter,
+            |collision| println!("The character hit the entity {:?}.", collision.entity),
+        );
+        // The movement isn’t applied automatically.
+        transform.translation += output.effective_translation;
+    }
+    Ok(())
+}
+// DOCUSAURUS: MoveShape stop
 
 // DOCUSAURUS: UpVector2 start
 /* Modify the character controller’s up vector inside of a system. */

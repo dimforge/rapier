@@ -270,7 +270,7 @@ pub struct IntegrationParameters {
     /// Capping this recovery velocity keeps deep penetrations from being resolved explosively.
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_max_corrective_velocity: Real,
-    /// The maximal distance separating two objects that will generate predictive contacts (default: `0.002m`).
+    /// The maximal distance separating two objects that will generate predictive contacts (default: `0.02`).
     ///
     /// This value is implicitly scaled by [`IntegrationParameters::length_unit`].
     pub normalized_prediction_distance: Real,
@@ -378,7 +378,7 @@ impl IntegrationParameters {
     }
 
     /// The maximal distance separating two objects that will generate predictive contacts
-    /// (default: `0.002m` multiped by [`Self::length_unit`]).
+    /// (default: `0.02` multiplied by [`Self::length_unit`]).
     pub fn prediction_distance(&self) -> Real {
         self.normalized_prediction_distance * self.length_unit
     }

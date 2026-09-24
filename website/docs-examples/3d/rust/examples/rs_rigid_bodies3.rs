@@ -1,11 +1,9 @@
 fn main() {
-    let mut collider_set = ColliderSet::new();
-
     // DOCUSAURUS: Creation start
     use rapier3d::prelude::*;
 
-    // The set that will contain our rigid-bodies.
-    let mut rigid_body_set = RigidBodySet::new();
+    // The world that will contain our rigid-bodies.
+    let mut world = PhysicsWorld::new();
 
     // Builder for a fixed rigid-body.
     let _ = RigidBodyBuilder::fixed();
@@ -46,8 +44,8 @@ fn main() {
         .ccd_enabled(false)
         // All done, actually build the rigid-body.
         .build();
-    // Insert the rigid-body into the set.
-    let rigid_body_handle = rigid_body_set.insert(rigid_body);
+    // Insert the rigid-body into the world.
+    let rigid_body_handle = world.insert_body(rigid_body);
     // DOCUSAURUS: Creation stop
 
     // DOCUSAURUS: Position1 start
@@ -68,12 +66,12 @@ fn main() {
         // All done, actually build the rigid-body.
         .build();
     // DOCUSAURUS: Position1 stop
-    // Insert the rigid-body into the set.
-    let rigid_body_handle = rigid_body_set.insert(rigid_body);
+    // Insert the rigid-body into the world.
+    let rigid_body_handle = world.insert_body(rigid_body);
 
     // DOCUSAURUS: Position2 start
     /* Set the position after the rigid-body creation. */
-    let rigid_body = rigid_body_set.get_mut(rigid_body_handle).unwrap();
+    let rigid_body = &mut world.bodies[rigid_body_handle];
     // The `true` argument makes sure the rigid-body is awake.
     rigid_body.set_translation(Vector::new(0.0, 5.0, 1.0), true);
     rigid_body.set_rotation(Rotation::from_scaled_axis(Vector::new(0.2, 0.0, 0.0)), true);
@@ -105,12 +103,12 @@ fn main() {
         // All done, actually build the rigid-body.
         .build();
     // DOCUSAURUS: Velocity1 stop
-    // Insert the rigid-body into the set.
-    let rigid_body_handle = rigid_body_set.insert(rigid_body);
+    // Insert the rigid-body into the world.
+    let rigid_body_handle = world.insert_body(rigid_body);
 
     // DOCUSAURUS: Velocity2 start
     /* Set the velocities after the rigid-body creation. */
-    let rigid_body = rigid_body_set.get_mut(rigid_body_handle).unwrap();
+    let rigid_body = &mut world.bodies[rigid_body_handle];
     // The `true` argument makes sure the rigid-body is awake.
     rigid_body.set_linvel(Vector::new(1.0, 3.0, 4.0), true);
     rigid_body.set_angvel(Vector::new(3.0, 0.0, 0.0), true);
@@ -119,7 +117,7 @@ fn main() {
     // DOCUSAURUS: Velocity2 stop
 
     // DOCUSAURUS: Forces start
-    let rigid_body = rigid_body_set.get_mut(rigid_body_handle).unwrap();
+    let rigid_body = &mut world.bodies[rigid_body_handle];
 
     // The `true` argument makes sure the rigid-body is awake.
     rigid_body.reset_forces(true); // Reset the forces to zero.
@@ -156,7 +154,7 @@ fn main() {
 
     // DOCUSAURUS: Mass3 start
     /* Set the mass-properties after the rigid-body creation. */
-    let rigid_body = rigid_body_set.get_mut(rigid_body_handle).unwrap();
+    let rigid_body = &mut world.bodies[rigid_body_handle];
     // The `true` argument makes sure the rigid-body is awake.
     rigid_body.set_additional_mass_properties(
         MassProperties::new(Vector::new(0.0, 1.0, 0.0), 0.5, Vector::new(0.3, 0.2, 0.1)),
@@ -175,10 +173,27 @@ fn main() {
 
     // DOCUSAURUS: LockedAxes2 start
     /* Lock translations/rotations after the rigid-body creation. */
-    let rigid_body = rigid_body_set.get_mut(rigid_body_handle).unwrap();
+    let rigid_body = &mut world.bodies[rigid_body_handle];
     // The last `true` argument makes sure the rigid-body is awake.
     rigid_body.lock_translations(true, true);
     rigid_body.lock_rotations(true, true);
     rigid_body.set_enabled_rotations(true, false, false, true);
     // DOCUSAURUS: LockedAxes2 stop
+
+    // DOCUSAURUS: SolverSettings start
+    /* Give a rigid-body more solver accuracy than the rest of the scene. */
+    let rigid_body = RigidBodyBuilder::dynamic()
+        // Extra substeps run for the whole island component this body belongs to.
+        .additional_solver_iterations(4)
+        // Extra internal PGS iterations run per substep for that same component.
+        .additional_pgs_iterations(2)
+        // Predictive contacts generated up to that distance ahead of the body's path: a cheaper
+        // alternative to CCD for slow-but-thin or moderately fast objects.
+        .soft_ccd_prediction(0.5)
+        // Let the body exceed the angular speed cap, e.g. for a wheel.
+        .allow_fast_rotation(true)
+        // Gyroscopic forces give more realistic behaviors, e.g. the precession of a spinning top.
+        .gyroscopic_forces_enabled(true)
+        .build();
+    // DOCUSAURUS: SolverSettings stop
 }

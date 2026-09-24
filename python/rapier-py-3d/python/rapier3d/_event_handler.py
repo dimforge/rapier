@@ -31,10 +31,12 @@ class EventHandler(Protocol):
     still runs to completion since rapier does not support mid-step aborts,
     but no further user callbacks are invoked).
 
-    Note: ``bodies`` and ``colliders`` are passed as ``None`` to avoid borrow
-    conflicts with the in-flight ``step()`` — handles can still be obtained
-    from ``event`` / ``contact_pair`` and looked up against the world after
-    ``step()`` returns.
+    ``bodies`` and ``colliders`` are the ``RigidBodySet`` and ``ColliderSet``
+    being stepped (``world.rigid_bodies`` / ``world.colliders``). During the
+    callback, they and the bodies / colliders read from them can be read but
+    not modified; the rest of the world (queries, joints, ...) can't be used
+    until ``step()`` returns. Every method is optional: a handler without one
+    of them doesn't receive the corresponding events.
     """
 
     def handle_collision_event(
@@ -73,9 +75,10 @@ class EventHandler(Protocol):
 
         ``event`` is a ``SoftBodyTearEvent``: the torn elements, the split
         particles and the pieces that became soft bodies of their own.
-        ``soft_bodies`` is passed as ``None`` (see the note above). Immediate
-        ``SoftBodySet.tear`` / ``cut`` calls return their event instead. The
-        method is optional: a handler without it receives no tear events.
+        ``soft_bodies`` is the ``SoftBodySet`` being stepped, readable like
+        ``bodies`` above (``None`` with a ``PhysicsPipeline`` stepped without
+        soft bodies). Immediate ``SoftBodySet.tear`` / ``cut`` calls return
+        their event instead.
         """
         ...
 
@@ -89,9 +92,16 @@ class PhysicsHooks(Protocol):
     have the appropriate ``ActiveHooks`` flags set (e.g.
     ``ActiveHooks.FILTER_CONTACT_PAIRS``).
 
-    All three methods are optional in the duck-typed sense — only define the
-    ones you care about. (But ``Protocol`` formally requires all three for type
+    All three methods are optional: only define the ones you care about, a
+    missing one behaves like the default hook (the pair is kept, the contacts
+    are left unmodified). (But ``Protocol`` formally requires all three for type
     checkers.)
+
+    The contexts expose the ``bodies`` / ``colliders`` sets being stepped. During
+    the callback, they and the bodies / colliders read from them can be read but
+    not modified. Read them through the context rather than through the world:
+    the hooks may run on the engine's worker threads, from which the
+    ``PhysicsWorld`` object itself can't be used.
     """
 
     def filter_contact_pair(self, ctx: Any) -> Any:
@@ -99,7 +109,8 @@ class PhysicsHooks(Protocol):
         completely discard the pair). The default behavior corresponds to
         returning ``SolverFlags.COMPUTE_IMPULSES``.
 
-        ``ctx`` is a ``PairFilterContext`` view (read-only).
+        ``ctx`` is a ``PairFilterContext`` view (read-only), e.g.
+        ``ctx.colliders[ctx.collider1].user_data``.
         """
         ...
 

@@ -70,6 +70,19 @@ fn setup_physics(mut commands: Commands) {
                 .insert(Transform::from_xyz(1.0, 2.0, 0.0));
         });
     // DOCUSAURUS: Position3 stop
+
+    // DOCUSAURUS: VoxelsPoints start
+    // A voxels shape from arbitrary points.
+    let collider = Collider::voxels_from_points(
+        Vec3::new(1.0, 1.0, 1.0),
+        &[
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(-1.0, 1.0, 0.0),
+        ],
+    );
+    commands.spawn(collider);
+    // DOCUSAURUS: VoxelsPoints stop
 }
 
 // DOCUSAURUS: Position2 start

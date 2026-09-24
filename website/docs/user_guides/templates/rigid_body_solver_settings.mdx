@@ -1,0 +1,181 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+The accuracy of the constraints solver is configured for the whole world by the
+[integration parameters](./integration_parameters.mdx). However, in some cases, part of the simulation might need more
+fine-grained control. For example, an articulated robot, or a stack involving large mass ratios, might require more
+solver iterations. This is why a rigid-body can ask for additional solver iterations (either substeps, or internal steps)
+resulting in the island it belongs to (the bodies it is connected to by contacts and joints) to run with a higher
+accuracy without hurting the performances of other islands.
+
+Two other settings affect how a rigid-body is integrated. The soft-CCD prediction distance makes the body generate
+predictive contacts ahead of its own path, which is a cheaper alternative to
+[CCD](./rigid_bodies.mdx#continuous-collision-detection) for the objects that are thin or moderately fast (large
+values impact the performances badly by increasing significantly the number of collision pairs). Finally, the
+fast-rotation flag lets the body exceed the angular speed cap, which is enabled by default to keep CCD reliable.
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_rigid_bodies2.rs' marker='SolverSettings' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_rigid_bodies3.rs' marker='SolverSettings' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+These settings are given by the `AdditionalSolverIterations`, `AdditionalPgsIterations`,
+`SoftCcd`, and `AllowFastRotation` components. Removing them restores the default behavior.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/rigid_bodies_continued2.rs' marker='SolverSettings' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/rigid_bodies_continued3.rs' marker='SolverSettings' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/rigid_bodies.ts' marker='SolverSettings' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/rigid_bodies.ts' marker='SolverSettings' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<c>
+
+These settings are given by the `additionalSolverIterations`, `additionalPgsIterations`, `softCcdPrediction`, and
+`allowFastRotation` fields of `R3RigidBodyDesc`. After the creation of the rigid-body, they can be modified with
+`r3RigidBody_SetAdditionalSolverIterations`, `r3RigidBody_SetAdditionalPgsIterations`,
+`r3RigidBody_SetSoftCcdPrediction`, and `r3RigidBody_SetAllowFastRotation` (and read with
+`r3RigidBody_AdditionalSolverIterations`, `r3RigidBody_AdditionalPgsIterations`, `r3RigidBody_SoftCcdPrediction`,
+and `r3RigidBody_IsFastRotationAllowed`).
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='SolverSettings' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='SolverSettings' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+These settings are given by the `additional_solver_iterations`, `additional_pgs_iterations`, `soft_ccd_prediction`,
+and `allow_fast_rotation` methods of the `RigidBodyBuilder`. After the creation of the rigid-body, they can be read
+and modified with the `RigidBody` properties of the same names.
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='SolverSettings' />
+```
+
+</py>
+
+<rapier>
+
+:::note
+In 3D, the gyroscopic forces of a rigid-body can be disabled as well. When enabled (the default), they give the more
+realistic behaviors of a spinning solid, e.g., the precession of a spinning top or the Dzhanibekov effect. Disabling
+them is only recommended if they represent a measurable overhead in your simulation.
+:::
+
+</rapier>
+<bevy>
+
+:::note
+In 3D, the gyroscopic forces of a rigid-body can be disabled as well by giving it the `GyroscopicForces::disabled()`
+component. When enabled (the default, even without this component), they give the more realistic behaviors of a
+spinning solid, e.g., the precession of a spinning top or the Dzhanibekov effect. Disabling them is only recommended if
+they represent a measurable overhead in your simulation.
+:::
+
+</bevy>
+<c>
+
+:::note
+In 3D, the gyroscopic forces of a rigid-body can be disabled as well by setting the `gyroscopicForcesEnabled` field
+of its `R3RigidBodyDesc` to `0`, or with `r3RigidBody_SetGyroscopicForcesEnabled` after its creation. When enabled
+(the default), they give the more realistic behaviors of a spinning solid, e.g., the precession of a spinning top or
+the Dzhanibekov effect. Disabling them is only recommended if they represent a measurable overhead in your simulation.
+:::
+
+</c>
+<py>
+
+:::note
+The gyroscopic forces of a rigid-body can be disabled as well with `RigidBodyBuilder.gyroscopic_forces(False)`, or by
+setting its `RigidBody.gyroscopic_forces_enabled` property to `False` after its creation. When enabled (the default),
+they give the more realistic behaviors of a spinning solid, e.g., the precession of a spinning top or the Dzhanibekov
+effect. Disabling them is only recommended if they represent a measurable overhead in your simulation.
+:::
+
+</py>

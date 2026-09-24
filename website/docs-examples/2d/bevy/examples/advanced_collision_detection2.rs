@@ -1,5 +1,9 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 fn main() {
     App::new()
@@ -8,6 +12,7 @@ fn main() {
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, setup_graphics)
         .add_systems(Startup, setup_physics)
+        .add_systems(Startup, setup_event_handler)
         .add_systems(FixedUpdate, display_events)
         .add_systems(FixedUpdate, display_contact_info)
         .add_systems(FixedUpdate, display_contact_info_all_from_1_entity)
@@ -58,18 +63,86 @@ fn setup_physics(mut commands: Commands) {
 // DOCUSAURUS: Events start
 /* A system that displays the events. */
 fn display_events(
-    mut collision_events: EventReader<CollisionEvent>,
-    mut contact_force_events: EventReader<ContactForceEvent>,
+    mut collision_events: MessageReader<CollisionEvent>,
+    mut contact_force_events: MessageReader<ContactForceEvent>,
 ) {
     for collision_event in collision_events.read() {
         println!("Received collision event: {:?}", collision_event);
     }
 
     for contact_force_event in contact_force_events.read() {
-        println!("Received contact force event: {:?}", contact_force_event);
+        // `started` is `true` only during the first step the contact force exceeds
+        // the threshold, and `false` during the next steps where it remains above it.
+        if contact_force_event.started {
+            println!("Received contact force event: {:?}", contact_force_event);
+        }
     }
 }
 // DOCUSAURUS: Events stop
+
+// DOCUSAURUS: EventHandler start
+use bevy_rapier2d::rapier::dynamics::{RigidBodySet, SoftBodySet, SoftBodyTearEvent};
+use bevy_rapier2d::rapier::geometry::{
+    ColliderSet, CollisionEvent as RapierCollisionEvent, ContactPair,
+};
+use bevy_rapier2d::rapier::pipeline::EventHandler;
+
+/* An event handler counting the contact points at the time the collisions start. */
+#[derive(Clone, Default)]
+struct ContactCounter {
+    num_contacts: Arc<AtomicUsize>,
+}
+
+impl EventHandler for ContactCounter {
+    fn handle_collision_event(
+        &self,
+        _bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        event: RapierCollisionEvent,
+        contact_pair: Option<&ContactPair>,
+    ) {
+        if event.started() {
+            // The colliders are identified by their Rapier handles. Their entity can be
+            // retrieved with `RapierContextColliders::entity_from_collider`.
+            let entity1 =
+                RapierContextColliders::entity_from_collider(&colliders[event.collider1()]);
+            // The contact pair is `None` if one of the colliders is a sensor.
+            if let Some(contact_pair) = contact_pair {
+                let num_points: usize = contact_pair
+                    .manifolds()
+                    .iter()
+                    .map(|m| m.points.len())
+                    .sum();
+                self.num_contacts.fetch_add(num_points, Ordering::Relaxed);
+                println!(
+                    "Entity {:?} started touching with {} contact points.",
+                    entity1, num_points
+                );
+            }
+        }
+    }
+
+    fn handle_contact_force_event(
+        &self,
+        _dt: f32,
+        _bodies: &RigidBodySet,
+        _colliders: &ColliderSet,
+        _contact_pair: &ContactPair,
+        _total_force_magnitude: f32,
+    ) {
+    }
+
+    fn handle_soft_body_tear_event(&self, _soft_bodies: &SoftBodySet, _event: &SoftBodyTearEvent) {}
+}
+
+fn setup_event_handler(mut rapier_context: WriteRapierContext) {
+    let mut rapier_context = rapier_context.single_mut().unwrap();
+    // The handler is called in addition to (not instead of) the Bevy messages.
+    rapier_context
+        .simulation
+        .set_event_handler(ContactCounter::default());
+}
+// DOCUSAURUS: EventHandler stop
 
 // DOCUSAURUS: ContactGraph1 start
 fn display_contact_info(rapier_context: ReadRapierContext, custom_info: Res<CustomInfo>) {
@@ -85,6 +158,9 @@ fn display_contact_info(rapier_context: ReadRapierContext, custom_info: Res<Cust
             // contains contacts for which contact forces were computed.
         }
 
+        // The sum of the contact impulses applied to the first collider during the last timestep.
+        println!("Total contact impulse: {}", contact_pair.total_impulse());
+
         // We may also read the contact manifolds to access the contact geometry.
         for manifold in contact_pair.manifolds() {
             println!("Local-space contact normal: {}", manifold.local_n1());
@@ -99,19 +175,21 @@ fn display_contact_info(rapier_context: ReadRapierContext, custom_info: Res<Cust
                     contact_point.local_p1()
                 );
                 println!("Found contact distance: {:?}", contact_point.dist()); // Negative if there is a penetration.
-                println!("Found contact impulse: {}", contact_point.raw.data.impulse);
+                println!("Found contact impulse: {}", contact_point.impulse());
                 println!(
                     "Found friction impulse: {}",
-                    contact_point.raw.data.tangent_impulse
+                    contact_point.tangent_impulse()
                 );
             }
 
             // Read the solver contacts.
-            for solver_contact in &manifold.raw.data.solver_contacts {
-                // Keep in mind that all the solver contact data are expressed in world-space.
-                println!("Found solver contact point: {:?}", solver_contact.point);
+            for solver_contact in manifold.solver_contacts() {
+                // The world-space contact points on each body's surface.
+                let (point1, point2) =
+                    (solver_contact.world_point1(), solver_contact.world_point2());
+                println!("Found solver contact points: {point1:?}, {point2:?}");
                 // The solver contact distance is negative if there is a penetration.
-                println!("Found solver contact distance: {:?}", solver_contact.dist);
+                println!("Found solver contact distance: {:?}", solver_contact.dist());
             }
         }
     }

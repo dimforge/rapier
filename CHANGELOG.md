@@ -6,6 +6,8 @@
   `Multibody::clear_dof_couplings` to remove DoF couplings.
 - `rapier3d-urdf`: `UrdfLink::urdf_link_index` and `UrdfJoint::urdf_joint_index` (and related) map the
   loaded links and joints to their URDF counterparts, even when empty links are squeezed.
+- `rapier3d-mjcf`: `MjcfContactHooks::is_excluded` and `MjcfContactHooks::pair_override` to query the
+  contact rules of a model.
 
 ### Fixed
 

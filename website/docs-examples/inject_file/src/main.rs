@@ -62,7 +62,7 @@ pub struct InjectError<'a> {
     pub errors: Vec<ErrorType>,
 }
 
-fn injected(source_text: &str, get_path: fn(&str) -> String) -> Result<String, InjectError> {
+fn injected(source_text: &str, get_path: fn(&str) -> String) -> Result<String, InjectError<'_>> {
     let source_text = &source_text.replace("\r\n", "\n");
     let re = Regex::new(r"<load.*>").unwrap();
     let total_to_inject = re.find_iter(source_text).count();
@@ -87,11 +87,11 @@ fn injected(source_text: &str, get_path: fn(&str) -> String) -> Result<String, I
             return "".to_string();
         };
         let to_inject = to_inject.replace("\r\n", "\n");
-        // Regex to find the markers inside comments, and only print what's inside
+        // Regex to find the markers inside `//` or `#` comments, and only print what's inside
         // FIXME: I think we should just paste all the inside,
         // and then remove all "// DOCUSAURUS*"" lines, to allow reuse of a same file.
         let regex = format!(
-            r"// DOCUSAURUS: {} start\n((?:\s|.)*)\s+\/\/ DOCUSAURUS: {} stop",
+            r"(?://|#) DOCUSAURUS: {} start\n((?:\s|.)*)\s+(?://|#) DOCUSAURUS: {} stop",
             infos[1], infos[1]
         );
         let re = Regex::new(&regex).unwrap();
@@ -126,7 +126,8 @@ fn injected(source_text: &str, get_path: fn(&str) -> String) -> Result<String, I
     if !error.errors.is_empty() {
         return Err(error);
     }
-    let re = Regex::new(r"(.*\/\/ DOCUSAURUS:.*\n)").unwrap();
+    // Markers are `//` comments (Rust, JS, C) or `#` comments (Python).
+    let re = Regex::new(r"(.*(?://|#) DOCUSAURUS:.*\n)").unwrap();
     let result = re.replace_all(&result, |_: &Captures| "").to_string();
     Ok(result)
 }
@@ -170,6 +171,20 @@ fn simple_injection() {
     assert_eq!(
         result.expect("This should not error out").trim_end(),
         "correct data1 1"
+    );
+}
+
+#[test]
+fn python_comment_markers() {
+    use crate::*;
+
+    let result = injected(
+        "<load path='test/to_inject_python.py' marker='Python' />",
+        |path| path.to_string(),
+    );
+    assert_eq!(
+        result.expect("This should not error out").trim_end(),
+        "world = 1"
     );
 }
 

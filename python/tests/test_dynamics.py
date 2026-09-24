@@ -194,8 +194,32 @@ def test_activation_struct(ns):
 
 def test_spring_coeffs_defaults(ns):
     sc = ns.SpringCoefficients.contact_defaults()
-    assert sc.stiffness > 0.0
-    assert sc.damping > 0.0
+    assert sc.natural_frequency > 0.0
+    assert sc.damping_ratio > 0.0
+    # The constructor defaults are the contact defaults.
+    default = ns.SpringCoefficients()
+    assert default.natural_frequency == pytest.approx(sc.natural_frequency)
+    assert default.damping_ratio == pytest.approx(sc.damping_ratio)
+    assert ns.SpringCoefficients(5.0).damping_ratio == pytest.approx(sc.damping_ratio)
+
+
+def test_spring_coeffs_keywords_and_deprecated_aliases(ns):
+    sc = ns.SpringCoefficients(natural_frequency=12.0, damping_ratio=0.8)
+    assert (sc.natural_frequency, sc.damping_ratio) == pytest.approx((12.0, 0.8))
+    assert "natural_frequency=12" in repr(sc)
+    with pytest.warns(DeprecationWarning):
+        old = ns.SpringCoefficients(stiffness=3.0)
+    assert old.natural_frequency == pytest.approx(3.0)
+    with pytest.warns(DeprecationWarning):
+        old = ns.SpringCoefficients(damping=0.5)
+    assert old.damping_ratio == pytest.approx(0.5)
+    with pytest.warns(DeprecationWarning):
+        assert sc.stiffness == pytest.approx(12.0)
+    with pytest.warns(DeprecationWarning):
+        sc.damping = 0.3
+    assert sc.damping_ratio == pytest.approx(0.3)
+    with pytest.raises(TypeError):
+        ns.SpringCoefficients(1.0, stiffness=2.0)
 
 
 # ---- CCDSolver ------------------------------------------------------------

@@ -1,0 +1,50 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+The contact skin of a collider acts as if the collider was enlarged by a skin of the given thickness: the objects
+touching it are kept that much further apart. The default is zero, i.e., no skin at all.
+
+A non-zero contact skin can improve the performances and, in some cases, the stability of the simulation, because the
+contacts will have more room to prevent penetrations. However, as a result it leaves a small gap between the
+colliding objects, equal to the sum of their skins. Therefore the skin should be small enough for that gap to remain
+invisible, or to be hidden by the rendering assets. The contact skin is especially relevant when using non-convex
+shapes made of thin features like triangle meshes and polylines.
+
+<rapier>
+
+```rust
+<load path='/2d/rust/examples/rs_colliders2.rs' marker='ContactSkin' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='ContactSkin1' />
+```
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='ContactSkin2' />
+```
+
+</bevy>
+<js>
+
+```js
+<load path='/2d/javascript/src/snippets/colliders.ts' marker='ContactSkin' />
+```
+
+</js>
+<c>
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='ContactSkin' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='ContactSkin' />
+```
+
+</py>

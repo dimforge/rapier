@@ -1,0 +1,142 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+A particle can also be attached directly to a rigid-body (<rapier>`SoftBody::attach_particle`</rapier><bevy>the
+`SoftBodyAttachments` component</bevy><js>`SoftBody.attachParticle`</js><c>`r3SoftBody_AttachParticle`</c><py>`SoftBody.attach_particle`</py>), which is
+the simplest way of combining the two kinds of bodies: a rope tied to a swinging ball, a flag attached to its pole,
+etc. Unlike pinning, an attachment is a two-way point-to-point constraint: the rigid-body holds the particle, and the
+particle pulls the rigid-body back. The anchor is the position the particle has when the attachment is created,
+expressed in the local frame of the rigid-body. Note that a particle attached twice keeps both of its attachments, and
+that an attachment is undone with
+<rapier>`SoftBody::detach_particle`</rapier><bevy>its removal from the `SoftBodyAttachments` component (removing the
+component detaches every particle)</bevy><js>`SoftBody.detachParticle`</js><c>`r3SoftBody_DetachParticle`</c><py>`SoftBody.detach_particle`</py>:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Attachments' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Attachments' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Attachments' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Attachments' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+Each entry of the `SoftBodyAttachments` component attaches one particle to the entity of a
+rigid-body (or of a [cluster](./soft_bodies.mdx#clusters)). Each time the component changes, the attachments of the
+soft-body are updated to match it: the attachments that didn't change keep their anchor, and the ones targeting an
+entity which rigid-body isn't created yet are retried on the next frames:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Attachments' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Attachments' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='Attachments' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='Attachments' />
+```
+
+  </TabItem>
+</Tabs>
+
+Note that `r3SoftBody_DetachParticle` returns whether the particle was attached at all.
+
+:::info
+The target of an attachment must be an ordinary rigid-body: `r3SoftBody_AttachParticle` rejects the root body and
+the cluster proxies of a soft-body (they are rigid-bodies too, see `r3RigidBody_IsSoftFrame`). Two soft-bodies are
+linked with a joint between their [soft frames](./soft_bodies.mdx#soft-frames-joints-and-rigid-colliders) instead.
+:::
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='Attachments' />
+```
+
+Note that the rigid-body set of the world is given to `SoftBody.attach_particle`, so that the anchor can be expressed in
+the local frame of the rigid-body. The attachments of a soft-body are listed by its `particle_attachments` property,
+each `SoftParticleAttachment` giving its `particle`, its rigid-body (`body`), its `local_anchor`, and the `impulse` it
+applied during the last step.
+
+</py>

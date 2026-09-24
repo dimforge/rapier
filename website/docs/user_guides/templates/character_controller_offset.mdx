@@ -29,6 +29,34 @@ to avoid numerical issues (if the character seems to get stuck inexplicably, try
 ```
 
 </js>
+<c>
+
+The offset is set with `r3KinematicCharacterController_SetOffset`. Like every length of the character controller, it
+is given as an `R3CharacterLength`: its `value` is either an absolute length (if its `relative` field is `0`), or a
+factor multiplied by the height of the character’s shape (if its `relative` field is `1`). The current offset is
+given by `r3KinematicCharacterController_Offset`.
+
+```c
+<load path='/2d/c/examples/character_controller2.c' marker='Offset' />
+```
+
+If the character still gets stuck when sliding against surfaces, the small distance by which its motion is pushed
+along the normals of the obstacles hit can also be increased with `r3KinematicCharacterController_SetNormalNudgeFactor`
+(too large values cause bumps when sliding on a flat ground).
+
+</c>
+<py>
+
+The offset is set with the `offset` property. Like every length of the character controller, it is given as a
+`CharacterLength`: either an absolute length (created by `CharacterLength.absolute`), or a factor multiplied by the
+size of the character’s shape (created by `CharacterLength.relative`). A plain `float` is also accepted, and
+interpreted as an absolute length.
+
+```python
+<load path='/3d/python/character_controller.py' marker='Offset' />
+```
+
+</py>
 
 :::warning
 It is **not recommended** to change the offset after the creation of the character controller.

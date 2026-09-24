@@ -10,7 +10,7 @@
 use crate::*;
 use rapier3d as rapier;
 
-use crate::pyo3::exceptions::PyTypeError;
+use crate::pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use crate::pyo3::prelude::*;
 use crate::pyo3::pyclass::CompareOp;
 
@@ -141,6 +141,18 @@ impl CharacterLength {
     }
 }
 
+/// A keyword argument where an explicit ``None`` differs from an omitted argument.
+pub(crate) enum OptionalArg<'py> {
+    Missing,
+    Given(Option<Bound<'py, PyAny>>),
+}
+
+impl<'py> FromPyObject<'py> for OptionalArg<'py> {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        Ok(Self::Given((!ob.is_none()).then(|| ob.clone())))
+    }
+}
+
 // Accept a `(value, "kind")` tuple, a `CharacterLength` instance, or
 // a bare float (interpreted as Absolute).
 fn _extract_char_length(obj: &Bound<'_, PyAny>) -> PyResult<CharacterLength> {
@@ -225,8 +237,14 @@ impl CharacterAutostep {
     /// Return the ``CharacterAutostep(...)`` repr.
     fn __repr__(&self) -> String {
         format!(
-            "CharacterAutostep(max_height={:?}, min_width={:?}, include_dynamic_bodies={})",
-            self.max_height, self.min_width, self.include_dynamic_bodies
+            "CharacterAutostep(max_height={}, min_width={}, include_dynamic_bodies={})",
+            self.max_height.__repr__(),
+            self.min_width.__repr__(),
+            if self.include_dynamic_bodies {
+                "True"
+            } else {
+                "False"
+            }
         )
     }
 }
@@ -295,7 +313,8 @@ impl EffectiveCharacterMovement {
 ///     successfully applied before the collision.
 /// :ivar translation_remaining: Portion of translation still owed
 ///     (typically slid along the contact surface).
-/// :ivar toi: ``ShapeCastHit`` with witness points and normals.
+/// :ivar toi: ``ShapeCastHit`` with witness points and normals
+///     (also available as ``hit``).
 #[pyclass(name = "CharacterCollision", module = "rapier", frozen)]
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterCollision {
@@ -313,6 +332,11 @@ pub struct CharacterCollision {
 
 #[pymethods]
 impl CharacterCollision {
+    /// Alias of :attr:`toi`, named after the Rust field.
+    #[getter]
+    fn hit(&self) -> ShapeCastHit {
+        self.toi
+    }
     /// Return the ``CharacterCollision(handle=..., toi=...)`` repr.
     fn __repr__(&self) -> String {
         format!(
@@ -374,6 +398,60 @@ impl CharacterCollision {
     }
 }
 
+/// Raises ``ValueError`` unless `bodies` and `colliders` are ``None`` or the query pipeline's sets.
+fn check_query_sets(
+    queries: &QueryPipeline,
+    bodies: &Bound<'_, PyAny>,
+    colliders: &Bound<'_, PyAny>,
+) -> PyResult<()> {
+    if !bodies.is_none() && !bodies.is(&queries.bodies) {
+        return Err(PyValueError::new_err(
+            "`bodies` must be the rigid-body set of the query pipeline",
+        ));
+    }
+    if !colliders.is_none() && !colliders.is(&queries.colliders) {
+        return Err(PyValueError::new_err(
+            "`colliders` must be the collider set of the query pipeline",
+        ));
+    }
+    Ok(())
+}
+
+/// Evaluates the filter's Python predicate on every collider, for operations that borrow the sets
+/// mutably (the predicate cannot read them meanwhile). Returns the accepted colliders.
+fn precompute_predicate(
+    py: Python<'_>,
+    filter: Option<&QueryFilter>,
+    colliders: &Py<ColliderSet>,
+) -> PyResult<Option<std::collections::HashSet<rapier::geometry::ColliderHandle>>> {
+    let Some(predicate) = filter.and_then(|f| f.predicate.as_ref()) else {
+        return Ok(None);
+    };
+    let handles: Vec<_> = crate::events_hooks::try_read(colliders, py)?
+        .0
+        .iter()
+        .map(|(h, _)| h)
+        .collect();
+    let mut accepted = std::collections::HashSet::with_capacity(handles.len());
+    for handle in handles {
+        let collider = Collider {
+            backing: ColliderBacking::InSet {
+                set: colliders.clone_ref(py),
+                handle,
+            },
+        };
+        // Same convention as the scene queries: a non-bool result accepts the collider.
+        let keep = predicate
+            .call1(py, (ColliderHandle(handle), collider))?
+            .extract::<bool>(py)
+            .unwrap_or(true);
+        if keep {
+            accepted.insert(handle);
+        }
+    }
+    Ok(Some(accepted))
+}
+
 // ---------------------------------------------------------------
 // KinematicCharacterController
 // ---------------------------------------------------------------
@@ -408,14 +486,15 @@ impl KinematicCharacterController {
     ///     and obstacles (:class:`CharacterLength` or raw float).
     /// :param slide: Whether to slide along obstacles on contact.
     /// :param autostep: :class:`CharacterAutostep` config, or
-    ///     ``None`` to disable.
+    ///     ``None`` to disable (the default).
     /// :param max_slope_climb_angle: Slopes steeper than this
     ///     (radians) cannot be climbed.
     /// :param min_slope_slide_angle: Slopes steeper than this
     ///     (radians) cause the character to slide down.
     /// :param snap_to_ground: Distance below the character that
     ///     should be treated as still grounded after walking off
-    ///     a small drop. ``None`` disables.
+    ///     a small drop. ``None`` disables it; when omitted it
+    ///     defaults to ``CharacterLength.relative(0.2)``.
     /// :param normal_nudge_factor: Small bias along contact
     ///     normals to avoid getting stuck on geometry.
     #[new]
@@ -423,25 +502,23 @@ impl KinematicCharacterController {
         up=None,
         offset=None,
         slide=None,
-        autostep=None,
+        autostep=OptionalArg::Missing,
         max_slope_climb_angle=None,
         min_slope_slide_angle=None,
-        snap_to_ground=None,
+        snap_to_ground=OptionalArg::Missing,
         normal_nudge_factor=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        py: Python<'_>,
         up: Option<PyVector>,
         offset: Option<&Bound<'_, PyAny>>,
         slide: Option<bool>,
-        autostep: Option<&Bound<'_, PyAny>>,
+        autostep: OptionalArg<'_>,
         max_slope_climb_angle: Option<Real>,
         min_slope_slide_angle: Option<Real>,
-        snap_to_ground: Option<&Bound<'_, PyAny>>,
+        snap_to_ground: OptionalArg<'_>,
         normal_nudge_factor: Option<Real>,
     ) -> PyResult<Self> {
-        let _ = py;
         let mut inner = rapier::control::KinematicCharacterController::default();
         if let Some(u) = up {
             inner.up = u.0.into();
@@ -452,13 +529,11 @@ impl KinematicCharacterController {
         if let Some(s) = slide {
             inner.slide = s;
         }
-        if let Some(a) = autostep {
-            if a.is_none() {
-                inner.autostep = None;
-            } else {
-                let auto: CharacterAutostep = a.extract()?;
-                inner.autostep = Some(auto.to_rapier());
-            }
+        if let OptionalArg::Given(a) = autostep {
+            inner.autostep = match a {
+                None => None,
+                Some(a) => Some(a.extract::<CharacterAutostep>()?.to_rapier()),
+            };
         }
         if let Some(v) = max_slope_climb_angle {
             inner.max_slope_climb_angle = v;
@@ -466,12 +541,11 @@ impl KinematicCharacterController {
         if let Some(v) = min_slope_slide_angle {
             inner.min_slope_slide_angle = v;
         }
-        if let Some(s) = snap_to_ground {
-            if s.is_none() {
-                inner.snap_to_ground = None;
-            } else {
-                inner.snap_to_ground = Some(_extract_char_length(s)?.to_rapier());
-            }
+        if let OptionalArg::Given(s) = snap_to_ground {
+            inner.snap_to_ground = match s {
+                None => None,
+                Some(s) => Some(_extract_char_length(&s)?.to_rapier()),
+            };
         }
         if let Some(v) = normal_nudge_factor {
             inner.normal_nudge_factor = v;
@@ -613,13 +687,15 @@ impl KinematicCharacterController {
     /// optional auto-step and ground snapping, and returns the
     /// translation actually applicable to the kinematic body.
     ///
-    /// The ``bodies`` / ``colliders`` arguments are accepted for
-    /// API parity with the Rust API; the actual sweep uses the
-    /// sets already referenced by ``queries``.
+    /// The sweep uses the sets referenced by ``queries``: the
+    /// ``bodies`` / ``colliders`` arguments are only kept for
+    /// backward compatibility and may be ``None``.
     ///
     /// :param dt: Time step in seconds.
-    /// :param bodies: Rigid-body set (kept for API parity).
-    /// :param colliders: Collider set (kept for API parity).
+    /// :param bodies: ``None`` or the rigid-body set of ``queries``
+    ///     (unused).
+    /// :param colliders: ``None`` or the collider set of ``queries``
+    ///     (unused).
     /// :param queries: Up-to-date :class:`QueryPipeline`.
     /// :param shape: Character collision shape.
     /// :param shape_pos: World pose of the shape at frame start.
@@ -628,6 +704,8 @@ impl KinematicCharacterController {
     /// :param events_callback: Optional callable receiving each
     ///     :class:`CharacterCollision` as it is detected.
     /// :returns: :class:`EffectiveCharacterMovement`.
+    /// :raises ValueError: if ``bodies`` or ``colliders`` is neither
+    ///     ``None`` nor the corresponding set of ``queries``.
     #[pyo3(signature = (
         dt, bodies, colliders, queries, shape, shape_pos, desired_translation,
         filter=None, events_callback=None
@@ -646,7 +724,7 @@ impl KinematicCharacterController {
         filter: Option<&QueryFilter>,
         events_callback: Option<Py<PyAny>>,
     ) -> PyResult<EffectiveCharacterMovement> {
-        let _ = (bodies, colliders); // parity-only; queries owns them
+        check_query_sets(queries, bodies, colliders)?;
         let pose: rapier::math::Pose = shape_pos.0.into();
         let desired: rapier::math::Vector = desired_translation.0.into();
         let inner = &self.0;
@@ -655,10 +733,10 @@ impl KinematicCharacterController {
 
         let result = {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = queries.broad_phase.borrow(py);
-            let np = queries.narrow_phase.borrow(py);
-            let bodies = queries.bodies.borrow(py);
-            let colliders = queries.colliders.borrow(py);
+            let bp = crate::events_hooks::try_read(&queries.broad_phase, py)?;
+            let np = crate::events_hooks::try_read(&queries.narrow_phase, py)?;
+            let bodies = crate::events_hooks::try_read(&queries.bodies, py)?;
+            let colliders = crate::events_hooks::try_read(&queries.colliders, py)?;
 
             let py_pred_obj: Option<Py<PyAny>> =
                 filter.and_then(|f| f.predicate.as_ref().map(|p| p.clone_ref(py)));
@@ -736,16 +814,23 @@ impl KinematicCharacterController {
     /// reactive impulses sized for ``character_mass`` onto any
     /// dynamic colliders found.
     ///
+    /// The ``filter``'s predicate, if any, is called once per collider
+    /// before the impulses are applied (the sets are locked while they
+    /// are), so it must not modify them.
+    ///
     /// :param dt: Time step in seconds.
-    /// :param bodies: Rigid-body set (mutated).
-    /// :param colliders: Collider set (mutated).
+    /// :param bodies: Rigid-body set of ``queries`` (mutated).
+    /// :param colliders: Collider set of ``queries`` (mutated).
     /// :param queries: Up-to-date :class:`QueryPipeline`.
     /// :param character_shape: Character collision shape.
-    /// :param character_pos: World pose (currently unused; kept for
-    ///     forward-compat with upstream).
+    /// :param character_pos: Unused (each collision carries its own
+    ///     character pose); kept for backward compatibility and may be
+    ///     ``None``.
     /// :param character_mass: Mass used to scale impulses.
     /// :param collisions: List of :class:`CharacterCollision`.
     /// :param filter: Optional query filter.
+    /// :raises ValueError: if ``bodies`` or ``colliders`` is not the
+    ///     corresponding set of ``queries``.
     #[pyo3(signature = (
         dt, bodies, colliders, queries, character_shape, character_pos,
         character_mass, collisions, filter=None
@@ -759,20 +844,26 @@ impl KinematicCharacterController {
         colliders: Py<ColliderSet>,
         queries: &QueryPipeline,
         character_shape: &SharedShape,
-        character_pos: PyIsometry,
+        character_pos: Option<PyIsometry>,
         character_mass: Real,
         collisions: Vec<CharacterCollision>,
         filter: Option<&QueryFilter>,
     ) -> PyResult<()> {
         let _ = character_pos;
-        // Build an owned QueryPipelineMut. Since QueryPipelineMut holds
-        // `&mut RigidBodySet` and `&mut ColliderSet`, we borrow_mut the
-        // Py<> handles.
-        let bp = queries.broad_phase.borrow(py);
-        let np = queries.narrow_phase.borrow(py);
-        let mut bodies_ref = bodies.borrow_mut(py);
-        let mut colliders_ref = colliders.borrow_mut(py);
-        let qf = filter.map(|f| f.as_rapier(None)).unwrap_or_default();
+        check_query_sets(queries, bodies.bind(py), colliders.bind(py))?;
+        let accepted = precompute_predicate(py, filter, &colliders)?;
+        let predicate = |h: rapier::geometry::ColliderHandle, _: &rapier::geometry::Collider| {
+            accepted.as_ref().is_none_or(|a| a.contains(&h))
+        };
+        // QueryPipelineMut holds `&mut RigidBodySet` and `&mut ColliderSet`.
+        let bp = crate::events_hooks::try_read(&queries.broad_phase, py)?;
+        let np = crate::events_hooks::try_read(&queries.narrow_phase, py)?;
+        let mut bodies_ref = crate::events_hooks::try_write(&bodies, py)?;
+        let mut colliders_ref = crate::events_hooks::try_write(&colliders, py)?;
+        let mut qf = filter.map(|f| f.as_rapier(None)).unwrap_or_default();
+        if accepted.is_some() {
+            qf.predicate = Some(&predicate);
+        }
         let mut qpmut = bp.0.as_query_pipeline_mut(
             np.0.query_dispatcher(),
             &mut bodies_ref.0,
@@ -792,23 +883,25 @@ impl KinematicCharacterController {
 
     /// Return a debug string summarizing the controller config.
     fn __repr__(&self) -> String {
+        let up: crate::na::Vector3<Real> = self.0.up.into();
+        let autostep = self
+            .autostep()
+            .map_or_else(|| "None".to_string(), |a| a.__repr__());
+        let snap = self
+            .snap_to_ground()
+            .map_or_else(|| "None".to_string(), |l| l.__repr__());
         format!(
-            "KinematicCharacterController(up={:?}, offset={:?}, slide={}, autostep={}, max_slope_climb_angle={}, min_slope_slide_angle={}, snap_to_ground={})",
-            self.0.up,
-            self.0.offset,
-            self.0.slide,
-            if self.0.autostep.is_some() {
-                "set"
-            } else {
-                "None"
-            },
+            "KinematicCharacterController(up=({}, {}, {}), offset={}, slide={}, autostep={}, max_slope_climb_angle={}, min_slope_slide_angle={}, snap_to_ground={}, normal_nudge_factor={})",
+            up.x,
+            up.y,
+            up.z,
+            self.offset().__repr__(),
+            if self.0.slide { "True" } else { "False" },
+            autostep,
             self.0.max_slope_climb_angle,
             self.0.min_slope_slide_angle,
-            if self.0.snap_to_ground.is_some() {
-                "set"
-            } else {
-                "None"
-            },
+            snap,
+            self.0.normal_nudge_factor,
         )
     }
 }
@@ -816,15 +909,13 @@ impl KinematicCharacterController {
 // ---------------------------------------------------------------
 // AxesMask (controllers use this, distinct from LockedAxes).
 //
-// Upstream `AxesMask` is dim-aware: LIN_X, LIN_Y, LIN_Z, ANG_X,
-// ANG_Y, ANG_Z (all present in 3D).
+// Bits: LIN_X, LIN_Y, LIN_Z, ANG_X, ANG_Y, ANG_Z.
 // ---------------------------------------------------------------
 /// Bitflags selecting which DOFs a PID/PD controller drives.
 ///
-/// In 3D the bits are ``LIN_X``, ``LIN_Y``, ``LIN_Z``, ``ANG_X``,
-/// ``ANG_Y``, ``ANG_Z``. In 2D only ``LIN_X``, ``LIN_Y``, and
-/// ``ANG_Z`` exist (other axes are absent from upstream and not
-/// exposed as class attributes).
+/// The bits are ``LIN_X``, ``LIN_Y``, ``LIN_Z`` (translations along
+/// each axis) and ``ANG_X``, ``ANG_Y``, ``ANG_Z`` (rotations around
+/// each axis).
 ///
 /// Combine bits with the usual ``|``, ``&``, ``^``, ``-``, ``~``
 /// operators. Distinct from :class:`LockedAxes`, which freezes
@@ -946,10 +1037,9 @@ impl AxesMask {
 ///
 /// Used both as a "position error" (desired minus current pose)
 /// and as a "velocity error" (desired minus current velocity).
-/// In 3D ``angular`` is a 3-vector; in 2D it is a single ``float``.
 ///
 /// :ivar linear: Linear error vector.
-/// :ivar angular: Angular error (vector in 3D, scalar in 2D).
+/// :ivar angular: Angular error vector.
 #[pyclass(name = "PdErrors", module = "rapier")]
 #[derive(Debug, Clone, Copy)]
 pub struct PdErrors {
@@ -1026,8 +1116,7 @@ impl PdErrors {
 /// delta to the controlled rigid body each step.
 ///
 /// :ivar linear: Linear velocity correction.
-/// :ivar angular: Angular velocity correction (vector in 3D,
-///     scalar in 2D).
+/// :ivar angular: Angular velocity correction.
 #[pyclass(name = "PidCorrection", module = "rapier", frozen)]
 #[derive(Debug, Clone, Copy)]
 pub struct PidCorrection {
@@ -1062,6 +1151,26 @@ impl PidCorrection {
     }
 }
 
+/// Extracts a controller gain: a float applied to every axis, or a per-axis 3-vector.
+fn extract_gain(obj: &Bound<'_, PyAny>) -> PyResult<crate::na::Vector3<Real>> {
+    if let Ok(f) = obj.extract::<Real>() {
+        return Ok(crate::na::Vector3::repeat(f));
+    }
+    obj.extract::<PyVector>()
+        .map(|v| v.0)
+        .map_err(|_| PyTypeError::new_err("expected a float or a 3-vector gain"))
+}
+
+/// The target velocity of a `rigid_body_correction` call (zero when not given).
+fn target_velocity(v: Option<RigidBodyVelocity>) -> rapier::dynamics::RigidBodyVelocity<Real> {
+    v.map_or_else(rapier::dynamics::RigidBodyVelocity::<Real>::zero, |v| {
+        rapier::dynamics::RigidBodyVelocity {
+            linvel: v.linvel.0.into(),
+            angvel: v.angvel.0.into(),
+        }
+    })
+}
+
 // PdController — immutable PD.
 /// Proportional-derivative controller (PD).
 ///
@@ -1077,11 +1186,14 @@ pub struct PdController(pub rapier::control::PdController);
 impl PdController {
     /// Build a PD controller with optional per-axis ``Kp`` / ``Kd``.
     ///
+    /// Each gain applies to both the linear and the angular axes.
+    ///
     /// :param axes: :class:`AxesMask` selecting which DOFs to
     ///     control (defaults to all).
-    /// :param Kp: Proportional gain — scalar (broadcast) or a
-    ///     vector matching linear-axis count.
-    /// :param Kd: Derivative gain — same shape as ``Kp``.
+    /// :param Kp: Proportional gain: a float applied to every axis,
+    ///     or a per-axis 3-vector (defaults to ``60.0``).
+    /// :param Kd: Derivative gain, same shape as ``Kp`` (defaults
+    ///     to ``0.8``).
     #[new]
     #[pyo3(signature = (axes=None, Kp=None, Kd=None))]
     #[allow(non_snake_case)]
@@ -1095,34 +1207,14 @@ impl PdController {
             .unwrap_or_else(rapier::dynamics::AxesMask::all);
         let mut inner = rapier::control::PdController::new(60.0 as Real, 0.8 as Real, am);
         if let Some(k) = Kp {
-            let v: PyVector = k.extract()?;
-            inner.lin_kp = v.0.into();
-            let ang_kp = {
-                // Accept a (x,y,z) tuple/list/Vec3 or a single float (broadcast).
-                let av: rapier::math::AngVector = if let Ok(f) = k.extract::<Real>() {
-                    rapier::math::AngVector::splat(f)
-                } else {
-                    let pv: PyVector = k.extract()?;
-                    pv.0.into()
-                };
-                Ok::<rapier::math::AngVector, crate::pyo3::PyErr>(av)
-            }?;
-            inner.ang_kp = ang_kp;
+            let k = extract_gain(k)?;
+            inner.lin_kp = k.into();
+            inner.ang_kp = k.into();
         }
         if let Some(k) = Kd {
-            let v: PyVector = k.extract()?;
-            inner.lin_kd = v.0.into();
-            let ang_kd = {
-                // Accept a (x,y,z) tuple/list/Vec3 or a single float (broadcast).
-                let av: rapier::math::AngVector = if let Ok(f) = k.extract::<Real>() {
-                    rapier::math::AngVector::splat(f)
-                } else {
-                    let pv: PyVector = k.extract()?;
-                    pv.0.into()
-                };
-                Ok::<rapier::math::AngVector, crate::pyo3::PyErr>(av)
-            }?;
-            inner.ang_kd = ang_kd;
+            let k = extract_gain(k)?;
+            inner.lin_kd = k.into();
+            inner.ang_kd = k.into();
         }
         Ok(Self(inner))
     }
@@ -1138,6 +1230,47 @@ impl PdController {
         self.0.axes = v.0;
     }
 
+    /// Proportional gains of the linear axes (a float sets every axis).
+    #[getter]
+    fn lin_kp(&self) -> Vec3 {
+        Vec3(self.0.lin_kp.into())
+    }
+    #[setter]
+    fn set_lin_kp(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.lin_kp = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Proportional gains of the angular axes (a float sets every axis).
+    #[getter]
+    fn ang_kp(&self) -> Vec3 {
+        Vec3(self.0.ang_kp.into())
+    }
+    #[setter]
+    fn set_ang_kp(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.ang_kp = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Derivative gains of the linear axes (a float sets every axis).
+    #[getter]
+    fn lin_kd(&self) -> Vec3 {
+        Vec3(self.0.lin_kd.into())
+    }
+    #[setter]
+    fn set_lin_kd(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.lin_kd = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Derivative gains of the angular axes (a float sets every axis).
+    #[getter]
+    fn ang_kd(&self) -> Vec3 {
+        Vec3(self.0.ang_kd.into())
+    }
+    #[setter]
+    fn set_ang_kd(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.ang_kd = extract_gain(v)?.into();
+        Ok(())
+    }
+
     /// Set the per-linear-axis proportional gain vector.
     fn set_axes_kp(&mut self, v: PyVector) {
         self.0.lin_kp = v.0.into();
@@ -1147,24 +1280,26 @@ impl PdController {
         self.0.lin_kd = v.0.into();
     }
 
-    /// Velocity correction toward ``target_pose`` (zero target velocity).
+    /// Velocity correction toward ``target_pose`` and ``target_vels``.
     ///
     /// :param body: :class:`RigidBody` to drive.
     /// :param target_pose: Desired world pose.
+    /// :param target_vels: Desired :class:`RigidBodyVelocity`
+    ///     (defaults to zero velocities).
     /// :returns: :class:`PidCorrection` to apply as a velocity delta.
-    #[pyo3(signature = (body, target_pose))]
+    #[pyo3(signature = (body, target_pose, target_vels=None))]
     fn rigid_body_correction(
         &self,
-        py: Python<'_>,
         body: &Bound<'_, PyAny>,
         target_pose: PyIsometry,
+        target_vels: Option<RigidBodyVelocity>,
     ) -> PyResult<PidCorrection> {
-        let _ = py;
         let rb = body.extract::<PyRef<'_, RigidBody>>()?;
         let target_pose: rapier::math::Pose = target_pose.0.into();
-        let zero_vels = rapier::dynamics::RigidBodyVelocity::<Real>::zero();
-        let owned = rb.to_owned_body();
-        let corr = self.0.rigid_body_correction(&owned, target_pose, zero_vels);
+        let owned = rb.to_owned_body()?;
+        let corr = self
+            .0
+            .rigid_body_correction(&owned, target_pose, target_velocity(target_vels));
         Ok(PidCorrection::from_velocity(corr))
     }
 
@@ -1197,10 +1332,15 @@ pub struct PidController(pub rapier::control::PidController);
 impl PidController {
     /// Build a PID with optional per-axis ``Kp`` / ``Ki`` / ``Kd``.
     ///
+    /// Each gain applies to both the linear and the angular axes.
+    ///
     /// :param axes: :class:`AxesMask` selecting controlled DOFs.
-    /// :param Kp: Proportional gain (scalar or vector).
-    /// :param Ki: Integral gain (scalar or vector).
-    /// :param Kd: Derivative gain (scalar or vector).
+    /// :param Kp: Proportional gain: a float applied to every axis,
+    ///     or a per-axis 3-vector (defaults to ``60.0``).
+    /// :param Ki: Integral gain, same shape as ``Kp`` (defaults to
+    ///     ``1.0``).
+    /// :param Kd: Derivative gain, same shape as ``Kp`` (defaults
+    ///     to ``0.8``).
     #[new]
     #[pyo3(signature = (axes=None, Kp=None, Ki=None, Kd=None))]
     #[allow(non_snake_case)]
@@ -1216,46 +1356,19 @@ impl PidController {
         let mut inner =
             rapier::control::PidController::new(60.0 as Real, 1.0 as Real, 0.8 as Real, am);
         if let Some(k) = Kp {
-            let v: PyVector = k.extract()?;
-            inner.pd.lin_kp = v.0.into();
-            inner.pd.ang_kp = {
-                // Accept a (x,y,z) tuple/list/Vec3 or a single float (broadcast).
-                let av: rapier::math::AngVector = if let Ok(f) = k.extract::<Real>() {
-                    rapier::math::AngVector::splat(f)
-                } else {
-                    let pv: PyVector = k.extract()?;
-                    pv.0.into()
-                };
-                Ok::<rapier::math::AngVector, crate::pyo3::PyErr>(av)
-            }?;
-        }
-        if let Some(k) = Kd {
-            let v: PyVector = k.extract()?;
-            inner.pd.lin_kd = v.0.into();
-            inner.pd.ang_kd = {
-                // Accept a (x,y,z) tuple/list/Vec3 or a single float (broadcast).
-                let av: rapier::math::AngVector = if let Ok(f) = k.extract::<Real>() {
-                    rapier::math::AngVector::splat(f)
-                } else {
-                    let pv: PyVector = k.extract()?;
-                    pv.0.into()
-                };
-                Ok::<rapier::math::AngVector, crate::pyo3::PyErr>(av)
-            }?;
+            let k = extract_gain(k)?;
+            inner.pd.lin_kp = k.into();
+            inner.pd.ang_kp = k.into();
         }
         if let Some(k) = Ki {
-            let v: PyVector = k.extract()?;
-            inner.lin_ki = v.0.into();
-            inner.ang_ki = {
-                // Accept a (x,y,z) tuple/list/Vec3 or a single float (broadcast).
-                let av: rapier::math::AngVector = if let Ok(f) = k.extract::<Real>() {
-                    rapier::math::AngVector::splat(f)
-                } else {
-                    let pv: PyVector = k.extract()?;
-                    pv.0.into()
-                };
-                Ok::<rapier::math::AngVector, crate::pyo3::PyErr>(av)
-            }?;
+            let k = extract_gain(k)?;
+            inner.lin_ki = k.into();
+            inner.ang_ki = k.into();
+        }
+        if let Some(k) = Kd {
+            let k = extract_gain(k)?;
+            inner.pd.lin_kd = k.into();
+            inner.pd.ang_kd = k.into();
         }
         Ok(Self(inner))
     }
@@ -1267,8 +1380,79 @@ impl PidController {
     }
     #[setter]
     /// Replace the :class:`AxesMask` selecting controlled DOFs.
-    fn set_axes_attr(&mut self, v: &AxesMask) {
+    fn set_axes(&mut self, v: &AxesMask) {
         self.0.set_axes(v.0);
+    }
+
+    /// Proportional gains of the linear axes (a float sets every axis).
+    #[getter]
+    fn lin_kp(&self) -> Vec3 {
+        Vec3(self.0.pd.lin_kp.into())
+    }
+    #[setter]
+    fn set_lin_kp(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.pd.lin_kp = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Proportional gains of the angular axes (a float sets every axis).
+    #[getter]
+    fn ang_kp(&self) -> Vec3 {
+        Vec3(self.0.pd.ang_kp.into())
+    }
+    #[setter]
+    fn set_ang_kp(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.pd.ang_kp = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Integral gains of the linear axes (a float sets every axis).
+    #[getter]
+    fn lin_ki(&self) -> Vec3 {
+        Vec3(self.0.lin_ki.into())
+    }
+    #[setter]
+    fn set_lin_ki(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.lin_ki = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Integral gains of the angular axes (a float sets every axis).
+    #[getter]
+    fn ang_ki(&self) -> Vec3 {
+        Vec3(self.0.ang_ki.into())
+    }
+    #[setter]
+    fn set_ang_ki(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.ang_ki = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Derivative gains of the linear axes (a float sets every axis).
+    #[getter]
+    fn lin_kd(&self) -> Vec3 {
+        Vec3(self.0.pd.lin_kd.into())
+    }
+    #[setter]
+    fn set_lin_kd(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.pd.lin_kd = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Derivative gains of the angular axes (a float sets every axis).
+    #[getter]
+    fn ang_kd(&self) -> Vec3 {
+        Vec3(self.0.pd.ang_kd.into())
+    }
+    #[setter]
+    fn set_ang_kd(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.0.pd.ang_kd = extract_gain(v)?.into();
+        Ok(())
+    }
+    /// Linear error accumulated by the integral term (read-only; see :meth:`reset`).
+    #[getter]
+    fn lin_integral(&self) -> Vec3 {
+        Vec3(self.0.lin_integral.into())
+    }
+    /// Angular error accumulated by the integral term (read-only; see :meth:`reset`).
+    #[getter]
+    fn ang_integral(&self) -> Vec3 {
+        Vec3(self.0.ang_integral.into())
     }
 
     /// Set the per-linear-axis proportional gain vector.
@@ -1289,24 +1473,28 @@ impl PidController {
         self.0.reset_integrals();
     }
 
-    /// One PID step: velocity correction toward ``target_pose``.
+    /// One PID step: velocity correction toward ``target_pose`` and ``target_vels``.
     ///
     /// :param dt: Time step in seconds.
     /// :param body: :class:`RigidBody` to drive.
     /// :param target_pose: Desired world pose.
+    /// :param target_vels: Desired :class:`RigidBodyVelocity`
+    ///     (defaults to zero velocities).
     /// :returns: :class:`PidCorrection`.
-    #[pyo3(signature = (dt, body, target_pose))]
+    #[pyo3(signature = (dt, body, target_pose, target_vels=None))]
     fn rigid_body_correction(
         &mut self,
         dt: Real,
         body: &Bound<'_, PyAny>,
         target_pose: PyIsometry,
+        target_vels: Option<RigidBodyVelocity>,
     ) -> PyResult<PidCorrection> {
         let rb = body.extract::<PyRef<'_, RigidBody>>()?;
         let pose: rapier::math::Pose = target_pose.0.into();
-        let zero_vels = rapier::dynamics::RigidBodyVelocity::<Real>::zero();
-        let owned = rb.to_owned_body();
-        let corr = self.0.rigid_body_correction(dt, &owned, pose, zero_vels);
+        let owned = rb.to_owned_body()?;
+        let corr = self
+            .0
+            .rigid_body_correction(dt, &owned, pose, target_velocity(target_vels));
         Ok(PidCorrection::from_velocity(corr))
     }
 
@@ -1596,6 +1784,13 @@ impl RayCastInfo {
 ///    :meth:`DynamicRayCastVehicleController.set_brake`,
 ///    :meth:`set_steering`, and :meth:`apply_engine_force` to
 ///    actually drive the wheel.
+///
+/// :ivar center: World-space center of the wheel after the last
+///     :meth:`DynamicRayCastVehicleController.update_vehicle`.
+/// :ivar suspension: World-space direction of the suspension after the
+///     last update.
+/// :ivar axle: World-space direction of the (steered) axle after the
+///     last update.
 #[pyclass(name = "Wheel", module = "rapier")]
 #[derive(Debug, Clone, Copy)]
 pub struct Wheel {
@@ -1639,6 +1834,12 @@ pub struct Wheel {
     pub wheel_suspension_force: Real,
     #[pyo3(get)]
     pub raycast_info: RayCastInfo,
+    #[pyo3(get)]
+    pub center: Vec3,
+    #[pyo3(get)]
+    pub suspension: Vec3,
+    #[pyo3(get)]
+    pub axle: Vec3,
 }
 
 #[pymethods]
@@ -1679,6 +1880,9 @@ impl Wheel {
             brake: w.brake,
             wheel_suspension_force: w.wheel_suspension_force,
             raycast_info: RayCastInfo::from_wheel(w),
+            center: Vec3(w.center().into()),
+            suspension: Vec3(w.suspension().into()),
+            axle: Vec3(w.axle().into()),
         }
     }
 }
@@ -1747,14 +1951,19 @@ impl DynamicRayCastVehicleController {
     /// Requires a fresh :class:`QueryPipeline` — typically call
     /// ``world.update_query_pipeline()`` first.
     ///
-    /// The chassis body is excluded from the suspension raycasts (their origins
-    /// sit on its own collider), unless ``filter`` already excludes a body.
+    /// The chassis colliders are always excluded from the suspension
+    /// raycasts (their origins sit on them), in addition to the
+    /// ``filter``'s own exclusions. The ``filter``'s predicate, if any,
+    /// is called once per collider before the update (the sets are
+    /// locked during it), so it must not modify them.
     ///
     /// :param dt: Time step in seconds.
-    /// :param bodies: Rigid-body set (mutated).
-    /// :param colliders: Collider set (mutated).
+    /// :param bodies: Rigid-body set of ``queries`` (mutated).
+    /// :param colliders: Collider set of ``queries`` (mutated).
     /// :param queries: Up-to-date :class:`QueryPipeline`.
     /// :param filter: Optional query filter.
+    /// :raises ValueError: if ``bodies`` or ``colliders`` is not the
+    ///     corresponding set of ``queries``.
     #[pyo3(signature = (dt, bodies, colliders, queries, filter=None))]
     fn update_vehicle(
         &mut self,
@@ -1765,12 +1974,26 @@ impl DynamicRayCastVehicleController {
         queries: &QueryPipeline,
         filter: Option<&QueryFilter>,
     ) -> PyResult<()> {
-        let bp = queries.broad_phase.borrow(py);
-        let np = queries.narrow_phase.borrow(py);
-        let mut bodies_ref = bodies.borrow_mut(py);
-        let mut colliders_ref = colliders.borrow_mut(py);
+        check_query_sets(queries, bodies.bind(py), colliders.bind(py))?;
+        let accepted = precompute_predicate(py, filter, &colliders)?;
+        let chassis = self.0.chassis;
         let mut qf = filter.map(|f| f.as_rapier(None)).unwrap_or_default();
-        qf.exclude_rigid_body = qf.exclude_rigid_body.or(Some(self.0.chassis));
+        // Keep the caller's body exclusion; the chassis is then excluded by the predicate.
+        let exclude_chassis = qf.exclude_rigid_body.is_some_and(|h| h != chassis);
+        if qf.exclude_rigid_body.is_none() {
+            qf.exclude_rigid_body = Some(chassis);
+        }
+        let predicate = |h: rapier::geometry::ColliderHandle, co: &rapier::geometry::Collider| {
+            accepted.as_ref().is_none_or(|a| a.contains(&h))
+                && !(exclude_chassis && co.parent() == Some(chassis))
+        };
+        if accepted.is_some() || exclude_chassis {
+            qf.predicate = Some(&predicate);
+        }
+        let bp = crate::events_hooks::try_read(&queries.broad_phase, py)?;
+        let np = crate::events_hooks::try_read(&queries.narrow_phase, py)?;
+        let mut bodies_ref = crate::events_hooks::try_write(&bodies, py)?;
+        let mut colliders_ref = crate::events_hooks::try_write(&colliders, py)?;
         let qpmut = bp.0.as_query_pipeline_mut(
             np.0.query_dispatcher(),
             &mut bodies_ref.0,
@@ -1783,49 +2006,28 @@ impl DynamicRayCastVehicleController {
 
     /// Set the brake force on wheel ``idx``.
     ///
-    /// :raises TypeError: if ``idx`` is out of range.
-    fn set_brake(&mut self, idx: usize, brake: Real) -> PyResult<()> {
-        let wheels = self.0.wheels_mut();
-        if idx >= wheels.len() {
-            return Err(PyTypeError::new_err(format!(
-                "wheel index {} out of range (len={})",
-                idx,
-                wheels.len()
-            )));
-        }
-        wheels[idx].brake = brake;
+    /// :raises IndexError: if ``idx`` is out of range.
+    fn set_brake(&mut self, idx: isize, brake: Real) -> PyResult<()> {
+        let idx = self.wheel_index(idx)?;
+        self.0.wheels_mut()[idx].brake = brake;
         Ok(())
     }
 
     /// Set the steering angle (radians) on wheel ``idx``.
     ///
-    /// :raises TypeError: if ``idx`` is out of range.
-    fn set_steering(&mut self, idx: usize, steering: Real) -> PyResult<()> {
-        let wheels = self.0.wheels_mut();
-        if idx >= wheels.len() {
-            return Err(PyTypeError::new_err(format!(
-                "wheel index {} out of range (len={})",
-                idx,
-                wheels.len()
-            )));
-        }
-        wheels[idx].steering = steering;
+    /// :raises IndexError: if ``idx`` is out of range.
+    fn set_steering(&mut self, idx: isize, steering: Real) -> PyResult<()> {
+        let idx = self.wheel_index(idx)?;
+        self.0.wheels_mut()[idx].steering = steering;
         Ok(())
     }
 
     /// Set the engine drive force on wheel ``idx``.
     ///
-    /// :raises TypeError: if ``idx`` is out of range.
-    fn apply_engine_force(&mut self, idx: usize, force: Real) -> PyResult<()> {
-        let wheels = self.0.wheels_mut();
-        if idx >= wheels.len() {
-            return Err(PyTypeError::new_err(format!(
-                "wheel index {} out of range (len={})",
-                idx,
-                wheels.len()
-            )));
-        }
-        wheels[idx].engine_force = force;
+    /// :raises IndexError: if ``idx`` is out of range.
+    fn apply_engine_force(&mut self, idx: isize, force: Real) -> PyResult<()> {
+        let idx = self.wheel_index(idx)?;
+        self.0.wheels_mut()[idx].engine_force = force;
         Ok(())
     }
 
@@ -1836,16 +2038,10 @@ impl DynamicRayCastVehicleController {
 
     /// Return a snapshot of the single wheel at ``idx``.
     ///
-    /// :raises TypeError: if ``idx`` is out of range.
-    fn wheel(&self, idx: usize) -> PyResult<Wheel> {
-        let wheels = self.0.wheels();
-        wheels.get(idx).map(Wheel::from_rapier).ok_or_else(|| {
-            PyTypeError::new_err(format!(
-                "wheel index {} out of range (len={})",
-                idx,
-                wheels.len()
-            ))
-        })
+    /// :raises IndexError: if ``idx`` is out of range.
+    fn wheel(&self, idx: isize) -> PyResult<Wheel> {
+        let idx = self.wheel_index(idx)?;
+        Ok(Wheel::from_rapier(&self.0.wheels()[idx]))
     }
 
     /// Current forward speed in km/h.
@@ -1893,6 +2089,19 @@ impl DynamicRayCastVehicleController {
             self.0.wheels().len(),
             self.0.current_vehicle_speed
         )
+    }
+}
+
+impl DynamicRayCastVehicleController {
+    /// Checks a wheel index, raising ``IndexError`` if it is out of range.
+    fn wheel_index(&self, idx: isize) -> PyResult<usize> {
+        let len = self.0.wheels().len();
+        usize::try_from(idx)
+            .ok()
+            .filter(|&i| i < len)
+            .ok_or_else(|| {
+                PyIndexError::new_err(format!("wheel index {idx} out of range (len={len})"))
+            })
     }
 }
 

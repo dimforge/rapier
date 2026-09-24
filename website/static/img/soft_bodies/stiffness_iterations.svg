@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 316" width="320" height="316" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img">
+  <title>Stiffness vs. iteration count</title>
+  <desc>The same heavy chain solved with 1, 4 and 32 iterations; with few iterations, the constraints do not converge and the chain looks softer.</desc>
+  <rect x="0.5" y="0.5" width="319" height="315" rx="12" fill="#ffffff" stroke="#e1e4e8"/>
+  <g transform="translate(-600,0)">
+    <text x="760.0" y="38.0" font-size="15" fill="#1c1e21" text-anchor="middle" font-weight="600" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">Stiffness vs. iteration count</text>
+    <g transform="translate(0,-6.1)"><line x1="650.0" y1="88.0" x2="870.0" y2="88.0" stroke="#4b5563" stroke-width="3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="650.0" y1="88.0" x2="643.0" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="677.5" y1="88.0" x2="670.5" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="705.0" y1="88.0" x2="698.0" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="732.5" y1="88.0" x2="725.5" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="760.0" y1="88.0" x2="753.0" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="787.5" y1="88.0" x2="780.5" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="815.0" y1="88.0" x2="808.0" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="842.5" y1="88.0" x2="835.5" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="870.0" y1="88.0" x2="863.0" y2="80.0" stroke="#4b5563" stroke-width="1.3" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="650.0" y1="220.0" x2="870.0" y2="220.0" stroke="#8b95a1" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="4 3"/></g>
+    <g transform="translate(0,-6.1)"><text x="872.0" y="224.0" font-size="11" fill="#606770" text-anchor="start" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">rest</text></g>
+    <g transform="translate(0,-6.1)"><line x1="680.0" y1="88.0" x2="680.0" y2="118.5" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="680.0" y1="118.5" x2="680.0" y2="148.8" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="680.0" y1="148.8" x2="680.0" y2="178.8" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="680.0" y1="178.8" x2="680.0" y2="208.5" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="680.0" y1="208.5" x2="680.0" y2="238.0" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="680.0" y1="238.0" x2="680.0" y2="260.0" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="680.0" cy="88.0" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="680.0" cy="118.5" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="680.0" cy="148.8" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="680.0" cy="178.8" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="680.0" cy="208.5" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="680.0" cy="238.0" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><rect x="667.0" y="260.0" width="26.0" height="20.0" rx="2" fill="#e4e7eb" stroke="#4b5563" stroke-width="1.8"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="680.0" cy="260.0" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><text x="680.0" y="298.0" font-size="12" fill="#1c1e21" text-anchor="middle" font-weight="600" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">1 iteration</text></g>
+    <g transform="translate(0,-6.1)"><line x1="760.0" y1="88.0" x2="760.0" y2="112.1" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="760.0" y1="112.1" x2="760.0" y2="136.1" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="760.0" y1="136.1" x2="760.0" y2="160.1" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="760.0" y1="160.1" x2="760.0" y2="184.0" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="760.0" y1="184.0" x2="760.0" y2="207.9" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="760.0" y1="207.9" x2="760.0" y2="229.9" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="760.0" cy="88.0" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="760.0" cy="112.1" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="760.0" cy="136.1" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="760.0" cy="160.1" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="760.0" cy="184.0" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="760.0" cy="207.9" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><rect x="747.0" y="229.9" width="26.0" height="20.0" rx="2" fill="#e4e7eb" stroke="#4b5563" stroke-width="1.8"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="760.0" cy="229.9" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><text x="760.0" y="298.0" font-size="12" fill="#1c1e21" text-anchor="middle" font-weight="600" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">4 iterations</text></g>
+    <g transform="translate(0,-6.1)"><line x1="840.0" y1="88.0" x2="840.0" y2="110.2" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="840.0" y1="110.2" x2="840.0" y2="132.5" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="840.0" y1="132.5" x2="840.0" y2="154.7" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="840.0" y1="154.7" x2="840.0" y2="176.9" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="840.0" y1="176.9" x2="840.0" y2="199.1" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><line x1="840.0" y1="199.1" x2="840.0" y2="221.1" stroke="#1a8870" stroke-width="2" stroke-linecap="round"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="840.0" cy="88.0" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="840.0" cy="110.2" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="840.0" cy="132.5" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="840.0" cy="154.7" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="840.0" cy="176.9" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="840.0" cy="199.1" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><rect x="827.0" y="221.1" width="26.0" height="20.0" rx="2" fill="#e4e7eb" stroke="#4b5563" stroke-width="1.8"/></g>
+    <g transform="translate(0,-6.1)"><circle cx="840.0" cy="221.1" r="4.2" fill="#1a8870" stroke="#ffffff" stroke-width="1.1"/></g>
+    <g transform="translate(0,-6.1)"><text x="840.0" y="298.0" font-size="12" fill="#1c1e21" text-anchor="middle" font-weight="600" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">32 iterations</text></g>
+  </g>
+</svg>

@@ -72,7 +72,7 @@ pub struct RprSoftBodyMaterial {
     pub edgePlasticCreep: RprReal,
     /// Maximum permanent edge-length change as a fraction of its initial length.
     pub edgePlasticMax: RprReal,
-    /// Plastic flow direction: 0 both, 1 compression only, 2 tension only.
+    /// Plastic flow direction: RPR_SOFT_EDGE_PLASTIC_FLOW_BOTH, _COMPRESSION or _TENSION.
     pub edgePlasticFlow: u32,
     /// Optional strain threshold for tearing; disabled means no strain-based tearing.
     pub tearStrain: RprOptionalReal,
@@ -227,8 +227,8 @@ pub struct RprSoftRecoverySettings {
     pub overlapEdgeStandDown: RprBool,
     /// Velocity-change limit per step, as a multiple of recoveryPace.
     pub overlapConstraintPace: RprReal,
-    /// Per-point constraints inside overlap patches: 0 keep, 1 stand down, 2 align with overlap
-    /// normal.
+    /// Per-point constraints inside overlap patches: RPR_SOFT_PATCH_CONSTRAINTS_KEEP, _STAND_DOWN or
+    /// _ALONG_NORMAL.
     pub overlapPatchConstraints: u32,
     /// Measure overlap on contact-skin surfaces rather than bare geometry.
     pub overlapSkinVolume: RprBool,
@@ -444,7 +444,7 @@ pub struct RprIntegrationParameters {
     pub normalizedMaxLinearVelocity: RprReal,
     /// Number of solver substeps/iterations; must be positive.
     pub numSolverIterations: usize,
-    /// PGS iterations per solver substep.
+    /// PGS iterations per solver substep; must be positive.
     pub numInternalPgsIterations: usize,
     /// Stabilization iterations after velocity solving.
     pub numInternalStabilizationIterations: usize,
@@ -461,7 +461,7 @@ pub struct RprIntegrationParameters {
     /// Whether to warmstart joint constraints.
     pub warmstartJoints: RprBool,
     #[cfg(feature = "dim3")]
-    /// Friction model: 0 simplified, 1 Coulomb (3D only).
+    /// Friction model of rigid-body contacts, RPR_FRICTION_MODEL_* (3D only).
     pub frictionModel: u32,
 }
 impl From<IntegrationParameters> for RprIntegrationParameters {
@@ -488,10 +488,7 @@ impl From<IntegrationParameters> for RprIntegrationParameters {
             frictionInBiasPass: value.friction_in_bias_pass as RprBool,
             warmstartJoints: value.warmstart_joints as RprBool,
             #[cfg(feature = "dim3")]
-            frictionModel: match value.friction_model {
-                FrictionModel::Simplified => 0,
-                FrictionModel::Coulomb => 1,
-            },
+            frictionModel: friction_model_value(value.friction_model),
         }
     }
 }
@@ -509,8 +506,8 @@ impl RprIntegrationParameters {
             normalized_max_corrective_velocity: nonnegative(self.normalizedMaxCorrectiveVelocity)?,
             normalized_prediction_distance: nonnegative(self.normalizedPredictionDistance)?,
             normalized_max_linear_velocity: nonnegative(self.normalizedMaxLinearVelocity)?,
-            num_solver_iterations: self.numSolverIterations,
-            num_internal_pgs_iterations: self.numInternalPgsIterations,
+            num_solver_iterations: iterations(self.numSolverIterations)?,
+            num_internal_pgs_iterations: iterations(self.numInternalPgsIterations)?,
             num_internal_stabilization_iterations: self.numInternalStabilizationIterations,
             max_ccd_substeps: self.maxCcdSubsteps,
             contact_clustering: boolean(self.contactClustering)?,
@@ -521,12 +518,37 @@ impl RprIntegrationParameters {
             friction_in_bias_pass: boolean(self.frictionInBiasPass)?,
             warmstart_joints: boolean(self.warmstartJoints)?,
             #[cfg(feature = "dim3")]
-            friction_model: match self.frictionModel {
-                0 => FrictionModel::Simplified,
-                1 => FrictionModel::Coulomb,
-                _ => return Err(invalid("invalid friction_model")),
-            },
+            friction_model: friction_model(self.frictionModel)?,
         })
+    }
+}
+/// @ingroup worlds
+/// Friction model solving one Coulomb friction constraint per group of up to 4 contacts plus a
+/// twist constraint; faster but less accurate (default).
+#[cfg(feature = "dim3")]
+pub const RPR_FRICTION_MODEL_SIMPLIFIED: u32 = 0;
+/// @ingroup worlds
+/// Friction model solving one Coulomb friction constraint per contact point.
+#[cfg(feature = "dim3")]
+pub const RPR_FRICTION_MODEL_COULOMB: u32 = 1;
+/// Validates a solver iteration count, which must be positive.
+pub(crate) fn iterations(value: usize) -> Result<usize> {
+    ensure(value > 0, "iteration count must be positive")?;
+    Ok(value)
+}
+#[cfg(feature = "dim3")]
+pub(crate) fn friction_model(value: u32) -> Result<FrictionModel> {
+    match value {
+        RPR_FRICTION_MODEL_SIMPLIFIED => Ok(FrictionModel::Simplified),
+        RPR_FRICTION_MODEL_COULOMB => Ok(FrictionModel::Coulomb),
+        _ => Err(invalid("unknown friction model")),
+    }
+}
+#[cfg(feature = "dim3")]
+pub(crate) fn friction_model_value(model: FrictionModel) -> u32 {
+    match model {
+        FrictionModel::Simplified => RPR_FRICTION_MODEL_SIMPLIFIED,
+        FrictionModel::Coulomb => RPR_FRICTION_MODEL_COULOMB,
     }
 }
 /// Return native default integration parameters. This POD value owns no resources.

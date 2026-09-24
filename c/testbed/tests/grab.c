@@ -83,9 +83,7 @@ static void rigidDrag(void) {
     pointCursor(&t, position);
     CHECK(tbGrabBegin(&t, &grab, (RAPIER_TYPE(Real))0.1));
     assert(grab.active);
-    RAPIER_TYPE(Bool) removed = RAPIER_FN(RemoveRigidBody)(picked, 1);
-    CHECK(RAPIER_FN(LastStatus)());
-    assert(removed);
+    CHECK(RAPIER_FN(RemoveRigidBody)(picked, 1));
     CHECK(tbGrabUpdate(&t, &grab, V(0, 0, -1)));
     assert(!grab.active);
     checkCounts(&t, 2, 0);

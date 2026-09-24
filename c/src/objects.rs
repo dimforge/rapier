@@ -339,36 +339,37 @@ pub unsafe extern "C" fn rpr_soft_body_contains(handle: RprSoftBodyHandle) -> Rp
 }
 
 /// Remove a body and its joints, optionally keeping colliders as standalone objects.
-/// Returns whether a body was removed; a stale handle returns false without error.
+/// A removed or stale handle fails with RPR_INVALID_HANDLE, like the other Remove functions.
+/// Removing a soft-body cluster proxy removes its cluster (see rpr_soft_body_remove_cluster). The
+/// root body of a soft body is rejected: remove the soft body with rpr_remove_soft_body.
 /// @ingroup rigid_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_remove_rigid_body(
     handle: RprRigidBodyHandle,
     remove_attached_colliders: RprBool,
-) -> RprBool {
+) -> RprStatus {
     let world = handle.world;
-    ffi_value(|removed: *mut RprBool| {
-        ffi(|| unsafe {
-            handle.check_world(world)?;
-            let remove = boolean(remove_attached_colliders)?;
-            if !removed.is_null() {
-                out_ptr(removed)?;
-            }
-            let access = get(world)?.write()?;
-            let world = &mut (*access.raw()).0;
-            if let Some(body) = world.bodies.get(handle.raw()) {
-                ensure(
-                    body.soft_body().is_none() || body.is_soft_frame(),
-                    "remove a soft-body root through RemoveSoftBody",
-                )?;
-            }
-            let did_remove = world
-                .remove_body_with_colliders(handle.raw(), remove)
-                .is_some();
-            if !removed.is_null() {
-                output(removed, did_remove as RprBool)?;
-            }
-            Ok(())
-        })
+    ffi(|| unsafe {
+        handle.check_world(world)?;
+        let remove = boolean(remove_attached_colliders)?;
+        let access = get(world)?.write()?;
+        let world = &mut (*access.raw()).0;
+        let body = world.bodies.get(handle.raw()).ok_or_else(missing)?;
+        // A soft-body root is also a cluster proxy, but removing it would silently remove the
+        // whole body (or re-root it); require the explicit soft-body calls instead.
+        if let Some(soft) = body.soft_body() {
+            ensure(
+                world
+                    .soft_bodies
+                    .get(soft)
+                    .is_none_or(|sb| sb.root_body() != handle.raw()),
+                "the root body of a soft body cannot be removed; use RemoveSoftBody (or \
+                 SoftBody_RemoveCluster for its cluster)",
+            )?;
+        }
+        world
+            .remove_body_with_colliders(handle.raw(), remove)
+            .ok_or_else(missing)?;
+        Ok(())
     })
 }

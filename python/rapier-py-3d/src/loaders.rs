@@ -100,13 +100,13 @@ fn _loaded_shape_from_meshloader(loaded: rapier3d_meshloader::LoadedShape) -> Lo
 
 /// Load shapes from a mesh file on disk.
 ///
-/// The file is parsed (formats supported by ``rapier3d-meshloader``
-/// — typically OBJ, GLTF, STL) into one or more groups; each group
-/// is independently converted into a shape using ``converter``.
+/// The file (STL, COLLADA ``.dae`` or Wavefront ``.obj``, picked from
+/// its extension) is parsed into one or more meshes; each mesh is
+/// independently converted into a shape using ``converter``.
 ///
 /// :param path: Path to the source mesh file.
 /// :param converter: :class:`MeshConverter` to use (defaults to
-///     :attr:`MeshConverter.TriMesh`).
+///     :attr:`MeshConverter.TRIMESH`).
 /// :param scale: Uniform scale applied during conversion.
 /// :returns: A list with one entry per source group, each either a
 ///     :class:`LoadedShape` (success) or a ``MeshConversionError``
@@ -149,7 +149,8 @@ fn loaders_mesh_load_from_path(
 ///
 /// :param vertices: Sequence of 3D vertex positions.
 /// :param indices: Sequence of triangle indices ``(i, j, k)``.
-/// :param converter: :class:`MeshConverter` (defaults to TriMesh).
+/// :param converter: :class:`MeshConverter` (defaults to
+///     :attr:`MeshConverter.TRIMESH`).
 /// :param scale: Uniform scale applied during conversion.
 /// :returns: A :class:`LoadedShape`.
 /// :raises MeshConversionError: if the conversion failed.
@@ -235,6 +236,10 @@ impl UrdfMultibodyOptions {
     fn __and__(&self, other: &UrdfMultibodyOptions) -> Self {
         Self(self.0 & other.0)
     }
+    /// ``other in self``: ``True`` if every flag of ``other`` is set here.
+    fn __contains__(&self, other: &UrdfMultibodyOptions) -> bool {
+        self.0.contains(other.0)
+    }
     /// Return ``UrdfMultibodyOptions(bits=0b...)`` repr.
     fn __repr__(&self) -> String {
         format!("UrdfMultibodyOptions(bits={:#06b})", self.0.bits())
@@ -263,7 +268,7 @@ impl UrdfMultibodyOptions {
 /// :ivar mesh_converter: Optional :class:`MeshConverter` controlling
 ///     how every referenced mesh is turned into a collider shape.
 ///     Defaults to ``None`` (trimesh, using ``trimesh_flags``). Set
-///     e.g. ``MeshConverter.Obb()`` to get cheap proxy shapes while
+///     e.g. ``MeshConverter.OBB`` to get cheap proxy shapes while
 ///     keeping the original mesh available as a visual override (see
 ///     :attr:`UrdfColliderHandle.visual`).
 /// :ivar shift: Rigid transform applied to every body of the
@@ -547,7 +552,7 @@ impl UrdfRobotSource {
 ///
 /// Populated by the loader only when a non-default
 /// :attr:`UrdfLoaderOptions.mesh_converter` (e.g.
-/// ``MeshConverter.Obb()``) replaced the source mesh with a cheap
+/// ``MeshConverter.OBB``) replaced the source mesh with a cheap
 /// proxy collider — this keeps the original high-resolution mesh
 /// available for rendering.
 ///
@@ -586,6 +591,18 @@ impl UrdfColliderHandle {
             local_pose: Isometry3(v.local_pose.into()),
         })
     }
+    /// Return the ``UrdfColliderHandle(...)`` repr.
+    fn __repr__(&self) -> String {
+        let (i, g) = self.handle.0.into_raw_parts();
+        format!(
+            "UrdfColliderHandle(handle=ColliderHandle(index={i}, generation={g}), has_visual={})",
+            if self.visual.is_some() {
+                "True"
+            } else {
+                "False"
+            }
+        )
+    }
 }
 
 /// Handle of one URDF link (its rigid body plus its colliders).
@@ -599,6 +616,18 @@ pub struct UrdfLinkHandle {
     pub body: RigidBodyHandle,
     #[pyo3(get)]
     pub colliders: Vec<UrdfColliderHandle>,
+}
+
+#[pymethods]
+impl UrdfLinkHandle {
+    /// Return the ``UrdfLinkHandle(...)`` repr.
+    fn __repr__(&self) -> String {
+        let (i, g) = self.body.0.into_raw_parts();
+        format!(
+            "UrdfLinkHandle(body=RigidBodyHandle(index={i}, generation={g}), n_colliders={})",
+            self.colliders.len()
+        )
+    }
 }
 
 /// Handle of one URDF joint after insertion.
@@ -629,6 +658,18 @@ pub struct UrdfRobotHandles {
     pub links: Vec<UrdfLinkHandle>,
     #[pyo3(get)]
     pub joints: Vec<crate::pyo3::Py<UrdfJointHandle>>,
+}
+
+#[pymethods]
+impl UrdfRobotHandles {
+    /// Return the ``UrdfRobotHandles(...)`` repr.
+    fn __repr__(&self) -> String {
+        format!(
+            "UrdfRobotHandles(n_links={}, n_joints={})",
+            self.links.len(),
+            self.joints.len()
+        )
+    }
 }
 
 // ----- UrdfRobot ---------------------------------------------------
@@ -999,6 +1040,11 @@ impl MjcfMultibodyOptions {
     #[classattr]
     const SKIP_JOINT_LIMITS: MjcfMultibodyOptions =
         MjcfMultibodyOptions(rapier3d_mjcf::MjcfMultibodyOptions::SKIP_JOINT_LIMITS);
+    /// Don't install the ``<joint stiffness>`` passive springs on the
+    /// multibody joints.
+    #[classattr]
+    const SKIP_JOINT_SPRINGS: MjcfMultibodyOptions =
+        MjcfMultibodyOptions(rapier3d_mjcf::MjcfMultibodyOptions::SKIP_JOINT_SPRINGS);
     /// Raw bits as an unsigned int.
     #[getter]
     fn bits(&self) -> u8 {
@@ -1012,6 +1058,10 @@ impl MjcfMultibodyOptions {
     fn __and__(&self, other: &MjcfMultibodyOptions) -> Self {
         Self(self.0 & other.0)
     }
+    /// ``other in self``: ``True`` if every flag of ``other`` is set here.
+    fn __contains__(&self, other: &MjcfMultibodyOptions) -> bool {
+        self.0.contains(other.0)
+    }
     /// Return ``MjcfMultibodyOptions(bits=0b...)`` repr.
     fn __repr__(&self) -> String {
         format!("MjcfMultibodyOptions(bits={:#08b})", self.0.bits())
@@ -1020,8 +1070,15 @@ impl MjcfMultibodyOptions {
 
 /// How MJCF ``contype`` / ``conaffinity`` masks map onto rapier
 /// :class:`InteractionGroups`.
-#[pyclass(name = "ContactFilterMode", module = "rapier", eq, eq_int)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[pyclass(
+    name = "ContactFilterMode",
+    module = "rapier",
+    eq,
+    eq_int,
+    hash,
+    frozen
+)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ContactFilterMode {
     /// ``memberships = filter = contype | conaffinity`` (default).
     Symmetric,
@@ -1215,7 +1272,10 @@ impl MjcfModel {
     }
     /// Return the ``MjcfModel(...)`` repr.
     fn __repr__(&self) -> String {
-        format!("MjcfModel(name={:?})", self.raw.name)
+        match &self.raw.name {
+            Some(name) => format!("MjcfModel(name={name:?})"),
+            None => "MjcfModel(name=None)".to_string(),
+        }
     }
 }
 
@@ -1258,7 +1318,54 @@ pub struct MjcfJointHandle {
     pub link2: RigidBodyHandle,
 }
 
+/// Handle of one MJCF ``<actuator>`` after insertion.
+///
+/// :ivar name: The actuator's ``name`` attribute, if any.
+/// :ivar joint: The joint the actuator drives: an
+///     :class:`ImpulseJointHandle` (impulse-joint path), a
+///     :class:`MultibodyJointHandle` (multibody path), or ``None`` if it
+///     drives no joint (e.g. a tendon) or its joint was dropped as a loop
+///     closure.
+#[pyclass(name = "MjcfActuatorHandle", module = "rapier")]
+pub struct MjcfActuatorHandle {
+    #[pyo3(get)]
+    pub name: Option<String>,
+    #[pyo3(get)]
+    pub joint: crate::pyo3::PyObject,
+}
+
+#[pymethods]
+impl MjcfActuatorHandle {
+    /// Return the ``MjcfActuatorHandle(...)`` repr.
+    fn __repr__(&self, py: crate::pyo3::Python<'_>) -> crate::pyo3::PyResult<String> {
+        let name = match &self.name {
+            Some(name) => format!("{name:?}"),
+            None => "None".to_string(),
+        };
+        let joint = self.joint.bind(py).repr()?;
+        Ok(format!("MjcfActuatorHandle(name={name}, joint={joint})"))
+    }
+}
+
+/// A keyframe of an MJCF model, by index (negative indices count from the end) or by name.
+#[derive(crate::pyo3::FromPyObject)]
+pub enum MjcfKeyframeRef {
+    Index(isize),
+    Name(String),
+}
+
+/// The handles returned by the insertion, with the joint type of the path used.
+enum MjcfInsertedHandles {
+    Impulse(rapier3d_mjcf::MjcfRobotHandles<rapier::dynamics::ImpulseJointHandle>),
+    Multibody(rapier3d_mjcf::MjcfRobotHandles<Option<rapier::dynamics::MultibodyJointHandle>>),
+}
+
 /// Aggregate handle set returned by MJCF insertion functions.
+///
+/// Besides the handles, it keeps the model data needed by the runtime
+/// helpers: :meth:`apply_controls` (actuators), :meth:`apply_keyframe` /
+/// :meth:`keyframe_controls` (``<keyframe>``) and :meth:`contact_hooks`
+/// (``<contact>``).
 ///
 /// :ivar bodies: One ``Optional[MjcfBodyHandle]`` per MJCF body, in
 ///     model order (entry 0 is the implicit world body and is usually
@@ -1266,6 +1373,9 @@ pub struct MjcfJointHandle {
 /// :ivar joints: One :class:`MjcfJointHandle` per inserted joint.
 /// :ivar equality_joints: One :class:`MjcfJointHandle` per
 ///     ``<equality>`` loop-closure constraint (always impulse joints).
+/// :ivar actuators: One :class:`MjcfActuatorHandle` per ``<actuator>``,
+///     in model order (the order of the ``ctrl`` values of
+///     :meth:`apply_controls`).
 #[pyclass(name = "MjcfRobotHandles", module = "rapier")]
 pub struct MjcfRobotHandles {
     #[pyo3(get)]
@@ -1274,6 +1384,305 @@ pub struct MjcfRobotHandles {
     pub joints: Vec<crate::pyo3::Py<MjcfJointHandle>>,
     #[pyo3(get)]
     pub equality_joints: Vec<crate::pyo3::Py<MjcfJointHandle>>,
+    #[pyo3(get)]
+    pub actuators: Vec<crate::pyo3::Py<MjcfActuatorHandle>>,
+    /// The inserted robot, without its colliders and visual meshes (only its
+    /// metadata is needed by the runtime helpers).
+    robot: Box<rapier3d_mjcf::MjcfRobot>,
+    inserted: MjcfInsertedHandles,
+}
+
+impl MjcfRobotHandles {
+    /// Keep what the runtime helpers need from `robot` before it is consumed by an insertion.
+    fn robot_metadata(robot: &rapier3d_mjcf::MjcfRobot) -> Box<rapier3d_mjcf::MjcfRobot> {
+        let mut robot = robot.clone();
+        for body in &mut robot.bodies {
+            body.colliders.clear();
+            body.visual_meshes.clear();
+        }
+        Box::new(robot)
+    }
+
+    fn keyframe(
+        &self,
+        keyframe: &MjcfKeyframeRef,
+    ) -> crate::pyo3::PyResult<&rapier3d_mjcf::mjcf_rs::extras::Keyframe> {
+        let keyframes = &self.robot.keyframes;
+        let index = match keyframe {
+            MjcfKeyframeRef::Name(name) => {
+                return self.robot.keyframe_by_name(name).ok_or_else(|| {
+                    crate::pyo3::exceptions::PyKeyError::new_err(format!(
+                        "the MJCF model has no keyframe named {name:?}"
+                    ))
+                });
+            }
+            MjcfKeyframeRef::Index(index) => *index,
+        };
+        let resolved = if index < 0 {
+            index + keyframes.len() as isize
+        } else {
+            index
+        };
+        usize::try_from(resolved)
+            .ok()
+            .and_then(|i| keyframes.get(i))
+            .ok_or_else(|| {
+                crate::pyo3::exceptions::PyIndexError::new_err(format!(
+                    "keyframe index {index} out of range (the MJCF model has {} keyframes)",
+                    keyframes.len()
+                ))
+            })
+    }
+}
+
+#[pymethods]
+impl MjcfRobotHandles {
+    /// The ``name`` of each ``<keyframe><key>`` of the model (``None`` for
+    /// an unnamed key), in model order.
+    #[getter]
+    fn keyframe_names(&self) -> Vec<Option<String>> {
+        self.robot
+            .keyframes
+            .iter()
+            .map(|k| k.name.clone())
+            .collect()
+    }
+
+    /// Drive the actuators of the model: one control value per actuator.
+    ///
+    /// Follows MuJoCo's semantics for each actuator kind: ``<motor>``
+    /// applies the force ``ctrl * gear``, ``<position>`` and
+    /// ``<velocity>`` configure a joint motor toward the ``ctrl``
+    /// position or velocity (with the ``kp``/``kv`` gains and
+    /// ``forcerange``), ``<damper>`` damps the joint, and an affine
+    /// ``<general>`` becomes a position servo. Other actuators are
+    /// ignored. Call it before each step whose controls changed.
+    ///
+    /// :param bodies: :class:`RigidBodySet` of the robot (its driven
+    ///     bodies are woken up).
+    /// :param joints: The joint set the robot was inserted with: the
+    ///     :class:`ImpulseJointSet` (``insert_using_impulse_joints``) or
+    ///     the :class:`MultibodyJointSet` (``insert_using_multibody_joints``).
+    /// :param ctrl: One control value per actuator, in the order of
+    ///     :attr:`actuators`.
+    /// :param gain_scale: Uniform scale of the actuators' strength
+    ///     (gains and force limits). Default ``1.0``.
+    /// :raises ValueError: If ``len(ctrl) != len(actuators)``.
+    /// :raises TypeError: If ``joints`` isn't the kind of joint set the
+    ///     robot was inserted with.
+    #[pyo3(signature = (bodies, joints, ctrl, gain_scale=1.0))]
+    fn apply_controls(
+        &self,
+        bodies: &mut RigidBodySet,
+        joints: &crate::pyo3::Bound<'_, crate::pyo3::PyAny>,
+        ctrl: Vec<Real>,
+        gain_scale: Real,
+    ) -> crate::pyo3::PyResult<()> {
+        if ctrl.len() != self.actuators.len() {
+            return Err(crate::pyo3::exceptions::PyValueError::new_err(format!(
+                "expected {} control values (one per actuator), got {}",
+                self.actuators.len(),
+                ctrl.len()
+            )));
+        }
+        match &self.inserted {
+            MjcfInsertedHandles::Impulse(handles) => {
+                let mut joints = joints
+                    .extract::<crate::pyo3::PyRefMut<'_, ImpulseJointSet>>()
+                    .map_err(|_| {
+                        crate::pyo3::exceptions::PyTypeError::new_err(
+                            "the robot was inserted with impulse joints: pass its ImpulseJointSet",
+                        )
+                    })?;
+                handles.apply_controls_scaled(&mut joints.0, &ctrl, gain_scale);
+            }
+            MjcfInsertedHandles::Multibody(handles) => {
+                let mut joints = joints
+                    .extract::<crate::pyo3::PyRefMut<'_, MultibodyJointSet>>()
+                    .map_err(|_| {
+                        crate::pyo3::exceptions::PyTypeError::new_err(
+                            "the robot was inserted with multibody joints: pass its MultibodyJointSet",
+                        )
+                    })?;
+                handles.apply_controls_multibody_scaled(
+                    &mut bodies.0,
+                    &mut joints.0,
+                    &ctrl,
+                    gain_scale,
+                );
+            }
+        }
+        Ok(())
+    }
+
+    /// Reset the robot to one of the model's keyframes.
+    ///
+    /// Applies the keyframe's joint positions (``qpos``) and velocities
+    /// (``qvel``), and the poses of its mocap bodies. With impulse joints
+    /// the body poses are set by forward kinematics and only the velocity
+    /// of a floating base is applied. The actuators are left unchanged:
+    /// drive them with :meth:`keyframe_controls` to hold the pose.
+    ///
+    /// :param bodies: :class:`RigidBodySet` of the robot.
+    /// :param multibody_joints: The :class:`MultibodyJointSet` the robot
+    ///     was inserted with (required for a robot inserted with
+    ///     ``insert_using_multibody_joints``, ignored otherwise).
+    /// :param keyframe: The keyframe's index (negative indices count from
+    ///     the end) or name. Default ``0``.
+    /// :raises IndexError: If the index is out of range.
+    /// :raises KeyError: If no keyframe has this name.
+    /// :raises TypeError: If ``multibody_joints`` is missing for a robot
+    ///     inserted with multibody joints.
+    #[pyo3(signature = (bodies, multibody_joints=None, keyframe=MjcfKeyframeRef::Index(0)))]
+    fn apply_keyframe(
+        &self,
+        bodies: &mut RigidBodySet,
+        multibody_joints: Option<&mut MultibodyJointSet>,
+        keyframe: MjcfKeyframeRef,
+    ) -> crate::pyo3::PyResult<()> {
+        let key = self.keyframe(&keyframe)?;
+        match &self.inserted {
+            MjcfInsertedHandles::Impulse(handles) => {
+                handles.apply_keyframe(&mut bodies.0, &self.robot, key);
+            }
+            MjcfInsertedHandles::Multibody(handles) => {
+                let multibody_joints = multibody_joints.ok_or_else(|| {
+                    crate::pyo3::exceptions::PyTypeError::new_err(
+                        "the robot was inserted with multibody joints: pass its MultibodyJointSet",
+                    )
+                })?;
+                handles.apply_keyframe(&mut bodies.0, &mut multibody_joints.0, &self.robot, key);
+            }
+        }
+        Ok(())
+    }
+
+    /// The control values holding one of the model's keyframes: one per
+    /// actuator, to pass to :meth:`apply_controls`.
+    ///
+    /// Each value is the keyframe's ``ctrl`` entry if it has one,
+    /// otherwise the keyframe position of the hinge or slide joint the
+    /// actuator drives, otherwise ``0``.
+    ///
+    /// :param keyframe: The keyframe's index (negative indices count from
+    ///     the end) or name.
+    /// :raises IndexError: If the index is out of range.
+    /// :raises KeyError: If no keyframe has this name.
+    fn keyframe_controls(&self, keyframe: MjcfKeyframeRef) -> crate::pyo3::PyResult<Vec<Real>> {
+        Ok(self.robot.keyframe_controls(self.keyframe(&keyframe)?))
+    }
+
+    /// The physics hooks applying the model's ``<contact>`` rules:
+    /// ``<exclude>`` (no contacts between two bodies) and ``<pair>``
+    /// (friction of a pair of geoms).
+    ///
+    /// Assign the result to :attr:`PhysicsWorld.physics_hooks` (or pass
+    /// it to :meth:`PhysicsPipeline.step`).
+    fn contact_hooks(&self) -> MjcfContactHooks {
+        let hooks = match &self.inserted {
+            MjcfInsertedHandles::Impulse(handles) => handles.contact_hooks(&self.robot),
+            MjcfInsertedHandles::Multibody(handles) => handles.contact_hooks(&self.robot),
+        };
+        MjcfContactHooks(std::sync::Arc::new(hooks))
+    }
+
+    /// Return the ``MjcfRobotHandles(...)`` repr.
+    fn __repr__(&self) -> String {
+        format!(
+            "MjcfRobotHandles(n_bodies={}, n_joints={}, n_equality_joints={}, n_actuators={}, n_keyframes={})",
+            self.bodies.len(),
+            self.joints.len(),
+            self.equality_joints.len(),
+            self.actuators.len(),
+            self.robot.keyframes.len(),
+        )
+    }
+}
+
+/// Physics hooks applying the ``<contact>`` rules of an MJCF model:
+/// ``<exclude>`` removes the contacts between the colliders of two
+/// bodies and ``<pair>`` overrides the friction of a pair of geoms.
+///
+/// Returned by :meth:`MjcfRobotHandles.contact_hooks`. Assign it to
+/// :attr:`PhysicsWorld.physics_hooks`: the rules are then applied
+/// natively, without calling back into Python. The colliders created by
+/// the loader already enable the hooks
+/// (``ActiveHooks.FILTER_CONTACT_PAIRS | ActiveHooks.MODIFY_SOLVER_CONTACTS``).
+/// Its methods can also be called by your own hooks object, to combine
+/// these rules with others.
+#[pyclass(name = "MjcfContactHooks", module = "rapier", frozen)]
+#[derive(Clone)]
+pub struct MjcfContactHooks(pub std::sync::Arc<rapier3d_mjcf::MjcfContactHooks>);
+
+/// Native `PhysicsHooks` adapter sharing the hooks of a `MjcfContactHooks`.
+pub struct SharedMjcfContactHooks(std::sync::Arc<rapier3d_mjcf::MjcfContactHooks>);
+
+impl rapier::pipeline::PhysicsHooks for SharedMjcfContactHooks {
+    fn filter_contact_pair(
+        &self,
+        context: &rapier::pipeline::PairFilterContext,
+    ) -> Option<rapier::geometry::SolverFlags> {
+        self.0.filter_contact_pair(context)
+    }
+
+    fn filter_intersection_pair(&self, context: &rapier::pipeline::PairFilterContext) -> bool {
+        self.0.filter_intersection_pair(context)
+    }
+
+    fn modify_solver_contacts(&self, context: &mut rapier::pipeline::ContactModificationContext) {
+        self.0.modify_solver_contacts(context)
+    }
+}
+
+impl MjcfContactHooks {
+    pub(crate) fn native(&self) -> SharedMjcfContactHooks {
+        SharedMjcfContactHooks(self.0.clone())
+    }
+}
+
+#[pymethods]
+impl MjcfContactHooks {
+    /// ``None`` (no contacts) if the pair of colliders is excluded by an
+    /// ``<exclude>`` rule, ``SolverFlags.COMPUTE_RIGID_IMPULSES`` otherwise.
+    fn filter_contact_pair(&self, ctx: &PairFilterContext) -> Option<SolverFlags> {
+        let (collider1, collider2) = ctx.collider_handles();
+        if self.0.is_excluded(collider1, collider2) {
+            None
+        } else {
+            Some(SolverFlags(
+                rapier::geometry::SolverFlags::COMPUTE_RIGID_IMPULSES,
+            ))
+        }
+    }
+
+    /// Apply the friction of the ``<pair>`` rule matching the pair of
+    /// colliders, if any.
+    ///
+    /// :raises RuntimeError: If ``ctx`` is used outside of its callback.
+    fn modify_solver_contacts(
+        &self,
+        mut ctx: crate::pyo3::PyRefMut<'_, ContactModificationContext>,
+    ) -> crate::pyo3::PyResult<()> {
+        let (collider1, collider2) = ctx.collider_handles();
+        if let Some(friction) = self
+            .0
+            .pair_override(collider1, collider2)
+            .and_then(|o| o.friction)
+        {
+            ctx.set_friction(friction)?;
+        }
+        Ok(())
+    }
+
+    /// Return the ``MjcfContactHooks(...)`` repr.
+    fn __repr__(&self) -> String {
+        let flag = |b: bool| if b { "True" } else { "False" };
+        format!(
+            "MjcfContactHooks(has_excludes={}, has_overrides={})",
+            flag(self.0.has_excludes()),
+            flag(self.0.has_overrides())
+        )
+    }
 }
 
 /// A MuJoCo MJCF model, ready to be inserted into the simulation.
@@ -1352,6 +1761,37 @@ impl MjcfRobot {
         Ok(())
     }
 
+    /// The gravity declared by the model (``<option gravity>``), in the
+    /// frame of the model file.
+    ///
+    /// It isn't applied automatically: set :attr:`PhysicsWorld.gravity`
+    /// (rotated like :attr:`MjcfLoaderOptions.shift` if the model was
+    /// rotated).
+    ///
+    /// :raises MjcfError: if this robot has already been consumed.
+    #[getter]
+    fn gravity(&self) -> crate::pyo3::PyResult<Vec3> {
+        let robot = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| crate::errors::MjcfError::new_err("MjcfRobot was already consumed"))?;
+        let g: crate::na::SVector<Real, 3> = robot.gravity.into();
+        Ok(Vec3(g))
+    }
+
+    /// The ``name`` of each ``<keyframe><key>`` of the model (``None`` for
+    /// an unnamed key), in model order.
+    ///
+    /// :raises MjcfError: if this robot has already been consumed.
+    #[getter]
+    fn keyframe_names(&self) -> crate::pyo3::PyResult<Vec<Option<String>>> {
+        let robot = self
+            .inner
+            .as_ref()
+            .ok_or_else(|| crate::errors::MjcfError::new_err("MjcfRobot was already consumed"))?;
+        Ok(robot.keyframes.iter().map(|k| k.name.clone()).collect())
+    }
+
     /// Insert the model into the world using *impulse joints*.
     ///
     /// This call **consumes** the :class:`MjcfRobot`.
@@ -1373,13 +1813,14 @@ impl MjcfRobot {
             .inner
             .take()
             .ok_or_else(|| crate::errors::MjcfError::new_err("MjcfRobot was already consumed"))?;
+        let metadata = MjcfRobotHandles::robot_metadata(&robot);
         let handles = robot.insert_using_impulse_joints(
             &mut bodies.0,
             &mut colliders.0,
             &mut impulse_joints.0,
         );
         {
-            let handles = handles;
+            let inserted = handles.clone();
             let conv = |h| ImpulseJointHandle(h).into_py(py);
             let bodies: Vec<Option<MjcfBodyHandle>> = handles
                 .bodies
@@ -1431,12 +1872,28 @@ impl MjcfRobot {
                     .expect("alloc MjcfJointHandle")
                 })
                 .collect();
+            let actuators = handles
+                .actuators
+                .into_iter()
+                .map(|ah| {
+                    crate::pyo3::Py::new(
+                        py,
+                        MjcfActuatorHandle {
+                            name: ah.actuator.name,
+                            joint: ah.joint.map(conv).into_py(py),
+                        },
+                    )
+                })
+                .collect::<crate::pyo3::PyResult<Vec<_>>>()?;
             crate::pyo3::Py::new(
                 py,
                 MjcfRobotHandles {
                     bodies,
                     joints,
                     equality_joints,
+                    actuators,
+                    robot: metadata,
+                    inserted: MjcfInsertedHandles::Impulse(inserted),
                 },
             )
         }
@@ -1473,6 +1930,7 @@ impl MjcfRobot {
             .take()
             .ok_or_else(|| crate::errors::MjcfError::new_err("MjcfRobot was already consumed"))?;
         let opts = options.map(|o| o.0).unwrap_or_default();
+        let metadata = MjcfRobotHandles::robot_metadata(&robot);
         let handles = robot.insert_using_multibody_joints(
             &mut bodies.0,
             &mut colliders.0,
@@ -1481,7 +1939,7 @@ impl MjcfRobot {
             opts,
         );
         {
-            let handles = handles;
+            let inserted = handles.clone();
             let conv = |h: Option<_>| h.map(MultibodyJointHandle).into_py(py);
             let bodies: Vec<Option<MjcfBodyHandle>> = handles
                 .bodies
@@ -1533,12 +1991,28 @@ impl MjcfRobot {
                     .expect("alloc MjcfJointHandle")
                 })
                 .collect();
+            let actuators = handles
+                .actuators
+                .into_iter()
+                .map(|ah| {
+                    crate::pyo3::Py::new(
+                        py,
+                        MjcfActuatorHandle {
+                            name: ah.actuator.name,
+                            joint: conv(ah.joint.flatten()),
+                        },
+                    )
+                })
+                .collect::<crate::pyo3::PyResult<Vec<_>>>()?;
             crate::pyo3::Py::new(
                 py,
                 MjcfRobotHandles {
                     bodies,
                     joints,
                     equality_joints,
+                    actuators,
+                    robot: metadata,
+                    inserted: MjcfInsertedHandles::Multibody(inserted),
                 },
             )
         }
@@ -1569,7 +2043,9 @@ pub fn register_loaders_mjcf(
     m.add_class::<MjcfColliderHandle>()?;
     m.add_class::<MjcfBodyHandle>()?;
     m.add_class::<MjcfJointHandle>()?;
+    m.add_class::<MjcfActuatorHandle>()?;
     m.add_class::<MjcfRobotHandles>()?;
+    m.add_class::<MjcfContactHooks>()?;
     m.add_class::<MjcfRobot>()?;
     Ok(())
 }

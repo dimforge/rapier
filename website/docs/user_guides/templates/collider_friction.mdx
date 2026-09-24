@@ -15,21 +15,47 @@ Rapier does not make any distinction between the fixed and dynamic friction coef
 
 Each collider has its own friction coefficient. This means that when two colliders are in contact, we need to apply a
 rule that combines the friction  coefficients of these two colliders into a single coefficient that will be used for
-the contact. This rule is described by the `CoefficientCombineRule` enum:
-- <notjs>`CoefficientCombineRule::Average`</notjs><js>`CoefficientCombineRule.Average`</js>: the average of the two coefficients is used for the contact.
-- <notjs>`CoefficientCombineRule::Min`</notjs><js>`CoefficientCombineRule.Min`</js>: the minimum among the two coefficients is used for the contact.
-- <notjs>`CoefficientCombineRule::Multiply`</notjs><js>`CoefficientCombineRule.Multiply`</js>: the product of the two coefficients is used for the contact.
-- <notjs>`CoefficientCombineRule::Max`</notjs><js>`CoefficientCombineRule.Max`</js>: the maximum among the two coefficients is used for the contact.
+the contact. This rule is described by <notc>the `CoefficientCombineRule` enum</notc><c>the `R3_COMBINE_*` constants</c>:
+- <notjs>`CoefficientCombineRule::Average`</notjs><js>`CoefficientCombineRule.Average`</js><c>`R3_COMBINE_AVERAGE`</c><py>`CoefficientCombineRule.AVERAGE`</py>: the average of the two coefficients is used for the contact.
+- <notjs>`CoefficientCombineRule::Min`</notjs><js>`CoefficientCombineRule.Min`</js><c>`R3_COMBINE_MIN`</c><py>`CoefficientCombineRule.MIN`</py>: the minimum among the two coefficients is used for the contact.
+- <notjs>`CoefficientCombineRule::Multiply`</notjs><js>`CoefficientCombineRule.Multiply`</js><c>`R3_COMBINE_MULTIPLY`</c><py>`CoefficientCombineRule.MULTIPLY`</py>: the product of the two coefficients is used for the contact.
+- <notjs>`CoefficientCombineRule::Max`</notjs><js>`CoefficientCombineRule.Max`</js><c>`R3_COMBINE_MAX`</c><py>`CoefficientCombineRule.MAX`</py>: the maximum among the two coefficients is used for the contact.
+<notjs>
 
-By default, the `Average` rule is used. Each collider can be given its own friction combine rule. When two colliders are in
-contact, we need to select one of their combine rule. The following precedence is used: `Max > Multiply > Min > Average`.
+- `CoefficientCombineRule::ClampedSum`: the sum of the two coefficients, clamped to $[0, 1]$, is used for the contact.
+- `CoefficientCombineRule::GeometricMean`: the square root of the product of the two coefficients is used for the
+  contact. It is stricter than the average (any coefficient of zero results in zero) but less aggressive than the
+  product.
+
+</notjs>
+<c>
+
+- `R3_COMBINE_CLAMPED_SUM`: the sum of the two coefficients, clamped to $[0, 1]$, is used for the contact.
+- `R3_COMBINE_GEOMETRIC_MEAN`: the square root of the product of the two coefficients is used for the
+  contact. It is stricter than the average (any coefficient of zero results in zero) but less aggressive than the
+  product.
+
+</c>
+<py>
+
+- `CoefficientCombineRule.CLAMPED_SUM`: the sum of the two coefficients, clamped to $[0, 1]$, is used for the contact.
+- `CoefficientCombineRule.GEOMETRIC_MEAN`: the square root of the product of the two coefficients is used for the
+  contact. It is stricter than the average (any coefficient of zero results in zero) but less aggressive than the
+  product.
+
+</py>
+
+By default, the <notc>`Average`</notc><c>`R3_COMBINE_AVERAGE`</c> rule is used. Each collider can be given its own friction combine rule. When two colliders are in
+contact, we need to select one of their combine rule. The following precedence is used:
+<notc>`GeometricMean > ClampedSum > Max > Multiply > Min > Average`.</notc>
+<c>`R3_COMBINE_GEOMETRIC_MEAN > R3_COMBINE_CLAMPED_SUM > R3_COMBINE_MAX > R3_COMBINE_MULTIPLY > R3_COMBINE_MIN > R3_COMBINE_AVERAGE`, i.e., the rule with the greatest value wins.</c>
 
 For example if one collider with the `Multiply` friction combine rule is in contact with a collider with the `Average` friction
 combine rule, then the `Multiply` rule will be applied for the friction coefficient of this contact (i.e. the coefficients
 of both colliders will be multiplied to obtain the coefficient used by the contact).
 
 :::info
-The `CoefficientCombineRule` system exists to cover a wide variety of use-cases efficiently. If this is not flexible
+The <notc>`CoefficientCombineRule`</notc><c>combine rule</c> system exists to cover a wide variety of use-cases efficiently. If this is not flexible
 enough, it is possible to get  full control over the selection of friction coefficients for each contact point using
 [contact modification](./advanced_collision_detection.mdx#contact-modification). For example, contact modification allows the
 simulation of colliders with non-uniform friction coefficients.
@@ -67,3 +93,23 @@ The friction coefficient and friction combine rule can both be set when the coll
 ```
 
 </js>
+<c>
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Friction1' />
+```
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Friction2' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='Friction1' />
+```
+```python
+<load path='/3d/python/colliders.py' marker='Friction2' />
+```
+
+</py>

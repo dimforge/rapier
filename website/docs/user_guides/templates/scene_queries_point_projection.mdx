@@ -2,8 +2,8 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 
-Point projection will either project a point on the closest collider of the scene (<rapier>`QueryPipeline::project_point`</rapier><bevy>`RapierContext::project_point`</bevy><js>`World.projectPoint`</js>),
-or will enumerate every collider containing given point (<rapier>`QueryPipeline::intersections_with_point`</rapier><bevy>`RapierContext::intersections_with_point`</bevy><js>`World.intersectionsWithPoint`</js>).
+Point projection will either project a point on the closest collider of the scene (<rapier>`QueryPipeline::project_point`</rapier><bevy>`RapierContext::project_point`</bevy><js>`World.projectPoint`</js><c>`r3TryProjectPoint`</c><py>`QueryPipeline.project_point`</py>),
+or will enumerate every collider containing given point (<rapier>`QueryPipeline::intersect_point`</rapier><bevy>`RapierContext::intersect_point`</bevy><js>`World.intersectionsWithPoint`</js><c>`r3IntersectPoint`</c><py>`QueryPipeline.intersect_point`</py>).
 
 <rapier>
 
@@ -56,6 +56,11 @@ values={[
 </TabItem>
 </Tabs>
 
+The resulting `PointProjection` also contains the index of the part of the shape the point was projected on
+(`subshape`) for shapes composed of several pieces (compound shapes, triangle meshes, etc.) Just like for ray-casting,
+the closure given to `RapierContext::intersect_point` is given the entity of each collider containing the point, as well
+as its Rapier collider, and can return `false` to stop the search.
+
 </bevy>
 <js>
 
@@ -83,5 +88,57 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/scene_queries2.c' marker='PointProjection' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/scene_queries3.c' marker='PointProjection' />
+```
+
+</TabItem>
+</Tabs>
+
+The resulting `R3PointProjection` (the `projection` field of the result) contains the handle of the `collider` the point was projected on, the projected
+`point` (in world-space), and whether the original point was inside of that collider (`is_inside`). If the point is
+inside of a shape, `solid` controls the result just like for [ray-casting](./scene_queries.mdx#ray-casting): with
+`solid` set to `1` the point is its own projection, whereas with `solid` set to `0` it is projected on the boundary of
+the shape. `r3TryProjectPoint` sets the `found` field of its result to 0 if no collider is closer than `max_dist`,
+whereas `r3ProjectPoint` reports this as the `R3_NOT_FOUND` error. Finally, `r3IntersectPoint` copies the handles
+of the colliders containing the point into a buffer given by the application, as described at the beginning of this
+page.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/scene_queries.py' marker='PointProjection' />
+```
+
+`QueryPipeline.project_point` returns `None` if no collider is closer than `max_dist` (which is unbounded if it isn't
+given), and the handle of the collider the point was projected on, together with a `PointProjection`, otherwise. This
+`PointProjection` contains the projected `point` (in world-space), and whether the original point was inside of that
+collider (`is_inside`). If the point is inside of a shape, `solid` controls the result just like for
+[ray-casting](./scene_queries.mdx#ray-casting): with `solid` set to `True` the point is its own projection, whereas
+with `solid` set to `False` it is projected on the boundary of the shape. `QueryPipeline.project_point_and_get_feature`
+also gives the `FeatureId` of the part of the shape (vertex, edge, or face) the point was projected on. Finally,
+`QueryPipeline.intersect_point` calls the given function with the handle of each collider containing the point, until
+this function returns `False`.
+
+</py>
 
 It is possible to only apply the scene query to a subsets of the colliders using [a query filter](./scene_queries.mdx#query-filters)

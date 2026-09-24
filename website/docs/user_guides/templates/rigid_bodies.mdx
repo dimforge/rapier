@@ -77,6 +77,11 @@ import Sleeping from './rigid_body_sleeping.mdx'
 
 <Sleeping />
 
+## Solver settings
+import SolverSettings from './rigid_body_solver_settings.mdx'
+
+<SolverSettings />
+
 
 <rapier>
 
@@ -95,3 +100,43 @@ This user-data can be set when the rigid-body is created or after its creation:
 ```
 
 </rapier>
+
+<c>
+
+## User-data
+Each rigid-body can be given a user-defined data of type `R3UserData`: a 128-bits integer split into its `low` and
+`high` 64-bits halves. This integer can have any value and is never used/modified by the physics-engine. This can for
+example be useful to store an index (or a pointer converted to an integer) referencing your own data associated to the
+rigid-body, or to add some custom data for custom
+[contact filtering/modification](./advanced_collision_detection.mdx#physics-hooks).
+
+This user-data can be set when the rigid-body is created or after its creation:
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Userdata1' />
+```
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Userdata2' />
+```
+
+</c>
+
+<py>
+
+## User-data
+Each rigid-body can be given a user-defined data: a Python `int` in the range of an unsigned 128-bits integer (i.e.,
+from `0` to `2**128 - 1`). This integer can have any value and is never used/modified by the physics-engine. This can
+for example be useful to store an index (or any integer identifier) referencing your own data associated to the rigid-body,
+or to add some custom data for custom [contact filtering/modification](./advanced_collision_detection.mdx#physics-hooks).
+
+This user-data can be set when the rigid-body is created or after its creation with the `RigidBody.user_data`
+property:
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Userdata1' />
+```
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Userdata2' />
+```
+
+</py>

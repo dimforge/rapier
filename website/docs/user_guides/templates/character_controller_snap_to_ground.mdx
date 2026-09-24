@@ -37,3 +37,24 @@ Typical usages of snap-to-ground include going downstairs or remaining in contac
 ```
 
 </js>
+<c>
+
+Snap-to-ground is configured with `r3KinematicCharacterController_SetSnapToGround`, which takes whether it is enabled,
+and the snapping distance as an `R3CharacterLength` (see the [character offset](./character_controller.mdx#character-offset)):
+
+```c
+<load path='/2d/c/examples/character_controller2.c' marker='Snap' />
+```
+
+</c>
+<py>
+
+Snap-to-ground is configured with the `snap_to_ground` property: either `None` to disable it, or the snapping
+distance as a `CharacterLength` (see the [character offset](./character_controller.mdx#character-offset)). It is
+enabled by default, with a distance of `CharacterLength.relative(0.2)`:
+
+```python
+<load path='/3d/python/character_controller.py' marker='Snap' />
+```
+
+</py>

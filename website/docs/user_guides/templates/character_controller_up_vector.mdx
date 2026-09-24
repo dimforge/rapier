@@ -74,3 +74,22 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+The up vector is set with `r3KinematicCharacterController_SetUp` (it is normalized automatically), and read with
+`r3KinematicCharacterController_Up`:
+
+```c
+<load path='/2d/c/examples/character_controller2.c' marker='UpVector' />
+```
+
+</c>
+<py>
+
+The up vector is set with the `up` property (it isn’t normalized automatically, so it must be given as a unit vector):
+
+```python
+<load path='/3d/python/character_controller.py' marker='UpVector' />
+```
+
+</py>

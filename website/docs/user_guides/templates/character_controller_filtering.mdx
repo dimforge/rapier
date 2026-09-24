@@ -18,10 +18,34 @@ colliding with itself.
 
 <bevy>
 
-It is possible to let the character controller ignore some obstacles. This is achieved by configuring the
-`KinematicCharacterController::filter_flags` to exclude whole families of obstacles (e.g. all the colliders
-attached to dynamic rigid-bodies), and `KinematicCharacterController::filter_groups` to filter based
-on the colliders [collision groups](./colliders.mdx#collision-groups-and-solver-groups).
+It is possible to let the character controller ignore some obstacles. This is achieved by configuring the following
+fields of the `KinematicCharacterController` component:
+- `filter_flags`: to exclude whole families of obstacles (e.g. all the colliders attached to dynamic rigid-bodies).
+- `filter_groups`: to filter based on the colliders [collision groups](./colliders.mdx#collision-groups-and-solver-groups).
+- `exclude_colliders`: the set of entities of colliders to ignore.
+- `exclude_rigid_bodies`: the set of entities of rigid-bodies whose attached colliders must all be ignored.
+- `filter_predicate`: an arbitrary closure, wrapped into a `ControllerFilterPredicate`, to filter-out colliders based on
+  user-defined rules. It is given the entity of each collider as well as its Rapier collider
+  (`rapier::geometry::Collider`). Since it is stored in a component, this closure can't borrow any system parameter.
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='Filtering' />
+```
+
+When the obstacles to ignore depend on the state of your game (e.g. to let the characters walk through the doors that
+are open), it is simpler to insert the `ControllerIgnored` marker component on these colliders from your own systems.
+A collider with this component (or attached to a rigid-body with this component) is ignored by every character
+controller, as well as by the wheels of the [vehicle controllers](./character_controller.mdx#vehicle-controller),
+until the component is removed:
+
+```rust
+<load path='/2d/bevy/examples/character_controller2.rs' marker='ControllerIgnored' />
+```
+
+:::info
+The collider moved by the character controller (and the rigid-body it may be attached to) is always excluded
+automatically from the set of obstacles: there is no need to exclude it manually.
+:::
 
 </bevy>
 
@@ -34,3 +58,50 @@ optional arguments of the `KinematicCharacterController.computeColliderMovement`
 - `filterPredicate`: an arbitrary closure to filter-out colliders based on user-defined rules.
 
 </js>
+
+<c>
+
+It is possible to let the character controller ignore some obstacles. This is achieved by configuring the `options`
+argument (an `R3QueryOptions`, initialized by `r3DefaultQueryOptions`) of `r3KinematicCharacterController_MoveShape`.
+This structure is detailed in the [scene query filters](./scene_queries.mdx#query-filters) section:
+- The `flags` field of its `filter` allows you to exclude whole families of obstacles (e.g. all the colliders attached
+  to dynamic rigid-bodies with `R3_QUERY_EXCLUDE_DYNAMIC`).
+- The `use_groups` and `groups` fields of its `filter` allow you to filter based on the colliders
+  [collision groups](./colliders.mdx#collision-groups-and-solver-groups).
+- The `exclude_collider` and `exclude_rigid_body` fields of its `filter` exclude one collider, and all the colliders
+  attached to one rigid-body.
+- Its `predicate` field is an optional callback to filter-out colliders based on user-defined rules. It is given the
+  `userData` field of the options, a read-only access to the world (an `R3ReadContext`), and the handle of each
+  collider, and returns a nonzero value to keep that collider as an obstacle.
+
+:::warning
+If the character-controller is used to move a collider (and the rigid-body it may be attached to) that is present
+in the physics scene, the filters **must** be used to exclude that collider (and that rigid-body) from the set of
+obstacles (with the `exclude_collider` and `exclude_rigid_body` fields of the `filter`) to prevent the character from
+colliding with itself.
+:::
+
+</c>
+
+<py>
+
+It is possible to let the character controller ignore some obstacles. This is achieved by configuring the
+`filter` argument of the `KinematicCharacterController.move_shape` method. This `QueryFilter` class is detailed in the
+[scene query filters](./scene_queries.mdx#query-filters) section:
+- Its `flags` (a `QueryFilterFlags`, also set by constructors like `QueryFilter.exclude_dynamic()`) allow you to
+  exclude whole families of obstacles (e.g. all the colliders attached to dynamic rigid-bodies).
+- Its `groups` method allows you to filter based on the colliders
+  [collision groups](./colliders.mdx#collision-groups-and-solver-groups).
+- Its `exclude_collider` and `exclude_rigid_body` methods exclude one collider, and all the colliders attached to one
+  rigid-body.
+- Its `predicate` method sets an optional callable to filter-out colliders based on user-defined rules. It is given the
+  `ColliderHandle` and the `Collider` of each potential obstacle, and returns `True` to keep it as an obstacle.
+
+:::warning
+If the character-controller is used to move a collider (and the rigid-body it may be attached to) that is present
+in the physics scene, the filters **must** be used to exclude that collider (and that rigid-body) from the set of
+obstacles (with `QueryFilter.exclude_collider` and `QueryFilter.exclude_rigid_body`) to prevent the character from
+colliding with itself.
+:::
+
+</py>

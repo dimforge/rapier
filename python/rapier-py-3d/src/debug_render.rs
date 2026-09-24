@@ -484,6 +484,10 @@ impl DebugRenderStyle {
     fn py_default() -> Self {
         Self(rapier::pipeline::DebugRenderStyle::default())
     }
+    /// A standalone copy of the style (detached from the pipeline it may belong to).
+    fn copy(&self) -> Self {
+        *self
+    }
 
     /// Number of subdivisions used for curved shapes (cylinders,
     /// spheres, capsules).
@@ -822,7 +826,7 @@ impl DebugRenderStyle {
 /// an internal buffer exposed as NumPy arrays.
 ///
 /// Use `DebugRenderPipeline.render(backend=collector)` to populate, then
-/// call `.lines()`, `.colors()`, `.objects()` for `(N, 2, D)`, `(N, 4)`,
+/// call `.lines()`, `.colors()`, `.objects()` for `(N, 2, 3)`, `(N, 4)`,
 /// `(N,)` NumPy arrays respectively (each call returns a fresh **copy**
 /// of the underlying data).
 #[pyclass(name = "DebugLineCollector", module = "rapier")]
@@ -861,23 +865,10 @@ impl DebugLineCollector {
         )
     }
 
-    /// Return a fresh `(N, 2, D)` NumPy array of segment endpoints.
-    fn lines<'py>(&self, py: Python<'py>) -> Bound<'py, crate::numpy::PyArray2<Real>> {
-        use crate::numpy::PyArray2;
+    /// Return a fresh `(N, 2, 3)` NumPy array of segment endpoints.
+    fn lines<'py>(&self, py: Python<'py>) -> Bound<'py, crate::numpy::PyArray3<Real>> {
         let lines = self.lines.lock().unwrap();
-        // Flatten as N*2 rows of D columns; reshape on the Python side
-        // if a (N, 2, D) view is desired (we expose `(N*2, D)` then
-        // reshape via numpy in the helper `render_to_arrays`).
-        let mut flat: Vec<Vec<Real>> = Vec::with_capacity(lines.len() * 2);
-        for ln in lines.iter() {
-            flat.push(_svec_to_row::<3>(ln.a));
-            flat.push(_svec_to_row::<3>(ln.b));
-        }
-        let arr = PyArray2::<Real>::from_vec2_bound(py, &flat)
-            .unwrap_or_else(|_| PyArray2::<Real>::zeros_bound(py, [0, 3], false));
-        // Reshape (N*2, D) → (N, 2, D). We do this via numpy at the
-        // Python side; here we just return the (2N, D) view.
-        arr
+        _lines_array(py, &lines)
     }
 
     /// Return a fresh `(N, 4)` NumPy array of RGBA (post-HSLA→RGBA)
@@ -1045,9 +1036,11 @@ impl rapier::pipeline::DebugRenderBackend for _PyBackendAdapter {
 ///
 /// For purely-data use cases prefer :meth:`render_to_arrays`,
 /// which returns NumPy arrays directly.
-#[pyclass(name = "DebugRenderPipeline", module = "rapier", unsendable)]
+#[pyclass(name = "DebugRenderPipeline", module = "rapier")]
 pub struct DebugRenderPipeline {
     inner: rapier::pipeline::DebugRenderPipeline,
+    // The style `inner` renders with, copied in before each render.
+    style: Py<DebugRenderStyle>,
 }
 
 impl DebugRenderPipeline {
@@ -1062,6 +1055,7 @@ impl DebugRenderPipeline {
         soft_bodies: Option<&crate::soft_body::SoftBodySet>,
         backend: &mut dyn rapier::pipeline::DebugRenderBackend,
     ) {
+        self.inner.style = Python::with_gil(|py| self.style.borrow(py).0);
         let scratch = rapier::dynamics::SoftBodySet::new();
         let soft_bodies = soft_bodies.map_or(&scratch, |s| &s.0);
         // The trait method `render` takes `&mut impl DebugRenderBackend`
@@ -1104,12 +1098,17 @@ impl DebugRenderPipeline {
     ///     configuration. Defaults to rapier's upstream defaults.
     #[new]
     #[pyo3(signature = (mode = None, style = None))]
-    fn new(mode: Option<&DebugRenderMode>, style: Option<&DebugRenderStyle>) -> Self {
+    fn new(
+        py: Python<'_>,
+        mode: Option<&DebugRenderMode>,
+        style: Option<&DebugRenderStyle>,
+    ) -> PyResult<Self> {
         let m = mode.map(|m| m.0).unwrap_or_default();
         let s = style.map(|s| s.0).unwrap_or_default();
-        Self {
+        Ok(Self {
             inner: rapier::pipeline::DebugRenderPipeline::new(s, m),
-        }
+            style: Py::new(py, DebugRenderStyle(s))?,
+        })
     }
 
     /// Current :class:`DebugRenderMode` flag set.
@@ -1122,15 +1121,19 @@ impl DebugRenderPipeline {
     fn set_mode(&mut self, v: &DebugRenderMode) {
         self.inner.mode = v.0;
     }
-    /// Current :class:`DebugRenderStyle`.
+    /// The :class:`DebugRenderStyle` used by the next renders.
+    ///
+    /// The same object is returned on every access, so modifying it
+    /// (``pipeline.style.subdivisions = 40``) changes the rendering.
     #[getter]
-    fn style(&self) -> DebugRenderStyle {
-        DebugRenderStyle(self.inner.style)
+    fn style(&self, py: Python<'_>) -> Py<DebugRenderStyle> {
+        self.style.clone_ref(py)
     }
     #[setter]
-    /// Replace the current :class:`DebugRenderStyle`.
-    fn set_style(&mut self, v: &DebugRenderStyle) {
-        self.inner.style = v.0;
+    /// Copy the values of ``v`` into :attr:`style` (later changes to ``v``
+    /// don't affect the pipeline).
+    fn set_style(&mut self, py: Python<'_>, v: &DebugRenderStyle) {
+        self.style.borrow_mut(py).0 = v.0;
     }
 
     /// Render the scene into the given ``backend``.
@@ -1238,7 +1241,7 @@ impl DebugRenderPipeline {
         Bound<'py, crate::numpy::PyArray2<f32>>,
         Bound<'py, crate::numpy::PyArray1<u32>>,
     )> {
-        use crate::numpy::{PyArray1, PyArray2, PyArray3, PyArrayMethods};
+        use crate::numpy::{PyArray1, PyArray2};
 
         let buf: _DbgArc<_DbgMutex<Vec<DebugLine>>> = _DbgArc::new(_DbgMutex::new(Vec::new()));
         {
@@ -1259,19 +1262,7 @@ impl DebugRenderPipeline {
         let lines = buf.lock().unwrap();
         let n = lines.len();
 
-        // (N, 2, D) lines array. Allocate flat and reshape.
-        let lines_arr = PyArray3::<Real>::zeros_bound(py, [n, 2, 3], false);
-        {
-            let mut view = unsafe { lines_arr.as_array_mut() };
-            for (i, ln) in lines.iter().enumerate() {
-                let row_a = _svec_to_row::<3>(ln.a);
-                let row_b = _svec_to_row::<3>(ln.b);
-                for d in 0..3 {
-                    view[[i, 0, d]] = row_a[d];
-                    view[[i, 1, d]] = row_b[d];
-                }
-            }
-        }
+        let lines_arr = _lines_array(py, &lines);
 
         let mut col_flat: Vec<Vec<f32>> = Vec::with_capacity(n);
         for ln in lines.iter() {
@@ -1296,15 +1287,22 @@ impl DebugRenderPipeline {
     }
 }
 
-// Helper: turn an `na::SVector<Real, DIM>` into a `Vec<Real>` of
-// length `DIM`. Inlined so the row-builder loops above can reuse it.
-#[inline]
-fn _svec_to_row<const D: usize>(v: crate::na::SVector<Real, D>) -> Vec<Real> {
-    let mut row = Vec::with_capacity(D);
-    for d in 0..D {
-        row.push(v[d]);
+/// The `(N, 2, 3)` array of the end points of `lines`.
+fn _lines_array<'py>(
+    py: Python<'py>,
+    lines: &[DebugLine],
+) -> Bound<'py, crate::numpy::PyArray3<Real>> {
+    use crate::numpy::{PyArray3, PyArrayMethods};
+    let arr = PyArray3::<Real>::zeros_bound(py, [lines.len(), 2, 3], false);
+    // SAFETY: the array was just created and is not shared yet.
+    let mut view = unsafe { arr.as_array_mut() };
+    for (i, ln) in lines.iter().enumerate() {
+        for d in 0..3 {
+            view[[i, 0, d]] = ln.a[d];
+            view[[i, 1, d]] = ln.b[d];
+        }
     }
-    row
+    arr
 }
 
 pub fn register_debug_render(

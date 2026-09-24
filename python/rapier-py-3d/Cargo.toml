@@ -30,16 +30,23 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 # `RAPIER_PY_DETERMINISM=1` translated to `--features determinism` by the
 # build.rs.
 determinism = ["rapier3d/enhanced-determinism"]
+# Rapier's internal profiler: fills the timings of `Counters` (only measured while they are
+# enabled, so it costs nothing otherwise). On by default.
+default = ["profiler"]
+profiler = ["rapier3d/profiler"]
 
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39", "multiple-pymethods"] }
 numpy = "0.22"
 nalgebra.workspace = true
 thiserror.workspace = true
+# `fem` is always on: pip users can't pick cargo features, and the FEM soft-body solver is
+# only used by the bodies that select it.
 rapier3d = { workspace = true, features = [
     "serde-serialize",
     "debug-render",
     "parallel",
+    "fem",
 ] }
 # Phase 09 — Loaders. URDF + MJCF + mesh. Mesh-loader features are
 # explicitly enabled so .stl / .obj / .dae meshes referenced from URDF /

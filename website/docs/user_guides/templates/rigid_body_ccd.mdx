@@ -2,22 +2,36 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 Continuous Collision Detection (CCD) is used to make sure that fast-moving objects don't miss any contacts (a problem
-usually called **tunneling**). This  is done by using motion-clamping, i.e., each fast-moving rigid-body with CCD enabled
-will be stopped at the time where their first contact happen, taking their continuous motion into account. This will result
-in some "time loss" for that rigid-body. This loss of time can be reduced by increasing the maximum number of CCD
-substeps executed (the default being 1) in the [IntegrationParameters](./simulation_structures.mdx#integration-parameters)
-(by changing the <rapier>`IntegrationParameters::max_ccd_substeps`</rapier><bevy>`RapierContext::integration_parameters::max_ccd_substeps`</bevy><js>`IntegrationParameters.maxCcdSubsteps`</js> field).
+usually called **tunneling**). This  is done by looking for collisions along the shapes motion: a rigid-body that moved
+fast during the timestep casts its colliders from their previous position to their new one,
+and its position is clamped to the first impact found this way. Its velocities are left untouched and the solver is
+responsible for preventing penetrations. Since the trajectory is clamped to some intermediate location along its path
+this technique is commonly called _motion clamping_.
 
-Rapier implements nonlinear CCD, meaning that it takes into account both the angular and translational motion of the
-rigid-body.
+Rapier applies CCD in two ways:
+- Every fast-moving dynamic rigid-body is swept against the **fixed** colliders and the soft-bodies of the scene. This
+  is automatic and doesn't need to be enabled: this prevents a falling crate from going through the
+  floor, or a projectile from going through a wall, etc. Note however that this is not enabled fol dynamic rigid-bodies
+  with mesh-like shapes (triangle meshes, polylines, heightfields) as that would be too computationally expensive.
+- A dynamic rigid-body with CCD enabled (aka. a **bullet**) is swept against the **kinematic and dynamic** bodies as well. This
+  is more expensive, therefore it is disabled by default and should be reserved to the objects that must not tunnel
+  through moving obstacles. Note that two CCD-enabled objects might still tunel since the CCD resolution does currently
+  not take both continuous motions into account simultaneously.
 
 :::info
-CCD takes action only if the CCD-enabled rigid-body is moving fast relative to another rigid-body. Therefore
-it is useless to enable CCD on fixed rigid-bodies and rigid-bodies that are expected to move slowly.
+CCD takes action only if the rigid-body is moving fast relative to another collider. Therefore it is useless to enable
+it on fixed rigid-bodies and on rigid-bodies that are expected to move slowly.
 :::
 
-By default, CCD is disabled for all the rigid-bodies because it requires additional computations. It can be enabled
-when creating a rigid-body or after its creation:
+The CCD feature, including the automatic sweeping of the fast dynamic bodies, can be fully disabled by setting the
+maximum number of CCD substeps to zero in the
+[IntegrationParameters](./simulation_structures.mdx#integration-parameters)
+(the <rapier>`IntegrationParameters::max_ccd_substeps`</rapier><bevy>`RapierContextSimulation::integration_parameters.max_ccd_substeps`</bevy><js>`IntegrationParameters.maxCcdSubsteps`</js><c>`R3IntegrationParameters.maxCcdSubsteps`</c><py>`PhysicsWorld.integration_parameters.max_ccd_substeps`</py>
+field, whose default is 1). Larger values let a body resolve several successive impacts within a single timestep, at
+the cost of additional sweeps.
+<c>It can also be modified directly with `r3SetMaxCcdSubsteps`.</c>
+
+Per-object CCD can be enabled when creating a rigid-body or after its creation:
 
 <rapier>
 
@@ -49,3 +63,27 @@ when creating a rigid-body or after its creation:
 ```
 
 </js>
+<c>
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Ccd1' />
+```
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Ccd2' />
+```
+
+Keep in mind that `r3RigidBody_IsCcdEnabled` only tells if CCD was enabled for this rigid-body. Whether a rigid-body
+is currently moving fast enough for CCD to take action (which is also the case of fast dynamic bodies without CCD
+enabled, since they are swept against the fixed colliders) is given by `r3RigidBody_IsCcdActive`.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Ccd1' />
+```
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Ccd2' />
+```
+
+</py>

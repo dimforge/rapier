@@ -15,7 +15,7 @@ import rapier3d as rp
 
 
 def main() -> None:
-    world = rp.PhysicsWorld(gravity=(0, -9.81, 0), auto_update_query=True)
+    world = rp.PhysicsWorld(gravity=(0, -9.81, 0))
 
     # Ground.
     world.add_body(
@@ -45,7 +45,6 @@ def main() -> None:
     # Settle.
     for _ in range(120):
         world.step()
-        world.update_query_pipeline()
         veh.update_vehicle(1.0 / 60.0, world.rigid_bodies, world.colliders, world.query_pipeline)
 
     # Accelerate via the rear wheels. 30N matches the Rust demo's arrow-key
@@ -54,7 +53,6 @@ def main() -> None:
     veh.apply_engine_force(3, 30.0)
     for _ in range(240):
         world.step()
-        world.update_query_pipeline()
         veh.update_vehicle(1.0 / 60.0, world.rigid_bodies, world.colliders, world.query_pipeline)
 
     speed = veh.current_speed_km_hour()

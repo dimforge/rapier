@@ -255,3 +255,79 @@ def test_impulse_joint_set_iterate(ns):
     handle, joint = pairs[0]
     assert handle == h
     assert {joint.body1, joint.body2} == {a, b}
+
+
+# --------------------------------------------------------------------------
+# Builder keyword arguments and motors
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "make_builder",
+    [
+        lambda ns, **kw: ns.FixedJoint.builder(**kw),
+        lambda ns, **kw: ns.RevoluteJoint.builder(axis=(1, 0, 0), **kw),
+        lambda ns, **kw: ns.PrismaticJoint.builder(axis=(1, 0, 0), **kw),
+        lambda ns, **kw: ns.SphericalJoint.builder(**kw),
+        lambda ns, **kw: ns.RopeJoint.builder(2.0, **kw),
+        lambda ns, **kw: ns.GenericJoint.builder(**kw),
+    ],
+    ids=["fixed", "revolute", "prismatic", "spherical", "rope", "generic"],
+)
+def test_builder_softness_kwarg(ns, make_builder):
+    softness = ns.SpringCoefficients.joint_defaults()
+    softness.natural_frequency = 12.0
+    softness.damping_ratio = 0.5
+    joint = make_builder(ns, softness=softness).build()
+    got = getattr(joint, "data", joint).softness
+    assert got.natural_frequency == pytest.approx(12.0)
+    assert got.damping_ratio == pytest.approx(0.5)
+    with pytest.raises(TypeError):
+        make_builder(ns, not_a_kwarg=1.0)
+
+
+def test_prismatic_builder_motor(ns):
+    j = ns.PrismaticJoint.builder(axis=(1, 0, 0)).motor(1.0, 2.0, 3.0, 4.0).build()
+    m = j.motor()
+    assert m is not None
+    assert (m.target_pos, m.target_vel, m.stiffness, m.damping) == (1.0, 2.0, 3.0, 4.0)
+
+
+def test_rope_joint_motor(ns):
+    b = (
+        ns.RopeJoint.builder(2.0)
+        .motor_position(1.5, 10.0, 1.0)
+        .motor_max_force(5.0)
+        .motor_model(ns.MotorModel.FORCE_BASED)
+    )
+    j = b.build()
+    m = j.motor()
+    assert m is not None
+    assert (m.target_pos, m.stiffness, m.damping, m.max_force) == (1.5, 10.0, 1.0, 5.0)
+    assert m.model == ns.MotorModel.FORCE_BASED
+    assert j.data.motor(ns.JointAxis.LIN_X).target_pos == 1.5
+
+    m = ns.RopeJoint.builder(2.0).motor_velocity(0.5, 2.0).build().motor()
+    assert (m.target_vel, m.damping) == (0.5, 2.0)
+    m = ns.RopeJoint.builder(2.0).motor(1.0, 0.5, 3.0, 4.0).build().motor()
+    assert (m.target_pos, m.target_vel, m.stiffness, m.damping) == (1.0, 0.5, 3.0, 4.0)
+
+    j = ns.RopeJoint(2.0)
+    assert j.motor() is None
+    j.set_motor_velocity(0.25, 1.0)
+    assert j.motor().target_vel == 0.25
+    j.set_motor_position(1.0, 2.0, 3.0)
+    assert (j.motor().target_pos, j.motor().stiffness) == (1.0, 2.0)
+    j.set_motor(0.5, 0.75, 6.0, 7.0)
+    m = j.motor()
+    assert (m.target_pos, m.target_vel, m.stiffness, m.damping) == (0.5, 0.75, 6.0, 7.0)
+    j.set_motor_max_force(9.0)
+    j.set_motor_model(ns.MotorModel.ACCELERATION_BASED)
+    assert j.motor().max_force == 9.0
+    assert j.motor().model == ns.MotorModel.ACCELERATION_BASED
+
+
+def test_inverse_kinematics_option_repr(ns):
+    opt = ns.InverseKinematicsOption(constrained_axes=ns.JointAxesMask.LIN_AXES)
+    assert f"bits={ns.JointAxesMask.LIN_AXES.bits:#010b}" in repr(opt)
+    assert "constrained_axes" in repr(opt)

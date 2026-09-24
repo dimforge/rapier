@@ -44,15 +44,43 @@ Bodies and sets
 .. autoclass:: SoftBodySet
 .. autoclass:: SoftBodyHandle
 
-Material and settings
----------------------
+Volume meshing
+--------------
+
+:meth:`SoftBody.volumetric` fills a closed triangle mesh (for example the one
+:meth:`Cuboid.to_trimesh` or :meth:`Ball.to_trimesh` gives) with tetrahedral cells;
+:meth:`SoftBody.volumetric_with` takes the meshing parameters spelled out::
+
+    vertices, indices = rp.Ball(0.5).to_trimesh(24, 24)
+    params = rp.VolumeMeshParameters(0.2, cover_subdivisions=1, cover_smoothing=4)
+    ball = world.add_soft_body(rp.SoftBody.volumetric_with(vertices, indices, params))
+
+.. autoclass:: VolumeMeshParameters
+.. autoclass:: MeshEnclosure
+
+Material, solver and settings
+-----------------------------
+
+:attr:`SoftBody.material` and :attr:`IntegrationParameters.soft_bodies` (with its nested
+``recovery`` and ``fem`` groups) are live views: setting one of their fields changes the body
+or the parameters they were read from, and their ``copy()`` gives a detached copy.
+
+A body's elasticity is solved by constraints by default; :attr:`SoftBodySolver.FEM` solves it
+over the whole body instead, so its stiffness does not depend on the solver iterations::
+
+    beam = world.add_soft_body(
+        rp.SoftBody.cuboid((0, 2, 0), (1.0, 0.1, 0.1), 11, 3, 3, solver=rp.SoftBodySolver.FEM)
+    )
+    world.integration_parameters.soft_bodies.fem.max_linear_iterations = 40
 
 .. autoclass:: SoftBodyMaterial
 .. autoclass:: SoftBodyCellModel
 .. autoclass:: SoftEdgePlasticFlow
+.. autoclass:: SoftBodySolver
 .. autoclass:: SoftBodyParticleSettings
 .. autoclass:: SoftBodiesSettings
 .. autoclass:: SoftRecoverySettings
+.. autoclass:: SoftFemParameters
 .. autoclass:: SoftPatchConstraints
 
 Elements

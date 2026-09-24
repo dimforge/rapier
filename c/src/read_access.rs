@@ -33,6 +33,37 @@ pub unsafe extern "C" fn rpr_read_pid_controller_rigid_body_correction(
         })
     })
 }
+/// Compute a PD velocity correction from callback-visible body state. Neither the body nor the
+/// controller is modified. The context is valid only during its callback.
+/// @ingroup callbacks
+#[rapier_export(read_pd_controller)]
+pub unsafe extern "C" fn rpr_read_pd_controller_rigid_body_correction(
+    context: *const RprReadContext,
+    controller: *const RprPdController,
+    body: RprRigidBodyHandle,
+    target_pose: RprPose,
+    target_linvel: RprVector,
+    target_angvel: RprAngVector,
+) -> RprVelocityCorrection {
+    ffi_value(|result: *mut RprVelocityCorrection| {
+        let linear = unsafe { std::ptr::addr_of_mut!((*result).linear) };
+        let angular_velocity = unsafe { std::ptr::addr_of_mut!((*result).angularVelocity) };
+
+        ffi(|| unsafe {
+            body.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_pd_controller_rigid_body_correction(
+                controller,
+                get(context)?.bodies,
+                body,
+                target_pose,
+                target_linvel,
+                target_angvel,
+                linear,
+                angular_velocity,
+            ))
+        })
+    })
+}
 /// Return the number of rigid body objects in the world. Uses only the callback-scoped read
 /// context; never retain the context.
 /// @ingroup callbacks
@@ -1280,6 +1311,178 @@ pub unsafe extern "C" fn rpr_read_rigid_body_read_states(
                 states,
                 capacity,
                 count,
+            ))
+        })
+    })
+}
+/// Return the collider body-type collision activation bitmask (RPR_COLLISION_TYPES_* bits). Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_collider)]
+pub unsafe extern "C" fn rpr_read_collider_active_collision_types(
+    context: *const RprReadContext,
+    handle: RprColliderHandle,
+) -> u16 {
+    ffi_value(|out: *mut u16| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_collider_set_get_active_collision_types(
+                get(context)?.colliders,
+                handle,
+                out,
+            ))
+        })
+    })
+}
+/// Return the collider physics-hook activation bitmask. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_collider)]
+pub unsafe extern "C" fn rpr_read_collider_active_hooks(
+    context: *const RprReadContext,
+    handle: RprColliderHandle,
+) -> u32 {
+    ffi_value(|out: *mut u32| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_collider_set_get_active_hooks(
+                get(context)?.colliders,
+                handle,
+                out,
+            ))
+        })
+    })
+}
+/// Return the collider friction combination rule (RPR_COMBINE_*). Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_collider)]
+pub unsafe extern "C" fn rpr_read_collider_friction_combine_rule(
+    context: *const RprReadContext,
+    handle: RprColliderHandle,
+) -> u32 {
+    ffi_value(|out: *mut u32| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_collider_set_get_friction_combine_rule(
+                get(context)?.colliders,
+                handle,
+                out,
+            ))
+        })
+    })
+}
+/// Return the collider restitution combination rule (RPR_COMBINE_*). Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_collider)]
+pub unsafe extern "C" fn rpr_read_collider_restitution_combine_rule(
+    context: *const RprReadContext,
+    handle: RprColliderHandle,
+) -> u32 {
+    ffi_value(|out: *mut u32| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_collider_set_get_restitution_combine_rule(
+                get(context)?.colliders,
+                handle,
+                out,
+            ))
+        })
+    })
+}
+/// Return the collider pose relative to its parent rigid body, or its world-space pose if it has
+/// no parent. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_collider)]
+pub unsafe extern "C" fn rpr_read_collider_position_wrt_parent(
+    context: *const RprReadContext,
+    handle: RprColliderHandle,
+) -> RprPose {
+    ffi_value(|out: *mut RprPose| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_collider_set_get_position_wrt_parent(
+                get(context)?.colliders,
+                handle,
+                out,
+            ))
+        })
+    })
+}
+/// Return the rigid body signed dominance group. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_rigid_body)]
+pub unsafe extern "C" fn rpr_read_rigid_body_dominance_group(
+    context: *const RprReadContext,
+    handle: RprRigidBodyHandle,
+) -> i8 {
+    ffi_value(|out: *mut i8| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_rigid_body_set_get_dominance_group(
+                get(context)?.bodies,
+                handle,
+                out,
+            ))
+        })
+    })
+}
+/// Return the rigid body additional solver iterations for connected bodies. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_rigid_body)]
+pub unsafe extern "C" fn rpr_read_rigid_body_additional_solver_iterations(
+    context: *const RprReadContext,
+    handle: RprRigidBodyHandle,
+) -> usize {
+    ffi_value(|out: *mut usize| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_rigid_body_set_get_additional_solver_iterations(
+                get(context)?.bodies,
+                handle,
+                out,
+            ))
+        })
+    })
+}
+/// Return the rigid body additional PGS iterations for connected bodies. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_rigid_body)]
+pub unsafe extern "C" fn rpr_read_rigid_body_additional_pgs_iterations(
+    context: *const RprReadContext,
+    handle: RprRigidBodyHandle,
+) -> usize {
+    ffi_value(|out: *mut usize| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_rigid_body_set_get_additional_pgs_iterations(
+                get(context)?.bodies,
+                handle,
+                out,
+            ))
+        })
+    })
+}
+/// Return whether the rigid body may exceed the angular-velocity limit of its CCD. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
+#[rapier_export(read_rigid_body)]
+pub unsafe extern "C" fn rpr_read_rigid_body_is_fast_rotation_allowed(
+    context: *const RprReadContext,
+    handle: RprRigidBodyHandle,
+) -> RprBool {
+    ffi_value(|out: *mut RprBool| {
+        ffi(|| unsafe {
+            handle.check_world(read_context_world(context))?;
+            crate::handle_access::forward(native_rigid_body_set_get_is_fast_rotation_allowed(
+                get(context)?.bodies,
+                handle,
+                out,
             ))
         })
     })

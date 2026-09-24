@@ -218,8 +218,9 @@ pub(crate) unsafe fn impl_rpr_shared_shape_polyline(
             .map(RprVector::raw)
             .collect::<Result<Vec<_>>>()?;
         let indices = indices_array::<2>(indices, element_count, vertex_count)?;
-        ensure(!indices.is_empty(), "empty mesh")?;
-        let shape = SharedShape::polyline(points, Some(indices));
+        ensure(points.len() >= 2, "not enough vertices")?;
+        // No edges connects the vertices in order, as a line strip.
+        let shape = SharedShape::polyline(points, (!indices.is_empty()).then_some(indices));
         output(out, Box::into_raw(Box::new(RprSharedShape(shape))))
     })
 }
@@ -818,5 +819,75 @@ pub(crate) unsafe fn impl_rpr_shared_shape_trimesh_with_flags(
         let shape = SharedShape::trimesh_with_flags(points, indices, flags)
             .map_err(|e| invalid(e.to_string()))?;
         output(out, Box::into_raw(Box::new(RprSharedShape(shape))))
+    })
+}
+
+pub(crate) unsafe fn native_collider_active_collision_types(
+    object: *const RprCollider,
+    out: *mut u16,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(out, object.0.active_collision_types().bits())
+    })
+}
+
+pub(crate) unsafe fn native_collider_active_hooks(
+    object: *const RprCollider,
+    out: *mut u32,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(out, object.0.active_hooks().bits())
+    })
+}
+
+pub(crate) unsafe fn native_collider_friction_combine_rule(
+    object: *const RprCollider,
+    out: *mut u32,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(out, combine_value(object.0.friction_combine_rule()))
+    })
+}
+
+pub(crate) unsafe fn native_collider_restitution_combine_rule(
+    object: *const RprCollider,
+    out: *mut u32,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(out, combine_value(object.0.restitution_combine_rule()))
+    })
+}
+
+pub(crate) unsafe fn native_collider_position_wrt_parent(
+    object: *const RprCollider,
+    out: *mut RprPose,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(
+            out,
+            object
+                .0
+                .position_wrt_parent()
+                .copied()
+                .unwrap_or(*object.0.position())
+                .into(),
+        )
+    })
+}
+
+pub(crate) unsafe fn native_collider_set_rotation(
+    object: *mut RprCollider,
+    value: RprRotation,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let value = value.raw()?;
+        let object = get_mut(object)?;
+        object.0.set_rotation(value);
+        Ok(())
     })
 }

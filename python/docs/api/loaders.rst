@@ -23,5 +23,12 @@ MJCF
    :members:
 
 Parses MuJoCo MJCF (XML) models into rapier bodies, colliders, joints,
-and ``<equality>`` loop closures. Actuator, sensor, and keyframe
-elements are not surfaced to Python.
+and ``<equality>`` loop closures. The
+:class:`~rapier3d.loaders.mjcf.MjcfRobotHandles` returned by the insertion
+drive the ``<actuator>`` elements
+(:meth:`~rapier3d.loaders.mjcf.MjcfRobotHandles.apply_controls`), apply the
+``<keyframe>`` elements
+(:meth:`~rapier3d.loaders.mjcf.MjcfRobotHandles.apply_keyframe`) and apply
+the ``<contact>`` rules
+(:meth:`~rapier3d.loaders.mjcf.MjcfRobotHandles.contact_hooks`). Sensors
+are not surfaced to Python.

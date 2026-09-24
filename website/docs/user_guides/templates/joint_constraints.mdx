@@ -21,8 +21,24 @@ mathematical constraints to be generated. The clear advantage is that there is n
 any motion other than that single rotation to this body, meaning there is no way the body shifts to a position that is
 not realistic, even if the dynamics solver does not converge completely.
 
-Rapier implements this approach through `MultibodyJointSet`,
-where each joint is attached to its relevant rigid-bodies identified by their handle.
+<rapier>Rapier implements this approach through `MultibodyJointSet`,
+where each joint is attached to its relevant rigid-bodies identified by their handle.</rapier><bevy>The `bevy_rapier` plugin
+implements this approach through the `MultibodyJoint` component, where each joint is attached to its relevant
+rigid-bodies identified by their entity.</bevy><js>Rapier implements this approach through `MultibodyJointSet`,
+where each joint is attached to its relevant rigid-bodies identified by their handle.</js>
+
+<c>
+
+Rapier implements this approach through the multibody joints inserted with `r3InsertMultibodyJoint`, where each joint
+is attached to its relevant rigid-bodies identified by their handle.
+
+</c>
+<py>
+
+Rapier implements this approach through the `MultibodyJointSet` (given by `PhysicsWorld.multibody_joints`), where
+each joint is attached to its relevant rigid-bodies identified by their handle.
+
+</py>
 
 ## Constraints-based approach
 
@@ -33,8 +49,24 @@ a joint. Then the integrator will add mathematical constraints to the dynamic sy
 simulate the reduction of the number of DOF as imposed by the joints. In practice, this means that the rigid-body will
 break the joint constraint if the constraint solver does not converge completely.
 
-Rapier implements this approach through `ImpulseJointSet`,
-where each joint is attached to two distinct rigid-bodies identified by their rigid-body handles.
+<rapier>Rapier implements this approach through `ImpulseJointSet`,
+where each joint is attached to two distinct rigid-bodies identified by their rigid-body handles.</rapier><bevy>The
+`bevy_rapier` plugin implements this approach through the `ImpulseJoint` component, where each joint is attached to two
+distinct rigid-bodies identified by their entities.</bevy><js>Rapier implements this approach through `ImpulseJointSet`,
+where each joint is attached to two distinct rigid-bodies identified by their rigid-body handles.</js>
+
+<c>
+
+Rapier implements this approach through the impulse joints inserted with `r3InsertImpulseJoint`, where each joint is
+attached to two distinct rigid-bodies identified by their rigid-body handles.
+
+</c>
+<py>
+
+Rapier implements this approach through the `ImpulseJointSet` (given by `PhysicsWorld.impulse_joints`), where each
+joint is attached to two distinct rigid-bodies identified by their rigid-body handles.
+
+</py>
 
 -------
 
@@ -87,25 +119,357 @@ a **multibody joint**.
 
 ### Creating a multibody
 
+<rapier>
+
 The API to create a Multibody joint is similar to creating an Impulse Joint, refer to [Joints](./joints.mdx),
-but insert those into a `MultibodyJointSet`.
+but insert those into the physics world with `PhysicsWorld::insert_multibody_joint` (instead of
+`PhysicsWorld::insert_impulse_joint`). Note that it returns `None` if the joint would make the multibody invalid, i.e., if
+both rigid-bodies are already part of the same multibody (which would create a loop), or if the second rigid-body is
+already attached to a parent link.
 
 See [Rapier's example](https://github.com/dimforge/rapier/blob/v017.1/examples3d/joints3.rs) for a demonstration of both approaches.
 
+</rapier>
+<bevy>
+
+The API to create a multibody joint is similar to creating an impulse joint, refer to [Joints](./joints.mdx),
+but add a `MultibodyJoint` component instead of an `ImpulseJoint` component. The root of the multibody is the
+rigid-body that isn't attached to any parent by a multibody joint:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/joints2.rs' marker='Multibody' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/joints3.rs' marker='Multibody' />
+```
+
+  </TabItem>
+</Tabs>
+
+After each simulation step, the coordinates and velocities of a multibody joint are written back into its
+`MultibodyJointState` component (automatically added alongside the `MultibodyJoint`). Modifying `MultibodyJoint::parent`
+re-attaches the joint to another rigid-body. Unlike impulse joints, multibody joints cannot be disabled.
+
+See [bevy_rapier's example](https://github.com/dimforge/bevy_rapier/blob/master/bevy_rapier3d/examples/multibody_joints3.rs)
+for a demonstration of both approaches.
+
+</bevy>
+<js>
+
+The API to create a Multibody joint is similar to creating an Impulse Joint, refer to [Joints](./joints.mdx),
+but insert those into the physics world with `World.createMultibodyJoint` (instead of `World.createImpulseJoint`).
+
+See [Rapier's example](https://github.com/dimforge/rapier/blob/v017.1/examples3d/joints3.rs) for a demonstration of both approaches.
+
+</js>
+<c>
+
+The API to create a multibody joint is similar to creating an impulse joint, refer to [Joints](./joints.mdx), but
+insert those into the world with `r3InsertMultibodyJoint` (instead of `r3InsertImpulseJoint`). The root of the
+multibody is the rigid-body that isn't attached to any parent by a multibody joint. Note that the insertion fails
+(returning `R3_INVALID_MULTIBODY_JOINT_HANDLE` and reporting an `R3_INVALID_ARGUMENT` error) if the joint would make
+the multibody invalid, i.e., if both rigid-bodies are already part of the same multibody (which would create a loop),
+or if the second rigid-body is already attached to a parent link:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='Multibody' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='Multibody' />
+```
+
+  </TabItem>
+</Tabs>
+
+A multibody joint is removed with `r3RemoveMultibodyJoint`. Its configuration can be read with
+`r3MultibodyJoint_Desc`, and replaced with `r3MultibodyJoint_SetDesc` (which reports an `R3_INVALID_ARGUMENT` error
+if the locked axes of the joint change, since they define the degrees of freedom of the multibody). The rigid-bodies
+attached by a multibody joint, i.e., its parent link then its own link, are given by `r3MultibodyJoint_Bodies`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='ModifyMultibodyJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='ModifyMultibodyJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+See the [C testbed example](https://github.com/dimforge/rapier/blob/master/c/testbed/examples3d/joints3.c) for a
+demonstration of both approaches.
+
+### Generalized coordinates
+
+The state of a multibody is described by its **generalized coordinates** (one per DOF of each of its joints) instead
+of the poses of its links. Its generalized velocities, i.e., the relative velocities along the free DOF of each of its
+joints, can be read with `r3MultibodyJoint_GeneralizedVelocity` and replaced with
+`r3MultibodyJoint_SetGeneralizedVelocity`. These functions apply to the whole multibody the given joint belongs to:
+their arrays have one element per DOF of the multibody, as given by `r3MultibodyJoint_Ndofs`. Note that the root of a
+multibody counts as a free link (with 6 DOF in 3D, and 3 DOF in 2D) if its rigid-body is dynamic:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='GeneralizedVelocity' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='GeneralizedVelocity' />
+```
+
+  </TabItem>
+</Tabs>
+
+:::warning
+The multibody is only updated by the next simulation step after a multibody joint is inserted or removed. In
+particular, until that step, a root that isn't dynamic still counts as a free link in the DOF of the multibody.
+:::
+
+### Inverse kinematics
+
+Multibodies support **inverse kinematics**: `r3MultibodyJoint_InverseKinematics` computes the displacements of the
+generalized coordinates of the multibody that move the link attached by the given joint toward a target pose. These
+displacements are then applied with `r3MultibodyJoint_ApplyDisplacements`. The `R3InverseKinematicsOptions` (initialized
+by `r3DefaultInverseKinematicsOptions`) select the axes of the target pose to reach (`constrained_axes`, one bit per
+axis like the `lockedAxes` of a joint), the maximum number of iterations of the solver, its damping, and its
+tolerances. An optional callback (given with its user data) lets you select the links that are allowed to move:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='InverseKinematics' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='InverseKinematics' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+The API to create a multibody joint is similar to creating an impulse joint, refer to [Joints](./joints.mdx), but
+insert those into the world with `world.multibody_joints.insert` (instead of `world.impulse_joints.insert`). The root
+of the multibody is the rigid-body that isn't attached to any parent by a multibody joint. Note that the insertion
+returns `None` if the joint would make the multibody invalid, i.e., if both rigid-bodies are already part of the same
+multibody (which would create a loop), or if the second rigid-body is already attached to a parent link:
+
+```python
+<load path='/3d/python/joints.py' marker='Multibody' />
+```
+
+A multibody joint can also be inserted with `world.multibody_joints.insert_kinematic`: the joint is then
+**kinematic**, i.e., its coordinates are entirely controlled by the application (e.g., through
+[inverse kinematics](#inverse-kinematics)) instead of being simulated. A multibody joint is removed with
+`world.multibody_joints.remove`. After its insertion, it is accessed with `world.multibody_joints[handle]`, which
+returns a `MultibodyJoint`: a live view of the joint whose `data` property is its `GenericJoint` (exactly like
+`ImpulseJoint.data`): modifying it wakes up its rigid-bodies at the next simulation step. It can be modified as long as
+it doesn't change the locked axes of the joint, which would change the degrees of freedom of the multibody (this raises
+a `ValueError`). The `MultibodyJoint` also gives the `coords` of the joint, whether it is `kinematic`, the `link_id` of
+the link it attaches, and the `multibody` it belongs to:
+
+```python
+<load path='/3d/python/joints.py' marker='ModifyMultibodyJoint' />
+```
+
+### Generalized coordinates
+
+The state of a multibody is described by its **generalized coordinates** (one per DOF of each of its joints) instead
+of the poses of its links. The multibody a joint belongs to is given by `world.multibody_joints.multibody(handle)`,
+or by `world.multibody_joints.get(handle)` together with the index of the link attached by the joint. This returns a
+`Multibody`, which is a live view of the multibody: its generalized velocities, i.e., the relative velocities along
+the free DOF of each of its joints, can be read with `Multibody.generalized_velocity` and replaced with
+`Multibody.set_generalized_velocity` (and the damping applied to each DOF with `Multibody.damping` and
+`Multibody.set_damping`). These lists have one element per DOF of the multibody, as given by `Multibody.ndofs`. The
+generalized coordinates of the joint of each link are given by `MultibodyLink.coords` (one element per axis of the
+joint, only the ones of its free axes being meaningful), the links being given by `Multibody.get_link` or by iterating
+through the multibody. Note that the root of a multibody counts as a free link (with 6 DOF) if its rigid-body is
+dynamic:
+
+```python
+<load path='/3d/python/joints.py' marker='GeneralizedVelocity' />
+```
+
+:::warning
+The multibody is only updated by the next simulation step after a multibody joint is inserted or removed. In
+particular, until that step, a root that isn't dynamic still counts as a free link in the DOF of the multibody.
+:::
+
+The contacts between the links of a multibody are enabled by default: they can be disabled with
+`Multibody.set_self_contacts_enabled(False)`.
+
+### Inverse kinematics
+
+Multibodies support **inverse kinematics**: `world.multibody_joints.inverse_kinematics_for_link` computes the
+displacements of the generalized coordinates of the multibody that move the link attached by the given joint toward a
+target pose. These displacements are then applied with `Multibody.apply_displacements`: the poses of the links (and
+of their rigid-bodies) are updated by the next simulation step, or right away by `Multibody.forward_kinematics`
+followed by `Multibody.update_rigid_bodies`. The `InverseKinematicsOption` selects the axes of the target pose to
+reach (`constrained_axes`, a `JointAxesMask` like the locked axes of a joint), the maximum number of iterations of the
+solver (`max_iters`), its `damping`, and its tolerances (`epsilon_linear` and `epsilon_angular`). An optional
+`joint_can_move` callback, called with each `MultibodyLink` from the root to the target link, lets you select the
+links that are allowed to move: the joints of the links it returns `False` for are left unchanged. In the following
+example, every link is allowed to move:
+
+```python
+<load path='/3d/python/joints.py' marker='InverseKinematics' />
+```
+
+</py>
+
 ## Combining both
 
-A joint constraint geometry is completely configured at its creation, and added to the joint set by the
-`joint_set.insert(&mut bodies, body1, body2, joint, true)` method by specifying the handles of the bodies the joint is
+<rapier>
+
+A joint constraint geometry is completely configured at its creation, and added to the world by the
+`PhysicsWorld::insert_impulse_joint` method (resp. `PhysicsWorld::insert_multibody_joint`) by specifying the handles of
+the bodies the joint is attached to.
+
+</rapier>
+<bevy>
+
+A joint constraint geometry is completely configured at its creation, and added to the world by adding the
+`ImpulseJoint` component (resp. `MultibodyJoint` component) to an entity, by specifying the parent entity of the joint.
+Both components can be added to the same entity, e.g., to attach a multibody link to its parent link with a multibody
+joint and to another link with a loop-closing impulse joint.
+
+</bevy>
+<js>
+
+A joint constraint geometry is completely configured at its creation, and added to the world by the
+`World.createImpulseJoint` method (resp. `World.createMultibodyJoint`) by specifying the rigid-bodies the joint is
 attached to.
+
+</js>
+<c>
+
+A joint constraint geometry is completely configured by its description, and added to the world by the
+`r3InsertImpulseJoint` function (resp. `r3InsertMultibodyJoint`) by specifying the handles of the rigid-bodies the
+joint is attached to.
+
+</c>
+<py>
+
+A joint constraint geometry is completely configured at its creation, and added to the world by the
+`world.impulse_joints.insert` method (resp. `world.multibody_joints.insert`) by specifying the handles of the
+rigid-bodies the joint is attached to.
+
+</py>
 
 Combining multibodies and joint constraints is a useful way of combining the stability of multibodies with the flexibility of joint constraints. Indeed, one of the most appealing features of a multibody is its stability and ease of use (especially for robotics). However its greatest weakness is its inability to represent assemblies that do not match a tree structure, i.e., an articulated body composed of graph-like assembly of solids (each graph node being a solid and each graph edge being an articulation) cannot be simulated by a multibody. A common approach is thus to:
 
 1. Define a multibody from a spanning-tree of the graph.
 2. Create joint constraints for each articulation missing from this multibody to complete the graph. Those joint constraints are therefore attached to two multibody links. They are often called "loop-closing constraints" since they close the loops of the assembly's graph structure.
 
-The following shows an example of combination of multibodies and joint constraints for the simulation of a necklace. It is composed of 5 pearls forming a single loop attached together by 5 ball joints. Since such a loop cannot be simulated by a multibody, we first start to create 5 multibody links attached together with 4 `BallJoint`. Only 4 joints can be added here since a 5th would close the loop.
-The 5th joint that closes the loop must be modeled as a joint constraint, here a `BallConstraint` between the first and the last link:
+<notpy>
+
+The following shows an example of combination of multibodies and joint constraints for the simulation of a necklace. It is composed of 5 pearls forming a single loop attached together by 5 ball joints. Since such a loop cannot be simulated by a multibody, we first start to create 5 multibody links attached together with 4 <notc>`BallJoint`</notc><c>spherical multibody joints</c>. Only 4 joints can be added here since a 5th would close the loop.
+The 5th joint that closes the loop must be modeled as a joint constraint, here a <notc>`BallConstraint`</notc><c>spherical impulse joint</c> between the first and the last link:
+
+</notpy>
+<py>
+
+The following shows an example of combination of multibodies and joint constraints for the simulation of a necklace. It is composed of 5 pearls forming a single loop attached together by 5 ball joints. Since such a loop cannot be simulated by a multibody, we first start to create 5 multibody links attached together with 4 spherical multibody joints (`SphericalJoint` inserted with `world.multibody_joints.insert`). Only 4 joints can be added here since a 5th would close the loop.
+The 5th joint that closes the loop must be modeled as a joint constraint, here a spherical impulse joint (inserted with `world.impulse_joints.insert`) between the first and the last link:
+
+</py>
 
 <center>
 ![Loop-closing constraint](/img/loop_closing_joint.svg)
 </center>
+
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='LoopClosing' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='LoopClosing' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/joints.py' marker='LoopClosing' />
+```
+
+</py>

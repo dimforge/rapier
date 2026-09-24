@@ -1,6 +1,6 @@
 //! Assembly of the soft contact constraints: the narrow-phase pairs of the awake soft bodies'
-//! surface colliders and particle balls, the vertex-vs-surface and edge-vs-edge candidates between
-//! surfaces (see `geometry::soft_contacts`), and the write-back of their impulses.
+//! surface colliders, the vertex-vs-surface and edge-vs-edge candidates between surfaces (see
+//! `geometry::soft_contacts`), and the write-back of their impulses.
 
 mod soft_contact_assembly;
 mod soft_contact_assembly_body_contacts;

@@ -3,10 +3,12 @@ import TabItem from '@theme/TabItem';
 
 
 The position of a collider represents its location (translation) in 2D or 3D world-space as well as its orientation (rotation).
-<bevy>Both are combined in a Bevy `Transform` component.</bevy> <rust>Its translational part is represented as a vector and
+<bevy>Both are combined in a Bevy `Transform` component.</bevy> <rapier>Its translational part is represented as a vector and
 its rotational part as an unit quaternion (in 3D) or a unit complex number (in 2D). Both are
-combined into a pose (the `Pose` type).</rust> <js>Its translational part is represented as a vector and its rotational part as an unit
+combined into a pose (the `Pose` type).</rapier> <js>Its translational part is represented as a vector and its rotational part as an unit
 quaternion (in 3D) or an angle (in 2D).</js>
+<c>Its translational part is represented as a vector (`R3Vector`) and its rotational part (`R3Rotation`) as an unit quaternion (in 3D) or an angle (in 2D). Both are combined into a pose (the `R3Pose` type).</c>
+<py>Its translational part is represented as a vector (`Vec3`) and its rotational part as an unit quaternion (`Rotation3`). Both are combined into a pose (the `Isometry3` type).</py>
 
 :::warning
 Please read carefully the paragraph after the next example. It explains how the collider position (and the action of setting
@@ -111,20 +113,65 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Position1' />
+```
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Position2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/colliders3.c' marker='Position1' />
+```
+```c
+<load path='/3d/c/examples/colliders3.c' marker='Position2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='Position1' />
+```
+```python
+<load path='/3d/python/colliders.py' marker='Position2' />
+```
+
+</py>
 
 
 If a collider is **attached to a rigid-body**, its position is automatically updated by the physics pipeline when a
 rigid-body is moved by the physics pipeline. If a change to the rigid-body position is made by the user then the collider
 position will be updated during the next timestep.
 
-<bevy>Therefore, setting the `Transform` of a collider attached to a rigid-body will modify the position of the
-collider **relative** to the rigid-body it is attached to:</bevy>
+<bevy>Therefore, if the collider is attached to a rigid-body through a child entity, setting its `Transform` will
+modify the position of the collider **relative** to the rigid-body it is attached to (if the collider is on the same
+entity as the rigid-body, its `Transform` is the one of the rigid-body):</bevy>
 <rapier>Therefore, directly setting the position of a collider attached to a rigid-body will have **no
 lasting effect**. Instead, it is possible to set the position of the collider **relative** to the rigid-body it is
 attached to:</rapier>
 <js>Therefore, directly setting the position of a collider attached to a rigid-body will have **no
 lasting effect**. Instead, it is possible to set the position of the collider **relative** to the rigid-body it is
 attached to:</js>
+<c>Therefore, directly setting the position of a collider attached to a rigid-body (with `r3Collider_SetPosition`, `r3Collider_SetTranslation`, or `r3Collider_SetRotation`) will have **no lasting effect**. Instead, it is possible to set the position of the collider **relative** to the rigid-body it is attached to: this is the `position` field of its description, which can be modified after its creation with `r3Collider_SetPositionWrtParent`:</c>
+<py>Therefore, directly setting the position of a collider attached to a rigid-body (by assigning its `position`, `translation`, or `rotation` property) will have **no lasting effect**. Instead, it is possible to set the position of the collider **relative** to the rigid-body it is attached to: this is the position given to its builder, which can be modified after its creation by assigning its `position_wrt_parent` property (or only its translation or rotation part, with the `translation_wrt_parent` or `rotation_wrt_parent` property):</py>
 
 <rapier>
 
@@ -216,3 +263,45 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Position3' />
+```
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Position4' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/colliders3.c' marker='Position3' />
+```
+```c
+<load path='/3d/c/examples/colliders3.c' marker='Position4' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='Position3' />
+```
+```python
+<load path='/3d/python/colliders.py' marker='Position4' />
+```
+
+</py>

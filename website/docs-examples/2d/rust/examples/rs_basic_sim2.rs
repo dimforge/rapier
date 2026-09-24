@@ -2,6 +2,32 @@
 use rapier2d::prelude::*;
 
 fn main() {
+    // The world owns every structure needed by the simulation.
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::new(0.0, -9.81);
+
+    /* Create the ground. */
+    world.insert_collider(ColliderBuilder::cuboid(100.0, 0.1), None);
+
+    /* Create the bouncing ball. */
+    let (ball_body_handle, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 10.0)),
+        ColliderBuilder::ball(0.5).restitution(0.7),
+    );
+
+    /* Run the game loop, stepping the simulation once per frame. */
+    for _ in 0..200 {
+        world.step();
+
+        let ball_body = &world.bodies[ball_body_handle];
+        println!("Ball altitude: {}", ball_body.translation().y);
+    }
+}
+// DOCUSAURUS: basic_sim stop
+
+#[allow(dead_code)]
+// DOCUSAURUS: basic_sim_manual start
+fn manual_stepping() {
     let mut rigid_body_set = RigidBodySet::new();
     let mut collider_set = ColliderSet::new();
 
@@ -53,4 +79,4 @@ fn main() {
         println!("Ball altitude: {}", ball_body.translation().y);
     }
 }
-// DOCUSAURUS: basic_sim stop
+// DOCUSAURUS: basic_sim_manual stop

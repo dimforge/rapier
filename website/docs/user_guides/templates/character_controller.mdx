@@ -1,11 +1,79 @@
 ---
 id: character_controller
-title: Character controller
-sidebar_label: Character controller
+title: Controllers
+sidebar_label: Controllers
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+
+<rapier>
+
+A controller is a higher-level tool computing the motion of a body from what your application asks for, rather than
+leaving it entirely to the forces of the simulation. Rapier provides:
+- The [character controller](./character_controller.mdx#character-controller), moving a kinematic body along the
+  obstacles of the scene.
+- The [vehicle controller](./character_controller.mdx#vehicle-controller), driving a car-like body on ray-casted
+  wheels.
+- The [PID controller](./character_controller.mdx#pid-controller), steering a dynamic body toward a target pose at
+  the velocity level.
+
+</rapier>
+<js>
+
+A controller is a higher-level tool computing the motion of a body from what your application asks for, rather than
+leaving it entirely to the forces of the simulation. Rapier provides:
+- The [character controller](./character_controller.mdx#character-controller), moving a kinematic body along the
+  obstacles of the scene.
+- The [vehicle controller](./character_controller.mdx#vehicle-controller), driving a car-like body on ray-casted
+  wheels.
+- The [PID controller](./character_controller.mdx#pid-controller), steering a dynamic body toward a target pose at
+  the velocity level.
+
+</js>
+<bevy>
+
+A controller is a higher-level tool computing the motion of a body from what your application asks for, rather than
+leaving it entirely to the forces of the simulation. Rapier provides the following controllers, exposed by `bevy_rapier`
+as components:
+- The [character controller](./character_controller.mdx#character-controller), moving a kinematic body along the
+  obstacles of the scene.
+- The [vehicle controller](./character_controller.mdx#vehicle-controller), driving a car-like body on ray-casted
+  wheels (only available with `bevy_rapier3d`).
+- The [PID controller](./character_controller.mdx#pid-controller), steering a dynamic body toward a target pose at
+  the velocity level.
+
+</bevy>
+<c>
+
+A controller is a higher-level tool computing the motion of a body from what your application asks for, rather than
+leaving it entirely to the forces of the simulation. Rapier provides the following controllers, each being an object
+owned by your application: it is allocated by its `New` function (e.g. `r3NewPidController`) and must be freed by its
+`Free` function (e.g. `r3FreePidController`):
+- The [character controller](./character_controller.mdx#character-controller), moving a kinematic body along the
+  obstacles of the scene.
+- The [vehicle controller](./character_controller.mdx#vehicle-controller), driving a car-like body on ray-casted
+  wheels (only available in 3D).
+- The [PID controller](./character_controller.mdx#pid-controller), steering a dynamic body toward a target pose at
+  the velocity level.
+
+</c>
+<py>
+
+A controller is a higher-level tool computing the motion of a body from what your application asks for, rather than
+leaving it entirely to the forces of the simulation. Rapier provides the following controllers, each being an ordinary
+Python object owned by your application (it doesn’t belong to the `PhysicsWorld`, and is given the parts of the world
+it needs when it is used):
+- The [character controller](./character_controller.mdx#character-controller), moving a kinematic body along the
+  obstacles of the scene.
+- The [vehicle controller](./character_controller.mdx#vehicle-controller), driving a car-like body on ray-casted
+  wheels.
+- The [PID controller](./character_controller.mdx#pid-controller), steering a dynamic body toward a target pose at
+  the velocity level.
+
+</py>
+
+## Character controller
 
 Most games involve bodies behaving in ways that defy the laws of physics: floating platforms, elevators,
 playable characters, etc. This is why **kinematic bodies** exist: they offer a total control over the body’s trajectory
@@ -39,50 +107,126 @@ point for many common use-cases, character-control (especially for the player’
 game-specific. Therefore the builtin character controller may not work perfectly out-of-the-box for all game
 types.<notjs> Don’t hesitate to copy and customize it to fit your particular needs.</notjs>
 
-## Setup and usage
+### Setup and usage
 import SetupAndUsage from './character_controller_setup.mdx'
 
 <SetupAndUsage />
 
-## Character offset
+### Character offset
 import CharacterOffset from './character_controller_offset.mdx'
 
 <CharacterOffset />
 
-## Up vector
+### Up vector
 import UpVector from './character_controller_up_vector.mdx'
 
 <UpVector />
 
 
-## Slopes
+### Slopes
 import Slopes from './character_controller_slopes.mdx'
 
 <Slopes />
 
 
-## Stairs and small obstacles
+### Stairs and small obstacles
 import Stairs from './character_controller_stairs.mdx'
 
 <Stairs />
 
 
-## Snap-to-ground
+### Snap-to-ground
 import SnapToGround from './character_controller_snap_to_ground.mdx'
 
 <SnapToGround />
 
-## Filtering
+### Filtering
 import Filtering from './character_controller_filtering.mdx'
 
 <Filtering />
 
 
-## Collisions
+### Collisions
 import Collisions from './character_controller_collisions.mdx'
 
 <Collisions />
 
-## Gravity
+### Gravity
 Since you are responsible for providing the movement vector to the character controller at each frame, it is up to
 you to emulate gravity by adding a downward component to that movement vector.
+
+import VehicleController from './vehicle_controller.mdx'
+
+<rapier>
+
+## Vehicle controller
+
+<VehicleController />
+
+</rapier>
+<js>
+
+## Vehicle controller
+
+<VehicleController />
+
+</js>
+<bevy>
+
+## Vehicle controller
+
+<VehicleController />
+
+</bevy>
+<c>
+
+## Vehicle controller
+
+<VehicleController />
+
+</c>
+<py>
+
+## Vehicle controller
+
+<VehicleController />
+
+</py>
+
+import PidController from './pid_controller.mdx'
+
+<rapier>
+
+## PID controller
+
+<PidController />
+
+</rapier>
+<js>
+
+## PID controller
+
+<PidController />
+
+</js>
+<bevy>
+
+## PID controller
+
+<PidController />
+
+</bevy>
+<c>
+
+## PID controller
+
+<PidController />
+
+</c>
+<py>
+
+## PID controller
+
+<PidController />
+
+</py>

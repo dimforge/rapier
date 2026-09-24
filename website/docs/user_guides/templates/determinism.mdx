@@ -26,18 +26,46 @@ achieve this, both computers must start the simulation with the **same initial c
 following additional conditions must be met:
 - The `enhanced-determinism` feature of Rapier is enabled. Note that the `enhanced-determinism` feature cannot be
   enabled at the same time as the `simd8` feature, which changes the SIMD lane width and is therefore its own
-  determinism domain.
+  determinism domain. The `parallel` feature, on the other hand, can be combined with it: the results of the parallel
+  solver are identical to the results of the sequential one, and don't depend on the number of threads of the
+  rayon pool (nor, therefore, on the number of cores of the machine running the simulation).
 - The target platforms must strictly comply to the IEEE 754-2008 floating-points standard. This ensures that
   floating-point computations behave the same on all platforms. This include most modern mainstream processors
   as well as WASM targets.
 - If some of the values used to initialized Rapier structures are computed using floating points functions (sin, cos, tan, etc.) other
   than addition/subtraction/multiplication/division, then you need to make sure the functions being used originate from
   the `ComplexField` or `RealField` traits from `nalgebra` (re-exported by Rapier as `na`). For example, do `ComplexField::sin(0.4)`
-  (where `ComplexField` is imported by `use rapier3d::na::ComplexField`) instead of `0.4.sin()`:
-  
+  (where `ComplexField` is imported by <rapier>`use rapier3d::na::ComplexField`</rapier><bevy>`use bevy_rapier3d::na::ComplexField`</bevy>) instead of `0.4.sin()`:
+
+<rapier>
+
 ```rust
 <load path='/3d/rust/examples/rs_determinism.rs' marker='Determinism' />
 ```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/pipeline_determinism3.rs' marker='Determinism' />
+```
+
+In Bevy, a few more conditions must be met:
+- The simulation must be advanced by the same timesteps on every machine, which excludes the default
+  `TimestepMode::Variable` timestep mode since it depends on the frame rate. Use `TimestepMode::Fixed` instead,
+  ideally with the physics running in the `FixedUpdate` schedule so the number of timesteps doesn't depend on the
+  frame rate either:
+
+```rust
+<load path='/3d/bevy/examples/pipeline_determinism3.rs' marker='DeterministicSetup' />
+```
+
+- The entities with physics components must be spawned (and modified, and despawned) in the same order, with the same
+  components, since this is what determines the order in which the plugin inserts them into the sets.
+- The math functions of Bevy (e.g. the trigonometric functions used by `Quat::from_rotation_y`) are not cross-platform
+  deterministic either unless the `libm` feature of Bevy is enabled.
+
+</bevy>
 
 </notjs>
 <js>
@@ -45,7 +73,7 @@ following additional conditions must be met:
 The WASM/Typescript/JavaScript version of Rapier is fully cross-platform deterministic. This means that running the same simulation
 (with the **same initial conditions**) using the same version of Rapier, on two different machines (even with different
 browsers, operating systems, and processors, will give the exact same results. In particular, creating a snapshot of the
-`World` with `world.createSnapshot()` and taking a MD5 hash of the resulting byte array will return the exact same hash
+`World` with `world.takeSnapshot()` and taking a MD5 hash of the resulting byte array will return the exact same hash
 on different machines (assuming the snapshot itself is taken after the same number of timesteps).
 
 :::note
@@ -59,3 +87,119 @@ get the exact same initial conditions on all the platforms. In particular, trans
 `Math.sin, Math.cos` are not cross-platform determinism and may give different results on different platforms.
 
 </js>
+
+<c>
+
+By default, Rapier is **locally deterministic**, meaning that running the exact same simulation (with the **same initial
+conditions**) twice with the same machine, using the same build of the Rapier library, will result in the exact same
+simulation results. However, doing this on two different computers may result in completely different results.
+
+:::note
+Two simulations run with the **same initial conditions** if their worlds are configured with the same values (gravity,
+[integration parameters](./integration_parameters.mdx), etc.), rigid-bodies/colliders/joints are constructed the
+same way, and they are inserted into and removed from the world in the exact same order. Note that this includes the
+timestep length: the simulation must be advanced by the same sequence of timesteps on every machine, which excludes a
+timestep length depending on the frame rate of the application.
+:::
+
+It is possible to make Rapier **cross-platform deterministic**, meaning that running a simulation with two different
+computers (including different OS and/or different processors) will result in the exact same results. In order to
+achieve this, both computers must start the simulation with the **same initial conditions** as discussed above, and the
+following additional conditions must be met:
+- The library is built with the `enhanced-determinism` feature, i.e., with `-DRAPIER_FEATURES=enhanced-determinism`.
+  Note that it cannot be combined with `-DRAPIER_SIMD_LANES=8`, which changes the SIMD lane width and is therefore its
+  own determinism domain. The parallelism (`-DRAPIER_ENABLE_PARALLEL=ON`), on the other hand, can be combined with it:
+  the results of the parallel solver are identical to the results of the sequential one, and don't depend on the
+  number of threads (nor, therefore, on the number of cores of the machine running the simulation).
+- The target platforms must strictly comply to the IEEE 754-2008 floating-points standard. This ensures that
+  floating-point computations behave the same on all platforms. This include most modern mainstream processors.
+- Your own code computing the values given to Rapier must be compiled without any optimization changing the results
+  of floating-point operations, e.g., without `-ffast-math`, and without the contraction of multiplications and
+  additions into fused multiply-add operations (`-ffp-contract=off` with GCC and Clang).
+- If some of the values used to initialize Rapier structures are computed using floating points functions (sin, cos,
+  tan, etc.) other than addition/subtraction/multiplication/division/square root, then you need to make sure the
+  functions being used are the ones provided by Rapier, e.g., `r3Sin` and `r3Cos`, instead of the functions of the
+  C standard library, e.g., `sinf` and `cosf`, which give different results on different platforms. Note that the
+  helper functions of `rapier_math.h` (e.g. `r3RotationFromAxisAngle`) already rely on `r3Sin` and `r3Cos`:
+
+```c
+<load path='/3d/c/examples/determinism3.c' marker='DeterminismWrong' />
+```
+
+```c
+<load path='/3d/c/examples/determinism3.c' marker='Determinism' />
+```
+
+Because the library is loaded dynamically, it is recommended to check that the library actually loaded by your
+application is built with the `enhanced-determinism` feature, which is indicated by the `enhanced_determinism` field of
+`r3BuildFeatures()`:
+
+```c
+<load path='/3d/c/examples/determinism3.c' marker='CheckDeterminism' />
+```
+
+A simple way of checking that two simulations are in the exact same state is to compare their
+[snapshots](./serialization.mdx), e.g., with a hash of the bytes serialized by `r3SerializeWorld`:
+
+```c
+<load path='/3d/c/examples/determinism3.c' marker='SnapshotHash' />
+```
+
+</c>
+
+<py>
+
+By default, Rapier is **locally deterministic**, meaning that running the exact same simulation (with the **same initial
+conditions**) twice with the same machine, using the same build of the bindings, will result in the exact same
+simulation results. However, doing this on two different computers may result in completely different results.
+
+:::note
+Two simulations run with the **same initial conditions** if their worlds are configured with the same values (gravity,
+[integration parameters](./integration_parameters.mdx), etc.), rigid-bodies/colliders/joints are constructed the
+same way, and they are inserted into and removed from the world in the exact same order. Note that this includes the
+timestep length: the simulation must be advanced by the same sequence of timesteps on every machine, which excludes a
+timestep length depending on the frame rate of the application.
+:::
+
+It is possible to make Rapier **cross-platform deterministic**, meaning that running a simulation with two different
+computers (including different OS and/or different processors) will result in the exact same results. In order to
+achieve this, both computers must start the simulation with the **same initial conditions** as discussed above, and the
+following additional conditions must be met:
+- The bindings are built with the `determinism` feature, e.g., with
+  `maturin develop --release -F determinism -m python/rapier-py-3d/Cargo.toml` (see
+  [building from source](./getting_started_py.mdx#building-from-source)). The parallelism, which is always enabled,
+  can be combined with it: the results of the parallel solver are identical to the results of the sequential one, and
+  don't depend on the number of threads (nor, therefore, on the number of cores of the machine running the
+  simulation).
+- The target platforms must strictly comply to the IEEE 754-2008 floating-points standard. This ensures that
+  floating-point computations behave the same on all platforms. This include most modern mainstream processors.
+- If some of the values used to initialize Rapier structures are computed using floating points functions (sin, cos,
+  tan, exp, etc.) other than addition/subtraction/multiplication/division/square root, then you need to make sure the
+  functions being used are the ones provided by the `rapier3d.math` module, e.g., `rapier3d.math.sin`, instead of the
+  functions of the `math` module of Python, which rely on the C standard library of the platform. This applies to
+  NumPy as well: its vectorized functions (e.g. `numpy.sin`) may even give different results on two processors of the
+  same platform, depending on the SIMD instructions they support:
+
+```python
+<load path='/3d/python/determinism.py' marker='DeterminismWrong' />
+```
+
+```python
+<load path='/3d/python/determinism.py' marker='Determinism' />
+```
+
+It is recommended to check that the bindings actually loaded by your application are built with the `determinism`
+feature, which is indicated by the `enhanced_determinism` property of `rapier3d.build_features()`:
+
+```python
+<load path='/3d/python/determinism.py' marker='CheckDeterminism' />
+```
+
+A simple way of checking that two simulations are in the exact same state is to compare their
+[snapshots](./serialization.mdx), e.g., with a hash of the bytes given by `PhysicsWorld.snapshot`:
+
+```python
+<load path='/3d/python/determinism.py' marker='SnapshotHash' />
+```
+
+</py>

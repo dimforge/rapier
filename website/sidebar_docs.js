@@ -1,128 +1,102 @@
+import {variants, variantDocs, allVariantLabel, docId} from './src/userGuideVariants';
 
+function variantLabel(variant) {
+  return variant.version ? `${variant.label} (${variant.version})` : variant.label;
+}
 
-let template = {
-  '<Templates>': [
-    'user_guides/templates_injected/getting_started',
-    'user_guides/templates_injected/getting_started_bevy',
-    'user_guides/templates_injected/getting_started_js',
-    'user_guides/templates_injected/simulation_structures',
-    'user_guides/templates_injected/rigid_bodies',
-    'user_guides/templates_injected/colliders',
-    'user_guides/templates_injected/joints',
-    'user_guides/templates_injected/joint_constraints',
-    'user_guides/templates_injected/character_controller',
-    'user_guides/templates_injected/scene_queries',
-    'user_guides/templates_injected/advanced_collision_detection',
-    'user_guides/templates_injected/advanced_collision_detection_js',
-    // 'user_guides/templates_injected/integration_parameters',
-    'user_guides/templates_injected/serialization',
-    'user_guides/templates_injected/determinism',
-    'user_guides/templates_injected/common_mistakes',
-    // 'user_guides/templates_injected/the_rapier_testbed',
-    // 'user_guides/templates_injected/common_recipes',
+const apiDocumentation = {
+  'API Documentation': [
+    'api/javascript/JavaScript2D',
+    'api/javascript/JavaScript3D',
+    'api/c/C',
+    'api/python/Python',
+    {
+      type: 'link',
+      label: 'bevy_rapier2d',
+      href: 'https://docs.rs/bevy_rapier2d'
+    },
+    {
+      type: 'link',
+      label: 'bevy_rapier3d',
+      href: 'https://docs.rs/bevy_rapier3d'
+    },
+    {
+      type: 'link',
+      label: 'rapier2d',
+      href: 'https://docs.rs/rapier2d'
+    },
+    {
+      type: 'link',
+      label: 'rapier3d',
+      href: 'https://docs.rs/rapier3d'
+    },
+    {
+      type: 'link',
+      label: 'rapier2d-f64',
+      href: 'https://docs.rs/rapier2d-f64'
+    },
+    {
+      type: 'link',
+      label: 'rapier3d-f64',
+      href: 'https://docs.rs/rapier3d-f64'
+    },
   ]
 };
 
-let specialized_guides = {
-  'Rust (0.32)': [
-    'user_guides/rust/getting_started',
-    'user_guides/rust/simulation_structures',
-    'user_guides/rust/rigid_bodies',
-    'user_guides/rust/colliders',
-    'user_guides/rust/joints',
-    'user_guides/rust/joint_constraints',
-    'user_guides/rust/character_controller',
-    'user_guides/rust/scene_queries',
-    'user_guides/rust/advanced_collision_detection',
-    // 'user_guides/rust/integration_parameters',
-    'user_guides/rust/serialization',
-    'user_guides/rust/determinism',
-    'user_guides/rust/common_mistakes',
-    // 'user_guides/rust/the_rapier_testbed',
-    // 'user_guides/rust/common_recipes',
-  ],
-  'Bevy Plugin (0.30)': [
-    'user_guides/bevy_plugin/getting_started_bevy',
-    // 'user_guides/bevy_plugin/simulation_structures',
-    'user_guides/bevy_plugin/rigid_bodies',
-    'user_guides/bevy_plugin/colliders',
-    'user_guides/bevy_plugin/joints',
-    'user_guides/bevy_plugin/joint_constraints',
-    'user_guides/bevy_plugin/character_controller',
-    'user_guides/bevy_plugin/scene_queries',
-    'user_guides/bevy_plugin/advanced_collision_detection',
-
-    // bevy specific
-    'user_guides/bevy_plugin/multiple_contexts',
-    'user_guides/bevy_plugin/common_mistakes',
-  ],
-  'JavaScript (0.17)': [
-    'user_guides/javascript/getting_started_js',
-    'user_guides/javascript/rigid_bodies',
-    'user_guides/javascript/colliders',
-    'user_guides/javascript/joints',
-    'user_guides/javascript/joint_constraints',
-    'user_guides/javascript/character_controller',
-    'user_guides/javascript/scene_queries',
-    'user_guides/javascript/advanced_collision_detection_js',
-    'user_guides/javascript/serialization',
-    'user_guides/javascript/determinism',
-    'user_guides/javascript/common_mistakes',
-  ],
+// The API references are docs of the main sidebar: the variant sidebars link to them.
+const apiLabels = {
+  'api/javascript/JavaScript2D': 'JavaScript 2D',
+  'api/javascript/JavaScript3D': 'JavaScript 3D',
+  'api/c/C': 'C bindings',
+  'api/python/Python': 'Python bindings',
 };
 
-let user_guides;
-
-if (!process.env.PUBLISH_MODE) {
-  user_guides = template;
-} else {
-  user_guides = specialized_guides;
+function apiLinks() {
+  return {
+    type: 'category',
+    label: 'API Documentation',
+    items: apiDocumentation['API Documentation'].map((item) =>
+      typeof item === 'string'
+        ? {type: 'link', label: apiLabels[item], href: `/docs/${item}`}
+        : item,
+    ),
+  };
 }
 
-
 const config = {
+  // The main sidebar: the about page, one entry point per variant of the user-guide, and the API references.
   docs: [
     'about_rapier',
     {
-      'User Guides': [user_guides],
+      type: 'category',
+      label: 'User Guide',
+      collapsed: false,
+      items: variants.map((variant) => ({
+        type: 'link',
+        label: variantLabel(variant),
+        href: `/docs/${docId(variant, variantDocs(variant.id)[0])}`,
+      })),
     },
-    {
-      'API Documentation': [
-        'api/javascript/JavaScript2D',
-        'api/javascript/JavaScript3D',
-        {
-          type: 'link',
-          label: 'bevy_rapier2d',
-          href: 'https://docs.rs/bevy_rapier2d'
-        },
-        {
-          type: 'link',
-          label: 'bevy_rapier3d',
-          href: 'https://docs.rs/bevy_rapier3d'
-        },
-        {
-          type: 'link',
-          label: 'rapier2d',
-          href: 'https://docs.rs/rapier2d'
-        },
-        {
-          type: 'link',
-          label: 'rapier3d',
-          href: 'https://docs.rs/rapier3d'
-        },
-        {
-          type: 'link',
-          label: 'rapier2d-f64',
-          href: 'https://docs.rs/rapier2d-f64'
-        },
-        {
-          type: 'link',
-          label: 'rapier3d-f64',
-          href: 'https://docs.rs/rapier3d-f64'
-        },
-      ],
-    }
+    apiDocumentation,
   ],
 };
+
+// One sidebar per variant of the user-guide, shown on its pages; the variant selector on top of each page switches
+// between them.
+for (const variant of variants) {
+  config[`user_guide_${variant.id}`] = [
+    {type: 'link', label: 'About Rapier', href: '/docs/'},
+    {
+      type: 'category',
+      label: `User Guide: ${variantLabel(variant)}`,
+      collapsible: false,
+      items: variantDocs(variant.id).map((name) => {
+        const label = variant.id === 'all' ? allVariantLabel(name) : undefined;
+        return label ? {type: 'doc', id: docId(variant, name), label} : docId(variant, name);
+      }),
+    },
+    apiLinks(),
+  ];
+}
 
 export default config;

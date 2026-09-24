@@ -280,6 +280,59 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_surface_mesh(
         Ok(())
     })
 }
+/// Select a 2D triangle-mesh recipe and borrow its vertices and triangles (stored in positions and
+/// cells). The triangles become structural edges and a boundary, not cells, and shape matching
+/// holds the shape. Other fields are preserved.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim2")]
+#[rapier_export(soft_body_desc)]
+pub unsafe extern "C" fn rpr_soft_body_desc_set_trimesh(
+    desc: *mut RprSoftBodyDesc,
+    vertices: RprVectorView,
+    triangles: RprTriangleView,
+) -> RprStatus {
+    ffi(|| unsafe {
+        validate_view(vertices.data, vertices.count)?;
+        validate_view(triangles.data, triangles.count)?;
+        let desc = get_mut(desc)?;
+        desc.kind = RPR_SOFT_DESC_TRIMESH;
+        desc.positions = vertices;
+        desc.cells = triangles;
+        Ok(())
+    })
+}
+/// Borrow descriptions to merge into this body (see RprSoftBodyDesc::appended); preserve all other
+/// fields. No allocation or element reads.
+/// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
+#[rapier_export(soft_body_desc)]
+pub unsafe extern "C" fn rpr_soft_body_desc_set_appended(
+    desc: *mut RprSoftBodyDesc,
+    view: RprSoftBodyDescView,
+) -> RprStatus {
+    ffi(|| unsafe {
+        validate_view(view.data, view.count)?;
+        let desc = get_mut(desc)?;
+        desc.appended = view;
+        Ok(())
+    })
+}
+/// Borrow structural edges added after appending (see RprSoftBodyDesc::addedEdges); preserve all
+/// other fields. No allocation or element reads.
+/// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
+#[rapier_export(soft_body_desc)]
+pub unsafe extern "C" fn rpr_soft_body_desc_set_added_edges(
+    desc: *mut RprSoftBodyDesc,
+    view: RprEdgeView,
+) -> RprStatus {
+    ffi(|| unsafe {
+        validate_view(view.data, view.count)?;
+        let desc = get_mut(desc)?;
+        desc.addedEdges = view;
+        Ok(())
+    })
+}
 /// Borrow skin geometry. Other fields, including skinCollision, are preserved.
 /// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]

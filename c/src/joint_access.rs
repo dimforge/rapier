@@ -254,7 +254,7 @@ pub unsafe extern "C" fn rpr_impulse_joint_set_enabled(
 }
 
 /// Set the joint desc joint spring coefficients.
-/// @ingroup soft_bodies
+/// @ingroup joints
 #[rapier_export(joint_desc)]
 pub unsafe extern "C" fn rpr_joint_desc_set_softness(
     desc: *mut RprJointDesc,
@@ -268,7 +268,7 @@ pub unsafe extern "C" fn rpr_joint_desc_set_softness(
 }
 /// Set the impulse joint joint spring coefficients.
 /// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
-/// @ingroup soft_bodies
+/// @ingroup joints
 #[rapier_export(impulse_joint)]
 pub unsafe extern "C" fn rpr_impulse_joint_set_softness(
     handle: RprImpulseJointHandle,

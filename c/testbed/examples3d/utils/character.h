@@ -105,7 +105,7 @@ static void updateCharacter(Testbed *viewer, R3World *world, CharacterControlMod
     tbBodyColor(viewer, characterHandle, movement.grounded ? .1f : .8f,
                 movement.grounded ? .8f : .1f, .1f, 1);
     r3KinematicCharacterController_SolveCharacterCollisionImpulses(controller, shape, dt,
-                                                                  mass, &filter);
+                                                                  mass, &query);
     r3FreeSharedShape(shape);
 
     r3RigidBody_SetNextKinematicTranslation(characterHandle,

@@ -70,3 +70,49 @@ js {
 notjs {
   color: mediumvioletred;
 }
+
+c {
+  color: darkorange;
+}
+
+notc {
+  color: teal;
+}
+
+py {
+  color: royalblue;
+}
+
+notpy {
+  color: slategray;
+}
+
+/* Leaves room for the variant selector when jumping to a heading of a user-guide page. */
+.user-guide-page .markdown :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: calc(var(--ifm-navbar-height) + 3.5rem);
+}
+
+/* In the "All" variant of the user-guide, flavour-specific blocks are framed and labelled with their flavour. */
+.user-guide-variant-all .markdown > :is(rapier, bevy, js, notjs, c, notc, py, notpy) {
+  display: block;
+  margin-bottom: var(--ifm-leading);
+  padding-left: 0.75rem;
+  border-left: 3px solid currentColor;
+}
+
+.user-guide-variant-all .markdown > :is(rapier, bevy, js, notjs, c, notc, py, notpy)::before {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: var(--ifm-font-weight-bold);
+  text-transform: uppercase;
+}
+
+.user-guide-variant-all .markdown > rapier::before { content: 'Rust'; }
+.user-guide-variant-all .markdown > bevy::before { content: 'Bevy plugin'; }
+.user-guide-variant-all .markdown > js::before { content: 'JavaScript'; }
+.user-guide-variant-all .markdown > notjs::before { content: 'Rust and Bevy plugin'; }
+.user-guide-variant-all .markdown > c::before { content: 'C'; }
+.user-guide-variant-all .markdown > notc::before { content: 'All but C'; }
+.user-guide-variant-all .markdown > py::before { content: 'Python'; }
+.user-guide-variant-all .markdown > notpy::before { content: 'All but Python'; }

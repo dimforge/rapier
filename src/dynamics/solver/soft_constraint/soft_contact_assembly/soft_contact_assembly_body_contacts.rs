@@ -1,4 +1,5 @@
-//! Per-body contact constraints: the surface's narrow-phase manifold constraints (rigid bodies and particle balls), then the dispatch to the vertex and edge passes.
+//! Per-body contact constraints: the surface's narrow-phase manifold constraints against rigid
+//! bodies, then the dispatch to the vertex and edge passes.
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -173,10 +174,9 @@ impl SoftConstraintsSet {
                     }
                     let surface_rb = surface_co.parent().and_then(|h| bodies.get(h));
                     let other_rb = other_co.parent().and_then(|h| bodies.get(h));
-                    // The other side's soft body and particle when it is a particle ball, and
-                    // that body's awake index (for the chunking).
+                    // The other side is always a rigid body: a soft body collides through its
+                    // meshes, so there is no particle on that side and no self contact here.
                     let other_body = u32::MAX;
-                    // Self contact: the other side is one of this soft body's own particles.
                     let self_particle = None;
                     let com_pose = |rb: &crate::dynamics::RigidBody| {
                         rb.pos
@@ -482,8 +482,8 @@ impl SoftConstraintsSet {
                                 ),
                                 None => (other_anchor, Vector::ZERO),
                             };
-                            // A small ball (a soft particle) touching a surface vertex/edge while
-                            // its center projects inside a neighboring element is a ghost contact
+                            // A small ball touching a surface vertex/edge while its center
+                            // projects inside a neighboring element is a ghost contact
                             // (spurious normal): skipped; large balls and split endpoints are real.
                             if let Some(ball) =
                                 other_co.shape().as_ball().filter(|_| !split_endpoints)

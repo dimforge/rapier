@@ -3,23 +3,24 @@
 This package mirrors the Rust ``src_testbed`` crate in spirit: each example
 implements ``init_world(testbed: Testbed) -> None``, populates a fresh set
 of ``RigidBodySet`` / ``ColliderSet`` / ``ImpulseJointSet`` /
-``MultibodyJointSet``, and hands them to the testbed via
-:meth:`Testbed.set_world`. The testbed owns the solver state and steps it
-each frame, feeding the :class:`DebugRenderPipeline` output into Panda3D
-:class:`LineSegs` geometry.
+``MultibodyJointSet`` (or a whole ``PhysicsWorld``), and hands them to the
+testbed via :meth:`Testbed.set_world`. The testbed owns the solver state
+(or uses the world's) and steps it each frame, rendering the colliders with
+Panda3D.
 
 Quick start::
 
     from rapier_testbed import Testbed, register
 
     def init_world(testbed: Testbed) -> None:
-        import rapier as rp
+        import rapier3d as rp
         bodies = rp.RigidBodySet()
         colliders = rp.ColliderSet()
         impulse_joints = rp.ImpulseJointSet()
         multibody_joints = rp.MultibodyJointSet()
         # ... build the scene ...
         testbed.set_world(bodies, colliders, impulse_joints, multibody_joints)
+        # Or: testbed.set_world(world) with a rp.PhysicsWorld.
         testbed.look_at((20, -40, 25), (0, 0, 0))
 
     register("Demo", "Hello", init_world)

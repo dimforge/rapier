@@ -13,14 +13,18 @@ fn main() {
             Update,
             modify_body_velocity.run_if(input_just_pressed(KeyCode::KeyV)),
         )
+        .add_systems(
+            Update,
+            modify_body_translation.run_if(input_just_pressed(KeyCode::KeyT)),
+        )
         .add_systems(Update, reset_position)
         .add_systems(
             Update,
-            apply_forces.run_if(input_just_pressed(KeyCode::KeyF)),
+            (apply_forces, apply_impulse_at_point).run_if(input_just_pressed(KeyCode::KeyF)),
         )
         .add_systems(
             Update,
-            modify_body_mass_props.run_if(input_just_pressed(KeyCode::KeyF)),
+            modify_body_mass_props.run_if(input_just_pressed(KeyCode::KeyM)),
         )
         .run();
 }
@@ -41,8 +45,8 @@ fn setup_physics(mut commands: Commands) {
         .insert(Transform::from_xyz(0.0, 5.0, 0.0))
         // DOCUSAURUS: Position1 stop
         .insert(Velocity {
-            linvel: Vec2::new(1.0, 2.0),
-            angvel: 0.2,
+            linear: Vec2::new(1.0, 2.0),
+            angular: 0.2,
         })
         .insert(GravityScale(0.5))
         .insert(Sleeping::disabled())
@@ -52,8 +56,8 @@ fn setup_physics(mut commands: Commands) {
     // DOCUSAURUS: Velocity1 start
     /* Set the velocities when the rigid-body is created. */
     commands.spawn(RigidBody::Dynamic).insert(Velocity {
-        linvel: Vec2::new(0.0, 2.0),
-        angvel: 0.4,
+        linear: Vec2::new(0.0, 2.0),
+        angular: 0.4,
     });
     // DOCUSAURUS: Velocity1 stop
 
@@ -67,7 +71,9 @@ fn setup_physics(mut commands: Commands) {
         .insert(ExternalImpulse {
             impulse: Vec2::new(100.0, 200.0),
             torque_impulse: 14.0,
-        });
+        })
+        // Needed to read the world-space center-of-mass from `apply_impulse_at_point`.
+        .insert(ReadWorldMassProperties::default());
     // DOCUSAURUS: Forces1 stop
     // DOCUSAURUS: Mass1 start
     // When the collider is attached, the rigid-body's mass and angular
@@ -99,8 +105,8 @@ fn modify_body_translation(mut positions: Query<&mut Transform, With<RigidBody>>
 /* Set the velocities inside of a system. */
 fn modify_body_velocity(mut velocities: Query<&mut Velocity>) {
     for mut vel in velocities.iter_mut() {
-        vel.linvel = Vec2::new(0.0, 2.0);
-        vel.angvel = 0.4;
+        vel.linear = Vec2::new(0.0, 2.0);
+        vel.angular = 0.4;
     }
 }
 // DOCUSAURUS: Velocity2 stop
@@ -121,6 +127,18 @@ fn apply_forces(
     for mut ext_impulse in ext_impulses.iter_mut() {
         ext_impulse.impulse = Vec2::new(100.0, 200.0);
         ext_impulse.torque_impulse = 0.4;
+    }
+}
+
+/* Apply an impulse at a world-space point inside of a system. */
+fn apply_impulse_at_point(mut bodies: Query<(&mut ExternalImpulse, &ReadWorldMassProperties)>) {
+    for (mut ext_impulse, mprops) in bodies.iter_mut() {
+        // The torque impulse is deduced from the world-space center-of-mass of the rigid-body.
+        *ext_impulse += ExternalImpulse::at_point(
+            Vec2::new(0.0, 100.0),
+            Vec2::new(1.0, 2.0),
+            mprops.center_of_mass,
+        );
     }
 }
 // DOCUSAURUS: Forces2 stop

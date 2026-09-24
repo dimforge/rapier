@@ -31,13 +31,196 @@
 //! support mid-step aborts, so "strict" simply makes the error get re-raised
 //! *and* future hook calls during the same step early-return without invoking
 //! the user callback).
+//!
+//! While a step runs, the Python sets it steps are mutably borrowed. Each
+//! callback lends the shared references the engine gives it (see `LendGuard`),
+//! so the Python code can still read those sets and the views into them.
 
 use crate::pyo3::exceptions::PyTypeError;
 use crate::pyo3::pyclass::CompareOp;
 use crate::*;
 use rapier3d as rapier;
 
+use std::any::TypeId;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+
+// =====================================================================
+// Sets lent to the Python callbacks.
+//
+// A step holds the world's sets mutably borrowed on the Python side, but
+// the engine hands its callbacks shared references to them. While a
+// callback runs, these references are registered here, keyed by the
+// Python object of the set, so that reading that set (or a view into it)
+// goes through them instead of failing on the Python-side borrow.
+// =====================================================================
+
+struct LentSet {
+    guard: u64,
+    py_obj: usize,
+    type_id: TypeId,
+    ptr: usize,
+    // Reads in progress through this loan, and whether it is ending (no new reads).
+    readers: usize,
+    closing: bool,
+}
+
+static LENT_SETS: Mutex<Vec<LentSet>> = Mutex::new(Vec::new());
+static NEXT_LEND_GUARD: AtomicU64 = AtomicU64::new(0);
+
+fn lent_sets() -> std::sync::MutexGuard<'static, Vec<LentSet>> {
+    LENT_SETS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Registration of the sets lent to one callback; dropping it ends the loan.
+///
+/// It must be dropped inside the engine callback that received the lent
+/// references, while holding the GIL.
+pub(crate) struct LendGuard(u64);
+
+impl LendGuard {
+    fn new() -> Self {
+        Self(NEXT_LEND_GUARD.fetch_add(1, Ordering::Relaxed))
+    }
+
+    /// Lend `set` as the rapier set behind the Python object `py_obj`.
+    fn lend<T: 'static>(&self, py_obj: *mut crate::pyo3::ffi::PyObject, set: &T) {
+        lent_sets().push(LentSet {
+            guard: self.0,
+            py_obj: py_obj as usize,
+            type_id: TypeId::of::<T>(),
+            ptr: set as *const T as usize,
+            readers: 0,
+            closing: false,
+        });
+    }
+
+    /// Remove the loans if no read is in progress through them.
+    fn try_end(&self) -> bool {
+        let mut sets = lent_sets();
+        let mut busy = false;
+        for e in sets.iter_mut().filter(|e| e.guard == self.0) {
+            e.closing = true;
+            busy |= e.readers > 0;
+        }
+        if !busy {
+            sets.retain(|e| e.guard != self.0);
+        }
+        !busy
+    }
+}
+
+impl Drop for LendGuard {
+    fn drop(&mut self) {
+        if !self.try_end() {
+            // A read from another Python thread gave up the GIL mid-way: let it finish.
+            Python::with_gil(|py| {
+                py.allow_threads(|| {
+                    while !self.try_end() {
+                        std::thread::yield_now();
+                    }
+                })
+            });
+        }
+    }
+}
+
+/// Ends a read through a loan, even if the read panics.
+struct LentRead(u64, usize);
+
+impl Drop for LentRead {
+    fn drop(&mut self) {
+        if let Some(e) = lent_sets()
+            .iter_mut()
+            .find(|e| e.guard == self.0 && e.py_obj == self.1)
+        {
+            e.readers -= 1;
+        }
+    }
+}
+
+/// Run `f` on the rapier set a running callback lends for the Python object
+/// `py_obj`, or pass `f` to `otherwise` if no callback lends it.
+pub(crate) fn with_lent_or<T: 'static, R, F: FnOnce(&T) -> R>(
+    py_obj: *mut crate::pyo3::ffi::PyObject,
+    f: F,
+    otherwise: impl FnOnce(F) -> PyResult<R>,
+) -> PyResult<R> {
+    let lent = {
+        let mut sets = lent_sets();
+        sets.iter_mut()
+            .rev()
+            .find(|e| !e.closing && e.py_obj == py_obj as usize && e.type_id == TypeId::of::<T>())
+            .map(|e| {
+                e.readers += 1;
+                (e.ptr, LentRead(e.guard, e.py_obj))
+            })
+    };
+    match lent {
+        // SAFETY: the pointer comes from a shared reference the engine passed to a
+        // callback, lent only while that callback runs: the callback doesn't return
+        // before this read ends (`LendGuard::drop` waits for it).
+        Some((ptr, _read)) => Ok(f(unsafe { &*(ptr as *const T) })),
+        None => otherwise(f),
+    }
+}
+
+/// The error raised when a set is accessed while a step borrows it.
+pub(crate) fn stepping_error(what: &str) -> PyErr {
+    crate::pyo3::exceptions::PyRuntimeError::new_err(format!(
+        "{what} is in use by a running step: from a physics hook or event handler, the \
+         rigid-body, collider and soft-body sets can only be read"
+    ))
+}
+
+/// Borrow `obj` immutably, raising `RuntimeError` if a step holds it.
+pub(crate) fn try_read<'py, T: crate::pyo3::PyClass>(
+    obj: &'py Py<T>,
+    py: Python<'py>,
+) -> PyResult<PyRef<'py, T>> {
+    obj.try_borrow(py)
+        .map_err(|_| stepping_error(<T as crate::pyo3::PyTypeInfo>::NAME))
+}
+
+/// Borrow `obj` mutably, raising `RuntimeError` if a step (or a read) holds it.
+pub(crate) fn try_write<
+    'py,
+    T: crate::pyo3::PyClass<Frozen = crate::pyo3::pyclass::boolean_struct::False>,
+>(
+    obj: &'py Py<T>,
+    py: Python<'py>,
+) -> PyResult<PyRefMut<'py, T>> {
+    obj.try_borrow_mut(py)
+        .map_err(|_| stepping_error(<T as crate::pyo3::PyTypeInfo>::NAME))
+}
+
+/// The Python sets a step hands to its callbacks, lent while each one runs.
+pub struct CallbackSets {
+    pub bodies: Py<RigidBodySet>,
+    pub colliders: Py<ColliderSet>,
+    pub soft_bodies: Option<Py<crate::soft_body::SoftBodySet>>,
+}
+
+impl CallbackSets {
+    fn clone_ref(&self, py: Python<'_>) -> Self {
+        Self {
+            bodies: self.bodies.clone_ref(py),
+            colliders: self.colliders.clone_ref(py),
+            soft_bodies: self.soft_bodies.as_ref().map(|s| s.clone_ref(py)),
+        }
+    }
+
+    fn lend(
+        &self,
+        bodies: &rapier::dynamics::RigidBodySet,
+        colliders: &rapier::geometry::ColliderSet,
+    ) -> LendGuard {
+        let guard = LendGuard::new();
+        guard.lend(self.bodies.as_ptr(), bodies);
+        guard.lend(self.colliders.as_ptr(), colliders);
+        guard
+    }
+}
 
 // =====================================================================
 // Deferred-error policy.
@@ -182,20 +365,43 @@ impl SolverFlags {
 /// Context passed to ``PhysicsHooks.filter_contact_pair`` /
 /// ``filter_intersection_pair``.
 ///
-/// Exposes the two colliders and (when applicable) their parent rigid
-/// bodies. The instance is a **transient view** valid only for the
-/// duration of the callback that received it — keeping a reference
-/// around and accessing it later raises ``RuntimeError``.
+/// Exposes the two colliders, their parent rigid bodies (when
+/// applicable) and the sets holding them. The sets are the ones being
+/// stepped: during the callback they (and the views into them) can be
+/// read but not modified.
 #[pyclass(name = "PairFilterContext", module = "rapier", unsendable)]
 pub struct PairFilterContext {
     collider1: rapier::geometry::ColliderHandle,
     collider2: rapier::geometry::ColliderHandle,
     rigid_body1: Option<rapier::dynamics::RigidBodyHandle>,
     rigid_body2: Option<rapier::dynamics::RigidBodyHandle>,
+    sets: CallbackSets,
+}
+
+impl PairFilterContext {
+    /// The raw handles of the two colliders of the pair.
+    pub(crate) fn collider_handles(
+        &self,
+    ) -> (
+        rapier::geometry::ColliderHandle,
+        rapier::geometry::ColliderHandle,
+    ) {
+        (self.collider1, self.collider2)
+    }
 }
 
 #[pymethods]
 impl PairFilterContext {
+    /// The :class:`ColliderSet` being stepped, readable during the callback.
+    #[getter]
+    fn colliders(&self, py: Python<'_>) -> Py<ColliderSet> {
+        self.sets.colliders.clone_ref(py)
+    }
+    /// The :class:`RigidBodySet` being stepped, readable during the callback.
+    #[getter]
+    fn bodies(&self, py: Python<'_>) -> Py<RigidBodySet> {
+        self.sets.bodies.clone_ref(py)
+    }
     /// Handle of the first collider in the pair.
     #[getter]
     fn collider1(&self) -> ColliderHandle {
@@ -240,12 +446,14 @@ impl PairFilterContext {
 /// before they're handed to the constraint solver: clear them to skip
 /// the contact, flip the normal, tweak per-contact user data, etc.
 ///
-/// Like :class:`PairFilterContext`, the instance is a **transient
-/// view** valid only inside the callback — accessing mutating fields
-/// (``normal``, ``user_data``, ``solver_contacts``) after the callback
-/// returns raises ``RuntimeError``.
+/// The instance is a **transient view** valid only inside the callback:
+/// accessing the contact data (``normal``, ``user_data``,
+/// ``solver_contacts``, ...) after the callback returns raises
+/// ``RuntimeError``. Like :class:`PairFilterContext`, it also exposes the
+/// sets being stepped, readable during the callback.
 #[pyclass(name = "ContactModificationContext", module = "rapier", unsendable)]
 pub struct ContactModificationContext {
+    sets: CallbackSets,
     collider1: rapier::geometry::ColliderHandle,
     collider2: rapier::geometry::ColliderHandle,
     rigid_body1: Option<rapier::dynamics::RigidBodyHandle>,
@@ -263,6 +471,16 @@ pub struct ContactModificationContext {
 }
 
 impl ContactModificationContext {
+    /// The raw handles of the two colliders of the pair.
+    pub(crate) fn collider_handles(
+        &self,
+    ) -> (
+        rapier::geometry::ColliderHandle,
+        rapier::geometry::ColliderHandle,
+    ) {
+        (self.collider1, self.collider2)
+    }
+
     #[inline]
     fn check_valid(&self) -> PyResult<()> {
         if !self.valid {
@@ -276,6 +494,16 @@ impl ContactModificationContext {
 
 #[pymethods]
 impl ContactModificationContext {
+    /// The :class:`ColliderSet` being stepped, readable during the callback.
+    #[getter]
+    fn colliders(&self, py: Python<'_>) -> Py<ColliderSet> {
+        self.sets.colliders.clone_ref(py)
+    }
+    /// The :class:`RigidBodySet` being stepped, readable during the callback.
+    #[getter]
+    fn bodies(&self, py: Python<'_>) -> Py<RigidBodySet> {
+        self.sets.bodies.clone_ref(py)
+    }
     /// Handle of the first collider in the pair.
     #[getter]
     fn collider1(&self) -> ColliderHandle {
@@ -370,7 +598,7 @@ impl ContactModificationContext {
     ///
     /// :raises RuntimeError: If accessed outside the callback.
     #[setter]
-    fn set_friction(&mut self, v: Real) -> PyResult<()> {
+    pub(crate) fn set_friction(&mut self, v: Real) -> PyResult<()> {
         self.check_valid()?;
         // SAFETY: see `normal` getter.
         unsafe {
@@ -403,31 +631,84 @@ impl ContactModificationContext {
 
     /// Return the current solver contacts as a list (read-only snapshot).
     ///
+    /// Inside the callback, their ``point`` / ``point2`` are world-space.
+    /// Use :meth:`set_solver_contact` to modify one.
+    ///
     /// :raises RuntimeError: If accessed outside the callback.
     #[getter]
     fn solver_contacts(&self) -> PyResult<Vec<SolverContact>> {
         self.check_valid()?;
         // SAFETY: see `normal` getter.
         let vec_ref: &Vec<rapier::geometry::SolverContact> = unsafe { &*self.solver_contacts };
-        let mut out = Vec::with_capacity(vec_ref.len());
-        for sc in vec_ref {
-            out.push({
-                // Inside the modification hook the anchors hold the fresh
-                // world-space contact points; is-new lives in bit 31 of the
-                // contact id.
-                let p1: crate::na::Vector3<Real> = sc.anchor1.into();
-                let p2: crate::na::Vector3<Real> = sc.anchor2.into();
-                let id = sc.contact_id[0];
-                SolverContact {
-                    point: Point3(crate::na::Point3::from(p1)),
-                    point2: Point3(crate::na::Point3::from(p2)),
-                    dist: sc.dist,
-                    contact_id: id & !rapier::geometry::NEW_CONTACT_BIT,
-                    is_new: (id & rapier::geometry::NEW_CONTACT_BIT) != 0,
-                }
-            });
+        Ok(vec_ref.iter().map(SolverContact::from_rapier).collect())
+    }
+
+    /// Modify the solver contact at index ``i``; the arguments left to
+    /// ``None`` are kept.
+    ///
+    /// :param i: Zero-based index into :attr:`solver_contacts`.
+    /// :param point: World-space contact point on the first collider.
+    /// :param point2: World-space contact point on the second collider.
+    /// :param dist: Separation along the normal (negative when
+    ///     penetrating). A value differing from the gap between the two
+    ///     points shifts the contact.
+    /// :param tangent_velocity: World-space tangent velocity of the second
+    ///     collider's surface relative to the first one's that the solver
+    ///     tries to reach at the contact (see :meth:`set_tangent_velocity`).
+    /// :raises IndexError: If ``i`` is out of range.
+    /// :raises RuntimeError: If accessed outside the callback.
+    #[pyo3(signature = (i, *, point=None, point2=None, dist=None, tangent_velocity=None))]
+    fn set_solver_contact(
+        &mut self,
+        i: usize,
+        point: Option<PyPoint>,
+        point2: Option<PyPoint>,
+        dist: Option<Real>,
+        tangent_velocity: Option<PyVector>,
+    ) -> PyResult<()> {
+        self.check_valid()?;
+        // SAFETY: see `normal` getter.
+        let contacts = unsafe { &mut *self.solver_contacts };
+        let len = contacts.len();
+        let sc = contacts.get_mut(i).ok_or_else(|| {
+            crate::pyo3::exceptions::PyIndexError::new_err(format!(
+                "solver contact index {i} out of range (the manifold has {len})"
+            ))
+        })?;
+        if let Some(p) = point {
+            sc.anchor1 = p.0.coords.into();
         }
-        Ok(out)
+        if let Some(p) = point2 {
+            sc.anchor2 = p.0.coords.into();
+        }
+        if let Some(d) = dist {
+            sc.dist = d;
+        }
+        if let Some(v) = tangent_velocity {
+            sc.tangent_velocity = v.0.into();
+        }
+        Ok(())
+    }
+
+    /// Set the world-space tangent velocity of every solver contact of the
+    /// manifold, e.g. to make a conveyor belt drag what touches it.
+    ///
+    /// It is the velocity of the second collider's surface relative to the
+    /// first one's: a belt dragging objects along ``v`` sets ``v`` when it
+    /// is :attr:`collider1`, and ``-v`` when it is :attr:`collider2`.
+    /// Like every hook, it is only called while the pair is awake.
+    ///
+    /// :param velocity: World-space relative tangent velocity the solver
+    ///     tries to reach at the contacts.
+    /// :raises RuntimeError: If accessed outside the callback.
+    fn set_tangent_velocity(&mut self, velocity: PyVector) -> PyResult<()> {
+        self.check_valid()?;
+        let v: rapier::math::Vector = velocity.0.into();
+        // SAFETY: see `normal` getter.
+        for sc in unsafe { (*self.solver_contacts).iter_mut() } {
+            sc.tangent_velocity = v;
+        }
+        Ok(())
     }
 
     /// Clear all solver contacts (the manifold won't contribute to the solver).
@@ -542,33 +823,65 @@ impl ContactModificationContext {
 // `EventHandler` protocol to rapier's `EventHandler` trait.
 // =====================================================================
 
+/// Stash the first exception raised by a callback of a step.
+fn stash_error(slot: &Mutex<DeferredError>, e: PyErr) {
+    let mut s = slot.lock().unwrap();
+    if s.err.is_none() {
+        s.err = Some(e);
+    }
+    if s.policy_strict {
+        s.aborted = true;
+    }
+}
+
+fn is_aborted(slot: &Mutex<DeferredError>) -> bool {
+    slot.lock().unwrap().aborted
+}
+
 /// Adapter wrapping an arbitrary Python `EventHandler`-protocol object.
 pub struct PyEventHandler {
     obj: Py<PyAny>,
     err_slot: Arc<Mutex<DeferredError>>,
+    sets: CallbackSets,
+    // Every method of the protocol is optional.
+    has_collision: bool,
+    has_contact_force: bool,
+    has_soft_body_tear: bool,
 }
 
 impl PyEventHandler {
-    pub fn new(obj: Py<PyAny>, err_slot: Arc<Mutex<DeferredError>>) -> Self {
-        Self { obj, err_slot }
+    pub fn new(
+        py: Python<'_>,
+        obj: Py<PyAny>,
+        err_slot: Arc<Mutex<DeferredError>>,
+        sets: CallbackSets,
+    ) -> Self {
+        let bound = obj.bind(py);
+        let has = |name: &str| bound.hasattr(name).unwrap_or(false);
+        Self {
+            has_collision: has("handle_collision_event"),
+            has_contact_force: has("handle_contact_force_event"),
+            has_soft_body_tear: has("handle_soft_body_tear_event"),
+            obj,
+            err_slot,
+            sets,
+        }
     }
 }
 
 impl rapier::pipeline::EventHandler for PyEventHandler {
     fn handle_collision_event(
         &self,
-        _bodies: &rapier::dynamics::RigidBodySet,
-        _colliders: &rapier::geometry::ColliderSet,
+        bodies: &rapier::dynamics::RigidBodySet,
+        colliders: &rapier::geometry::ColliderSet,
         event: rapier::geometry::CollisionEvent,
         contact_pair: Option<&rapier::geometry::ContactPair>,
     ) {
-        {
-            let slot = self.err_slot.lock().unwrap();
-            if slot.aborted {
-                return;
-            }
+        if !self.has_collision || is_aborted(&self.err_slot) {
+            return;
         }
         Python::with_gil(|py| {
+            let _loan = self.sets.lend(bodies, colliders);
             let py_event = CollisionEvent::from_rapier(event);
             let py_pair: PyObject = match contact_pair {
                 Some(p) => Py::new(py, ContactPair(p.clone()))
@@ -578,50 +891,44 @@ impl rapier::pipeline::EventHandler for PyEventHandler {
             };
             let res = self.obj.bind(py).call_method1(
                 "handle_collision_event",
-                (py.None(), py.None(), py_event, py_pair),
+                (
+                    self.sets.bodies.clone_ref(py),
+                    self.sets.colliders.clone_ref(py),
+                    py_event,
+                    py_pair,
+                ),
             );
             if let Err(e) = res {
-                let mut s = self.err_slot.lock().unwrap();
-                if s.err.is_none() {
-                    s.err = Some(e);
-                }
-                if s.policy_strict {
-                    s.aborted = true;
-                }
+                stash_error(&self.err_slot, e);
             }
         });
     }
 
     fn handle_soft_body_tear_event(
         &self,
-        _soft_bodies: &rapier::dynamics::SoftBodySet,
+        soft_bodies: &rapier::dynamics::SoftBodySet,
         event: &rapier::dynamics::SoftBodyTearEvent,
     ) {
-        {
-            let slot = self.err_slot.lock().unwrap();
-            if slot.aborted {
-                return;
-            }
+        if !self.has_soft_body_tear || is_aborted(&self.err_slot) {
+            return;
         }
         Python::with_gil(|py| {
-            let bound = self.obj.bind(py);
-            // The method is optional: handlers written before soft bodies existed keep working.
-            if !bound
-                .hasattr("handle_soft_body_tear_event")
-                .unwrap_or(false)
-            {
-                return;
-            }
+            let loan = LendGuard::new();
+            let py_soft_bodies: PyObject = match &self.sets.soft_bodies {
+                Some(s) => {
+                    loan.lend(s.as_ptr(), soft_bodies);
+                    s.clone_ref(py).into_any()
+                }
+                None => py.None(),
+            };
             let py_event = crate::soft_body::SoftBodyTearEvent(event.clone());
-            let res = bound.call_method1("handle_soft_body_tear_event", (py.None(), py_event));
+            let res = self
+                .obj
+                .bind(py)
+                .call_method1("handle_soft_body_tear_event", (py_soft_bodies, py_event));
+            drop(loan);
             if let Err(e) = res {
-                let mut s = self.err_slot.lock().unwrap();
-                if s.err.is_none() {
-                    s.err = Some(e);
-                }
-                if s.policy_strict {
-                    s.aborted = true;
-                }
+                stash_error(&self.err_slot, e);
             }
         });
     }
@@ -629,43 +936,30 @@ impl rapier::pipeline::EventHandler for PyEventHandler {
     fn handle_contact_force_event(
         &self,
         dt: Real,
-        _bodies: &rapier::dynamics::RigidBodySet,
-        _colliders: &rapier::geometry::ColliderSet,
+        bodies: &rapier::dynamics::RigidBodySet,
+        colliders: &rapier::geometry::ColliderSet,
         contact_pair: &rapier::geometry::ContactPair,
         total_force_magnitude: Real,
     ) {
-        {
-            let slot = self.err_slot.lock().unwrap();
-            if slot.aborted {
-                return;
-            }
+        if !self.has_contact_force || is_aborted(&self.err_slot) {
+            return;
         }
         Python::with_gil(|py| {
-            let py_pair = match Py::new(py, ContactPair(contact_pair.clone())) {
-                Ok(p) => p,
-                Err(e) => {
-                    let mut s = self.err_slot.lock().unwrap();
-                    if s.err.is_none() {
-                        s.err = Some(e);
-                    }
-                    if s.policy_strict {
-                        s.aborted = true;
-                    }
-                    return;
-                }
-            };
-            let res = self.obj.bind(py).call_method1(
-                "handle_contact_force_event",
-                (dt, py.None(), py.None(), py_pair, total_force_magnitude),
-            );
+            let _loan = self.sets.lend(bodies, colliders);
+            let res = Py::new(py, ContactPair(contact_pair.clone())).and_then(|py_pair| {
+                self.obj.bind(py).call_method1(
+                    "handle_contact_force_event",
+                    (
+                        dt,
+                        self.sets.bodies.clone_ref(py),
+                        self.sets.colliders.clone_ref(py),
+                        py_pair,
+                        total_force_magnitude,
+                    ),
+                )
+            });
             if let Err(e) = res {
-                let mut s = self.err_slot.lock().unwrap();
-                if s.err.is_none() {
-                    s.err = Some(e);
-                }
-                if s.policy_strict {
-                    s.aborted = true;
-                }
+                stash_error(&self.err_slot, e);
             }
         });
     }
@@ -842,11 +1136,48 @@ impl rapier::pipeline::EventHandler for ChannelEventCollectorAdapter {
 pub struct PyPhysicsHooks {
     obj: Py<PyAny>,
     err_slot: Arc<Mutex<DeferredError>>,
+    sets: CallbackSets,
+    // Every method of the protocol is optional: a missing one behaves as
+    // the engine's default hook.
+    has_filter_contact: bool,
+    has_filter_intersection: bool,
+    has_modify: bool,
 }
 
 impl PyPhysicsHooks {
-    pub fn new(obj: Py<PyAny>, err_slot: Arc<Mutex<DeferredError>>) -> Self {
-        Self { obj, err_slot }
+    pub fn new(
+        py: Python<'_>,
+        obj: Py<PyAny>,
+        err_slot: Arc<Mutex<DeferredError>>,
+        sets: CallbackSets,
+    ) -> Self {
+        let bound = obj.bind(py);
+        let has = |name: &str| bound.hasattr(name).unwrap_or(false);
+        Self {
+            has_filter_contact: has("filter_contact_pair"),
+            has_filter_intersection: has("filter_intersection_pair"),
+            has_modify: has("modify_solver_contacts"),
+            obj,
+            err_slot,
+            sets,
+        }
+    }
+
+    fn pair_filter_context(
+        &self,
+        py: Python<'_>,
+        context: &rapier::pipeline::PairFilterContext,
+    ) -> PyResult<Py<PairFilterContext>> {
+        Py::new(
+            py,
+            PairFilterContext {
+                collider1: context.collider1,
+                collider2: context.collider2,
+                rigid_body1: context.rigid_body1,
+                rigid_body2: context.rigid_body2,
+                sets: self.sets.clone_ref(py),
+            },
+        )
     }
 }
 
@@ -855,47 +1186,19 @@ impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
         &self,
         context: &rapier::pipeline::PairFilterContext,
     ) -> Option<rapier::geometry::SolverFlags> {
-        {
-            let slot = self.err_slot.lock().unwrap();
-            if slot.aborted {
-                return Some(rapier::geometry::SolverFlags::default());
-            }
+        if !self.has_filter_contact || is_aborted(&self.err_slot) {
+            return Some(rapier::geometry::SolverFlags::default());
         }
         Python::with_gil(|py| {
-            let ctx = match Py::new(
-                py,
-                PairFilterContext {
-                    collider1: context.collider1,
-                    collider2: context.collider2,
-                    rigid_body1: context.rigid_body1,
-                    rigid_body2: context.rigid_body2,
-                },
-            ) {
-                Ok(c) => c,
-                Err(e) => {
-                    let mut s = self.err_slot.lock().unwrap();
-                    if s.err.is_none() {
-                        s.err = Some(e);
-                    }
-                    if s.policy_strict {
-                        s.aborted = true;
-                    }
-                    return Some(rapier::geometry::SolverFlags::default());
-                }
-            };
-            let res = self
-                .obj
-                .bind(py)
-                .call_method1("filter_contact_pair", (ctx,));
+            let _loan = self.sets.lend(context.bodies, context.colliders);
+            let res = self.pair_filter_context(py, context).and_then(|ctx| {
+                self.obj
+                    .bind(py)
+                    .call_method1("filter_contact_pair", (ctx,))
+            });
             match res {
                 Err(e) => {
-                    let mut s = self.err_slot.lock().unwrap();
-                    if s.err.is_none() {
-                        s.err = Some(e);
-                    }
-                    if s.policy_strict {
-                        s.aborted = true;
-                    }
+                    stash_error(&self.err_slot, e);
                     Some(rapier::geometry::SolverFlags::default())
                 }
                 Ok(v) => {
@@ -915,47 +1218,19 @@ impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
     }
 
     fn filter_intersection_pair(&self, context: &rapier::pipeline::PairFilterContext) -> bool {
-        {
-            let slot = self.err_slot.lock().unwrap();
-            if slot.aborted {
-                return true;
-            }
+        if !self.has_filter_intersection || is_aborted(&self.err_slot) {
+            return true;
         }
         Python::with_gil(|py| {
-            let ctx = match Py::new(
-                py,
-                PairFilterContext {
-                    collider1: context.collider1,
-                    collider2: context.collider2,
-                    rigid_body1: context.rigid_body1,
-                    rigid_body2: context.rigid_body2,
-                },
-            ) {
-                Ok(c) => c,
+            let _loan = self.sets.lend(context.bodies, context.colliders);
+            let res = self.pair_filter_context(py, context).and_then(|ctx| {
+                self.obj
+                    .bind(py)
+                    .call_method1("filter_intersection_pair", (ctx,))
+            });
+            match res {
                 Err(e) => {
-                    let mut s = self.err_slot.lock().unwrap();
-                    if s.err.is_none() {
-                        s.err = Some(e);
-                    }
-                    if s.policy_strict {
-                        s.aborted = true;
-                    }
-                    return true;
-                }
-            };
-            match self
-                .obj
-                .bind(py)
-                .call_method1("filter_intersection_pair", (ctx,))
-            {
-                Err(e) => {
-                    let mut s = self.err_slot.lock().unwrap();
-                    if s.err.is_none() {
-                        s.err = Some(e);
-                    }
-                    if s.policy_strict {
-                        s.aborted = true;
-                    }
+                    stash_error(&self.err_slot, e);
                     true
                 }
                 Ok(v) => v.extract::<bool>().unwrap_or(true),
@@ -964,12 +1239,10 @@ impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
     }
 
     fn modify_solver_contacts(&self, context: &mut rapier::pipeline::ContactModificationContext) {
-        {
-            let slot = self.err_slot.lock().unwrap();
-            if slot.aborted {
-                return;
-            }
+        if !self.has_modify || is_aborted(&self.err_slot) {
+            return;
         }
+        let (bodies, colliders) = (context.bodies, context.colliders);
         // The contacts of two soft surfaces are candidates rather than a manifold: the Python
         // hook only sees rigid manifolds.
         let manifold = match &mut context.contacts {
@@ -977,39 +1250,28 @@ impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
             rapier::pipeline::ModifiableContacts::Soft(_) => return,
         };
         Python::with_gil(|py| {
-            let manifold_local_n1 = manifold.manifold.local_n1;
-            let manifold_local_n2 = manifold.manifold.local_n2;
-            let normal_ptr: *mut rapier::math::Vector = manifold.normal;
-            let sc_ptr: *mut Vec<rapier::geometry::SolverContact> = manifold.solver_contacts;
-            let friction_ptr: *mut Real = manifold.friction;
-            let restitution_ptr: *mut Real = manifold.restitution;
-            let ud_ptr: *mut u32 = manifold.user_data;
+            let _loan = self.sets.lend(bodies, colliders);
             let ctx_py = match Py::new(
                 py,
                 ContactModificationContext {
+                    sets: self.sets.clone_ref(py),
                     collider1: context.collider1,
                     collider2: context.collider2,
                     rigid_body1: context.rigid_body1,
                     rigid_body2: context.rigid_body2,
-                    local_n1: manifold_local_n1,
-                    local_n2: manifold_local_n2,
-                    normal: normal_ptr,
-                    solver_contacts: sc_ptr,
-                    friction: friction_ptr,
-                    restitution: restitution_ptr,
-                    user_data: ud_ptr,
+                    local_n1: manifold.manifold.local_n1,
+                    local_n2: manifold.manifold.local_n2,
+                    normal: manifold.normal,
+                    solver_contacts: manifold.solver_contacts,
+                    friction: manifold.friction,
+                    restitution: manifold.restitution,
+                    user_data: manifold.user_data,
                     valid: true,
                 },
             ) {
                 Ok(c) => c,
                 Err(e) => {
-                    let mut s = self.err_slot.lock().unwrap();
-                    if s.err.is_none() {
-                        s.err = Some(e);
-                    }
-                    if s.policy_strict {
-                        s.aborted = true;
-                    }
+                    stash_error(&self.err_slot, e);
                     return;
                 }
             };
@@ -1019,18 +1281,9 @@ impl rapier::pipeline::PhysicsHooks for PyPhysicsHooks {
                 .call_method1("modify_solver_contacts", (ctx_py.clone_ref(py),));
             // Invalidate the transient view before letting Python see
             // its `None` return.
-            {
-                let mut borrowed = ctx_py.borrow_mut(py);
-                borrowed.valid = false;
-            }
+            ctx_py.borrow_mut(py).valid = false;
             if let Err(e) = res {
-                let mut s = self.err_slot.lock().unwrap();
-                if s.err.is_none() {
-                    s.err = Some(e);
-                }
-                if s.policy_strict {
-                    s.aborted = true;
-                }
+                stash_error(&self.err_slot, e);
             }
         });
     }
@@ -1049,6 +1302,7 @@ pub fn build_event_handler(
     py: Python<'_>,
     obj: Option<&Py<PyAny>>,
     err_slot: Arc<Mutex<DeferredError>>,
+    sets: &CallbackSets,
 ) -> Option<Box<dyn rapier::pipeline::EventHandler>> {
     let obj = obj?;
     let bound = obj.bind(py);
@@ -1059,7 +1313,12 @@ pub fn build_event_handler(
     if let Ok(c) = bound.extract::<PyRef<'_, ChannelEventCollector>>() {
         return Some(Box::new(c.as_event_handler()));
     }
-    Some(Box::new(PyEventHandler::new(obj.clone_ref(py), err_slot)))
+    Some(Box::new(PyEventHandler::new(
+        py,
+        obj.clone_ref(py),
+        err_slot,
+        sets.clone_ref(py),
+    )))
 }
 
 /// Wrap an arbitrary Python object as a (boxed) rapier `PhysicsHooks`.
@@ -1067,13 +1326,23 @@ pub fn build_physics_hooks(
     py: Python<'_>,
     obj: Option<&Py<PyAny>>,
     err_slot: Arc<Mutex<DeferredError>>,
+    sets: &CallbackSets,
 ) -> Option<Box<dyn rapier::pipeline::PhysicsHooks>> {
     let obj = obj?;
     let bound = obj.bind(py);
     if bound.is_none() {
         return None;
     }
-    Some(Box::new(PyPhysicsHooks::new(obj.clone_ref(py), err_slot)))
+    // Hooks implemented in Rust run natively, without calling back into Python.
+    if let Ok(hooks) = bound.downcast::<crate::loaders::MjcfContactHooks>() {
+        return Some(Box::new(hooks.get().native()));
+    }
+    Some(Box::new(PyPhysicsHooks::new(
+        py,
+        obj.clone_ref(py),
+        err_slot,
+        sets.clone_ref(py),
+    )))
 }
 
 pub fn register_events_hooks(

@@ -1,0 +1,181 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<rapier>
+
+Like the rigid-bodies and the colliders, the soft-bodies of a simulation are stored inside of a set: the `SoftBodySet`.
+The examples of this page use the `PhysicsWorld`, a façade owning all the sets of one simulation, but the sets can also
+be used directly. Note that the insertion of a soft-body (`SoftBodySet::insert`) needs the rigid-body set and the
+collider set as well, because a soft-body owns the rigid-body standing for it and the colliders of its surface:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Sets' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Sets' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+A soft-body is created by inserting a `SoftBody` component on an entity. This component only wraps the Rapier
+`SoftBodyBuilder` of the body, and it is read only once: the plugin creates the Rapier soft-body during the next physics
+update, then inserts its `RapierSoftBodyHandle` on the entity, as well as a `SoftBodyState` component updated after each
+step with the (mass-weighted) center of mass of the body, whether it is sleeping, its number of particles, etc.
+Therefore modifying the `SoftBody` component afterwards has no effect: the body is controlled at runtime by the other
+soft-body components (`SoftBodyMaterial`, `SoftBodyPinnedParticles`, etc.) described in the next sections. Adding the
+`SoftBodyDisabled` component disables the soft-body until it is removed, and despawning the entity (or removing its
+`SoftBody` component) removes the soft-body from the simulation.
+
+The positions of the particles given to the builder are expressed in the local frame of the entity: they are
+transformed by its `GlobalTransform` when the soft-body is created. After that, the particles live in world-space, and
+the plugin drives the `Transform` of the entity: it follows the pose of the [root body](./soft_bodies.mdx#the-root-body)
+of the soft-body, i.e., its translation follows the centroid of the free particles, and its rotation is the one best
+fitting the particles onto their rest shape (the identity when the soft-body is created), whereas its scale is kept.
+The colliders of the children of the soft-body entity are attached to the root body, so these children follow the body
+as a whole. Whatever must follow a specific part of the body is better attached to a
+[cluster](./soft_bodies.mdx#clusters) entity.
+
+The soft-body entity also stands for the rigid-body and the colliders the engine creates for it:
+- It is mapped to the [root body](./soft_bodies.mdx#the-root-body) of the soft-body, so it can be used like any
+  rigid-body entity by the [impulse joints](./joints.mdx).
+- The colliders of its surface carry the bits of the entity in their user-data, so the
+  [collision events](./advanced_collision_detection.mdx#collision-and-contact-force-events), the contact pairs, and the
+  [scene queries](./scene_queries.mdx) report the soft-body entity itself as the collider entity.
+- Its collider components (`Friction`, `Restitution`, `CollisionGroups`, `SolverGroups`, `ActiveEvents`, `ActiveHooks`,
+  `ActiveCollisionTypes`, `ContactForceEventThreshold`, `ContactSkin`, and `Sensor`) configure the colliders of its
+  surface exactly like for a `Collider`: they are applied when the soft-body is created and whenever they change, and
+  removing one of them restores the value of the collider template of the builder. These colliders are given by
+  `RapierRigidBodySet::soft_body_colliders`.
+
+Finally, the Rapier soft-bodies are stored in the `soft_bodies` set of the `RapierRigidBodySet` component of the physics
+context, next to the rigid-bodies. The Rapier soft-body type is re-exported as `RapierSoftBody` (and its material as
+`RapierSoftBodyMaterial`) to avoid any confusion with the components. They are accessed with the `ReadRapierContext` and
+`WriteRapierContext` system parameters, which provide shortcuts for the most common operations: `soft_body` gives the
+Rapier soft-body of an entity, `soft_body_entity` gives the entity of a soft-body handle, `soft_body_particle_positions`
+and `soft_body_center_of_mass` read its state, and `soft_body_mut` gives mutable access to the soft-body of an entity:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Sets' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Sets' />
+```
+
+  </TabItem>
+</Tabs>
+
+:::warning
+The properties covered by a component should be modified through that component rather than through `soft_body_mut`.
+The components are applied again whenever they change, so, e.g., a material set with `RapierSoftBody::set_material` is
+replaced by the `SoftBodyMaterial` of the entity the next time this component is modified.
+:::
+
+:::info
+The `SoftBodyMeshSync` component (from the `to-bevy-mesh` feature, enabled by default) renders the soft-body with a mesh
+kept in sync with its particles. The plugin generates the mesh and inserts it as a `Mesh3d` (3D) or `Mesh2d` (2D)
+component, updates its vertices after each step, and rebuilds it whenever the topology of the body changes, e.g., after
+a [tear](./soft_bodies.mdx#tearing). Its vertices are expressed in the frame of the `Transform` of the entity, and the
+material must be added by you, as shown in the [creation](./soft_bodies.mdx#creation-and-insertion) example. In 3D, the
+mesh is the skin of the body if it has one, else its surface (or its boundary triangles), or a line list of its edges
+for a body without any surface, e.g., a rope. In 2D, it is made of its cells, or of its boundary segments (or of its
+edges). The meshes of the [deformable colliders](./soft_bodies.mdx#deformable-colliders) bound to the body are never
+part of it.
+:::
+
+</bevy>
+<c>
+
+The soft-bodies are owned by the world, next to the rigid-bodies and the colliders, and are identified by their
+`R3SoftBodyHandle`. There is no separate set to manage: `r3InsertSoftBody` creates the soft-body as well as the
+rigid-body standing for it and the colliders of its surface, and `r3FreeWorld` frees all of them. The number of
+soft-bodies of the world is given by `r3SoftBodyCount`, and their handles by `r3SoftBodyHandles`. A handle becomes
+invalid once its soft-body is removed, which is checked by `r3SoftBody_Contains`. Conversely, the soft-body a
+rigid-body stands for (its [root body](./soft_bodies.mdx#the-root-body), or the proxy of one of its
+[clusters](./soft_bodies.mdx#clusters)) is given by `r3RigidBody_SoftBody`, which returns an invalid handle for any
+other rigid-body:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='Sets' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='Sets' />
+```
+
+  </TabItem>
+</Tabs>
+
+The state of the body as a whole can be read at any time as well: its number of particles (`r3SoftBody_NumParticles`),
+its total mass (`r3SoftBody_Mass`), its mass-weighted center of mass (`r3SoftBody_CenterOfMass`), the area (2D) or the
+volume (3D) it currently encloses and its rest value (`r3SoftBody_Volume`, `r3SoftBody_RestVolume`), and whether it is
+sleeping (`r3SoftBody_IsSleeping`, see also `r3SoftBody_WakeUp`). Finally, a soft-body can be disabled until it is
+enabled again with `r3SoftBody_SetEnabled`.
+
+</c>
+<py>
+
+Like the rigid-bodies and the colliders, the soft-bodies of a simulation are stored inside of a set: the `SoftBodySet`,
+given by `PhysicsWorld.soft_bodies`. The examples of this page use the `PhysicsWorld`, which owns all the sets of one
+simulation, but the sets can also be used directly (a `PhysicsPipeline` then simulates the soft-bodies of the set given
+as its `soft_bodies` argument). Note that the insertion of a soft-body (`SoftBodySet.insert`) needs the rigid-body set
+and the collider set as well, because a soft-body owns the rigid-body standing for it and the colliders of its surface:
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='Sets' />
+```
+
+The set supports `len()`, `in`, indexing by a `SoftBodyHandle`, and iteration over `(handle, soft_body)` pairs. The
+`SoftBody` objects it gives are live views: reading or modifying one of them reads or modifies the soft-body stored in
+the set, and using one of them after its soft-body was removed raises an `InvalidHandle` error. On the other hand, the objects describing its particles, elements, and
+clusters (e.g., the `SoftBodyParticle` given by `particle`) are snapshots, which don't follow the simulation.
+
+The state of the body as a whole can be read at any time as well: its number of particles (`num_particles`), its total
+mass (`mass`), its mass-weighted center of mass (`center_of_mass`), the volume it currently encloses and its rest value
+(`volume`, `rest_volume`), and whether it is sleeping (`is_sleeping`, see also `wake_up`). A soft-body can also be
+disabled until it is enabled again with `set_enabled`. Conversely, the soft-body a rigid-body stands for (its
+[root body](./soft_bodies.mdx#the-root-body), or the proxy of one of its [clusters](./soft_bodies.mdx#clusters)) is
+given by the `soft_body` property of that `RigidBody`, which is `None` for any other rigid-body.
+
+</py>

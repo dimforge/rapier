@@ -1,56 +1,24 @@
 use rapier2d::prelude::*;
 
 fn main() {
-    let mut rigid_body_set = RigidBodySet::new();
-    let mut collider_set = ColliderSet::new();
+    let mut world = PhysicsWorld::new();
 
     /* Create the ground. */
-    let collider = ColliderBuilder::cuboid(100.0, 0.1).build();
-    collider_set.insert(collider);
+    world.insert_collider(ColliderBuilder::cuboid(100.0, 0.1), None);
 
     /* Create the bouncing ball. */
-    let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(Vector::new(0.0, 10.0))
-        .build();
-    let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
-    let ball_body_handle = rigid_body_set.insert(rigid_body);
-    collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
-
-    /* Create other structures necessary for the simulation. */
-    let gravity = Vector::new(0.0, -9.81);
-    let integration_parameters = IntegrationParameters::default();
-    let mut physics_pipeline = PhysicsPipeline::new();
-    let mut island_manager = IslandManager::new();
-    let mut broad_phase = DefaultBroadPhase::new();
-    let mut narrow_phase = NarrowPhase::new();
-    let mut impulse_joint_set = ImpulseJointSet::new();
-    let mut multibody_joint_set = MultibodyJointSet::new();
-    let mut soft_body_set = SoftBodySet::new();
-    let mut ccd_solver = CCDSolver::new();
-    let physics_hooks = ();
-    let event_handler = ();
+    world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 10.0)),
+        ColliderBuilder::ball(0.5).restitution(0.7),
+    );
 
     /* Run the game loop, stepping the simulation once per frame. */
     for _ in 0..200 {
-        physics_pipeline.step(
-            gravity,
-            &integration_parameters,
-            &mut island_manager,
-            &mut broad_phase,
-            &mut narrow_phase,
-            &mut rigid_body_set,
-            &mut collider_set,
-            &mut impulse_joint_set,
-            &mut multibody_joint_set,
-            &mut soft_body_set,
-            &mut ccd_solver,
-            &physics_hooks,
-            &event_handler,
-        );
+        world.step();
         // DOCUSAURUS: IslandManager start
         // Iter on each rigid-bodies that moved (dynamic and kinematic).
-        for rigid_body_handle in island_manager.active_bodies() {
-            let rigid_body = &rigid_body_set[rigid_body_handle];
+        for rigid_body_handle in world.islands.active_bodies() {
+            let rigid_body = &world.bodies[rigid_body_handle];
             println!(
                 "Rigid body {:?} has a new position: {:?}",
                 rigid_body_handle,
@@ -59,4 +27,18 @@ fn main() {
         }
         // DOCUSAURUS: IslandManager stop
     }
+
+    // DOCUSAURUS: QueryPipeline start
+    // A temporary query pipeline borrowing the broad-phase, the narrow-phase, and the sets. This
+    // is what `PhysicsWorld::query_pipeline` does.
+    let query_pipeline = world.broad_phase.as_query_pipeline(
+        world.narrow_phase.query_dispatcher(),
+        &world.bodies,
+        &world.colliders,
+        QueryFilter::default(),
+    );
+    // DOCUSAURUS: QueryPipeline stop
+
+    let ray = Ray::new(Vector::new(0.0, 5.0), Vector::new(0.0, -1.0));
+    let _ = query_pipeline.cast_ray(&ray, 10.0, true);
 }

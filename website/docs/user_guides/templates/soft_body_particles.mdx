@@ -1,0 +1,267 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+The state of a soft-body is the state of its particles, which are identified by their index in the body. Their positions
+and their velocities can be read (<notjs>`particle_position`, `particle_positions`, `particle_velocity`,
+`particle_velocities`</notjs><js>`particlePosition`, `particlePositions`, `particleVelocity`,
+`particleVelocities`</js><c>`r3SoftBody_ParticlePosition`, `r3SoftBody_ParticlePositions`, `r3SoftBody_ParticleVelocity`, `r3SoftBody_ParticleVelocities`</c><py>`particle_position`, `particle_positions`, `particle_velocity`, `particle_velocities`</py>) and modified (<notjs>`set_particle_position`,
+`set_particle_velocity`</notjs><js>`setParticlePosition`, `setParticleVelocity`</js><c>`r3SoftBody_SetParticlePosition`, `r3SoftBody_SetParticleVelocity`</c><py>`set_particle_position`, `set_particle_velocity`</py>) at any time, one by one or all at
+once. The elements built from them (<notjs>`edges`, `cells`, and `boundary`</notjs><js>`edges`, `cells`, and
+`boundary`</js><c>`r3SoftBody_Edges`, `r3SoftBody_Cells`, and `r3SoftBody_Boundary`</c><py>`edges`, `cells`, and `boundary`</py>) can be read as well, e.g., in order to render the body with your own mesh.<c> These arrays are copied into a buffer of your own, which capacity is given as the last argument, and a `NULL` buffer with a zero capacity only returns the length of the array. The elements are given as flat arrays of particle indices: 2 per edge, 3 (2D) or 4 (3D) per cell, and 2 (2D) or 3 (3D) per boundary element.</c><py> The arrays of every particle and of every element are NumPy arrays with one row per particle or per element, e.g., of shape `(N, 3)` for the positions and `(B, 3)` for the boundary triangles. All the positions (or velocities) are modified at once by assigning such an array to `particle_positions` (or `particle_velocities`). A snapshot of all the properties of a particle (its mass, its rest position, whether it is pinned, etc.) is given by `particle`.</py><bevy> These
+are methods of the Rapier soft-body of the entity, given by the `soft_body` and `soft_body_mut` methods of the
+physics context (see [soft-bodies and entities](./soft_bodies.mdx#soft-bodies-and-entities)). Note that the positions
+are expressed in world-space, and not in the frame of the entity.</bevy>
+
+A particle can also be **pinned** (<rapier>`set_particle_pinned`</rapier><bevy>the `SoftBodyPinnedParticles`
+component</bevy><js>`setParticlePinned`</js><c>`r3SoftBody_SetParticlePinned`</c><py>`set_particle_pinned`</py>). A pinned particle is kinematic: it is no longer affected by the forces
+nor by the contacts, and it will simply hold its position, or follow the kinematic target
+(<rapier>`set_particle_kinematic_target`</rapier><bevy>the `SoftBodyKinematicTargets`
+component</bevy><js>`setParticleKinematicTarget`</js><c>`r3SoftBody_SetParticleKinematicTarget`</c><py>`set_particle_kinematic_target`</py>) or the velocity it is given. This is, e.g., how a piece of cloth
+is hung on a wall, or how a rope is dragged by the player. Releasing the particle gives it back its nominal mass and
+lets it keep its current velocity:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Particles' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Particles' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Particles' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Particles' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+The `SoftBodyPinnedParticles` component lists exactly the particles that are pinned: it replaces the
+particles pinned by the builder, which are restored when the component is removed. The `SoftBodyKinematicTargets`
+component gives world-space targets to some of the pinned particles: each time it changes, the listed particles are
+moved to their target over the next step, then held there:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Particles' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Particles' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='Particles' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='Particles' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='Particles' />
+```
+
+</py>
+
+:::warning
+Setting the position of a particle explicitly teleports it: no contact is taken into account along the way, so a
+particle can be moved inside of another object this way. Whenever the motion must be seen by the contacts and by the
+friction (to drag a piece of cloth, for example), it is recommended to pin the particle and to give it a kinematic
+target instead.
+:::
+
+### Controlling a region kinematically
+A whole region of the body is controlled at once through a [cluster](./soft_bodies.mdx#clusters) covering it. Pinning
+the cluster (<rapier>`set_cluster_pinned`</rapier><bevy>the `SoftBodyClusterPinned`
+component</bevy><js>`setClusterPinned`</js><c>`r3SoftBody_SetClusterPinned`</c><py>`set_cluster_pinned`</py>) pins all of its particles, and its kinematic target
+(<rapier>`set_cluster_kinematic_target`</rapier><bevy>the `SoftBodyClusterKinematicTarget` component, a world-space
+`Transform` which also pins the cluster when it is inserted</bevy><js>`setClusterKinematicTarget`</js><c>`r3SoftBody_SetClusterKinematicTarget`</c><py>`set_cluster_kinematic_target`</py>) moves them
+rigidly: each pinned particle is sent where the rest shape of the cluster places it at the target pose, with the
+matching velocity. The rest of the body is then simulated as usual, and drags behind the controlled region, e.g., the
+hand of a soft character carrying something:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='ClusterControl' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='ClusterControl' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='ClusterControl' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='ClusterControl' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='ClusterControl' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='ClusterControl' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='ClusterControl' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='ClusterControl' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='ClusterControl' />
+```
+
+</py>

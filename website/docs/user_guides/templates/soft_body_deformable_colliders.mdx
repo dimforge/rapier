@@ -1,0 +1,378 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Games don't need the simulated shape of a body to be as detailed as its visual shape: a coarse and well-shaped lattice
+is faster and more stable to simulate than one cell per visual triangle. This is why Rapier supports **cage simulation**
+and **skinning**. The detailed mesh is embedded in a coarse volumetric lattice, aka. its **cage**, which is the only
+part being simulated. The vertices of the mesh are then interpolated from the deformed cells holding them, aka.
+**skinning**:
+
+<center>
+![A detailed mesh, its coarse cage, and the mesh following the deformed cage](/img/soft_bodies/cage_skinning.svg)
+</center>
+
+### Skinned soft-bodies
+
+<notc>
+
+The
+<rapier>`SoftBodyBuilder::volumetric_skinned`</rapier><bevy>`SoftBody::volumetric_skinned`</bevy><js>`SoftBodyDesc.volumetric`</js><py>`SoftBody.volumetric`</py>
+constructor computes the cage of a closed mesh automatically<js> when its last argument is `true`</js><py> when its `skinned` argument is `True`</py>, and keeps the
+mesh as the **skin** of the body. That automatic cage is built for performance rather than geometric fidelity: in 3D, it
+encloses the whole mesh with the tetrahedra of a lattice, without snapping them to the mesh:
+
+</notc>
+<c>
+
+The `r3VolumetricSoftBodyDesc` constructor computes the cage of a closed mesh automatically, and the same mesh becomes
+the **skin** of the body once it is also given to `r3SoftBodyDesc_SetSkin`. That automatic cage is built for
+performance rather than geometric fidelity: in 3D, it encloses the whole mesh with the tetrahedra of a lattice, without
+snapping them to the mesh:
+
+</c>
+
+<center>
+<img src="/img/soft_bodies/soft_trimesh_cages.png" width="60%"
+     alt="A screwdriver mesh and its automatically generated cage (blue)"/>
+</center>
+
+By default, the body still collides through the boundary of its cage, which is as coarse as its cells. Its skin can
+become its actual collision mesh instead with
+<notjs>`skin_collision`</notjs><js>`setSkinCollision`</js><c>the `skinCollision` field of `R3SoftBodyDesc`</c><py>`SoftBodyBuilder.skin_collision`</py>.
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Skinning' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Skinning' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Skinning' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Skinning' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+The `SoftBodyMeshSync` component renders the skin of a 3D body, as in this example (the meshes of the deformable
+colliders bound to a body are never rendered by this component). In 2D, it renders the cells of the cage instead, and
+the vertices of the skin are read from the collision mesh of the Rapier soft-body (`RapierSoftBody::collision_mesh`):
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Skinning' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Skinning' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+Note that the mesh arrays are only borrowed by the description until its insertion. The vertices of the skin, as well as
+the ones of any other mesh of the body, are read back with `r3SoftBody_MeshVertices`, given the collider of the mesh
+(`r3SoftBody_MeshColliders` gives the colliders of the meshes of a body). A skin that doesn't collide has no collider:
+`r3SoftBody_Meshes` lists every mesh of the body with its identifier (an `R3SoftMeshInfo` which `is_skinned` and
+`collision_enabled` fields tell which mesh is which), and `r3SoftBody_MeshVerticesById` reads the vertices of a mesh
+from that identifier. Their triangles (segments in 2D) are read the same way, with `r3SoftBody_MeshIndices` and
+`r3SoftBody_MeshIndicesById`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='Skinning' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='Skinning' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+`SoftBody.volumetric` raises a `MeshConversionError` if the mesh can't be filled with cells, e.g., because it isn't
+closed. The vertices of the skin, as well as the ones of any other mesh of the body, are read back from a
+`SoftCollisionMesh`: a snapshot of the mesh taken when it is requested, which `vertices` (in world-space) and `indices`
+are NumPy arrays. `SoftBody.collision_mesh` gives the collision mesh of the body (its skin here), and
+`SoftBody.mesh_of` gives the mesh of a collider. A skin that doesn't collide has no collider: `SoftBody.meshes` lists
+every mesh of the body (its `is_skinned` and `collision_enabled` properties telling which mesh is which), and
+`SoftBody.mesh` gives the mesh with the given identifier (a `SoftMeshId`):
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='Skinning' />
+```
+
+</py>
+
+:::info
+A skin doesn't need a computed cage: any mesh can be given as the skin of a body built with cells, with
+<notjs>`SoftBodyBuilder::skin`</notjs><js>`SoftBodyDesc.setSkin`</js><c>`r3SoftBodyDesc_SetSkin`</c><py>`SoftBodyBuilder.skin`</py>. Each of its
+vertices is bound to the cell closest to it, in the pose the cells are built in.
+:::
+
+### Deformable colliders
+The colliders built from the surface or the skin of a soft-body are generated by the engine itself, but it is also
+possible to give a body a collider of your own which vertices follow its particles: a **deformable collider**
+(<rapier>`ColliderSet::insert_deformable`</rapier><bevy>a `DeformableCollider` component next to the `Collider` of an
+entity</bevy><js>`World.createDeformableCollider`</js><c>`r3InsertDeformableCollider`</c><py>`PhysicsWorld.insert_deformable`</py>). This is a polyline in
+2D, or a triangle mesh in 3D, flagged as deformable, and attached to the proxy of one of the
+[clusters](./soft_bodies.mdx#clusters) of the body (the root body, a cluster itself, can be used too). Its vertices are
+given <rapier>in the frame of that proxy</rapier><js>in the frame of
+that proxy</js><c>in the frame of that proxy</c><py>in the frame of that proxy</py><bevy>in world-space, i.e., they are placed by the `GlobalTransform` of the collider entity when the
+collider is created</bevy>, and they can be read back at any time in order to render the mesh where the simulation moved
+it. A deformable collider can be a sensor as well, e.g., to detect what enters a deformable volume.
+
+How the vertices follow the particles is given by the binding
+(<notc>`SoftMeshBinding`</notc><c>`R3SoftMeshBindingDesc`</c>):
+- <notc>`skinned`</notc><c>`R3_SOFT_BINDING_SKINNED`</c>: each vertex is embedded in the cell of the cluster holding
+  it, i.e., the collider is a skin of the cage.
+- <notc>`direct`</notc><c>`R3_SOFT_BINDING_DIRECT`</c>: the vertex `i` follows the particle given for it, which must
+  belong to the cluster. Its alternative that binds every vertex to the closest particle within a given distance
+  (<notjs>`direct_by_position`</notjs><js>`directByPosition`</js><c>`R3_SOFT_BINDING_DIRECT_BY_POSITION`</c><py>`direct_by_position`</py>) is
+  useful when the mesh is the one the particles were built from.
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='DeformableColliders' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='DeformableColliders' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='DeformableColliders' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='DeformableColliders' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+The `DeformableCollider` component targets the soft-body entity (for its root body) or a
+[cluster](./soft_bodies.mdx#clusters) entity. The `Collider` of its entity must be a polyline (2D) or a triangle mesh
+(3D) flagged with `PolylineFlags::DEFORMABLE` or `TriMeshFlags::DEFORMABLE`. Once created, the collider follows the
+particles: the `Transform` and the shape of its entity are ignored, whereas its other collider components (friction,
+collision groups, events, etc.) apply as usual. If the binding fails, an error is logged and a
+`DeformableColliderError` component is inserted on the entity:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='DeformableColliders' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='DeformableColliders' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<bevy>
+
+The current vertices of a deformable collider are read from the Rapier soft-body it follows, which is also given by
+the `deformable_mesh_ref` of its Rapier collider:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='ReadDeformableColliders' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='ReadDeformableColliders' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+The collider is described by an ordinary `R3ColliderDesc` which shape is a polyline (2D) or a triangle mesh (3D) flagged
+with `R2_POLYLINE_DEFORMABLE` or `R3_TRIMESH_DEFORMABLE` (see `r2ShapeDesc_SetPolyline` and `r3ShapeDesc_SetTrimesh`),
+and its binding by an `R3SoftMeshBindingDesc` initialized with `r3DefaultSoftMeshBindingDesc`:
+- `kind` selects the binding: `R3_SOFT_BINDING_SKINNED` (the default), `R3_SOFT_BINDING_DIRECT`, or
+  `R3_SOFT_BINDING_DIRECT_BY_POSITION`.
+- `particles` is the particle followed by each vertex, for a direct binding.
+- `epsilon` is the distance within which each vertex is bound to the closest particle, for a binding by position.
+- `selfContacts` makes the mesh collide with itself.
+
+The collider is created by `r3InsertDeformableCollider`, given the rigid-body handle of the root body
+(`r3SoftBody_RootBody`) or of a cluster proxy (`r3SoftBody_ClusterProxy`) it is attached to. Its other properties
+(friction, collision groups, events, sensor, etc.) apply as usual. The arrays of the collider and of the binding are
+only borrowed until the insertion. If the binding fails, the error handler is called and the returned handle is
+invalid. Then the current vertices of the collider are read with `r3SoftBody_MeshVertices`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='DeformableColliders' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='DeformableColliders' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+The collider is built by `Collider.trimesh` with the `TriMeshFlags.DEFORMABLE` flag, and its binding by one of the
+static methods of `SoftMeshBinding`: `skinned()`, `direct(particles)`, or `direct_by_position(eps)`, the
+`self_contacts` method of the binding making the mesh collide with itself. The collider is created by
+`PhysicsWorld.insert_deformable` (or by `ColliderSet.insert_deformable` when the sets are used directly), given the
+rigid-body handle of the root body (`SoftBody.root_body`) or of a cluster proxy (`SoftBody.cluster_proxy`) it is
+attached to. Its other properties (friction, collision groups, events, sensor, etc.) apply as usual. If the binding
+fails, a `SoftBindingError` is raised. Then the current vertices of the collider are read from its `SoftCollisionMesh`
+(`SoftBody.mesh_of`), and the collider tells which soft-body mesh it is with its `deformable_mesh_ref` property:
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='DeformableColliders' />
+```
+
+</py>
+
+:::info
+A deformable collider has no mass: its density is ignored, and it is the particles which hold the mass of the soft-body.
+Note that a collider given no contact skin explicitly gets the particle radius of the soft-body as its skin, so its
+thickness matches the thickness of the surface of the body.
+:::

@@ -3,10 +3,12 @@
 
 use crate::conv::{PyIsometry, PyVector, Real};
 use crate::dynamics::{IslandManager, RigidBodyHandle, RigidBodySet, SpringCoefficients};
-use crate::geometry::{ColliderBuilder, ColliderHandle, ColliderSet};
+use crate::geometry::{
+    ColliderBuilder, ColliderHandle, ColliderSet, extract_index_list, extract_index_rows,
+};
 use crate::joints::{ImpulseJointHandle, ImpulseJointSet, MultibodyJointSet};
 use crate::math::Vec3;
-use crate::numpy::{PyArray2, PyReadonlyArray2, PyUntypedArrayMethods};
+use crate::numpy::PyArray2;
 use crate::pyo3::create_exception;
 use crate::pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use crate::pyo3::prelude::*;
@@ -25,7 +27,7 @@ create_exception!(
 // ----------------------------------------------------------------------
 
 /// An `(N, 3)` float ndarray from vectors.
-fn vectors_to_array<'py>(
+pub(crate) fn vectors_to_array<'py>(
     py: Python<'py>,
     it: impl Iterator<Item = rapier::math::Vector>,
 ) -> Bound<'py, PyArray2<Real>> {
@@ -38,7 +40,7 @@ fn vectors_to_array<'py>(
 }
 
 /// An `(M, N)` uint32 ndarray from elements of `N` indices.
-fn elements_to_array<'py, const N: usize>(
+pub(crate) fn elements_to_array<'py, const N: usize>(
     py: Python<'py>,
     elements: &[[u32; N]],
 ) -> Bound<'py, PyArray2<u32>> {
@@ -48,50 +50,6 @@ fn elements_to_array<'py, const N: usize>(
         let rows: Vec<Vec<u32>> = elements.iter().map(|e| e.to_vec()).collect();
         PyArray2::from_vec2_bound(py, &rows).expect("contiguous ndarray")
     }
-}
-
-/// Elements of `N` indices each, from an `(M, N)` integer ndarray or a sequence of
-/// `N`-sequences.
-fn extract_elements<const N: usize>(obj: &Bound<'_, PyAny>) -> PyResult<Vec<[u32; N]>> {
-    if let Ok(arr) = obj.extract::<PyReadonlyArray2<u32>>() {
-        let (nrows, ncols) = (arr.shape()[0], arr.shape()[1]);
-        if ncols != N {
-            return Err(PyValueError::new_err(format!(
-                "expected an integer ndarray with shape (M, {N}); got (M, {ncols})"
-            )));
-        }
-        let slice = arr
-            .as_slice()
-            .map_err(|_| PyValueError::new_err("ndarray must be contiguous"))?;
-        let mut out = Vec::with_capacity(nrows);
-        for chunk in slice.chunks_exact(N) {
-            let mut e = [0u32; N];
-            e.copy_from_slice(chunk);
-            out.push(e);
-        }
-        return Ok(out);
-    }
-    let rows: Vec<Vec<u32>> = obj.extract().map_err(|_| {
-        PyTypeError::new_err(format!(
-            "expected an (M, {N}) integer ndarray or a sequence of {N}-tuples of ints"
-        ))
-    })?;
-    rows.into_iter()
-        .map(|r| {
-            <[u32; N]>::try_from(r).map_err(|r| {
-                PyValueError::new_err(format!("expected {N} indices per element; got {}", r.len()))
-            })
-        })
-        .collect()
-}
-
-/// A flat list of particle indices, from a 1D integer ndarray or a sequence of ints.
-fn extract_indices_1d(obj: &Bound<'_, PyAny>) -> PyResult<Vec<u32>> {
-    if let Ok(arr) = obj.extract::<crate::numpy::PyReadonlyArray1<u32>>() {
-        return Ok(arr.as_slice().map(|s| s.to_vec()).unwrap_or_default());
-    }
-    obj.extract::<Vec<u32>>()
-        .map_err(|_| PyTypeError::new_err("expected a 1D integer ndarray or a sequence of ints"))
 }
 
 fn vec3(v: rapier::math::Vector) -> Vec3 {
@@ -173,8 +131,15 @@ impl SoftBodyHandle {
 // ----------------------------------------------------------------------
 
 /// The constitutive model of a soft body's cells (tetrahedra).
-#[pyclass(name = "SoftBodyCellModel", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(
+    name = "SoftBodyCellModel",
+    module = "rapier",
+    eq,
+    eq_int,
+    hash,
+    frozen
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SoftBodyCellModel {
     /// Per-cell volume preservation constraints; the shape is held by the edges.
     VOLUME,
@@ -202,8 +167,15 @@ impl SoftBodyCellModel {
 }
 
 /// Which strains make a soft body's edge rest lengths flow plastically.
-#[pyclass(name = "SoftEdgePlasticFlow", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(
+    name = "SoftEdgePlasticFlow",
+    module = "rapier",
+    eq,
+    eq_int,
+    hash,
+    frozen
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SoftEdgePlasticFlow {
     BOTH,
     COMPRESSION,
@@ -228,8 +200,8 @@ impl SoftEdgePlasticFlow {
 }
 
 /// The kind of a soft body's edge.
-#[pyclass(name = "SoftBodyEdgeKind", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "SoftBodyEdgeKind", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SoftBodyEdgeKind {
     /// A structural edge holding the distance between two particles.
     STRUCTURAL,
@@ -238,8 +210,15 @@ pub enum SoftBodyEdgeKind {
 }
 
 /// What the soft-body tangle recovery does with the contact patches of crossed surfaces.
-#[pyclass(name = "SoftPatchConstraints", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(
+    name = "SoftPatchConstraints",
+    module = "rapier",
+    eq,
+    eq_int,
+    hash,
+    frozen
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SoftPatchConstraints {
     KEEP,
     STAND_DOWN,
@@ -263,6 +242,163 @@ impl SoftPatchConstraints {
     }
 }
 
+/// Which solver simulates a soft body's elasticity.
+#[pyclass(name = "SoftBodySolver", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SoftBodySolver {
+    /// Every elastic element becomes constraints, swept with the contacts and joints once per
+    /// substep (the default). Cheap and robust, but converged only as far as the sweep count: a
+    /// stiff body keeps a residual compliance, and a load crosses a long body slowly.
+    CONSTRAINTS,
+    /// Implicit Euler elasticity solved over the whole body once per substep: the stiffness does
+    /// not depend on the solver iterations. Costs a factorization per step and a solve per
+    /// constraint (see :class:`SoftFemParameters`).
+    FEM,
+}
+
+impl SoftBodySolver {
+    pub(crate) fn to_rapier(self) -> rapier::dynamics::SoftBodySolver {
+        match self {
+            Self::CONSTRAINTS => rapier::dynamics::SoftBodySolver::Constraints,
+            Self::FEM => rapier::dynamics::SoftBodySolver::Fem,
+        }
+    }
+    pub(crate) fn from_rapier(s: rapier::dynamics::SoftBodySolver) -> Self {
+        match s {
+            rapier::dynamics::SoftBodySolver::Constraints => Self::CONSTRAINTS,
+            rapier::dynamics::SoftBodySolver::Fem => Self::FEM,
+        }
+    }
+}
+
+// ----------------------------------------------------------------------
+// Volume meshing.
+// ----------------------------------------------------------------------
+
+/// Which cover a volume mesh is (see :class:`VolumeMeshParameters`): of the shape's volume, or
+/// of its surface alone.
+#[pyclass(name = "MeshEnclosure", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MeshEnclosure {
+    /// Every lattice cell the shape reaches is kept whole: a solid fill containing the shape,
+    /// blocky at the cell size (see :attr:`VolumeMeshParameters.cover_smoothing` and
+    /// :attr:`VolumeMeshParameters.cover_subdivisions`). Needs a closed, consistently oriented
+    /// mesh.
+    COVER,
+    /// Only the cells the surface crosses are kept: a hollow shell that deforms like a shell,
+    /// not like a solid. The mesh need not be closed or oriented.
+    CRUST,
+}
+
+impl MeshEnclosure {
+    fn to_rapier(self) -> rapier::parry::transformation::MeshEnclosure {
+        match self {
+            Self::COVER => rapier::parry::transformation::MeshEnclosure::Cover,
+            Self::CRUST => rapier::parry::transformation::MeshEnclosure::Crust,
+        }
+    }
+    fn from_rapier(e: rapier::parry::transformation::MeshEnclosure) -> Self {
+        match e {
+            rapier::parry::transformation::MeshEnclosure::Cover => Self::COVER,
+            rapier::parry::transformation::MeshEnclosure::Crust => Self::CRUST,
+        }
+    }
+}
+
+/// The parameters filling a closed triangle mesh with tetrahedral cells (see
+/// :meth:`SoftBody.volumetric_with`): the cell size, and how the lattice cover of the mesh is
+/// refined and smoothed.
+#[pyclass(name = "VolumeMeshParameters", module = "rapier")]
+#[derive(Debug, Clone, Copy)]
+pub struct VolumeMeshParameters(pub rapier::parry::transformation::VolumeMeshParameters);
+
+#[pymethods]
+impl VolumeMeshParameters {
+    /// Parameters generating cells of size ``cell_size``; the defaults give a raw cover (no
+    /// smoothing, no subdivision).
+    #[new]
+    #[pyo3(signature = (
+        cell_size,
+        enclosure=MeshEnclosure::COVER,
+        cover_smoothing=0,
+        cover_guard=0.15,
+        cover_subdivisions=0,
+    ))]
+    fn new(
+        cell_size: Real,
+        enclosure: MeshEnclosure,
+        cover_smoothing: u32,
+        cover_guard: Real,
+        cover_subdivisions: u32,
+    ) -> Self {
+        let mut params = rapier::parry::transformation::VolumeMeshParameters::new(cell_size);
+        params.enclosure = enclosure.to_rapier();
+        params.cover_smoothing = cover_smoothing;
+        params.cover_guard = cover_guard;
+        params.cover_subdivisions = cover_subdivisions;
+        Self(params)
+    }
+    /// Target size of the generated cells.
+    #[getter]
+    fn cell_size(&self) -> Real {
+        self.0.cell_size
+    }
+    #[setter]
+    fn set_cell_size(&mut self, v: Real) {
+        self.0.cell_size = v;
+    }
+    /// Whether the whole shape is covered or its surface alone.
+    #[getter]
+    fn enclosure(&self) -> MeshEnclosure {
+        MeshEnclosure::from_rapier(self.0.enclosure)
+    }
+    #[setter]
+    fn set_enclosure(&mut self, v: MeshEnclosure) {
+        self.0.enclosure = v.to_rapier();
+    }
+    /// How many shrink-wrap iterations smooth the staircase of a ``COVER`` mesh (``0`` leaves
+    /// it raw). Each iteration pulls the boundary toward the shape, held off by
+    /// :attr:`cover_guard`.
+    #[getter]
+    fn cover_smoothing(&self) -> u32 {
+        self.0.cover_smoothing
+    }
+    #[setter]
+    fn set_cover_smoothing(&mut self, v: u32) {
+        self.0.cover_smoothing = v;
+    }
+    /// How close to the shape the smoothed cover may pull its boundary, as a fraction of the
+    /// local cell size.
+    #[getter]
+    fn cover_guard(&self) -> Real {
+        self.0.cover_guard
+    }
+    #[setter]
+    fn set_cover_guard(&mut self, v: Real) {
+        self.0.cover_guard = v;
+    }
+    /// How many halvings below :attr:`cell_size` a ``COVER`` cell crossing the shape's boundary
+    /// may be refined (``0`` keeps the boundary at the cell size); runs before the smoothing.
+    #[getter]
+    fn cover_subdivisions(&self) -> u32 {
+        self.0.cover_subdivisions
+    }
+    #[setter]
+    fn set_cover_subdivisions(&mut self, v: u32) {
+        self.0.cover_subdivisions = v;
+    }
+    fn __repr__(&self) -> String {
+        format!(
+            "VolumeMeshParameters(cell_size={}, enclosure=MeshEnclosure.{:?}, cover_smoothing={}, cover_guard={}, cover_subdivisions={})",
+            self.0.cell_size,
+            MeshEnclosure::from_rapier(self.0.enclosure),
+            self.0.cover_smoothing,
+            self.0.cover_guard,
+            self.0.cover_subdivisions
+        )
+    }
+}
+
 // ----------------------------------------------------------------------
 // Material.
 // ----------------------------------------------------------------------
@@ -273,13 +409,69 @@ impl SoftPatchConstraints {
 /// Every field can be passed as a keyword to the constructor::
 ///
 ///     material = SoftBodyMaterial(young_modulus=2.0e3, poisson_ratio=0.35, tear_strain=0.4)
+///
+/// :attr:`SoftBody.material` gives a live view of a body's material: setting one of its fields
+/// changes the body. :meth:`copy` detaches a standalone copy.
 #[pyclass(name = "SoftBodyMaterial", module = "rapier")]
 #[derive(Debug, Clone)]
-pub struct SoftBodyMaterial(pub rapier::dynamics::SoftBodyMaterial);
+pub struct SoftBodyMaterial {
+    backing: SoftBodyMaterialBacking,
+}
+
+/// Storage backing a `SoftBodyMaterial`: a standalone value, or a live view into the material of
+/// a soft body.
+#[derive(Debug)]
+enum SoftBodyMaterialBacking {
+    Owned(rapier::dynamics::SoftBodyMaterial),
+    InBody(Py<SoftBody>),
+}
+
+impl Clone for SoftBodyMaterialBacking {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Owned(m) => Self::Owned(*m),
+            Self::InBody(body) => Python::with_gil(|py| Self::InBody(body.clone_ref(py))),
+        }
+    }
+}
 
 impl SoftBodyMaterial {
+    pub(crate) fn owned(material: rapier::dynamics::SoftBodyMaterial) -> Self {
+        Self {
+            backing: SoftBodyMaterialBacking::Owned(material),
+        }
+    }
+
+    /// A copy of the material's value.
+    pub(crate) fn get(&self) -> PyResult<rapier::dynamics::SoftBodyMaterial> {
+        self.read(|m| *m)
+    }
+
+    fn read<R>(&self, f: impl FnOnce(&rapier::dynamics::SoftBodyMaterial) -> R) -> PyResult<R> {
+        match &self.backing {
+            SoftBodyMaterialBacking::Owned(m) => Ok(f(m)),
+            SoftBodyMaterialBacking::InBody(body) => {
+                Python::with_gil(|py| body.bind(py).try_borrow()?.with_ref(|b| f(b.material())))
+            }
+        }
+    }
+
+    fn write<R>(
+        &mut self,
+        f: impl FnOnce(&mut rapier::dynamics::SoftBodyMaterial) -> R,
+    ) -> PyResult<R> {
+        match &mut self.backing {
+            SoftBodyMaterialBacking::Owned(m) => Ok(f(m)),
+            SoftBodyMaterialBacking::InBody(body) => Python::with_gil(|py| {
+                body.bind(py)
+                    .try_borrow_mut()?
+                    .with_mut(|b| f(b.material_mut()))
+            }),
+        }
+    }
+
     fn apply_kwarg(&mut self, key: &str, v: &Bound<'_, PyAny>) -> PyResult<()> {
-        let m = &mut self.0;
+        let mut m = self.get()?;
         match key {
             "edge_softness" => m.edge_softness = spring(v)?,
             "bend_softness" => m.bend_softness = spring(v)?,
@@ -310,7 +502,7 @@ impl SoftBodyMaterial {
                 )));
             }
         }
-        Ok(())
+        self.write(|dst| *dst = m)
     }
 }
 
@@ -320,7 +512,7 @@ impl SoftBodyMaterial {
     #[new]
     #[pyo3(signature = (**kwargs))]
     fn new(kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        let mut me = Self(rapier::dynamics::SoftBodyMaterial::default());
+        let mut me = Self::owned(rapier::dynamics::SoftBodyMaterial::default());
         if let Some(kw) = kwargs {
             for (k, v) in kw.iter() {
                 let key: String = k.extract()?;
@@ -334,220 +526,227 @@ impl SoftBodyMaterial {
     /// value (a :class:`SpringCoefficients` or a ``(frequency, damping)`` tuple).
     #[staticmethod]
     fn uniform(softness: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(rapier::dynamics::SoftBodyMaterial::uniform(spring(
-            softness,
-        )?)))
+        Ok(Self::owned(rapier::dynamics::SoftBodyMaterial::uniform(
+            spring(softness)?,
+        )))
+    }
+
+    /// A standalone copy of the material (detached from the soft body it may be a view of).
+    fn copy(&self) -> PyResult<Self> {
+        Ok(Self::owned(self.get()?))
     }
 
     /// Does the material tear (a strain or force threshold is set)?
-    fn tears(&self) -> bool {
-        self.0.tears()
+    fn tears(&self) -> PyResult<bool> {
+        self.read(|s| s.tears())
     }
 
     /// The Lamé parameters ``(lambda, mu)`` of the elastic cells.
-    fn lame_parameters(&self) -> (Real, Real) {
-        self.0.lame_parameters()
+    fn lame_parameters(&self) -> PyResult<(Real, Real)> {
+        self.read(|s| s.lame_parameters())
     }
 
     /// Softness of the structural edges.
     #[getter]
-    fn edge_softness(&self) -> SpringCoefficients {
-        SpringCoefficients(self.0.edge_softness)
+    fn edge_softness(&self) -> PyResult<SpringCoefficients> {
+        self.read(|s| SpringCoefficients(s.edge_softness))
     }
     #[setter]
     fn set_edge_softness(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.0.edge_softness = spring(v)?;
-        Ok(())
+        let spring = spring(v)?;
+        self.write(|s| s.edge_softness = spring)
     }
     /// Softness of the bending constraints (bend edges and dihedrals).
     #[getter]
-    fn bend_softness(&self) -> SpringCoefficients {
-        SpringCoefficients(self.0.bend_softness)
+    fn bend_softness(&self) -> PyResult<SpringCoefficients> {
+        self.read(|s| SpringCoefficients(s.bend_softness))
     }
     #[setter]
     fn set_bend_softness(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.0.bend_softness = spring(v)?;
-        Ok(())
+        let spring = spring(v)?;
+        self.write(|s| s.bend_softness = spring)
     }
     /// Softness of the volume preservation constraints.
     #[getter]
-    fn volume_softness(&self) -> SpringCoefficients {
-        SpringCoefficients(self.0.volume_softness)
+    fn volume_softness(&self) -> PyResult<SpringCoefficients> {
+        self.read(|s| SpringCoefficients(s.volume_softness))
     }
     #[setter]
     fn set_volume_softness(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.0.volume_softness = spring(v)?;
-        Ok(())
+        let spring = spring(v)?;
+        self.write(|s| s.volume_softness = spring)
     }
     /// Softness of the shape-matching constraints.
     #[getter]
-    fn shape_matching_softness(&self) -> SpringCoefficients {
-        SpringCoefficients(self.0.shape_matching_softness)
+    fn shape_matching_softness(&self) -> PyResult<SpringCoefficients> {
+        self.read(|s| SpringCoefficients(s.shape_matching_softness))
     }
     #[setter]
     fn set_shape_matching_softness(&mut self, v: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.0.shape_matching_softness = spring(v)?;
-        Ok(())
+        let spring = spring(v)?;
+        self.write(|s| s.shape_matching_softness = spring)
     }
     /// Young's modulus of the elastic cells (``COROTATIONAL`` and ``NEO_HOOKEAN`` models).
     #[getter]
-    fn young_modulus(&self) -> Real {
-        self.0.young_modulus
+    fn young_modulus(&self) -> PyResult<Real> {
+        self.read(|s| s.young_modulus)
     }
     #[setter]
-    fn set_young_modulus(&mut self, v: Real) {
-        self.0.young_modulus = v;
+    fn set_young_modulus(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.young_modulus = v)
     }
     /// Poisson's ratio of the elastic cells.
     #[getter]
-    fn poisson_ratio(&self) -> Real {
-        self.0.poisson_ratio
+    fn poisson_ratio(&self) -> PyResult<Real> {
+        self.read(|s| s.poisson_ratio)
     }
     #[setter]
-    fn set_poisson_ratio(&mut self, v: Real) {
-        self.0.poisson_ratio = v;
+    fn set_poisson_ratio(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.poisson_ratio = v)
     }
     /// Damping ratio of the elastic cells.
     #[getter]
-    fn elastic_damping_ratio(&self) -> Real {
-        self.0.elastic_damping_ratio
+    fn elastic_damping_ratio(&self) -> PyResult<Real> {
+        self.read(|s| s.elastic_damping_ratio)
     }
     #[setter]
-    fn set_elastic_damping_ratio(&mut self, v: Real) {
-        self.0.elastic_damping_ratio = v;
+    fn set_elastic_damping_ratio(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.elastic_damping_ratio = v)
     }
     /// Strain beyond which the rest shape of an elastic cell flows (``0`` disables it).
     #[getter]
-    fn plastic_yield(&self) -> Real {
-        self.0.plastic_yield
+    fn plastic_yield(&self) -> PyResult<Real> {
+        self.read(|s| s.plastic_yield)
     }
     #[setter]
-    fn set_plastic_yield(&mut self, v: Real) {
-        self.0.plastic_yield = v;
+    fn set_plastic_yield(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.plastic_yield = v)
     }
     /// Rate (per second) at which a cell's rest shape follows its deformation past the yield.
     #[getter]
-    fn plastic_creep(&self) -> Real {
-        self.0.plastic_creep
+    fn plastic_creep(&self) -> PyResult<Real> {
+        self.read(|s| s.plastic_creep)
     }
     #[setter]
-    fn set_plastic_creep(&mut self, v: Real) {
-        self.0.plastic_creep = v;
+    fn set_plastic_creep(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.plastic_creep = v)
     }
     /// Largest accumulated plastic deformation of a cell.
     #[getter]
-    fn plastic_max(&self) -> Real {
-        self.0.plastic_max
+    fn plastic_max(&self) -> PyResult<Real> {
+        self.read(|s| s.plastic_max)
     }
     #[setter]
-    fn set_plastic_max(&mut self, v: Real) {
-        self.0.plastic_max = v;
+    fn set_plastic_max(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.plastic_max = v)
     }
     /// Damping of the deformation velocity of the elastic cells.
     #[getter]
-    fn deformation_damping(&self) -> Real {
-        self.0.deformation_damping
+    fn deformation_damping(&self) -> PyResult<Real> {
+        self.read(|s| s.deformation_damping)
     }
     #[setter]
-    fn set_deformation_damping(&mut self, v: Real) {
-        self.0.deformation_damping = v;
+    fn set_deformation_damping(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.deformation_damping = v)
     }
     /// Strain beyond which an edge's rest length flows (``0`` disables it).
     #[getter]
-    fn edge_plastic_yield(&self) -> Real {
-        self.0.edge_plastic_yield
+    fn edge_plastic_yield(&self) -> PyResult<Real> {
+        self.read(|s| s.edge_plastic_yield)
     }
     #[setter]
-    fn set_edge_plastic_yield(&mut self, v: Real) {
-        self.0.edge_plastic_yield = v;
+    fn set_edge_plastic_yield(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.edge_plastic_yield = v)
     }
     /// Rate (per second) at which an edge's rest length follows its stretch past the yield.
     #[getter]
-    fn edge_plastic_creep(&self) -> Real {
-        self.0.edge_plastic_creep
+    fn edge_plastic_creep(&self) -> PyResult<Real> {
+        self.read(|s| s.edge_plastic_creep)
     }
     #[setter]
-    fn set_edge_plastic_creep(&mut self, v: Real) {
-        self.0.edge_plastic_creep = v;
+    fn set_edge_plastic_creep(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.edge_plastic_creep = v)
     }
     /// Largest relative change of an edge's rest length.
     #[getter]
-    fn edge_plastic_max(&self) -> Real {
-        self.0.edge_plastic_max
+    fn edge_plastic_max(&self) -> PyResult<Real> {
+        self.read(|s| s.edge_plastic_max)
     }
     #[setter]
-    fn set_edge_plastic_max(&mut self, v: Real) {
-        self.0.edge_plastic_max = v;
+    fn set_edge_plastic_max(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.edge_plastic_max = v)
     }
     /// Which strains make the edge rest lengths flow.
     #[getter]
-    fn edge_plastic_flow(&self) -> SoftEdgePlasticFlow {
-        SoftEdgePlasticFlow::from_rapier(self.0.edge_plastic_flow)
+    fn edge_plastic_flow(&self) -> PyResult<SoftEdgePlasticFlow> {
+        self.read(|s| SoftEdgePlasticFlow::from_rapier(s.edge_plastic_flow))
     }
     #[setter]
-    fn set_edge_plastic_flow(&mut self, v: SoftEdgePlasticFlow) {
-        self.0.edge_plastic_flow = v.to_rapier();
+    fn set_edge_plastic_flow(&mut self, v: SoftEdgePlasticFlow) -> PyResult<()> {
+        self.write(|s| s.edge_plastic_flow = v.to_rapier())
     }
     /// Strain beyond which an element tears, or ``None``.
     #[getter]
-    fn tear_strain(&self) -> Option<Real> {
-        self.0.tear_strain
+    fn tear_strain(&self) -> PyResult<Option<Real>> {
+        self.read(|s| s.tear_strain)
     }
     #[setter]
-    fn set_tear_strain(&mut self, v: Option<Real>) {
-        self.0.tear_strain = v;
+    fn set_tear_strain(&mut self, v: Option<Real>) -> PyResult<()> {
+        self.write(|s| s.tear_strain = v)
     }
     /// Force beyond which an element tears, or ``None``.
     #[getter]
-    fn tear_force(&self) -> Option<Real> {
-        self.0.tear_force
+    fn tear_force(&self) -> PyResult<Option<Real>> {
+        self.read(|s| s.tear_force)
     }
     #[setter]
-    fn set_tear_force(&mut self, v: Option<Real>) {
-        self.0.tear_force = v;
+    fn set_tear_force(&mut self, v: Option<Real>) -> PyResult<()> {
+        self.write(|s| s.tear_force = v)
     }
     /// Time constant (seconds) of the load smoothing compared against ``tear_force``.
     #[getter]
-    fn tear_smoothing(&self) -> Real {
-        self.0.tear_smoothing
+    fn tear_smoothing(&self) -> PyResult<Real> {
+        self.read(|s| s.tear_smoothing)
     }
     #[setter]
-    fn set_tear_smoothing(&mut self, v: Real) {
-        self.0.tear_smoothing = v;
+    fn set_tear_smoothing(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.tear_smoothing = v)
     }
     /// Multiplier of the tear thresholds of the interior elements.
     #[getter]
-    fn interior_strength(&self) -> Real {
-        self.0.interior_strength
+    fn interior_strength(&self) -> PyResult<Real> {
+        self.read(|s| s.interior_strength)
     }
     #[setter]
-    fn set_interior_strength(&mut self, v: Real) {
-        self.0.interior_strength = v;
+    fn set_interior_strength(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.interior_strength = v)
     }
     /// Largest number of elements torn per step.
     #[getter]
-    fn max_tears_per_step(&self) -> u32 {
-        self.0.max_tears_per_step
+    fn max_tears_per_step(&self) -> PyResult<u32> {
+        self.read(|s| s.max_tears_per_step)
     }
     #[setter]
-    fn set_max_tears_per_step(&mut self, v: u32) {
-        self.0.max_tears_per_step = v;
+    fn set_max_tears_per_step(&mut self, v: u32) -> PyResult<()> {
+        self.write(|s| s.max_tears_per_step = v)
     }
     /// Smallest piece (in elements) a tear may split off, or ``None`` for the default.
     #[getter]
-    fn min_piece(&self) -> Option<u32> {
-        self.0.min_piece
+    fn min_piece(&self) -> PyResult<Option<u32>> {
+        self.read(|s| s.min_piece)
     }
     #[setter]
-    fn set_min_piece(&mut self, v: Option<u32>) {
-        self.0.min_piece = v;
+    fn set_min_piece(&mut self, v: Option<u32>) -> PyResult<()> {
+        self.write(|s| s.min_piece = v)
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "SoftBodyMaterial(young_modulus={}, poisson_ratio={}, tear_strain={:?}, tear_force={:?})",
-            self.0.young_modulus, self.0.poisson_ratio, self.0.tear_strain, self.0.tear_force
-        )
+    fn __repr__(&self) -> PyResult<String> {
+        self.read(|m| {
+            format!(
+                "SoftBodyMaterial(young_modulus={}, poisson_ratio={}, tear_strain={:?}, tear_force={:?})",
+                m.young_modulus, m.poisson_ratio, m.tear_strain, m.tear_force
+            )
+        })
     }
 }
 
@@ -623,287 +822,569 @@ impl SoftBodyParticleSettings {
     }
 }
 
+/// A settings group nested in [`rapier::dynamics::SoftBodiesSettings`].
+trait SoftBodiesSettingsField: Copy {
+    fn field(settings: &rapier::dynamics::SoftBodiesSettings) -> &Self;
+    fn field_mut(settings: &mut rapier::dynamics::SoftBodiesSettings) -> &mut Self;
+}
+
+impl SoftBodiesSettingsField for rapier::dynamics::SoftRecoverySettings {
+    fn field(settings: &rapier::dynamics::SoftBodiesSettings) -> &Self {
+        &settings.recovery
+    }
+    fn field_mut(settings: &mut rapier::dynamics::SoftBodiesSettings) -> &mut Self {
+        &mut settings.recovery
+    }
+}
+
+impl SoftBodiesSettingsField for rapier::dynamics::SoftFemParameters {
+    fn field(settings: &rapier::dynamics::SoftBodiesSettings) -> &Self {
+        &settings.fem
+    }
+    fn field_mut(settings: &mut rapier::dynamics::SoftBodiesSettings) -> &mut Self {
+        &mut settings.fem
+    }
+}
+
+/// Storage backing a settings group nested in `SoftBodiesSettings`: a standalone value, or a
+/// live view into the group of a `SoftBodiesSettings` (itself standalone or a view).
+#[derive(Debug)]
+enum NestedSettingsBacking<T> {
+    Owned(T),
+    InSettings(Py<SoftBodiesSettings>),
+}
+
+impl<T: Copy> Clone for NestedSettingsBacking<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Owned(v) => Self::Owned(*v),
+            Self::InSettings(s) => Python::with_gil(|py| Self::InSettings(s.clone_ref(py))),
+        }
+    }
+}
+
+impl<T: SoftBodiesSettingsField> NestedSettingsBacking<T> {
+    fn read<R>(&self, f: impl FnOnce(&T) -> R) -> PyResult<R> {
+        match self {
+            Self::Owned(v) => Ok(f(v)),
+            Self::InSettings(s) => {
+                Python::with_gil(|py| s.bind(py).try_borrow()?.read(|s| f(T::field(s))))
+            }
+        }
+    }
+
+    fn write<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> PyResult<R> {
+        match self {
+            Self::Owned(v) => Ok(f(v)),
+            Self::InSettings(s) => {
+                Python::with_gil(|py| s.bind(py).try_borrow_mut()?.write(|s| f(T::field_mut(s))))
+            }
+        }
+    }
+}
+
 /// Runtime toggles and tuning of the soft-body tangle detection and recovery stack. Every
 /// mechanism can be switched off individually.
+///
+/// :attr:`SoftBodiesSettings.recovery` gives a live view: setting one of its fields changes the
+/// settings it was read from. :meth:`copy` detaches a standalone copy.
 #[pyclass(name = "SoftRecoverySettings", module = "rapier")]
-#[derive(Debug, Clone, Copy)]
-pub struct SoftRecoverySettings(pub rapier::dynamics::SoftRecoverySettings);
+#[derive(Debug, Clone)]
+pub struct SoftRecoverySettings {
+    backing: NestedSettingsBacking<rapier::dynamics::SoftRecoverySettings>,
+}
+
+impl SoftRecoverySettings {
+    /// A copy of the settings' value.
+    fn get(&self) -> PyResult<rapier::dynamics::SoftRecoverySettings> {
+        self.read(|s| *s)
+    }
+    fn read<R>(&self, f: impl FnOnce(&rapier::dynamics::SoftRecoverySettings) -> R) -> PyResult<R> {
+        self.backing.read(f)
+    }
+    fn write<R>(
+        &mut self,
+        f: impl FnOnce(&mut rapier::dynamics::SoftRecoverySettings) -> R,
+    ) -> PyResult<R> {
+        self.backing.write(f)
+    }
+}
 
 #[pymethods]
 impl SoftRecoverySettings {
+    /// The default settings.
     #[new]
     fn new() -> Self {
-        Self(rapier::dynamics::SoftRecoverySettings::default())
+        Self {
+            backing: NestedSettingsBacking::Owned(rapier::dynamics::SoftRecoverySettings::default()),
+        }
+    }
+    /// A standalone copy of the settings (detached from the settings it may be a view of).
+    fn copy(&self) -> PyResult<Self> {
+        Ok(Self {
+            backing: NestedSettingsBacking::Owned(self.get()?),
+        })
     }
     #[getter]
-    fn authored_velocity_margin(&self) -> bool {
-        self.0.authored_velocity_margin
+    fn authored_velocity_margin(&self) -> PyResult<bool> {
+        self.read(|s| s.authored_velocity_margin)
     }
     #[setter]
-    fn set_authored_velocity_margin(&mut self, v: bool) {
-        self.0.authored_velocity_margin = v;
+    fn set_authored_velocity_margin(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.authored_velocity_margin = v)
     }
     #[getter]
-    fn edge_speculation(&self) -> bool {
-        self.0.edge_speculation
+    fn edge_speculation(&self) -> PyResult<bool> {
+        self.read(|s| s.edge_speculation)
     }
     #[setter]
-    fn set_edge_speculation(&mut self, v: bool) {
-        self.0.edge_speculation = v;
+    fn set_edge_speculation(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.edge_speculation = v)
     }
     #[getter]
-    fn inverted_cell_detection(&self) -> bool {
-        self.0.inverted_cell_detection
+    fn inverted_cell_detection(&self) -> PyResult<bool> {
+        self.read(|s| s.inverted_cell_detection)
     }
     #[setter]
-    fn set_inverted_cell_detection(&mut self, v: bool) {
-        self.0.inverted_cell_detection = v;
+    fn set_inverted_cell_detection(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.inverted_cell_detection = v)
     }
     #[getter]
-    fn self_crossing_detection(&self) -> bool {
-        self.0.self_crossing_detection
+    fn self_crossing_detection(&self) -> PyResult<bool> {
+        self.read(|s| s.self_crossing_detection)
     }
     #[setter]
-    fn set_self_crossing_detection(&mut self, v: bool) {
-        self.0.self_crossing_detection = v;
+    fn set_self_crossing_detection(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.self_crossing_detection = v)
     }
     #[getter]
-    fn detection_motion_gating(&self) -> bool {
-        self.0.detection_motion_gating
+    fn detection_motion_gating(&self) -> PyResult<bool> {
+        self.read(|s| s.detection_motion_gating)
     }
     #[setter]
-    fn set_detection_motion_gating(&mut self, v: bool) {
-        self.0.detection_motion_gating = v;
+    fn set_detection_motion_gating(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.detection_motion_gating = v)
     }
     #[getter]
-    fn cross_body_detection(&self) -> bool {
-        self.0.cross_body_detection
+    fn cross_body_detection(&self) -> PyResult<bool> {
+        self.read(|s| s.cross_body_detection)
     }
     #[setter]
-    fn set_cross_body_detection(&mut self, v: bool) {
-        self.0.cross_body_detection = v;
+    fn set_cross_body_detection(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.cross_body_detection = v)
     }
     #[getter]
-    fn self_stand_down(&self) -> bool {
-        self.0.self_stand_down
+    fn self_stand_down(&self) -> PyResult<bool> {
+        self.read(|s| s.self_stand_down)
     }
     #[setter]
-    fn set_self_stand_down(&mut self, v: bool) {
-        self.0.self_stand_down = v;
+    fn set_self_stand_down(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.self_stand_down = v)
     }
     #[getter]
-    fn cross_body_expel_gate(&self) -> bool {
-        self.0.cross_body_expel_gate
+    fn cross_body_expel_gate(&self) -> PyResult<bool> {
+        self.read(|s| s.cross_body_expel_gate)
     }
     #[setter]
-    fn set_cross_body_expel_gate(&mut self, v: bool) {
-        self.0.cross_body_expel_gate = v;
+    fn set_cross_body_expel_gate(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.cross_body_expel_gate = v)
     }
     #[getter]
-    fn edge_stand_down(&self) -> bool {
-        self.0.edge_stand_down
+    fn edge_stand_down(&self) -> PyResult<bool> {
+        self.read(|s| s.edge_stand_down)
     }
     #[setter]
-    fn set_edge_stand_down(&mut self, v: bool) {
-        self.0.edge_stand_down = v;
+    fn set_edge_stand_down(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.edge_stand_down = v)
     }
     #[getter]
-    fn crossing_repulsion(&self) -> bool {
-        self.0.crossing_repulsion
+    fn crossing_repulsion(&self) -> PyResult<bool> {
+        self.read(|s| s.crossing_repulsion)
     }
     #[setter]
-    fn set_crossing_repulsion(&mut self, v: bool) {
-        self.0.crossing_repulsion = v;
+    fn set_crossing_repulsion(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.crossing_repulsion = v)
     }
     #[getter]
-    fn crossing_repulsion_guide(&self) -> bool {
-        self.0.crossing_repulsion_guide
+    fn crossing_repulsion_guide(&self) -> PyResult<bool> {
+        self.read(|s| s.crossing_repulsion_guide)
     }
     #[setter]
-    fn set_crossing_repulsion_guide(&mut self, v: bool) {
-        self.0.crossing_repulsion_guide = v;
+    fn set_crossing_repulsion_guide(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.crossing_repulsion_guide = v)
     }
     #[getter]
-    fn crossing_repulsion_self_guide(&self) -> bool {
-        self.0.crossing_repulsion_self_guide
+    fn crossing_repulsion_self_guide(&self) -> PyResult<bool> {
+        self.read(|s| s.crossing_repulsion_self_guide)
     }
     #[setter]
-    fn set_crossing_repulsion_self_guide(&mut self, v: bool) {
-        self.0.crossing_repulsion_self_guide = v;
+    fn set_crossing_repulsion_self_guide(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.crossing_repulsion_self_guide = v)
     }
     #[getter]
-    fn recovery_pace(&self) -> Real {
-        self.0.recovery_pace
+    fn recovery_pace(&self) -> PyResult<Real> {
+        self.read(|s| s.recovery_pace)
     }
     #[setter]
-    fn set_recovery_pace(&mut self, v: Real) {
-        self.0.recovery_pace = v;
+    fn set_recovery_pace(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.recovery_pace = v)
     }
     #[getter]
-    fn overlap_constraints(&self) -> bool {
-        self.0.overlap_constraints
+    fn overlap_constraints(&self) -> PyResult<bool> {
+        self.read(|s| s.overlap_constraints)
     }
     #[setter]
-    fn set_overlap_constraints(&mut self, v: bool) {
-        self.0.overlap_constraints = v;
+    fn set_overlap_constraints(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.overlap_constraints = v)
     }
     #[getter]
-    fn overlap_rigid(&self) -> bool {
-        self.0.overlap_rigid
+    fn overlap_rigid(&self) -> PyResult<bool> {
+        self.read(|s| s.overlap_rigid)
     }
     #[setter]
-    fn set_overlap_rigid(&mut self, v: bool) {
-        self.0.overlap_rigid = v;
+    fn set_overlap_rigid(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.overlap_rigid = v)
     }
     #[getter]
-    fn overlap_skip_self_tangled(&self) -> bool {
-        self.0.overlap_skip_self_tangled
+    fn overlap_skip_self_tangled(&self) -> PyResult<bool> {
+        self.read(|s| s.overlap_skip_self_tangled)
     }
     #[setter]
-    fn set_overlap_skip_self_tangled(&mut self, v: bool) {
-        self.0.overlap_skip_self_tangled = v;
+    fn set_overlap_skip_self_tangled(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.overlap_skip_self_tangled = v)
     }
     #[getter]
-    fn overlap_edge_stand_down(&self) -> bool {
-        self.0.overlap_edge_stand_down
+    fn overlap_edge_stand_down(&self) -> PyResult<bool> {
+        self.read(|s| s.overlap_edge_stand_down)
     }
     #[setter]
-    fn set_overlap_edge_stand_down(&mut self, v: bool) {
-        self.0.overlap_edge_stand_down = v;
+    fn set_overlap_edge_stand_down(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.overlap_edge_stand_down = v)
     }
     #[getter]
-    fn overlap_constraint_pace(&self) -> Real {
-        self.0.overlap_constraint_pace
+    fn overlap_constraint_pace(&self) -> PyResult<Real> {
+        self.read(|s| s.overlap_constraint_pace)
     }
     #[setter]
-    fn set_overlap_constraint_pace(&mut self, v: Real) {
-        self.0.overlap_constraint_pace = v;
+    fn set_overlap_constraint_pace(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.overlap_constraint_pace = v)
     }
     #[getter]
-    fn overlap_skin_volume(&self) -> bool {
-        self.0.overlap_skin_volume
+    fn overlap_skin_volume(&self) -> PyResult<bool> {
+        self.read(|s| s.overlap_skin_volume)
     }
     #[setter]
-    fn set_overlap_skin_volume(&mut self, v: bool) {
-        self.0.overlap_skin_volume = v;
+    fn set_overlap_skin_volume(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.overlap_skin_volume = v)
     }
     #[getter]
-    fn overlap_kept_depth(&self) -> Real {
-        self.0.overlap_kept_depth
+    fn overlap_kept_depth(&self) -> PyResult<Real> {
+        self.read(|s| s.overlap_kept_depth)
     }
     #[setter]
-    fn set_overlap_kept_depth(&mut self, v: Real) {
-        self.0.overlap_kept_depth = v;
+    fn set_overlap_kept_depth(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.overlap_kept_depth = v)
     }
     #[getter]
-    fn overlap_self_regions(&self) -> bool {
-        self.0.overlap_self_regions
+    fn overlap_self_regions(&self) -> PyResult<bool> {
+        self.read(|s| s.overlap_self_regions)
     }
     #[setter]
-    fn set_overlap_self_regions(&mut self, v: bool) {
-        self.0.overlap_self_regions = v;
+    fn set_overlap_self_regions(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.overlap_self_regions = v)
     }
     #[getter]
-    fn overlap_normal_push(&self) -> bool {
-        self.0.overlap_normal_push
+    fn overlap_normal_push(&self) -> PyResult<bool> {
+        self.read(|s| s.overlap_normal_push)
     }
     #[setter]
-    fn set_overlap_normal_push(&mut self, v: bool) {
-        self.0.overlap_normal_push = v;
+    fn set_overlap_normal_push(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.overlap_normal_push = v)
     }
     #[getter]
-    fn overlap_multi_volume(&self) -> bool {
-        self.0.overlap_multi_volume
+    fn overlap_multi_volume(&self) -> PyResult<bool> {
+        self.read(|s| s.overlap_multi_volume)
     }
     #[setter]
-    fn set_overlap_multi_volume(&mut self, v: bool) {
-        self.0.overlap_multi_volume = v;
+    fn set_overlap_multi_volume(&mut self, v: bool) -> PyResult<()> {
+        self.write(|s| s.overlap_multi_volume = v)
     }
     #[getter]
-    fn overlap_split(&self) -> u32 {
-        self.0.overlap_split
+    fn overlap_split(&self) -> PyResult<u32> {
+        self.read(|s| s.overlap_split)
     }
     #[setter]
-    fn set_overlap_split(&mut self, v: u32) {
-        self.0.overlap_split = v;
+    fn set_overlap_split(&mut self, v: u32) -> PyResult<()> {
+        self.write(|s| s.overlap_split = v)
     }
     #[getter]
-    fn overlap_patience(&self) -> u32 {
-        self.0.overlap_patience
+    fn overlap_patience(&self) -> PyResult<u32> {
+        self.read(|s| s.overlap_patience)
     }
     #[setter]
-    fn set_overlap_patience(&mut self, v: u32) {
-        self.0.overlap_patience = v;
+    fn set_overlap_patience(&mut self, v: u32) -> PyResult<()> {
+        self.write(|s| s.overlap_patience = v)
     }
     #[getter]
-    fn overlap_progress_margin(&self) -> Real {
-        self.0.overlap_progress_margin
+    fn overlap_progress_margin(&self) -> PyResult<Real> {
+        self.read(|s| s.overlap_progress_margin)
     }
     #[setter]
-    fn set_overlap_progress_margin(&mut self, v: Real) {
-        self.0.overlap_progress_margin = v;
+    fn set_overlap_progress_margin(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.overlap_progress_margin = v)
     }
     /// What the recovery does with the contact patches of crossed surfaces.
     #[getter]
-    fn overlap_patch_constraints(&self) -> SoftPatchConstraints {
-        SoftPatchConstraints::from_rapier(self.0.overlap_patch_constraints)
+    fn overlap_patch_constraints(&self) -> PyResult<SoftPatchConstraints> {
+        self.read(|s| SoftPatchConstraints::from_rapier(s.overlap_patch_constraints))
     }
     #[setter]
-    fn set_overlap_patch_constraints(&mut self, v: SoftPatchConstraints) {
-        self.0.overlap_patch_constraints = v.to_rapier();
+    fn set_overlap_patch_constraints(&mut self, v: SoftPatchConstraints) -> PyResult<()> {
+        self.write(|s| s.overlap_patch_constraints = v.to_rapier())
+    }
+}
+
+/// Tuning of the FEM soft-body solver (see :attr:`SoftBodySolver.FEM`), which solves a linear
+/// system per substep by conjugate gradient and factorizes it once per step (see
+/// :attr:`max_dense_dofs`); lives on :attr:`SoftBodiesSettings.fem`.
+///
+/// Every field can be passed as a keyword to the constructor::
+///
+///     fem = SoftFemParameters(linear_tolerance=1.0e-6, max_linear_iterations=50)
+///
+/// :attr:`SoftBodiesSettings.fem` gives a live view: setting one of its fields changes the
+/// settings it was read from. :meth:`copy` detaches a standalone copy.
+#[pyclass(name = "SoftFemParameters", module = "rapier")]
+#[derive(Debug, Clone)]
+pub struct SoftFemParameters {
+    backing: NestedSettingsBacking<rapier::dynamics::SoftFemParameters>,
+}
+
+impl SoftFemParameters {
+    /// A copy of the parameters' value.
+    fn get(&self) -> PyResult<rapier::dynamics::SoftFemParameters> {
+        self.read(|s| *s)
+    }
+    fn read<R>(&self, f: impl FnOnce(&rapier::dynamics::SoftFemParameters) -> R) -> PyResult<R> {
+        self.backing.read(f)
+    }
+    fn write<R>(
+        &mut self,
+        f: impl FnOnce(&mut rapier::dynamics::SoftFemParameters) -> R,
+    ) -> PyResult<R> {
+        self.backing.write(f)
+    }
+}
+
+#[pymethods]
+impl SoftFemParameters {
+    /// The default parameters, with every field given as a keyword overridden.
+    #[new]
+    #[pyo3(signature = (**kwargs))]
+    fn new(kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+        let mut params = rapier::dynamics::SoftFemParameters::default();
+        if let Some(kw) = kwargs {
+            for (k, v) in kw.iter() {
+                let key: String = k.extract()?;
+                match key.as_str() {
+                    "linear_tolerance" => params.linear_tolerance = v.extract()?,
+                    "max_linear_iterations" => params.max_linear_iterations = v.extract()?,
+                    "max_dense_dofs" => params.max_dense_dofs = v.extract()?,
+                    other => {
+                        return Err(PyTypeError::new_err(format!(
+                            "SoftFemParameters: unknown keyword argument '{other}'"
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(Self {
+            backing: NestedSettingsBacking::Owned(params),
+        })
+    }
+    /// A standalone copy of the parameters (detached from the settings they may be a view of).
+    fn copy(&self) -> PyResult<Self> {
+        Ok(Self {
+            backing: NestedSettingsBacking::Owned(self.get()?),
+        })
+    }
+    /// Relative residual at which the conjugate gradient stops (default ``1.0e-5``).
+    #[getter]
+    fn linear_tolerance(&self) -> PyResult<Real> {
+        self.read(|s| s.linear_tolerance)
+    }
+    #[setter]
+    fn set_linear_tolerance(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.linear_tolerance = v)
+    }
+    /// Hard cap on the conjugate-gradient iterations, whatever the residual (default ``20``). A
+    /// truncated solve is under-relaxed (safe), only slower to settle.
+    #[getter]
+    fn max_linear_iterations(&self) -> PyResult<usize> {
+        self.read(|s| s.max_linear_iterations)
+    }
+    #[setter]
+    fn set_max_linear_iterations(&mut self, v: usize) -> PyResult<()> {
+        self.write(|s| s.max_linear_iterations = v)
+    }
+    /// Largest number of degrees of freedom (3 per particle) for which the step-start matrix of
+    /// a body is factorized directly (default ``600``); larger bodies fall back to a conjugate
+    /// gradient for the solves their constraints need.
+    #[getter]
+    fn max_dense_dofs(&self) -> PyResult<usize> {
+        self.read(|s| s.max_dense_dofs)
+    }
+    #[setter]
+    fn set_max_dense_dofs(&mut self, v: usize) -> PyResult<()> {
+        self.write(|s| s.max_dense_dofs = v)
+    }
+    fn __repr__(&self) -> PyResult<String> {
+        self.read(|s| {
+            format!(
+                "SoftFemParameters(linear_tolerance={}, max_linear_iterations={}, max_dense_dofs={})",
+                s.linear_tolerance, s.max_linear_iterations, s.max_dense_dofs
+            )
+        })
     }
 }
 
 /// Simulation settings shared by every soft body of a world; lives on
 /// :attr:`IntegrationParameters.soft_bodies`.
+///
+/// :attr:`IntegrationParameters.soft_bodies` gives a live view: setting one of its fields (or of
+/// its nested :attr:`recovery` and :attr:`fem` groups, also live views) changes the parameters
+/// it was read from. :meth:`copy` detaches a standalone copy.
 #[pyclass(name = "SoftBodiesSettings", module = "rapier")]
-#[derive(Debug, Clone, Copy)]
-pub struct SoftBodiesSettings(pub rapier::dynamics::SoftBodiesSettings);
+#[derive(Debug, Clone)]
+pub struct SoftBodiesSettings {
+    backing: SoftBodiesSettingsBacking,
+}
+
+/// Storage backing a `SoftBodiesSettings`: a standalone value, or a live view into the
+/// `soft_bodies` of an `IntegrationParameters`.
+#[derive(Debug)]
+enum SoftBodiesSettingsBacking {
+    Owned(rapier::dynamics::SoftBodiesSettings),
+    InParams(Py<crate::dynamics::IntegrationParameters>),
+}
+
+impl Clone for SoftBodiesSettingsBacking {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Owned(s) => Self::Owned(*s),
+            Self::InParams(p) => Python::with_gil(|py| Self::InParams(p.clone_ref(py))),
+        }
+    }
+}
+
+impl SoftBodiesSettings {
+    /// A live view of the soft-body settings of `params`.
+    pub(crate) fn in_params(params: Py<crate::dynamics::IntegrationParameters>) -> Self {
+        Self {
+            backing: SoftBodiesSettingsBacking::InParams(params),
+        }
+    }
+
+    /// A copy of the settings' value.
+    pub(crate) fn get(&self) -> PyResult<rapier::dynamics::SoftBodiesSettings> {
+        self.read(|s| *s)
+    }
+
+    fn read<R>(&self, f: impl FnOnce(&rapier::dynamics::SoftBodiesSettings) -> R) -> PyResult<R> {
+        match &self.backing {
+            SoftBodiesSettingsBacking::Owned(s) => Ok(f(s)),
+            SoftBodiesSettingsBacking::InParams(p) => {
+                Python::with_gil(|py| Ok(f(&p.bind(py).try_borrow()?.0.soft_bodies)))
+            }
+        }
+    }
+
+    fn write<R>(
+        &mut self,
+        f: impl FnOnce(&mut rapier::dynamics::SoftBodiesSettings) -> R,
+    ) -> PyResult<R> {
+        match &mut self.backing {
+            SoftBodiesSettingsBacking::Owned(s) => Ok(f(s)),
+            SoftBodiesSettingsBacking::InParams(p) => {
+                Python::with_gil(|py| Ok(f(&mut p.bind(py).try_borrow_mut()?.0.soft_bodies)))
+            }
+        }
+    }
+}
 
 #[pymethods]
 impl SoftBodiesSettings {
+    /// The default settings.
     #[new]
     fn new() -> Self {
-        Self(rapier::dynamics::SoftBodiesSettings::default())
+        Self {
+            backing: SoftBodiesSettingsBacking::Owned(
+                rapier::dynamics::SoftBodiesSettings::default(),
+            ),
+        }
     }
-    /// The tangle detection and recovery settings (a copy: assign it back to apply).
+    /// A standalone copy of the settings (detached from the parameters they may be a view of).
+    fn copy(&self) -> PyResult<Self> {
+        Ok(Self {
+            backing: SoftBodiesSettingsBacking::Owned(self.get()?),
+        })
+    }
+    /// The tangle detection and recovery settings, as a live view; assigning a
+    /// :class:`SoftRecoverySettings` replaces them all.
     #[getter]
-    fn recovery(&self) -> SoftRecoverySettings {
-        SoftRecoverySettings(self.0.recovery)
+    fn recovery(slf: &Bound<'_, Self>) -> SoftRecoverySettings {
+        SoftRecoverySettings {
+            backing: NestedSettingsBacking::InSettings(slf.clone().unbind()),
+        }
     }
     #[setter]
-    fn set_recovery(&mut self, v: &SoftRecoverySettings) {
-        self.0.recovery = v.0;
+    fn set_recovery(slf: &Bound<'_, Self>, v: &Bound<'_, SoftRecoverySettings>) -> PyResult<()> {
+        // Read the value first: `v` may be a view of these very settings.
+        let value = v.try_borrow()?.get()?;
+        slf.try_borrow_mut()?.write(|s| s.recovery = value)
+    }
+    /// The tuning of the FEM solver (see :class:`SoftFemParameters`), as a live view; assigning
+    /// a :class:`SoftFemParameters` replaces it.
+    #[getter]
+    fn fem(slf: &Bound<'_, Self>) -> SoftFemParameters {
+        SoftFemParameters {
+            backing: NestedSettingsBacking::InSettings(slf.clone().unbind()),
+        }
+    }
+    #[setter]
+    fn set_fem(slf: &Bound<'_, Self>, v: &Bound<'_, SoftFemParameters>) -> PyResult<()> {
+        let value = v.try_borrow()?.get()?;
+        slf.try_borrow_mut()?.write(|s| s.fem = value)
     }
     /// Strain beyond which a soft-body constraint is re-solved after the contacts inside every
     /// substep (default ``0.75``).
     #[getter]
-    fn resweep_strain(&self) -> Real {
-        self.0.resweep_strain
+    fn resweep_strain(&self) -> PyResult<Real> {
+        self.read(|s| s.resweep_strain)
     }
     #[setter]
-    fn set_resweep_strain(&mut self, v: Real) {
-        self.0.resweep_strain = v;
+    fn set_resweep_strain(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.resweep_strain = v)
     }
     /// Maximum number of extra substeps a soft body requests while it is hit fast (default
     /// ``4``; ``0`` disables them).
     #[getter]
-    fn max_extra_substeps(&self) -> usize {
-        self.0.max_extra_substeps
+    fn max_extra_substeps(&self) -> PyResult<usize> {
+        self.read(|s| s.max_extra_substeps)
     }
     #[setter]
-    fn set_max_extra_substeps(&mut self, v: usize) {
-        self.0.max_extra_substeps = v;
+    fn set_max_extra_substeps(&mut self, v: usize) -> PyResult<()> {
+        self.write(|s| s.max_extra_substeps = v)
     }
     /// Factor applied to the contact softness natural frequencies for the soft-body contacts
     /// (default ``4.0``).
     #[getter]
-    fn contact_stiffening(&self) -> Real {
-        self.0.contact_stiffening
+    fn contact_stiffening(&self) -> PyResult<Real> {
+        self.read(|s| s.contact_stiffening)
     }
     #[setter]
-    fn set_contact_stiffening(&mut self, v: Real) {
-        self.0.contact_stiffening = v;
+    fn set_contact_stiffening(&mut self, v: Real) -> PyResult<()> {
+        self.write(|s| s.contact_stiffening = v)
     }
 }
 
@@ -943,15 +1424,16 @@ impl SoftBodyBuilder {
             "particle_mass" => b.particle_mass(v.extract()?),
             "mass" => b.mass(v.extract()?),
             "masses" => b.masses(v.extract()?),
-            "pinned_particles" => b.pinned_particles(extract_indices_1d(v)?),
+            "pinned_particles" => b.pinned_particles(extract_index_list(v)?),
             "softness" => b.softness(spring(v)?),
-            "material" => b.material(v.extract::<PyRef<'_, SoftBodyMaterial>>()?.0),
+            "material" => b.material(v.extract::<PyRef<'_, SoftBodyMaterial>>()?.get()?),
             "tear_strain" => b.tear_strain(v.extract()?),
             "tear_force" => b.tear_force(v.extract()?),
             "min_piece" => b.min_piece(v.extract()?),
             "tear_smoothing" => b.tear_smoothing(v.extract()?),
             "interior_strength" => b.interior_strength(v.extract()?),
             "cell_model" => b.cell_model(v.extract::<SoftBodyCellModel>()?.to_rapier()),
+            "solver" => b.solver(v.extract::<SoftBodySolver>()?.to_rapier()),
             "volume_preservation" => b.volume_preservation(v.extract()?),
             "volume_factor" => b.volume_factor(v.extract()?),
             "shape_matching" => b.shape_matching(v.extract()?),
@@ -1034,7 +1516,7 @@ impl SoftBodyBuilder {
     /// The material (a copy).
     #[getter]
     fn current_material(&self) -> SoftBodyMaterial {
-        SoftBodyMaterial(self.builder.material)
+        SoftBodyMaterial::owned(self.builder.material)
     }
 
     /// The edges of the surface elements, deduplicated, as an ``(E, 2)`` ndarray.
@@ -1071,22 +1553,22 @@ impl SoftBodyBuilder {
     }
     /// Pin the given particles in place.
     fn pinned_particles(&self, pinned: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let pinned = extract_indices_1d(pinned)?;
+        let pinned = extract_index_list(pinned)?;
         Ok(self.chained(|b| b.pinned_particles(pinned)))
     }
     /// Replace the structural edges (an ``(E, 2)`` ndarray or a sequence of pairs).
     fn edges(&self, edges: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let edges = extract_elements::<2>(edges)?;
+        let edges = extract_index_rows::<2>(edges)?;
         Ok(self.chained(|b| b.edges(edges)))
     }
     /// Add structural edges.
     fn add_edges(&self, edges: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let edges = extract_elements::<2>(edges)?;
+        let edges = extract_index_rows::<2>(edges)?;
         Ok(self.chained(|b| b.add_edges(edges)))
     }
     /// Replace the bending edges.
     fn bend_edges(&self, edges: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let edges = extract_elements::<2>(edges)?;
+        let edges = extract_index_rows::<2>(edges)?;
         Ok(self.chained(|b| b.bend_edges(edges)))
     }
     /// Make every edge resist stretching only (a rope or a net that folds freely).
@@ -1096,23 +1578,23 @@ impl SoftBodyBuilder {
     /// Replace the dihedral bending constraints (``(D, 4)``: the shared edge, then the two
     /// opposite vertices).
     fn dihedrals(&self, dihedrals: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let dihedrals = extract_elements::<4>(dihedrals)?;
+        let dihedrals = extract_index_rows::<4>(dihedrals)?;
         Ok(self.chained(|b| b.dihedrals(dihedrals)))
     }
     /// Replace the cells (``(C, 4)`` tetrahedra).
     fn cells(&self, cells: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let cells = extract_elements::<4>(cells)?;
+        let cells = extract_index_rows::<4>(cells)?;
         Ok(self.chained(|b| b.cells(cells)))
     }
     /// Replace the boundary triangles (``(B, 3)``), oriented outward.
     fn surface(&self, surface: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let surface = extract_elements::<3>(surface)?;
+        let surface = extract_index_rows::<3>(surface)?;
         Ok(self.chained(|b| b.surface(surface)))
     }
     /// Set a skin: a finer mesh (world-space vertices and triangles) embedded in the cells.
     fn skin(&self, vertices: &Bound<'_, PyAny>, indices: &Bound<'_, PyAny>) -> PyResult<Self> {
         let vertices = crate::geometry::extract_verts_for_dim(vertices)?;
-        let indices = extract_elements::<3>(indices)?;
+        let indices = extract_index_rows::<3>(indices)?;
         Ok(self.chained(|b| b.skin(vertices, indices)))
     }
     /// Make the body collide through its skin rather than through its cells' boundary.
@@ -1121,13 +1603,13 @@ impl SoftBodyBuilder {
     }
     /// Set the segments a body without surface collides through (a wire).
     fn wire(&self, segments: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let segments = extract_elements::<2>(segments)?;
+        let segments = extract_index_rows::<2>(segments)?;
         Ok(self.chained(|b| b.wire(segments)))
     }
     /// Set the material.
-    fn material(&self, material: &SoftBodyMaterial) -> Self {
-        let m = material.0;
-        self.chained(|b| b.material(m))
+    fn material(&self, material: &SoftBodyMaterial) -> PyResult<Self> {
+        let m = material.get()?;
+        Ok(self.chained(|b| b.material(m)))
     }
     /// Set a uniform softness (a :class:`SpringCoefficients` or a ``(frequency, damping)``
     /// tuple) for every constraint of the material.
@@ -1163,6 +1645,11 @@ impl SoftBodyBuilder {
     /// Set the constitutive model of the cells.
     fn cell_model(&self, model: SoftBodyCellModel) -> Self {
         self.chained(|b| b.cell_model(model.to_rapier()))
+    }
+    /// Select the solver simulating the body's elasticity (default
+    /// :attr:`SoftBodySolver.CONSTRAINTS`).
+    fn solver(&self, solver: SoftBodySolver) -> Self {
+        self.chained(|b| b.solver(solver.to_rapier()))
     }
     /// Enable the preservation of the volume enclosed by the body's closed surfaces.
     fn volume_preservation(&self, enabled: bool) -> Self {
@@ -1722,7 +2209,7 @@ impl SoftMeshBinding {
     #[staticmethod]
     fn direct(particles: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self(rapier::dynamics::SoftMeshBinding::direct(
-            extract_indices_1d(particles)?,
+            extract_index_list(particles)?,
         )))
     }
     /// Bind every vertex to the particle of the cluster closest to it, within ``eps``.
@@ -1745,24 +2232,27 @@ impl SoftMeshBinding {
 // Tear events.
 // ----------------------------------------------------------------------
 
-/// A piece a tear split off into a soft body of its own.
+/// A soft body a tear left: the torn body itself, or a body split off it (see
+/// :attr:`SoftBodyTearEvent.pieces`).
 #[pyclass(name = "SoftBodyPiece", module = "rapier", frozen)]
 #[derive(Debug, Clone)]
 pub struct SoftBodyPiece(pub rapier::dynamics::SoftBodyPiece);
 
 #[pymethods]
 impl SoftBodyPiece {
-    /// The soft body the piece became.
+    /// The soft body holding the piece.
     #[getter]
     fn soft_body(&self) -> SoftBodyHandle {
         SoftBodyHandle(self.0.soft_body)
     }
-    /// The particles (indices in the torn body) that went into the piece.
+    /// The particles of the piece: ``particles[i]`` is the index, in the torn body after the
+    /// tear (the indices the other fields of the event use), of the piece's ``i``-th particle.
     #[getter]
     fn particles(&self) -> Vec<u32> {
         self.0.particles.clone()
     }
-    /// The clusters that moved into the piece, as ``(source, destination)`` index pairs.
+    /// The clusters of the piece, as ``(index in the torn body before the split, index in the
+    /// piece)`` pairs.
     #[getter]
     fn clusters(&self) -> Vec<(u32, u32)> {
         self.0.clusters.iter().map(|c| (c[0], c[1])).collect()
@@ -1853,7 +2343,8 @@ impl SoftBodyTearEvent {
     fn removed_edges<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
         elements_to_array(py, &self.0.removed_edges)
     }
-    /// The particles the tear split, as ``(original, copy)`` pairs.
+    /// The particles the tear passed through, duplicated one copy per piece, as ``(copy,
+    /// source)`` pairs.
     #[getter]
     fn split_particles(&self) -> Vec<(u32, u32)> {
         self.0.split_particles.clone()
@@ -1863,7 +2354,9 @@ impl SoftBodyTearEvent {
     fn inserted_particles(&self) -> Vec<u32> {
         self.0.inserted_particles.clone()
     }
-    /// The pieces the tear split off into soft bodies of their own.
+    /// The soft bodies the torn body came apart into: the piece that keeps the torn body's handle
+    /// (the one with the largest rest measure) first, then the new soft bodies split off it.
+    /// Empty when nothing split off.
     #[getter]
     fn pieces(&self) -> Vec<SoftBodyPiece> {
         self.0.pieces.iter().cloned().map(SoftBodyPiece).collect()
@@ -1888,7 +2381,8 @@ impl SoftBodyTearEvent {
             .map(SoftJointMove)
             .collect()
     }
-    /// The soft bodies touched by the tear: the torn body and its new pieces.
+    /// The soft bodies the torn body is in after the tear, the one keeping its handle first: the
+    /// torn body alone when nothing split off, the bodies of :attr:`pieces` otherwise.
     fn bodies(&self) -> Vec<SoftBodyHandle> {
         self.0.bodies().map(SoftBodyHandle).collect()
     }
@@ -1943,11 +2437,20 @@ impl Clone for SoftBodyBacking {
     }
 }
 
+/// The error raised by a view of a soft body removed from its set.
+fn removed_body(handle: rapier::dynamics::SoftBodyHandle) -> PyErr {
+    crate::errors::InvalidHandle::new_err(format!(
+        "the soft body {:?} was removed from its set",
+        handle.into_raw_parts()
+    ))
+}
+
 /// A soft body: particles linked by edges, bending constraints and cells, simulated together
 /// with the rigid bodies, contacts and joints of a world.
 ///
 /// Instances returned by :class:`SoftBodySet` are live **views**: reads and writes go straight
-/// through to the set. The static constructors (:meth:`rope`, :meth:`cloth`, ...) return a
+/// through to the set, and raise :class:`InvalidHandle` once the body is removed from it. The
+/// static constructors (:meth:`rope`, :meth:`cloth`, ...) return a
 /// :class:`SoftBodyBuilder` to insert with :meth:`SoftBodySet.insert` or
 /// :meth:`PhysicsWorld.add_soft_body`.
 #[pyclass(name = "SoftBody", module = "rapier")]
@@ -1963,36 +2466,64 @@ impl SoftBody {
         }
     }
 
-    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::SoftBody) -> R) -> R {
+    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::SoftBody) -> R) -> PyResult<R> {
         match &self.backing {
-            SoftBodyBacking::Owned(b) => f(b),
+            SoftBodyBacking::Owned(b) => Ok(f(b)),
             SoftBodyBacking::InSet { set, handle } => Python::with_gil(|py| {
-                let set = set.bind(py).borrow();
-                let body = set
-                    .0
-                    .get(*handle)
-                    .expect("SoftBody refers to a body that was removed from its set");
-                f(body)
+                SoftBodySet::read(set.bind(py), |set| set.get(*handle).map(f))?
+                    .ok_or_else(|| removed_body(*handle))
             }),
         }
     }
 
-    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::SoftBody) -> R) -> R {
+    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::SoftBody) -> R) -> PyResult<R> {
         match &mut self.backing {
-            SoftBodyBacking::Owned(b) => f(b),
+            SoftBodyBacking::Owned(b) => Ok(f(b)),
             SoftBodyBacking::InSet { set, handle } => Python::with_gil(|py| {
-                let mut set = set.bind(py).borrow_mut();
+                let mut set = set
+                    .bind(py)
+                    .try_borrow_mut()
+                    .map_err(|_| crate::events_hooks::stepping_error("SoftBodySet"))?;
                 let body = set
                     .0
                     .get_mut(*handle)
-                    .expect("SoftBody refers to a body that was removed from its set");
-                f(body)
+                    .ok_or_else(|| removed_body(*handle))?;
+                Ok(f(body))
             }),
+        }
+    }
+
+    /// One vector per particle, from an `(N, 3)` ndarray or a sequence of 3-tuples.
+    fn extract_per_particle(&self, obj: &Bound<'_, PyAny>) -> PyResult<Vec<rapier::math::Vector>> {
+        let vectors = crate::geometry::extract_verts_for_dim(obj)?;
+        let n = self.with_ref(|b| b.num_particles())?;
+        if vectors.len() != n {
+            return Err(PyValueError::new_err(format!(
+                "expected one row per particle ({n}); got {}",
+                vectors.len()
+            )));
+        }
+        Ok(vectors)
+    }
+
+    fn check_index(
+        &self,
+        what: &str,
+        i: usize,
+        len: impl FnOnce(&rapier::dynamics::SoftBody) -> usize,
+    ) -> PyResult<()> {
+        let n = self.with_ref(len)?;
+        if i < n {
+            Ok(())
+        } else {
+            Err(PyIndexError::new_err(format!(
+                "{what} index {i} out of range (the body has {n})"
+            )))
         }
     }
 
     fn check_particle(&self, i: usize) -> PyResult<()> {
-        let n = self.with_ref(|b| b.num_particles());
+        let n = self.with_ref(|b| b.num_particles())?;
         if i < n {
             Ok(())
         } else {
@@ -2158,7 +2689,7 @@ impl SoftBody {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<SoftBodyBuilder> {
         let vertices = crate::geometry::extract_verts_for_dim(vertices)?;
-        let indices = extract_elements::<3>(indices)?;
+        let indices = extract_index_rows::<3>(indices)?;
         let builder = rapier::dynamics::SoftBodyBuilder::trimesh(vertices, indices)
             .ok_or_else(|| crate::errors::MeshConversionError::new_err("empty triangle mesh"))?;
         SoftBodyBuilder::from_kwargs(builder, kwargs)
@@ -2178,7 +2709,7 @@ impl SoftBody {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<SoftBodyBuilder> {
         let vertices = crate::geometry::extract_verts_for_dim(vertices)?;
-        let indices = extract_elements::<3>(indices)?;
+        let indices = extract_index_rows::<3>(indices)?;
         let builder = if skinned {
             rapier::dynamics::SoftBodyBuilder::volumetric_skinned(&vertices, &indices, cell_size)
         } else {
@@ -2192,27 +2723,56 @@ impl SoftBody {
         SoftBodyBuilder::from_kwargs(builder, kwargs)
     }
 
+    /// The same as :meth:`volumetric`, with the meshing parameters spelled out (see
+    /// :class:`VolumeMeshParameters`); ``skinned`` keeps the surface as a skin embedded in the
+    /// cells.
+    ///
+    /// :raises MeshConversionError: if the surface cannot be meshed.
+    #[staticmethod]
+    #[pyo3(signature = (vertices, indices, params, skinned=false, **kwargs))]
+    fn volumetric_with(
+        vertices: &Bound<'_, PyAny>,
+        indices: &Bound<'_, PyAny>,
+        params: &VolumeMeshParameters,
+        skinned: bool,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<SoftBodyBuilder> {
+        let vertices = crate::geometry::extract_verts_for_dim(vertices)?;
+        let indices = extract_index_rows::<3>(indices)?;
+        let mut builder =
+            rapier::dynamics::SoftBodyBuilder::volumetric_with(&vertices, &indices, &params.0)
+                .ok_or_else(|| {
+                    crate::errors::MeshConversionError::new_err(
+                        "the surface could not be filled with cells (is it closed?)",
+                    )
+                })?;
+        if skinned {
+            builder = builder.skin(vertices, indices);
+        }
+        SoftBodyBuilder::from_kwargs(builder, kwargs)
+    }
+
     /*
      * Particles.
      */
 
     /// A counter incremented by every change of the body's topology (tears, cuts).
     #[getter]
-    fn topology_version(&self) -> u32 {
+    fn topology_version(&self) -> PyResult<u32> {
         self.with_ref(|b| b.topology_version())
     }
     /// The number of particles.
     #[getter]
-    fn num_particles(&self) -> usize {
+    fn num_particles(&self) -> PyResult<usize> {
         self.with_ref(|b| b.num_particles())
     }
     /// A snapshot of the ``i``-th particle.
     fn particle(&self, i: usize) -> PyResult<SoftBodyParticle> {
         self.check_particle(i)?;
-        Ok(self.with_ref(|b| SoftBodyParticle(b.particles()[i])))
+        self.with_ref(|b| SoftBodyParticle(b.particles()[i]))
     }
     /// Snapshots of every particle.
-    fn particles(&self) -> Vec<SoftBodyParticle> {
+    fn particles(&self) -> PyResult<Vec<SoftBodyParticle>> {
         self.with_ref(|b| {
             b.particles()
                 .iter()
@@ -2224,33 +2784,55 @@ impl SoftBody {
     /// The world-space position of the ``i``-th particle.
     fn particle_position(&self, i: usize) -> PyResult<Vec3> {
         self.check_particle(i)?;
-        Ok(self.with_ref(|b| vec3(b.particle_position(i))))
+        self.with_ref(|b| vec3(b.particle_position(i)))
     }
     /// The world-space positions of every particle as an ``(N, 3)`` ndarray.
     #[getter]
-    fn particle_positions<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<Real>> {
+    fn particle_positions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<Real>>> {
         self.with_ref(|b| vectors_to_array(py, b.particle_positions()))
+    }
+    /// Teleport every particle (no velocity change), from an ``(N, 3)`` ndarray or a sequence
+    /// of 3-tuples with one row per particle.
+    #[setter]
+    fn set_particle_positions(&mut self, positions: &Bound<'_, PyAny>) -> PyResult<()> {
+        let positions = self.extract_per_particle(positions)?;
+        self.with_mut(|b| {
+            for (i, p) in positions.into_iter().enumerate() {
+                b.set_particle_position(i, p);
+            }
+        })
     }
     /// The velocity of the ``i``-th particle.
     fn particle_velocity(&self, i: usize) -> PyResult<Vec3> {
         self.check_particle(i)?;
-        Ok(self.with_ref(|b| vec3(b.particle_velocity(i))))
+        self.with_ref(|b| vec3(b.particle_velocity(i)))
     }
     /// The velocities of every particle as an ``(N, 3)`` ndarray.
     #[getter]
-    fn particle_velocities<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<Real>> {
+    fn particle_velocities<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<Real>>> {
         self.with_ref(|b| vectors_to_array(py, b.particle_velocities()))
+    }
+    /// Set the velocity of every particle, from an ``(N, 3)`` ndarray or a sequence of 3-tuples
+    /// with one row per particle.
+    #[setter]
+    fn set_particle_velocities(&mut self, velocities: &Bound<'_, PyAny>) -> PyResult<()> {
+        let velocities = self.extract_per_particle(velocities)?;
+        self.with_mut(|b| {
+            for (i, v) in velocities.into_iter().enumerate() {
+                b.set_particle_velocity(i, v);
+            }
+        })
     }
     /// Set the world-space position of the ``i``-th particle.
     fn set_particle_position(&mut self, i: usize, position: PyVector) -> PyResult<()> {
         self.check_particle(i)?;
-        self.with_mut(|b| b.set_particle_position(i, position.0.into()));
+        self.with_mut(|b| b.set_particle_position(i, position.0.into()))?;
         Ok(())
     }
     /// Set the velocity of the ``i``-th particle.
     fn set_particle_velocity(&mut self, i: usize, velocity: PyVector) -> PyResult<()> {
         self.check_particle(i)?;
-        self.with_mut(|b| b.set_particle_velocity(i, velocity.0.into()));
+        self.with_mut(|b| b.set_particle_velocity(i, velocity.0.into()))?;
         Ok(())
     }
     /// Move the pinned ``i``-th particle to ``position`` over the next step, like a
@@ -2258,13 +2840,13 @@ impl SoftBody {
     /// a free particle.
     fn set_particle_kinematic_target(&mut self, i: usize, position: PyVector) -> PyResult<()> {
         self.check_particle(i)?;
-        self.with_mut(|b| b.set_particle_kinematic_target(i, position.0.into()));
+        self.with_mut(|b| b.set_particle_kinematic_target(i, position.0.into()))?;
         Ok(())
     }
     /// Pin (or release) the ``i``-th particle.
     fn set_particle_pinned(&mut self, i: usize, pinned: bool) -> PyResult<()> {
         self.check_particle(i)?;
-        self.with_mut(|b| b.set_particle_pinned(i, pinned));
+        self.with_mut(|b| b.set_particle_pinned(i, pinned))?;
         Ok(())
     }
     /// Attach the ``i``-th particle to a rigid body, at the particle's current position.
@@ -2275,17 +2857,17 @@ impl SoftBody {
         bodies: &RigidBodySet,
     ) -> PyResult<()> {
         self.check_particle(i)?;
-        self.with_mut(|b| b.attach_particle(i, body.0, &bodies.0));
+        self.with_mut(|b| b.attach_particle(i, body.0, &bodies.0))?;
         Ok(())
     }
     /// Detach the ``i``-th particle from the rigid body it follows; ``False`` if it was not
     /// attached.
-    fn detach_particle(&mut self, i: usize) -> bool {
+    fn detach_particle(&mut self, i: usize) -> PyResult<bool> {
         self.with_mut(|b| b.detach_particle(i))
     }
     /// The particles attached to rigid bodies.
     #[getter]
-    fn particle_attachments(&self) -> Vec<SoftParticleAttachment> {
+    fn particle_attachments(&self) -> PyResult<Vec<SoftParticleAttachment>> {
         self.with_ref(|b| {
             b.particle_attachments()
                 .iter()
@@ -2301,7 +2883,7 @@ impl SoftBody {
 
     /// The number of edges (structural and bending).
     #[getter]
-    fn num_edges(&self) -> usize {
+    fn num_edges(&self) -> PyResult<usize> {
         self.with_ref(|b| b.edges().len())
     }
     /// A snapshot of the ``i``-th edge.
@@ -2312,11 +2894,11 @@ impl SoftBody {
                 .copied()
                 .map(SoftBodyEdge)
                 .ok_or_else(|| PyIndexError::new_err(format!("edge index {i} out of range")))
-        })
+        })?
     }
     /// The particle pairs of every edge as an ``(E, 2)`` ndarray.
     #[getter]
-    fn edges<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
+    fn edges<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u32>>> {
         self.with_ref(|b| {
             let e: Vec<[u32; 2]> = b.edges().iter().map(|e| e.vertices).collect();
             elements_to_array(py, &e)
@@ -2324,7 +2906,7 @@ impl SoftBody {
     }
     /// The number of dihedral bending constraints.
     #[getter]
-    fn num_dihedrals(&self) -> usize {
+    fn num_dihedrals(&self) -> PyResult<usize> {
         self.with_ref(|b| b.dihedrals().len())
     }
     /// A snapshot of the ``i``-th dihedral.
@@ -2335,11 +2917,11 @@ impl SoftBody {
                 .copied()
                 .map(SoftBodyDihedral)
                 .ok_or_else(|| PyIndexError::new_err(format!("dihedral index {i} out of range")))
-        })
+        })?
     }
     /// The particles of every dihedral as a ``(D, 4)`` ndarray.
     #[getter]
-    fn dihedrals<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
+    fn dihedrals<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u32>>> {
         self.with_ref(|b| {
             let d: Vec<[u32; 4]> = b.dihedrals().iter().map(|d| d.vertices).collect();
             elements_to_array(py, &d)
@@ -2347,7 +2929,7 @@ impl SoftBody {
     }
     /// The number of cells (tetrahedra).
     #[getter]
-    fn num_cells(&self) -> usize {
+    fn num_cells(&self) -> PyResult<usize> {
         self.with_ref(|b| b.cells().len())
     }
     /// A snapshot of the ``i``-th cell.
@@ -2358,11 +2940,11 @@ impl SoftBody {
                 .copied()
                 .map(SoftBodyCell)
                 .ok_or_else(|| PyIndexError::new_err(format!("cell index {i} out of range")))
-        })
+        })?
     }
     /// The particles of every cell as a ``(C, 4)`` ndarray.
     #[getter]
-    fn cells<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
+    fn cells<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u32>>> {
         self.with_ref(|b| {
             let c: Vec<[u32; 4]> = b.cells().iter().map(|c| c.vertices).collect();
             elements_to_array(py, &c)
@@ -2370,7 +2952,7 @@ impl SoftBody {
     }
     /// The boundary triangles, oriented outward, as a ``(B, 3)`` ndarray.
     #[getter]
-    fn boundary<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<u32>> {
+    fn boundary<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u32>>> {
         self.with_ref(|b| elements_to_array(py, b.boundary()))
     }
 
@@ -2378,33 +2960,48 @@ impl SoftBody {
      * Material and models.
      */
 
-    /// The material (a copy: assign it back or use :meth:`set_material` to apply changes).
+    /// The material, as a live view: setting one of its fields changes the body (use
+    /// :meth:`SoftBodyMaterial.copy` for a detached copy). Assigning a :class:`SoftBodyMaterial`
+    /// replaces the whole material.
     #[getter]
-    fn material(&self) -> SoftBodyMaterial {
-        self.with_ref(|b| SoftBodyMaterial(*b.material()))
+    fn material(slf: &Bound<'_, Self>) -> PyResult<SoftBodyMaterial> {
+        slf.try_borrow()?.with_ref(|_| ())?;
+        Ok(SoftBodyMaterial {
+            backing: SoftBodyMaterialBacking::InBody(slf.clone().unbind()),
+        })
     }
     #[setter]
-    fn set_material(&mut self, material: &SoftBodyMaterial) {
-        let m = material.0;
-        self.with_mut(|b| b.set_material(m));
+    fn set_material(slf: &Bound<'_, Self>, material: &Bound<'_, SoftBodyMaterial>) -> PyResult<()> {
+        // Read the value first: `material` may be a view of this very body.
+        let m = material.try_borrow()?.get()?;
+        slf.try_borrow_mut()?.with_mut(|b| b.set_material(m))
+    }
+    /// The solver simulating the body's elasticity.
+    #[getter]
+    fn solver(&self) -> PyResult<SoftBodySolver> {
+        self.with_ref(|b| SoftBodySolver::from_rapier(b.solver()))
+    }
+    #[setter]
+    fn set_solver(&mut self, solver: SoftBodySolver) -> PyResult<()> {
+        self.with_mut(|b| b.set_solver(solver.to_rapier()))
     }
     /// The constitutive model of the cells.
     #[getter]
-    fn cell_model(&self) -> SoftBodyCellModel {
+    fn cell_model(&self) -> PyResult<SoftBodyCellModel> {
         self.with_ref(|b| SoftBodyCellModel::from_rapier(b.cell_model()))
     }
     /// Is the volume enclosed by the body's closed surfaces preserved?
     #[getter]
-    fn volume_preservation_enabled(&self) -> bool {
+    fn volume_preservation_enabled(&self) -> PyResult<bool> {
         self.with_ref(|b| b.volume_preservation_enabled())
     }
     /// Enable or disable the preservation of the enclosed volume.
-    fn enable_volume_preservation(&mut self, enabled: bool) {
+    fn enable_volume_preservation(&mut self, enabled: bool) -> PyResult<()> {
         self.with_mut(|b| b.enable_volume_preservation(enabled))
     }
     /// The pieces of material whose volume is preserved.
     #[getter]
-    fn volume_pieces(&self) -> Vec<SoftVolumePiece> {
+    fn volume_pieces(&self) -> PyResult<Vec<SoftVolumePiece>> {
         self.with_ref(|b| {
             b.volume_pieces()
                 .iter()
@@ -2419,35 +3016,35 @@ impl SoftBody {
     }
     /// The rest volume enclosed by the closed surfaces.
     #[getter]
-    fn rest_volume(&self) -> Real {
+    fn rest_volume(&self) -> PyResult<Real> {
         self.with_ref(|b| b.rest_volume())
     }
     /// The current volume enclosed by the closed surfaces.
     #[getter]
-    fn volume(&self) -> Real {
+    fn volume(&self) -> PyResult<Real> {
         self.with_ref(|b| b.volume())
     }
     /// The target volume multiplier (``> 1`` inflates the body).
     #[getter]
-    fn volume_factor(&self) -> Real {
+    fn volume_factor(&self) -> PyResult<Real> {
         self.with_ref(|b| b.volume_factor())
     }
     #[setter]
-    fn set_volume_factor(&mut self, factor: Real) {
+    fn set_volume_factor(&mut self, factor: Real) -> PyResult<()> {
         self.with_mut(|b| b.set_volume_factor(factor))
     }
     /// The thickness of the particles.
     #[getter]
-    fn particle_radius(&self) -> Real {
+    fn particle_radius(&self) -> PyResult<Real> {
         self.with_ref(|b| b.particle_radius())
     }
     /// The dynamics settings of the particles (a copy).
     #[getter]
-    fn particle_settings(&self) -> SoftBodyParticleSettings {
+    fn particle_settings(&self) -> PyResult<SoftBodyParticleSettings> {
         self.with_ref(|b| SoftBodyParticleSettings(*b.particle_settings()))
     }
     /// Forget every plastic deformation: the rest shapes return to their initial values.
-    fn reset_plasticity(&mut self) {
+    fn reset_plasticity(&mut self) -> PyResult<()> {
         self.with_mut(|b| b.reset_plasticity())
     }
 
@@ -2457,64 +3054,69 @@ impl SoftBody {
 
     /// The hidden rigid body standing for the whole soft body in joints and islands.
     #[getter]
-    fn root_body(&self) -> RigidBodyHandle {
+    fn root_body(&self) -> PyResult<RigidBodyHandle> {
         self.with_ref(|b| RigidBodyHandle(b.root_body()))
     }
     /// The soft body this one was split off from by a tear, if any.
     #[getter]
-    fn origin(&self) -> Option<SoftBodyHandle> {
+    fn origin(&self) -> PyResult<Option<SoftBodyHandle>> {
         self.with_ref(|b| b.origin().map(SoftBodyHandle))
     }
     /// The soft bodies that tears split off from this one.
     #[getter]
-    fn pieces(&self) -> Vec<SoftBodyHandle> {
+    fn pieces(&self) -> PyResult<Vec<SoftBodyHandle>> {
         self.with_ref(|b| b.pieces().iter().copied().map(SoftBodyHandle).collect())
     }
     /// The center of mass of the particles.
     #[getter]
-    fn center_of_mass(&self) -> Vec3 {
+    fn center_of_mass(&self) -> PyResult<Vec3> {
         self.with_ref(|b| vec3(b.center_of_mass()))
     }
     /// The total mass of the particles.
     #[getter]
-    fn mass(&self) -> Real {
+    fn mass(&self) -> PyResult<Real> {
         self.with_ref(|b| b.mass())
     }
     /// Is the soft body sleeping?
     #[getter]
-    fn is_sleeping(&self) -> bool {
+    fn is_sleeping(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_sleeping())
     }
     /// Wake the soft body up.
-    fn wake_up(&mut self) {
+    fn wake_up(&mut self) -> PyResult<()> {
         self.with_mut(|b| b.wake_up())
     }
-    /// Is the soft body enabled (simulated)?
+    /// Is the soft body enabled (simulated)? Writable, like :attr:`RigidBody.is_enabled`.
     #[getter]
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_enabled())
     }
     /// Enable or disable the soft body.
-    fn set_enabled(&mut self, enabled: bool) {
+    #[setter(is_enabled)]
+    fn set_is_enabled(&mut self, enabled: bool) -> PyResult<()> {
+        self.with_mut(|b| b.set_enabled(enabled))
+    }
+    /// Enable or disable the soft body (same as setting :attr:`is_enabled`).
+    fn set_enabled(&mut self, enabled: bool) -> PyResult<()> {
         self.with_mut(|b| b.set_enabled(enabled))
     }
     /// Set the extra internal PGS iterations run per substep for this body and everything it
     /// touches.
-    fn set_additional_pgs_iterations(&mut self, iterations: usize) {
+    fn set_additional_pgs_iterations(&mut self, iterations: usize) -> PyResult<()> {
         self.with_mut(|b| b.set_additional_pgs_iterations(iterations))
     }
     /// The number of colors the parallel solver splits the body's constraints into.
     #[getter]
-    fn num_solver_colors(&self) -> usize {
+    fn num_solver_colors(&self) -> PyResult<usize> {
         self.with_ref(|b| b.num_solver_colors())
     }
     /// Arbitrary integer user data.
     #[getter]
-    fn user_data(&self) -> u128 {
+    fn user_data(&self) -> PyResult<u128> {
         self.with_ref(|b| b.user_data)
     }
     #[setter]
-    fn set_user_data(&mut self, data: u128) {
+    fn set_user_data(&mut self, data: u128) -> PyResult<()> {
         self.with_mut(|b| b.user_data = data)
     }
 
@@ -2524,24 +3126,24 @@ impl SoftBody {
 
     /// Add a force to every particle (spread by mass).
     #[pyo3(signature = (force, wake_up=true))]
-    fn add_force(&mut self, force: PyVector, wake_up: bool) {
+    fn add_force(&mut self, force: PyVector, wake_up: bool) -> PyResult<()> {
         self.with_mut(|b| b.add_force(force.0.into(), wake_up))
     }
     /// Add a force to the ``i``-th particle.
     #[pyo3(signature = (i, force, wake_up=true))]
     fn add_particle_force(&mut self, i: usize, force: PyVector, wake_up: bool) -> PyResult<()> {
         self.check_particle(i)?;
-        self.with_mut(|b| b.add_particle_force(i, force.0.into(), wake_up));
+        self.with_mut(|b| b.add_particle_force(i, force.0.into(), wake_up))?;
         Ok(())
     }
     /// Reset the user forces applied to the particles.
     #[pyo3(signature = (wake_up=true))]
-    fn reset_forces(&mut self, wake_up: bool) {
+    fn reset_forces(&mut self, wake_up: bool) -> PyResult<()> {
         self.with_mut(|b| b.reset_forces(wake_up))
     }
     /// Apply an impulse to every particle (spread by mass).
     #[pyo3(signature = (impulse, wake_up=true))]
-    fn apply_impulse(&mut self, impulse: PyVector, wake_up: bool) {
+    fn apply_impulse(&mut self, impulse: PyVector, wake_up: bool) -> PyResult<()> {
         self.with_mut(|b| b.apply_impulse(impulse.0.into(), wake_up))
     }
     /// Apply an impulse to the ``i``-th particle.
@@ -2553,7 +3155,7 @@ impl SoftBody {
         wake_up: bool,
     ) -> PyResult<()> {
         self.check_particle(i)?;
-        self.with_mut(|b| b.apply_particle_impulse(i, impulse.0.into(), wake_up));
+        self.with_mut(|b| b.apply_particle_impulse(i, impulse.0.into(), wake_up))?;
         Ok(())
     }
     /// Apply an impulse to the particles within ``falloff_radius`` of ``point``, scaled down
@@ -2565,7 +3167,7 @@ impl SoftBody {
         point: PyVector,
         falloff_radius: Real,
         wake_up: bool,
-    ) {
+    ) -> PyResult<()> {
         self.with_mut(|b| {
             b.apply_impulse_at_point(impulse.0.into(), point.0.into(), falloff_radius, wake_up)
         })
@@ -2579,7 +3181,7 @@ impl SoftBody {
         magnitude: Real,
         falloff_radius: Real,
         wake_up: bool,
-    ) {
+    ) -> PyResult<()> {
         self.with_mut(|b| {
             b.apply_radial_impulse(center.0.into(), magnitude, falloff_radius, wake_up)
         })
@@ -2590,21 +3192,43 @@ impl SoftBody {
      */
 
     /// Request the ``i``-th edge to tear at the end of the next step.
-    fn tear_edge(&mut self, i: usize) {
+    fn tear_edge(&mut self, i: usize) -> PyResult<()> {
         self.with_mut(|b| b.tear_edge(i))
     }
     /// Request the ``i``-th cell to tear at the end of the next step.
-    fn tear_cell(&mut self, i: usize) {
+    fn tear_cell(&mut self, i: usize) -> PyResult<()> {
         self.with_mut(|b| b.tear_cell(i))
     }
     /// Are there tears requested for the next step?
     #[getter]
-    fn has_pending_tears(&self) -> bool {
+    fn has_pending_tears(&self) -> PyResult<bool> {
         self.with_ref(|b| b.has_pending_tears())
+    }
+    /// Set the tear-threshold multiplier of the ``i``-th edge (``1.0`` restores the material's
+    /// threshold, see :attr:`SoftBodyEdge.tear_resistance`).
+    fn set_edge_tear_resistance(&mut self, i: usize, resistance: Real) -> PyResult<()> {
+        self.check_index("edge", i, |b| b.edges().len())?;
+        self.with_mut(|b| b.set_edge_tear_resistance(i, resistance))
+    }
+    /// Set the tear-threshold multiplier of the ``i``-th cell (``1.0`` restores the material's
+    /// threshold, see :attr:`SoftBodyCell.tear_resistance`).
+    fn set_cell_tear_resistance(&mut self, i: usize, resistance: Real) -> PyResult<()> {
+        self.check_index("cell", i, |b| b.cells().len())?;
+        self.with_mut(|b| b.set_cell_tear_resistance(i, resistance))
+    }
+    /// Mark the ``i``-th particle as damaged, or repair it (see
+    /// :attr:`SoftBodyParticle.is_damaged`): a way to seed a weak spot where a tear should start,
+    /// since the material's :attr:`~SoftBodyMaterial.interior_strength` does not apply to it.
+    fn set_particle_damaged(&mut self, i: usize, damaged: bool) -> PyResult<()> {
+        self.check_particle(i)?;
+        self.with_mut(|b| b.set_particle_damaged(i, damaged))
     }
     /// The ``(edges, cells)`` a blade (a world-space triangle given as three points) crosses,
     /// as would be torn by :meth:`SoftBodySet.cut`.
-    fn crossing_elements(&self, blade: (PyVector, PyVector, PyVector)) -> (Vec<u32>, Vec<u32>) {
+    fn crossing_elements(
+        &self,
+        blade: (PyVector, PyVector, PyVector),
+    ) -> PyResult<(Vec<u32>, Vec<u32>)> {
         let blade = [blade.0.0.into(), blade.1.0.into(), blade.2.0.into()];
         self.with_ref(|b| b.crossing_elements(&blade))
     }
@@ -2616,16 +3240,16 @@ impl SoftBody {
     /// The number of cluster slots (some may have been removed: see
     /// :attr:`SoftBodyCluster.is_live`).
     #[getter]
-    fn num_clusters(&self) -> usize {
+    fn num_clusters(&self) -> PyResult<usize> {
         self.with_ref(|b| b.clusters().len())
     }
     /// The number of live clusters.
     #[getter]
-    fn num_live_clusters(&self) -> usize {
+    fn num_live_clusters(&self) -> PyResult<usize> {
         self.with_ref(|b| b.num_live_clusters())
     }
     /// A snapshot of the ``i``-th cluster, or ``None``.
-    fn cluster(&self, i: u32) -> Option<SoftBodyCluster> {
+    fn cluster(&self, i: u32) -> PyResult<Option<SoftBodyCluster>> {
         self.with_ref(|b| {
             b.cluster(i).map(|c| SoftBodyCluster {
                 index: i,
@@ -2639,7 +3263,7 @@ impl SoftBody {
     }
     /// Snapshots of every live cluster.
     #[getter]
-    fn clusters(&self) -> Vec<SoftBodyCluster> {
+    fn clusters(&self) -> PyResult<Vec<SoftBodyCluster>> {
         self.with_ref(|b| {
             b.live_clusters()
                 .map(|(i, c)| SoftBodyCluster {
@@ -2654,15 +3278,15 @@ impl SoftBody {
         })
     }
     /// The rigid-body proxy of the ``i``-th cluster: joints and colliders attach to it.
-    fn cluster_proxy(&self, i: u32) -> Option<RigidBodyHandle> {
+    fn cluster_proxy(&self, i: u32) -> PyResult<Option<RigidBodyHandle>> {
         self.with_ref(|b| b.cluster_proxy(i).map(RigidBodyHandle))
     }
     /// Enable or disable shape matching on the ``i``-th cluster.
-    fn enable_cluster_shape_matching(&mut self, i: u32, enabled: bool) {
+    fn enable_cluster_shape_matching(&mut self, i: u32, enabled: bool) -> PyResult<()> {
         self.with_mut(|b| b.enable_cluster_shape_matching(i, enabled))
     }
     /// Scale the stiffness of the elements of the ``i``-th cluster.
-    fn set_cluster_stiffness_scale(&mut self, i: u32, scale: Real) {
+    fn set_cluster_stiffness_scale(&mut self, i: u32, scale: Real) -> PyResult<()> {
         self.with_mut(|b| b.set_cluster_stiffness_scale(i, scale))
     }
     /// Override the softness of the edges of the ``i``-th cluster (``None`` restores the
@@ -2674,21 +3298,37 @@ impl SoftBody {
         softness: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<()> {
         let s = softness.map(spring).transpose()?;
-        self.with_mut(|b| b.set_cluster_edge_softness(i, s));
+        self.with_mut(|b| b.set_cluster_edge_softness(i, s))?;
         Ok(())
     }
     /// Scale the tear thresholds of the elements of the ``i``-th cluster.
-    fn set_cluster_tear_resistance(&mut self, i: u32, resistance: Real) {
+    fn set_cluster_tear_resistance(&mut self, i: u32, resistance: Real) -> PyResult<()> {
         self.with_mut(|b| b.set_cluster_tear_resistance(i, resistance))
     }
     /// Pin (or release) every particle of the ``i``-th cluster.
-    fn set_cluster_pinned(&mut self, i: u32, pinned: bool) {
+    fn set_cluster_pinned(&mut self, i: u32, pinned: bool) -> PyResult<()> {
         self.with_mut(|b| b.set_cluster_pinned(i, pinned))
     }
     /// Move the ``i``-th cluster rigidly to the given pose over the next step.
-    fn set_cluster_kinematic_target(&mut self, i: u32, pose: PyIsometry) {
+    fn set_cluster_kinematic_target(&mut self, i: u32, pose: PyIsometry) -> PyResult<()> {
         let p: rapier::math::Pose = pose.0.into();
         self.with_mut(|b| b.set_cluster_kinematic_target(i, p))
+    }
+    /// Set the pose the shape matching of the ``i``-th cluster (see
+    /// :meth:`enable_cluster_shape_matching`) pulls its particles toward, as a kinematic path
+    /// (``None``: the cluster's own frame). Ignored if there is no live ``i``-th cluster.
+    #[pyo3(signature = (i, target))]
+    fn set_cluster_shape_matching_target(
+        &mut self,
+        i: u32,
+        target: Option<PyIsometry>,
+    ) -> PyResult<()> {
+        let target: Option<rapier::math::Pose> = target.map(|t| t.0.into());
+        self.with_mut(|b| {
+            if let Some(cluster) = b.cluster_mut(i) {
+                cluster.set_shape_matching_target(target);
+            }
+        })
     }
 
     /*
@@ -2698,7 +3338,7 @@ impl SoftBody {
     /// Snapshots of every collision mesh held by the clusters (the body's own deformable
     /// surface included), with their current world-space vertices.
     #[getter]
-    fn meshes(&self) -> Vec<SoftCollisionMesh> {
+    fn meshes(&self) -> PyResult<Vec<SoftCollisionMesh>> {
         self.with_ref(|b| {
             b.meshes()
                 .map(|m| SoftCollisionMesh::from_rapier(b, m))
@@ -2706,11 +3346,11 @@ impl SoftBody {
         })
     }
     /// A snapshot of the collision mesh with the given identifier, or ``None``.
-    fn mesh(&self, id: &SoftMeshId) -> Option<SoftCollisionMesh> {
+    fn mesh(&self, id: &SoftMeshId) -> PyResult<Option<SoftCollisionMesh>> {
         self.with_ref(|b| b.mesh(id.0).map(|m| SoftCollisionMesh::from_rapier(b, m)))
     }
     /// A snapshot of the collision mesh a deformable collider holds, or ``None``.
-    fn mesh_of(&self, collider: &ColliderHandle) -> Option<SoftCollisionMesh> {
+    fn mesh_of(&self, collider: &ColliderHandle) -> PyResult<Option<SoftCollisionMesh>> {
         self.with_ref(|b| {
             b.mesh_of(collider.0)
                 .map(|m| SoftCollisionMesh::from_rapier(b, m))
@@ -2718,14 +3358,14 @@ impl SoftBody {
     }
     /// A snapshot of the body's own deformable surface mesh, or ``None`` when the body
     /// collides through its particles.
-    fn collision_mesh(&self) -> Option<SoftCollisionMesh> {
+    fn collision_mesh(&self) -> PyResult<Option<SoftCollisionMesh>> {
         self.with_ref(|b| {
             b.collision_mesh()
                 .map(|m| SoftCollisionMesh::from_rapier(b, m))
         })
     }
 
-    fn __repr__(&self) -> String {
+    fn __repr__(&self) -> PyResult<String> {
         self.with_ref(|b| {
             format!(
                 "SoftBody(particles={}, edges={}, cells={}, mass={})",
@@ -2747,8 +3387,23 @@ impl SoftBody {
 /// Bodies are addressed by :class:`SoftBodyHandle` and live in the set until removed. The
 /// set supports ``len()``, ``in``, iteration (yielding ``(handle, body)`` pairs) and
 /// ``[handle]`` lookup; the bodies it returns are live views.
-#[pyclass(name = "SoftBodySet", module = "rapier", unsendable)]
+#[pyclass(name = "SoftBodySet", module = "rapier")]
 pub struct SoftBodySet(pub rapier::dynamics::SoftBodySet);
+
+impl SoftBodySet {
+    /// Run `f` on the set, also while a step lends it to an event handler.
+    pub(crate) fn read<R>(
+        slf: &Bound<'_, Self>,
+        f: impl FnOnce(&rapier::dynamics::SoftBodySet) -> R,
+    ) -> PyResult<R> {
+        // A lent set is read first: the running step holds the set mutably borrowed, so
+        // `try_borrow` fails until it ends.
+        crate::events_hooks::with_lent_or(slf.as_ptr(), f, |f| match slf.try_borrow() {
+            Ok(set) => Ok(f(&set.0)),
+            Err(_) => Err(crate::events_hooks::stepping_error("SoftBodySet")),
+        })
+    }
+}
 
 #[pymethods]
 impl SoftBodySet {
@@ -2807,7 +3462,7 @@ impl SoftBodySet {
         bodies: &mut RigidBodySet,
         colliders: &mut ColliderSet,
     ) -> PyResult<Option<u32>> {
-        let particles = extract_indices_1d(particles)?;
+        let particles = extract_index_list(particles)?;
         Ok(self
             .0
             .add_cluster(handle.0, &particles, &mut bodies.0, &mut colliders.0))
@@ -2855,8 +3510,8 @@ impl SoftBodySet {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
     ) -> PyResult<Option<SoftBodyTearEvent>> {
-        let edges = extract_indices_1d(edges)?;
-        let cells = extract_indices_1d(cells)?;
+        let edges = extract_index_list(edges)?;
+        let cells = extract_index_list(cells)?;
         Ok(self
             .0
             .tear(
@@ -2910,21 +3565,23 @@ impl SoftBodySet {
     }
 
     /// A live view of the body for ``handle``, or ``None``.
-    fn get(slf: &Bound<'_, Self>, handle: &SoftBodyHandle) -> Option<SoftBody> {
-        slf.borrow().0.get(handle.0)?;
-        Some(SoftBody {
+    fn get(slf: &Bound<'_, Self>, handle: &SoftBodyHandle) -> PyResult<Option<SoftBody>> {
+        if !Self::read(slf, |set| set.contains(handle.0))? {
+            return Ok(None);
+        }
+        Ok(Some(SoftBody {
             backing: SoftBodyBacking::InSet {
                 set: slf.clone().unbind(),
                 handle: handle.0,
             },
-        })
+        }))
     }
 
     /// Indexing form of ``get``.
     ///
     /// :raises InvalidHandle: if ``handle`` matches no body.
     fn __getitem__(slf: &Bound<'_, Self>, handle: &SoftBodyHandle) -> PyResult<SoftBody> {
-        if slf.borrow().0.get(handle.0).is_none() {
+        if !Self::read(slf, |set| set.contains(handle.0))? {
             return Err(crate::errors::InvalidHandle::new_err(format!(
                 "no soft body for {:?}",
                 handle.0.into_raw_parts()
@@ -2938,23 +3595,23 @@ impl SoftBodySet {
         })
     }
 
-    fn __contains__(&self, handle: &SoftBodyHandle) -> bool {
-        self.0.contains(handle.0)
+    fn __contains__(slf: &Bound<'_, Self>, handle: &SoftBodyHandle) -> PyResult<bool> {
+        Self::read(slf, |set| set.contains(handle.0))
     }
 
-    fn __len__(&self) -> usize {
-        self.0.len()
+    fn __len__(slf: &Bound<'_, Self>) -> PyResult<usize> {
+        Self::read(slf, |set| set.len())
     }
 
     /// Is the set empty?
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
+    fn is_empty(slf: &Bound<'_, Self>) -> PyResult<bool> {
+        Self::read(slf, |set| set.is_empty())
     }
 
     /// Iterate over ``(handle, body)`` pairs; each body is a live view.
     fn __iter__(slf: &Bound<'_, Self>) -> PyResult<Py<SoftBodySetIter>> {
         let handles: Vec<rapier::dynamics::SoftBodyHandle> =
-            slf.borrow().0.iter().map(|(h, _)| h).collect();
+            Self::read(slf, |set| set.iter().map(|(h, _)| h).collect())?;
         Py::new(
             slf.py(),
             SoftBodySetIter {
@@ -2966,8 +3623,10 @@ impl SoftBodySet {
     }
 
     /// The handles of every body in the set.
-    fn handles(&self) -> Vec<SoftBodyHandle> {
-        self.0.iter().map(|(h, _)| SoftBodyHandle(h)).collect()
+    fn handles(slf: &Bound<'_, Self>) -> PyResult<Vec<SoftBodyHandle>> {
+        Self::read(slf, |set| {
+            set.iter().map(|(h, _)| SoftBodyHandle(h)).collect()
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -3015,6 +3674,10 @@ pub fn register_soft_bodies(
     m.add_class::<SoftEdgePlasticFlow>()?;
     m.add_class::<SoftBodyEdgeKind>()?;
     m.add_class::<SoftPatchConstraints>()?;
+    m.add_class::<SoftBodySolver>()?;
+    m.add_class::<MeshEnclosure>()?;
+    m.add_class::<VolumeMeshParameters>()?;
+    m.add_class::<SoftFemParameters>()?;
     m.add_class::<SoftBodyMaterial>()?;
     m.add_class::<SoftBodyParticleSettings>()?;
     m.add_class::<SoftRecoverySettings>()?;

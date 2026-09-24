@@ -77,3 +77,27 @@ pub fn register_errors(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> 
     m.add("MeshLoaderError", py.get_type_bound::<MeshLoaderError>())?;
     Ok(())
 }
+
+/// The error raised when a view is used after its object was removed from its set.
+pub(crate) fn stale_view(kind: &str) -> PyErr {
+    InvalidHandle::new_err(format!(
+        "this {kind} was removed from its set: the view no longer refers to a live object"
+    ))
+}
+
+/// Borrows a pyclass shared with a world, raising `RuntimeError` instead of panicking when a
+/// running step holds it.
+pub(crate) fn try_borrow<'py, T: pyo3::PyClass>(obj: &Bound<'py, T>) -> PyResult<PyRef<'py, T>> {
+    obj.try_borrow()
+        .map_err(|_| crate::events_hooks::stepping_error(<T as pyo3::PyTypeInfo>::NAME))
+}
+
+/// Mutably borrows a pyclass shared with a world, raising `RuntimeError` instead of panicking
+/// when a running step (or a read) holds it.
+pub(crate) fn try_borrow_mut<'py, T>(obj: &Bound<'py, T>) -> PyResult<PyRefMut<'py, T>>
+where
+    T: pyo3::PyClass<Frozen = pyo3::pyclass::boolean_struct::False>,
+{
+    obj.try_borrow_mut()
+        .map_err(|_| crate::events_hooks::stepping_error(<T as pyo3::PyTypeInfo>::NAME))
+}

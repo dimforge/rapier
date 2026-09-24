@@ -5,8 +5,9 @@ use crate::geometry::RawColliderSet;
 use crate::math::{RawRotation, RawVector};
 use crate::utils::{self, FlatHandle};
 use rapier::dynamics::{
-    SoftBody, SoftBodyBuilder, SoftBodyCellModel, SoftBodyMaterial, SoftBodySet, SoftBodyTearEvent,
-    SoftEdgePlasticFlow, SpringCoefficients,
+    SoftBody, SoftBodyBuilder, SoftBodyCellModel, SoftBodyMaterial, SoftBodySet, SoftBodySolver,
+    SoftBodyTearEvent, SoftEdgePlasticFlow, SoftPatchConstraints, SoftRecoverySettings,
+    SpringCoefficients,
 };
 use rapier::math::{Pose, Vector, DIM};
 use rapier::prelude::ColliderBuilder;
@@ -103,6 +104,294 @@ pub enum RawSoftMeshBindingMode {
     Direct = 0,
     DirectByPosition = 1,
     Skinned = 2,
+}
+
+/// Which soft-body solver holds the cells of a body together.
+#[wasm_bindgen]
+#[derive(Copy, Clone)]
+pub enum RawSoftBodySolver {
+    Constraints = 0,
+    Fem = 1,
+}
+
+impl From<RawSoftBodySolver> for SoftBodySolver {
+    fn from(solver: RawSoftBodySolver) -> Self {
+        match solver {
+            RawSoftBodySolver::Constraints => SoftBodySolver::Constraints,
+            RawSoftBodySolver::Fem => SoftBodySolver::Fem,
+        }
+    }
+}
+
+impl From<SoftBodySolver> for RawSoftBodySolver {
+    fn from(solver: SoftBodySolver) -> Self {
+        match solver {
+            SoftBodySolver::Constraints => RawSoftBodySolver::Constraints,
+            SoftBodySolver::Fem => RawSoftBodySolver::Fem,
+        }
+    }
+}
+
+/// What the per-point constraints of the features a volume constraint acts on do.
+#[wasm_bindgen]
+#[derive(Copy, Clone)]
+pub enum RawSoftPatchConstraints {
+    Keep = 0,
+    StandDown = 1,
+    AlongNormal = 2,
+}
+
+impl From<RawSoftPatchConstraints> for SoftPatchConstraints {
+    fn from(constraints: RawSoftPatchConstraints) -> Self {
+        match constraints {
+            RawSoftPatchConstraints::Keep => SoftPatchConstraints::Keep,
+            RawSoftPatchConstraints::StandDown => SoftPatchConstraints::StandDown,
+            RawSoftPatchConstraints::AlongNormal => SoftPatchConstraints::AlongNormal,
+        }
+    }
+}
+
+impl From<SoftPatchConstraints> for RawSoftPatchConstraints {
+    fn from(constraints: SoftPatchConstraints) -> Self {
+        match constraints {
+            SoftPatchConstraints::Keep => RawSoftPatchConstraints::Keep,
+            SoftPatchConstraints::StandDown => RawSoftPatchConstraints::StandDown,
+            SoftPatchConstraints::AlongNormal => RawSoftPatchConstraints::AlongNormal,
+        }
+    }
+}
+
+/*
+ * Recovery settings.
+ */
+
+#[wasm_bindgen]
+#[derive(Copy, Clone)]
+pub struct RawSoftRecoverySettings(pub(crate) SoftRecoverySettings);
+
+#[wasm_bindgen]
+impl RawSoftRecoverySettings {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        RawSoftRecoverySettings(SoftRecoverySettings::default())
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn authoredVelocityMargin(&self) -> bool {
+        self.0.authored_velocity_margin
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_authoredVelocityMargin(&mut self, value: bool) {
+        self.0.authored_velocity_margin = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn edgeSpeculation(&self) -> bool {
+        self.0.edge_speculation
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_edgeSpeculation(&mut self, value: bool) {
+        self.0.edge_speculation = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn invertedCellDetection(&self) -> bool {
+        self.0.inverted_cell_detection
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_invertedCellDetection(&mut self, value: bool) {
+        self.0.inverted_cell_detection = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn selfCrossingDetection(&self) -> bool {
+        self.0.self_crossing_detection
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_selfCrossingDetection(&mut self, value: bool) {
+        self.0.self_crossing_detection = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn detectionMotionGating(&self) -> bool {
+        self.0.detection_motion_gating
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_detectionMotionGating(&mut self, value: bool) {
+        self.0.detection_motion_gating = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn crossBodyDetection(&self) -> bool {
+        self.0.cross_body_detection
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_crossBodyDetection(&mut self, value: bool) {
+        self.0.cross_body_detection = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn selfStandDown(&self) -> bool {
+        self.0.self_stand_down
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_selfStandDown(&mut self, value: bool) {
+        self.0.self_stand_down = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn crossBodyExpelGate(&self) -> bool {
+        self.0.cross_body_expel_gate
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_crossBodyExpelGate(&mut self, value: bool) {
+        self.0.cross_body_expel_gate = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn edgeStandDown(&self) -> bool {
+        self.0.edge_stand_down
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_edgeStandDown(&mut self, value: bool) {
+        self.0.edge_stand_down = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn crossingRepulsion(&self) -> bool {
+        self.0.crossing_repulsion
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_crossingRepulsion(&mut self, value: bool) {
+        self.0.crossing_repulsion = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn crossingRepulsionGuide(&self) -> bool {
+        self.0.crossing_repulsion_guide
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_crossingRepulsionGuide(&mut self, value: bool) {
+        self.0.crossing_repulsion_guide = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn crossingRepulsionSelfGuide(&self) -> bool {
+        self.0.crossing_repulsion_self_guide
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_crossingRepulsionSelfGuide(&mut self, value: bool) {
+        self.0.crossing_repulsion_self_guide = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapConstraints(&self) -> bool {
+        self.0.overlap_constraints
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapConstraints(&mut self, value: bool) {
+        self.0.overlap_constraints = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapRigid(&self) -> bool {
+        self.0.overlap_rigid
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapRigid(&mut self, value: bool) {
+        self.0.overlap_rigid = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapSkipSelfTangled(&self) -> bool {
+        self.0.overlap_skip_self_tangled
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapSkipSelfTangled(&mut self, value: bool) {
+        self.0.overlap_skip_self_tangled = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapEdgeStandDown(&self) -> bool {
+        self.0.overlap_edge_stand_down
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapEdgeStandDown(&mut self, value: bool) {
+        self.0.overlap_edge_stand_down = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapSkinVolume(&self) -> bool {
+        self.0.overlap_skin_volume
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapSkinVolume(&mut self, value: bool) {
+        self.0.overlap_skin_volume = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapSelfRegions(&self) -> bool {
+        self.0.overlap_self_regions
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapSelfRegions(&mut self, value: bool) {
+        self.0.overlap_self_regions = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapNormalPush(&self) -> bool {
+        self.0.overlap_normal_push
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapNormalPush(&mut self, value: bool) {
+        self.0.overlap_normal_push = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapMultiVolume(&self) -> bool {
+        self.0.overlap_multi_volume
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapMultiVolume(&mut self, value: bool) {
+        self.0.overlap_multi_volume = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn recoveryPace(&self) -> f32 {
+        self.0.recovery_pace
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_recoveryPace(&mut self, value: f32) {
+        self.0.recovery_pace = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapConstraintPace(&self) -> f32 {
+        self.0.overlap_constraint_pace
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapConstraintPace(&mut self, value: f32) {
+        self.0.overlap_constraint_pace = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapKeptDepth(&self) -> f32 {
+        self.0.overlap_kept_depth
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapKeptDepth(&mut self, value: f32) {
+        self.0.overlap_kept_depth = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapProgressMargin(&self) -> f32 {
+        self.0.overlap_progress_margin
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapProgressMargin(&mut self, value: f32) {
+        self.0.overlap_progress_margin = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapSplit(&self) -> u32 {
+        self.0.overlap_split
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapSplit(&mut self, value: u32) {
+        self.0.overlap_split = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapPatience(&self) -> u32 {
+        self.0.overlap_patience
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapPatience(&mut self, value: u32) {
+        self.0.overlap_patience = value;
+    }
+    #[wasm_bindgen(getter)]
+    pub fn overlapPatchConstraints(&self) -> RawSoftPatchConstraints {
+        self.0.overlap_patch_constraints.into()
+    }
+    #[wasm_bindgen(setter)]
+    pub fn set_overlapPatchConstraints(&mut self, value: RawSoftPatchConstraints) {
+        self.0.overlap_patch_constraints = value.into();
+    }
 }
 
 /*
@@ -603,6 +892,10 @@ impl RawSoftBodyBuilder {
 
     pub fn setCellModel(&mut self, model: RawSoftBodyCellModel) {
         self.0.cell_model = model.into();
+    }
+
+    pub fn setSolver(&mut self, solver: RawSoftBodySolver) {
+        self.0.solver = solver.into();
     }
 
     pub fn setVolumePreservation(&mut self, enabled: bool) {
@@ -1231,6 +1524,14 @@ impl RawSoftBodySet {
 
     pub fn sbCellModel(&self, handle: FlatHandle) -> RawSoftBodyCellModel {
         self.map(handle, |sb| sb.cell_model().into())
+    }
+
+    pub fn sbSolver(&self, handle: FlatHandle) -> RawSoftBodySolver {
+        self.map(handle, |sb| sb.solver().into())
+    }
+
+    pub fn sbSetSolver(&mut self, handle: FlatHandle, solver: RawSoftBodySolver) {
+        self.map_mut(handle, |sb| sb.set_solver(solver.into()))
     }
 
     pub fn sbVolumePreservationEnabled(&self, handle: FlatHandle) -> bool {

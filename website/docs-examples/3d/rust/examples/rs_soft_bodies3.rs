@@ -51,6 +51,32 @@ fn main() {
     let cloth_handle = world.insert_soft_body(cloth);
     // DOCUSAURUS: Creation stop
 
+    // DOCUSAURUS: Volumetric start
+    // Fill a closed, outward-oriented triangle mesh with tetrahedral cells of about 0.2 in size.
+    let (vertices, indices) = Cuboid::new(Vector::new(0.5, 0.25, 0.25)).to_trimesh();
+    let block = SoftBodyBuilder::volumetric(&vertices, &indices, 0.2)
+        .expect("the mesh must be closed and enclose some volume")
+        .translated(Vector::new(-3.0, 1.0, 0.0));
+    let _block_handle = world.insert_soft_body(block);
+    // DOCUSAURUS: Volumetric stop
+
+    // DOCUSAURUS: ShapeMatching start
+    // A cloud of particles without any element: shape matching alone pulls them back toward
+    // their rest shape, placed where it best fits the current one.
+    let points: Vec<Vector> = (0..27)
+        .map(|i| Vector::new((i % 3) as f32, (i / 3 % 3) as f32 + 4.0, (i / 9) as f32) * 0.3)
+        .collect();
+    let blob = SoftBodyBuilder::new(points)
+        .shape_matching(true)
+        .material(SoftBodyMaterial {
+            // How fast the particles are pulled back toward their rest shape.
+            shape_matching_softness: SpringCoefficients::new(5.0, 1.0),
+            ..Default::default()
+        })
+        .particle_radius(0.1);
+    let _blob_handle = world.insert_soft_body(blob);
+    // DOCUSAURUS: ShapeMatching stop
+
     // DOCUSAURUS: Sets start
     // The sets can also be used directly, without the `PhysicsWorld` façade.
     let mut soft_body_set = SoftBodySet::new();
@@ -61,6 +87,15 @@ fn main() {
     let soft_body = &soft_body_set[rope_handle];
     assert_eq!(soft_body.num_particles(), 20);
     // DOCUSAURUS: Sets stop
+
+    // DOCUSAURUS: Oriented start
+    // A shell: a closed surface that is not oriented, so its inner side holds the bodies put
+    // inside it (a bowl, a box, a container). A closed surface is oriented by default.
+    let bowl = SoftBodyBuilder::sphere(Vector::new(-3.0, 2.0, 0.0), 0.8, 2)
+        .oriented(false)
+        .softness(SpringCoefficients::new(60.0, 1.0));
+    let _bowl_handle = world.insert_soft_body(bowl);
+    // DOCUSAURUS: Oriented stop
 
     // DOCUSAURUS: Material start
     // Elastic cells: a jelly cube with corotational linear elasticity.
@@ -91,6 +126,27 @@ fn main() {
     };
     world.soft_bodies[cloth_handle].set_material(material);
     // DOCUSAURUS: Material stop
+
+    // DOCUSAURUS: Fem start
+    // A stiff beam simulated by the FEM solver (requires the `fem` cargo feature): its stiffness
+    // doesn't depend on the number of solver iterations.
+    let beam = SoftBodyBuilder::cuboid(Vector::new(0.0, 2.0, -3.0), Vector::new(1.0, 0.1, 0.1), 11, 3, 3)
+        .solver(SoftBodySolver::Fem)
+        .cell_model(SoftBodyCellModel::NeoHookean)
+        .material(SoftBodyMaterial {
+            young_modulus: 1.0e5,
+            poisson_ratio: 0.3,
+            ..Default::default()
+        })
+        // The particles of the face at `x = -1` are the first 3 × 3 ones.
+        .pinned_particles(0..9);
+    let _beam_handle = world.insert_soft_body(beam);
+
+    // The tuning of the linear solves of the FEM solver, shared by every body using it.
+    let fem = &mut world.integration_parameters.soft_bodies.fem;
+    fem.linear_tolerance = 1.0e-5;
+    fem.max_linear_iterations = 20;
+    // DOCUSAURUS: Fem stop
 
     // DOCUSAURUS: Particles start
     let soft_body = &mut world.soft_bodies[cloth_handle];
@@ -143,10 +199,23 @@ fn main() {
         ColliderBuilder::ball(0.25).density(2.0),
     );
     world.soft_bodies[rope_handle].attach_particle(29, ball, &world.bodies);
-    // The hidden rigid body standing for the whole soft body in joints and islands.
-    let root_body: RigidBodyHandle = world.soft_bodies[rope_handle].root_body();
-    assert!(world.bodies[root_body].is_soft_frame());
     // DOCUSAURUS: Attachments stop
+
+    // DOCUSAURUS: RootBody start
+    // The rigid body the engine created for the whole soft body, read back after its insertion.
+    let root: RigidBodyHandle = world.soft_bodies[jelly_handle].root_body();
+    assert!(world.bodies[root].is_soft_frame());
+
+    // A rigid collider attached to it follows the frame of the whole body: here a sensor
+    // detecting what comes close to the jelly.
+    let _sensor = world.insert_collider(ColliderBuilder::ball(1.0).sensor(true), Some(root));
+
+    // A joint attached to it acts on the soft body as a whole: this one hangs the jelly under a
+    // fixed anchor by a spring.
+    let anchor =
+        world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(3.0, 4.0, 0.0)));
+    world.insert_impulse_joint(anchor, root, SpringJointBuilder::new(2.5, 60.0, 2.0));
+    // DOCUSAURUS: RootBody stop
 
     // DOCUSAURUS: Clusters start
     // A cluster over the top particles of the jelly: a rigid proxy that joints and
@@ -178,6 +247,19 @@ fn main() {
     jelly.set_cluster_stiffness_scale(cluster, 2.0);
     jelly.enable_cluster_shape_matching(cluster, true);
     // DOCUSAURUS: Clusters stop
+
+    // DOCUSAURUS: ClusterControl start
+    // Pin every particle of the cluster, then move it along a path: the cluster behaves like a
+    // kinematic rigid part dragging the rest of the body.
+    let jelly = &mut world.soft_bodies[jelly_handle];
+    jelly.set_cluster_pinned(cluster, true);
+    jelly.set_cluster_kinematic_target(
+        cluster,
+        Pose::from_translation(Vector::new(3.0, 2.0, 0.0)),
+    );
+    // Release it: the cluster is simulated again.
+    jelly.set_cluster_pinned(cluster, false);
+    // DOCUSAURUS: ClusterControl stop
 
     // DOCUSAURUS: DeformableColliders start
     // A deformable triangle mesh bound to the jelly: each vertex is embedded in the cell
@@ -220,6 +302,54 @@ fn main() {
     let skin_vertices: Vec<Vector> = mesh.vertex_positions(jelly).collect();
     assert_eq!(skin_vertices.len(), 6);
     // DOCUSAURUS: DeformableColliders stop
+
+    // DOCUSAURUS: Skinning start
+    // A detailed mesh held by a coarse cage of cells: only the cells are simulated, and the mesh
+    // (the skin) follows their deformation.
+    let (vertices, indices) = Ball::new(0.5).to_trimesh(24, 24);
+    let skinned = SoftBodyBuilder::volumetric_skinned(&vertices, &indices, 0.25)
+        .expect("the mesh must be closed and enclose some volume")
+        // Collide through the skin instead of the boundary of the cage.
+        .skin_collision(true)
+        .translated(Vector::new(0.0, 4.0, 3.0));
+    let skinned_handle = world.insert_soft_body(skinned);
+    // The skin is the body's collision mesh: read its vertices back to render it.
+    let body = &world.soft_bodies[skinned_handle];
+    let skin = body.collision_mesh().expect("the skin collides");
+    let skin_vertices: Vec<Vector> = skin.vertex_positions(body).collect();
+    assert_eq!(skin_vertices.len(), vertices.len());
+    // DOCUSAURUS: Skinning stop
+
+    // DOCUSAURUS: Plasticity start
+    // The jelly has elastic (corotational) cells: the plasticity of `Volume` cells has no effect.
+    let material = world.soft_bodies[jelly_handle].material_mut();
+    // Cells: the rest shape flows toward the current one past 5% strain, at a rate of 20 per
+    // second, up to a total permanent deformation of 50%.
+    material.plastic_yield = 0.05;
+    material.plastic_creep = 20.0;
+    material.plastic_max = 0.5;
+    // Edges: the rest length flows past 10% strain, up to half the initial length, but only
+    // when squeezed (a dent stays, a stretch springs back).
+    material.edge_plastic_yield = 0.1;
+    material.edge_plastic_creep = 10.0;
+    material.edge_plastic_max = 0.5;
+    material.edge_plastic_flow = SoftEdgePlasticFlow::Compression;
+    // Every permanent deformation can be undone at once.
+    world.soft_bodies[jelly_handle].reset_plasticity();
+    // DOCUSAURUS: Plasticity stop
+
+    // DOCUSAURUS: TearingMaterial start
+    let material = world.soft_bodies[cloth_handle].material_mut();
+    // An edge tears past 40% of stretch, or past a force of 50 along its direction.
+    material.tear_strain = Some(0.4);
+    material.tear_force = Some(50.0);
+    // The load is smoothed over 0.1 second, so a single impact spike doesn't tear.
+    material.tear_smoothing = 0.1;
+    // Undamaged interior elements are twice as tough: tears start from the surface.
+    material.interior_strength = 2.0;
+    // A tear never splits off a piece smaller than 10 elements.
+    material.min_piece = Some(10);
+    // DOCUSAURUS: TearingMaterial stop
 
     // DOCUSAURUS: Tearing start
     // Elements tear on their own past the material's thresholds; a tear can also be requested.

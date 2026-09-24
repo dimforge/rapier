@@ -37,15 +37,33 @@ also part of the shape:
 ![convex versus non-convex](/img/convex_concave_crossing.svg)
 
 There are two ways of creating a collider with a convex shape:
-1. Using <rapier>`ColliderBuilder::convex_hull(points)`</rapier><bevy>`Collider::convex_hull(points)`</bevy><js>`ColliderDesc.convexHull(points)`</js>. This is the simplest approach: it will automatically compute the convex
+
+<notpy>
+
+1. Using <rapier>`ColliderBuilder::convex_hull(points)`</rapier><bevy>`Collider::convex_hull(points)`</bevy><js>`ColliderDesc.convexHull(points)`</js><c>`r3ShapeDesc_SetConvexHull(&desc.shape, points)` (or `r3ConvexHullSharedShape(points)`)</c>. This is the simplest approach: it will automatically compute the convex
    hull of the given set of points. A __convex hull__ is the smallest convex shape that contains all the given points.
-2. Using <rapier>`ColliderBuilder::convex_mesh(points, indices)`</rapier><bevy>`Collider::convex_mesh(points, indices)`</bevy><js>`ColliderDesc.convexMesh(points, indices)`</js> in
-   3D or <rapier>`ColliderBuilder::convex_polyline(points)`</rapier><bevy>`Collider::convex_polyline(points)`</bevy><js>`ColliderDesc.convexPolyline(points)`</js> in 2D.
+2. Using <rapier>`ColliderBuilder::convex_mesh(points, indices)`</rapier><bevy>`Collider::convex_mesh(points, indices)`</bevy><js>`ColliderDesc.convexMesh(points, indices)`</js><c>`r3ConvexMeshSharedShape(points, indices)`</c> in
+   3D or <rapier>`ColliderBuilder::convex_polyline(points)`</rapier><bevy>`Collider::convex_polyline(points)`</bevy><js>`ColliderDesc.convexPolyline(points)`</js><c>`r2ConvexPolylineSharedShape(points)`</c> in 2D.
    This takes a mesh described by its vertex buffer and index
    buffer and assumes it is already convex (you need to ensure that it is convex yourself). This will be more efficient than
-   the <rapier>`ColliderBuilder::convex_hull`</rapier><bevy>`Collider::convex_hull`</bevy><js>`ColliderDesc.convexHull`</js> constructor because it
+   the <rapier>`ColliderBuilder::convex_hull`</rapier><bevy>`Collider::convex_hull`</bevy><js>`ColliderDesc.convexHull`</js><c>`r3ShapeDesc_SetConvexHull`</c> constructor because it
    won't perform any calculations to ensure convexity. However, if the input mesh isn't actually convex, the collision-detection
    for that shape will give an incorrect result.
+
+</notpy>
+<py>
+
+1. Using `Collider.convex_hull(points)`. This is the simplest approach: it will automatically compute the convex
+   hull of the given set of points. A __convex hull__ is the smallest convex shape that contains all the given points.
+2. Using `Collider.convex_mesh(vertices, indices)`. This takes a mesh described by its vertex buffer and index
+   buffer and assumes it is already convex (you need to ensure that it is convex yourself). This will be more efficient
+   than the `Collider.convex_hull` constructor because it won't perform any calculations to ensure convexity. However,
+   if the input mesh isn't actually convex, the collision-detection for that shape will give an incorrect result.
+
+The points and vertices are given as an `(N, 3)` NumPy array (or a sequence of 3-vectors), and the indices as an
+`(M, 3)` integer array (or a sequence of triples) of triangle indices. Both constructors raise a `MeshConversionError` if the shape can't be built.
+
+</py>
    
 ### Triangle meshes and polylines
 Triangle meshes (in 3D) and polylines (in 2D) can be used to describe the boundary of any kind of shape. This is
@@ -63,34 +81,92 @@ point-containment tests won't work intuitively because the triangle mesh is assu
 #### Triangle mesh
 
 A **triangle-mesh** collider can be built
-with <rapier>`ColliderBuilder::trimesh(vertices, indices)`</rapier><bevy>`Collider::trimesh(vertices, indices)`</bevy><js>`ColliderDesc.trimesh(vertices, indices)`</js> where
+with <rapier>`ColliderBuilder::trimesh(vertices, indices)`</rapier><bevy>`Collider::trimesh(vertices, indices)`</bevy><js>`ColliderDesc.trimesh(vertices, indices)`</js><c>`r3ShapeDesc_SetTrimesh(&desc.shape, vertices, indices, flags)` (or `r3TrimeshSharedShape(vertices, indices)`)</c><py>`Collider.trimesh(vertices, indices)`</py> where
 `vertices` is the buffer containing all the vertices of the mesh, and `indices` is a set of indices indicating what vertex is used by
 what triangle. The vertex buffer and index buffer may have different lengths, and any vertex can be shared
 by multiple triangles.
 
-To have more control over the resulting `Trimesh`,
+To have more control over the resulting `Trimesh`,<py> you can give a `TriMeshFlags` (possibly a combination of several flags with the `|` operator) to the optional third argument `flags` of `Collider.trimesh`.</py>
 <rapier>you can call `ColliderBuilder::trimesh_with_flags(vertices, indices, trimesh_flags)`.</rapier>
 <bevy>you can call `Collider::trimesh_with_flags(vertices, indices, trimesh_flags)`.</bevy>
 <js>you can call `ColliderDesc.trimesh` with a third optional parameter `trimeshFlags`.</js>
+<c>you can give a combination of the `R3_TRIMESH_*` flags to the last argument of `r3ShapeDesc_SetTrimesh` (or call `r3TrimeshSharedShapeWithFlags(vertices, indices, flags)`).</c>
 
-For example, `TrimeshFlags::FIX_INTERNAL_EDGES` is a popular choice to help with correcting ghost collision.
+<notpy>
 
-See [`TriMeshFlags` documentation](https://docs.rs/rapier2d/latest/rapier2d/geometry/struct.TriMeshFlags.html) for more information.
+For example, <notc>`TrimeshFlags::FIX_INTERNAL_EDGES`</notc><c>`R3_TRIMESH_FIX_INTERNAL_EDGES`</c> is a popular choice to help with correcting ghost collision.
+
+<notc>See [`TriMeshFlags` documentation](https://docs.rs/rapier2d/latest/rapier2d/geometry/struct.TriMeshFlags.html) for more information.</notc>
+<c>See the documentation of the `R3_TRIMESH_*` constants in `rapier.h` for more information.</c>
+
+</notpy>
+<py>
+
+For example, `TriMeshFlags.FIX_INTERNAL_EDGES` is a popular choice to help with correcting ghost collision.
+
+See the docstring of `TriMeshFlags` in the [API reference of the Python bindings](/docs/api/python/Python) for more
+information.
+
+</py>
 
 #### Polyline
 
+<notpy>
+
 A **polyline** collider can be built
-with <rapier>`ColliderBuilder::polyline(vertices, indices)`</rapier><bevy>`Collider::polyline(vertices, indices)`</bevy><js>`ColliderDesc.polyline(vertices, indices)`</js> where
+with <rapier>`ColliderBuilder::polyline(vertices, indices)`</rapier><bevy>`Collider::polyline(vertices, indices)`</bevy><js>`ColliderDesc.polyline(vertices, indices)`</js><c>`r3ShapeDesc_SetPolyline(&desc.shape, vertices, indices, flags)` (or `r3PolylineSharedShape(vertices, indices)`)</c> where
 `vertices` is the buffer containing all the vertices of the polyline, and `indices` is an optional set of indices
 indicating what vertex is used by what segment. The vertex buffer and index buffer may have different lengths, and any
-vertex can be shared by multiple segments. If the given vertex buffer is `None` then the input vertices are assumed to
+vertex can be shared by multiple segments. If the given <notc>vertex buffer is `None`</notc><c>index buffer is empty</c> then the input vertices are assumed to
 form a line strip, i.e., the polyline is formed from the  segments `[vertices[0], vertices[1]], [vertices[1], vertices[2]], etc.`
+
+</notpy>
+<py>
+
+A **polyline** collider can be built with `Collider.polyline(vertices, indices)` where `vertices` is an `(N, 3)` array
+containing all the vertices of the polyline, and `indices` is an optional `(M, 2)` array of indices indicating what
+vertex is used by what segment. The vertex buffer and index buffer may have different lengths, and any vertex can be
+shared by multiple segments. If `indices` is `None` (the default) then the input vertices are assumed to form a line
+strip, i.e., the polyline is formed from the segments `[vertices[0], vertices[1]], [vertices[1], vertices[2]], etc.`
+
+</py>
+
+<notjs>
+
+A triangle-mesh and a polyline are two-sided by default: they generate contacts on both of their sides, which lets a
+body crushed against a thin wall squeeze through it when the contact normal flips. This is why they can also be built
+as **oriented** (one-sided) shapes, with <rapier>`ColliderBuilder::oriented_polyline` and with the `TriMeshFlags::ORIENTED`
+flag of `ColliderBuilder::trimesh_with_flags`</rapier><bevy>`Collider::oriented_polyline` (2D only), with the
+`PolylineFlags::ORIENTED` flag of `Collider::polyline_with_flags`, and with the `TriMeshFlags::ORIENTED` flag of
+`Collider::trimesh_with_flags`</bevy>. An oriented shape only collides on its outward side, which is given by
+the winding of its vertices, and is therefore the right choice for the walls of a container.
+
+</notjs>
+<c>
+
+A triangle-mesh and a polyline are two-sided by default: they generate contacts on both of their sides, which lets a
+body crushed against a thin wall squeeze through it when the contact normal flips. This is why they can also be built
+as **oriented** (one-sided) shapes, with the `R2_POLYLINE_ORIENTED` flag of `r2ShapeDesc_SetPolyline` (or with
+`r2OrientedPolylineSharedShape`) in 2D, and with the `R3_TRIMESH_ORIENTED` flag of `r3ShapeDesc_SetTrimesh` (or of
+`r3TrimeshSharedShapeWithFlags`) in 3D. An oriented shape only collides on its outward side, which is given by the
+winding of its vertices, and is therefore the right choice for the walls of a container.
+
+</c>
+<py>
+
+A triangle-mesh is two-sided by default: it generates contacts on both of its sides, which lets a body crushed against
+a thin wall squeeze through it when the contact normal flips. This is why it can also be built as an **oriented**
+(one-sided) shape, with the `TriMeshFlags.ORIENTED` flag of `Collider.trimesh`. An oriented shape only collides on its
+outward side, which is given by the winding of its vertices, and is therefore the right choice for the walls of a
+container.
+
+</py>
 
 :::warning
 It is discouraged to use a triangle meshes or a polylines for colliders attached to
 dynamic rigid-bodies. Because they have no interior, it is easy for another object to get stuck into them.
 In order to simulate properly non-convex objects, it is recommended to use a **convex decomposition** with a
-<notjs>[compound shape](./colliders.mdx#compound-shapes)</notjs><js>compound shape</js> instead.
+<notjs>[compound shape](./colliders.mdx#compound-shapes)</notjs><js>compound shape</js><c>[compound shape](./colliders.mdx#compound-shapes)</c><py>[compound shape](./colliders.mdx#compound-shapes)</py> instead.
 :::
 
 ### Heightfields
@@ -100,25 +176,46 @@ In order to simulate properly non-convex objects, it is recommended to use a **c
 Heightfields are a more restrictive version of triangle-meshes and polylines. However, they can be easier to define
 and use much less memory. Therefore heightfields are useful to define large parts of terrains with simple topologies.
 
+<notpy>
+
 A **3D heightfield** is basically large rectangle in the `X-Z` plane, subdivided in a grid pattern at regular intervals. Each
 vertex of this subdivision is given a height, i.e., the coordinate of that point along the `Y` axis. A 3D heightfield
 collider can be created
-with <rapier>`ColliderBuilder::heightfield(heights, scale)`</rapier><bevy>`Collider::heightfield(heights, scale)`</bevy><js>`ColliderDesc.heightfield(heights, scale)`</js> where
-`heights` is a matrix indicating the altitude of each subdivision point of that heightfield. The number of rows of that
-matrix is the number of subdivision along the `X` axis, and the number of columns is the number of subdivision along the
-`Z` axis. The `scale` argument indicates the size of the rectangle of the `X-Z` plane.
+with <rapier>`ColliderBuilder::heightfield(heights, scale)`</rapier><bevy>`Collider::heightfield(heights, num_rows, num_cols, scale)`</bevy><js>`ColliderDesc.heightfield(heights, scale)`</js><c>`r3HeightfieldSharedShape(heights, rows, columns, scale)` (or the `R3_SHAPE_DESC_HEIGHTFIELD` shape kind)</c> where
+`heights` is a matrix indicating the altitude of each subdivision point of that heightfield<bevy> (given as a flat
+vector of `num_rows * num_cols` heights in column-major order)</bevy><c> (given as a flat array of `rows * columns` heights in column-major order)</c>. The number of rows of that
+matrix is the number of subdivision along the `Z` axis, and the number of columns is the number of subdivision along the
+`X` axis. The `scale` argument indicates the size of the rectangle of the `X-Z` plane.
+
+</notpy>
+<py>
+
+A **3D heightfield** is basically large rectangle in the `X-Z` plane, subdivided in a grid pattern at regular intervals.
+Each vertex of this subdivision is given a height, i.e., the coordinate of that point along the `Y` axis. A 3D
+heightfield collider can be created with `Collider.heightfield(heights, scale)` where `heights` is a 2D NumPy array (or nested
+sequences) indicating the altitude of each subdivision point of that heightfield. The row index `i` of `heights[i, j]`
+advances along the `Z` axis, and its column index `j` advances along the `X` axis: the number of rows of that array is
+the number of subdivision points along the `Z` axis, and the number of columns is the number of subdivision points along
+the `X` axis. The `scale` argument indicates the size of the rectangle of the `X-Z` plane (and its `Y` component
+scales the heights).
+
+</py>
 
 :::info
 A heightfield collider can be given any orientation by changing the orientation of the collider itself.
 :::
 
+<notpy>
+
 A **2D heightfield** is a large segment along the `X` axis, subdivided at regular intervals. Each vertex of this
 subdivision is given a height, i.e., the coordinate of that point along the `Y` axis. A 2D heightfield collider
 can be created
-with <rapier>`ColliderBuilder::heightfield(heights, scale)`</rapier><bevy>`Collider::heightfield(heights, scale)`</bevy><js>`ColliderDesc.heightfield(heights, scale)`</js> where
+with <rapier>`ColliderBuilder::heightfield(heights, scale)`</rapier><bevy>`Collider::heightfield(heights, scale)`</bevy><js>`ColliderDesc.heightfield(heights, scale)`</js><c>`r2HeightfieldSharedShape(heights, rows, 1, scale)` (or the `R2_SHAPE_DESC_HEIGHTFIELD` shape kind with a single column)</c> where
 `heights` is a vector indicating the altitude of each subdivision point of that heightfield. The number of elements on
 that vector is the number of subdivision of the heightfield. The `scale` argument indicates the length of the subdivided
 segment along the `X` axis.
+
+</notpy>
 
 <!-- TODO: add illustrations + cover the heightfield subdivision pattern and holes. -->
 
@@ -143,25 +240,58 @@ values={[
 ]}>
 <TabItem value="2D">
 
+<rapier>
+
 ```rust
 <load path='/2d/rust/examples/rs_colliders2.rs' marker='VoxelsPoints' />
 ```
 
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='VoxelsPoints' />
+```
+
+</bevy>
+
   </TabItem>
   <TabItem value="3D">
+
+<rapier>
 
 ```rust
 <load path='/3d/rust/examples/rs_colliders3.rs' marker='VoxelsPoints' />
 ```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/colliders3.rs' marker='VoxelsPoints' />
+```
+
+</bevy>
 
   </TabItem>
 </Tabs>
 
 You can also voxelize a mesh:
 
+<rapier>
+
 ```rust
 <load path='/2d/rust/examples/rs_colliders2.rs' marker='VoxelsMesh' />
 ```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/2d/bevy/examples/colliders2.rs' marker='VoxelsMesh' />
+```
+
+</bevy>
 
 ### Compound shapes
 It is not recommended to use a triangle mesh or polyline for the shape of a collider attached to a dynamic rigid-body.
@@ -209,6 +339,149 @@ convex parts as well as a 3D mesh with its approximate convex decomposition comp
 
 ![convex decomposition](/img/convex_decomposition.png)
 </notjs>
+<c>
+
+### Voxels
+
+Voxel shapes are useful to represent 3D volumes made of small uniform cubes (voxels),
+such as Minecraft-like worlds or volumetric data.
+Unlike triangle meshes, voxel-based shapes can offer
+improved collision detection robustness and performance due to their regular structure.
+
+A voxel shape is a shared shape constructed from a grid of occupied cells, e.g., with
+`r3VoxelsSharedShapeFromPoints` which fills the cells containing the given points:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='VoxelsPoints' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/colliders3.c' marker='VoxelsPoints' />
+```
+
+  </TabItem>
+</Tabs>
+
+You can also voxelize a mesh (a polyline in 2D, or a triangle mesh in 3D) with `r3VoxelizedMeshSharedShape`:
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='VoxelsMesh' />
+```
+
+The voxels of a collider with a voxel shape can then be inspected with `r3Collider_IsVoxels` and
+`r3Collider_VoxelAtFlatId`, and filled or cleared individually with `r3Collider_SetVoxel`.
+
+### Compound shapes
+It is not recommended to use a triangle mesh or polyline for the shape of a collider attached to a dynamic rigid-body.
+The alternative is to use a compound shape to model a non-convex object as the union of multiple convex parts (which can
+be cuboids, balls, convex meshes, etc.) This is commonly known as a **convex decomposition**.
+
+:::info
+An alternative to using a **compound shape** is to attach **multiple colliders** to the same rigid-body: all the colliders
+will move with the rigid-body automatically, and the simulation quality (contact resolution, stability) is identical with
+both approaches. They differ in other ways, so pick based on how you use the object:
+- **Performance:** a compound shape is a single collider, so the broad-phase handles one entry (with its own internal
+  acceleration structure for the parts) instead of one entry per collider. With many parts (hundreds or more), a compound
+  shape makes the physics step significantly cheaper, especially while the rigid-body is awake.
+- **Collision events:** each collider generates its own individual collision start/stop events and can have its own
+  friction, restitution, collision groups, or sensor status. A compound shape is a single collider: one set of events
+  and properties for the whole shape.
+- **Mutability:** adding or removing one collider from a rigid-body is easy and cheap, whereas adding or removing a part
+  of a compound shape requires rebuilding the whole compound shape.
+:::
+
+To build a compound shape, it is possible to directly provide the set of shapes as well as their position in the
+compound shape's local space, as an array of `R3CompoundShapeDesc` given to a shape description with the
+`R3_SHAPE_DESC_COMPOUND` kind (or to `r3CompoundSharedShape`):
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Compound' />
+```
+
+It is also possible to build a compound shape modelling the convex decomposition of a 3D triangle mesh or 2D polyline
+using the `r3ConvexDecompositionSharedShape(vertices, indices)` function. This will automatically create a compound
+shape composed of multiple convex meshes obtained from the approximate convex decomposition of the triangle mesh (or
+polyline in 2D) using the [VHACD algorithm](https://github.com/kmammou/v-hacd). Here are examples of a 2D concave
+polygon decomposed into two convex parts as well as a 3D mesh with its approximate convex decomposition composed of 7
+convex parts:
+
+![convex decomposition](/img/convex_decomposition.png)
+
+</c>
+<py>
+
+### Voxels
+
+Voxel shapes are useful to represent 3D volumes made of small uniform cubes (voxels),
+such as Minecraft-like worlds or volumetric data.
+Unlike triangle meshes, voxel-based shapes can offer
+improved collision detection robustness and performance due to their regular structure.
+
+A voxel collider is constructed from a 3D grid of occupied cells, e.g., with `Collider.voxels_from_points` which fills
+the cells containing the given points (or with `Collider.voxels` which takes the integer coordinates of the filled
+cells directly):
+
+```python
+<load path='/3d/python/colliders.py' marker='VoxelsPoints' />
+```
+
+You can also voxelize a triangle mesh with `SharedShape.voxelized_mesh` (or `Collider.voxelized_mesh`), where the
+`FillMode` indicates whether only the voxels intersecting the surface of the mesh are filled (`FillMode.SURFACE_ONLY`)
+or also the voxels inside of it (`FillMode.flood_fill()`, the default):
+
+```python
+<load path='/3d/python/colliders.py' marker='VoxelsMesh' />
+```
+
+### Compound shapes
+It is not recommended to use a triangle mesh for the shape of a collider attached to a dynamic rigid-body.
+The alternative is to use a compound shape to model a non-convex object as the union of multiple convex parts (which can
+be cuboids, balls, convex meshes, etc.) This is commonly known as a **convex decomposition**.
+
+:::info
+An alternative to using a **compound shape** is to attach **multiple colliders** to the same rigid-body: all the colliders
+will move with the rigid-body automatically, and the simulation quality (contact resolution, stability) is identical with
+both approaches. They differ in other ways, so pick based on how you use the object:
+- **Performance:** a compound shape is a single collider, so the broad-phase handles one entry (with its own internal
+  acceleration structure for the parts) instead of one entry per collider. With many parts (hundreds or more), a compound
+  shape makes the physics step significantly cheaper, especially while the rigid-body is awake.
+- **Collision events:** each collider generates its own individual collision start/stop events and can have its own
+  friction, restitution, collision groups, or sensor status. A compound shape is a single collider: one set of events
+  and properties for the whole shape.
+- **Mutability:** adding or removing one collider from a rigid-body is easy and cheap, whereas adding or removing a part
+  of a compound shape requires rebuilding the whole compound shape.
+:::
+
+To build a compound shape, it is possible to directly provide the set of shapes as well as their position in the
+compound shape's local space, as a list of `(Isometry3, SharedShape)` pairs given to `Collider.compound` (or to
+`SharedShape.compound`):
+
+```python
+<load path='/3d/python/colliders.py' marker='Compound' />
+```
+
+It is also possible to build a compound shape modelling the convex decomposition of a triangle mesh using the
+`Collider.convex_decomposition(vertices, indices)` constructor (or `SharedShape.convex_decomposition`). This will
+automatically create a compound shape composed of multiple convex meshes obtained from the approximate convex
+decomposition of the triangle mesh using the [VHACD algorithm](https://github.com/kmammou/v-hacd). Here are examples of
+a 2D concave polygon decomposed into two convex parts as well as a 3D mesh with its approximate convex decomposition
+composed of 7 convex parts:
+
+![convex decomposition](/img/convex_decomposition.png)
+
+</py>
 
 ### Round shapes
 Some shapes have __round__ variants: `RoundCuboid`, `RoundCylinder`, `RoundCone`, `RoundConvexPolygon` and
@@ -225,8 +498,36 @@ collision-detection with **round-cuboids** will be slower than collision-detecti
 :::
 
 Colliders with round shapes are built in a way very similar to their non-round
-counterparts, e.g., <rapier>`ColliderBuilder::round_cuboid`</rapier><bevy>`Collider::round_cuboid`</bevy><js>`ColliderDesc.roundCuboid`</js>.
-These constructors take one additional parameter: the size of the added thickness called <notjs>`border_radius`</notjs><js>`borderRadius`</js>.
+counterparts, e.g., <rapier>`ColliderBuilder::round_cuboid`</rapier><bevy>`Collider::round_cuboid`</bevy><js>`ColliderDesc.roundCuboid`</js><c>`r3RoundCuboidColliderDesc`</c><py>`Collider.round_cuboid`</py>.
+These constructors take one additional parameter: the size of the added thickness called <notjs>`border_radius`</notjs><js>`borderRadius`</js><c>`border_radius`</c><py>`border_radius`</py>.
+
+<c>
+
+The round shapes are created with the following functions:
+- `r3RoundCuboidColliderDesc(half_extents, border_radius)` for a round cuboid.
+- `r3RoundCylinderColliderDesc(half_height, radius, border_radius)` for a round cylinder (3D only).
+- `r3RoundConeColliderDesc(half_height, radius, border_radius)` for a round cone (3D only).
+- `r3RoundConvexHullSharedShape(points, border_radius)` for the round convex hull of a set of points: a round convex
+  polygon in 2D, or a round convex polyhedron in 3D.
+
+The first three also have a shared shape version, e.g., `r3RoundCuboidSharedShape`.
+
+</c>
+<py>
+
+The round shapes are created with the following constructors:
+- `Collider.round_cuboid(hx, hy, hz, border_radius)` for a round cuboid.
+- `Collider.round_cylinder(half_height, radius, border_radius)` for a round cylinder.
+- `Collider.round_cone(half_height, radius, border_radius)` for a round cone.
+- `Collider.round_triangle(a, b, c, border_radius)` for a round triangle.
+- `Collider.round_convex_hull(points, border_radius)` for the round convex hull of a set of points (a round convex
+  polyhedron).
+- `Collider.round_convex_mesh(vertices, indices, border_radius)` for a round convex polyhedron given by a mesh that is
+  already convex.
+
+All of them also have a `SharedShape` version, e.g., `SharedShape.round_cuboid`.
+
+</py>
 
 ## Mass properties
 import MassProperties from './collider_mass_properties.mdx'
@@ -247,6 +548,11 @@ import Friction from './collider_friction.mdx'
 import Restitution from './collider_restitution.mdx'
 
 <Restitution />
+
+## Contact skin
+import ContactSkin from './collider_contact_skin.mdx'
+
+<ContactSkin />
 
 ## Collision groups and solver groups
 import CollisionGroups from './collider_collision_groups.mdx'
@@ -285,3 +591,41 @@ This user-data can be set when the collider is created or after its creation:
 ```
 
 </rapier>
+<c>
+
+## User-data
+Each collider can be given a user-defined data of type `R3UserData`: a 128-bits integer split into its `low` and
+`high` 64-bits halves. This integer can have any value and is never used/modified by the physics-engine. This can for
+example be useful to store the index (or the address) of the game object the collider belongs to, or to add some
+custom data for personalized [contact filtering/modification](./advanced_collision_detection.mdx). Keep in mind that
+Rapier doesn't own anything encoded in the user-data: if it stores a pointer, the pointed data must be managed by your
+application.
+
+This user-data can be set when the collider is created or after its creation:
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='UserData1' />
+```
+```c
+<load path='/2d/c/examples/colliders2.c' marker='UserData2' />
+```
+
+</c>
+<py>
+
+## User-data
+Each collider can be given a user-defined data: a Python `int` stored as a 128-bits unsigned integer (i.e., between
+0 and $2^{128} - 1$). This integer can have any value and is never used/modified by the physics-engine. This can for
+example be useful to store the index of the game object the collider belongs to, or to add some custom data for
+personalized [contact filtering/modification](./advanced_collision_detection.mdx).
+
+This user-data can be set when the collider is created or after its creation:
+
+```python
+<load path='/3d/python/colliders.py' marker='UserData1' />
+```
+```python
+<load path='/3d/python/colliders.py' marker='UserData2' />
+```
+
+</py>

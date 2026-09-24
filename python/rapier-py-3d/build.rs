@@ -9,6 +9,9 @@
 //!   - With neither → fast path with platform-native math.
 
 fn main() {
+    // Report the Cargo profile the extension is built with (`BuildFeatures.profile`).
+    let profile = std::env::var("PROFILE").expect("Cargo provides PROFILE");
+    println!("cargo:rustc-env=RAPIER_PY_CARGO_PROFILE={profile}");
     println!("cargo:rerun-if-env-changed=RAPIER_PY_DETERMINISM");
     let env_set = std::env::var("RAPIER_PY_DETERMINISM").is_ok();
     let feature_on = std::env::var("CARGO_FEATURE_DETERMINISM").is_ok();

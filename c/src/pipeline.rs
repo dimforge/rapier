@@ -369,8 +369,7 @@ pub unsafe extern "C" fn rpr_set_num_solver_iterations(
         let object: *mut NativeIntegrationParameters =
             std::ptr::addr_of_mut!((*raw).0.integration_parameters).cast();
 
-        ensure(value > 0, "iteration count must be positive")?;
-        get_mut(object)?.0.num_solver_iterations = value;
+        get_mut(object)?.0.num_solver_iterations = iterations(value)?;
         Ok(())
     })
 }
@@ -407,15 +406,14 @@ pub unsafe extern "C" fn rpr_set_num_internal_pgs_iterations(
         let object: *mut NativeIntegrationParameters =
             std::ptr::addr_of_mut!((*raw).0.integration_parameters).cast();
 
-        ensure(value > 0, "iteration count must be positive")?;
-        get_mut(object)?.0.num_internal_pgs_iterations = value;
+        get_mut(object)?.0.num_internal_pgs_iterations = iterations(value)?;
         Ok(())
     })
 }
 
 /// Return the world setting documented by
 /// RprIntegrationParameters::numInternalStabilizationIterations.
-/// @ingroup errors
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_num_internal_stabilization_iterations(
     world: *const RprWorld,
@@ -436,7 +434,7 @@ pub unsafe extern "C" fn rpr_num_internal_stabilization_iterations(
 
 /// Set the world setting documented by
 /// RprIntegrationParameters::numInternalStabilizationIterations.
-/// @ingroup errors
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_num_internal_stabilization_iterations(
     world: *mut RprWorld,
@@ -603,7 +601,7 @@ pub unsafe extern "C" fn rpr_set_friction_in_bias_pass(
 }
 
 /// Return the world setting documented by RprIntegrationParameters::warmstartJoints.
-/// @ingroup joints
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_warmstart_joints(world: *const RprWorld) -> RprBool {
     ffi_value(|out: *mut RprBool| {
@@ -621,7 +619,7 @@ pub unsafe extern "C" fn rpr_warmstart_joints(world: *const RprWorld) -> RprBool
 }
 
 /// Set the world setting documented by RprIntegrationParameters::warmstartJoints.
-/// @ingroup joints
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_warmstart_joints(
     world: *mut RprWorld,
@@ -641,7 +639,7 @@ pub unsafe extern "C" fn rpr_set_warmstart_joints(
 }
 
 /// Return the world setting documented by RprIntegrationParameters::contactSoftness.
-/// @ingroup soft_bodies
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_softness(world: *const RprWorld) -> RprSpringCoefficients {
     ffi_value(|out: *mut RprSpringCoefficients| {
@@ -659,7 +657,7 @@ pub unsafe extern "C" fn rpr_contact_softness(world: *const RprWorld) -> RprSpri
 }
 
 /// Set the world setting documented by RprIntegrationParameters::contactSoftness.
-/// @ingroup soft_bodies
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_contact_softness(
     world: *mut RprWorld,
@@ -679,7 +677,7 @@ pub unsafe extern "C" fn rpr_set_contact_softness(
 }
 
 /// Return the world setting documented by RprIntegrationParameters::staticContactSoftness.
-/// @ingroup soft_bodies
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_static_contact_softness(
     world: *const RprWorld,
@@ -699,7 +697,7 @@ pub unsafe extern "C" fn rpr_static_contact_softness(
 }
 
 /// Set the world setting documented by RprIntegrationParameters::staticContactSoftness.
-/// @ingroup soft_bodies
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_static_contact_softness(
     world: *mut RprWorld,
@@ -734,7 +732,7 @@ pub struct RprCollisionEvent {
     pub collider2: RprColliderHandle,
     /// 1 for a starting event, 0 for a stopping event.
     pub started: RprBool,
-    /// Event flags: bit 0 sensor pair, bit 1 removed collider.
+    /// Bitmask of RPR_COLLISION_EVENT_SENSOR and RPR_COLLISION_EVENT_REMOVED.
     pub flags: u32,
 }
 /// Contact-force event, enabled by flags and the collider force threshold.
@@ -754,82 +752,111 @@ pub struct RprContactForceEvent {
     pub max_force_direction: RprVector,
     /// Magnitude of the strongest contact force.
     pub max_force_magnitude: RprReal,
-    /// 1 for a starting event, 0 for a stopping event.
+    /// 1 for the first step the total force magnitude exceeds the threshold, 0 on the following
+    /// steps while it stays above it. No event is emitted when the force drops below it.
     pub started: RprBool,
 }
-/// Events accumulate until clear. Copying events never drains them, allowing two-call buffer
-/// sizing.
+/// Events accumulate across steps until rpr_event_collector_clear: reading them never drains the
+/// collector, allowing two-call buffer sizing. Optional callbacks also see each event during the
+/// step.
 /// @ingroup events
 #[derive(Default)]
 pub struct RprEventCollector {
     collisions: Mutex<Vec<RprCollisionEvent>>,
     forces: Mutex<Vec<RprContactForceEvent>>,
     tears: Mutex<Vec<RprSoftBodyTearEvent>>,
+    pub(crate) callbacks: Mutex<RprEventCallbacks>,
 }
 struct WorldEvents<'a> {
     world: *mut RprWorld,
     events: &'a RprEventCollector,
+    // Copied when the operation starts, so callbacks may replace them for the next one.
+    callbacks: RprEventCallbacks,
+}
+impl<'a> WorldEvents<'a> {
+    fn new(world: *mut RprWorld, events: &'a RprEventCollector) -> Self {
+        let callbacks = *events.callbacks.lock().unwrap();
+        Self {
+            world,
+            events,
+            callbacks,
+        }
+    }
 }
 // The address is only copied into handles; the step holds the world write guard.
 unsafe impl Sync for WorldEvents<'_> {}
 impl EventHandler for WorldEvents<'_> {
     fn handle_collision_event(
         &self,
-        _: &RigidBodySet,
-        _: &ColliderSet,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
         event: CollisionEvent,
-        _: Option<&ContactPair>,
+        pair: Option<&ContactPair>,
     ) {
         let (a, b, started, flags) = match event {
             CollisionEvent::Started(a, b, f) => (a, b, 1, f.bits()),
             CollisionEvent::Stopped(a, b, f) => (a, b, 0, f.bits()),
         };
-        self.events
-            .collisions
-            .lock()
-            .unwrap()
-            .push(RprCollisionEvent {
-                collider1: RprColliderHandle::from(a).with_world(self.world),
-                collider2: RprColliderHandle::from(b).with_world(self.world),
-                started,
-                flags,
-            });
+        let event = RprCollisionEvent {
+            collider1: RprColliderHandle::from(a).with_world(self.world),
+            collider2: RprColliderHandle::from(b).with_world(self.world),
+            started,
+            flags,
+        };
+        self.events.collisions.lock().unwrap().push(event);
+        if let Some(callback) = self.callbacks.collision_event {
+            let contacts = pair.map(contact_points).unwrap_or_default();
+            let read = RprReadContext::new(self.world, bodies, colliders);
+            unsafe {
+                callback(
+                    self.callbacks.user_data,
+                    &read,
+                    &event,
+                    contacts.as_ptr(),
+                    contacts.len(),
+                )
+            };
+        }
     }
     fn handle_contact_force_event(
         &self,
         dt: Real,
-        _: &RigidBodySet,
-        _: &ColliderSet,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
         pair: &ContactPair,
         magnitude: Real,
     ) {
         let e = ContactForceEvent::from_contact_pair(dt, pair, magnitude);
-        self.events
-            .forces
-            .lock()
-            .unwrap()
-            .push(RprContactForceEvent {
-                collider1: RprColliderHandle::from(e.collider1).with_world(self.world),
-                collider2: RprColliderHandle::from(e.collider2).with_world(self.world),
-                total_force: e.total_force.into(),
-                total_force_magnitude: e.total_force_magnitude,
-                max_force_direction: e.max_force_direction.into(),
-                max_force_magnitude: e.max_force_magnitude,
-                started: e.started as u32,
-            });
+        let event = RprContactForceEvent {
+            collider1: RprColliderHandle::from(e.collider1).with_world(self.world),
+            collider2: RprColliderHandle::from(e.collider2).with_world(self.world),
+            total_force: e.total_force.into(),
+            total_force_magnitude: e.total_force_magnitude,
+            max_force_direction: e.max_force_direction.into(),
+            max_force_magnitude: e.max_force_magnitude,
+            started: e.started as u32,
+        };
+        self.events.forces.lock().unwrap().push(event);
+        if let Some(callback) = self.callbacks.contact_force_event {
+            let read = RprReadContext::new(self.world, bodies, colliders);
+            unsafe { callback(self.callbacks.user_data, &read, &event) };
+        }
     }
-    fn handle_soft_body_tear_event(&self, _: &SoftBodySet, event: &SoftBodyTearEvent) {
-        self.events
-            .tears
-            .lock()
-            .unwrap()
-            .push(RprSoftBodyTearEvent(event.clone(), self.world));
+    fn handle_soft_body_tear_event(&self, soft_bodies: &SoftBodySet, event: &SoftBodyTearEvent) {
+        let particles = soft_bodies
+            .get(event.soft_body)
+            .map_or(0, |b| b.num_particles());
+        self.events.tears.lock().unwrap().push(RprSoftBodyTearEvent(
+            event.clone(),
+            self.world,
+            particles,
+        ));
     }
 }
 /// Pair callback: -1 rejects a contact pair; 0 detects contacts without impulses; 1 computes
 /// impulses.
 /// For sensor intersections only, zero rejects and any positive value accepts.
-/// @ingroup math
+/// @ingroup callbacks
 pub type RprPairFilter = Option<
     unsafe extern "C" fn(
         user_data: *mut c_void,
@@ -868,9 +895,9 @@ pub type RprModifyContacts = Option<
     ),
 >;
 /// Borrowed native contact context. Valid only during its callback; never retain or free it.
-/// @ingroup events
+/// @ingroup callbacks
 pub struct RprContactModificationContext {
-    raw: *mut c_void,
+    pub(crate) raw: *mut c_void,
 }
 /// Modify individual solver contacts through a borrowed context, valid only during the callback.
 /// @ingroup callbacks
@@ -1004,7 +1031,7 @@ impl PhysicsHooks for WorldHooks {
 }
 
 /// Applies Rapier's persistent one-way platform logic to the borrowed manifold.
-/// @ingroup worlds
+/// @ingroup callbacks
 #[rapier_export(contact_modification_context)]
 pub unsafe extern "C" fn rpr_contact_modification_context_update_as_oneway_platform(
     context: *mut RprContactModificationContext,
@@ -1023,7 +1050,7 @@ pub unsafe extern "C" fn rpr_contact_modification_context_update_as_oneway_platf
 }
 
 /// Sets the tangent velocity of every rigid solver contact in this manifold.
-/// @ingroup worlds
+/// @ingroup callbacks
 #[rapier_export(contact_modification_context)]
 pub unsafe extern "C" fn rpr_contact_modification_context_set_tangent_velocity(
     context: *mut RprContactModificationContext,
@@ -1067,7 +1094,7 @@ pub unsafe extern "C" fn rpr_free_event_collector(events: *mut RprEventCollector
         Ok(())
     })
 }
-/// Discard all collected events. Does not change the world.
+/// Discard all collected events. Does not change the world or the callbacks.
 /// @ingroup events
 #[rapier_export(event_collector)]
 pub unsafe extern "C" fn rpr_event_collector_clear(events: *mut RprEventCollector) -> RprStatus {
@@ -1079,7 +1106,7 @@ pub unsafe extern "C" fn rpr_event_collector_clear(events: *mut RprEventCollecto
         Ok(())
     })
 }
-/// Copy the collected collision start/stop events without removing them.
+/// Copy the collision start/stop events collected since the last clear, without removing them.
 /// @see @ref output_buffers
 /// @ingroup events
 #[rapier_export(event_collector)]
@@ -1099,7 +1126,7 @@ pub unsafe extern "C" fn rpr_event_collector_collision_events(
         })
     })
 }
-/// Copy the collected contact-force events without removing them.
+/// Copy the contact-force events collected since the last clear, without removing them.
 /// @see @ref output_buffers
 /// @ingroup events
 #[rapier_export(event_collector)]
@@ -1119,7 +1146,7 @@ pub unsafe extern "C" fn rpr_event_collector_contact_force_events(
         })
     })
 }
-/// Return the number of queued soft-body tear events.
+/// Return the number of soft-body tear events collected since the last clear.
 /// @ingroup events
 #[rapier_export(event_collector)]
 pub unsafe extern "C" fn rpr_event_collector_tear_event_count(
@@ -1132,7 +1159,12 @@ pub unsafe extern "C" fn rpr_event_collector_tear_event_count(
 /// Owned copy of a tear event. Read particle remapping before rebuilding render meshes.
 /// @ingroup events
 #[derive(Clone)]
-pub struct RprSoftBodyTearEvent(pub(crate) SoftBodyTearEvent, pub(crate) *mut RprWorld);
+pub struct RprSoftBodyTearEvent(
+    pub(crate) SoftBodyTearEvent,
+    pub(crate) *mut RprWorld,
+    /// Particle count of the torn body after the tear, for a tear that split nothing off.
+    pub(crate) usize,
+);
 // Owned event data plus a non-owning world address, never dereferenced by the event.
 unsafe impl Send for RprSoftBodyTearEvent {}
 unsafe impl Sync for RprSoftBodyTearEvent {}
@@ -1189,8 +1221,9 @@ pub unsafe extern "C" fn rpr_set_gravity(world: *mut RprWorld, value: RprVector)
     })
 }
 
-/// Hooks and events may be NULL. This call invalidates all borrowed set-element pointers.
-/// Advance simulation by one timestep. Hooks and events may be NULL.
+/// Advance simulation by one timestep. Hooks and events may be NULL. Events are appended to the
+/// collector, which is never cleared automatically. This call invalidates all borrowed set-element
+/// pointers.
 /// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_step(
@@ -1209,10 +1242,7 @@ pub unsafe extern "C" fn rpr_step(
         let events = if events.is_null() {
             None
         } else {
-            Some(WorldEvents {
-                world,
-                events: get(events)?,
-            })
+            Some(WorldEvents::new(world, get(events)?))
         };
         let events: &dyn EventHandler = events.as_ref().map_or(&() as &dyn EventHandler, |e| e);
         (*access.raw()).0.step_with_events(&hooks, events);
@@ -1220,7 +1250,8 @@ pub unsafe extern "C" fn rpr_step(
     })
 }
 
-/// Refresh collision detection without advancing simulation. Hooks and events may be NULL.
+/// Refresh collision detection without advancing simulation. Hooks and events may be NULL; events
+/// are appended to the collector.
 /// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_detect_collisions(
@@ -1239,10 +1270,7 @@ pub unsafe extern "C" fn rpr_detect_collisions(
         let events = if events.is_null() {
             None
         } else {
-            Some(WorldEvents {
-                world,
-                events: get(events)?,
-            })
+            Some(WorldEvents::new(world, get(events)?))
         };
         let events: &dyn EventHandler = events.as_ref().map_or(&() as &dyn EventHandler, |e| e);
         (*access.raw()).0.detect_collisions(&hooks, events);
@@ -1362,7 +1390,7 @@ pub struct RprDebugLine {
     pub a: RprVector,
     /// World-space end point.
     pub b: RprVector,
-    /// RGBA color, four floats.
+    /// HSLA color: hue in degrees, then saturation, lightness and alpha in [0, 1].
     pub color: [f32; 4],
 }
 struct Lines(Vec<RprDebugLine>);
@@ -1381,9 +1409,10 @@ impl rapier::pipeline::DebugRenderBackend for Lines {
         });
     }
 }
-/// Color is HSLA (hue in degrees), matching Rapier DebugColor. mode uses DebugRenderMode bits.
+/// Copy the debug-render lines of the world with the default style. mode combines RPR_DEBUG_* bits;
+/// colors are HSLA (hue in degrees), matching Rapier DebugColor.
 /// @see @ref output_buffers
-/// @ingroup worlds
+/// @ingroup events
 #[rapier_export]
 pub unsafe extern "C" fn rpr_debug_render(
     world: *const RprWorld,
@@ -1398,14 +1427,26 @@ pub unsafe extern "C" fn rpr_debug_render(
 
             let world: *const RprPhysicsWorld = raw;
 
-            let mode = rapier::pipeline::DebugRenderMode::from_bits(mode)
-                .ok_or_else(|| invalid("unknown debug render flags"))?;
-            let mut pipeline = rapier::pipeline::DebugRenderPipeline::new(Default::default(), mode);
-            let mut lines = Lines(Vec::new());
-            get(world)?.0.debug_render(&mut pipeline, &mut lines);
-            copy_out(&lines.0, buffer, capacity, count)
+            debug_render_lines(world, mode, Default::default(), buffer, capacity, count)
         })
     })
+}
+pub(crate) unsafe fn debug_render_lines(
+    world: *const RprPhysicsWorld,
+    mode: u32,
+    style: rapier::pipeline::DebugRenderStyle,
+    buffer: *mut RprDebugLine,
+    capacity: usize,
+    count: *mut usize,
+) -> Result {
+    let mode = rapier::pipeline::DebugRenderMode::from_bits(mode)
+        .ok_or_else(|| invalid("unknown debug render flags"))?;
+    let mut pipeline = rapier::pipeline::DebugRenderPipeline::new(style, mode);
+    let mut lines = Lines(Vec::new());
+    unsafe {
+        get(world)?.0.debug_render(&mut pipeline, &mut lines);
+        copy_out(&lines.0, buffer, capacity, count)
+    }
 }
 
 /// Set the world setting documented by RprSoftBodiesSettings::resweepStrain.

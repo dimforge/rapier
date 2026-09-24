@@ -15,7 +15,11 @@ mass-properties are coherent with the geometric shape. Wrong mass-properties (es
 center-of-mass location) may lead to odd behaviors. The manual approach is usually useful when modeling real-world
 objects for which you already know the real-world mass, center-of-mass, and angular inertia tensor.
 
-The mass-properties of a collider can only be set when the collider is created:
+<rapier>The mass-properties of a collider can be set when the collider is created, with `ColliderBuilder::density`,
+`ColliderBuilder::mass`, or `ColliderBuilder::mass_properties`:</rapier><bevy>The mass-properties of a
+collider can be set when the collider is created, or after its creation by modifying its `ColliderMassProperties`
+component:</bevy><js>The mass-properties of a collider can be set when the collider is created, with `ColliderDesc.setDensity`,
+`ColliderDesc.setMass`, or `ColliderDesc.setMassProperties`:</js><c>The mass-properties of a collider can be set when the collider is created, by setting the `massMode` of its description to `R3_MASS_DENSITY` (the default), `R3_MASS_TOTAL`, or `R3_MASS_PROPERTIES`, and the corresponding `density`, `mass`, or `massProperties` field:</c><py>The mass-properties of a collider can be set when the collider is created, with `ColliderBuilder.density`, `ColliderBuilder.mass`, or `ColliderBuilder.mass_properties`:</py>
 
 <rapier>
 
@@ -41,6 +45,13 @@ values={[
 
   </TabItem>
 </Tabs>
+
+They can also be modified after the creation of the collider with `Collider::set_density`, `Collider::set_mass`, or
+`Collider::set_mass_properties`. Each of these methods (as well as the builder methods above) replaces the
+mass-properties previously set by any of the others: for example, calling `Collider::set_mass` on a collider built with
+`ColliderBuilder::density` makes its density be ignored. The mass-properties of the rigid-body the collider is attached
+to are then updated automatically at the next simulation step (or immediately with
+`RigidBody::recompute_mass_properties_from_colliders`).
 
 </rapier>
 <bevy>
@@ -68,6 +79,9 @@ values={[
   </TabItem>
 </Tabs>
 
+The resulting volume, density, mass, and local mass-properties of a collider can be read from its
+`ReadColliderMassProperties` component, inserted automatically with the `Collider` component. This component is updated
+whenever the collider or its `ColliderMassProperties` change, and modifying it has no effect on the simulation.
 
 </bevy>
 <js>
@@ -95,4 +109,69 @@ values={[
   </TabItem>
 </Tabs>
 
+They can also be modified after the creation of the collider with `Collider.setDensity`, `Collider.setMass`, or
+`Collider.setMassProperties`. Each of these methods (as well as the `ColliderDesc` methods above) replaces the
+mass-properties previously set by any of the others: for example, calling `Collider.setMass` on a collider created
+with `ColliderDesc.setDensity` makes its density be ignored. The mass-properties of the rigid-body the collider is
+attached to are then updated automatically at the next simulation step (or immediately with
+`RigidBody.recomputeMassPropertiesFromColliders`).
+
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='Mass' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/colliders3.c' marker='Mass' />
+```
+
+  </TabItem>
+</Tabs>
+
+The explicit mass-properties are given by a `R3MassProperties`: the center-of-mass `local_com` in the collider's local
+space, the `mass`, and the `principal_inertia` (a scalar in 2D, or the three principal angular inertia in 3D, along
+the axes given by the `principal_inertia_local_frame` rotation).
+
+They can also be modified after the creation of the collider with `r3Collider_SetDensity`, `r3Collider_SetMass`, or
+`r3Collider_SetMassProperties`. Each of these functions (as well as the `massMode` of the description) replaces the
+mass-properties previously set by any of the others: for example, calling `r3Collider_SetMass` on a collider created
+with a density makes its density be ignored. The mass-properties of the rigid-body the collider is attached to are
+then updated automatically at the next simulation step (or immediately with
+`r3RigidBody_RecomputeMassPropertiesFromColliders`). The resulting volume, density, mass, and local mass-properties of
+a collider can be read with `r3Collider_Volume`, `r3Collider_Density`, `r3Collider_Mass`, and
+`r3Collider_MassProperties`.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='Mass' />
+```
+
+The explicit mass-properties are given by a `MassProperties`: the center-of-mass `local_com` in the collider's local
+space, the `mass`, and the three `principal_inertia` (the principal angular inertia, along the axes given by the
+optional `principal_inertia_local_frame` rotation).
+
+They can also be modified after the creation of the collider by assigning its `density`, `mass`, or
+`mass_properties` property. Each of these properties (as well as the builder methods above) replaces the
+mass-properties previously set by any of the others: for example, assigning the `mass` of a collider built with
+`ColliderBuilder.density` makes its density be ignored. The mass-properties of the rigid-body the collider is attached
+to are then updated automatically at the next simulation step (or immediately with
+`RigidBody.recompute_mass_properties_from_colliders(world.colliders)`). The resulting volume, density, mass, and local
+mass-properties of a collider can be read from its `volume`, `density`, `mass`, and `mass_properties` properties.
+
+</py>

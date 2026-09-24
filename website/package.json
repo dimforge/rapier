@@ -8,7 +8,8 @@
     "preview": "PUBLISH_MODE=1 docusaurus start --host 0.0.0.0",
     "build": "docusaurus build",
     "build:demos": "./scripts/build-demos.sh",
-    "build:all": "yarn build:demos && yarn build",
+    "build:api-docs": "./scripts/build-api-docs.sh",
+    "build:all": "yarn build:demos && yarn build:api-docs && yarn build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "serve": "docusaurus serve"

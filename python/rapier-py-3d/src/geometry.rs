@@ -9,89 +9,171 @@
 use crate::*;
 use rapier3d as rapier;
 
-use crate::numpy::{PyArray2, PyReadonlyArray2, PyUntypedArrayMethods};
+use crate::numpy::{PyArray2, PyReadonlyArray2};
 use crate::pyo3::exceptions::{PyIndexError, PyTypeError, PyValueError};
 use crate::pyo3::prelude::*;
 use crate::pyo3::pyclass::CompareOp;
 
-/// Extract an `Mx3` `u32` matrix → `Vec<[u32; 3]>`.
-pub fn extract_indices(obj: &Bound<'_, PyAny>) -> PyResult<Vec<[u32; 3]>> {
-    if let Ok(arr) = obj.extract::<PyReadonlyArray2<u32>>() {
-        let (nrows, ncols) = (arr.shape()[0], arr.shape()[1]);
-        if ncols != 3 {
-            return Err(PyValueError::new_err(format!(
-                "expected ndarray with shape (M, 3); got (M, {ncols})"
-            )));
-        }
-        let slice = arr
-            .as_slice()
-            .map_err(|_| PyValueError::new_err("ndarray must be contiguous"))?;
-        let mut out = Vec::with_capacity(nrows);
-        for chunk in slice.chunks_exact(3) {
-            out.push([chunk[0], chunk[1], chunk[2]]);
-        }
-        return Ok(out);
+/// Read the rows of an `(M, N)` integer ndarray of element type `T`, or `None` if `obj` is
+/// not such an array. Any memory layout is accepted.
+fn int_ndarray_rows<T, const N: usize>(obj: &Bound<'_, PyAny>) -> Option<PyResult<Vec<[u32; N]>>>
+where
+    T: crate::numpy::Element + Copy + TryInto<u32> + std::fmt::Display,
+{
+    let arr = obj.extract::<PyReadonlyArray2<T>>().ok()?;
+    let view = arr.as_array();
+    if view.ncols() != N {
+        return Some(Err(PyValueError::new_err(format!(
+            "expected ndarray with shape (M, {N}); got (M, {})",
+            view.ncols()
+        ))));
     }
-    if let Ok(arr) = obj.extract::<PyReadonlyArray2<i64>>() {
-        let (nrows, ncols) = (arr.shape()[0], arr.shape()[1]);
-        if ncols != 3 {
-            return Err(PyValueError::new_err(format!(
-                "expected ndarray with shape (M, 3); got (M, {ncols})"
-            )));
-        }
-        let slice = arr
-            .as_slice()
-            .map_err(|_| PyValueError::new_err("ndarray must be contiguous"))?;
-        let mut out = Vec::with_capacity(nrows);
-        for chunk in slice.chunks_exact(3) {
-            out.push([chunk[0] as u32, chunk[1] as u32, chunk[2] as u32]);
-        }
-        return Ok(out);
+    let rows = view
+        .rows()
+        .into_iter()
+        .map(|row| {
+            let mut out = [0u32; N];
+            for (o, x) in out.iter_mut().zip(row.iter()) {
+                *o = (*x)
+                    .try_into()
+                    .map_err(|_| PyValueError::new_err(format!("invalid index {x}")))?;
+            }
+            Ok(out)
+        })
+        .collect();
+    Some(rows)
+}
+
+/// Read a 1D integer ndarray of element type `T`, or `None` if `obj` is not such an array.
+/// Any memory layout is accepted.
+fn int_ndarray_1d<T>(obj: &Bound<'_, PyAny>) -> Option<PyResult<Vec<u32>>>
+where
+    T: crate::numpy::Element + Copy + TryInto<u32> + std::fmt::Display,
+{
+    let arr = obj.extract::<crate::numpy::PyReadonlyArray1<T>>().ok()?;
+    let values = arr
+        .as_array()
+        .iter()
+        .map(|x| {
+            (*x).try_into()
+                .map_err(|_| PyValueError::new_err(format!("invalid index {x}")))
+        })
+        .collect();
+    Some(values)
+}
+
+/// Extract a flat index list: a 1D ndarray of any integer dtype, or a sequence of ints.
+pub(crate) fn extract_index_list(obj: &Bound<'_, PyAny>) -> PyResult<Vec<u32>> {
+    if let Some(r) = int_ndarray_1d::<u32>(obj)
+        .or_else(|| int_ndarray_1d::<i64>(obj))
+        .or_else(|| int_ndarray_1d::<i32>(obj))
+        .or_else(|| int_ndarray_1d::<u64>(obj))
+        .or_else(|| int_ndarray_1d::<u16>(obj))
+    {
+        return r;
+    }
+    obj.extract::<Vec<u32>>()
+        .map_err(|_| PyTypeError::new_err("expected a 1D integer ndarray or a sequence of ints"))
+}
+
+/// Extract an `(M, N)` index matrix: an integer ndarray of any integer dtype, or a sequence of
+/// length-`N` sequences (lists or tuples).
+pub(crate) fn extract_index_rows<const N: usize>(
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<Vec<[u32; N]>> {
+    if let Some(r) = int_ndarray_rows::<u32, N>(obj)
+        .or_else(|| int_ndarray_rows::<i64, N>(obj))
+        .or_else(|| int_ndarray_rows::<i32, N>(obj))
+        .or_else(|| int_ndarray_rows::<u64, N>(obj))
+        .or_else(|| int_ndarray_rows::<u16, N>(obj))
+    {
+        return r;
     }
     let seq: Vec<Vec<u32>> = obj.extract()?;
     seq.iter()
         .map(|c| {
-            if c.len() != 3 {
-                return Err(PyValueError::new_err(format!(
-                    "expected inner sequence of length 3; got {}",
+            <[u32; N]>::try_from(c.as_slice()).map_err(|_| {
+                PyValueError::new_err(format!(
+                    "expected inner sequence of length {N}; got {}",
                     c.len(),
-                )));
-            }
-            Ok([c[0], c[1], c[2]])
+                ))
+            })
         })
         .collect()
 }
 
-/// Extract an `Mx2` `u32` matrix → `Vec<[u32; 2]>`.
+/// Extract an `Mx3` index matrix → `Vec<[u32; 3]>` (integer ndarray or nested sequences).
+pub fn extract_indices(obj: &Bound<'_, PyAny>) -> PyResult<Vec<[u32; 3]>> {
+    extract_index_rows::<3>(obj)
+}
+
+/// Extract an `Mx2` index matrix → `Vec<[u32; 2]>` (integer ndarray or nested sequences).
 pub fn extract_indices_2(obj: &Bound<'_, PyAny>) -> PyResult<Vec<[u32; 2]>> {
-    if let Ok(arr) = obj.extract::<PyReadonlyArray2<u32>>() {
-        let (nrows, ncols) = (arr.shape()[0], arr.shape()[1]);
-        if ncols != 2 {
-            return Err(PyValueError::new_err(format!(
-                "expected ndarray with shape (M, 2); got (M, {ncols})"
-            )));
-        }
-        let slice = arr
-            .as_slice()
-            .map_err(|_| PyValueError::new_err("ndarray must be contiguous"))?;
-        let mut out = Vec::with_capacity(nrows);
-        for chunk in slice.chunks_exact(2) {
-            out.push([chunk[0], chunk[1]]);
-        }
-        return Ok(out);
+    extract_index_rows::<2>(obj)
+}
+
+/// Reject the index buffers referencing vertices out of `0..num_vertices`.
+fn check_indices_in_bounds<const N: usize>(
+    indices: &[[u32; N]],
+    num_vertices: usize,
+) -> PyResult<()> {
+    match indices
+        .iter()
+        .flatten()
+        .find(|i| **i as usize >= num_vertices)
+    {
+        Some(i) => Err(PyValueError::new_err(format!(
+            "vertex index {i} out of bounds for {num_vertices} vertices"
+        ))),
+        None => Ok(()),
     }
-    let seq: Vec<Vec<u32>> = obj.extract()?;
-    seq.iter()
-        .map(|c| {
-            if c.len() != 2 {
-                return Err(PyValueError::new_err(format!(
-                    "expected inner sequence of length 2; got {}",
-                    c.len(),
-                )));
-            }
-            Ok([c[0], c[1]])
-        })
-        .collect()
+}
+
+/// Reject the voxel sizes the voxelizer cannot handle.
+fn check_voxel_size(voxel_size: Real) -> PyResult<()> {
+    if voxel_size > 0.0 && voxel_size.is_finite() {
+        Ok(())
+    } else {
+        Err(PyValueError::new_err(format!(
+            "voxel_size must be positive and finite; got {voxel_size}"
+        )))
+    }
+}
+
+/// Extract a 3D heightfield's `(nrows, ncols)` height grid: a `float32`/`float64` ndarray of
+/// any memory layout, or nested sequences.
+///
+/// `heights[i, j]` is the height at row `i` (along Z) and column `j` (along X), converted to
+/// parry's column-major storage.
+fn extract_heights(obj: &Bound<'_, PyAny>) -> PyResult<rapier::parry::utils::Array2<Real>> {
+    fn from_view<T: Copy + Into<f64>>(
+        view: crate::numpy::ndarray::ArrayView2<'_, T>,
+    ) -> rapier::parry::utils::Array2<Real> {
+        let (nrows, ncols) = view.dim();
+        rapier::parry::utils::Array2::from_fn(nrows, ncols, |i, j| view[[i, j]].into() as Real)
+    }
+    let heights = if let Ok(arr) = obj.extract::<PyReadonlyArray2<f32>>() {
+        from_view(arr.as_array())
+    } else if let Ok(arr) = obj.extract::<PyReadonlyArray2<f64>>() {
+        from_view(arr.as_array())
+    } else {
+        let rows: Vec<Vec<Real>> = obj.extract()?;
+        let ncols = rows.first().map_or(0, |r| r.len());
+        if rows.iter().any(|r| r.len() != ncols) {
+            return Err(PyValueError::new_err(
+                "heights rows must all have the same length",
+            ));
+        }
+        rapier::parry::utils::Array2::from_fn(rows.len(), ncols, |i, j| rows[i][j])
+    };
+    if heights.nrows() < 2 || heights.ncols() < 2 {
+        return Err(PyValueError::new_err(format!(
+            "heights must have at least 2 rows and 2 columns; got ({}, {})",
+            heights.nrows(),
+            heights.ncols()
+        )));
+    }
+    Ok(heights)
 }
 
 // ============================================================
@@ -173,8 +255,8 @@ impl ColliderHandle {
 /// Use this to decide which `as_*()` downcast accessor to call on a
 /// `SharedShape`. `CUSTOM` covers user-defined shapes that do not
 /// match any built-in variant.
-#[pyclass(name = "ShapeType", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "ShapeType", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShapeType {
     BALL,
     CUBOID,
@@ -241,8 +323,8 @@ impl ShapeType {
 ///
 /// Solid colliders generate contact forces; sensor colliders only
 /// fire intersection events and do not produce contact responses.
-#[pyclass(name = "ColliderType", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "ColliderType", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ColliderType {
     SOLID,
     SENSOR,
@@ -274,8 +356,8 @@ impl ColliderType {
 /// `DISABLED_BY_PARENT` means the parent rigid-body is disabled, so
 /// the collider is effectively off without being explicitly disabled
 /// by the user.
-#[pyclass(name = "ColliderEnabled", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "ColliderEnabled", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ColliderEnabled {
     ENABLED,
     DISABLED_BY_PARENT,
@@ -754,29 +836,49 @@ impl Group {
 ///
 /// `AND` (the default) requires each collider to be in the other's
 /// filter set. `OR` only requires one side to pass. `DEFAULT` and
-/// `ONLY_DYNAMIC` are kept for compatibility and behave like `AND`.
-#[pyclass(name = "InteractionTestMode", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// `ONLY_DYNAMIC` are deprecated aliases of `AND`, kept for compatibility.
+#[pyclass(
+    name = "InteractionTestMode",
+    module = "rapier",
+    eq,
+    eq_int,
+    hash,
+    frozen
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InteractionTestMode {
-    DEFAULT,
-    ONLY_DYNAMIC,
+    /// Each collider must pass the other's filter.
     AND,
+    /// At least one collider must pass the other's filter.
     OR,
+}
+
+#[pymethods]
+impl InteractionTestMode {
+    /// Deprecated alias of ``AND``.
+    #[classattr]
+    #[allow(non_snake_case)]
+    fn DEFAULT() -> Self {
+        Self::AND
+    }
+    /// Deprecated alias of ``AND``.
+    #[classattr]
+    #[allow(non_snake_case)]
+    fn ONLY_DYNAMIC() -> Self {
+        Self::AND
+    }
 }
 
 impl InteractionTestMode {
     pub(crate) fn to_rapier(self) -> rapier::geometry::InteractionTestMode {
         match self {
-            Self::DEFAULT | Self::AND | Self::ONLY_DYNAMIC => {
-                rapier::geometry::InteractionTestMode::And
-            }
+            Self::AND => rapier::geometry::InteractionTestMode::And,
             Self::OR => rapier::geometry::InteractionTestMode::Or,
         }
     }
-    #[allow(dead_code)]
     pub(crate) fn from_rapier(t: rapier::geometry::InteractionTestMode) -> Self {
         match t {
-            rapier::geometry::InteractionTestMode::And => Self::DEFAULT,
+            rapier::geometry::InteractionTestMode::And => Self::AND,
             rapier::geometry::InteractionTestMode::Or => Self::OR,
         }
     }
@@ -895,9 +997,10 @@ impl InteractionGroups {
     }
     fn __repr__(&self) -> String {
         format!(
-            "InteractionGroups(memberships={:#010x}, filter={:#010x})",
+            "InteractionGroups(memberships={:#010x}, filter={:#010x}, test_mode={:?})",
             self.0.memberships.bits(),
             self.0.filter.bits(),
+            InteractionTestMode::from_rapier(self.0.test_mode),
         )
     }
 }
@@ -1148,8 +1251,15 @@ impl ColliderMaterial {
 ///
 /// `AUTO` lets the engine pick a reasonable default; the other
 /// variants force a specific behavior.
-#[pyclass(name = "BvhOptimizationStrategy", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(
+    name = "BvhOptimizationStrategy",
+    module = "rapier",
+    eq,
+    eq_int,
+    hash,
+    frozen
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BvhOptimizationStrategy {
     AUTO,
     NO_OPTIMIZATION,
@@ -1181,7 +1291,7 @@ impl BvhOptimizationStrategy {
 ///
 /// Usually accessed via `world.broad_phase`. Create one explicitly
 /// only if you are driving the pipeline yourself.
-#[pyclass(name = "BroadPhaseBvh", module = "rapier", unsendable)]
+#[pyclass(name = "BroadPhaseBvh", module = "rapier")]
 pub struct BroadPhaseBvh(pub rapier::geometry::BroadPhaseBvh);
 
 #[pymethods]
@@ -1215,7 +1325,7 @@ impl BroadPhaseBvh {
 /// Usually accessed via `world.narrow_phase`. Use it to query
 /// existing contact pairs and intersections between specific
 /// colliders.
-#[pyclass(name = "NarrowPhase", module = "rapier", unsendable)]
+#[pyclass(name = "NarrowPhase", module = "rapier")]
 pub struct NarrowPhase(pub rapier::geometry::NarrowPhase);
 
 #[pymethods]
@@ -1253,6 +1363,37 @@ impl NarrowPhase {
     fn intersection_pairs(&self) -> Vec<(ColliderHandle, ColliderHandle, bool)> {
         self.0
             .intersection_pairs()
+            .map(|(h1, h2, i)| (ColliderHandle(h1), ColliderHandle(h2), i))
+            .collect()
+    }
+
+    /// Snapshot every contact pair involving ``collider``.
+    ///
+    /// ``collider`` may be either collider of each returned pair: compare
+    /// it with their ``collider1`` / ``collider2``.
+    ///
+    /// :param collider: Handle of the collider.
+    /// :returns: List of `ContactPair` snapshots (empty for an unknown
+    ///     handle).
+    fn contact_pairs_with(&self, collider: &ColliderHandle) -> Vec<ContactPair> {
+        self.0
+            .contact_pairs_with(collider.0)
+            .cloned()
+            .map(ContactPair)
+            .collect()
+    }
+
+    /// Snapshot every sensor/intersection pair involving ``collider``.
+    ///
+    /// :param collider: Handle of the collider.
+    /// :returns: List of `(collider1, collider2, intersecting)` tuples
+    ///     (empty for an unknown handle).
+    fn intersection_pairs_with(
+        &self,
+        collider: &ColliderHandle,
+    ) -> Vec<(ColliderHandle, ColliderHandle, bool)> {
+        self.0
+            .intersection_pairs_with(collider.0)
             .map(|(h1, h2, i)| (ColliderHandle(h1), ColliderHandle(h2), i))
             .collect()
     }
@@ -1346,6 +1487,17 @@ impl BroadPhasePairEvent {
     /// True iff this is a "Removed" event (the inverse of `added`).
     #[getter]
     fn removed_(&self) -> bool {
+        !self.added
+    }
+    /// True iff this is an "Added" event. Unlike ``added``, which the ``added`` constructor shadows
+    /// on instances, this property is always the flag.
+    #[getter]
+    fn is_added(&self) -> bool {
+        self.added
+    }
+    /// True iff this is a "Removed" event.
+    #[getter]
+    fn is_removed(&self) -> bool {
         !self.added
     }
     fn __repr__(&self) -> String {
@@ -1549,77 +1701,65 @@ impl ColliderFlags {
 
 /// Extract vertex array (N, 3) and convert into `Vec<rapier::math::Vector>`.
 ///
-/// Accepts both `float32` and `float64` ndarrays (cast to `Real`), as
-/// well as list/tuple of triples.
-#[allow(dead_code)]
+/// Accepts `float32` and `float64` ndarrays of any memory layout (cast to `Real`), as well
+/// as any sequence of 3-vectors (tuples, lists, `Vec3`, `Point3`, ...).
 pub(crate) fn extract_verts_for_dim(
     obj: &crate::pyo3::Bound<'_, crate::pyo3::PyAny>,
 ) -> crate::pyo3::PyResult<Vec<rapier::math::Vector>> {
-    use crate::numpy::{PyReadonlyArray2, PyUntypedArrayMethods};
-    // Try the cdylib's matching-precision ndarray first (zero-copy).
-    if let Ok(arr) = obj.extract::<PyReadonlyArray2<Real>>() {
-        let (nrows, ncols) = (arr.shape()[0], arr.shape()[1]);
-        if ncols != 3 {
-            return Err(crate::pyo3::exceptions::PyValueError::new_err(format!(
-                "expected ndarray with shape (N, 3); got (N, {ncols})"
+    fn from_view<T: Copy + Into<f64>>(
+        view: crate::numpy::ndarray::ArrayView2<'_, T>,
+    ) -> PyResult<Vec<rapier::math::Vector>> {
+        if view.ncols() != 3 {
+            return Err(PyValueError::new_err(format!(
+                "expected ndarray with shape (N, 3); got (N, {})",
+                view.ncols()
             )));
         }
-        let slice = arr.as_slice().map_err(|_| {
-            crate::pyo3::exceptions::PyValueError::new_err("ndarray must be contiguous")
-        })?;
-        let mut out = Vec::with_capacity(nrows);
-        for c in slice.chunks_exact(3) {
-            out.push(rapier::math::Vector::new(c[0], c[1], c[2]));
-        }
-        return Ok(out);
+        Ok(view
+            .rows()
+            .into_iter()
+            .map(|r| {
+                rapier::math::Vector::new(
+                    r[0].into() as Real,
+                    r[1].into() as Real,
+                    r[2].into() as Real,
+                )
+            })
+            .collect())
     }
-    // Try the other precision (lossy cast).
     if let Ok(arr) = obj.extract::<PyReadonlyArray2<f32>>() {
-        let (nrows, ncols) = (arr.shape()[0], arr.shape()[1]);
-        if ncols != 3 {
-            return Err(crate::pyo3::exceptions::PyValueError::new_err(format!(
-                "expected ndarray with shape (N, 3); got (N, {ncols})"
-            )));
-        }
-        let slice = arr.as_slice().map_err(|_| {
-            crate::pyo3::exceptions::PyValueError::new_err("ndarray must be contiguous")
-        })?;
-        let mut out = Vec::with_capacity(nrows);
-        for c in slice.chunks_exact(3) {
-            out.push(rapier::math::Vector::new(
-                c[0] as Real,
-                c[1] as Real,
-                c[2] as Real,
-            ));
-        }
-        return Ok(out);
+        return from_view(arr.as_array());
     }
     if let Ok(arr) = obj.extract::<PyReadonlyArray2<f64>>() {
-        let (nrows, ncols) = (arr.shape()[0], arr.shape()[1]);
-        if ncols != 3 {
-            return Err(crate::pyo3::exceptions::PyValueError::new_err(format!(
-                "expected ndarray with shape (N, 3); got (N, {ncols})"
-            )));
-        }
-        let slice = arr.as_slice().map_err(|_| {
-            crate::pyo3::exceptions::PyValueError::new_err("ndarray must be contiguous")
-        })?;
-        let mut out = Vec::with_capacity(nrows);
-        for c in slice.chunks_exact(3) {
-            out.push(rapier::math::Vector::new(
-                c[0] as Real,
-                c[1] as Real,
-                c[2] as Real,
-            ));
-        }
-        return Ok(out);
+        return from_view(arr.as_array());
     }
-    // Fall back to list/tuple of tuples / any sequence of length 3.
-    let seq: Vec<(Real, Real, Real)> = obj.extract()?;
-    Ok(seq
-        .into_iter()
-        .map(|(x, y, z)| rapier::math::Vector::new(x, y, z))
-        .collect())
+    let seq: Vec<PyVector> = obj.extract()?;
+    Ok(seq.into_iter().map(|v| v.0.into()).collect())
+}
+
+/// A `(vertices, indices)` triangle mesh as an `(N, 3)` float ndarray and an `(M, 3)` uint32
+/// ndarray.
+type TriMeshArrays<'py> = (Bound<'py, PyArray2<Real>>, Bound<'py, PyArray2<u32>>);
+
+/// Checks the subdivisions of a curved shape's triangle mesh: at least `3` around its axis and
+/// `2` from pole to pole (parry panics below).
+fn check_subdivisions(around: u32, pole_to_pole: Option<u32>) -> PyResult<()> {
+    if around < 3 || pole_to_pole.is_some_and(|n| n < 2) {
+        return Err(PyValueError::new_err(
+            "a curved shape needs at least 3 subdivisions around its axis and 2 from pole to pole",
+        ));
+    }
+    Ok(())
+}
+
+fn trimesh_arrays<'py>(
+    py: Python<'py>,
+    (vertices, indices): (Vec<rapier::math::Vector>, Vec<[u32; 3]>),
+) -> TriMeshArrays<'py> {
+    (
+        crate::soft_body::vectors_to_array(py, vertices.into_iter()),
+        crate::soft_body::elements_to_array(py, &indices),
+    )
 }
 
 // ============================================================
@@ -1644,6 +1784,23 @@ impl Ball {
     #[getter]
     fn radius(&self) -> Real {
         self.0.radius
+    }
+    /// The sphere's surface as a triangle mesh, oriented outward, with ``ntheta_subdiv``
+    /// subdivisions around its axis and ``nphi_subdiv`` from pole to pole: an ``(N, 3)`` float
+    /// ndarray of vertices and an ``(M, 3)`` uint32 ndarray of triangles.
+    ///
+    /// :raises ValueError: if ``ntheta_subdiv < 3`` or ``nphi_subdiv < 2``.
+    fn to_trimesh<'py>(
+        &self,
+        py: Python<'py>,
+        ntheta_subdiv: u32,
+        nphi_subdiv: u32,
+    ) -> PyResult<TriMeshArrays<'py>> {
+        check_subdivisions(ntheta_subdiv, Some(nphi_subdiv))?;
+        Ok(trimesh_arrays(
+            py,
+            self.0.to_trimesh(ntheta_subdiv, nphi_subdiv),
+        ))
     }
     fn __repr__(&self) -> String {
         format!("Ball(radius={})", self.0.radius)
@@ -1674,6 +1831,11 @@ impl Cuboid {
     fn half_extents(&self) -> Vec3 {
         let v: crate::na::SVector<Real, 3> = self.0.half_extents.into();
         Vec3(v)
+    }
+    /// The box's surface as a triangle mesh, oriented outward: an ``(8, 3)`` float ndarray of
+    /// vertices and a ``(12, 3)`` uint32 ndarray of triangles.
+    fn to_trimesh<'py>(&self, py: Python<'py>) -> TriMeshArrays<'py> {
+        trimesh_arrays(py, self.0.to_trimesh())
     }
     fn __repr__(&self) -> String {
         format!("Cuboid(half_extents={:?})", self.0.half_extents)
@@ -1731,6 +1893,24 @@ impl Capsule {
     fn b(&self) -> Point3 {
         let v: crate::na::SVector<Real, 3> = self.0.segment.b.into();
         Point3(crate::na::Point::from(v))
+    }
+    /// The capsule's surface as a triangle mesh, oriented outward, with ``ntheta_subdiv``
+    /// subdivisions around its axis and ``nphi_subdiv`` from pole to pole (split between the two
+    /// caps): an ``(N, 3)`` float ndarray of vertices and an ``(M, 3)`` uint32 ndarray of
+    /// triangles.
+    ///
+    /// :raises ValueError: if ``ntheta_subdiv < 3`` or ``nphi_subdiv < 2``.
+    fn to_trimesh<'py>(
+        &self,
+        py: Python<'py>,
+        ntheta_subdiv: u32,
+        nphi_subdiv: u32,
+    ) -> PyResult<TriMeshArrays<'py>> {
+        check_subdivisions(ntheta_subdiv, Some(nphi_subdiv))?;
+        Ok(trimesh_arrays(
+            py,
+            self.0.to_trimesh(ntheta_subdiv, nphi_subdiv),
+        ))
     }
     fn __repr__(&self) -> String {
         format!(
@@ -1877,6 +2057,86 @@ impl Voxels {
     fn num_voxels(&self) -> usize {
         self.0.voxels().filter(|vox| !vox.state.is_empty()).count()
     }
+
+    /// The boundary of the filled voxels as a triangle mesh: an ``(N, 3)`` float ndarray of
+    /// vertices and an ``(M, 3)`` uint32 ndarray of triangles.
+    fn to_trimesh<'py>(&self, py: Python<'py>) -> TriMeshArrays<'py> {
+        trimesh_arrays(py, self.0.to_trimesh())
+    }
+}
+
+// ============================================================
+// FillMode
+// ============================================================
+
+/// How ``voxelized_mesh`` decides which voxels are filled.
+///
+/// - ``FillMode.SURFACE_ONLY``: only the voxels intersecting the mesh surface are filled,
+///   giving a hollow shell.
+/// - ``FillMode.flood_fill(detect_cavities=False)``: the voxels intersecting the surface and
+///   every voxel enclosed by it are filled, giving a solid. With ``detect_cavities=True``,
+///   the enclosed holes of the solid are detected and left empty.
+#[pyclass(name = "FillMode", module = "rapier", frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FillMode(pub rapier::parry::transformation::voxelization::FillMode);
+
+#[pymethods]
+impl FillMode {
+    /// Only fill the voxels intersecting the surface of the mesh.
+    #[classattr]
+    const SURFACE_ONLY: FillMode =
+        FillMode(rapier::parry::transformation::voxelization::FillMode::SurfaceOnly);
+
+    /// Fill the voxels intersecting the surface of the mesh and all the voxels it encloses.
+    ///
+    /// :param detect_cavities: whether to detect the holes enclosed by the solid and leave
+    ///     them empty.
+    #[staticmethod]
+    #[pyo3(signature = (detect_cavities=false))]
+    fn flood_fill(detect_cavities: bool) -> Self {
+        Self(rapier::parry::transformation::voxelization::FillMode::FloodFill { detect_cavities })
+    }
+
+    /// Whether this is the flood-fill mode.
+    #[getter]
+    fn is_flood_fill(&self) -> bool {
+        matches!(
+            self.0,
+            rapier::parry::transformation::voxelization::FillMode::FloodFill { .. }
+        )
+    }
+
+    /// Whether the flood fill detects cavities (always ``False`` for ``SURFACE_ONLY``).
+    #[getter]
+    fn detect_cavities(&self) -> bool {
+        matches!(
+            self.0,
+            rapier::parry::transformation::voxelization::FillMode::FloodFill {
+                detect_cavities: true
+            }
+        )
+    }
+
+    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
+        match op {
+            CompareOp::Eq => Ok(self.0 == other.0),
+            CompareOp::Ne => Ok(self.0 != other.0),
+            _ => Err(PyTypeError::new_err("FillMode supports only == and !=")),
+        }
+    }
+    fn __repr__(&self) -> String {
+        match self.0 {
+            rapier::parry::transformation::voxelization::FillMode::SurfaceOnly => {
+                "FillMode.SURFACE_ONLY".to_string()
+            }
+            rapier::parry::transformation::voxelization::FillMode::FloodFill {
+                detect_cavities,
+            } => format!(
+                "FillMode.flood_fill(detect_cavities={})",
+                if detect_cavities { "True" } else { "False" }
+            ),
+        }
+    }
 }
 
 // ============================================================
@@ -1997,6 +2257,61 @@ impl SharedShape {
     fn halfspace(outward_normal: PyVector) -> Self {
         let n = outward_normal.0.normalize();
         Self(rapier::parry::shape::SharedShape::halfspace(n.into()))
+    }
+
+    /// Build a segment between the points `a` and `b`.
+    #[staticmethod]
+    fn segment(a: PyVector, b: PyVector) -> Self {
+        Self(rapier::parry::shape::SharedShape::segment(
+            a.0.into(),
+            b.0.into(),
+        ))
+    }
+
+    /// Build a polyline: a set of segments joining the given vertices.
+    ///
+    /// :param vertices: `(N, 3)` ndarray of floats (or a sequence of 3-vectors).
+    /// :param indices: `(M, 2)` integer ndarray (or a sequence of pairs) listing the
+    ///     vertices of each segment. If ``None``, the vertices are joined in order into a
+    ///     line strip.
+    #[staticmethod]
+    #[pyo3(signature = (vertices, indices=None))]
+    fn polyline(vertices: &Bound<'_, PyAny>, indices: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+        let verts = extract_verts_for_dim(vertices)?;
+        let idx = indices.map(extract_indices_2).transpose()?;
+        if let Some(idx) = &idx {
+            check_indices_in_bounds(idx, verts.len())?;
+        }
+        Ok(Self(rapier::parry::shape::SharedShape::polyline(
+            verts, idx,
+        )))
+    }
+
+    /// Build a voxels shape by voxelizing a triangle mesh.
+    ///
+    /// :param vertices: `(N, 3)` ndarray of floats (or a sequence of 3-vectors).
+    /// :param indices: `(M, 3)` integer ndarray (or a sequence of triples).
+    /// :param voxel_size: edge length of one (cubic) voxel.
+    /// :param fill_mode: which voxels are filled (a :class:`FillMode`); defaults to
+    ///     ``FillMode.flood_fill()`` (a solid).
+    #[staticmethod]
+    #[pyo3(signature = (vertices, indices, voxel_size, fill_mode=None))]
+    fn voxelized_mesh(
+        vertices: &Bound<'_, PyAny>,
+        indices: &Bound<'_, PyAny>,
+        voxel_size: Real,
+        fill_mode: Option<FillMode>,
+    ) -> PyResult<Self> {
+        let verts = extract_verts_for_dim(vertices)?;
+        let idx = extract_indices(indices)?;
+        check_indices_in_bounds(&idx, verts.len())?;
+        check_voxel_size(voxel_size)?;
+        Ok(Self(rapier::parry::shape::SharedShape::voxelized_mesh(
+            &verts,
+            &idx,
+            voxel_size,
+            fill_mode.map(|m| m.0).unwrap_or_default(),
+        )))
     }
 
     /// Build a triangle with rounded edges of radius `border_radius`.
@@ -2292,10 +2607,10 @@ impl SharedShape {
     ///     coordinates marking the filled voxels.
     #[staticmethod]
     fn voxels(voxel_size: PyVector, grid_coords: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let raw: Vec<(i64, i64, i64)> = grid_coords.extract()?;
+        let raw: Vec<[i64; 3]> = grid_coords.extract()?;
         let coords: Vec<rapier::math::IVector> = raw
             .iter()
-            .map(|&(x, y, z)| rapier::math::IVector::new(x as _, y as _, z as _))
+            .map(|&[x, y, z]| rapier::math::IVector::new(x as _, y as _, z as _))
             .collect();
         Ok(Self(rapier::parry::shape::SharedShape::voxels(
             voxel_size.0.into(),
@@ -2320,21 +2635,21 @@ impl SharedShape {
         ))
     }
 
-    /// Build a 3D heightfield from a 2-D `heights` ndarray.
+    /// Build a 3D heightfield from a 2-D grid of heights.
     ///
-    /// :param heights: `(rows, cols)` ndarray of `Real`.
+    /// ``heights[i, j]`` is the height of the grid point at row ``i`` and column ``j``: rows
+    /// advance along the local Z axis and columns along the local X axis. The grid spans
+    /// ``[-0.5, 0.5]`` along X and Z before scaling, so the vertex ``(i, j)`` is at
+    /// ``((j / (ncols - 1) - 0.5) * scale.x, heights[i, j] * scale.y,
+    /// (i / (nrows - 1) - 0.5) * scale.z)``.
+    ///
+    /// :param heights: `(nrows, ncols)` ndarray (``float32`` or ``float64``, any memory
+    ///     layout) or nested sequences, with at least 2 rows and 2 columns.
     /// :param scale: Per-axis scaling vector.
     #[staticmethod]
     fn heightfield(heights: &Bound<'_, PyAny>, scale: PyVector) -> PyResult<Self> {
-        let arr: crate::numpy::PyReadonlyArray2<Real> = heights.extract()?;
-        let slice = arr.as_slice().map_err(|_| {
-            crate::pyo3::exceptions::PyValueError::new_err("heights ndarray must be contiguous")
-        })?;
-        let nrows = arr.shape()[0];
-        let ncols = arr.shape()[1];
-        let arr2 = rapier::parry::utils::Array2::new(nrows, ncols, slice.to_vec());
         Ok(Self(rapier::parry::shape::SharedShape::heightfield(
-            arr2,
+            extract_heights(heights)?,
             scale.0.into(),
         )))
     }
@@ -2547,10 +2862,10 @@ impl MeshConverter {
 
 /// Per-manifold metadata accompanying a `ContactManifold`.
 ///
-/// Read-only view. Holds the parent rigid-body handles (if any),
-/// the world-space contact normal, the number of solver-active
-/// contacts, the relative dominance used by the solver, and a
-/// user-data payload.
+/// Read-only snapshot. Holds the parent rigid-body handles (if any),
+/// the world-space contact normal, the contacts seen by the solver
+/// (`solver_contacts`, `num_active_contacts` of them), the relative
+/// dominance used by the solver, and a user-data payload.
 #[pyclass(name = "ContactManifoldData", module = "rapier", frozen)]
 #[derive(Debug, Clone)]
 pub struct ContactManifoldData {
@@ -2566,6 +2881,88 @@ pub struct ContactManifoldData {
     pub relative_dominance: i16,
     #[pyo3(get)]
     pub user_data: u32,
+    pub(crate) raw: rapier::geometry::ContactManifoldData,
+}
+
+impl ContactManifoldData {
+    pub(crate) fn from_rapier(data: &rapier::geometry::ContactManifoldData) -> Self {
+        let normal: crate::na::SVector<Real, 3> = data.normal.into();
+        Self {
+            rigid_body1: data.rigid_body1.map(RigidBodyHandle),
+            rigid_body2: data.rigid_body2.map(RigidBodyHandle),
+            normal: Vec3(normal),
+            num_active_contacts: data.solver_contacts.len(),
+            relative_dominance: data.relative_dominance,
+            user_data: data.user_data,
+            raw: data.clone(),
+        }
+    }
+}
+
+#[pymethods]
+impl ContactManifoldData {
+    /// The contacts seen by the constraints solver (list of
+    /// :class:`SolverContact`).
+    ///
+    /// Their ``point`` / ``point2`` are anchors in the local frame of
+    /// the body they touch, centered at its center of mass (world-space
+    /// for a side without a solver body, e.g. a fixed one): use
+    /// :meth:`solver_contact_world_points` to get world-space points.
+    #[getter]
+    fn solver_contacts(&self) -> Vec<SolverContact> {
+        self.raw
+            .solver_contacts
+            .iter()
+            .map(SolverContact::from_rapier)
+            .collect()
+    }
+
+    /// The world-space contact points, one on each body's surface, of a
+    /// solver contact of this manifold.
+    ///
+    /// The anchors are resolved through the bodies' current poses. The
+    /// two points differ by roughly the contact distance along the
+    /// normal; their midpoint is the effective solver contact point.
+    ///
+    /// :param contact: A :class:`SolverContact` of :attr:`solver_contacts`
+    ///     (not one read inside ``PhysicsHooks.modify_solver_contacts``,
+    ///     whose points already are world-space).
+    /// :param bodies: The :class:`RigidBodySet` holding the manifold's
+    ///     bodies.
+    /// :returns: ``(point1, point2)`` as :class:`Point3`.
+    fn solver_contact_world_points(
+        &self,
+        contact: &SolverContact,
+        bodies: &Bound<'_, RigidBodySet>,
+    ) -> PyResult<(Point3, Point3)> {
+        let (p1, p2) = RigidBodySet::read(bodies, |b| {
+            self.raw.solver_contact_world_points(&contact.raw, b)
+        })?;
+        let p1: crate::na::Vector3<Real> = p1.into();
+        let p2: crate::na::Vector3<Real> = p2.into();
+        Ok((
+            Point3(crate::na::Point3::from(p1)),
+            Point3(crate::na::Point3::from(p2)),
+        ))
+    }
+
+    fn __repr__(&self) -> String {
+        let body = |h: Option<RigidBodyHandle>| {
+            h.map_or("None".to_string(), |h| {
+                format!("{:?}", h.0.into_raw_parts())
+            })
+        };
+        let n = self.normal.0;
+        format!(
+            "ContactManifoldData(rigid_body1={}, rigid_body2={}, normal=({}, {}, {}), num_active_contacts={})",
+            body(self.rigid_body1),
+            body(self.rigid_body2),
+            n.x,
+            n.y,
+            n.z,
+            self.num_active_contacts,
+        )
+    }
 }
 
 // ============================================================
@@ -2631,38 +3028,18 @@ impl ContactPair {
             .manifolds()
             .iter()
             .map(|m| {
-                let normal_v: crate::na::SVector<Real, 3> = m.data.normal.into();
                 let n1: crate::na::SVector<Real, 3> = m.local_n1.into();
                 let n2: crate::na::SVector<Real, 3> = m.local_n2.into();
 
                 let points: Vec<ContactData> = m
                     .points
                     .iter()
-                    .map(|c| {
-                        let p1: crate::na::Vector3<Real> = c.local_p1.into();
-                        let p2: crate::na::Vector3<Real> = c.local_p2.into();
-                        ContactData {
-                            local_p1: Point3(crate::na::Point3::from(p1)),
-                            local_p2: Point3(crate::na::Point3::from(p2)),
-                            dist: c.dist,
-                            fid1: c.fid1.0,
-                            fid2: c.fid2.0,
-                            impulse: c.data.impulse,
-                            tangent_impulse: (c.data.tangent_impulse[0], c.data.tangent_impulse[1]),
-                            contact_id: 0,
-                        }
-                    })
+                    .enumerate()
+                    .map(|(i, c)| ContactData::from_rapier(c, i))
                     .collect();
 
                 ContactManifold {
-                    data: ContactManifoldData {
-                        rigid_body1: m.data.rigid_body1.map(RigidBodyHandle),
-                        rigid_body2: m.data.rigid_body2.map(RigidBodyHandle),
-                        normal: Vec3(normal_v),
-                        num_active_contacts: m.data.solver_contacts.len(),
-                        relative_dominance: m.data.relative_dominance,
-                        user_data: m.data.user_data,
-                    },
+                    data: ContactManifoldData::from_rapier(&m.data),
                     points,
                     local_n1: Vec3(n1),
                     local_n2: Vec3(n2),
@@ -2681,19 +3058,13 @@ impl ContactPair {
 
     /// Return the deepest (most penetrating) `ContactData`, if any.
     fn find_deepest_contact(&self) -> Option<ContactData> {
-        self.0.find_deepest_contact().map(|(_, c)| {
-            let p1: crate::na::Vector3<Real> = c.local_p1.into();
-            let p2: crate::na::Vector3<Real> = c.local_p2.into();
-            ContactData {
-                local_p1: Point3(crate::na::Point3::from(p1)),
-                local_p2: Point3(crate::na::Point3::from(p2)),
-                dist: c.dist,
-                fid1: c.fid1.0,
-                fid2: c.fid2.0,
-                impulse: c.data.impulse,
-                tangent_impulse: (c.data.tangent_impulse[0], c.data.tangent_impulse[1]),
-                contact_id: 0,
-            }
+        self.0.find_deepest_contact().map(|(m, c)| {
+            let index = m
+                .points
+                .iter()
+                .position(|p| std::ptr::eq(p, c))
+                .unwrap_or_default();
+            ContactData::from_rapier(c, index)
         })
     }
 
@@ -2704,9 +3075,25 @@ impl ContactPair {
         Vec3(nav)
     }
 
-    /// Magnitude of `total_impulse()`.
+    /// Sum of the magnitudes of the contact impulses of every manifold (the sum of the lengths,
+    /// not the length of :meth:`total_impulse`). This is what's compared with
+    /// :attr:`Collider.contact_force_event_threshold`.
     fn total_impulse_magnitude(&self) -> Real {
         self.0.total_impulse_magnitude()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "ContactPair(collider1={:?}, collider2={:?}, manifolds={}, has_any_active_contact={})",
+            self.0.collider1.into_raw_parts(),
+            self.0.collider2.into_raw_parts(),
+            self.0.manifolds().len(),
+            if self.0.has_any_active_contact() {
+                "True"
+            } else {
+                "False"
+            },
+        )
     }
 }
 
@@ -2759,6 +3146,19 @@ pub struct ContactForceEvent {
     pub max_force_magnitude: Real,
 }
 
+#[pymethods]
+impl ContactForceEvent {
+    fn __repr__(&self) -> String {
+        format!(
+            "ContactForceEvent(collider1={:?}, collider2={:?}, total_force_magnitude={}, max_force_magnitude={})",
+            self.collider1.0.into_raw_parts(),
+            self.collider2.0.into_raw_parts(),
+            self.total_force_magnitude,
+            self.max_force_magnitude,
+        )
+    }
+}
+
 // ---- 3D-only shape views ----
 
 /// Cylinder shape view, axis-aligned to Y.
@@ -2784,6 +3184,15 @@ impl Cylinder {
     #[getter]
     fn radius(&self) -> Real {
         self.0.radius
+    }
+    /// The cylinder's surface as a triangle mesh, oriented outward, with ``nsubdiv``
+    /// subdivisions around its axis: an ``(N, 3)`` float ndarray of vertices and an ``(M, 3)``
+    /// uint32 ndarray of triangles.
+    ///
+    /// :raises ValueError: if ``nsubdiv < 3``.
+    fn to_trimesh<'py>(&self, py: Python<'py>, nsubdiv: u32) -> PyResult<TriMeshArrays<'py>> {
+        check_subdivisions(nsubdiv, None)?;
+        Ok(trimesh_arrays(py, self.0.to_trimesh(nsubdiv)))
     }
     fn __repr__(&self) -> String {
         format!(
@@ -2816,6 +3225,15 @@ impl Cone {
     #[getter]
     fn radius(&self) -> Real {
         self.0.radius
+    }
+    /// The cone's surface as a triangle mesh, oriented outward, with ``nsubdiv`` subdivisions
+    /// around its axis: an ``(N, 3)`` float ndarray of vertices and an ``(M, 3)`` uint32 ndarray
+    /// of triangles.
+    ///
+    /// :raises ValueError: if ``nsubdiv < 3``.
+    fn to_trimesh<'py>(&self, py: Python<'py>, nsubdiv: u32) -> PyResult<TriMeshArrays<'py>> {
+        check_subdivisions(nsubdiv, None)?;
+        Ok(trimesh_arrays(py, self.0.to_trimesh(nsubdiv)))
     }
     fn __repr__(&self) -> String {
         format!(
@@ -2852,6 +3270,12 @@ impl ConvexPolyhedron {
         self.0.points().len()
     }
 
+    /// The polyhedron's surface as a triangle mesh, oriented outward: an ``(N, 3)`` float
+    /// ndarray of vertices and an ``(M, 3)`` uint32 ndarray of triangles.
+    fn to_trimesh<'py>(&self, py: Python<'py>) -> TriMeshArrays<'py> {
+        trimesh_arrays(py, self.0.to_trimesh())
+    }
+
     /// Triangulated face indices as an `(M, 3)` ndarray of `u32`.
     ///
     /// Each (convex) face is fan-triangulated; the indices reference
@@ -2881,11 +3305,12 @@ impl ConvexPolyhedron {
 
 #[pymethods]
 impl HeightField {
-    /// Height samples as an `(nrows, ncols)` float ndarray.
+    /// Height samples as an `(nrows, ncols)` float ndarray, laid out like the ``heights``
+    /// given to :meth:`SharedShape.heightfield`.
     ///
-    /// World-space vertex positions are
-    /// `(x * scale.x, height[i,j] * scale.y, z * scale.z)`
-    /// where `x`/`z` are evenly-spaced in `[-0.5, 0.5]`.
+    /// Local vertex positions are
+    /// `(x * scale.x, heights[i, j] * scale.y, z * scale.z)`
+    /// where `x = j / (ncols - 1) - 0.5` and `z = i / (nrows - 1) - 0.5`.
     #[getter]
     fn heights<'py>(&self, py: Python<'py>) -> Bound<'py, crate::numpy::PyArray2<Real>> {
         let h = self.0.heights();
@@ -2896,15 +3321,20 @@ impl HeightField {
             .collect();
         crate::numpy::PyArray2::from_vec2_bound(py, &rows).expect("contiguous 2D ndarray")
     }
-    /// Number of rows in the height grid (along the X axis).
+    /// Number of rows in the height grid (rows advance along the Z axis).
     #[getter]
     fn nrows(&self) -> usize {
         self.0.heights().nrows()
     }
-    /// Number of columns in the height grid (along the Z axis).
+    /// Number of columns in the height grid (columns advance along the X axis).
     #[getter]
     fn ncols(&self) -> usize {
         self.0.heights().ncols()
+    }
+    /// The heightfield as a triangle mesh: an ``(N, 3)`` float ndarray of vertices and an
+    /// ``(M, 3)`` uint32 ndarray of triangles.
+    fn to_trimesh<'py>(&self, py: Python<'py>) -> TriMeshArrays<'py> {
+        trimesh_arrays(py, self.0.to_trimesh())
     }
 }
 
@@ -2916,7 +3346,9 @@ impl HeightField {
 /// local frame; `dist` is the separation (negative if penetrating);
 /// `impulse` is the normal impulse computed by the solver and
 /// `tangent_impulse` is the friction impulse along the two
-/// tangent directions of the manifold's frame.
+/// tangent directions of the manifold's frame. `contact_id` is the
+/// index of the point in the manifold's `points`, which the
+/// `contact_id` of the solver contacts refers to.
 #[pyclass(name = "ContactData", module = "rapier", frozen)]
 #[derive(Debug, Clone)]
 pub struct ContactData {
@@ -2938,6 +3370,23 @@ pub struct ContactData {
     pub contact_id: u32,
 }
 
+impl ContactData {
+    pub(crate) fn from_rapier(c: &rapier::geometry::Contact, index: usize) -> Self {
+        let p1: crate::na::Vector3<Real> = c.local_p1.into();
+        let p2: crate::na::Vector3<Real> = c.local_p2.into();
+        ContactData {
+            local_p1: Point3(crate::na::Point3::from(p1)),
+            local_p2: Point3(crate::na::Point3::from(p2)),
+            dist: c.dist,
+            fid1: c.fid1.0,
+            fid2: c.fid2.0,
+            impulse: c.data.impulse,
+            tangent_impulse: (c.data.tangent_impulse[0], c.data.tangent_impulse[1]),
+            contact_id: index as u32,
+        }
+    }
+}
+
 #[pymethods]
 impl ContactData {
     fn __repr__(&self) -> String {
@@ -2950,10 +3399,18 @@ impl ContactData {
 /// One contact prepared for the constraints solver.
 ///
 /// Read-only snapshot. `point`/`point2` are the contact points on the
-/// first and second body, in world coordinates while inside
-/// ``PhysicsHooks.modify_solver_contacts``; `is_new` is true when the
-/// contact is freshly generated this step. The manifold's friction and
-/// restitution live on :class:`ContactModificationContext`.
+/// first and second body: world-space inside
+/// ``PhysicsHooks.modify_solver_contacts``; otherwise anchors in the
+/// local frame of the body they touch, centered at its center of mass
+/// (world-space for a side without a solver body, e.g. a fixed one),
+/// see :meth:`ContactManifoldData.solver_contact_world_points`. `dist`
+/// is their separation along the normal (negative if penetrating);
+/// `tangent_velocity` the world-space tangent velocity of the second
+/// collider's surface relative to the first one's that the solver tries
+/// to reach at the contact; `contact_id` the index of the manifold point
+/// it comes from; `is_new` is true when the contact didn't exist at the
+/// previous contact update. The manifold's friction and restitution live
+/// on :class:`ContactModificationContext`.
 #[pyclass(name = "SolverContact", module = "rapier", frozen)]
 #[derive(Debug, Clone)]
 pub struct SolverContact {
@@ -2964,9 +3421,50 @@ pub struct SolverContact {
     #[pyo3(get)]
     pub dist: Real,
     #[pyo3(get)]
+    pub tangent_velocity: Vec3,
+    #[pyo3(get)]
     pub contact_id: u32,
     #[pyo3(get)]
     pub is_new: bool,
+    pub(crate) raw: rapier::geometry::SolverContact,
+}
+
+impl SolverContact {
+    pub(crate) fn from_rapier(sc: &rapier::geometry::SolverContact) -> Self {
+        let p1: crate::na::Vector3<Real> = sc.anchor1.into();
+        let p2: crate::na::Vector3<Real> = sc.anchor2.into();
+        let tv: crate::na::Vector3<Real> = sc.tangent_velocity.into();
+        // The is-new flag lives in bit 31 of the contact id.
+        let id = sc.contact_id[0];
+        SolverContact {
+            point: Point3(crate::na::Point3::from(p1)),
+            point2: Point3(crate::na::Point3::from(p2)),
+            dist: sc.dist,
+            tangent_velocity: Vec3(tv),
+            contact_id: id & !rapier::geometry::NEW_CONTACT_BIT,
+            is_new: (id & rapier::geometry::NEW_CONTACT_BIT) != 0,
+            raw: *sc,
+        }
+    }
+}
+
+#[pymethods]
+impl SolverContact {
+    fn __repr__(&self) -> String {
+        let (p1, p2) = (self.point.0, self.point2.0);
+        format!(
+            "SolverContact(point=({}, {}, {}), point2=({}, {}, {}), dist={}, contact_id={}, is_new={})",
+            p1.x,
+            p1.y,
+            p1.z,
+            p2.x,
+            p2.y,
+            p2.z,
+            self.dist,
+            self.contact_id,
+            if self.is_new { "True" } else { "False" },
+        )
+    }
 }
 
 // ============================================================
@@ -3029,39 +3527,35 @@ impl Collider {
     }
 
     /// Run `f` with a shared reference to the underlying collider.
-    fn with_ref<R>(&self, f: impl FnOnce(&rapier::geometry::Collider) -> R) -> R {
+    fn with_ref<R>(&self, f: impl FnOnce(&rapier::geometry::Collider) -> R) -> PyResult<R> {
         match &self.backing {
-            ColliderBacking::Owned(c) => f(c),
+            ColliderBacking::Owned(c) => Ok(f(c)),
             ColliderBacking::InSet { set, handle } => Python::with_gil(|py| {
-                let set = set.bind(py).borrow();
-                let c = set
-                    .0
-                    .get(*handle)
-                    .expect("Collider refers to a collider that was removed from its set");
-                f(c)
+                ColliderSet::read(set.bind(py), |set| set.get(*handle).map(f))?
+                    .ok_or_else(|| crate::errors::stale_view("Collider"))
             }),
         }
     }
 
     /// Run `f` with a mutable reference to the underlying collider,
     /// writing straight through to the set for an `InSet` view.
-    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::geometry::Collider) -> R) -> R {
+    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::geometry::Collider) -> R) -> PyResult<R> {
         match &mut self.backing {
-            ColliderBacking::Owned(c) => f(c),
+            ColliderBacking::Owned(c) => Ok(f(c)),
             ColliderBacking::InSet { set, handle } => Python::with_gil(|py| {
-                let mut set = set.bind(py).borrow_mut();
+                let mut set = crate::errors::try_borrow_mut(set.bind(py))?;
                 let c = set
                     .0
                     .get_mut(*handle)
-                    .expect("Collider refers to a collider that was removed from its set");
-                f(c)
+                    .ok_or_else(|| crate::errors::stale_view("Collider"))?;
+                Ok(f(c))
             }),
         }
     }
 
     /// Clone the underlying collider out (used by `insert` and callers
     /// needing an owned `&rapier::Collider`).
-    pub fn to_owned_collider(&self) -> rapier::geometry::Collider {
+    pub fn to_owned_collider(&self) -> PyResult<rapier::geometry::Collider> {
         self.with_ref(|c| c.clone())
     }
 }
@@ -3072,13 +3566,13 @@ impl Collider {
 
     /// Handle of the parent rigid-body, if any.
     #[getter]
-    fn parent(&self) -> Option<RigidBodyHandle> {
-        self.with_ref(|c| c.parent()).map(RigidBodyHandle)
+    fn parent(&self) -> PyResult<Option<RigidBodyHandle>> {
+        Ok(self.with_ref(|c| c.parent())?.map(RigidBodyHandle))
     }
 
     /// The soft-body collision mesh this collider holds, if it is a deformable collider.
     #[getter]
-    fn deformable_mesh_ref(&self) -> Option<crate::soft_body::SoftMeshRef> {
+    fn deformable_mesh_ref(&self) -> PyResult<Option<crate::soft_body::SoftMeshRef>> {
         self.with_ref(|c| c.deformable_mesh_ref().map(crate::soft_body::SoftMeshRef))
     }
 
@@ -3086,82 +3580,144 @@ impl Collider {
 
     /// World-space pose of the collider.
     #[getter]
-    fn position(&self) -> Isometry3 {
+    fn position(&self) -> PyResult<Isometry3> {
         self.with_ref(|c| {
             let iso: crate::na::Isometry<Real, _, 3> = (*c.position()).into();
             Isometry3(iso)
         })
     }
     #[setter]
-    fn set_position(&mut self, p: PyIsometry) {
-        self.with_mut(|c| c.set_position(p.0.into()));
+    fn set_position(&mut self, p: PyIsometry) -> PyResult<()> {
+        self.with_mut(|c| c.set_position(p.0.into()))
     }
     /// World-space translation component of the pose.
     #[getter]
-    fn translation(&self) -> Vec3 {
+    fn translation(&self) -> PyResult<Vec3> {
         self.with_ref(|c| {
             let v: crate::na::SVector<Real, 3> = c.translation().into();
             Vec3(v)
         })
     }
     #[setter]
-    fn set_translation(&mut self, v: PyVector) {
-        self.with_mut(|c| c.set_translation(v.0.into()));
+    fn set_translation(&mut self, v: PyVector) -> PyResult<()> {
+        self.with_mut(|c| c.set_translation(v.0.into()))
     }
     /// World-space rotation component of the pose.
     #[getter]
-    fn rotation(&self) -> Rotation3 {
+    fn rotation(&self) -> PyResult<Rotation3> {
         self.with_ref(|c| Rotation3(c.rotation().into()))
     }
     #[setter]
-    fn set_rotation(&mut self, r: PyRotation) {
-        self.with_mut(|c| c.set_rotation(r.0.into()));
+    fn set_rotation(&mut self, r: PyRotation) -> PyResult<()> {
+        self.with_mut(|c| c.set_rotation(r.0.into()))
+    }
+
+    /// Pose of the collider relative to its parent rigid body, or ``None`` if it has no
+    /// parent (read+write).
+    ///
+    /// Setting it moves the collider on its body; the world-space ``position`` is updated at
+    /// the next step. Setting it on a collider without parent does nothing.
+    #[getter]
+    fn position_wrt_parent(&self) -> PyResult<Option<Isometry3>> {
+        self.with_ref(|c| {
+            c.position_wrt_parent().map(|p| {
+                let iso: crate::na::Isometry<Real, _, 3> = (*p).into();
+                Isometry3(iso)
+            })
+        })
+    }
+    #[setter]
+    fn set_position_wrt_parent(&mut self, p: PyIsometry) -> PyResult<()> {
+        self.with_mut(|c| c.set_position_wrt_parent(p.0.into()))?;
+        Ok(())
+    }
+    /// Translation of the collider relative to its parent rigid body, or ``None`` if it has
+    /// no parent (read+write). See ``position_wrt_parent``.
+    #[getter]
+    fn translation_wrt_parent(&self) -> PyResult<Option<Vec3>> {
+        self.with_ref(|c| {
+            c.position_wrt_parent().map(|p| {
+                let v: crate::na::SVector<Real, 3> = p.translation.into();
+                Vec3(v)
+            })
+        })
+    }
+    #[setter]
+    fn set_translation_wrt_parent(&mut self, v: PyVector) -> PyResult<()> {
+        self.with_mut(|c| c.set_translation_wrt_parent(v.0.into()))?;
+        Ok(())
+    }
+    /// Rotation of the collider relative to its parent rigid body, or ``None`` if it has no
+    /// parent (read+write). See ``position_wrt_parent``.
+    #[getter]
+    fn rotation_wrt_parent(&self) -> PyResult<Option<Rotation3>> {
+        self.with_ref(|c| {
+            c.position_wrt_parent()
+                .map(|p| Rotation3(p.rotation.into()))
+        })
+    }
+    #[setter]
+    fn set_rotation_wrt_parent(&mut self, r: PyRotation) -> PyResult<()> {
+        self.with_mut(|c| {
+            if let Some(mut pose) = c.position_wrt_parent().copied() {
+                pose.rotation = r.0.into();
+                c.set_position_wrt_parent(pose);
+            }
+        })?;
+        Ok(())
     }
 
     // ---- shape ----
 
     /// Underlying collision shape.
     #[getter]
-    fn shape(&self) -> SharedShape {
+    fn shape(&self) -> PyResult<SharedShape> {
         self.with_ref(|c| SharedShape(c.shared_shape().clone()))
     }
     #[setter]
-    fn set_shape(&mut self, s: SharedShape) {
-        self.with_mut(|c| c.set_shape(s.0));
+    fn set_shape(&mut self, s: SharedShape) -> PyResult<()> {
+        self.with_mut(|c| c.set_shape(s.0))
     }
 
     // ---- mass / density / mass_properties ----
 
-    /// Uniform density used to derive mass when no explicit mass is set.
+    /// Uniform density used to derive mass when no explicit mass is set (read+write).
+    ///
+    /// When the mass was set explicitly, reading it returns the density deduced from that
+    /// mass and the collider's volume.
     #[getter]
-    fn density(&self) -> Real {
+    fn density(&self) -> PyResult<Real> {
         self.with_ref(|c| c.density())
     }
     #[setter]
-    fn set_density(&mut self, v: Real) {
-        self.with_mut(|c| c.set_density(v));
+    fn set_density(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|c| c.set_density(v))
     }
-    /// Explicit mass of the collider.
+    /// Mass of the collider (read+write).
+    ///
+    /// Reading it returns the mass this collider contributes to its parent body: the explicit
+    /// mass if one was set, otherwise the one computed from its density and volume. Setting it
+    /// gives the collider an explicit mass, replacing its density.
     #[getter]
-    fn mass(&self) -> Real {
+    fn mass(&self) -> PyResult<Real> {
         self.with_ref(|c| c.mass())
     }
     #[setter]
-    fn set_mass(&mut self, v: Real) {
-        self.with_mut(|c| c.set_mass(v));
+    fn set_mass(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|c| c.set_mass(v))
     }
     /// Full mass properties (mass, center of mass, inertia tensor).
     #[getter]
-    fn mass_properties(&self) -> MassProperties {
-        MassProperties(self.with_ref(|c| c.mass_properties()))
+    fn mass_properties(&self) -> PyResult<MassProperties> {
+        Ok(MassProperties(self.with_ref(|c| c.mass_properties())?))
     }
     #[setter]
-    fn set_mass_properties(&mut self, mp: MassProperties) {
-        self.with_mut(|c| c.set_mass_properties(mp.0));
+    fn set_mass_properties(&mut self, mp: MassProperties) -> PyResult<()> {
+        self.with_mut(|c| c.set_mass_properties(mp.0))
     }
     /// Volume (3D) or area (2D) of the shape.
     #[getter]
-    fn volume(&self) -> Real {
+    fn volume(&self) -> PyResult<Real> {
         self.with_ref(|c| c.volume())
     }
 
@@ -3169,43 +3725,47 @@ impl Collider {
 
     /// Friction coefficient.
     #[getter]
-    fn friction(&self) -> Real {
+    fn friction(&self) -> PyResult<Real> {
         self.with_ref(|c| c.friction())
     }
     #[setter]
-    fn set_friction(&mut self, v: Real) {
-        self.with_mut(|c| c.set_friction(v));
+    fn set_friction(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|c| c.set_friction(v))
     }
     /// Restitution coefficient (bounciness).
     #[getter]
-    fn restitution(&self) -> Real {
+    fn restitution(&self) -> PyResult<Real> {
         self.with_ref(|c| c.restitution())
     }
     #[setter]
-    fn set_restitution(&mut self, v: Real) {
-        self.with_mut(|c| c.set_restitution(v));
+    fn set_restitution(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|c| c.set_restitution(v))
     }
     /// Rule used to combine friction with another collider's friction.
     #[getter]
-    fn friction_combine_rule(&self) -> CoefficientCombineRule {
-        CoefficientCombineRule::from_rapier(self.with_ref(|c| c.friction_combine_rule()))
+    fn friction_combine_rule(&self) -> PyResult<CoefficientCombineRule> {
+        Ok(CoefficientCombineRule::from_rapier(
+            self.with_ref(|c| c.friction_combine_rule())?,
+        ))
     }
     #[setter]
-    fn set_friction_combine_rule(&mut self, v: CoefficientCombineRule) {
-        self.with_mut(|c| c.set_friction_combine_rule(v.to_rapier()));
+    fn set_friction_combine_rule(&mut self, v: CoefficientCombineRule) -> PyResult<()> {
+        self.with_mut(|c| c.set_friction_combine_rule(v.to_rapier()))
     }
     /// Rule used to combine restitution with another collider.
     #[getter]
-    fn restitution_combine_rule(&self) -> CoefficientCombineRule {
-        CoefficientCombineRule::from_rapier(self.with_ref(|c| c.restitution_combine_rule()))
+    fn restitution_combine_rule(&self) -> PyResult<CoefficientCombineRule> {
+        Ok(CoefficientCombineRule::from_rapier(
+            self.with_ref(|c| c.restitution_combine_rule())?,
+        ))
     }
     #[setter]
-    fn set_restitution_combine_rule(&mut self, v: CoefficientCombineRule) {
-        self.with_mut(|c| c.set_restitution_combine_rule(v.to_rapier()));
+    fn set_restitution_combine_rule(&mut self, v: CoefficientCombineRule) -> PyResult<()> {
+        self.with_mut(|c| c.set_restitution_combine_rule(v.to_rapier()))
     }
     /// Material bundle (friction, restitution, and their combine rules).
     #[getter]
-    fn material(&self) -> ColliderMaterial {
+    fn material(&self) -> PyResult<ColliderMaterial> {
         self.with_ref(|c| ColliderMaterial(*c.material()))
     }
 
@@ -3213,73 +3773,75 @@ impl Collider {
 
     /// True iff this collider is a sensor (no contact response).
     #[getter]
-    fn is_sensor(&self) -> bool {
+    fn is_sensor(&self) -> PyResult<bool> {
         self.with_ref(|c| c.is_sensor())
     }
     #[setter]
-    fn set_is_sensor(&mut self, v: bool) {
-        self.with_mut(|c| c.set_sensor(v));
+    fn set_is_sensor(&mut self, v: bool) -> PyResult<()> {
+        self.with_mut(|c| c.set_sensor(v))
     }
     /// True iff the collider is currently enabled.
     #[getter]
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self) -> PyResult<bool> {
         self.with_ref(|c| c.is_enabled())
     }
     #[setter]
-    fn set_is_enabled(&mut self, v: bool) {
-        self.with_mut(|c| c.set_enabled(v));
+    fn set_is_enabled(&mut self, v: bool) -> PyResult<()> {
+        self.with_mut(|c| c.set_enabled(v))
     }
 
     // ---- hooks / events ----
 
     /// Event flags opted into by this collider (see `ActiveEvents`).
     #[getter]
-    fn active_events(&self) -> ActiveEvents {
-        ActiveEvents(self.with_ref(|c| c.active_events()))
+    fn active_events(&self) -> PyResult<ActiveEvents> {
+        Ok(ActiveEvents(self.with_ref(|c| c.active_events())?))
     }
     #[setter]
-    fn set_active_events(&mut self, v: ActiveEvents) {
-        self.with_mut(|c| c.set_active_events(v.0));
+    fn set_active_events(&mut self, v: ActiveEvents) -> PyResult<()> {
+        self.with_mut(|c| c.set_active_events(v.0))
     }
     /// Hook flags opted into by this collider (see `ActiveHooks`).
     #[getter]
-    fn active_hooks(&self) -> ActiveHooks {
-        ActiveHooks(self.with_ref(|c| c.active_hooks()))
+    fn active_hooks(&self) -> PyResult<ActiveHooks> {
+        Ok(ActiveHooks(self.with_ref(|c| c.active_hooks())?))
     }
     #[setter]
-    fn set_active_hooks(&mut self, v: ActiveHooks) {
-        self.with_mut(|c| c.set_active_hooks(v.0));
+    fn set_active_hooks(&mut self, v: ActiveHooks) -> PyResult<()> {
+        self.with_mut(|c| c.set_active_hooks(v.0))
     }
     /// Rigid-body type combinations this collider collides with
     /// (see `ActiveCollisionTypes`).
     #[getter]
-    fn active_collision_types(&self) -> ActiveCollisionTypes {
-        ActiveCollisionTypes(self.with_ref(|c| c.active_collision_types()))
+    fn active_collision_types(&self) -> PyResult<ActiveCollisionTypes> {
+        Ok(ActiveCollisionTypes(
+            self.with_ref(|c| c.active_collision_types())?,
+        ))
     }
     #[setter]
-    fn set_active_collision_types(&mut self, v: ActiveCollisionTypes) {
-        self.with_mut(|c| c.set_active_collision_types(v.0));
+    fn set_active_collision_types(&mut self, v: ActiveCollisionTypes) -> PyResult<()> {
+        self.with_mut(|c| c.set_active_collision_types(v.0))
     }
 
     // ---- groups ----
 
     /// Groups controlling which colliders form contact pairs.
     #[getter]
-    fn collision_groups(&self) -> InteractionGroups {
-        InteractionGroups(self.with_ref(|c| c.collision_groups()))
+    fn collision_groups(&self) -> PyResult<InteractionGroups> {
+        Ok(InteractionGroups(self.with_ref(|c| c.collision_groups())?))
     }
     #[setter]
-    fn set_collision_groups(&mut self, v: InteractionGroups) {
-        self.with_mut(|c| c.set_collision_groups(v.0));
+    fn set_collision_groups(&mut self, v: InteractionGroups) -> PyResult<()> {
+        self.with_mut(|c| c.set_collision_groups(v.0))
     }
     /// Groups controlling which contact pairs reach the solver.
     #[getter]
-    fn solver_groups(&self) -> InteractionGroups {
-        InteractionGroups(self.with_ref(|c| c.solver_groups()))
+    fn solver_groups(&self) -> PyResult<InteractionGroups> {
+        Ok(InteractionGroups(self.with_ref(|c| c.solver_groups())?))
     }
     #[setter]
-    fn set_solver_groups(&mut self, v: InteractionGroups) {
-        self.with_mut(|c| c.set_solver_groups(v.0));
+    fn set_solver_groups(&mut self, v: InteractionGroups) -> PyResult<()> {
+        self.with_mut(|c| c.set_solver_groups(v.0))
     }
 
     // ---- contact skin & event threshold ----
@@ -3287,42 +3849,42 @@ impl Collider {
     /// Thickness of the virtual "skin" around the collider, used to
     /// reduce jitter on resting contacts.
     #[getter]
-    fn contact_skin(&self) -> Real {
+    fn contact_skin(&self) -> PyResult<Real> {
         self.with_ref(|c| c.contact_skin())
     }
     #[setter]
-    fn set_contact_skin(&mut self, v: Real) {
-        self.with_mut(|c| c.set_contact_skin(v));
+    fn set_contact_skin(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|c| c.set_contact_skin(v))
     }
     /// Force magnitude above which a `ContactForceEvent` is emitted.
     ///
     /// Requires `ActiveEvents.CONTACT_FORCE_EVENTS`.
     #[getter]
-    fn contact_force_event_threshold(&self) -> Real {
+    fn contact_force_event_threshold(&self) -> PyResult<Real> {
         self.with_ref(|c| c.contact_force_event_threshold())
     }
     #[setter]
-    fn set_contact_force_event_threshold(&mut self, v: Real) {
-        self.with_mut(|c| c.set_contact_force_event_threshold(v));
+    fn set_contact_force_event_threshold(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|c| c.set_contact_force_event_threshold(v))
     }
 
     // ---- user_data ----
 
     /// Free 128-bit user payload (opaque to the engine).
     #[getter]
-    fn user_data(&self) -> u128 {
+    fn user_data(&self) -> PyResult<u128> {
         self.with_ref(|c| c.user_data)
     }
     #[setter]
-    fn set_user_data(&mut self, v: u128) {
-        self.with_mut(|c| c.user_data = v);
+    fn set_user_data(&mut self, v: u128) -> PyResult<()> {
+        self.with_mut(|c| c.user_data = v)
     }
 
     // ---- compute helpers ----
 
     /// Compute the world-space AABB of this collider.
-    fn compute_aabb(&self) -> Aabb {
-        Aabb(self.with_ref(|c| c.compute_aabb()))
+    fn compute_aabb(&self) -> PyResult<Aabb> {
+        Ok(Aabb(self.with_ref(|c| c.compute_aabb())?))
     }
 
     // ---- Builder forwards (mirror RigidBody.dynamic etc) ----
@@ -3342,15 +3904,69 @@ impl Collider {
         ColliderBuilder::from_kwargs(rapier::geometry::ColliderBuilder::ball(radius), kwargs)
     }
     /// Builder for a triangle collider with the given vertices.
+    ///
+    /// Like every shape factory of ``Collider``, it accepts optional `ColliderBuilder`
+    /// kwargs.
     #[staticmethod]
-    fn triangle(a: PyVector, b: PyVector, c: PyVector) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::triangle(
-                a.0.into(),
-                b.0.into(),
-                c.0.into(),
-            ),
-        }
+    #[pyo3(signature = (a, b, c, **kwargs))]
+    fn triangle(
+        a: PyVector,
+        b: PyVector,
+        c: PyVector,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::triangle(a.0.into(), b.0.into(), c.0.into()),
+            kwargs,
+        )
+    }
+    /// Builder for a segment collider between the points `a` and `b`.
+    #[staticmethod]
+    #[pyo3(signature = (a, b, **kwargs))]
+    fn segment(
+        a: PyVector,
+        b: PyVector,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::segment(a.0.into(), b.0.into()),
+            kwargs,
+        )
+    }
+    /// Builder for a polyline collider: a set of segments joining the given vertices.
+    ///
+    /// :param vertices: `(N, 3)` ndarray of floats (or a sequence of 3-vectors).
+    /// :param indices: `(M, 2)` integer ndarray (or a sequence of pairs) listing the
+    ///     vertices of each segment. If ``None``, the vertices are joined in order into a
+    ///     line strip.
+    #[staticmethod]
+    #[pyo3(signature = (vertices, indices=None, **kwargs))]
+    fn polyline(
+        vertices: &Bound<'_, PyAny>,
+        indices: Option<&Bound<'_, PyAny>>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        let shape = SharedShape::polyline(vertices, indices)?;
+        ColliderBuilder::from_kwargs(rapier::geometry::ColliderBuilder::new(shape.0), kwargs)
+    }
+    /// Builder for a voxels collider obtained by voxelizing a triangle mesh.
+    ///
+    /// :param vertices: `(N, 3)` ndarray of floats (or a sequence of 3-vectors).
+    /// :param indices: `(M, 3)` integer ndarray (or a sequence of triples).
+    /// :param voxel_size: edge length of one (cubic) voxel.
+    /// :param fill_mode: which voxels are filled (a :class:`FillMode`); defaults to
+    ///     ``FillMode.flood_fill()`` (a solid).
+    #[staticmethod]
+    #[pyo3(signature = (vertices, indices, voxel_size, fill_mode=None, **kwargs))]
+    fn voxelized_mesh(
+        vertices: &Bound<'_, PyAny>,
+        indices: &Bound<'_, PyAny>,
+        voxel_size: Real,
+        fill_mode: Option<FillMode>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        let shape = SharedShape::voxelized_mesh(vertices, indices, voxel_size, fill_mode)?;
+        ColliderBuilder::from_kwargs(rapier::geometry::ColliderBuilder::new(shape.0), kwargs)
     }
     /// Builder for a half-space (infinite plane) collider.
     ///
@@ -3376,33 +3992,37 @@ impl Collider {
     }
     /// Builder wrapping an arbitrary `SharedShape`.
     #[staticmethod]
-    #[pyo3(signature = (shape))]
-    fn new(shape: SharedShape) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::new(shape.0),
-        }
+    #[pyo3(signature = (shape, **kwargs))]
+    fn new(
+        shape: SharedShape,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(rapier::geometry::ColliderBuilder::new(shape.0), kwargs)
     }
     /// Builder for a compound collider built from `(pose, sub_shape)` parts.
     #[staticmethod]
-    fn compound(parts: Vec<(PyIsometry, SharedShape)>) -> ColliderBuilder {
+    #[pyo3(signature = (parts, **kwargs))]
+    fn compound(
+        parts: Vec<(PyIsometry, SharedShape)>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
         let parts: Vec<(rapier::math::Pose, rapier::parry::shape::SharedShape)> =
             parts.into_iter().map(|(p, s)| (p.0.into(), s.0)).collect();
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::compound(parts),
-        }
+        ColliderBuilder::from_kwargs(rapier::geometry::ColliderBuilder::compound(parts), kwargs)
     }
     /// Builder for a triangle-mesh collider.
     ///
-    /// :param vertices: `(N, D)` ndarray of floats.
-    /// :param indices: `(M, 3)` ndarray of `u32`.
+    /// :param vertices: `(N, 3)` ndarray of floats (or a sequence of 3-vectors).
+    /// :param indices: `(M, 3)` integer ndarray (or a sequence of triples).
     /// :param flags: Optional `TriMeshFlags` preprocessing.
     /// :raises MeshConversionError: If the mesh cannot be built.
     #[staticmethod]
-    #[pyo3(signature = (vertices, indices, flags=None))]
+    #[pyo3(signature = (vertices, indices, flags=None, **kwargs))]
     fn trimesh(
         vertices: &Bound<'_, PyAny>,
         indices: &Bound<'_, PyAny>,
         flags: Option<TriMeshFlags>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
     ) -> PyResult<ColliderBuilder> {
         let verts = extract_verts_for_dim(vertices)?;
         let idx = crate::geometry::extract_indices(indices)?;
@@ -3411,69 +4031,78 @@ impl Collider {
             Some(f) => rapier::geometry::ColliderBuilder::trimesh_with_flags(verts, idx, f.0),
         }
         .map_err(|e| crate::errors::MeshConversionError::new_err(format!("{e:?}")))?;
-        Ok(ColliderBuilder { builder: b })
+        ColliderBuilder::from_kwargs(b, kwargs)
     }
 
     /// Builder for a collider wrapping the convex hull of a point cloud.
     ///
+    /// :param points: `(N, 3)` ndarray of floats (or a sequence of 3-vectors).
     /// :raises MeshConversionError: If the convex hull cannot be built.
     #[staticmethod]
-    fn convex_hull(points: &Bound<'_, PyAny>) -> PyResult<ColliderBuilder> {
+    #[pyo3(signature = (points, **kwargs))]
+    fn convex_hull(
+        points: &Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
         let pts = extract_verts_for_dim(points)?;
-        rapier::geometry::ColliderBuilder::convex_hull(&pts)
-            .map(|b| ColliderBuilder { builder: b })
-            .ok_or_else(|| {
-                crate::errors::MeshConversionError::new_err("convex hull computation failed")
-            })
+        let b = rapier::geometry::ColliderBuilder::convex_hull(&pts).ok_or_else(|| {
+            crate::errors::MeshConversionError::new_err("convex hull computation failed")
+        })?;
+        ColliderBuilder::from_kwargs(b, kwargs)
     }
     /// Builder for a triangle collider with rounded edges.
     #[staticmethod]
+    #[pyo3(signature = (a, b, c, border_radius, **kwargs))]
     fn round_triangle(
         a: PyVector,
         b: PyVector,
         c: PyVector,
         border_radius: Real,
-    ) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::round_triangle(
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::round_triangle(
                 a.0.into(),
                 b.0.into(),
                 c.0.into(),
                 border_radius,
             ),
-        }
+            kwargs,
+        )
     }
     /// Builder for a rounded convex-hull collider.
     ///
     /// :raises MeshConversionError: If the hull cannot be built.
     #[staticmethod]
+    #[pyo3(signature = (points, border_radius, **kwargs))]
     fn round_convex_hull(
         points: &Bound<'_, PyAny>,
         border_radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
     ) -> PyResult<ColliderBuilder> {
         let pts = extract_verts_for_dim(points)?;
-        rapier::geometry::ColliderBuilder::round_convex_hull(&pts, border_radius)
-            .map(|b| ColliderBuilder { builder: b })
+        let b = rapier::geometry::ColliderBuilder::round_convex_hull(&pts, border_radius)
             .ok_or_else(|| {
                 crate::errors::MeshConversionError::new_err("round convex hull computation failed")
-            })
+            })?;
+        ColliderBuilder::from_kwargs(b, kwargs)
     }
     /// Builder for a voxel-grid collider built by voxelizing points.
     ///
     /// :param voxel_size: Per-axis size of one voxel cell.
-    /// :param points: `(N, D)` ndarray of floats.
+    /// :param points: `(N, 3)` ndarray of floats (or a sequence of 3-vectors).
     #[staticmethod]
+    #[pyo3(signature = (voxel_size, points, **kwargs))]
     fn voxels_from_points(
         voxel_size: PyVector,
         points: &Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
     ) -> PyResult<ColliderBuilder> {
         let pts = extract_verts_for_dim(points)?;
-        Ok(ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::voxels_from_points(
-                voxel_size.0.into(),
-                &pts,
-            ),
-        })
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::voxels_from_points(voxel_size.0.into(), &pts),
+            kwargs,
+        )
     }
     /// Builder for a collider whose shape is produced from a triangle
     /// buffer by a `MeshConverter` (trimesh, hull, OBB, AABB,
@@ -3481,59 +4110,86 @@ impl Collider {
     ///
     /// :raises MeshConversionError: If the conversion fails.
     #[staticmethod]
+    #[pyo3(signature = (vertices, indices, converter, **kwargs))]
     fn converted_trimesh(
         vertices: &Bound<'_, PyAny>,
         indices: &Bound<'_, PyAny>,
         converter: &MeshConverter,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
     ) -> PyResult<ColliderBuilder> {
         let verts = extract_verts_for_dim(vertices)?;
         let idx = crate::geometry::extract_indices(indices)?;
-        rapier::geometry::ColliderBuilder::converted_trimesh(verts, idx, converter.0)
-            .map(|b| ColliderBuilder { builder: b })
-            .map_err(|e| crate::errors::MeshConversionError::new_err(format!("{e}")))
+        let b = rapier::geometry::ColliderBuilder::converted_trimesh(verts, idx, converter.0)
+            .map_err(|e| crate::errors::MeshConversionError::new_err(format!("{e}")))?;
+        ColliderBuilder::from_kwargs(b, kwargs)
     }
 
     // Capsule constructors (parry uses `capsule_from_endpoints`).
     /// Builder for a Y-axis capsule (the default axis).
     #[staticmethod]
-    fn capsule(half_height: Real, radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::capsule_y(half_height, radius),
-        }
+    #[pyo3(signature = (half_height, radius, **kwargs))]
+    fn capsule(
+        half_height: Real,
+        radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::capsule_y(half_height, radius),
+            kwargs,
+        )
     }
     /// Builder for an X-axis capsule.
     #[staticmethod]
-    fn capsule_x(half_height: Real, radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::capsule_x(half_height, radius),
-        }
+    #[pyo3(signature = (half_height, radius, **kwargs))]
+    fn capsule_x(
+        half_height: Real,
+        radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::capsule_x(half_height, radius),
+            kwargs,
+        )
     }
     /// Builder for a Y-axis capsule.
     #[staticmethod]
-    fn capsule_y(half_height: Real, radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::capsule_y(half_height, radius),
-        }
+    #[pyo3(signature = (half_height, radius, **kwargs))]
+    fn capsule_y(
+        half_height: Real,
+        radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::capsule_y(half_height, radius),
+            kwargs,
+        )
     }
     /// Builder for a capsule defined by its two endpoints and a radius.
     #[staticmethod]
-    fn capsule_from_endpoints(a: PyVector, b: PyVector, radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::capsule_from_endpoints(
+    #[pyo3(signature = (a, b, radius, **kwargs))]
+    fn capsule_from_endpoints(
+        a: PyVector,
+        b: PyVector,
+        radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::capsule_from_endpoints(
                 a.0.into(),
                 b.0.into(),
                 radius,
             ),
-        }
+            kwargs,
+        )
     }
 
-    fn __repr__(&self) -> String {
-        format!(
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!(
             "Collider(shape={:?}, sensor={}, parent={:?})",
-            self.with_ref(|c| c.shape().shape_type()),
-            self.with_ref(|c| c.is_sensor()),
-            self.with_ref(|c| c.parent()).map(|h| h.into_raw_parts()),
-        )
+            self.with_ref(|c| c.shape().shape_type())?,
+            self.with_ref(|c| c.is_sensor())?,
+            self.with_ref(|c| c.parent())?.map(|h| h.into_raw_parts()),
+        ))
     }
 }
 
@@ -3563,142 +4219,191 @@ impl Collider {
     }
     /// Builder for a Y-axis cylinder collider.
     #[staticmethod]
-    fn cylinder(half_height: Real, radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::cylinder(half_height, radius),
-        }
+    #[pyo3(signature = (half_height, radius, **kwargs))]
+    fn cylinder(
+        half_height: Real,
+        radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::cylinder(half_height, radius),
+            kwargs,
+        )
     }
     /// Builder for a Y-axis cone collider (apex at +Y).
     #[staticmethod]
-    fn cone(half_height: Real, radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::cone(half_height, radius),
-        }
+    #[pyo3(signature = (half_height, radius, **kwargs))]
+    fn cone(
+        half_height: Real,
+        radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::cone(half_height, radius),
+            kwargs,
+        )
     }
     /// Builder for a Z-axis capsule collider.
     #[staticmethod]
-    fn capsule_z(half_height: Real, radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::capsule_z(half_height, radius),
-        }
+    #[pyo3(signature = (half_height, radius, **kwargs))]
+    fn capsule_z(
+        half_height: Real,
+        radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::capsule_z(half_height, radius),
+            kwargs,
+        )
     }
     /// Builder for a 3D cuboid with rounded edges of `border_radius`.
     #[staticmethod]
-    fn round_cuboid(hx: Real, hy: Real, hz: Real, border_radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::round_cuboid(hx, hy, hz, border_radius),
-        }
+    #[pyo3(signature = (hx, hy, hz, border_radius, **kwargs))]
+    fn round_cuboid(
+        hx: Real,
+        hy: Real,
+        hz: Real,
+        border_radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::round_cuboid(hx, hy, hz, border_radius),
+            kwargs,
+        )
     }
     /// Builder for a Y-axis cylinder with rounded edges.
     #[staticmethod]
-    fn round_cylinder(half_height: Real, radius: Real, border_radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::round_cylinder(
-                half_height,
-                radius,
-                border_radius,
-            ),
-        }
+    #[pyo3(signature = (half_height, radius, border_radius, **kwargs))]
+    fn round_cylinder(
+        half_height: Real,
+        radius: Real,
+        border_radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::round_cylinder(half_height, radius, border_radius),
+            kwargs,
+        )
     }
     /// Builder for a Y-axis cone with rounded apex/base.
     #[staticmethod]
-    fn round_cone(half_height: Real, radius: Real, border_radius: Real) -> ColliderBuilder {
-        ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::round_cone(
-                half_height,
-                radius,
-                border_radius,
-            ),
-        }
+    #[pyo3(signature = (half_height, radius, border_radius, **kwargs))]
+    fn round_cone(
+        half_height: Real,
+        radius: Real,
+        border_radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::round_cone(half_height, radius, border_radius),
+            kwargs,
+        )
     }
     /// Builder for a convex-polyhedron collider (3D convex hull of `points`).
     #[staticmethod]
-    fn convex_polyhedron(points: &Bound<'_, PyAny>) -> PyResult<ColliderBuilder> {
+    #[pyo3(signature = (points, **kwargs))]
+    fn convex_polyhedron(
+        points: &Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
         // 3D: convex_hull builds a ConvexPolyhedron internally; reuse it.
-        Self::convex_hull(points)
+        Self::convex_hull(points, kwargs)
     }
     /// Builder for a compound collider obtained by convex
     /// decomposition of a triangle mesh.
+    ///
+    /// :param vertices: `(N, 3)` ndarray of floats (or a sequence of 3-vectors).
+    /// :param indices: `(M, 3)` integer ndarray (or a sequence of triples).
     #[staticmethod]
-    #[pyo3(signature = (vertices, indices))]
+    #[pyo3(signature = (vertices, indices, **kwargs))]
     fn convex_decomposition(
         vertices: &Bound<'_, PyAny>,
         indices: &Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
     ) -> PyResult<ColliderBuilder> {
         let verts = extract_verts_for_dim(vertices)?;
         let idx = crate::geometry::extract_indices(indices)?;
-        Ok(ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::convex_decomposition(&verts, &idx),
-        })
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::convex_decomposition(&verts, &idx),
+            kwargs,
+        )
     }
     /// Builder for a convex-mesh collider (vertices assumed convex).
     ///
     /// :raises MeshConversionError: If the mesh is not a valid convex mesh.
     #[staticmethod]
+    #[pyo3(signature = (vertices, indices, **kwargs))]
     fn convex_mesh(
         vertices: &Bound<'_, PyAny>,
         indices: &Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
     ) -> PyResult<ColliderBuilder> {
         let verts = extract_verts_for_dim(vertices)?;
         let idx = crate::geometry::extract_indices(indices)?;
-        rapier::geometry::ColliderBuilder::convex_mesh(verts, &idx)
-            .map(|b| ColliderBuilder { builder: b })
-            .ok_or_else(|| {
-                crate::errors::MeshConversionError::new_err(
-                    "convex mesh construction failed (invalid convex mesh)",
-                )
-            })
+        let b = rapier::geometry::ColliderBuilder::convex_mesh(verts, &idx).ok_or_else(|| {
+            crate::errors::MeshConversionError::new_err(
+                "convex mesh construction failed (invalid convex mesh)",
+            )
+        })?;
+        ColliderBuilder::from_kwargs(b, kwargs)
     }
     /// Builder for a rounded convex-mesh collider.
     ///
     /// :raises MeshConversionError: If the mesh is not a valid convex mesh.
     #[staticmethod]
+    #[pyo3(signature = (vertices, indices, border_radius, **kwargs))]
     fn round_convex_mesh(
         vertices: &Bound<'_, PyAny>,
         indices: &Bound<'_, PyAny>,
         border_radius: Real,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
     ) -> PyResult<ColliderBuilder> {
         let verts = extract_verts_for_dim(vertices)?;
         let idx = crate::geometry::extract_indices(indices)?;
-        rapier::geometry::ColliderBuilder::round_convex_mesh(verts, &idx, border_radius)
-            .map(|b| ColliderBuilder { builder: b })
+        let b = rapier::geometry::ColliderBuilder::round_convex_mesh(verts, &idx, border_radius)
             .ok_or_else(|| {
                 crate::errors::MeshConversionError::new_err(
                     "round convex mesh construction failed (invalid convex mesh)",
                 )
-            })
+            })?;
+        ColliderBuilder::from_kwargs(b, kwargs)
     }
     /// Builder for a voxel-grid collider from integer grid coordinates.
     ///
     /// :param voxel_size: Per-axis size of one voxel cell.
     /// :param grid_coords: Sequence of `(i, j, k)` integer cells.
     #[staticmethod]
-    fn voxels(voxel_size: PyVector, grid_coords: &Bound<'_, PyAny>) -> PyResult<ColliderBuilder> {
-        let raw: Vec<(i64, i64, i64)> = grid_coords.extract()?;
-        let coords: Vec<rapier::math::IVector> = raw
-            .iter()
-            .map(|&(x, y, z)| rapier::math::IVector::new(x as _, y as _, z as _))
-            .collect();
-        Ok(ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::voxels(voxel_size.0.into(), &coords),
-        })
+    #[pyo3(signature = (voxel_size, grid_coords, **kwargs))]
+    fn voxels(
+        voxel_size: PyVector,
+        grid_coords: &Bound<'_, PyAny>,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        let shape = SharedShape::voxels(voxel_size, grid_coords)?;
+        ColliderBuilder::from_kwargs(rapier::geometry::ColliderBuilder::new(shape.0), kwargs)
     }
     /// Builder for a 3D heightfield collider.
     ///
-    /// :param heights: `(rows, cols)` ndarray of floats.
+    /// ``heights[i, j]`` is the height at row ``i`` (advancing along the local Z axis) and
+    /// column ``j`` (advancing along the local X axis); see :meth:`SharedShape.heightfield`.
+    ///
+    /// :param heights: `(nrows, ncols)` ndarray (``float32`` or ``float64``) or nested
+    ///     sequences, with at least 2 rows and 2 columns.
     /// :param scale: Per-axis scaling.
     #[staticmethod]
-    fn heightfield(heights: &Bound<'_, PyAny>, scale: PyVector) -> PyResult<ColliderBuilder> {
-        let arr: crate::numpy::PyReadonlyArray2<Real> = heights.extract()?;
-        let slice = arr.as_slice().map_err(|_| {
-            crate::pyo3::exceptions::PyValueError::new_err("heights ndarray must be contiguous")
-        })?;
-        let nrows = arr.shape()[0];
-        let ncols = arr.shape()[1];
-        let arr2 = rapier::parry::utils::Array2::new(nrows, ncols, slice.to_vec());
-        Ok(ColliderBuilder {
-            builder: rapier::geometry::ColliderBuilder::heightfield(arr2, scale.0.into()),
-        })
+    #[pyo3(signature = (heights, scale, **kwargs))]
+    fn heightfield(
+        heights: &Bound<'_, PyAny>,
+        scale: PyVector,
+        kwargs: Option<&Bound<'_, crate::pyo3::types::PyDict>>,
+    ) -> PyResult<ColliderBuilder> {
+        ColliderBuilder::from_kwargs(
+            rapier::geometry::ColliderBuilder::heightfield(
+                extract_heights(heights)?,
+                scale.0.into(),
+            ),
+            kwargs,
+        )
     }
 }
 
@@ -3830,13 +4535,19 @@ impl ColliderBuilder {
 
 #[pymethods]
 impl ColliderBuilder {
-    /// Set the world-space translation. Returns a new builder.
+    /// Set the translation. Returns a new builder.
+    ///
+    /// It is relative to the parent rigid body when the collider is inserted with a parent,
+    /// and in world space otherwise.
     fn translation(&self, v: PyVector) -> Self {
         Self {
             builder: self.builder.clone().translation(v.0.into()),
         }
     }
-    /// Set the world-space pose. Returns a new builder.
+    /// Set the pose (translation and rotation). Returns a new builder.
+    ///
+    /// It is relative to the parent rigid body when the collider is inserted with a parent,
+    /// and in world space otherwise.
     fn position(&self, p: PyIsometry) -> Self {
         Self {
             builder: self.builder.clone().position(p.0.into()),
@@ -3948,8 +4659,8 @@ impl ColliderBuilder {
 
     /// Set the rotation. Returns a new builder.
     ///
-    /// In 2D the argument is an angle in radians; in 3D it is a
-    /// rotation vector (axis * angle).
+    /// The argument is a rotation vector (axis * angle). Like ``translation``, it is
+    /// relative to the parent rigid body when the collider is inserted with a parent.
     fn rotation(&self, v: &Bound<'_, PyAny>) -> PyResult<Self> {
         let mut b = self.builder.clone();
         {
@@ -3974,9 +4685,25 @@ impl ColliderBuilder {
 /// Acts like a dict keyed by handles: supports `len(set)`,
 /// `handle in set`, `set[handle]`, iteration, plus `insert` and
 /// `remove`. `set[handle]` returns a live view, so mutating it
-/// (e.g. `set[h].set_sensor(True)`) persists in place.
-#[pyclass(name = "ColliderSet", module = "rapier", unsendable)]
+/// (e.g. `set[h].is_sensor = True`) persists in place.
+#[pyclass(name = "ColliderSet", module = "rapier")]
 pub struct ColliderSet(pub rapier::geometry::ColliderSet);
+
+impl ColliderSet {
+    /// Run `f` on the set, also while a step lends it to a physics hook or
+    /// event handler.
+    pub(crate) fn read<R>(
+        slf: &Bound<'_, Self>,
+        f: impl FnOnce(&rapier::geometry::ColliderSet) -> R,
+    ) -> PyResult<R> {
+        // A lent set is read first: the running step holds the set mutably borrowed, so
+        // `try_borrow` fails until it ends.
+        crate::events_hooks::with_lent_or(slf.as_ptr(), f, |f| match slf.try_borrow() {
+            Ok(set) => Ok(f(&set.0)),
+            Err(_) => Err(crate::events_hooks::stepping_error("ColliderSet")),
+        })
+    }
+}
 
 #[pymethods]
 impl ColliderSet {
@@ -3996,7 +4723,7 @@ impl ColliderSet {
             return Ok(ColliderHandle(self.0.insert(b.builder.clone().build())));
         }
         if let Ok(c) = builder.extract::<PyRef<'_, Collider>>() {
-            return Ok(ColliderHandle(self.0.insert(c.to_owned_collider())));
+            return Ok(ColliderHandle(self.0.insert(c.to_owned_collider()?)));
         }
         Err(PyTypeError::new_err(
             "ColliderSet.insert expects a Collider or ColliderBuilder",
@@ -4021,7 +4748,7 @@ impl ColliderSet {
         let coll = if let Ok(b) = builder.extract::<PyRef<'_, ColliderBuilder>>() {
             b.builder.clone().build()
         } else if let Ok(c) = builder.extract::<PyRef<'_, Collider>>() {
-            c.to_owned_collider()
+            c.to_owned_collider()?
         } else {
             return Err(PyTypeError::new_err(
                 "ColliderSet.insert_with_parent expects a Collider or ColliderBuilder",
@@ -4036,29 +4763,66 @@ impl ColliderSet {
 
     /// Remove a collider by handle and return it.
     ///
-    /// :param wake_parent: If True, wakes the parent rigid-body so
-    ///     islands re-evaluate. Defaults to True.
+    /// :param wake_up: If True (default), wakes the parent rigid-body so
+    ///     islands re-evaluate.
+    /// :param soft_bodies: The world's :class:`SoftBodySet`, needed to remove a deformable
+    ///     collider (a collision mesh of a soft body); it can be left out otherwise.
+    /// :param wake_parent: Deprecated alias of ``wake_up``.
     /// :returns: The removed `Collider`, or `None` if `handle` is unknown.
-    #[pyo3(signature = (handle, islands, bodies, wake_parent=true, soft_bodies=None))]
+    /// :raises ValueError: if the collider is deformable and ``soft_bodies`` is left out.
+    #[pyo3(signature = (handle, islands, bodies, wake_up=true, soft_bodies=None, *, wake_parent=None))]
+    #[allow(clippy::too_many_arguments)]
     fn remove(
         &mut self,
+        py: Python<'_>,
         handle: &ColliderHandle,
         islands: &mut IslandManager,
         bodies: &mut RigidBodySet,
-        wake_parent: bool,
+        wake_up: bool,
         soft_bodies: Option<&mut crate::soft_body::SoftBodySet>,
-    ) -> Option<Collider> {
+        wake_parent: Option<bool>,
+    ) -> PyResult<Option<Collider>> {
+        let wake_up = match wake_parent {
+            Some(w) => {
+                PyErr::warn_bound(
+                    py,
+                    &py.get_type_bound::<crate::pyo3::exceptions::PyDeprecationWarning>(),
+                    "ColliderSet.remove(wake_parent=...) is deprecated; use wake_up=... instead",
+                    1,
+                )?;
+                w
+            }
+            None => wake_up,
+        };
         let mut scratch = rapier::dynamics::SoftBodySet::new();
-        let soft_bodies = soft_bodies.map_or(&mut scratch, |s| &mut s.0);
-        self.0
+        let soft_bodies = match soft_bodies {
+            Some(s) => &mut s.0,
+            None => {
+                // Removing a deformable collider without its soft body would leave the body
+                // with a mesh bound to a collider that no longer exists.
+                if self
+                    .0
+                    .get(handle.0)
+                    .is_some_and(|c| c.deformable_mesh_ref().is_some())
+                {
+                    return Err(PyValueError::new_err(
+                        "the collider is a soft-body collision mesh: pass the world's \
+                         SoftBodySet as `soft_bodies` to remove it",
+                    ));
+                }
+                &mut scratch
+            }
+        };
+        Ok(self
+            .0
             .remove(
                 handle.0,
                 &mut islands.0,
                 &mut bodies.0,
                 soft_bodies,
-                wake_parent,
+                wake_up,
             )
-            .map(Collider::new_owned)
+            .map(Collider::new_owned))
     }
 
     /// Insert a collider holding a soft body's deformable collision mesh: a triangle mesh
@@ -4079,7 +4843,7 @@ impl ColliderSet {
         let coll = if let Ok(b) = builder.extract::<PyRef<'_, ColliderBuilder>>() {
             b.builder.clone().build()
         } else if let Ok(c) = builder.extract::<PyRef<'_, Collider>>() {
-            c.to_owned_collider()
+            c.to_owned_collider()?
         } else {
             return Err(PyTypeError::new_err(
                 "ColliderSet.insert_deformable expects a Collider or ColliderBuilder",
@@ -4100,18 +4864,20 @@ impl ColliderSet {
     /// Return a live **view** of the collider for `handle`, or `None`
     /// if the handle is unknown. Reads and writes go straight through
     /// to the set with no copy.
-    fn get(slf: &Bound<'_, Self>, handle: &ColliderHandle) -> Option<Collider> {
-        slf.borrow().0.get(handle.0)?;
-        Some(Collider {
+    fn get(slf: &Bound<'_, Self>, handle: &ColliderHandle) -> PyResult<Option<Collider>> {
+        if !Self::read(slf, |set| set.contains(handle.0))? {
+            return Ok(None);
+        }
+        Ok(Some(Collider {
             backing: ColliderBacking::InSet {
                 set: slf.clone().unbind(),
                 handle: handle.0,
             },
-        })
+        }))
     }
 
     fn __getitem__(slf: &Bound<'_, Self>, handle: &ColliderHandle) -> PyResult<Collider> {
-        if slf.borrow().0.get(handle.0).is_none() {
+        if !Self::read(slf, |set| set.contains(handle.0))? {
             return Err(crate::errors::InvalidHandle::new_err(format!(
                 "no collider for {:?}",
                 handle.0.into_raw_parts(),
@@ -4125,15 +4891,15 @@ impl ColliderSet {
         })
     }
 
-    fn __contains__(&self, handle: &ColliderHandle) -> bool {
-        self.0.contains(handle.0)
+    fn __contains__(slf: &Bound<'_, Self>, handle: &ColliderHandle) -> PyResult<bool> {
+        Self::read(slf, |set| set.contains(handle.0))
     }
-    fn __len__(&self) -> usize {
-        self.0.len()
+    fn __len__(slf: &Bound<'_, Self>) -> PyResult<usize> {
+        Self::read(slf, |set| set.len())
     }
     /// True iff the set contains no colliders.
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
+    fn is_empty(slf: &Bound<'_, Self>) -> PyResult<bool> {
+        Self::read(slf, |set| set.is_empty())
     }
 
     /// Remove every collider from the set.
@@ -4143,7 +4909,7 @@ impl ColliderSet {
 
     fn __iter__(slf: &Bound<'_, Self>) -> PyResult<Py<ColliderSetIter>> {
         let handles: Vec<rapier::geometry::ColliderHandle> =
-            slf.borrow().0.iter().map(|(h, _)| h).collect();
+            Self::read(slf, |set| set.iter().map(|(h, _)| h).collect())?;
         Py::new(
             slf.py(),
             ColliderSetIter {
@@ -4155,8 +4921,10 @@ impl ColliderSet {
     }
 
     /// Return an iterator over the ``ColliderHandle`` values in the set.
-    fn handles(slf: PyRef<'_, Self>) -> PyResult<Py<ColliderHandleIter>> {
-        let h: Vec<ColliderHandle> = slf.0.iter().map(|(h, _)| ColliderHandle(h)).collect();
+    fn handles(slf: &Bound<'_, Self>) -> PyResult<Py<ColliderHandleIter>> {
+        let h: Vec<ColliderHandle> = Self::read(slf, |set| {
+            set.iter().map(|(h, _)| ColliderHandle(h)).collect()
+        })?;
         Py::new(slf.py(), ColliderHandleIter { handles: h, i: 0 })
     }
 }
@@ -4336,6 +5104,7 @@ pub fn register_geometry(
     m.add_class::<HeightField>()?;
     m.add_class::<Compound>()?;
     m.add_class::<Voxels>()?;
+    m.add_class::<FillMode>()?;
     m.add_class::<Cylinder>()?;
     m.add_class::<Cone>()?;
     m.add_class::<ConvexPolyhedron>()?;

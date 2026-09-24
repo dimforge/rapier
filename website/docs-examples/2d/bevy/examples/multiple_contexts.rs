@@ -23,6 +23,7 @@ fn main() {
             ((create_contexts, setup_physics).chain(), setup_graphics),
         )
         .add_systems(Update, move_platforms)
+        .add_systems(PostUpdate, print_contexts.after(PhysicsSet::Writeback))
         .add_systems(
             Update,
             change_context.run_if(input_just_pressed(KeyCode::KeyC)),
@@ -36,6 +37,13 @@ fn create_contexts(mut commands: Commands) {
         let mut context = commands.spawn(RapierContextSimulation::default());
         // DOCUSAURUS: MultipleContexts_new stop
         context.insert(ContextId(i));
+        // DOCUSAURUS: MultipleContexts_configuration start
+        // Each context has its own configuration, e.g., its own gravity.
+        context.insert(RapierConfiguration {
+            gravity: Vec2::new(0.0, -9.81 * (i + 1) as f32),
+            ..RapierConfiguration::new(1.0)
+        });
+        // DOCUSAURUS: MultipleContexts_configuration stop
         if i == 0 {
             // DOCUSAURUS: MultipleContexts_custom_default start
             context.insert(DefaultRapierContext);
@@ -65,6 +73,19 @@ fn move_platforms(time: Res<Time>, mut query: Query<(&mut Transform, &Platform)>
     }
 }
 
+// DOCUSAURUS: MultipleContexts_query start
+fn print_contexts(contexts: Query<(RapierContext, &ContextId)>) {
+    for (context, id) in contexts.iter() {
+        println!(
+            "Context {} has {} colliders.",
+            id.0,
+            context.colliders.colliders.len()
+        );
+    }
+}
+// DOCUSAURUS: MultipleContexts_query stop
+
+// DOCUSAURUS: MultipleContexts_change start
 /// Demonstrates how easy it is to move one entity to another context.
 fn change_context(
     query_context: Query<Entity, With<DefaultRapierContext>>,
@@ -79,6 +100,7 @@ fn change_context(
         println!("changing context of {} for context {}", e, link.0);
     }
 }
+// DOCUSAURUS: MultipleContexts_change stop
 
 pub fn setup_physics(
     context: Query<(Entity, &ContextId), With<RapierContextSimulation>>,
@@ -115,12 +137,15 @@ pub fn setup_physics(
          * Create the cube
          */
 
+        // DOCUSAURUS: MultipleContexts_link start
         commands.spawn((
             Transform::from_xyz(0.0, 1.0 + id as f32 * 5.0, 0.0),
             RigidBody::Dynamic,
             Collider::cuboid(0.5, 0.5),
             ColliderDebugColor(color),
+            // This rigid-body and its collider are simulated by the context `context_entity`.
             RapierContextEntityLink(context_entity),
         ));
+        // DOCUSAURUS: MultipleContexts_link stop
     }
 }

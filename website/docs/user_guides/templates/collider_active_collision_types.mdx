@@ -4,7 +4,7 @@ import TabItem from '@theme/TabItem';
 
 By default, collision-detection is completely disabled between two colliders when both are attached to non-dynamic bodies.
 Sometimes, it can be useful to enable collision-detection between, e.g., a collider attached to a kinematic rigid-body
-and a collider attached to a fixed rigid-body. This can be done by modifying the collider's `ActiveCollisionTypes`:
+and a collider attached to a fixed rigid-body. This can be done by modifying the collider's <notc>`ActiveCollisionTypes`</notc><c>active collision types, a bit mask made of the `R3_COLLISION_TYPES_*` flags</c>:
 
 <rapier>
 
@@ -36,18 +36,45 @@ and a collider attached to a fixed rigid-body. This can be done by modifying the
 ```
 
 </js>
+<c>
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='ActiveCollisionTypes1' />
+```
+```c
+<load path='/2d/c/examples/colliders2.c' marker='ActiveCollisionTypes2' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='ActiveCollisionTypes1' />
+```
+```python
+<load path='/3d/python/colliders.py' marker='ActiveCollisionTypes2' />
+```
+
+</py>
 
 :::info
 To enable collision-detection between kinematic bodies and fixed bodies (as well as dynamic bodies),
 set its active collision types to:
 
-<notjs>
+<rapier>
 
 ```rust
 ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_FIXED
 ```
 
-</notjs>
+</rapier>
+<bevy>
+
+```rust
+ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_STATIC
+```
+
+</bevy>
 
 <js>
 
@@ -56,4 +83,18 @@ RAPIER.ActiveCollisionTypes.DEFAULT | RAPIER.ActiveCollisionTypes.KINEMATIC_FIXE
 ```
 
 </js>
+<c>
+
+```c
+R3_COLLISION_TYPES_DEFAULT | R3_COLLISION_TYPES_KINEMATIC_FIXED
+```
+
+</c>
+<py>
+
+```python
+rp.ActiveCollisionTypes.default_types() | rp.ActiveCollisionTypes.KINEMATIC_FIXED
+```
+
+</py>
 :::

@@ -95,9 +95,7 @@ int main(void) {
     assert(RAPIER_FN(RigidBody_SetTranslation)(root, position, 1) ==
            RAPIER_CONST(INVALID_ARGUMENT));
 
-    RAPIER_TYPE(Bool) removed = RAPIER_FN(RemoveRigidBody)(body, 1);
-    OK(RAPIER_FN(LastStatus)());
-    assert(removed);
+    OK(RAPIER_FN(RemoveRigidBody)(body, 1));
     RAPIER_TYPE(RigidBodyHandle) replacement = RAPIER_FN(InsertRigidBody)(world, &desc);
     OK(RAPIER_FN(LastStatus)());
     assert(replacement.index == body.index && replacement.generation != body.generation);

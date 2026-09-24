@@ -1,7 +1,6 @@
 ---
 id: getting_started_bevy
 title: Getting started
-sidebar_label: Getting started
 ---
 
 import Tabs from '@theme/Tabs';
@@ -12,20 +11,46 @@ in Rust. It is based on the ECS (Entity-Component-System) paradigm and allows th
 of components, systems, and resources that share a common objective.
 
 The [**bevy_rapier2d**](https://crates.io/crates/bevy_rapier2d) and [**bevy_rapier3d**](https://crates.io/crates/bevy_rapier3d)
-crates which integrate **Rapier** to **Bevy** using their plugin system.
-To get the best of **bevy-rapier** multiple features can be enabled optionally:
-- `debug-render-2d`/`debug-render-3d`: enables the debug-renderer plugin.
-- `simd-stable`: enables explicit SIMD optimizations using the [`wide` crate](https://crates.io/crates/wide).
-  Has limited cross-platform support but can be used with a stable version of the Rust compiler.
-- `simd-nightly`: enables explicit SIMD optimizations using the [`packed_simd` crate](https://crates.io/crates/packed_simd).
-  Has a great cross-platform support but requires a nightly version of the Rust compiler.
-- `parallel`: enables parallelism of the physics pipeline with the [`rayon` crate](https://crates.io/crates/rayon).
-- `serde-serialize`: enables serialization of the physics components with [`serde`](https://github.com/serde-rs/serde).
-- `enhanced-determinism`: enables cross-platform determinism (assuming the rest of your code is also deterministic)
-  across all 32-bit and 64-bit platforms that implements the IEEE 754-2008 standard strictly. This includes most modern
-  processors as well as WASM targets.
-- `wasm-bindgen`: enables usage of `rapier` as a dependency of a WASM crate that is compiled with `wasm-bindgen`.
+crates integrate **Rapier** to **Bevy** using its plugin system. Note that the development version of **bevy_rapier**
+tracks the `main` branch of Bevy, whereas each release of **bevy_rapier** targets one specific release of Bevy: make
+sure to pick the version of **bevy_rapier** matching the version of Bevy you are using.
 
+The following features are enabled by default:
+- `debug-render-2d`/`debug-render-3d`: enables the [debug-renderer](./debug_render.mdx) plugin
+  `RapierDebugRenderPlugin`, which draws what the physics engine sees with Bevy's gizmos. `bevy_rapier2d` enables
+  `debug-render-2d` and `bevy_rapier3d` enables `debug-render-3d`. Both crates also have a `debug-render` feature,
+  which is an alias of the one matching their dimension.
+- `picking-backend`: enables the `RapierPickingPlugin`, a backend of `bevy_picking` based on ray-casts against the
+  colliders.
+- `async-collider`: enables the `AsyncCollider` and `AsyncSceneCollider` components (3D only) which compute colliders
+  from Bevy meshes, or from the meshes of a Bevy scene, once they are loaded.
+- `to-bevy-mesh`: enables the conversion of a collider shape into a Bevy `Mesh`, e.g., with `Mesh::try_from(&collider)`.
+
+Note that these default features pull some rendering-related parts of Bevy. A headless application (e.g. a game server)
+can disable them with `default-features = false`.
+
+To get the best of **bevy_rapier** multiple features can be enabled optionally:
+- `parallel`: enables parallelism of the physics pipeline with the [`rayon` crate](https://crates.io/crates/rayon).
+- `simd8`: widens the SIMD of the solver from 4 to 8 lanes. Note that the compiler only emits actual 256-bit
+  instructions on an AVX-enabled target (e.g. with `RUSTFLAGS="-C target-cpu=native"`); otherwise the 8-lanes path will
+  be much slower (it will be emulated as two 128-bit halves).
+- `serde-serialize`: enables [serialization](./serialization.mdx) of the physics contexts with
+  [`serde`](https://github.com/serde-rs/serde).
+- `enhanced-determinism`: enables cross-platform [determinism](./determinism.mdx) (assuming the rest of your code is
+  also deterministic) across all 32-bit and 64-bit platforms that implements the IEEE 754-2008 standard strictly. This
+  includes most modern processors as well as WASM targets. It cannot be enabled at the same time as `simd8`.
+- `block-solver`: couples the two normal constraints of a contact pair into a single 2x2 solve.
+- `fem`: adds an alternative FEM solver for the [soft-bodies](./soft_bodies.mdx), selected body by body.
+- `profiler`: enables the internal profiler of Rapier, which gives the time spent by each stage of a timestep. This is
+  needed for the timings measured by the `RapierDiagnosticsPlugin`, except for the total step time.
+- `unsync-callbacks`: drops the `Sync` requirement from the callbacks of Rapier. As a side effect, this removes the
+  thread-pool API, therefore `RapierConfiguration::num_threads` is ignored.
+- `solver-bounds-checks`: adds bounds-checks to some unchecked accesses of the constraints solver. This is only
+  meant for debugging.
+- `rapier-debug-render`: enables the debug-render pipeline of Rapier alone, without the Bevy rendering dependencies,
+  e.g., to implement your own `DebugRenderBackend`.
+- `urdf`, `mjcf`, and `meshloader` (3D only): enable the [scene loaders](./scene_loaders.mdx) of robots described by
+  URDF or MJCF files, and of colliders built from mesh files.
 
 ## Cargo example
 To use these crates, the first step is to add a dependency to your `Cargo.toml`:
@@ -59,7 +84,7 @@ bevy_rapier3d = "*"
   </TabItem>
 </Tabs>
 
-If you need to enable some Rapier features like SIMD, parallelism, serialization, or determinism, you can enable them on
+If you need to enable some Rapier features like parallelism, serialization, or determinism, you can enable them on
 **bevy_rapier** directly.
 
 
@@ -76,7 +101,7 @@ values={[
 [dependencies]
 # TODO: Replace the * by the latest version numbers.
 bevy = "*"
-bevy_rapier2d = { version = "*", features = [ "simd-stable", "debug-render-2d" ] }
+bevy_rapier2d = { version = "*", features = [ "parallel", "serde-serialize" ] }
 ```
 
   </TabItem>
@@ -86,7 +111,7 @@ bevy_rapier2d = { version = "*", features = [ "simd-stable", "debug-render-2d" ]
 [dependencies]
 # TODO: Replace the * by the latest version numbers.
 bevy = "*"
-bevy_rapier3d = { version = "*", features = [ "simd-stable", "debug-render-3d" ] }
+bevy_rapier3d = { version = "*", features = [ "parallel", "serde-serialize" ] }
 ```
 
   </TabItem>
@@ -127,11 +152,71 @@ values={[
 </Tabs>
 
 
+## Plugins
+The `RapierPhysicsPlugin` is the plugin responsible for the physics simulation. Its type parameter selects the
+[physics hooks](./advanced_collision_detection.mdx#physics-hooks) of the simulation (`NoUserData` when you don't need
+any). When it is added to the app, it spawns the default physics context (see the
+[simulation structures](./simulation_structures.mdx) page), and adds the systems synchronizing the components of your
+entities with Rapier, stepping the simulation, and writing the results back into the components. Its constructors and
+builder methods control how this is set up:
+- `RapierPhysicsPlugin::pixels_per_meter` (2D only) and `RapierPhysicsPlugin::with_length_unit` set the
+  [length unit](./integration_parameters.mdx#length_unit) of the default physics context.
+- `RapierPhysicsPlugin::in_fixed_schedule` and `RapierPhysicsPlugin::in_schedule` run the physics systems in
+  `FixedUpdate` or in any other schedule instead of `PostUpdate`.
+- `RapierPhysicsPlugin::with_custom_initialization` changes the initial parameters of the default physics context (see
+  the [integration parameters](./integration_parameters.mdx) page), or disables its creation (see the
+  [multiple physics contexts](./multiple_contexts.mdx) page).
+- `RapierPhysicsPlugin::with_default_system_setup(false)` doesn't add the physics systems at all, so you can add them
+  yourself (e.g. to split them across different schedules) with `RapierPhysicsPlugin::get_systems`.
+
+Other plugins are provided for optional features:
+- `RapierDebugRenderPlugin` enables the [debug-renderer](./debug_render.mdx).
+- `RapierDiagnosticsPlugin` measures the simulation (step time, number of bodies, colliders, contacts, etc.) with
+  Bevy's diagnostics. See the [diagnostics](./simulation_structures.mdx#diagnostics) section.
+- `RapierPickingPlugin` enables the picking backend (with the `picking-backend` feature).
+- `MjcfPlugin` drives the actuators of the models loaded from MJCF files (3D only, with the `mjcf` feature). See the
+  [scene loaders](./scene_loaders.mdx) page.
+
+For example, the following runs the physics in `FixedUpdate` (which is generally what a game with networking or
+replays needs, since the simulation then advances at the same rate whatever the frame rate), with the debug-renderer
+and the diagnostics enabled:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/setup_plugins2.rs' marker='Plugins' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/setup_plugins3.rs' marker='Plugins' />
+```
+
+  </TabItem>
+</Tabs>
+
+:::info
+When the physics runs in `FixedUpdate`, it is recommended to use a `TimestepMode::Fixed` timestep mode, so each run of
+the schedule advances the simulation by the same amount of time. See the
+[integration parameters](./integration_parameters.mdx#time-stepping) page for details about the timestep modes.
+:::
+
 ## The debug renderer
-The `bevy_rapier` plugin comes with a debug-render (either `debug-render-2d` or `debug-render-3d`) to help visualize exactly what the physics-engine sees. This
+The `bevy_rapier` plugin comes with a debug-renderer to help visualize exactly what the physics-engine sees. This
 can help fixing some bugs like colliders not being properly aligned with your graphics representation.
-The debug-renderer is be enabled by:
-1. Enabling the `debug-render-2d` or `debug-render-3d` cargo feature of bevy-rapier.
+The debug-renderer is enabled by:
+1. Enabling the `debug-render-2d` or `debug-render-3d` cargo feature of **bevy_rapier** (they are enabled by default).
 2. Adding the plugin `RapierDebugRenderPlugin` to the Bevy app.
+
+What it draws can be configured, as described in the [debug-renderer](./debug_render.mdx) page.
 
 ![debug-render](/img/rapier_debug_render.png)

@@ -796,3 +796,55 @@ pub unsafe extern "C" fn rpr_rigid_body_wake_up(
         Ok(())
     })
 }
+
+pub(crate) unsafe fn native_rigid_body_dominance_group(
+    object: *const RprRigidBody,
+    out: *mut i8,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(out, object.0.dominance_group())
+    })
+}
+
+pub(crate) unsafe fn native_rigid_body_additional_solver_iterations(
+    object: *const RprRigidBody,
+    out: *mut usize,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(out, object.0.additional_solver_iterations())
+    })
+}
+
+pub(crate) unsafe fn native_rigid_body_additional_pgs_iterations(
+    object: *const RprRigidBody,
+    out: *mut usize,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(out, object.0.additional_pgs_iterations())
+    })
+}
+
+pub(crate) unsafe fn native_rigid_body_is_fast_rotation_allowed(
+    object: *const RprRigidBody,
+    out: *mut RprBool,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let object = get(object)?;
+        output(out, object.0.is_fast_rotation_allowed() as RprBool)
+    })
+}
+
+pub(crate) unsafe fn native_rigid_body_set_allow_fast_rotation(
+    object: *mut RprRigidBody,
+    value: RprBool,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let value = boolean(value)?;
+        let object = get_mut(object)?;
+        object.0.set_allow_fast_rotation(value);
+        Ok(())
+    })
+}

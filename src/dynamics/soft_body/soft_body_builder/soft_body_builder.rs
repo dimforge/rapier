@@ -96,12 +96,10 @@ pub struct SoftBodyBuilder {
     /// Whether the default collision surface's shape is built with parry's `ORIENTED` flag
     /// (see [`Self::oriented`]); `None`: when the surface is closed.
     pub oriented: Option<bool>,
-    /// Thickness of the particles: the radius of their ball colliders (bodies colliding through
-    /// their particles), the surface collider's contact skin otherwise.
+    /// Thickness of the particles: the contact skin of the body's surface collider.
     pub particle_radius: Real,
-    /// Template of the body's colliders: the deformable surface collider, or the particles'
-    /// balls (their shape is replaced by a ball of `particle_radius`) for a body colliding through
-    /// its particles; `None` disables collisions.
+    /// Template of the colliders of the body's collision meshes (their shape is the mesh's own);
+    /// `None` disables collisions.
     pub collider_template: Option<ColliderBuilder>,
     /// Mesh held by the cells, if any: `(vertices, elements)` in world space, bound to the
     /// cells at build time.

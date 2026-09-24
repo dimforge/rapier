@@ -1,0 +1,331 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Joints and rigid colliders both need a frame to be attached to, i.e., a translation and a rotation, which a soft-body
+doesn't have. This is what **soft frames** are for: a soft frame is a rigid-body of type
+<notjs>`RigidBodyType::SoftFrame`</notjs><js>`RigidBodyType.SoftFrame`</js><c>`R3_SOFT_FRAME` (see `r3RigidBody_IsSoftFrame`)</c><py>`RigidBodyType.SOFT_FRAME` (see `RigidBody.is_soft_frame`)</py> which pose is computed at each timestep
+from a set of particles, by shape-matching. Since it is an ordinary rigid-body, every API working with rigid-bodies
+works with it too: [impulse joints](./joints.mdx) of any kind (fixed, revolute, prismatic, generic, etc.) can be
+attached to it, as well as rigid colliders (sensors included), and its position can be read at any time. Therefore a
+soft-body is linked to another soft-body, to a rigid-body, or to a [multibody](./joint_constraints.mdx#multibodies)
+exactly the same way two rigid-bodies are.
+
+### The root body
+Every soft-body is created with one soft frame covering all of its particles: its **root body**. It is the rigid-body
+given by <rapier>`SoftBody::root_body`</rapier><bevy>`RapierSoftBody::root_body`</bevy><js>`SoftBody.rootBody`</js><c>`r3SoftBody_RootBody`</c><py>`SoftBody.root_body`</py>. A
+joint attached to it acts on the soft-body as a whole, and so does a force or an impulse applied to it. It also stands
+for the soft-body in the islands, and it is the parent of the colliders the engine built for the body's surface (a
+deformable collider bound to another [cluster](./soft_bodies.mdx#clusters) has the proxy of that cluster as its parent
+instead). The soft-body a collider belongs to is given by <rapier>`Collider::deformable_mesh_ref`</rapier><bevy>the
+`deformable_mesh_ref` of the Rapier collider</bevy><js>`Collider.softBody`</js><c>`r3Collider_SoftBody`</c><py>`Collider.deformable_mesh_ref`</py>, which is how a collider reported by a
+[scene query](./scene_queries.mdx) or by a [collision
+event](./advanced_collision_detection.mdx#collision-and-contact-force-events) is traced back to the body it
+covers.<bevy> Note that this is rarely needed here, since the colliders of the surface report the soft-body entity
+itself as their entity.</bevy>
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='RootBody' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='RootBody' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='RootBody' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='RootBody' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+The soft-body entity stands for its root body: an `ImpulseJoint` inserted on the soft-body entity,
+or which parent is the soft-body entity, is attached to the root body, and so is a `Collider` inserted on a child
+entity of the soft-body entity (such a child follows the pose of the root body, as explained in the
+[soft-bodies and entities](./soft_bodies.mdx#soft-bodies-and-entities) section). The handle of the root body is
+given by `soft_body_whole_proxy`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='RootBody' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='RootBody' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='RootBody' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='RootBody' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='RootBody' />
+```
+
+</py>
+
+:::warning
+The pose of the root body is recomputed from the particles at each timestep, therefore moving it has no effect.
+<notc>Removing it is not a no-op though: like any cluster proxy, it takes its cluster with it, i.e., the whole soft-body,</notc>
+<notc>unless another cluster covers some of its particles (see [removal](./soft_bodies.mdx#removal)).</notc>
+<c>Removing it with `r3RemoveRigidBody` is rejected (with `R3_INVALID_ARGUMENT`): the soft-body is removed as a whole with `r3RemoveSoftBody` instead (see [removal](./soft_bodies.mdx#removal)).</c>
+:::
+
+### Clusters
+A single frame for the whole body is often not expressive enough: several joints attached to the root body all act on
+the body as a whole, and their effect isn't concentrated where they are attached. This is why a soft-body can also be
+given **clusters** (<rapier>`PhysicsWorld::add_soft_body_cluster`</rapier><bevy>entities with a `SoftBodyCluster`
+component</bevy><js>`World.addSoftBodyCluster`</js><c>`r3SoftBody_AddCluster`</c><py>`PhysicsWorld.add_soft_body_cluster`</py>), i.e.,
+soft frames over any subset of its particles, each with its own pose computed by shape-matching over that subset only.
+Joints attached to different clusters then act on different parts of the body, each with its own orientation:
+
+<center>
+![One soft frame per cluster](/img/soft_bodies/multi_clusters.svg)
+</center>
+
+Similarly, rigid colliders attached to the proxies of different clusters move and rotate independently, which is what
+allows the definition of rigid parts on a deformable body: the handle of a deformable hammer, the bones of a soft
+character, or the plate a jelly is carried on.
+
+<center>
+![Rigid colliders attached to different soft frames](/img/soft_bodies/multi_colliders.svg)
+</center>
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Clusters' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Clusters' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Clusters' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Clusters' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+A cluster is created by inserting a `SoftBodyCluster` component (containing the soft-body entity it
+related to and the indices of the particles of the cluster) on another entity than the soft-body entity. The plugin then
+inserts the `RapierRigidBodyHandle` of the proxy of the cluster on that entity, which can therefore be used like any rigid-body
+entity by the `ImpulseJoint`s, as well as by the `Collider`s inserted on its children. The pose of the proxy is written
+back to the `Transform` of the cluster entity after each step, so its children follow every motion of the cluster.
+Note that the cluster entity must not be given a `RigidBody` component, that modifying its `Transform` has no effect,
+and that its `SoftBodyCluster` component is only read when the cluster is created:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Clusters' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Clusters' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+A cluster is identified by its index in the soft-body, returned by `r3SoftBody_AddCluster`, and its proxy is given by
+`r3SoftBody_ClusterProxy`. The indices of the live clusters of a body are given by `r3SoftBody_Clusters`, and the
+particles of one of them by `r3SoftBody_ClusterParticles`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='Clusters' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='Clusters' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+A cluster is identified by its index in the soft-body, returned by `add_soft_body_cluster` (which returns `None` if
+none of the given particles is valid), and its proxy is given by `SoftBody.cluster_proxy`. Snapshots of the live
+clusters of a body (their index, particles, and proxy) are given by the `clusters` property of `SoftBody`, and the
+cluster a proxy stands for by the `soft_body` and `soft_cluster` properties of its `RigidBody`:
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='Clusters' />
+```
+
+</py>
+
+A cluster also defines a few settings for the elements it covers, which gives regional materials without needing
+separate bodies:
+- The **stiffness scale**
+  (<rapier>`set_cluster_stiffness_scale`</rapier><bevy>`SoftBodyClusterMaterial::stiffness_scale`</bevy><js>`setClusterStiffnessScale`</js><c>`r3SoftBody_SetClusterStiffnessScale`</c><py>`set_cluster_stiffness_scale`</py>)
+  multiplies the Young modulus of every cell entirely contained in the cluster (the cells straddling its boundary are
+  left unchanged).
+- The **edge softness**
+  (<rapier>`set_cluster_edge_softness`</rapier><bevy>`SoftBodyClusterMaterial::edge_softness`</bevy><js>`setClusterEdgeSoftness`</js><c>`r3SoftBody_SetClusterEdgeSoftness`</c><py>`set_cluster_edge_softness`</py>)
+  overrides the softness of every edge entirely contained in the cluster, e.g., a stiffer collar on a shirt.
+- The **tear resistance**
+  (<rapier>`set_cluster_tear_resistance`</rapier><bevy>`SoftBodyClusterMaterial::tear_resistance`</bevy><js>`setClusterTearResistance`</js><c>`r3SoftBody_SetClusterTearResistance`</c><py>`set_cluster_tear_resistance`</py>)
+  multiplies the tear thresholds of every element entirely contained in the cluster, e.g., a tough region, or a
+  perforation line.
+- **Shape-matching** (<rapier>`enable_cluster_shape_matching`</rapier><bevy>the `SoftBodyClusterShapeMatching`
+  component</bevy><js>`enableClusterShapeMatching`</js><c>`r3SoftBody_SetClusterShapeMatchingEnabled`</c><py>`enable_cluster_shape_matching`</py>) pulls the particles of the cluster toward the frame of its
+  proxy<rapier> (or toward the target pose given by `SoftBodyCluster::set_shape_matching_target`)</rapier><bevy> (or
+  toward the world-space `target` of that component)</bevy><c> (or toward the target pose given by `r3SoftBody_SetClusterShapeMatchingTarget`)</c><py> (or toward the target pose given by `set_cluster_shape_matching_target`)</py>, so that part of the body tends to keep the shape it was
+  created with.
+
+<bevy>
+
+These cluster components, as well as the ones [controlling a cluster](./soft_bodies.mdx#controlling-a-region-kinematically)
+kinematically, are applied again whenever they change, and can also be inserted on the soft-body entity itself in order
+to act on its whole-body cluster.
+
+</bevy>
+
+:::warning
+The rotation of a cluster is deduced from its particles, which isn't possible for a cluster made of a single particle
+(or, in 3D, of collinear particles). Such a cluster has no angular response, therefore the angular parts of the joints
+attached to its proxy are disabled.
+:::

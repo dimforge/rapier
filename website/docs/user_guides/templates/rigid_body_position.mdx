@@ -3,7 +3,7 @@ import TabItem from '@theme/TabItem';
 
 The position of a rigid-body represents its location (translation) in 2D or 3D world-space, as well as its orientation (rotation).
 <rapier>Its translational part is represented as a vector and its rotational part as an unit quaternion (in 3D) or a unit complex
-number (in 2D). Both are combined into a pose (the `Pose` type)</rapier><bevy> stored in the standard Bevy `Transform` component</bevy>.
+number (in 2D). Both are combined into a pose (the `Pose` type)</rapier><bevy>Both are stored in the standard Bevy `Transform` component</bevy><c>Its translational part is represented as a vector (`R3Vector`) and its rotational part as a unit quaternion (`R3Rotation`) in 3D, or as an angle in radians (`R2Rotation`) in 2D. Both are combined into a pose (the `R3Pose` structure)</c><py>Its translational part is represented as a vector (`Vec3`, though a tuple of three floats is accepted as well) and its rotational part as a unit quaternion (`Rotation3`). Both are combined into a pose (the `Isometry3` type)</py>.
 
 The position of a rigid-body can be set when creating it. It can also be set after
 its creation as illustrated below.
@@ -112,6 +112,48 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Position1' />
+```
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Position2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='Position1' />
+```
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='Position2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Position1' />
+```
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Position2' />
+```
+
+</py>
 
 In order to move a dynamic rigid-body it is strongly discouraged to set its position directly as it
 may results in weird behaviors: it's as if the rigid-body teleports itself, which is a non-physical behavior. For dynamic
@@ -133,8 +175,9 @@ The position of the kinematic body will be automatically set to these values dur
 
 For **velocity-based** kinematic bodies, it is recommended to set its velocity instead of setting its position directly.
 For **position-based** kinematic bodies, it is recommended to modify its `Transform` (changing its velocity won’t have
-any effect). This will let the physics engine compute the fictitious velocity of the kinematic body for more
-realistic intersections with other rigid-bodies.
+any effect). This won't teleport the kinematic body immediately: the modified `Transform` is used as its next
+kinematic position, which lets the physics engine compute the fictitious velocity of the kinematic body for more
+realistic interactions with other rigid-bodies.
 
 </bevy>
 <js>
@@ -149,3 +192,35 @@ interactions with other rigid-bodies. These methods won't immediately modify the
 The position of the kinematic body will be automatically set to these values during the next physics pipeline update.
 
 </js>
+<c>
+
+For **velocity-based** kinematic bodies, it is recommended to set its velocity instead of setting its position directly.
+For **position-based** kinematic bodies, it is recommended to use the special functions:
+- `r3RigidBody_SetNextKinematicRotation`
+- `r3RigidBody_SetNextKinematicTranslation`
+- `r3RigidBody_SetNextKinematicPosition` (for both at once)
+
+These functions will let the physics pipeline compute the fictitious velocity of the position-based kinematic body for
+more realistic interactions with other rigid-bodies. These functions won't immediately modify the position of the
+kinematic body itself. The position of the kinematic body will be automatically set to these values during the next
+physics pipeline update (the pending pose can be read with `r3RigidBody_NextPosition`).
+
+</c>
+<py>
+
+For **velocity-based** kinematic bodies, it is recommended to set its velocity instead of setting its position directly.
+For **position-based** kinematic bodies, it is recommended to use the special methods:
+- `RigidBody.set_next_kinematic_rotation`
+- `RigidBody.set_next_kinematic_translation`
+- `RigidBody.set_next_kinematic_position` (for both at once)
+
+These methods will let the physics pipeline compute the fictitious velocity of the position-based kinematic body for
+more realistic interactions with other rigid-bodies. These methods won't immediately modify the position of the
+kinematic body itself. The position of the kinematic body will be automatically set to these values during the next
+physics pipeline update (the pending pose can be read with the `RigidBody.next_position` property).
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='KinematicPosition' />
+```
+
+</py>

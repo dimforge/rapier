@@ -1,0 +1,56 @@
+---
+id: getting_started_py
+title: Getting started
+---
+
+## Installing Rapier with pip
+The Python bindings of **rapier** are available as the [**rapier3d** package](https://pypi.org/project/rapier3d/),
+which wraps the 3D physics engine with 32-bits floats. There is no 2D version of the Python bindings yet, so only the
+3D examples of this guide are shown. The package requires Python 3.9 or later, and can be installed with `pip`:
+
+```sh
+pip install rapier3d
+```
+
+Until **rapier** reaches 1.0, it is strongly recommended to always use its
+latest published version, though you may encounter breaking changes from time to time.
+
+Some functions (e.g. the ones reading or writing many particle positions at once) accept and return
+[NumPy](https://numpy.org) arrays. NumPy is installed along with the `numpy` extra: `pip install rapier3d[numpy]`.
+
+## Building from source
+The bindings can also be built from the `python` folder of the [Rapier repository](https://github.com/dimforge/rapier),
+e.g., to use a version of Rapier that isn't published yet. This requires a Rust toolchain and
+[maturin](https://www.maturin.rs/). From the root of the repository, and with your virtual environment activated:
+
+```sh
+pip install maturin
+maturin develop --release -m python/rapier-py-3d/Cargo.toml
+```
+
+This installs the package into your virtual environment in editable mode. Replacing `maturin develop` by
+`maturin build` produces a wheel instead. The following cargo features can be given to maturin with `-F`:
+- `determinism`: enables cross-platform determinism (assuming the rest of your code is also deterministic) across
+  all 32-bit and 64-bit platforms that implements the IEEE 754-2008 standard strictly.
+
+The engine is always built with parallelism enabled: each physics world uses its own pool of threads, and the GIL is
+released while it is being stepped.
+
+## Basic simulation example
+
+Here is a basic example of a Python script. This creates a ball bouncing on a fixed ground. Details about the
+elements used in this examples are given in subsequent pages of this guide.
+
+```python
+<load path='/3d/python/basic_sim.py' marker='basic_sim' />
+```
+
+:::info
+This example lets the [PhysicsWorld](./simulation_structures.mdx) own every structure of the simulation. Its
+`add_body` method inserts a rigid-body together with its colliders.
+:::
+
+## API reference
+Every class and method of the Python bindings is documented by its docstring, and listed in the
+[API reference of the Python bindings](/docs/api/python/Python). The package also ships type stubs, so that your
+editor can show them and check your code.

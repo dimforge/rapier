@@ -4,40 +4,24 @@ use rapier2d::{
 };
 
 fn main() {
-    let mut bodies = RigidBodySet::new();
-    let mut colliders = ColliderSet::new();
+    let mut world = PhysicsWorld::new();
 
     /* Create the ground. */
-    let collider = ColliderBuilder::cuboid(100.0, 0.1).build();
-    colliders.insert(collider);
+    world.insert_collider(ColliderBuilder::cuboid(100.0, 0.1), None);
 
     /* Create the body to control. */
-    let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(Vector::new(0.0, 10.0))
-        .build();
     let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
-    let rigid_body_handle = bodies.insert(rigid_body);
-    colliders.insert_with_parent(collider.clone(), rigid_body_handle, &mut bodies);
+    let (rigid_body_handle, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 10.0)),
+        collider.clone(),
+    );
 
-    /* Create other structures necessary for the simulation. */
-    let gravity = Vector::new(0.0, -9.81);
-    let integration_parameters = IntegrationParameters::default();
-    let mut physics_pipeline = PhysicsPipeline::new();
-    let mut island_manager = IslandManager::new();
-    let mut broad_phase = DefaultBroadPhase::new();
-    let mut narrow_phase = NarrowPhase::new();
-    let mut impulse_joint_set = ImpulseJointSet::new();
-    let mut multibody_joint_set = MultibodyJointSet::new();
-    let mut soft_body_set = SoftBodySet::new();
-    let mut ccd_solver = CCDSolver::new();
-    let physics_hooks = ();
-    let event_handler = ();
     let character_shape = collider.shape();
-    let dt = integration_parameters.dt;
+    let dt = world.integration_parameters.dt;
     /* Run the game loop, stepping the simulation once per frame. */
     for _ in 0..200 {
         {
-            let character_pos = bodies[rigid_body_handle].position();
+            let character_pos = world.bodies[rigid_body_handle].position();
             // DOCUSAURUS: Setup start
             // The translation we would like to apply if there were no obstacles.
             let desired_translation = Vector::new(1.0, -2.0);
@@ -47,12 +31,7 @@ fn main() {
             let filter = QueryFilter::default()
                 // Make sure the character we are trying to move isn’t considered an obstacle.
                 .exclude_rigid_body(rigid_body_handle);
-            let query_pipeline = broad_phase.as_query_pipeline(
-                narrow_phase.query_dispatcher(),
-                &bodies,
-                &colliders,
-                filter,
-            );
+            let query_pipeline = world.query_pipeline_with_filter(filter);
             // Calculate the possible movement.
             let corrected_movement = character_controller.move_shape(
                 dt,              // The timestep length (can be set to SimulationSettings::dt).
@@ -66,33 +45,14 @@ fn main() {
             // DOCUSAURUS: Setup stop
         }
 
-        physics_pipeline.step(
-            gravity,
-            &integration_parameters,
-            &mut island_manager,
-            &mut broad_phase,
-            &mut narrow_phase,
-            &mut bodies,
-            &mut colliders,
-            &mut impulse_joint_set,
-            &mut multibody_joint_set,
-            &mut soft_body_set,
-            &mut ccd_solver,
-            &physics_hooks,
-            &event_handler,
-        );
+        world.step();
         let filter = QueryFilter::default()
             // Make sure the character we are trying to move isn’t considered an obstacle.
             .exclude_rigid_body(rigid_body_handle);
-        let query_pipeline = broad_phase.as_query_pipeline(
-            narrow_phase.query_dispatcher(),
-            &bodies,
-            &colliders,
-            filter,
-        );
+        let query_pipeline = world.query_pipeline_with_filter(filter);
 
         {
-            let character_pos = bodies[rigid_body_handle].position();
+            let character_pos = world.bodies[rigid_body_handle].position();
             let desired_translation = Vector::new(1.0, -2.0);
             // DOCUSAURUS: Collisions1 start
             let character_controller = KinematicCharacterController::default();
@@ -126,10 +86,10 @@ fn main() {
             // to the dynamic rigid-bodies hit along its path.
             // Note that we need to init a QueryPipelineMut here (because the impulse
             // application will modify rigid-bodies.
-            let mut query_pipeline_mut = broad_phase.as_query_pipeline_mut(
-                narrow_phase.query_dispatcher(),
-                &mut bodies,
-                &mut colliders,
+            let mut query_pipeline_mut = world.broad_phase.as_query_pipeline_mut(
+                world.narrow_phase.query_dispatcher(),
+                &mut world.bodies,
+                &mut world.colliders,
                 filter,
             );
             character_controller.solve_character_collision_impulses(
@@ -141,7 +101,7 @@ fn main() {
             );
             // DOCUSAURUS: Collisions2 stop
         }
-        let character_body = &bodies[rigid_body_handle];
+        let character_body = &world.bodies[rigid_body_handle];
         println!("Character body position: {}", character_body.translation());
     }
 
@@ -174,7 +134,7 @@ fn main() {
         min_width: CharacterLength::Absolute(0.2),
         include_dynamic_bodies: true,
     });
-    // Autostep if the step height is smaller than 0.5 multiplied by the character’s height,
+    // Autostep if the step height is smaller than 0.3 multiplied by the character’s height,
     // and its width larger than 0.5 multiplied by the character’s width (i.e. half the character’s
     // width).
     character_controller.autostep = Some(CharacterAutostep {

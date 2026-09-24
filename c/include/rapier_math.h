@@ -1,5 +1,7 @@
 /** @file
  * Inline value constructors and arithmetic; no allocation or error-state changes.
+ * Trigonometry uses the library's Sin and Cos, so results match across platforms with
+ * enhanced-determinism; square roots are exactly rounded everywhere.
  * @defgroup inline_math Inline math
  * @ingroup math
  * @{
@@ -46,9 +48,9 @@ static inline RAPIER_TYPE(Rotation) RAPIER_FN(RotationFromAxisAngle)(RAPIER_TYPE
     RAPIER_TYPE(Rotation) result = {0, 0, 0, 1};
     return result;
   }
-  RAPIER_TYPE(Real) scale = (RAPIER_TYPE(Real))sin(angle / 2) / length;
+  RAPIER_TYPE(Real) scale = RAPIER_FN(Sin)(angle / 2) / length;
   RAPIER_TYPE(Rotation) result = {axis.x * scale, axis.y * scale, axis.z * scale,
-                        (RAPIER_TYPE(Real))cos(angle / 2)};
+                        RAPIER_FN(Cos)(angle / 2)};
   return result;
 }
 #endif
@@ -125,8 +127,8 @@ static inline RAPIER_TYPE(Rotation) RAPIER_FN(RotationMul)(RAPIER_TYPE(Rotation)
 static inline RAPIER_TYPE(Vector) RAPIER_FN(RotationTransformVector)(RAPIER_TYPE(Rotation) rotation,
                                                         RAPIER_TYPE(Vector) vector) {
 #if defined(RAPIER_DIM2)
-  const RAPIER_TYPE(Real) c = (RAPIER_TYPE(Real))cos(rotation.angle),
-                s = (RAPIER_TYPE(Real))sin(rotation.angle);
+  const RAPIER_TYPE(Real) c = RAPIER_FN(Cos)(rotation.angle),
+                s = RAPIER_FN(Sin)(rotation.angle);
   return RAPIER_FN(Vector)(c * vector.x - s * vector.y,
                         s * vector.x + c * vector.y);
 #else
@@ -155,6 +157,19 @@ static inline RAPIER_TYPE(Pose) RAPIER_FN(TranslationPose)(RAPIER_TYPE(Vector) t
   RAPIER_TYPE(Rotation) rotation = {0, 0, 0, 1};
 #endif
   return RAPIER_FN(Pose)(translation, rotation);
+}
+/** Construct mass properties from a local center of mass, a mass, and principal angular inertia
+ * (a scalar in 2D); in 3D the principal inertia frame is the identity rotation. */
+static inline RAPIER_TYPE(MassProperties) RAPIER_FN(MassProperties)(RAPIER_TYPE(Vector) local_com,
+                                                     RAPIER_TYPE(Real) mass,
+                                                     RAPIER_TYPE(AngVector) principal_inertia) {
+#if defined(RAPIER_DIM2)
+  RAPIER_TYPE(MassProperties) result = {local_com, mass, principal_inertia};
+#else
+  RAPIER_TYPE(Rotation) frame = {0, 0, 0, 1};
+  RAPIER_TYPE(MassProperties) result = {local_com, mass, principal_inertia, frame};
+#endif
+  return result;
 }
 /** Return the inverse of a normalized rotation. */
 static inline RAPIER_TYPE(Rotation) RAPIER_FN(RotationInverse)(RAPIER_TYPE(Rotation) rotation) {

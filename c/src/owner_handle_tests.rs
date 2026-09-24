@@ -25,7 +25,7 @@ fn collider_insertion_checks_parent_and_preserves_world_on_failure() {
             RprRigidBodyHandle::default()
         );
         ok();
-        assert_eq!(rpr_remove_rigid_body(parent, 1), 1);
+        assert_eq!(rpr_remove_rigid_body(parent, 1), RPR_OK);
         ok();
         assert_eq!(rpr_collider_count(world), 1);
         ok();
@@ -146,7 +146,7 @@ fn returned_arrays_joints_and_query_hits_keep_the_owner() {
         );
         ok();
         assert_eq!(hit.collider, item_collider);
-        assert_eq!(rpr_remove_rigid_body(item_body, 1), 1);
+        assert_eq!(rpr_remove_rigid_body(item_body, 1), RPR_OK);
         ok();
         rpr_rigid_body_translation(item_body);
         assert_eq!(rpr_last_status(), RPR_INVALID_HANDLE);

@@ -124,9 +124,16 @@ static void test_world_pipeline(void) {
 int main(void) {
     OK(RAPIER_FN(CheckAbi)(RAPIER_CONST(ABI_VERSION), RAPIER_CONST(DIMENSION),
                            sizeof(RAPIER_TYPE(Real)), sizeof(RAPIER_TYPE(Vector)),
-                           sizeof(RAPIER_TYPE(Pose))));
+                           sizeof(RAPIER_TYPE(Pose)), RAPIER_CONST(ABI_FEATURES)));
     EXPECT(RAPIER_FN(CheckAbi)(RAPIER_CONST(ABI_VERSION), 99, sizeof(RAPIER_TYPE(Real)),
-                               sizeof(RAPIER_TYPE(Vector)), sizeof(RAPIER_TYPE(Pose))),
+                               sizeof(RAPIER_TYPE(Vector)), sizeof(RAPIER_TYPE(Pose)),
+                               RAPIER_CONST(ABI_FEATURES)),
+           RAPIER_CONST(INVALID_ARGUMENT));
+    /* A RAPIER_FEM define that differs from the library changes IntegrationParameters. */
+    EXPECT(RAPIER_FN(CheckAbi)(RAPIER_CONST(ABI_VERSION), RAPIER_CONST(DIMENSION),
+                               sizeof(RAPIER_TYPE(Real)), sizeof(RAPIER_TYPE(Vector)),
+                               sizeof(RAPIER_TYPE(Pose)),
+                               RAPIER_CONST(ABI_FEATURES) ^ RAPIER_CONST(ABI_FEATURE_FEM)),
            RAPIER_CONST(INVALID_ARGUMENT));
     const char *version = RAPIER_FN(Version)();
     assert(version && strstr(version, "+c."));
@@ -141,6 +148,7 @@ int main(void) {
 #endif
     RAPIER_TYPE(BuildFeatures) features = RAPIER_FN(BuildFeatures)();
     assert(features.simd_lanes == 4 || features.simd_lanes == 8);
+    assert(features.enhanced_determinism == 0 || features.enhanced_determinism == 1);
 #ifdef RAPIER_EXPECTED_SIMD_LANES
     assert(features.simd_lanes == RAPIER_EXPECTED_SIMD_LANES);
 #endif
@@ -439,8 +447,8 @@ int main(void) {
     count = RAPIER_FN(DebugRender)(world, 1, NULL, 0);
     OK(RAPIER_FN(LastStatus)());
     assert(count > 0);
-    RAPIER_FN(RemoveRigidBody)(ball, 1);
-    OK(RAPIER_FN(LastStatus)());
+    OK(RAPIER_FN(RemoveRigidBody)(ball, 1));
+    EXPECT(RAPIER_FN(RemoveRigidBody)(ball, 1), RAPIER_CONST(INVALID_HANDLE));
     EXPECT(RAPIER_FN(RigidBody_ValidateHandle)(ball), RAPIER_CONST(INVALID_HANDLE));
     EXPECT(RAPIER_FN(Collider_ValidateHandle)(ball_collider), RAPIER_CONST(INVALID_HANDLE));
     RAPIER_TYPE(RigidBodyHandle) replacement = add_body(world, RAPIER_CONST(DYNAMIC), 3);

@@ -114,6 +114,48 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Velocity1' />
+```
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Velocity2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='Velocity1' />
+```
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='Velocity2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Velocity1' />
+```
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Velocity2' />
+```
+
+</py>
 
 Alternatively, the velocity of a dynamic rigid-body can be altered indirectly by
 [applying a force or an impulse](./rigid_bodies.mdx#forces-and-impulses).
