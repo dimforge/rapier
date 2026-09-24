@@ -28,7 +28,7 @@ The header also reports **SIMD lanes**, **parallel support**, and the actual wor
 count from the loaded library. Build options are `-DRAPIER_ENABLE_PARALLEL=ON|OFF`
 (default ON for the testbed) and `-DRAPIER_SIMD_LANES=4|8` (default 4). This branch
 always uses SIMD; eight lanes require f32 and cannot be combined with
-`enhanced-determinism`. See [binding build options](../README.md#cmake-and-installation).
+`enhanced-determinism`. See [binding build options](../README.md#build-the-library).
 
 Choose workers under **Settings > Execution**, then Apply, or pass `--threads N`
 to either executable. `0` selects automatic sizing, `1` uses one worker, and the
