@@ -12,7 +12,8 @@ use crate::geometry::{
 };
 use crate::math::{DIM, Real, Vector};
 use crate::pipeline::{
-    EventHandler, PhysicsHooks, PhysicsPipeline, Quarantine, QueryFilter, QueryPipeline,
+    CollisionPipeline, EventHandler, PhysicsHooks, PhysicsPipeline, Quarantine, QueryFilter,
+    QueryPipeline,
 };
 use parry::bounding_volume::{Aabb, BoundingVolume};
 use parry::partitioning::BvhNode;
@@ -68,6 +69,9 @@ pub struct PhysicsWorld {
     /// The main simulation pipeline that orchestrates each physics step.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub physics_pipeline: PhysicsPipeline,
+    /// Workspace for collision-only updates that do not integrate positions or solve constraints.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub collision_pipeline: CollisionPipeline,
     /// Manages active/sleeping body groups (islands) for efficient simulation.
     pub islands: IslandManager,
     /// The broad-phase acceleration structure for fast spatial queries.
@@ -97,6 +101,7 @@ impl Default for PhysicsWorld {
             gravity: Vector::Y * -9.81,
             integration_parameters: IntegrationParameters::default(),
             physics_pipeline: PhysicsPipeline::new(),
+            collision_pipeline: CollisionPipeline::new(),
             islands: IslandManager::new(),
             broad_phase: DefaultBroadPhase::default(),
             narrow_phase: NarrowPhase::new(),
@@ -163,6 +168,23 @@ impl PhysicsWorld {
         );
     }
 
+    /// Update broad-phase and narrow-phase collision detection without advancing simulation.
+    ///
+    /// Uses the prediction distance from this world's integration parameters. This is useful
+    /// after editing transforms when contacts and scene queries must be refreshed immediately.
+    pub fn detect_collisions(&mut self, hooks: &dyn PhysicsHooks, events: &dyn EventHandler) {
+        self.collision_pipeline.step(
+            self.integration_parameters.prediction_distance(),
+            &mut self.islands,
+            &mut self.broad_phase,
+            &mut self.narrow_phase,
+            &mut self.bodies,
+            &mut self.colliders,
+            hooks,
+            events,
+        );
+    }
+
     /// The bodies and colliders automatically disabled during the last step because their
     /// state became non-finite; see [`Quarantine`].
     pub fn quarantine(&self) -> &Quarantine {
@@ -222,6 +244,17 @@ impl PhysicsWorld {
     ///
     /// Returns the removed body, or `None` if the handle was invalid.
     pub fn remove_body(&mut self, handle: RigidBodyHandle) -> Option<RigidBody> {
+        self.remove_body_with_colliders(handle, true)
+    }
+
+    /// Remove a rigid body and its joints, optionally preserving attached colliders.
+    ///
+    /// Preserved colliders become standalone colliders. Returns `None` for an invalid handle.
+    pub fn remove_body_with_colliders(
+        &mut self,
+        handle: RigidBodyHandle,
+        remove_attached_colliders: bool,
+    ) -> Option<RigidBody> {
         self.bodies.remove(
             handle,
             &mut self.islands,
@@ -229,7 +262,7 @@ impl PhysicsWorld {
             &mut self.impulse_joints,
             &mut self.multibody_joints,
             &mut self.soft_bodies,
-            true,
+            remove_attached_colliders,
         )
     }
 

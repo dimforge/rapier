@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Rapier C API @DOC_VERSION@</title>
+<style>body{font:17px/1.6 system-ui,sans-serif;max-width:48rem;margin:4rem auto;padding:0 1rem;color:#223}a{color:#1762a6}table{border-collapse:collapse}th,td{padding:.6rem 2rem .6rem 0;text-align:left}code{font-size:.9em}</style>
+<h1>Rapier C API</h1><p>Version @DOC_VERSION@. Choose the dimension and precision of your linked library.</p>
+<table><tr><th>Dimension</th><th>32-bit floats</th><th>64-bit floats</th></tr>
+<tr><td>2D</td><td><a href="2d-f32/index.html">r2 / f32</a></td><td><a href="2d-f64/index.html">r2 / f64</a></td></tr>
+<tr><td>3D</td><td><a href="3d-f32/index.html">r3 / f32</a></td><td><a href="3d-f64/index.html">r3 / f64</a></td></tr></table>
+<p>References include parallel and FEM APIs. Robotics is available only in 3D/f32.
+Your build must enable each optional feature before you use it.</p>
+</html>

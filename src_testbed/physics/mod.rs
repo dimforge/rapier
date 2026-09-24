@@ -38,6 +38,7 @@ pub fn restore_world(world: &mut PhysicsWorld, snapshot: &PhysicsSnapshot) -> us
         gravity,
         integration_parameters,
         physics_pipeline: _,
+        collision_pipeline: _,
         islands,
         broad_phase,
         narrow_phase,

@@ -1,0 +1,1820 @@
+[
+  {
+    "id": "add_remove2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Add remove",
+    "rust": "examples2d/add_remove2.rs",
+    "c": "examples2d/add_remove2.c",
+    "feature": null
+  },
+  {
+    "id": "drum2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Drum",
+    "rust": "examples2d/drum2.rs",
+    "c": "examples2d/drum2.c",
+    "feature": null
+  },
+  {
+    "id": "inv_pyramid2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Inv pyramid",
+    "rust": "examples2d/inv_pyramid2.rs",
+    "c": "examples2d/inv_pyramid2.c",
+    "feature": null
+  },
+  {
+    "id": "platform2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Platform",
+    "rust": "examples2d/platform2.rs",
+    "c": "examples2d/platform2.c",
+    "feature": null
+  },
+  {
+    "id": "pyramid2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Pyramid",
+    "rust": "examples2d/pyramid2.rs",
+    "c": "examples2d/pyramid2.c",
+    "feature": null
+  },
+  {
+    "id": "sensor2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Sensor",
+    "rust": "examples2d/sensor2.rs",
+    "c": "examples2d/sensor2.c",
+    "feature": null
+  },
+  {
+    "id": "convex_polygons2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Convex polygons",
+    "rust": "examples2d/convex_polygons2.rs",
+    "c": "examples2d/convex_polygons2.c",
+    "feature": null
+  },
+  {
+    "id": "heightfield2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Heightfield",
+    "rust": "examples2d/heightfield2.rs",
+    "c": "examples2d/heightfield2.c",
+    "feature": null
+  },
+  {
+    "id": "polyline2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Polyline",
+    "rust": "examples2d/polyline2.rs",
+    "c": "examples2d/polyline2.c",
+    "feature": null
+  },
+  {
+    "id": "trimesh2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Trimesh",
+    "rust": "examples2d/trimesh2.rs",
+    "c": "examples2d/trimesh2.c",
+    "feature": null
+  },
+  {
+    "id": "voxels2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Voxels",
+    "rust": "examples2d/voxels2.rs",
+    "c": "examples2d/voxels2.c",
+    "feature": null
+  },
+  {
+    "id": "collision_groups2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "Collision groups",
+    "rust": "examples2d/collision_groups2.rs",
+    "c": "examples2d/collision_groups2.c",
+    "feature": null
+  },
+  {
+    "id": "one_way_platforms2",
+    "dimension": 2,
+    "group": "Collisions",
+    "name": "One-way platforms",
+    "rust": "examples2d/one_way_platforms2.rs",
+    "c": "examples2d/one_way_platforms2.c",
+    "feature": null
+  },
+  {
+    "id": "locked_rotations2",
+    "dimension": 2,
+    "group": "Dynamics",
+    "name": "Locked rotations",
+    "rust": "examples2d/locked_rotations2.rs",
+    "c": "examples2d/locked_rotations2.c",
+    "feature": null
+  },
+  {
+    "id": "restitution2",
+    "dimension": 2,
+    "group": "Dynamics",
+    "name": "Restitution",
+    "rust": "examples2d/restitution2.rs",
+    "c": "examples2d/restitution2.c",
+    "feature": null
+  },
+  {
+    "id": "damping2",
+    "dimension": 2,
+    "group": "Dynamics",
+    "name": "Damping",
+    "rust": "examples2d/damping2.rs",
+    "c": "examples2d/damping2.c",
+    "feature": null
+  },
+  {
+    "id": "ccd2",
+    "dimension": 2,
+    "group": "Dynamics",
+    "name": "CCD",
+    "rust": "examples2d/ccd2.rs",
+    "c": "examples2d/ccd2.c",
+    "feature": null
+  },
+  {
+    "id": "joints2",
+    "dimension": 2,
+    "group": "Joints",
+    "name": "Joints",
+    "rust": "examples2d/joints2.rs",
+    "c": "examples2d/joints2.c",
+    "feature": null
+  },
+  {
+    "id": "rope_joints2",
+    "dimension": 2,
+    "group": "Joints",
+    "name": "Rope Joints",
+    "rust": "examples2d/rope_joints2.rs",
+    "c": "examples2d/rope_joints2.c",
+    "feature": null
+  },
+  {
+    "id": "pin_slot_joint2",
+    "dimension": 2,
+    "group": "Joints",
+    "name": "Pin Slot Joint",
+    "rust": "examples2d/pin_slot_joint2.rs",
+    "c": "examples2d/pin_slot_joint2.c",
+    "feature": null
+  },
+  {
+    "id": "joint_motor_position2",
+    "dimension": 2,
+    "group": "Joints",
+    "name": "Joint motor position",
+    "rust": "examples2d/joint_motor_position2.rs",
+    "c": "examples2d/joint_motor_position2.c",
+    "feature": null
+  },
+  {
+    "id": "inverse_kinematics2",
+    "dimension": 2,
+    "group": "Joints",
+    "name": "Inverse kinematics",
+    "rust": "examples2d/inverse_kinematics2.rs",
+    "c": "examples2d/inverse_kinematics2.c",
+    "feature": null
+  },
+  {
+    "id": "multi_pendulum2",
+    "dimension": 2,
+    "group": "Joints",
+    "name": "Multi Pendulum",
+    "rust": "examples2d/multi_pendulum2.rs",
+    "c": "examples2d/multi_pendulum2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_bodies2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Soft bodies",
+    "rust": "examples2d/soft_bodies2.rs",
+    "c": "examples2d/soft_bodies2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_blobs2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Blobs",
+    "rust": "examples2d/soft_blobs2.rs",
+    "c": "examples2d/soft_blobs2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_jelly2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Jelly",
+    "rust": "examples2d/soft_jelly2.rs",
+    "c": "examples2d/soft_jelly2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_surface2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Deformable polylines",
+    "rust": "examples2d/soft_surface2.rs",
+    "c": "examples2d/soft_surface2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_pile2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Soft pile",
+    "rust": "examples2d/soft_pile2.rs",
+    "c": "examples2d/soft_pile2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_thin_features2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Thin features",
+    "rust": "examples2d/soft_thin_features2.rs",
+    "c": "examples2d/soft_thin_features2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_letters2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Soft letters",
+    "rust": "examples2d/soft_letters2.rs",
+    "c": "examples2d/soft_letters2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_plasticity2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Plasticity",
+    "rust": "examples2d/soft_plasticity2.rs",
+    "c": "examples2d/soft_plasticity2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_tearing2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Tearing",
+    "rust": "examples2d/soft_tearing2.rs",
+    "c": "examples2d/soft_tearing2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_force_tearing2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Force tearing",
+    "rust": "examples2d/soft_force_tearing2.rs",
+    "c": "examples2d/soft_force_tearing2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_cutting2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Cutting",
+    "rust": "examples2d/soft_cutting2.rs",
+    "c": "examples2d/soft_cutting2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_stress2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Stress coloring",
+    "rust": "examples2d/soft_stress2.rs",
+    "c": "examples2d/soft_stress2.c",
+    "feature": null
+  },
+  {
+    "id": "soft_fem2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Soft FEM",
+    "rust": "examples2d/soft_fem2.rs",
+    "c": "examples2d/soft_fem2.c",
+    "feature": "fem"
+  },
+  {
+    "id": "soft_joints2",
+    "dimension": 2,
+    "group": "Soft bodies",
+    "name": "Soft joints",
+    "rust": "examples2d/soft_joints2.rs",
+    "c": "examples2d/soft_joints2.c",
+    "feature": null
+  },
+  {
+    "id": "character_controller2",
+    "dimension": 2,
+    "group": "Controls",
+    "name": "Character controller",
+    "rust": "examples2d/character_controller2.rs",
+    "c": "examples2d/character_controller2.c",
+    "feature": null
+  },
+  {
+    "id": "debug_angular_limits2",
+    "dimension": 2,
+    "group": "Debug",
+    "name": "Angular limits",
+    "rust": "examples2d/debug_angular_limits2.rs",
+    "c": "examples2d/debug_angular_limits2.c",
+    "feature": null
+  },
+  {
+    "id": "debug_box_ball2",
+    "dimension": 2,
+    "group": "Debug",
+    "name": "Box ball",
+    "rust": "examples2d/debug_box_ball2.rs",
+    "c": "examples2d/debug_box_ball2.c",
+    "feature": null
+  },
+  {
+    "id": "debug_compression2",
+    "dimension": 2,
+    "group": "Debug",
+    "name": "Compression",
+    "rust": "examples2d/debug_compression2.rs",
+    "c": "examples2d/debug_compression2.c",
+    "feature": null
+  },
+  {
+    "id": "debug_intersection2",
+    "dimension": 2,
+    "group": "Debug",
+    "name": "Intersection",
+    "rust": "examples2d/debug_intersection2.rs",
+    "c": "examples2d/debug_intersection2.c",
+    "feature": null
+  },
+  {
+    "id": "debug_many_colliders2",
+    "dimension": 2,
+    "group": "Debug",
+    "name": "Many colliders",
+    "rust": "examples2d/debug_many_colliders2.rs",
+    "c": "examples2d/debug_many_colliders2.c",
+    "feature": null
+  },
+  {
+    "id": "debug_total_overlap2",
+    "dimension": 2,
+    "group": "Debug",
+    "name": "Total overlap",
+    "rust": "examples2d/debug_total_overlap2.rs",
+    "c": "examples2d/debug_total_overlap2.c",
+    "feature": null
+  },
+  {
+    "id": "debug_vertical_column2",
+    "dimension": 2,
+    "group": "Debug",
+    "name": "Vertical column",
+    "rust": "examples2d/debug_vertical_column2.rs",
+    "c": "examples2d/debug_vertical_column2.c",
+    "feature": null
+  },
+  {
+    "id": "debug_self_intersect2",
+    "dimension": 2,
+    "group": "Debug",
+    "name": "Self intersect",
+    "rust": "examples2d/debug_self_intersect2.rs",
+    "c": "examples2d/debug_self_intersect2.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_high_mass_ratio_1",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "High mass ratio 1",
+    "rust": "examples2d/s2d_high_mass_ratio_1.rs",
+    "c": "examples2d/s2d_high_mass_ratio_1.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_high_mass_ratio_2",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "High mass ratio 2",
+    "rust": "examples2d/s2d_high_mass_ratio_2.rs",
+    "c": "examples2d/s2d_high_mass_ratio_2.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_high_mass_ratio_3",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "High mass ratio 3",
+    "rust": "examples2d/s2d_high_mass_ratio_3.rs",
+    "c": "examples2d/s2d_high_mass_ratio_3.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_confined",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "Confined",
+    "rust": "examples2d/s2d_confined.rs",
+    "c": "examples2d/s2d_confined.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_pyramid",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "Pyramid",
+    "rust": "examples2d/s2d_pyramid.rs",
+    "c": "examples2d/s2d_pyramid.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_card_house",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "Card house",
+    "rust": "examples2d/s2d_card_house.rs",
+    "c": "examples2d/s2d_card_house.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_arch",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "Arch",
+    "rust": "examples2d/s2d_arch.rs",
+    "c": "examples2d/s2d_arch.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_bridge",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "Bridge",
+    "rust": "examples2d/s2d_bridge.rs",
+    "c": "examples2d/s2d_bridge.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_ball_and_chain",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "Ball and chain",
+    "rust": "examples2d/s2d_ball_and_chain.rs",
+    "c": "examples2d/s2d_ball_and_chain.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_joint_grid",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "Joint grid",
+    "rust": "examples2d/s2d_joint_grid.rs",
+    "c": "examples2d/s2d_joint_grid.c",
+    "feature": null
+  },
+  {
+    "id": "s2d_far_pyramid",
+    "dimension": 2,
+    "group": "Inspired by Solver 2D",
+    "name": "Far pyramid",
+    "rust": "examples2d/s2d_far_pyramid.rs",
+    "c": "examples2d/s2d_far_pyramid.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_compounds",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Compounds",
+    "rust": "examples2d/b2d_compounds.rs",
+    "c": "examples2d/b2d_compounds.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_joint_grid",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Joint grid",
+    "rust": "examples2d/b2d_joint_grid.rs",
+    "c": "examples2d/b2d_joint_grid.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_junkyard",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Junkyard",
+    "rust": "examples2d/b2d_junkyard.rs",
+    "c": "examples2d/b2d_junkyard.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_large_pyramid",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Large pyramid",
+    "rust": "examples2d/b2d_large_pyramid.rs",
+    "c": "examples2d/b2d_large_pyramid.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_many_pyramids",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Many pyramids",
+    "rust": "examples2d/b2d_many_pyramids.rs",
+    "c": "examples2d/b2d_many_pyramids.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_rain",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Rain",
+    "rust": "examples2d/b2d_rain.rs",
+    "c": "examples2d/b2d_rain.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_smash",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Smash",
+    "rust": "examples2d/b2d_smash.rs",
+    "c": "examples2d/b2d_smash.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_spinner",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Spinner",
+    "rust": "examples2d/b2d_spinner.rs",
+    "c": "examples2d/b2d_spinner.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_tumbler",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Tumbler",
+    "rust": "examples2d/b2d_tumbler.rs",
+    "c": "examples2d/b2d_tumbler.c",
+    "feature": null
+  },
+  {
+    "id": "b2d_washer",
+    "dimension": 2,
+    "group": "Third-party benchmarks",
+    "name": "Washer",
+    "rust": "examples2d/b2d_washer.rs",
+    "c": "examples2d/b2d_washer.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_balls2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Balls",
+    "rust": "examples2d/stress_tests/balls2.rs",
+    "c": "examples2d/stress_tests/balls2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_boxes2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Boxes",
+    "rust": "examples2d/stress_tests/boxes2.rs",
+    "c": "examples2d/stress_tests/boxes2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_capsules2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Capsules",
+    "rust": "examples2d/stress_tests/capsules2.rs",
+    "c": "examples2d/stress_tests/capsules2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_convex_polygons2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Convex polygons",
+    "rust": "examples2d/stress_tests/convex_polygons2.rs",
+    "c": "examples2d/stress_tests/convex_polygons2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_heightfield2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Heightfield",
+    "rust": "examples2d/stress_tests/heightfield2.rs",
+    "c": "examples2d/stress_tests/heightfield2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_large_pyramids2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Large pyramids",
+    "rust": "examples2d/stress_tests/large_pyramids2.rs",
+    "c": "examples2d/stress_tests/large_pyramids2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_many_pyramids2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Many pyramids",
+    "rust": "examples2d/stress_tests/many_pyramids2.rs",
+    "c": "examples2d/stress_tests/many_pyramids2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_pyramid2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Pyramid",
+    "rust": "examples2d/stress_tests/pyramid2.rs",
+    "c": "examples2d/stress_tests/pyramid2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_ragdolls2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Ragdoll piles",
+    "rust": "examples2d/stress_tests/ragdolls2.rs",
+    "c": "examples2d/stress_tests/ragdolls2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_ropes2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Ropes",
+    "rust": "examples2d/stress_tests/ropes2.rs",
+    "c": "examples2d/stress_tests/ropes2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_vertical_stacks2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Verticals stacks",
+    "rust": "examples2d/stress_tests/vertical_stacks2.rs",
+    "c": "examples2d/stress_tests/vertical_stacks2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_joint_ball2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "(Stress test) joint ball",
+    "rust": "examples2d/stress_tests/joint_ball2.rs",
+    "c": "examples2d/stress_tests/joint_ball2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_joint_fixed2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "(Stress test) joint fixed",
+    "rust": "examples2d/stress_tests/joint_fixed2.rs",
+    "c": "examples2d/stress_tests/joint_fixed2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_joint_prismatic2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "(Stress test) joint prismatic",
+    "rust": "examples2d/stress_tests/joint_prismatic2.rs",
+    "c": "examples2d/stress_tests/joint_prismatic2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_blobs2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Soft blobs",
+    "rust": "examples2d/stress_tests/soft_blobs2.rs",
+    "c": "examples2d/stress_tests/soft_blobs2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_jellies2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Soft jellies",
+    "rust": "examples2d/stress_tests/soft_jellies2.rs",
+    "c": "examples2d/stress_tests/soft_jellies2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_ropes2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Soft ropes",
+    "rust": "examples2d/stress_tests/soft_ropes2.rs",
+    "c": "examples2d/stress_tests/soft_ropes2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_strips2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Soft strips",
+    "rust": "examples2d/stress_tests/soft_strips2.rs",
+    "c": "examples2d/stress_tests/soft_strips2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_cloth_keva2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Soft cloth on Keva tower",
+    "rust": "examples2d/stress_tests/soft_cloth_keva2.rs",
+    "c": "examples2d/stress_tests/soft_cloth_keva2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_slab2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Soft slab shower",
+    "rust": "examples2d/stress_tests/soft_slab2.rs",
+    "c": "examples2d/stress_tests/soft_slab2.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_fem_beams2",
+    "dimension": 2,
+    "group": "Stress tests",
+    "name": "Soft FEM beams",
+    "rust": "examples2d/stress_tests/soft_fem_beams2.rs",
+    "c": "examples2d/stress_tests/soft_fem_beams2.c",
+    "feature": "fem"
+  },
+  {
+    "id": "fountain3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Fountain",
+    "rust": "examples3d/fountain3.rs",
+    "c": "examples3d/fountain3.c",
+    "feature": null
+  },
+  {
+    "id": "primitives3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Primitives",
+    "rust": "examples3d/primitives3.rs",
+    "c": "examples3d/primitives3.c",
+    "feature": null
+  },
+  {
+    "id": "keva3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Keva tower",
+    "rust": "examples3d/keva3.rs",
+    "c": "examples3d/keva3.c",
+    "feature": null
+  },
+  {
+    "id": "newton_cradle3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Newton cradle",
+    "rust": "examples3d/newton_cradle3.rs",
+    "c": "examples3d/newton_cradle3.c",
+    "feature": null
+  },
+  {
+    "id": "domino3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Domino",
+    "rust": "examples3d/domino3.rs",
+    "c": "examples3d/domino3.c",
+    "feature": null
+  },
+  {
+    "id": "platform3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Platform",
+    "rust": "examples3d/platform3.rs",
+    "c": "examples3d/platform3.c",
+    "feature": null
+  },
+  {
+    "id": "sensor3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Sensor",
+    "rust": "examples3d/sensor3.rs",
+    "c": "examples3d/sensor3.c",
+    "feature": null
+  },
+  {
+    "id": "compound3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Compound",
+    "rust": "examples3d/compound3.rs",
+    "c": "examples3d/compound3.c",
+    "feature": null
+  },
+  {
+    "id": "convex_decomposition3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Convex decomposition",
+    "rust": "examples3d/convex_decomposition3.rs",
+    "c": "examples3d/convex_decomposition3.c",
+    "feature": null
+  },
+  {
+    "id": "convex_polyhedron3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Convex polyhedron",
+    "rust": "examples3d/convex_polyhedron3.rs",
+    "c": "examples3d/convex_polyhedron3.c",
+    "feature": null
+  },
+  {
+    "id": "trimesh3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "TriMesh",
+    "rust": "examples3d/trimesh3.rs",
+    "c": "examples3d/trimesh3.c",
+    "feature": null
+  },
+  {
+    "id": "dynamic_trimesh3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Dynamic trimeshes",
+    "rust": "examples3d/dynamic_trimesh3.rs",
+    "c": "examples3d/dynamic_trimesh3.c",
+    "feature": null
+  },
+  {
+    "id": "heightfield3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Heightfield",
+    "rust": "examples3d/heightfield3.rs",
+    "c": "examples3d/heightfield3.c",
+    "feature": null
+  },
+  {
+    "id": "voxels3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Voxels",
+    "rust": "examples3d/voxels3.rs",
+    "c": "examples3d/voxels3.c",
+    "feature": null
+  },
+  {
+    "id": "collision_groups3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "Collision groups",
+    "rust": "examples3d/collision_groups3.rs",
+    "c": "examples3d/collision_groups3.c",
+    "feature": null
+  },
+  {
+    "id": "one_way_platforms3",
+    "dimension": 3,
+    "group": "Collisions",
+    "name": "One-way platforms",
+    "rust": "examples3d/one_way_platforms3.rs",
+    "c": "examples3d/one_way_platforms3.c",
+    "feature": null
+  },
+  {
+    "id": "locked_rotations3",
+    "dimension": 3,
+    "group": "Dynamics",
+    "name": "Locked rotations",
+    "rust": "examples3d/locked_rotations3.rs",
+    "c": "examples3d/locked_rotations3.c",
+    "feature": null
+  },
+  {
+    "id": "restitution3",
+    "dimension": 3,
+    "group": "Dynamics",
+    "name": "Restitution",
+    "rust": "examples3d/restitution3.rs",
+    "c": "examples3d/restitution3.c",
+    "feature": null
+  },
+  {
+    "id": "damping3",
+    "dimension": 3,
+    "group": "Dynamics",
+    "name": "Damping",
+    "rust": "examples3d/damping3.rs",
+    "c": "examples3d/damping3.c",
+    "feature": null
+  },
+  {
+    "id": "gyroscopic3",
+    "dimension": 3,
+    "group": "Dynamics",
+    "name": "Gyroscopic",
+    "rust": "examples3d/gyroscopic3.rs",
+    "c": "examples3d/gyroscopic3.c",
+    "feature": null
+  },
+  {
+    "id": "ccd3",
+    "dimension": 3,
+    "group": "Dynamics",
+    "name": "CCD",
+    "rust": "examples3d/ccd3.rs",
+    "c": "examples3d/ccd3.c",
+    "feature": null
+  },
+  {
+    "id": "joints3_run_impulse_joints",
+    "dimension": 3,
+    "group": "Joints",
+    "name": "Impulse Joints",
+    "rust": "examples3d/joints3.rs",
+    "c": "examples3d/joints3_run_impulse_joints.c",
+    "feature": null
+  },
+  {
+    "id": "joints3_run_multibody_joints",
+    "dimension": 3,
+    "group": "Joints",
+    "name": "Multibody Joints",
+    "rust": "examples3d/joints3.rs",
+    "c": "examples3d/joints3_run_multibody_joints.c",
+    "feature": null
+  },
+  {
+    "id": "rope_joints3",
+    "dimension": 3,
+    "group": "Joints",
+    "name": "Rope Joints",
+    "rust": "examples3d/rope_joints3.rs",
+    "c": "examples3d/rope_joints3.c",
+    "feature": null
+  },
+  {
+    "id": "spring_joints3",
+    "dimension": 3,
+    "group": "Joints",
+    "name": "Spring Joints",
+    "rust": "examples3d/spring_joints3.rs",
+    "c": "examples3d/spring_joints3.c",
+    "feature": null
+  },
+  {
+    "id": "joint_motor_position3",
+    "dimension": 3,
+    "group": "Joints",
+    "name": "Joint Motor Position",
+    "rust": "examples3d/joint_motor_position3.rs",
+    "c": "examples3d/joint_motor_position3.c",
+    "feature": null
+  },
+  {
+    "id": "inverse_kinematics3",
+    "dimension": 3,
+    "group": "Joints",
+    "name": "Inverse kinematics",
+    "rust": "examples3d/inverse_kinematics3.rs",
+    "c": "examples3d/inverse_kinematics3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_bodies3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Soft bodies",
+    "rust": "examples3d/soft_bodies3.rs",
+    "c": "examples3d/soft_bodies3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_cloth3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Cloth",
+    "rust": "examples3d/soft_cloth3.rs",
+    "c": "examples3d/soft_cloth3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_jelly3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Jelly",
+    "rust": "examples3d/soft_jelly3.rs",
+    "c": "examples3d/soft_jelly3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_joints3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Soft joints",
+    "rust": "examples3d/soft_joints3.rs",
+    "c": "examples3d/soft_joints3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_meshes3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Cluster meshes",
+    "rust": "examples3d/soft_meshes3.rs",
+    "c": "examples3d/soft_meshes3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_surface3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Deformable trimeshes",
+    "rust": "examples3d/soft_surface3.rs",
+    "c": "examples3d/soft_surface3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_pile3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Soft pile",
+    "rust": "examples3d/soft_pile3.rs",
+    "c": "examples3d/soft_pile3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_thin_features3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Thin features",
+    "rust": "examples3d/soft_thin_features3.rs",
+    "c": "examples3d/soft_thin_features3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_cloth_stress3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Cloth stress",
+    "rust": "examples3d/soft_cloth_stress3.rs",
+    "c": "examples3d/soft_cloth_stress3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_plasticity3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Plasticity",
+    "rust": "examples3d/soft_plasticity3.rs",
+    "c": "examples3d/soft_plasticity3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_tearing3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Tearing",
+    "rust": "examples3d/soft_tearing3.rs",
+    "c": "examples3d/soft_tearing3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_dress3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Dancing dress",
+    "rust": "examples3d/soft_dress3.rs",
+    "c": "examples3d/soft_dress3.c",
+    "feature": null
+  },
+  {
+    "id": "soft_fem3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Soft FEM",
+    "rust": "examples3d/soft_fem3.rs",
+    "c": "examples3d/soft_fem3.c",
+    "feature": "fem"
+  },
+  {
+    "id": "soft_trimesh3",
+    "dimension": 3,
+    "group": "Soft bodies",
+    "name": "Soft trimeshes",
+    "rust": "examples3d/soft_trimesh3.rs",
+    "c": "examples3d/soft_trimesh3.c",
+    "feature": null
+  },
+  {
+    "id": "character_controller3",
+    "dimension": 3,
+    "group": "Controls",
+    "name": "Character controller",
+    "rust": "examples3d/character_controller3.rs",
+    "c": "examples3d/character_controller3.c",
+    "feature": null
+  },
+  {
+    "id": "vehicle_controller3",
+    "dimension": 3,
+    "group": "Controls",
+    "name": "Vehicle controller",
+    "rust": "examples3d/vehicle_controller3.rs",
+    "c": "examples3d/vehicle_controller3.c",
+    "feature": null
+  },
+  {
+    "id": "vehicle_joints3",
+    "dimension": 3,
+    "group": "Controls",
+    "name": "Vehicle joints",
+    "rust": "examples3d/vehicle_joints3.rs",
+    "c": "examples3d/vehicle_joints3.c",
+    "feature": null
+  },
+  {
+    "id": "urdf3",
+    "dimension": 3,
+    "group": "Robotics",
+    "name": "URDF",
+    "rust": "examples3d/urdf3.rs",
+    "c": "examples3d/urdf3.c",
+    "feature": "robotics"
+  },
+  {
+    "id": "mjcf3",
+    "dimension": 3,
+    "group": "Robotics",
+    "name": "MJCF",
+    "rust": "examples3d/mjcf3.rs",
+    "c": "examples3d/mjcf3.c",
+    "feature": "robotics"
+  },
+  {
+    "id": "mujoco_menagerie3",
+    "dimension": 3,
+    "group": "Robotics",
+    "name": "Mujoco Menagerie",
+    "rust": "examples3d/mujoco_menagerie3.rs",
+    "c": "examples3d/mujoco_menagerie3.c",
+    "feature": "robotics"
+  },
+  {
+    "id": "debug_angular_limits3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Angular limits",
+    "rust": "examples3d/debug_angular_limits3.rs",
+    "c": "examples3d/debug_angular_limits3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_articulations3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Multibody joints",
+    "rust": "examples3d/debug_articulations3.rs",
+    "c": "examples3d/debug_articulations3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_add_remove_collider3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Add/rm collider",
+    "rust": "examples3d/debug_add_remove_collider3.rs",
+    "c": "examples3d/debug_add_remove_collider3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_multi_collider_body3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Multi-collider body",
+    "rust": "examples3d/debug_multi_collider_body3.rs",
+    "c": "examples3d/debug_multi_collider_body3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_big_colliders3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Big colliders",
+    "rust": "examples3d/debug_big_colliders3.rs",
+    "c": "examples3d/debug_big_colliders3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_boxes3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Boxes",
+    "rust": "examples3d/debug_boxes3.rs",
+    "c": "examples3d/debug_boxes3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_balls3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Balls",
+    "rust": "examples3d/debug_balls3.rs",
+    "c": "examples3d/debug_balls3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_disabled3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Disabled",
+    "rust": "examples3d/debug_disabled3.rs",
+    "c": "examples3d/debug_disabled3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_two_cubes3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Two cubes",
+    "rust": "examples3d/debug_two_cubes3.rs",
+    "c": "examples3d/debug_two_cubes3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_pop3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Pop",
+    "rust": "examples3d/debug_pop3.rs",
+    "c": "examples3d/debug_pop3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_dynamic_collider_add3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Dyn. collider add",
+    "rust": "examples3d/debug_dynamic_collider_add3.rs",
+    "c": "examples3d/debug_dynamic_collider_add3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_friction3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Friction",
+    "rust": "examples3d/debug_friction3.rs",
+    "c": "examples3d/debug_friction3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_internal_edges3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Internal edges",
+    "rust": "examples3d/debug_internal_edges3.rs",
+    "c": "examples3d/debug_internal_edges3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_self_intersect3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Self intersect",
+    "rust": "examples3d/debug_self_intersect3.rs",
+    "c": "examples3d/debug_self_intersect3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_long_chain3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Long chain",
+    "rust": "examples3d/debug_long_chain3.rs",
+    "c": "examples3d/debug_long_chain3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_chain_high_mass_ratio3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "High mass ratio: chain",
+    "rust": "examples3d/debug_chain_high_mass_ratio3.rs",
+    "c": "examples3d/debug_chain_high_mass_ratio3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_cube_high_mass_ratio3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "High mass ratio: cube",
+    "rust": "examples3d/debug_cube_high_mass_ratio3.rs",
+    "c": "examples3d/debug_cube_high_mass_ratio3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_triangle3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Triangle",
+    "rust": "examples3d/debug_triangle3.rs",
+    "c": "examples3d/debug_triangle3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_trimesh3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Trimesh",
+    "rust": "examples3d/debug_trimesh3.rs",
+    "c": "examples3d/debug_trimesh3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_thin_cube_on_mesh3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Thin cube",
+    "rust": "examples3d/debug_thin_cube_on_mesh3.rs",
+    "c": "examples3d/debug_thin_cube_on_mesh3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_cylinder3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Cylinder",
+    "rust": "examples3d/debug_cylinder3.rs",
+    "c": "examples3d/debug_cylinder3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_infinite_fall3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Infinite fall",
+    "rust": "examples3d/debug_infinite_fall3.rs",
+    "c": "examples3d/debug_infinite_fall3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_prismatic3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Prismatic",
+    "rust": "examples3d/debug_prismatic3.rs",
+    "c": "examples3d/debug_prismatic3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_rollback3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Rollback",
+    "rust": "examples3d/debug_rollback3.rs",
+    "c": "examples3d/debug_rollback3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_shape_modification3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Shape modification",
+    "rust": "examples3d/debug_shape_modification3.rs",
+    "c": "examples3d/debug_shape_modification3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_sleeping_kinematic3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Sleeping kinematics",
+    "rust": "examples3d/debug_sleeping_kinematic3.rs",
+    "c": "examples3d/debug_sleeping_kinematic3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_deserialize3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Deserialize",
+    "rust": "examples3d/debug_deserialize3.rs",
+    "c": "examples3d/debug_deserialize3.c",
+    "feature": null
+  },
+  {
+    "id": "debug_multibody_ang_motor_pos3",
+    "dimension": 3,
+    "group": "Debug",
+    "name": "Multibody ang. motor pos.",
+    "rust": "examples3d/debug_multibody_ang_motor_pos3.rs",
+    "c": "examples3d/debug_multibody_ang_motor_pos3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_balls3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Balls",
+    "rust": "examples3d/stress_tests/balls3.rs",
+    "c": "examples3d/stress_tests/balls3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_boxes3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Boxes",
+    "rust": "examples3d/stress_tests/boxes3.rs",
+    "c": "examples3d/stress_tests/boxes3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_capsules3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Capsules",
+    "rust": "examples3d/stress_tests/capsules3.rs",
+    "c": "examples3d/stress_tests/capsules3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_ccd3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "CCD",
+    "rust": "examples3d/stress_tests/ccd3.rs",
+    "c": "examples3d/stress_tests/ccd3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_compound3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Compound",
+    "rust": "examples3d/stress_tests/compound3.rs",
+    "c": "examples3d/stress_tests/compound3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_convex_polyhedron3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Convex polyhedron",
+    "rust": "examples3d/stress_tests/convex_polyhedron3.rs",
+    "c": "examples3d/stress_tests/convex_polyhedron3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_many_kinematics3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Many kinematics",
+    "rust": "examples3d/stress_tests/many_kinematics3.rs",
+    "c": "examples3d/stress_tests/many_kinematics3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_many_static3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Many static",
+    "rust": "examples3d/stress_tests/many_static3.rs",
+    "c": "examples3d/stress_tests/many_static3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_many_sleep3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Many sleep",
+    "rust": "examples3d/stress_tests/many_sleep3.rs",
+    "c": "examples3d/stress_tests/many_sleep3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_heightfield3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Heightfield",
+    "rust": "examples3d/stress_tests/heightfield3.rs",
+    "c": "examples3d/stress_tests/heightfield3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_stacks3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Stacks",
+    "rust": "examples3d/stress_tests/stacks3.rs",
+    "c": "examples3d/stress_tests/stacks3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_pyramid3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Pyramid",
+    "rust": "examples3d/stress_tests/pyramid3.rs",
+    "c": "examples3d/stress_tests/pyramid3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_trimesh3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Trimesh",
+    "rust": "examples3d/stress_tests/trimesh3.rs",
+    "c": "examples3d/stress_tests/trimesh3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_joint_ball3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "ImpulseJoint ball",
+    "rust": "examples3d/stress_tests/joint_ball3.rs",
+    "c": "examples3d/stress_tests/joint_ball3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_joint_fixed3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "ImpulseJoint fixed",
+    "rust": "examples3d/stress_tests/joint_fixed3.rs",
+    "c": "examples3d/stress_tests/joint_fixed3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_joint_revolute3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "ImpulseJoint revolute",
+    "rust": "examples3d/stress_tests/joint_revolute3.rs",
+    "c": "examples3d/stress_tests/joint_revolute3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_joint_prismatic3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "ImpulseJoint prismatic",
+    "rust": "examples3d/stress_tests/joint_prismatic3.rs",
+    "c": "examples3d/stress_tests/joint_prismatic3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_ragdolls3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Ragdoll piles",
+    "rust": "examples3d/stress_tests/ragdolls3.rs",
+    "c": "examples3d/stress_tests/ragdolls3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_ropes3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Ropes",
+    "rust": "examples3d/stress_tests/ropes3.rs",
+    "c": "examples3d/stress_tests/ropes3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_many_pyramids3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Many pyramids",
+    "rust": "examples3d/stress_tests/many_pyramids3.rs",
+    "c": "examples3d/stress_tests/many_pyramids3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_keva3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Keva tower",
+    "rust": "examples3d/stress_tests/keva3.rs",
+    "c": "examples3d/stress_tests/keva3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_ray_cast3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Ray cast",
+    "rust": "examples3d/stress_tests/ray_cast3.rs",
+    "c": "examples3d/stress_tests/ray_cast3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_blobs3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Soft blobs",
+    "rust": "examples3d/stress_tests/soft_blobs3.rs",
+    "c": "examples3d/stress_tests/soft_blobs3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_jellies3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Soft jellies",
+    "rust": "examples3d/stress_tests/soft_jellies3.rs",
+    "c": "examples3d/stress_tests/soft_jellies3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_ropes3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Soft ropes",
+    "rust": "examples3d/stress_tests/soft_ropes3.rs",
+    "c": "examples3d/stress_tests/soft_ropes3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_cloth_drape3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Soft cloth drape",
+    "rust": "examples3d/stress_tests/soft_cloth_drape3.rs",
+    "c": "examples3d/stress_tests/soft_cloth_drape3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_cloth_keva3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Soft cloth on Keva tower",
+    "rust": "examples3d/stress_tests/soft_cloth_keva3.rs",
+    "c": "examples3d/stress_tests/soft_cloth_keva3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_slab3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Soft slab shower",
+    "rust": "examples3d/stress_tests/soft_slab3.rs",
+    "c": "examples3d/stress_tests/soft_slab3.c",
+    "feature": null
+  },
+  {
+    "id": "stress_tests_soft_fem_beams3",
+    "dimension": 3,
+    "group": "Stress tests",
+    "name": "Soft FEM beams",
+    "rust": "examples3d/stress_tests/soft_fem_beams3.rs",
+    "c": "examples3d/stress_tests/soft_fem_beams3.c",
+    "feature": "fem"
+  },
+  {
+    "id": "b3d_large_pyramid",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Large pyramid",
+    "rust": "examples3d/b3d_large_pyramid.rs",
+    "c": "examples3d/b3d_large_pyramid.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_many_pyramids",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Many pyramids",
+    "rust": "examples3d/b3d_many_pyramids.rs",
+    "c": "examples3d/b3d_many_pyramids.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_joint_grid",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Joint grid",
+    "rust": "examples3d/b3d_joint_grid.rs",
+    "c": "examples3d/b3d_joint_grid.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_junkyard",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Junkyard",
+    "rust": "examples3d/b3d_junkyard.rs",
+    "c": "examples3d/b3d_junkyard.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_washer",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Washer",
+    "rust": "examples3d/b3d_washer.rs",
+    "c": "examples3d/b3d_washer.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_trees_run100",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Trees 100",
+    "rust": "examples3d/b3d_trees.rs",
+    "c": "examples3d/b3d_trees_run100.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_trees_run50",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Trees 50",
+    "rust": "examples3d/b3d_trees.rs",
+    "c": "examples3d/b3d_trees_run50.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_trees_run25",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Trees 25",
+    "rust": "examples3d/b3d_trees.rs",
+    "c": "examples3d/b3d_trees_run25.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_rain",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Rain",
+    "rust": "examples3d/b3d_rain.rs",
+    "c": "examples3d/b3d_rain.c",
+    "feature": null
+  },
+  {
+    "id": "b3d_large_world",
+    "dimension": 3,
+    "group": "Third-party benchmarks",
+    "name": "Large world",
+    "rust": "examples3d/b3d_large_world.rs",
+    "c": "examples3d/b3d_large_world.c",
+    "feature": null
+  }
+]

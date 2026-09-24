@@ -1,5 +1,11 @@
 [workspace]
 members = [
+    "c/testbed/tools/logo-mesh",
+    "c/rapier-c-macros",
+    "c/rapier2d-ffi",
+    "c/rapier3d-ffi",
+    "c/rapier2d-f64-ffi",
+    "c/rapier3d-f64-ffi",
     "crates/rapier2d",
     "crates/rapier2d-f64",
     "crates/rapier_testbed2d",
@@ -21,7 +27,8 @@ members = [
 # pure-Rust crates. The Python-binding crates need a Python build env
 # (pyo3 `extension-module`) and are exercised by the dedicated
 # `.github/workflows/python-bindings.yml` workflow via explicit
-# `-p rapier-py-*` invocations.
+# `-p rapier-py-*` invocations. C ABI crates are tested separately by
+# `.github/workflows/c-bindings.yml`, including native C/C++ consumers.
 default-members = [
     "crates/rapier2d",
     "crates/rapier2d-f64",

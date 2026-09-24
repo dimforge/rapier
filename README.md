@@ -67,6 +67,11 @@ also enable:
 rapier3d = { version = "*", features = ["parallel"] }
 ```
 
+## C and C++ bindings
+
+See [`c/README.md`](c/README.md) for the C ABI, C++ ownership helpers, native build instructions,
+and Unity/Unreal integration guidance. The bindings cover 2D/3D and f32/f64, including soft bodies.
+
 ## Python bindings
 
 Python bindings are under development. They ship as four PyPI packages —

@@ -1,0 +1,192 @@
+/** @mainpage Rapier C API
+
+Choose the reference matching your library's dimension and scalar precision.
+Function names use `r2` or `r3`; types and constants use `R2` or `R3`.
+Instance methods separate their receiver with an underscore, for example
+`r3RigidBody_SetTranslation`. Include `rapier.h`; `rapier_math.h` adds inline math
+and `rapier_helpers.h` adds explicit invalid-handle constants.
+
+Start with @ref ownership and @ref api_errors, then @ref falling_ball.c.
+The topic groups list the API by purpose. The optional @ref cpp helpers provide
+RAII ownership; they do not change the C ABI.
+
+@section selection Build selection
+Define exactly one of `RAPIER_DIM2` / `RAPIER_DIM3` and one of
+`RAPIER_F32` / `RAPIER_F64` before including the headers. The defaults are 3D/f32.
+Flags must match the linked library; CheckAbi checks version and core layouts.
+PodLayout exposes additional structure sizes for foreign-language bindings.
+Use uint32_t for ABI booleans, not C/C++ bool; inputs must be 0 or 1.
+
+These references include `RAPIER_PARALLEL` and `RAPIER_FEM` declarations.
+Enable the matching library features before using them. Robotics requires
+`RAPIER_ROBOTICS`, 3D, and f32. Version returns the release string;
+BuildInfo and BuildFeatures describe the binary actually loaded.
+
+@section units Coordinates and units
+Positions and lengths use your chosen consistent length unit; time is seconds,
+angles are radians. A 2D rotation is an angle; a 3D rotation is a quaternion in
+x,y,z,w order, normalized on input. Zero-initialized 3D quaternions are invalid:
+use description constructors or TranslationPose with a zero translation.
+World-space coordinates are used unless a parameter or field says local/relative.
+LengthUnit scales solver tolerances; it does not convert supplied geometry.
+*/
+
+/** @page ownership Ownership and lifetimes
+
+| Value | Ownership rule |
+|---|---|
+| World pointer | Owns inserted bodies, colliders, joints, and soft bodies. Release with FreeWorld. |
+| Entity handle | Small borrowed value carrying its world pointer, index, and generation. Never free it. |
+| Description/configuration | Copyable POD; initialize with its constructor/default function. No destructor. |
+| Input array view | Borrows elements through the consuming build/insert call. Copying the view does not copy data. |
+| SharedShape pointer | Owned reference-counted geometry wrapper. Release each wrapper with FreeSharedShape. |
+| Controller/event collector/snapshot/mesh | Owned pointer with a matching Free function. |
+| Callback context or MJCF visual pointer | Borrowed; never free or retain beyond its documented lifetime. |
+
+Constructors supply meaningful defaults; `{0}` is not a replacement for them.
+Insertion borrows descriptions, copies their data, and retains shared geometry.
+After insertion returns, input arrays and temporary shared-shape wrappers can be
+released. Setters on descriptions may retain borrowed views until insertion.
+
+Removing an entity invalidates its handle. Generations detect stale entities only
+while the owning world is alive: no API can safely validate a freed world pointer.
+Destroying a world invalidates all its handles, including copies held elsewhere.
+Use the explicit INVALID_*_HANDLE constants instead of assuming zero is invalid.
+Opaque owned pointers must be released through their matching Rapier Free function,
+never C `free`. Free functions accept NULL unless stated otherwise.
+
+@section threads Access and threading
+Ordinary world reads may overlap. A mutation/step requires exclusive access;
+conflicting or reentrant access reports WORLD_BUSY rather than waiting.
+The caller must keep the world alive throughout every call and synchronize its
+destruction with all users. Controllers, collectors, and other independently
+owned objects require external synchronization when shared between threads.
+
+Callbacks may run on physics worker threads in parallel builds. Keep callback code
+and user data alive until the operation returns. Use the callback's ReadContext
+with Read* accessors; ordinary world access may report WORLD_BUSY during stepping.
+Do not mutate the world from callbacks. Never unwind a C++ exception or longjmp
+through Rust frames. Copy callback data if it is needed after return.
+*/
+
+/** @page api_errors Errors and returned values
+
+Status-returning calls report OK or an error code. Fallible value-returning calls
+report failure through LastStatus and LastError on the calling thread. Check
+LastStatus immediately after such a call: later fallible calls replace it.
+Value constructors that only initialize POD data do not change the status.
+
+A failed value-returning call returns a default value (often zero, NULL, or an
+invalid handle). That value alone does not distinguish success from failure.
+LastError is a borrowed UTF-8 string valid until the next fallible call on that
+thread; copy it before making another call. Reading LastStatus/LastError does not
+clear them.
+
+SetErrorHandler installs a thread-local synchronous notification callback and
+returns the previous handler. A callback that returns does not suppress the error.
+Nested failures do not recursively invoke it. NOT_FOUND also invokes this handler;
+use TryCastRay or CastRayToi if an ordinary ray miss should return OK with found = 0.
+
+Pointer checks cannot prove that memory is live, large enough, or owned by the
+caller. Supply correctly aligned buffers and valid pointers for their documented
+lifetimes. A caught PANIC is not transactional: discard objects mutated by that
+call. Validation errors are not a general rollback guarantee either.
+*/
+
+/** @page output_buffers Arrays and output buffers
+
+Input views pair a pointer with an element count. NULL is allowed with count zero.
+Counts for typed views are elements: TriangleView counts triangles, not scalar
+indices. Description setters borrow the view; they need not validate geometry
+until a later build/insert call.
+
+Functions accepting `buffer` and `capacity` and returning a size use this protocol:
+1. Pass NULL and capacity zero to get the required element count (OK).
+2. Allocate that many elements and call again to copy them.
+3. If too small, the function returns the required count, reports BUFFER_TOO_SMALL,
+   and writes no elements. Resize and retry.
+
+Check LastStatus after both calls. Arrays may grow between calls if the application
+mutates the source. Returned counts use the declared element type; some geometry
+outputs are flattened scalar indices, explicitly documented by that function.
+String-copy functions count bytes including the terminating NUL. ByteView is an
+exception: it borrows snapshot storage directly until FreeBytes, with no copy.
+*/
+
+/** @page snapshots Snapshots
+SerializeWorld returns owned Bytes; Bytes_Data borrows their byte array.
+Release the owner with FreeBytes after copying or consuming it.
+DeserializeWorld creates a new owned world. DeserializeRigidState is a separate
+importer for legacy Rust testbed rigid-state snapshots. Only load trusted
+snapshots produced by the identical Rapier build. Snapshots are not a durable interchange format.
+
+Old handles still point to the original world. Discard them and enumerate handles
+from the restored world. Configure any thread pool and external callback/user
+state again; application-owned state is not reconstructed automatically.
+*/
+
+/** @defgroup errors ABI and errors
+Build identity, layout checks, status codes, and thread-local diagnostics.
+See @ref api_errors for the return-value convention.
+*/
+/** @defgroup worlds Worlds and stepping
+Create a world, configure integration, step, and serialize it.
+Setters change the named setting for subsequent operations.
+*/
+/** @defgroup math Math and array types
+Plain values and inline arithmetic. Constructors do not allocate.
+*/
+/** @defgroup rigid_bodies Rigid bodies
+Descriptions and live, world-bound handles. Accessors return copies.
+Handle operations report INVALID_HANDLE for a removed/stale entity in a live world.
+*/
+/** @defgroup colliders Colliders
+Collider descriptions, material properties, sensor flags, and filtering.
+A parented collider's description pose is relative to its rigid body.
+*/
+/** @defgroup shapes Shapes and mesh data
+Shared immutable geometry and copied rendering data. Owned pointers require their
+matching Free functions; description views remain borrowed until build/insert.
+*/
+/** @defgroup joints Joints
+Impulse joints and reduced-coordinate articulations. Axis indices are translation
+X/Y[/Z], then rotation Z in 2D or X/Y/Z in 3D. Masks use one bit per axis.
+*/
+/** @defgroup queries Scene queries
+Queries read the broad phase from the latest Step or DetectCollisions. After
+insertion or manual pose changes, update collision detection before querying.
+NULL QueryOptions uses native defaults. Predicates borrow their ReadContext.
+*/
+/** @defgroup callbacks Callback read access
+Read* functions resolve handles through the callback context. This context is
+borrowed for that callback only and cannot mutate the world.
+*/
+/** @defgroup events Events, contacts, and debug drawing
+Event collectors own their recorded events. Enable event flags on colliders and
+pass a collector when stepping. Copying events does not drain the collector;
+Clear discards them. Contact-force events also honor the collider force threshold.
+*/
+/** @defgroup soft_bodies Soft bodies
+Particle recipes, materials, clusters, deformable meshes, and tearing.
+Mesh indices and particle indices can change after tearing; use topology versions
+and tear remapping events to maintain application data. FEM requires RAPIER_FEM.
+*/
+/** @defgroup controllers Character, vehicle, and PID controllers
+Controllers compute motion/corrections or apply forces; they do not replace Step.
+Keep referenced worlds and bodies alive for controller operations.
+*/
+/** @defgroup robotics URDF and MJCF import
+Available only with RAPIER_ROBOTICS in 3D/f32. Loaded robots and insertion-result
+containers are independently owned; freeing these containers does not remove the
+world's inserted entities. Visual pointers borrow the loaded MJCF robot.
+*/
+/** @defgroup cpp C++ ownership helpers
+`rapier.hpp` supplies unique_ptr-based Owner aliases and small value factories.
+Keep owners alive while using their handles. `check` throws on non-OK status;
+callers with exceptions disabled should use the C API and status checks directly.
+Deleters cannot report failures: destroy owners only when no operation is active.
+*/
+/** @example falling_ball.c
+A complete dimension/precision-independent simulation using the same source built
+by the CMake example target. The RAPIER_* macros select concrete r2/r3 names.
+*/
