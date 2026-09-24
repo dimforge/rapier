@@ -5,8 +5,8 @@
     <a href="https://discord.gg/vt9DJSW">
         <img src="https://img.shields.io/discord/507548572338880513.svg?logo=discord&colorB=7289DA">
     </a>
-    <a href="https://github.com/dimforge/rapier.js/actions">
-        <img src="https://github.com/dimforge/rapier.js/workflows/main/badge.svg" alt="Build status">
+    <a href="https://github.com/dimforge/rapier/actions/workflows/typescript-bindings.yml">
+        <img src="https://github.com/dimforge/rapier/actions/workflows/typescript-bindings.yml/badge.svg" alt="Build status">
     </a>
     <a href="https://opensource.org/licenses/Apache-2.0">
         <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg">
@@ -15,8 +15,8 @@
 <p align = "center">
     <strong>
         <a href="https://rapier.rs">Website</a> | <a href="https://rapier.rs/docs/">Documentation</a> |
-        <a href="https://github.com/dimforge/rapier.js/tree/master/testbed2d/src/demos">2D examples (sources)</a> | 
-        <a href="https://github.com/dimforge/rapier.js/tree/master/testbed3d/src/demos">3D examples (sources)</a>
+        <a href="https://github.com/dimforge/rapier/tree/master/bindings/typescript/testbed2d/src/demos">2D examples (sources)</a> | 
+        <a href="https://github.com/dimforge/rapier/tree/master/bindings/typescript/testbed3d/src/demos">3D examples (sources)</a>
     </strong>
 </p>
 
@@ -31,7 +31,7 @@
 
 ## Building packages manually
 
-From the root of the repository, run:
+From the `bindings/typescript` directory of the repository, run:
 
 ```shell
 ./builds/prepare_builds/prepare_all_projects.sh
@@ -76,7 +76,7 @@ Just append `-compat` to the build you are interested in:
 
 ## Nightly builds
 
-Each time a new Pull Request is merged to the `main` branch of the [`rapier.js` repository](https://github.com/dimforge/rapier.js),
+Each time a new Pull Request is merged to the `master` branch of the [`rapier` repository](https://github.com/dimforge/rapier),
 an automatic _canary_ build is triggered. Builds published to npmjs under the _canary_ tag does not come with any
 stability guarantee and does not follow semver versioning. But it can be a useful solution to try out the latest
 features until a proper release is cut.

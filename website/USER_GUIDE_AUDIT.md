@@ -2,7 +2,7 @@
 
 Audit of `docs/user_guides/templates/` against the engine on the `soft-bodies` branch (rapier 0.35.3,
 `@dimforge/rapier` 0.17.3 as pinned by `docs-examples`). Every API name and default value quoted by the guide was
-checked against `src/` and `typescript/src.ts`.
+checked against `src/` and `bindings/typescript/src.ts`.
 
 One commit per item.
 
@@ -45,7 +45,7 @@ One commit per item.
       prediction, fast-rotation and gyroscopic forces.
 - [x] 19. The contact skin of the colliders, and the one-sided (oriented) triangle-meshes and polylines.
 - [x] 20. The scene loaders: `rapier3d-urdf`, `rapier3d-mjcf` and `rapier3d-meshloader`.
-- [x] 21. The Python bindings, which live in `python/` with their own documentation.
+- [x] 21. The Python bindings, which live in `bindings/python/` with their own documentation.
 - [x] 22. `the_rapier_testbed.mdx` contains nothing but its front matter.
 - [x] 23. `common_recipes.mdx` contains nothing but its section titles.
 

@@ -73,7 +73,7 @@ by enabling the `RAPIER_BUILD_TESTBED` option of CMake. It downloads its graphic
 configuration (on Linux, the X11 and OpenGL development packages must be installed). From the root of the repository:
 
 ```bash
-cmake -S c -B build/c3 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_DIMENSION=3 -DCMAKE_BUILD_TYPE=Release
+cmake -S bindings/c -B build/c3 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_DIMENSION=3 -DCMAKE_BUILD_TYPE=Release
 cmake --build build/c3 --target rapier_testbed --config Release --parallel
 ./build/c3/testbed/rapier_testbed # 3D demos
 ```
@@ -109,7 +109,7 @@ window, which is useful to check that a demo runs without errors, or to measure 
 ## Writing a scene
 Unlike the Rust testbed, the C testbed isn't a library meant to be used by your own application: it is an
 application of the Rapier repository, which demos are compiled with it. Each demo is one C function (e.g.
-`tbRestitution3` in `c/testbed/examples3d/restitution3.c`) building a world like in any other application, giving it
+`tbRestitution3` in `bindings/c/testbed/examples3d/restitution3.c`) building a world like in any other application, giving it
 to the viewer, and then stepping it from the rendering loop. Note that the loop is what owns the simulation: the viewer
 only draws the state of the world it is given, and tells whether the user asked for the simulation to keep running or
 to stop:
@@ -119,16 +119,16 @@ to stop:
 ```
 
 Therefore, prototyping a scene with the testbed (e.g. for reproducing a problem before opening an issue) is done in
-your local copy of the repository: its source file is added to the `c/testbed/examples3d` folder (resp.
+your local copy of the repository: its source file is added to the `bindings/c/testbed/examples3d` folder (resp.
 `examples2d`), which files are all compiled with the testbed, and its function is added to the demos listed by the
-`tbExamples` array of `c/testbed/registry3.c` (resp. `registry2.c`):
+`tbExamples` array of `bindings/c/testbed/registry3.c` (resp. `registry2.c`):
 
 ```c
 <load path='/3d/c/examples/testbed3.c' marker='Registry' />
 ```
 
 :::info
-The registries are generated from the list of the Rust demos by the `c/testbed/update_catalog.py` script, which
+The registries are generated from the list of the Rust demos by the `bindings/c/testbed/update_catalog.py` script, which
 doesn't know about the entries added by hand: they are lost whenever the registries are generated again.
 :::
 
@@ -150,7 +150,7 @@ The testbed is published as the `rapier-testbed` package, which depends on `rapi
 pip install rapier-testbed
 ```
 
-It can also be installed from the `python/rapier-testbed` folder of the
+It can also be installed from the `bindings/python/rapier-testbed` folder of the
 [Rapier repository](https://github.com/dimforge/rapier), e.g., to use it with bindings
 [built from source](./getting_started_py.mdx#building-from-source). From the root of the repository, and with your
 virtual environment activated (`--no-deps` keeps the bindings you built instead of downloading them, and `-e` makes
@@ -158,7 +158,7 @@ your modifications of the testbed effective without reinstalling it):
 
 ```sh
 pip install panda3d numpy
-pip install --no-deps -e ./python/rapier-testbed
+pip install --no-deps -e ./bindings/python/rapier-testbed
 ```
 
 ## Running the demos
@@ -171,7 +171,7 @@ python -m rapier_testbed # List the demos, and open the selected one.
 python -m rapier_testbed.examples3.domino3 # Open the domino demo.
 ```
 
-The `python/examples_tour.py` script of the repository opens every demo in turn, each of them being opened when the
+The `bindings/python/examples_tour.py` script of the repository opens every demo in turn, each of them being opened when the
 window of the previous one is closed.
 
 :::warning

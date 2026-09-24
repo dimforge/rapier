@@ -5,8 +5,8 @@
     <a href="https://discord.gg/vt9DJSW">
         <img src="https://img.shields.io/discord/507548572338880513.svg?logo=discord&colorB=7289DA">
     </a>
-    <a href="https://github.com/dimforge/rapier.js/actions">
-        <img src="https://github.com/dimforge/rapier.js/workflows/main/badge.svg" alt="Build status">
+    <a href="https://github.com/dimforge/rapier/actions/workflows/typescript-bindings.yml">
+        <img src="https://github.com/dimforge/rapier/actions/workflows/typescript-bindings.yml/badge.svg" alt="Build status">
     </a>
     <a href="https://crates.io/crates/rapier{{ dimension }}d">
          <img src="https://img.shields.io/crates/v/rapier{{ dimension }}d.svg?style=flat-square" alt="crates.io">
@@ -64,7 +64,7 @@ Just append `-compat` to the build you are interested in:
 
 ## Nightly builds
 
-Each time a new Pull Request is merged to the `main` branch of the [`rapier.js` repository](https://github.com/dimforge/rapier.js),
+Each time a new Pull Request is merged to the `master` branch of the [`rapier` repository](https://github.com/dimforge/rapier),
 an automatic _canary_ build is triggered. Builds published to npmjs under the _canary_ tag does not come with any
 stability guarantee and does not follow semver versioning. But it can be a useful solution to try out the latest
 features until a proper release is cut.

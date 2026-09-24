@@ -13,7 +13,7 @@ the `c` folder of the [Rapier repository](https://github.com/dimforge/rapier). T
 need a Rust toolchain as well as a C compiler. From the root of the repository:
 
 ```sh
-cmake -S c -B build/c -DCMAKE_BUILD_TYPE=Release
+cmake -S bindings/c -B build/c -DCMAKE_BUILD_TYPE=Release
 cmake --build build/c --config Release --parallel
 ```
 
@@ -158,7 +158,7 @@ ownership rules, the threading rules, and the errors. It can also be generated l
 [Doxygen](https://www.doxygen.nl) (1.9.4 or later):
 
 ```sh
-cmake -S c/doxygen -B build/c-docs
+cmake -S bindings/c/doxygen -B build/c-docs
 cmake --build build/c-docs --target rapier_docs --parallel
 ```
 

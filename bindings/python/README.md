@@ -4,9 +4,9 @@ The Rapier physics engine exposed to Python via [PyO3](https://pyo3.rs/) and
 [maturin](https://www.maturin.rs/). The bindings ship as a single PyPI
 package wrapping the 3D, `f32` engine:
 
-| PyPI dist     | import name    | crate (`python/…`) | dim | scalar |
-| ------------- | -------------- | ------------------ | --- | ------ |
-| `rapier3d`    | `rapier3d`     | `rapier-py-3d`     | 3D  | f32    |
+| PyPI dist     | import name    | crate (`bindings/python/…`) | dim | scalar |
+| ------------- | -------------- | --------------------------- | --- | ------ |
+| `rapier3d`    | `rapier3d`     | `rapier-py-3d`              | 3D  | f32    |
 
 The Panda3D visual testbed lives in the separate `rapier-testbed` package.
 

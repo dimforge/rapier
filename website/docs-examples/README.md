@@ -16,11 +16,11 @@ The bevy snippets (`2d/bevy`, `3d/bevy`) are standalone workspaces building agai
 
 The snippets build against the bindings **of this repository**, not the ones published on
 npm, so a snippet may use an API before it is released. `@dimforge/rapier{2,3}d` is a `file:`
-dependency on `typescript/builds/rapier{2,3}d/pkg`, which is generated; build it once (per
+dependency on `bindings/typescript/builds/rapier{2,3}d/pkg`, which is generated; build it once (per
 dimension) before installing:
 
 ```sh
-cd typescript
+cd bindings/typescript
 npm ci
 cargo run -p prepare_builds -- -d dim2 -f non-deterministic
 cd builds/rapier2d && npm i && npm run build:wasm && npm run build:ts

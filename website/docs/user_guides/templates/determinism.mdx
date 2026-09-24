@@ -166,7 +166,7 @@ computers (including different OS and/or different processors) will result in th
 achieve this, both computers must start the simulation with the **same initial conditions** as discussed above, and the
 following additional conditions must be met:
 - The bindings are built with the `determinism` feature, e.g., with
-  `maturin develop --release -F determinism -m python/rapier-py-3d/Cargo.toml` (see
+  `maturin develop --release -F determinism -m bindings/python/rapier-py-3d/Cargo.toml` (see
   [building from source](./getting_started_py.mdx#building-from-source)). The parallelism, which is always enabled,
   can be combined with it: the results of the parallel solver are identical to the results of the sequential one, and
   don't depend on the number of threads (nor, therefore, on the number of cores of the machine running the
