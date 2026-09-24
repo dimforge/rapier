@@ -512,10 +512,6 @@ standard fixed, revolute, prismatic, rope, spring, 2D pin-slot, and 3D spherical
 
 ## Coverage and examples
 
-See [docs/coverage.md](docs/coverage.md) for the API surface and explicit gaps,
-[docs/validation.md](docs/validation.md) for the local validation record,
-and [docs/engines.md](docs/engines.md) for Unity/Unreal integration notes.
-
 - [testbed/README.md](testbed/README.md): raylib/Dear ImGui viewer and headless C scenes.
 - [examples/falling_ball.c](examples/falling_ball.c): complete C simulation.
 - [include/rapier.hpp](include/rapier.hpp): optional C++ ownership helpers.

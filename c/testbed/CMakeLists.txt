@@ -16,6 +16,10 @@ rapier_executable(rapier_testbed_step_benchmark tools/step_benchmark.c)
 set_target_properties(rapier_testbed_step_benchmark PROPERTIES EXCLUDE_FROM_ALL TRUE)
 target_link_libraries(rapier_testbed_step_benchmark PRIVATE rapier_testbed_core)
 if(RAPIER_TESTBED_GRAPHICS)
+  if(DEFINED PLATFORM AND NOT PLATFORM STREQUAL "Desktop")
+    message(FATAL_ERROR "The testbed renderer supports PLATFORM=Desktop only (macOS, Windows, Linux/X11). Use RAPIER_TESTBED_GRAPHICS=OFF for other targets.")
+  endif()
+  include(cmake/Dependencies.cmake)
   # Normal variables stay in this directory: don't alter the parent project's options.
   set(BUILD_EXAMPLES OFF)
   set(BUILD_SHARED_LIBS OFF)
@@ -29,25 +33,33 @@ if(RAPIER_TESTBED_GRAPHICS)
   set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
   set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
   set(OPENGL_VERSION "3.3" CACHE STRING "" FORCE)
-  add_subdirectory(vendor/raylib EXCLUDE_FROM_ALL)
+  add_subdirectory("${raylib_SOURCE_DIR}" "${raylib_BINARY_DIR}" EXCLUDE_FROM_ALL)
   target_compile_definitions(raylib PRIVATE
-    SUPPORT_MODULE_RAUDIO=0 SUPPORT_CUSTOM_FRAME_CONTROL=0 SUPPORT_BUSY_WAIT_LOOP=0)
+    SUPPORT_MODULE_RAUDIO=0 SUPPORT_CUSTOM_FRAME_CONTROL=0 SUPPORT_BUSY_WAIT_LOOP=0
+    # Rapier supplies meshes; Dear ImGui supplies font loading. Keep raylib's
+    # default font/white texture, image decoders, screenshots, and mesh drawing.
+    SUPPORT_FILEFORMAT_OBJ=0 SUPPORT_FILEFORMAT_MTL=0 SUPPORT_FILEFORMAT_IQM=0
+    SUPPORT_FILEFORMAT_GLTF=0 SUPPORT_FILEFORMAT_GLTF_WRITE=0
+    SUPPORT_FILEFORMAT_VOX=0 SUPPORT_FILEFORMAT_M3D=0 SUPPORT_MESH_GENERATION=0
+    SUPPORT_FILEFORMAT_TTF=0 SUPPORT_FILEFORMAT_FNT=0
+    SUPPORT_COMPRESSION_API=0 SUPPORT_GESTURES_SYSTEM=0 SUPPORT_MOUSE_GESTURES=0)
   # Version-matched C wrappers and renderer; the testbed itself stays C11.
-  set(TB_IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/cimgui/imgui")
+  set(TB_IMGUI_DIR "${imgui_SOURCE_DIR}")
   add_library(rapier_testbed_imgui STATIC
-    vendor/cimgui/cimgui.cpp vendor/rlImGui/rlImGui.cpp
+    "${cimgui_SOURCE_DIR}/cimgui.cpp" "${rlimgui_SOURCE_DIR}/rlImGui.cpp"
     "${TB_IMGUI_DIR}/imgui.cpp" "${TB_IMGUI_DIR}/imgui_draw.cpp"
     "${TB_IMGUI_DIR}/imgui_widgets.cpp" "${TB_IMGUI_DIR}/imgui_tables.cpp"
     "${TB_IMGUI_DIR}/imgui_demo.cpp")
   target_compile_features(rapier_testbed_imgui PRIVATE cxx_std_17)
   target_compile_definitions(rapier_testbed_imgui PUBLIC NO_FONT_AWESOME CIMGUI_NO_EXPORT)
   target_include_directories(rapier_testbed_imgui SYSTEM PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/cimgui"
-    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/rlImGui" "${TB_IMGUI_DIR}")
+    "${cimgui_SOURCE_DIR}"
+    "${rlimgui_SOURCE_DIR}" "${TB_IMGUI_DIR}")
+  target_include_directories(rapier_testbed_imgui SYSTEM PRIVATE "${TB_CIMGUI_INCLUDE_DIR}")
   target_link_libraries(rapier_testbed_imgui PUBLIC raylib)
   # Embed the font with CMake alone: no runtime asset path, font installation,
-  # generator dependency, or network access is required by consumers.
-  set(TB_FONT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vendor/fira/FiraSans-Regular.ttf")
+  # generator dependency, or runtime network access is required.
+  set(TB_FONT_FILE "${fira_font_SOURCE_DIR}/FiraSans-Regular.ttf")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${TB_FONT_FILE}")
   file(READ "${TB_FONT_FILE}" TB_FONT_HEX HEX)
   string(REGEX REPLACE "(..)" "0x\\1," TB_FONT_BYTES "${TB_FONT_HEX}")
@@ -60,37 +72,39 @@ if(RAPIER_TESTBED_GRAPHICS)
   unset(TB_FONT_ROW)
   rapier_executable(rapier_testbed gui.c)
   target_include_directories(rapier_testbed PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+  set_property(TARGET rapier_testbed APPEND PROPERTY LINK_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_NOTICES.txt")
   add_custom_command(TARGET rapier_testbed POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/NOTICES.txt"
+      "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_NOTICES.txt"
       "$<TARGET_FILE_DIR:rapier_testbed>/THIRD_PARTY_NOTICES.txt"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/licenses"
+      "${CMAKE_CURRENT_SOURCE_DIR}/licenses"
       "$<TARGET_FILE_DIR:rapier_testbed>/licenses"
     COMMAND "${CMAKE_COMMAND}" -E make_directory
       "$<TARGET_FILE_DIR:rapier_testbed>/licenses/glfw-mingw"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/raylib/src/external/glfw/deps/mingw/dinput.h"
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/raylib/src/external/glfw/deps/mingw/xinput.h"
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/raylib/src/external/glfw/deps/mingw/_mingw_dxhelper.h"
+      "${raylib_SOURCE_DIR}/src/external/glfw/deps/mingw/dinput.h"
+      "${raylib_SOURCE_DIR}/src/external/glfw/deps/mingw/xinput.h"
+      "${raylib_SOURCE_DIR}/src/external/glfw/deps/mingw/_mingw_dxhelper.h"
       "$<TARGET_FILE_DIR:rapier_testbed>/licenses/glfw-mingw"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/raylib/LICENSE"
+      "${raylib_SOURCE_DIR}/LICENSE"
       "$<TARGET_FILE_DIR:rapier_testbed>/raylib-LICENSE.txt"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/raylib/src/external/glfw/LICENSE.md"
+      "${raylib_SOURCE_DIR}/src/external/glfw/LICENSE.md"
       "$<TARGET_FILE_DIR:rapier_testbed>/GLFW-LICENSE.txt"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/fira/LICENSE"
+      "${CMAKE_CURRENT_SOURCE_DIR}/licenses/FiraSans-LICENSE.txt"
       "$<TARGET_FILE_DIR:rapier_testbed>/FiraSans-LICENSE.txt"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/cimgui/LICENSE"
+      "${cimgui_SOURCE_DIR}/LICENSE"
       "$<TARGET_FILE_DIR:rapier_testbed>/cimgui-LICENSE.txt"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/cimgui/imgui/LICENSE.txt"
+      "${imgui_SOURCE_DIR}/LICENSE.txt"
       "$<TARGET_FILE_DIR:rapier_testbed>/DearImGui-LICENSE.txt"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/vendor/rlImGui/LICENSE"
+      "${rlimgui_SOURCE_DIR}/LICENSE"
       "$<TARGET_FILE_DIR:rapier_testbed>/rlImGui-LICENSE.txt"
     VERBATIM)
   target_sources(rapier_testbed PRIVATE graphics.c)

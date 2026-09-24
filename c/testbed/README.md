@@ -1,11 +1,11 @@
 # Rapier C testbed
 
 The viewer uses raylib for graphics and Dear ImGui through cimgui for its C UI.
-Sources and Fira Sans Regular are vendored; configuring and building never downloads
-graphics dependencies. A C/C++ compiler, Cargo, and CMake 3.22+ are required.
+CMake downloads pinned sources and Fira Sans Regular during the first configuration.
+A C/C++ compiler, Cargo, CMake 3.25+, and an internet connection for that initial
+download are required. Subsequent builds reuse the downloaded sources.
 macOS uses system frameworks. Linux requires the usual X11/OpenGL development
-packages needed to compile raylib's bundled GLFW. See [vendor/README.md](vendor/README.md)
-for exact versions and licenses.
+packages needed to compile raylib's bundled GLFW. See [dependencies.md](dependencies.md) for versions, offline builds, and licenses.
 
 From the repository root:
 
@@ -85,7 +85,6 @@ CMake's options. `testbed_threading` verifies live worker changes and persistenc
 across restart, scene switches, and snapshot restore, including serial builds.
 [Manual C-versus-Rust timing checks](tools/README.md) replay identical no-sleep
 snapshots with both APIs and compare the final poses and velocities exactly.
-See the [Keva timing investigation](tools/timing-results.md) for measured results.
 
 Configure `-DRAPIER_TESTBED_GRAPHICS=OFF` to build only the headless runner without
 raylib, ImGui, or display requirements. Viewer and headless runner use the same C
@@ -96,8 +95,7 @@ scene sources. `--assets PATH` overrides the repository asset directory.
 Each scene uses the Rapier C API directly, following its matching Rust example.
 Each example owns its render loop, physics stepping, events, and local animation
 state. The viewer renders one frame and processes input when the example calls
-`tbRenderFrame`; it does not wrap physics construction or stepping. See [Writing C examples](PORTING.md) for the correspondence
-and ownership conventions.
+`tbRenderFrame`; it does not wrap physics construction or stepping.
 
 ## Port coverage
 

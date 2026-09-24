@@ -1,4 +1,4 @@
-/* Generated from the unmodified SIL OFL font in vendor/fira. Do not edit. */
+/* Generated from the unmodified SIL OFL font downloaded from Mozilla Fira. Do not edit. */
 #ifndef RAPIER_TESTBED_FONT_DATA_H
 #define RAPIER_TESTBED_FONT_DATA_H
 static const unsigned char tbFontData[] = { @TB_FONT_BYTES@ };
