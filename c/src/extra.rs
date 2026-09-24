@@ -1,13 +1,19 @@
 use crate::*;
 use rapier::geometry::ContactPair;
-/// Explicit mass and principal inertia, matching MassProperties constructors. Zero mass/inertia means infinite.
+/// Explicit mass and principal inertia, matching MassProperties constructors. Zero mass/inertia
+/// means infinite.
+/// @ingroup math
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprMassProperties {
+    /// Center of mass in local coordinates.
     pub local_com: RprVector,
+    /// Mass; nonnegative when supplied as input.
     pub mass: RprReal,
+    /// Principal angular inertia; scalar in 2D, three diagonal entries in 3D.
     pub principal_inertia: RprAngVector,
     #[cfg(feature = "dim3")]
+    /// Orientation of principal inertia axes in local coordinates (3D).
     pub principal_inertia_local_frame: RprRotation,
 }
 impl RprMassProperties {
@@ -104,6 +110,9 @@ pub(crate) unsafe fn native_rigid_body_locked_axes(
     ffi(|| unsafe { output(out, get(body)?.0.locked_axes().bits()) })
 }
 
+/// Create an owned heightfield shape from copied samples. 3D samples are column-major, with rows *
+/// columns entries. Release with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_heightfield_shared_shape(
     heights: RprRealView,
@@ -202,6 +211,8 @@ pub(crate) unsafe fn impl_rpr_shared_shape_voxels_from_points(
         )
     })
 }
+/// Compute the shape axis-aligned bounds at the supplied world-space pose.
+/// @ingroup shapes
 #[rapier_export(shared_shape)]
 pub unsafe extern "C" fn rpr_shared_shape_compute_aabb(
     shape: *const RprSharedShape,
@@ -220,6 +231,8 @@ pub unsafe extern "C" fn rpr_shared_shape_compute_aabb(
         })
     })
 }
+/// Compute local mass properties for the supplied nonnegative density.
+/// @ingroup shapes
 #[rapier_export(shared_shape)]
 pub unsafe extern "C" fn rpr_shared_shape_mass_properties(
     shape: *const RprSharedShape,
@@ -232,6 +245,8 @@ pub unsafe extern "C" fn rpr_shared_shape_mass_properties(
         })
     })
 }
+/// Test whether the world-space point lies inside the shape at pose.
+/// @ingroup shapes
 #[rapier_export(shared_shape)]
 pub unsafe extern "C" fn rpr_shared_shape_contains_point(
     shape: *const RprSharedShape,
@@ -246,15 +261,24 @@ pub unsafe extern "C" fn rpr_shared_shape_contains_point(
         })
     })
 }
+/// Current narrow-phase pair and accumulated solver impulse summary.
+/// @ingroup events
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprContactPair {
+    /// First collider in the pair.
     pub collider1: RprColliderHandle,
+    /// Second collider in the pair.
     pub collider2: RprColliderHandle,
+    /// Whether the pair has an active solver contact.
     pub has_any_active_contact: RprBool,
+    /// Sum of world-space contact impulse vectors.
     pub total_impulse: RprVector,
+    /// Sum of contact impulse magnitudes.
     pub total_impulse_magnitude: RprReal,
+    /// Largest contact impulse magnitude.
     pub max_impulse: RprReal,
+    /// World-space direction of the largest contact impulse.
     pub max_impulse_direction: RprVector,
 }
 impl From<&ContactPair> for RprContactPair {
@@ -271,13 +295,21 @@ impl From<&ContactPair> for RprContactPair {
         }
     }
 }
+/// Sensor intersection state for a collider pair.
+/// @ingroup math
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprIntersectionPair {
+    /// First collider in the pair.
     pub collider1: RprColliderHandle,
+    /// Second collider in the pair.
     pub collider2: RprColliderHandle,
+    /// Whether the two sensor/collider shapes intersect.
     pub intersecting: RprBool,
 }
+/// Copy current narrow-phase contact pairs, including pairs without active solver contacts.
+/// @see @ref output_buffers
+/// @ingroup events
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_pairs(
     world: *const RprWorld,
@@ -300,6 +332,8 @@ pub unsafe extern "C" fn rpr_contact_pairs(
     }
 }
 
+/// Return the narrow-phase contact pair for two colliders, or report RPR_NOT_FOUND.
+/// @ingroup events
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_pair(
     collider1: RprColliderHandle,
@@ -324,6 +358,9 @@ pub unsafe extern "C" fn rpr_contact_pair(
     })
 }
 
+/// Copy current sensor intersection pairs from the narrow phase.
+/// @see @ref output_buffers
+/// @ingroup events
 #[rapier_export]
 pub unsafe extern "C" fn rpr_intersection_pairs(
     world: *const RprWorld,
@@ -354,18 +391,29 @@ pub unsafe extern "C" fn rpr_intersection_pairs(
     }
 }
 
+/// One manifold contact and its normal solver impulse.
+/// @ingroup events
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprContactPoint {
+    /// Index of the contact manifold within its pair.
     pub manifold_index: usize,
+    /// Contact point in collider 1 local coordinates.
     pub local_p1: RprVector,
+    /// Contact point in collider 2 local coordinates.
     pub local_p2: RprVector,
+    /// World-space contact or surface normal.
     pub normal: RprVector,
+    /// Signed separation; negative means penetration.
     pub distance: RprReal,
+    /// Normal impulse applied at this contact.
     pub impulse: RprReal,
 }
-/// Contact points in collider-local space; normal in world space. Geometric manifolds may be recycled.
+/// Contact points in collider-local space; normal in world space. Geometric manifolds may be
+/// recycled.
 /// For clustered solver impulses use contact pair totals. Soft pairs have no rigid manifolds.
+/// @see @ref output_buffers
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_points(
     collider1: RprColliderHandle,
@@ -407,6 +455,9 @@ pub unsafe extern "C" fn rpr_contact_points(
     })
 }
 
+/// Copy the articulation generalized velocities in native degree-of-freedom order.
+/// @see @ref output_buffers
+/// @ingroup joints
 #[rapier_export(multibody_joint)]
 pub unsafe extern "C" fn rpr_multibody_joint_generalized_velocity(
     handle: RprMultibodyJointHandle,
@@ -429,6 +480,8 @@ pub unsafe extern "C" fn rpr_multibody_joint_generalized_velocity(
     })
 }
 
+/// Replace articulation generalized velocities; the array length must match its degrees of freedom.
+/// @ingroup joints
 #[rapier_export(multibody_joint)]
 pub unsafe extern "C" fn rpr_multibody_joint_set_generalized_velocity(
     handle: RprMultibodyJointHandle,
@@ -461,6 +514,7 @@ pub unsafe extern "C" fn rpr_multibody_joint_set_generalized_velocity(
 }
 
 /// Check this before passing any dimension/precision-dependent structs across the ABI.
+/// @ingroup errors
 #[rapier_export]
 pub unsafe extern "C" fn rpr_check_abi(
     version: u32,
@@ -529,16 +583,24 @@ pub(crate) unsafe fn native_collider_is_voxels(
     })
 }
 /// Voxel coordinates have DIM signed integer components.
+/// @ingroup math
 #[cfg(feature = "f32")]
 pub type RprVoxelCoord = i32;
+/// Signed voxel coordinate integer.
+/// @ingroup math
 #[cfg(feature = "f64")]
 pub type RprVoxelCoord = i64;
+/// Integer coordinates of a voxel cell.
+/// @ingroup math
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprVoxelKey {
+    /// X component.
     pub x: RprVoxelCoord,
+    /// Y component.
     pub y: RprVoxelCoord,
     #[cfg(feature = "dim3")]
+    /// Z component.
     pub z: RprVoxelCoord,
 }
 impl RprVoxelKey {

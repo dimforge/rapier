@@ -9,6 +9,7 @@ const WRITER: usize = usize::MAX;
 /// Sole owner of simulation state. Handles belong to the world that created them.
 /// Ordinary reads may overlap. A mutation or step requires exclusive access.
 /// Destruction must be externally synchronized with all users of this pointer.
+/// @ingroup worlds
 pub struct RprWorld {
     access: AtomicUsize,
     data: UnsafeCell<RprPhysicsWorld>,
@@ -64,6 +65,7 @@ impl Drop for WorldWrite<'_> {
     }
 }
 /// Create an owned world. Release it with FreeWorld.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_new_world() -> *mut RprWorld {
     ffi_value(|out: *mut *mut RprWorld| {
@@ -80,6 +82,7 @@ pub unsafe extern "C" fn rpr_new_world() -> *mut RprWorld {
 }
 /// Free a world. NULL is allowed. Rejects destruction from an active callback.
 /// The caller must prevent other threads from starting calls during destruction.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_world(world: *mut RprWorld) -> RprStatus {
     ffi(|| unsafe {
@@ -96,6 +99,7 @@ pub unsafe extern "C" fn rpr_free_world(world: *mut RprWorld) -> RprStatus {
 
 /// Callback-scoped read access to bodies and colliders. Never retain or free it.
 /// Only the Read* functions accept this context; it cannot mutate the world.
+/// @ingroup callbacks
 pub struct RprReadContext {
     pub(crate) world: *mut RprWorld,
     pub(crate) bodies: *const RprRigidBodySet,

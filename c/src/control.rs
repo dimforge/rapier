@@ -3,16 +3,23 @@ use rapier::control::{
     CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController,
 };
 /// Controller plus reusable collision output from the last move_shape call.
+/// Kinematic character controller and its last collision list. Release with the matching Free
+/// function.
+/// @ingroup controllers
 pub struct RprKinematicCharacterController {
     world: *mut RprWorld,
     inner: KinematicCharacterController,
     collisions: Vec<CharacterCollision>,
 }
-/// CharacterLength counterpart: relative=1 scales with character height, relative=0 uses world units.
+/// CharacterLength counterpart: relative=1 scales with character height, relative=0 uses world
+/// units.
+/// @ingroup controllers
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprCharacterLength {
+    /// Value used when enabled is 1.
     pub value: RprReal,
+    /// 1 scales value by the character shape size; 0 uses an absolute length.
     pub relative: RprBool,
 }
 impl RprCharacterLength {
@@ -25,22 +32,37 @@ impl RprCharacterLength {
         })
     }
 }
+/// Allowed character motion and ground-contact state.
+/// @ingroup controllers
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprCharacterMovement {
+    /// Allowed world-space displacement; not applied automatically.
     pub translation: RprVector,
+    /// Whether the character touches the ground after movement.
     pub grounded: RprBool,
+    /// Whether motion includes sliding down a non-climbable slope.
     pub is_sliding_down_slope: RprBool,
 }
+/// Collision recorded during character movement.
+/// @ingroup controllers
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprCharacterCollision {
+    /// World-bound collider handle.
     pub collider: RprColliderHandle,
+    /// World-space character pose at collision.
     pub character_pos: RprPose,
+    /// World-space translation already applied before collision.
     pub translation_applied: RprVector,
+    /// World-space translation remaining at collision.
     pub translation_remaining: RprVector,
+    /// Shape/ray impact details.
     pub hit: RprShapeCastHit,
 }
+/// Allocate a character controller with native defaults; release it with
+/// rpr_free_kinematic_character_controller.
+/// @ingroup controllers
 #[rapier_export]
 pub unsafe extern "C" fn rpr_new_kinematic_character_controller()
 -> *mut RprKinematicCharacterController {
@@ -58,6 +80,9 @@ pub unsafe extern "C" fn rpr_new_kinematic_character_controller()
         })
     })
 }
+/// Release an owned kinematic character controller. NULL is allowed. Do not pass borrowed pointers
+/// or free the object twice.
+/// @ingroup controllers
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_kinematic_character_controller(
     controller: *mut RprKinematicCharacterController,
@@ -70,6 +95,8 @@ pub unsafe extern "C" fn rpr_free_kinematic_character_controller(
         Ok(())
     })
 }
+/// Set the up direction; it must be finite and nonzero and is normalized on input.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_set_up(
     controller: *mut RprKinematicCharacterController,
@@ -82,6 +109,8 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_set_up(
         Ok(())
     })
 }
+/// Set the collision separation margin; use a positive absolute or relative character length.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_set_offset(
     controller: *mut RprKinematicCharacterController,
@@ -94,6 +123,8 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_set_offset(
         Ok(())
     })
 }
+/// Enable or disable sliding along obstacles.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_set_slide(
     controller: *mut RprKinematicCharacterController,
@@ -105,6 +136,8 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_set_slide(
         Ok(())
     })
 }
+/// Set the maximum climb angle and minimum slide angle, in radians.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_set_slopes(
     controller: *mut RprKinematicCharacterController,
@@ -122,6 +155,8 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_set_slopes(
         Ok(())
     })
 }
+/// Configure automatic stepping over obstacles. enabled = 0 disables it.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_set_autostep(
     controller: *mut RprKinematicCharacterController,
@@ -141,6 +176,8 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_set_autostep(
         Ok(())
     })
 }
+/// Configure downward ground snapping. enabled = 0 disables it.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_set_snap_to_ground(
     controller: *mut RprKinematicCharacterController,
@@ -154,7 +191,11 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_set_snap_to_ground(
         Ok(())
     })
 }
-/// Computes movement without moving any collider. Use the returned translation to set the character target.
+/// Computes movement without moving any collider. Use the returned translation to set the character
+/// target.
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_move_shape(
     world: *const RprWorld,
@@ -201,6 +242,9 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_move_shape(
     })
 }
 
+/// Copy collisions recorded by the most recent MoveShape call.
+/// @see @ref output_buffers
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_collisions(
     controller: *const RprKinematicCharacterController,
@@ -239,7 +283,9 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_collisions(
         )
     }
 }
-/// Applies impulses for the most recent move_shape collisions. Use the same world, shape, dt and filter.
+/// Applies impulses for the most recent move_shape collisions. Use the same world, shape, dt and
+/// filter.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_solve_character_collision_impulses(
     controller: *const RprKinematicCharacterController,
@@ -285,16 +331,27 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_solve_character_coll
 mod vehicle {
     use super::*;
     use rapier::control::{DynamicRayCastVehicleController, WheelTuning};
+    /// Vehicle controller borrowing its chassis world. Release with the matching Free function.
+    /// @ingroup controllers
     pub struct RprDynamicRayCastVehicleController(DynamicRayCastVehicleController, *mut RprWorld);
     #[repr(C)]
     #[derive(Copy, Clone, Default)]
+    /// Wheel suspension/friction parameters. Initialize with rpr_default_wheel_tuning.
+    /// @ingroup controllers
     pub struct RprWheelTuning {
+        /// Nonnegative suspension spring stiffness.
         pub suspension_stiffness: RprReal,
+        /// Nonnegative damping coefficient during suspension compression.
         pub suspension_compression: RprReal,
+        /// Nonnegative suspension relaxation damping.
         pub suspension_damping: RprReal,
+        /// Maximum suspension travel in length units.
         pub max_suspension_travel: RprReal,
+        /// Maximum tire friction/slip coefficient.
         pub friction_slip: RprReal,
+        /// Maximum force exerted by suspension.
         pub max_suspension_force: RprReal,
+        /// Sideways tire friction stiffness.
         pub side_friction_stiffness: RprReal,
     }
     impl RprWheelTuning {
@@ -312,18 +369,32 @@ mod vehicle {
     }
     #[repr(C)]
     #[derive(Copy, Clone, Default)]
+    /// Copy of the current wheel pose, suspension, and contact state.
+    /// @ingroup controllers
     pub struct RprWheelState {
+        /// World-space wheel center.
         pub center: RprVector,
+        /// World-space suspension direction.
         pub suspension: RprVector,
+        /// World-space axle direction.
         pub axle: RprVector,
+        /// Wheel rotation angle in radians.
         pub rotation: RprReal,
+        /// Current suspension force.
         pub suspension_force: RprReal,
+        /// Current suspension length.
         pub suspension_length: RprReal,
+        /// Whether the wheel has ground contact.
         pub is_in_contact: RprBool,
+        /// Ground collider handle, invalid when there is no contact.
         pub ground_object: RprColliderHandle,
+        /// World-space ground contact point.
         pub contact_point: RprVector,
+        /// World-space ground contact normal.
         pub contact_normal: RprVector,
     }
+    /// Return native default wheel tuning. This POD value owns no resources.
+    /// @ingroup controllers
     #[rapier_export]
     pub extern "C" fn rpr_default_wheel_tuning() -> RprWheelTuning {
         let t = WheelTuning::default();
@@ -337,6 +408,9 @@ mod vehicle {
             side_friction_stiffness: t.side_friction_stiffness,
         }
     }
+    /// Allocate a vehicle controller bound to its chassis body. The chassis world must outlive the
+    /// controller. Release with rpr_free_dynamic_ray_cast_vehicle_controller.
+    /// @ingroup controllers
     #[rapier_export]
     pub unsafe extern "C" fn rpr_new_dynamic_ray_cast_vehicle_controller(
         chassis: RprRigidBodyHandle,
@@ -367,6 +441,9 @@ mod vehicle {
         })
     }
 
+    /// Release an owned dynamic ray cast vehicle controller. NULL is allowed. Do not pass borrowed
+    /// pointers or free the object twice.
+    /// @ingroup controllers
     #[rapier_export]
     pub unsafe extern "C" fn rpr_free_dynamic_ray_cast_vehicle_controller(
         controller: *mut RprDynamicRayCastVehicleController,
@@ -379,6 +456,9 @@ mod vehicle {
             Ok(())
         })
     }
+    /// Append a wheel and return its zero-based index. Connection, suspension direction, and axle
+    /// are in chassis-local coordinates.
+    /// @ingroup controllers
     #[rapier_export(dynamic_ray_cast_vehicle_controller)]
     pub unsafe extern "C" fn rpr_dynamic_ray_cast_vehicle_controller_add_wheel(
         controller: *mut RprDynamicRayCastVehicleController,
@@ -411,6 +491,8 @@ mod vehicle {
             })
         })
     }
+    /// Set the chassis up/forward axis indices (0 = X, 1 = Y, 2 = Z).
+    /// @ingroup controllers
     #[rapier_export(dynamic_ray_cast_vehicle_controller)]
     pub unsafe extern "C" fn rpr_dynamic_ray_cast_vehicle_controller_set_axes(
         controller: *mut RprDynamicRayCastVehicleController,
@@ -428,6 +510,8 @@ mod vehicle {
             Ok(())
         })
     }
+    /// Set a wheel engine force, brake force, and steering angle in radians.
+    /// @ingroup controllers
     #[rapier_export(dynamic_ray_cast_vehicle_controller)]
     pub unsafe extern "C" fn rpr_dynamic_ray_cast_vehicle_controller_set_wheel_controls(
         controller: *mut RprDynamicRayCastVehicleController,
@@ -451,6 +535,8 @@ mod vehicle {
             Ok(())
         })
     }
+    /// Ray-cast wheel contacts and apply vehicle forces for dt seconds. Does not step the world.
+    /// @ingroup controllers
     #[rapier_export(dynamic_ray_cast_vehicle_controller)]
     pub unsafe extern "C" fn rpr_dynamic_ray_cast_vehicle_controller_update_vehicle(
         controller: *mut RprDynamicRayCastVehicleController,
@@ -493,6 +579,8 @@ mod vehicle {
         })
     }
 
+    /// Return signed chassis speed along its forward direction.
+    /// @ingroup controllers
     #[rapier_export(dynamic_ray_cast_vehicle_controller)]
     pub unsafe extern "C" fn rpr_dynamic_ray_cast_vehicle_controller_current_vehicle_speed(
         controller: *const RprDynamicRayCastVehicleController,
@@ -501,6 +589,9 @@ mod vehicle {
             ffi(|| unsafe { output(out, get(controller)?.0.current_vehicle_speed) })
         })
     }
+    /// Copy current wheel state in wheel insertion order.
+    /// @see @ref output_buffers
+    /// @ingroup controllers
     #[rapier_export(dynamic_ray_cast_vehicle_controller)]
     pub unsafe extern "C" fn rpr_dynamic_ray_cast_vehicle_controller_wheels(
         controller: *const RprDynamicRayCastVehicleController,
@@ -548,19 +639,32 @@ mod vehicle {
 pub use vehicle::*;
 
 /// PID controller with persistent integral state.
+/// Stateful proportional-integral-derivative controller. Release with the matching Free function.
+/// @ingroup controllers
 pub struct RprPidController(rapier::control::PidController);
 
+/// Per-axis proportional, integral, and derivative controller gains.
+/// @ingroup controllers
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprPidGains {
+    /// Linear proportional gain per axis.
     pub lin_kp: RprVector,
+    /// Linear integral gain per axis.
     pub lin_ki: RprVector,
+    /// Linear derivative gain per axis.
     pub lin_kd: RprVector,
+    /// Angular proportional gain per axis.
     pub ang_kp: RprAngVector,
+    /// Angular integral gain per axis.
     pub ang_ki: RprAngVector,
+    /// Angular derivative gain per axis.
     pub ang_kd: RprAngVector,
 }
 
+/// Allocate a PID controller with supplied gains and controlled axes. Release with
+/// rpr_free_pid_controller.
+/// @ingroup controllers
 #[rapier_export]
 pub unsafe extern "C" fn rpr_new_pid_controller() -> *mut RprPidController {
     ffi_value(|out: *mut *mut RprPidController| {
@@ -573,6 +677,9 @@ pub unsafe extern "C" fn rpr_new_pid_controller() -> *mut RprPidController {
         })
     })
 }
+/// Release an owned pid controller. NULL is allowed. Do not pass borrowed pointers or free the
+/// object twice.
+/// @ingroup controllers
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_pid_controller(controller: *mut RprPidController) -> RprStatus {
     ffi(|| unsafe {
@@ -582,6 +689,8 @@ pub unsafe extern "C" fn rpr_free_pid_controller(controller: *mut RprPidControll
         Ok(())
     })
 }
+/// Return a copy of the proportional, integral, and derivative gains.
+/// @ingroup controllers
 #[rapier_export(pid_controller)]
 pub unsafe extern "C" fn rpr_pid_controller_gains(
     controller: *const RprPidController,
@@ -603,6 +712,8 @@ pub unsafe extern "C" fn rpr_pid_controller_gains(
         })
     })
 }
+/// Replace the proportional, integral, and derivative gains.
+/// @ingroup controllers
 #[rapier_export(pid_controller)]
 pub unsafe extern "C" fn rpr_pid_controller_set_gains(
     controller: *mut RprPidController,
@@ -626,6 +737,7 @@ pub unsafe extern "C" fn rpr_pid_controller_set_gains(
     })
 }
 /// AxesMask bits match Rapier: linear X/Y/Z are 1/2/4, angular X/Y/Z are 8/16/32.
+/// @ingroup controllers
 #[rapier_export(pid_controller)]
 pub unsafe extern "C" fn rpr_pid_controller_set_axes(
     controller: *mut RprPidController,
@@ -641,6 +753,7 @@ pub unsafe extern "C" fn rpr_pid_controller_set_axes(
     })
 }
 /// Compute a velocity correction, preserving the body's state and updating PID integrals.
+/// @ingroup controllers
 #[rapier_export(pid_controller)]
 pub unsafe extern "C" fn rpr_pid_controller_rigid_body_correction(
     controller: *mut RprPidController,
@@ -706,15 +819,24 @@ pub(crate) unsafe fn native_pid_controller_rigid_body_correction(
     })
 }
 
+/// Copy of character sliding, slope, and snapping settings.
+/// @ingroup controllers
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprCharacterControllerSettings {
+    /// Whether obstacle sliding is enabled.
     pub slide: RprBool,
+    /// Maximum climbable slope angle in radians.
     pub max_slope_climb_angle: RprReal,
+    /// Minimum slope angle for sliding, in radians.
     pub min_slope_slide_angle: RprReal,
+    /// Whether downward ground snapping is enabled.
     pub snap_to_ground: RprBool,
+    /// Maximum downward snapping distance.
     pub snap_distance: RprCharacterLength,
 }
+/// Return a copy of slide, slope, and ground-snap settings.
+/// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_settings(
     controller: *const RprKinematicCharacterController,

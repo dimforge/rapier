@@ -1,4 +1,6 @@
 use crate::*;
+/// Create an owned ball shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_ball_shared_shape(radius: RprReal) -> *mut RprSharedShape {
     ffi_value(|out: *mut *mut RprSharedShape| {
@@ -10,6 +12,8 @@ pub unsafe extern "C" fn rpr_ball_shared_shape(radius: RprReal) -> *mut RprShare
     })
 }
 
+/// Create an owned cuboid shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_cuboid_shared_shape(half_extents: RprVector) -> *mut RprSharedShape {
     ffi_value(|out: *mut *mut RprSharedShape| {
@@ -32,6 +36,8 @@ pub unsafe extern "C" fn rpr_cuboid_shared_shape(half_extents: RprVector) -> *mu
     })
 }
 
+/// Create an owned round cuboid shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_round_cuboid_shared_shape(
     half_extents: RprVector,
@@ -58,6 +64,8 @@ pub unsafe extern "C" fn rpr_round_cuboid_shared_shape(
     })
 }
 
+/// Create an owned capsule shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_capsule_shared_shape(
     a: RprVector,
@@ -73,6 +81,8 @@ pub unsafe extern "C" fn rpr_capsule_shared_shape(
     })
 }
 
+/// Create an owned segment shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_segment_shared_shape(
     a: RprVector,
@@ -87,6 +97,8 @@ pub unsafe extern "C" fn rpr_segment_shared_shape(
     })
 }
 
+/// Create an owned triangle shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_triangle_shared_shape(
     a: RprVector,
@@ -102,6 +114,8 @@ pub unsafe extern "C" fn rpr_triangle_shared_shape(
     })
 }
 
+/// Create an owned halfspace shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_halfspace_shared_shape(normal: RprVector) -> *mut RprSharedShape {
     ffi_value(|out: *mut *mut RprSharedShape| {
@@ -115,6 +129,8 @@ pub unsafe extern "C" fn rpr_halfspace_shared_shape(normal: RprVector) -> *mut R
     })
 }
 
+/// Create an owned cylinder shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[cfg(feature = "dim3")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_cylinder_shared_shape(
@@ -130,6 +146,8 @@ pub unsafe extern "C" fn rpr_cylinder_shared_shape(
     })
 }
 
+/// Create an owned cone shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[cfg(feature = "dim3")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_cone_shared_shape(
@@ -224,6 +242,9 @@ pub(crate) unsafe fn indices_array<const N: usize>(
         .map(|c| c.try_into().unwrap())
         .collect())
 }
+/// Create an owned compound shape; each child pose is relative to the compound. Child shapes are
+/// shared, not consumed. Release with rpr_free_shared_shape.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_compound_shared_shape(
     children: RprCompoundShapeView,
@@ -677,6 +698,8 @@ pub(crate) unsafe fn native_collider_set_position_wrt_parent(
     })
 }
 
+/// Remove the collider and update its parent body mass properties. wake_up wakes the parent.
+/// @ingroup colliders
 #[rapier_export]
 pub unsafe extern "C" fn rpr_remove_collider(
     handle: RprColliderHandle,

@@ -3,118 +3,164 @@
 use crate::*;
 
 /// Vertex indices for one edge; contiguous u32 fields with no padding.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprEdge {
+    /// First vertex index.
     pub a: u32,
+    /// Second vertex index.
     pub b: u32,
 }
 const _: () = assert!(size_of::<RprEdge>() == 2 * size_of::<u32>());
 /// Vertex indices for one triangle; contiguous u32 fields with no padding.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprTriangle {
+    /// First vertex index.
     pub a: u32,
+    /// Second vertex index.
     pub b: u32,
+    /// Third vertex index.
     pub c: u32,
 }
 const _: () = assert!(size_of::<RprTriangle>() == 3 * size_of::<u32>());
 /// Vertex indices for one tetrahedron; contiguous u32 fields with no padding.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprTetrahedron {
+    /// First vertex index.
     pub a: u32,
+    /// Second vertex index.
     pub b: u32,
+    /// Third vertex index.
     pub c: u32,
+    /// Fourth vertex index.
     pub d: u32,
 }
 const _: () = assert!(size_of::<RprTetrahedron>() == 4 * size_of::<u32>());
 /// Vertex indices for one dihedral; contiguous u32 fields with no padding.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprDihedral {
+    /// First vertex index.
     pub a: u32,
+    /// Second vertex index.
     pub b: u32,
+    /// Third vertex index.
     pub c: u32,
+    /// Fourth vertex index.
     pub d: u32,
 }
 const _: () = assert!(size_of::<RprDihedral>() == 4 * size_of::<u32>());
-/// Borrowed array of vector elements. count always counts elements, not scalars.
+/// Borrowed array of vector elements. count counts elements of the declared type.
 /// Copying this view does not copy its data or extend its lifetime. No Free is needed.
 /// Data must remain live through the build/insert call that reads the description.
 /// NULL is permitted only when count is zero.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprVectorView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprVector,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
-/// Borrowed array of real elements. count always counts elements, not scalars.
+/// Borrowed array of real elements. count counts elements of the declared type.
 /// Copying this view does not copy its data or extend its lifetime. No Free is needed.
 /// Data must remain live through the build/insert call that reads the description.
 /// NULL is permitted only when count is zero.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprRealView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprReal,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
-/// Borrowed array of index elements. count always counts elements, not scalars.
+/// Borrowed array of index elements. count counts elements of the declared type.
 /// Copying this view does not copy its data or extend its lifetime. No Free is needed.
 /// Data must remain live through the build/insert call that reads the description.
 /// NULL is permitted only when count is zero.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprIndexView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const u32,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
-/// Borrowed array of edge elements. count always counts elements, not scalars.
+/// Borrowed array of edge elements. count counts elements of the declared type.
 /// Copying this view does not copy its data or extend its lifetime. No Free is needed.
 /// Data must remain live through the build/insert call that reads the description.
 /// NULL is permitted only when count is zero.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprEdgeView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprEdge,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
-/// Borrowed array of triangle elements. count always counts elements, not scalars.
+/// Borrowed array of triangle elements. count counts elements of the declared type.
 /// Copying this view does not copy its data or extend its lifetime. No Free is needed.
 /// Data must remain live through the build/insert call that reads the description.
 /// NULL is permitted only when count is zero.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprTriangleView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprTriangle,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
-/// Borrowed array of tetrahedron elements. count always counts elements, not scalars.
+/// Borrowed array of tetrahedron elements. count counts elements of the declared type.
 /// Copying this view does not copy its data or extend its lifetime. No Free is needed.
 /// Data must remain live through the build/insert call that reads the description.
 /// NULL is permitted only when count is zero.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprTetrahedronView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprTetrahedron,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
-/// Borrowed array of dihedral elements. count always counts elements, not scalars.
+/// Borrowed array of dihedral elements. count counts elements of the declared type.
 /// Copying this view does not copy its data or extend its lifetime. No Free is needed.
 /// Data must remain live through the build/insert call that reads the description.
 /// NULL is permitted only when count is zero.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprDihedralView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprDihedral,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
+/// Borrowed cell array: triangles in 2D, tetrahedra in 3D.
+/// @ingroup math
 #[cfg(feature = "dim2")]
 pub type RprCellView = RprTriangleView;
+/// Borrowed cell array: triangles in 2D, tetrahedra in 3D.
+/// @ingroup math
 #[cfg(feature = "dim3")]
 pub type RprCellView = RprTetrahedronView;
+/// Borrowed surface array: edges in 2D, triangles in 3D.
+/// @ingroup math
 #[cfg(feature = "dim2")]
 pub type RprSurfaceElementView = RprEdgeView;
+/// Borrowed surface array: edges in 2D, triangles in 3D.
+/// @ingroup math
 #[cfg(feature = "dim3")]
 pub type RprSurfaceElementView = RprTriangleView;
 
@@ -137,6 +183,7 @@ pub(crate) fn validate_view<T>(data: *const T, count: usize) -> Result {
 /// Replace the shape geometry with a borrowed tri mesh. Counts are elements.
 /// Copies no arrays. Invalid view metadata leaves the description unchanged.
 /// Geometry and flags are validated when the description is built or inserted.
+/// @ingroup shapes
 #[rapier_export(shape_desc)]
 pub unsafe extern "C" fn rpr_shape_desc_set_trimesh(
     desc: *mut RprShapeDesc,
@@ -160,6 +207,7 @@ pub unsafe extern "C" fn rpr_shape_desc_set_trimesh(
 /// Replace the shape geometry with a borrowed polyline. Counts are elements.
 /// Copies no arrays. Invalid view metadata leaves the description unchanged.
 /// Geometry and flags are validated when the description is built or inserted.
+/// @ingroup shapes
 #[rapier_export(shape_desc)]
 pub unsafe extern "C" fn rpr_shape_desc_set_polyline(
     desc: *mut RprShapeDesc,
@@ -181,6 +229,7 @@ pub unsafe extern "C" fn rpr_shape_desc_set_polyline(
     })
 }
 /// Replace the shape geometry with a borrowed convex hull point cloud.
+/// @ingroup shapes
 #[rapier_export(shape_desc)]
 pub unsafe extern "C" fn rpr_shape_desc_set_convex_hull(
     desc: *mut RprShapeDesc,
@@ -199,6 +248,7 @@ pub unsafe extern "C" fn rpr_shape_desc_set_convex_hull(
     })
 }
 /// Select an explicit particle recipe and borrow its positions. Other fields are preserved.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_particles(
     desc: *mut RprSoftBodyDesc,
@@ -213,6 +263,7 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_particles(
     })
 }
 /// Select a surface recipe and borrow its vertices and elements. Other fields are preserved.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_surface_mesh(
     desc: *mut RprSoftBodyDesc,
@@ -230,6 +281,7 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_surface_mesh(
     })
 }
 /// Borrow skin geometry. Other fields, including skinCollision, are preserved.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_skin(
     desc: *mut RprSoftBodyDesc,
@@ -246,8 +298,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_skin(
     })
 }
 /// Borrow masses; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_masses(
     desc: *mut RprSoftBodyDesc,
@@ -261,8 +315,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_masses(
     })
 }
 /// Borrow pinned particles; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_pinned_particles(
     desc: *mut RprSoftBodyDesc,
@@ -276,8 +332,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_pinned_particles(
     })
 }
 /// Borrow edges; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_edges(
     desc: *mut RprSoftBodyDesc,
@@ -291,8 +349,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_edges(
     })
 }
 /// Borrow bend edges; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_bend_edges(
     desc: *mut RprSoftBodyDesc,
@@ -306,8 +366,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_bend_edges(
     })
 }
 /// Borrow cells; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_cells(
     desc: *mut RprSoftBodyDesc,
@@ -321,8 +383,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_cells(
     })
 }
 /// Borrow surface; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_surface(
     desc: *mut RprSoftBodyDesc,
@@ -336,8 +400,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_surface(
     })
 }
 /// Borrow tension only edges; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_tension_only_edges(
     desc: *mut RprSoftBodyDesc,
@@ -351,8 +417,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_tension_only_edges(
     })
 }
 /// Borrow dihedrals; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[cfg(feature = "dim3")]
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_dihedrals(
@@ -367,8 +435,10 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_dihedrals(
     })
 }
 /// Borrow wire; preserve all other fields. No allocation or element reads.
-/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned views.
+/// Zero counts retain the recipe's generated defaults at insertion, as with directly assigned
+/// views.
 /// Invalid view metadata leaves the description unchanged.
+/// @ingroup soft_bodies
 #[cfg(feature = "dim3")]
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_set_wire(
@@ -383,35 +453,52 @@ pub unsafe extern "C" fn rpr_soft_body_desc_set_wire(
     })
 }
 
+/// Triangle in 2D or tetrahedron in 3D.
+/// @ingroup math
 #[cfg(feature = "dim2")]
 pub type RprCell = RprTriangle;
+/// Triangle in 2D or tetrahedron in 3D.
+/// @ingroup math
 #[cfg(feature = "dim3")]
 pub type RprCell = RprTetrahedron;
+/// Edge in 2D or triangle in 3D.
+/// @ingroup math
 #[cfg(feature = "dim2")]
 pub type RprSurfaceElement = RprEdge;
+/// Edge in 2D or triangle in 3D.
+/// @ingroup math
 #[cfg(feature = "dim3")]
 pub type RprSurfaceElement = RprTriangle;
 
 /// Borrowed elements; count counts elements. Data must remain live through insertion.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftEdgeSoftnessView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprSoftEdgeSoftness,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
 
 /// Borrowed elements; count counts elements. Data must remain live through insertion.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftEdgeTearView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprSoftEdgeTear,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }
 
 /// Borrowed elements; count counts elements. Data must remain live through insertion.
+/// @ingroup shapes
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprCompoundShapeView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
     pub data: *const RprCompoundShapeDesc,
+    /// Number of elements, not bytes unless the element type is a byte.
     pub count: usize,
 }

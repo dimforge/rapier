@@ -1,6 +1,8 @@
 //! POD soft-body recipes and copied previews of procedural geometry.
 use crate::*;
+/// Return a rope recipe with particles evenly spaced from a to b, including both endpoints.
 /// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub extern "C" fn rpr_rope_soft_body_desc(
     a: RprVector,
@@ -15,8 +17,10 @@ pub extern "C" fn rpr_rope_soft_body_desc(
         ..RprSoftBodyDesc::default()
     }
 }
-#[cfg(feature = "dim2")]
+/// Return a solid rectangle recipe on an nx by ny particle grid.
 /// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim2")]
 #[rapier_export]
 pub extern "C" fn rpr_grid_soft_body_desc(
     center: RprVector,
@@ -33,8 +37,10 @@ pub extern "C" fn rpr_grid_soft_body_desc(
         ..RprSoftBodyDesc::default()
     }
 }
-#[cfg(feature = "dim3")]
+/// Return a solid box recipe on an nx by ny by nz particle grid, subdivided into tetrahedra.
 /// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_cuboid_soft_body_desc(
     center: RprVector,
@@ -53,8 +59,10 @@ pub extern "C" fn rpr_cuboid_soft_body_desc(
         ..RprSoftBodyDesc::default()
     }
 }
-#[cfg(feature = "dim3")]
+/// Return a cloth recipe with nu by nv particles at origin + i * du + j * dv.
 /// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_cloth_soft_body_desc(
     origin: RprVector,
@@ -73,8 +81,11 @@ pub extern "C" fn rpr_cloth_soft_body_desc(
         ..RprSoftBodyDesc::default()
     }
 }
-#[cfg(feature = "dim2")]
+/// Return a closed regular polygon recipe with the specified boundary particle count and area
+/// preservation.
 /// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim2")]
 #[rapier_export]
 pub extern "C" fn rpr_disk_soft_body_desc(
     center: RprVector,
@@ -90,8 +101,10 @@ pub extern "C" fn rpr_disk_soft_body_desc(
         ..RprSoftBodyDesc::default()
     }
 }
-#[cfg(feature = "dim3")]
+/// Return a hollow icosphere recipe with the specified refinement levels and volume preservation.
 /// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_sphere_soft_body_desc(
     center: RprVector,
@@ -107,8 +120,11 @@ pub extern "C" fn rpr_sphere_soft_body_desc(
         ..RprSoftBodyDesc::default()
     }
 }
-#[cfg(feature = "dim3")]
+/// Return a cloth tube recipe from origin to origin + axis with num_along rings of num_around
+/// particles; radius varies linearly between the ends.
 /// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_cloth_tube_soft_body_desc(
     origin: RprVector,
@@ -130,6 +146,7 @@ pub extern "C" fn rpr_cloth_tube_soft_body_desc(
     }
 }
 /// Initializes a borrowed meshing recipe. Mesh generation happens on preview/insertion.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub extern "C" fn rpr_volumetric_soft_body_desc(
     vertices: RprVectorView,
@@ -145,6 +162,7 @@ pub extern "C" fn rpr_volumetric_soft_body_desc(
     }
 }
 /// Returns a material with the same softness for each constraint family.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub extern "C" fn rpr_uniform_soft_body_material(
     value: RprSpringCoefficients,
@@ -157,6 +175,8 @@ pub extern "C" fn rpr_uniform_soft_body_material(
     material
 }
 /// Copies generated particle positions into caller-owned storage; no persistent builder.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_particle_positions(
     desc: *const RprSoftBodyDesc,
@@ -172,6 +192,8 @@ pub unsafe extern "C" fn rpr_soft_body_desc_particle_positions(
     })
 }
 /// Copies generated cell indices into caller-owned storage. Counts scalar indices.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_desc)]
 pub unsafe extern "C" fn rpr_soft_body_desc_cell_indices(
     desc: *const RprSoftBodyDesc,

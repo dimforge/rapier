@@ -6,15 +6,33 @@ use std::{
 };
 
 /// Status-returning operations use these integer codes.
+/// @ingroup errors
 pub type RprStatus = u32;
+/// @ingroup errors
+/// Operation succeeded.
 pub const RPR_OK: RprStatus = 0;
+/// @ingroup errors
+/// A required pointer was NULL.
 pub const RPR_NULL_POINTER: RprStatus = 1;
+/// @ingroup errors
+/// An argument failed validation.
 pub const RPR_INVALID_ARGUMENT: RprStatus = 2;
+/// @ingroup errors
+/// The entity handle is stale, invalid, or belongs to another world.
 pub const RPR_INVALID_HANDLE: RprStatus = 3;
+/// @ingroup errors
+/// Output capacity is insufficient; the returned count is the required capacity.
 pub const RPR_BUFFER_TOO_SMALL: RprStatus = 4;
+/// @ingroup errors
+/// This build or object does not support the operation.
 pub const RPR_UNSUPPORTED: RprStatus = 5;
+/// @ingroup errors
+/// Rust panicked; discard objects mutated by the call.
 pub const RPR_PANIC: RprStatus = 6;
+/// @ingroup errors
+/// No matching query result or object was found.
 pub const RPR_NOT_FOUND: RprStatus = 7;
+/// @ingroup errors
 /// Conflicting or reentrant access to simulation state. No mutation was performed.
 pub const RPR_WORLD_BUSY: RprStatus = 8;
 pub(crate) type Result<T = ()> = std::result::Result<T, (RprStatus, String)>;
@@ -24,14 +42,18 @@ thread_local! { static LAST_ERROR: RefCell<CString> = RefCell::new(CString::defa
 /// The diagnostic is borrowed for the duration of the callback. The callback
 /// must return normally or terminate the process: never throw or longjmp across
 /// the Rust/C boundary. Nested failing calls do not invoke the handler recursively.
+/// @ingroup errors
 pub type RprErrorCallback = Option<unsafe extern "C" fn(RprStatus, *const c_char, *mut c_void)>;
 
 /// An optional thread-local error handler. A null callback disables reporting.
 /// Keep the callback and user_data alive until the handler is replaced.
+/// @ingroup errors
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprErrorHandler {
+    /// Optional error callback; NULL disables notifications.
     pub callback: RprErrorCallback,
+    /// Application data; Rapier does not own pointers encoded in it.
     pub user_data: *mut c_void,
 }
 
@@ -47,6 +69,7 @@ thread_local! {
 /// be restored at the end of a scope. Status returns are unchanged. A handler
 /// that returns lets the caller recover by checking the status; a fail-fast
 /// handler may terminate the process. Includes RPR_NOT_FOUND query misses.
+/// @ingroup errors
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_error_handler(handler: RprErrorHandler) -> RprErrorHandler {
     ERROR_HANDLER.with(|current| current.replace(handler))
@@ -136,6 +159,7 @@ pub(crate) fn ffi(f: impl FnOnce() -> Result) -> RprStatus {
 /// LastError does not clear it. Infallible value constructors do not change it.
 /// Check immediately after a fallible value-returning operation when recovering
 /// from errors instead of using a fail-fast error callback.
+/// @ingroup errors
 #[rapier_export]
 pub extern "C" fn rpr_last_status() -> RprStatus {
     LAST_STATUS.with(Cell::get)
@@ -154,6 +178,7 @@ pub(crate) fn ffi_value<T: Default>(f: impl FnOnce(*mut T) -> RprStatus) -> T {
 }
 
 /// Thread-local UTF-8 diagnostic, valid until the next fallible call on this thread.
+/// @ingroup errors
 #[rapier_export]
 pub extern "C" fn rpr_last_error() -> *const c_char {
     LAST_ERROR.with(|e| e.borrow().as_ptr())

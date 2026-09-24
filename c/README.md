@@ -13,6 +13,8 @@ callback-scoped read access and runtime borrow checks protect access to it.
 There are no compatibility aliases. Rebuild consumers using the matching header,
 library, dimension, precision, and feature configuration.
 
+See [API reference](#api-reference) for searchable Doxygen documentation and build instructions.
+
 ## C names
 
 Functions use a dimension prefix and camelCase: `r2NewWorld` in 2D and
@@ -585,3 +587,28 @@ rapier::check(r3LastStatus());
 Check errors after each fallible call. These owners wrap only owned pointers;
 borrowed callback contexts and MJCF visual meshes must not be wrapped or freed.
 Owners of resources referencing a world must be destroyed before that world.
+
+## API reference
+
+Generate searchable Doxygen documentation for 2D/3D and f32/f64:
+
+```sh
+cmake -S c/doxygen -B build/c-docs
+cmake --build build/c-docs --target rapier_docs --parallel
+```
+
+Open `build/c-docs/html/index.html`. This needs Doxygen 1.9.4+, Python 3, CMake,
+and a C compiler; it does not build physics or fetch testbed dependencies.
+Alternatively, configure the normal C build with `-DRAPIER_BUILD_DOCS=ON` and build
+`rapier_docs`; the entry page is then under `doxygen/html/index.html` in that build.
+Normal builds do not require documentation tools.
+
+The reference includes all optional APIs, with robotics limited to 3D/f32.
+Descriptions of ownership, errors, arrays, callbacks, and snapshots accompany the
+API groups. CI checks all four variants for Doxygen warnings and missing functions,
+then uploads the HTML as the `rapier-c-api-docs` artifact.
+
+Edit API comments in `c/src/*.rs` and regenerate `include/rapier.h`; edit inline
+math/C++ helper comments in their headers. Keep contracts specific: units,
+coordinate frames, ownership, callback lifetime, and special failure cases.
+The concise usage pages live in `doxygen/reference.dox`.

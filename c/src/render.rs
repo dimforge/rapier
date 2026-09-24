@@ -3,7 +3,9 @@ use crate::*;
 use rapier::parry::shape::{Shape, TypedShape};
 
 /// Owned tessellated shape: flat triangle vertices and independent line segments, in local space.
-/// Rounded 3D shapes use their inner surface (as in the Rust testbed). Halfspaces use a finite patch.
+/// Rounded 3D shapes use their inner surface (as in the Rust testbed). Halfspaces use a finite
+/// patch.
+/// @ingroup shapes
 pub struct RprShapeMesh {
     triangles: Vec<RprVector>,
     lines: Vec<RprVector>,
@@ -154,7 +156,8 @@ impl RprShapeMesh {
     }
 }
 /// Process-local identity of the immutable shape allocation, for render caches. Keep an owned
-/// SharedShape clone alive while caching this value. Not serializable; does not identify equal geometry.
+/// SharedShape clone alive while caching this value. Not serializable; does not identify equal
+/// geometry.
 pub(crate) unsafe fn native_collider_shape_identity(
     collider: *const RprCollider,
     out: *mut usize,
@@ -166,6 +169,9 @@ pub(crate) unsafe fn native_collider_shape_identity(
         )
     })
 }
+/// Return owned local-space rendering geometry; release it with rpr_free_shape_mesh. subdivisions
+/// controls curved-shape resolution.
+/// @ingroup shapes
 #[rapier_export(shared_shape)]
 pub unsafe extern "C" fn rpr_shared_shape_tessellate(
     shape: *const RprSharedShape,
@@ -188,6 +194,8 @@ pub unsafe extern "C" fn rpr_shared_shape_tessellate(
     })
 }
 /// Flat groups of three vertices. Standard output-buffer convention.
+/// @see @ref output_buffers
+/// @ingroup shapes
 #[rapier_export(shape_mesh)]
 pub unsafe extern "C" fn rpr_shape_mesh_triangles(
     mesh: *const RprShapeMesh,
@@ -199,6 +207,8 @@ pub unsafe extern "C" fn rpr_shape_mesh_triangles(
     })
 }
 /// Flat groups of two vertices. Standard output-buffer convention.
+/// @see @ref output_buffers
+/// @ingroup shapes
 #[rapier_export(shape_mesh)]
 pub unsafe extern "C" fn rpr_shape_mesh_lines(
     mesh: *const RprShapeMesh,
@@ -209,6 +219,9 @@ pub unsafe extern "C" fn rpr_shape_mesh_lines(
         ffi(|| unsafe { copy_out(&get(mesh)?.lines, buffer, capacity, count) })
     })
 }
+/// Release an owned shape mesh. NULL is allowed. Do not pass borrowed pointers or free the object
+/// twice.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_shape_mesh(mesh: *mut RprShapeMesh) -> RprStatus {
     ffi(|| unsafe {
@@ -219,6 +232,8 @@ pub unsafe extern "C" fn rpr_free_shape_mesh(mesh: *mut RprShapeMesh) -> RprStat
         Ok(())
     })
 }
+/// Create an owned round cylinder shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
 #[cfg(feature = "dim3")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_round_cylinder_shared_shape(
@@ -242,6 +257,7 @@ pub unsafe extern "C" fn rpr_round_cylinder_shared_shape(
 }
 
 /// Owned indexed geometry from Parry's shape tessellation, preserving its vertex order.
+/// @ingroup shapes
 #[cfg(feature = "dim3")]
 pub struct RprTriMeshData {
     vertices: Vec<RprVector>,
@@ -250,6 +266,7 @@ pub struct RprTriMeshData {
 
 /// Tessellate a ball or capsule with independent longitude/latitude subdivision counts.
 /// Cuboids, cones, cylinders, convex polyhedra, trimeshes, and heightfields are also supported.
+/// @ingroup shapes
 #[cfg(feature = "dim3")]
 #[rapier_export(shared_shape)]
 pub unsafe extern "C" fn rpr_shared_shape_to_trimesh(
@@ -284,6 +301,9 @@ pub unsafe extern "C" fn rpr_shared_shape_to_trimesh(
     })
 }
 
+/// Copy vertices.
+/// @see @ref output_buffers
+/// @ingroup shapes
 #[cfg(feature = "dim3")]
 #[rapier_export(tri_mesh_data)]
 pub unsafe extern "C" fn rpr_tri_mesh_data_vertices(
@@ -297,6 +317,8 @@ pub unsafe extern "C" fn rpr_tri_mesh_data_vertices(
 }
 
 /// Flat triangle indices; count and capacity are numbers of u32 entries.
+/// @see @ref output_buffers
+/// @ingroup shapes
 #[cfg(feature = "dim3")]
 #[rapier_export(tri_mesh_data)]
 pub unsafe extern "C" fn rpr_tri_mesh_data_indices(
@@ -309,6 +331,9 @@ pub unsafe extern "C" fn rpr_tri_mesh_data_indices(
     })
 }
 
+/// Release an owned tri mesh data. NULL is allowed. Do not pass borrowed pointers or free the
+/// object twice.
+/// @ingroup shapes
 #[cfg(feature = "dim3")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_tri_mesh_data(mesh: *mut RprTriMeshData) -> RprStatus {

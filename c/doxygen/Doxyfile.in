@@ -1,0 +1,43 @@
+PROJECT_NAME           = "Rapier C — @DOC_DIM@D / f@DOC_PRECISION@"
+PROJECT_NUMBER         = "@DOC_VERSION@"
+OUTPUT_DIRECTORY       = "@DOC_OUTPUT@/@DOC_VARIANT@"
+INPUT                  = "@RAPIER_C_DIR@/include/rapier.h" \
+                         "@RAPIER_C_DIR@/include/rapier_math.h" \
+                         "@RAPIER_C_DIR@/include/rapier_helpers.h" \
+                         "@RAPIER_C_DIR@/include/rapier.hpp" \
+                         "@RAPIER_C_DIR@/doxygen/reference.dox"
+EXAMPLE_PATH           = "@RAPIER_C_DIR@/examples" "@RAPIER_C_DIR@/testbed/examples@DOC_DIM@d"
+EXAMPLE_RECURSIVE      = YES
+EXTRACT_ALL            = NO
+EXTRACT_STATIC         = YES
+EXTRACT_PRIVATE        = NO
+JAVADOC_AUTOBRIEF      = YES
+ALWAYS_DETAILED_SEC     = YES
+OPTIMIZE_OUTPUT_FOR_C  = YES
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+EXPAND_AS_DEFINED      = RAPIER_TYPE RAPIER_CONST RAPIER_FN
+PREDEFINED            = RAPIER_DIM@DOC_DIM@ RAPIER_F@DOC_PRECISION@ RAPIER_FEM RAPIER_PARALLEL @DOC_ROBOTICS@ \
+                         RAPIER_API= RAPIER_CALL= __cplusplus
+INCLUDE_PATH           = "@RAPIER_C_DIR@/include"
+SKIP_FUNCTION_MACROS  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = FAIL_ON_WARNINGS
+QUIET                  = YES
+GENERATE_HTML          = YES
+HTML_OUTPUT            = .
+GENERATE_TREEVIEW       = YES
+SEARCHENGINE           = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+XML_PROGRAMLISTING     = NO
+HAVE_DOT               = NO
+SHOW_INCLUDE_FILES     = NO
+FULL_PATH_NAMES        = NO
+SORT_MEMBER_DOCS       = YES
+
+EXCLUDE_SYMBOLS = RAPIER_H RAPIER_MATH_H RAPIER_HELPERS_H RAPIER_HPP

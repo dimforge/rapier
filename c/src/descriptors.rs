@@ -2,32 +2,56 @@
 #![allow(non_snake_case)]
 use crate::*;
 
-/// Stack-allocated rigid-body construction data. Initialize with RigidBodyDescInit.
+/// Stack-allocated rigid-body construction data. Initialize with rpr_dynamic_rigid_body_desc,
+/// rpr_fixed_rigid_body_desc, or a kinematic description constructor.
 /// Copying this value is safe; it owns no resources and must never be freed by Rapier.
+/// @ingroup rigid_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprRigidBodyDesc {
+    /// World-space pose.
     pub position: RprPose,
+    /// World-space linear velocity.
     pub linvel: RprVector,
+    /// World-space angular velocity in radians per second.
     pub angvel: RprAngVector,
+    /// RPR_DYNAMIC, RPR_FIXED, RPR_KINEMATIC_POSITION_BASED, or RPR_KINEMATIC_VELOCITY_BASED.
     pub bodyType: u32,
+    /// Multiplier applied to world gravity.
     pub gravityScale: RprReal,
+    /// Nonnegative linear damping coefficient.
     pub linearDamping: RprReal,
+    /// Nonnegative angular damping coefficient.
     pub angularDamping: RprReal,
+    /// Nonnegative mass added to attached collider contributions.
     pub additionalMass: RprReal,
+    /// 1 uses additionalMassProperties; 0 uses additionalMass.
     pub useAdditionalMassProperties: RprBool,
+    /// Additional body-local mass and inertia when enabled.
     pub additionalMassProperties: RprMassProperties,
+    /// Locked-axis bitmask; translations precede rotations.
     pub lockedAxes: u8,
+    /// Whether automatic sleeping is allowed.
     pub canSleep: RprBool,
+    /// Whether the body starts/is asleep.
     pub sleeping: RprBool,
+    /// Whether continuous collision detection is enabled.
     pub ccdEnabled: RprBool,
+    /// Nonnegative prediction distance for soft CCD.
     pub softCcdPrediction: RprReal,
+    /// Whether to allow fast rotations without the native angular-motion clamp.
     pub allowFastRotation: RprBool,
+    /// Whether this setting/object is enabled (0 or 1).
     pub enabled: RprBool,
+    /// Signed dominance group; larger groups dominate smaller groups.
     pub dominanceGroup: i8,
+    /// Extra solver iterations for this body and connected bodies.
     pub additionalSolverIterations: usize,
+    /// Extra PGS iterations for this body.
     pub additionalPgsIterations: usize,
+    /// Whether to include gyroscopic forces (3D).
     pub gyroscopicForcesEnabled: RprBool,
+    /// Application data; Rapier does not own pointers encoded in it.
     pub userData: RprUserData,
 }
 impl RprRigidBodyDesc {
@@ -94,45 +118,89 @@ impl RprRigidBodyDesc {
         Ok(b)
     }
 }
+/// Return a dynamic rigid-body description with native defaults; no allocation.
+/// @ingroup rigid_bodies
 #[rapier_export]
 pub extern "C" fn rpr_dynamic_rigid_body_desc() -> RprRigidBodyDesc {
     RprRigidBodyDesc::new(RPR_DYNAMIC).expect("valid body kind")
 }
 
+/// Return a fixed rigid-body description with native defaults; no allocation.
+/// @ingroup rigid_bodies
 #[rapier_export]
 pub extern "C" fn rpr_fixed_rigid_body_desc() -> RprRigidBodyDesc {
     RprRigidBodyDesc::new(RPR_FIXED).expect("valid body kind")
 }
 
+/// Return a kinematic position based rigid-body description with native defaults; no allocation.
+/// @ingroup rigid_bodies
 #[rapier_export]
 pub extern "C" fn rpr_kinematic_position_based_rigid_body_desc() -> RprRigidBodyDesc {
     RprRigidBodyDesc::new(RPR_KINEMATIC_POSITION_BASED).expect("valid body kind")
 }
 
+/// Return a kinematic velocity based rigid-body description with native defaults; no allocation.
+/// @ingroup rigid_bodies
 #[rapier_export]
 pub extern "C" fn rpr_kinematic_velocity_based_rigid_body_desc() -> RprRigidBodyDesc {
     RprRigidBodyDesc::new(RPR_KINEMATIC_VELOCITY_BASED).expect("valid body kind")
 }
 
+/// @ingroup shapes
+/// Treat the 2D polyline as oriented when generating contact normals.
 #[cfg(feature = "dim2")]
 pub const RPR_POLYLINE_ORIENTED: u32 = 1;
+/// @ingroup shapes
+/// Prepare polyline acceleration data for deformation.
 pub const RPR_POLYLINE_DEFORMABLE: u32 = 2;
 
+/// @ingroup shapes
+/// ShapeDesc kind selecting a ball.
 pub const RPR_SHAPE_DESC_BALL: u32 = 0;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a cuboid.
 pub const RPR_SHAPE_DESC_CUBOID: u32 = 1;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a round cuboid.
 pub const RPR_SHAPE_DESC_ROUND_CUBOID: u32 = 2;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a capsule.
 pub const RPR_SHAPE_DESC_CAPSULE: u32 = 3;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a segment.
 pub const RPR_SHAPE_DESC_SEGMENT: u32 = 4;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a triangle.
 pub const RPR_SHAPE_DESC_TRIANGLE: u32 = 5;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a half-space.
 pub const RPR_SHAPE_DESC_HALFSPACE: u32 = 6;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a convex hull.
 pub const RPR_SHAPE_DESC_CONVEX_HULL: u32 = 7;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a triangle mesh.
 pub const RPR_SHAPE_DESC_TRIMESH: u32 = 8;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a polyline.
 pub const RPR_SHAPE_DESC_POLYLINE: u32 = 9;
+/// @ingroup shapes
+/// ShapeDesc kind selecting borrowed shared geometry.
 pub const RPR_SHAPE_DESC_SHARED: u32 = 10;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a heightfield.
 pub const RPR_SHAPE_DESC_HEIGHTFIELD: u32 = 11;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a cylinder.
 pub const RPR_SHAPE_DESC_CYLINDER: u32 = 12;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a cone.
 pub const RPR_SHAPE_DESC_CONE: u32 = 13;
+/// @ingroup shapes
+/// ShapeDesc kind selecting compound child shapes.
 pub const RPR_SHAPE_DESC_COMPOUND: u32 = 14;
+/// @ingroup shapes
+/// ShapeDesc kind selecting a round cylinder.
 pub const RPR_SHAPE_DESC_ROUND_CYLINDER: u32 = 15;
 
 /// Non-owning shape description. Only fields selected by kind are read.
@@ -140,31 +208,53 @@ pub const RPR_SHAPE_DESC_ROUND_CYLINDER: u32 = 15;
 /// b/c = remaining endpoints/vertices. radius is also the rounded-cuboid border radius.
 /// Mesh views count edges or triangles; heightfields are column-major.
 /// Arrays, compound children, and sharedShape remain borrowed until build/insert returns.
+/// @ingroup shapes
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct RprShapeDesc {
+    /// Discriminant selecting which description fields are read.
     pub kind: u32,
+    /// Half extents, endpoint/vertex, or halfspace normal, selected by kind.
     pub a: RprVector,
+    /// Second endpoint or triangle vertex, selected by kind.
     pub b: RprVector,
+    /// Third triangle vertex.
     pub c: RprVector,
+    /// Radius for the selected primitive or recipe.
     pub radius: RprReal,
+    /// Half the height of a cylinder or cone.
     pub halfHeight: RprReal,
+    /// Rounding radius for a rounded shape.
     pub borderRadius: RprReal,
+    /// Borrowed vertex positions.
     pub vertices: RprVectorView,
+    /// Borrowed triangle topology; count is triangles.
     pub triangles: RprTriangleView,
+    /// Borrowed edge topology; count is edges.
     pub edges: RprEdgeView,
+    /// TRIMESH_*, POLYLINE_*, or HEIGHTFIELD_* bitmask selected by kind.
     pub flags: u32,
+    /// Borrowed height samples; 3D uses column-major rows * columns samples.
     pub heights: RprRealView,
+    /// Number of heightfield rows.
     pub rows: usize,
+    /// Number of heightfield columns.
     pub columns: usize,
+    /// Shape scale along each axis.
     pub scale: RprVector,
+    /// Borrowed shared geometry; keep its wrapper alive through build/insert.
     pub sharedShape: *const RprSharedShape,
+    /// Borrowed compound children and their nested geometry views.
     pub children: RprCompoundShapeView,
 }
+/// One compound child with a local pose and borrowed geometry description.
+/// @ingroup shapes
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprCompoundShapeDesc {
+    /// Pose relative to the compound parent.
     pub pose: RprPose,
+    /// Non-owning shape description; build/insert consumes its views synchronously.
     pub shape: RprShapeDesc,
 }
 impl Default for RprShapeDesc {
@@ -366,10 +456,15 @@ impl RprShapeDesc {
         })
     }
 }
+/// Return native default shape desc. This POD value owns no resources.
+/// @ingroup shapes
 #[rapier_export]
 pub extern "C" fn rpr_default_shape_desc() -> RprShapeDesc {
     RprShapeDesc::default()
 }
+/// Build an owned shared shape from a description; release it with rpr_free_shared_shape. Borrowed
+/// inputs may be released after this call.
+/// @ingroup shapes
 #[rapier_export(shape_desc)]
 pub unsafe extern "C" fn rpr_shape_desc_build(desc: *const RprShapeDesc) -> *mut RprSharedShape {
     ffi_value(|out: *mut *mut RprSharedShape| {
@@ -381,32 +476,59 @@ pub unsafe extern "C" fn rpr_shape_desc_build(desc: *const RprShapeDesc) -> *mut
     })
 }
 
+/// @ingroup colliders
+/// Mass density.
 pub const RPR_MASS_DENSITY: u32 = 0;
+/// @ingroup colliders
+/// Mass total.
 pub const RPR_MASS_TOTAL: u32 = 1;
+/// @ingroup colliders
+/// Mass properties.
 pub const RPR_MASS_PROPERTIES: u32 = 2;
 /// Copyable collider construction data. Shape inputs are borrowed, never owned.
+/// @ingroup colliders
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct RprColliderDesc {
+    /// Non-owning shape description; build/insert consumes its views synchronously.
     pub shape: RprShapeDesc,
+    /// Pose relative to the parent body; world-space for an unparented collider.
     pub position: RprPose,
+    /// RPR_MASS_DENSITY, RPR_MASS_TOTAL, or RPR_MASS_PROPERTIES.
     pub massMode: u32,
+    /// Nonnegative mass per unit volume.
     pub density: RprReal,
+    /// Mass; nonnegative when supplied as input.
     pub mass: RprReal,
+    /// Explicit local mass and inertia when massMode selects them.
     pub massProperties: RprMassProperties,
+    /// Nonnegative friction coefficient.
     pub friction: RprReal,
+    /// Nonnegative restitution coefficient.
     pub restitution: RprReal,
+    /// RPR_COMBINE_AVERAGE, MIN, MULTIPLY, or MAX.
     pub frictionCombineRule: u32,
+    /// RPR_COMBINE_AVERAGE, MIN, MULTIPLY, or MAX.
     pub restitutionCombineRule: u32,
+    /// 1 detects intersections without generating contact forces.
     pub isSensor: RprBool,
+    /// Whether this setting/object is enabled (0 or 1).
     pub enabled: RprBool,
+    /// Groups controlling collision detection.
     pub collisionGroups: RprInteractionGroups,
+    /// Groups controlling contact-force solving.
     pub solverGroups: RprInteractionGroups,
+    /// Bitmask of body-type pairs allowed to collide.
     pub activeCollisionTypes: u16,
+    /// Hook flags enabling pair filtering/contact modification.
     pub activeHooks: u32,
+    /// RPR_COLLISION_EVENTS and/or RPR_CONTACT_FORCE_EVENTS.
     pub activeEvents: u32,
+    /// Nonnegative force threshold for force events.
     pub contactForceEventThreshold: RprReal,
+    /// Nonnegative extra separation distance around the collider.
     pub contactSkin: RprReal,
+    /// Application data; Rapier does not own pointers encoded in it.
     pub userData: RprUserData,
 }
 impl Default for RprColliderDesc {
@@ -470,18 +592,24 @@ impl RprColliderDesc {
         Ok(b)
     }
 }
+/// Return native default collider desc. This POD value owns no resources.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_default_collider_desc() -> RprColliderDesc {
     RprColliderDesc::default()
 }
+/// Return a ball description with the supplied radius.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_ball_collider_desc(radius: RprReal) -> RprColliderDesc {
     let mut d = RprColliderDesc::default();
     d.shape.radius = radius;
     d
 }
+/// Return an axis-aligned box description with the supplied half-extents.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_cuboid_collider_desc(half_extents: RprVector) -> RprColliderDesc {
     let mut d = RprColliderDesc::default();
@@ -489,6 +617,8 @@ pub extern "C" fn rpr_cuboid_collider_desc(half_extents: RprVector) -> RprCollid
     d.shape.a = half_extents;
     d
 }
+/// Create a body from the description and return its world-bound handle. The world owns the body.
+/// @ingroup rigid_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_insert_rigid_body(
     world: *mut RprWorld,
@@ -517,6 +647,7 @@ pub unsafe extern "C" fn rpr_insert_rigid_body(
 /// Insert a collider attached to a rigid body, using the world stored in its handle.
 /// The parent handle is copied by value. The description is borrowed through this call.
 /// Invalid or removed parents fail without inserting a collider.
+/// @ingroup colliders
 #[rapier_export]
 pub unsafe extern "C" fn rpr_insert_collider(
     parent: RprRigidBodyHandle,
@@ -540,6 +671,7 @@ pub unsafe extern "C" fn rpr_insert_collider(
 
 /// Insert a collider without a rigid-body parent. The world owns the collider.
 /// The description is borrowed through this call.
+/// @ingroup colliders
 #[rapier_export]
 pub unsafe extern "C" fn rpr_insert_collider_without_parent(
     world: *mut RprWorld,
@@ -556,23 +688,35 @@ pub unsafe extern "C" fn rpr_insert_collider_without_parent(
 }
 
 /// Sizes of the POD types in this library build, for foreign-language layout checks.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprPodLayout {
+    /// Size in bytes of the rigidBodyDesc structure; zero when unavailable.
     pub rigidBodyDesc: usize,
+    /// Size in bytes of the colliderDesc structure; zero when unavailable.
     pub colliderDesc: usize,
+    /// Size in bytes of the shapeDesc structure; zero when unavailable.
     pub shapeDesc: usize,
+    /// Size in bytes of the jointDesc structure; zero when unavailable.
     pub jointDesc: usize,
+    /// Size in bytes of the softBodyMaterial structure; zero when unavailable.
     pub softBodyMaterial: usize,
+    /// Size in bytes of the integrationParameters structure; zero when unavailable.
     pub integrationParameters: usize,
+    /// Size in bytes of the softBodyDesc structure; zero when unavailable.
     pub softBodyDesc: usize,
+    /// Size in bytes of the softMeshBindingDesc structure; zero when unavailable.
     pub softMeshBindingDesc: usize,
+    /// Size in bytes of the queryOptions structure; zero when unavailable.
     pub queryOptions: usize,
     /// Zero unless 3D f32 robotics is enabled.
     pub urdfLoaderOptions: usize,
     /// Zero unless 3D f32 robotics is enabled.
     pub mjcfLoaderOptions: usize,
 }
+/// Return POD structure sizes for checking foreign-language layouts against this library.
+/// @ingroup errors
 #[rapier_export]
 pub extern "C" fn rpr_pod_layout() -> RprPodLayout {
     RprPodLayout {

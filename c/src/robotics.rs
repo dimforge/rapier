@@ -14,18 +14,29 @@ unsafe fn path_string<'a>(path: *const c_char) -> Result<&'a str> {
 }
 /// Loader configuration. Initialize with DefaultUrdfLoaderOptions; no destructor.
 /// Blueprint array views and shared shapes are borrowed through the load call.
+/// @ingroup robotics
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct RprUrdfLoaderOptions {
+    /// Whether to build colliders from collision geometry.
     pub createCollidersFromCollisionShapes: RprBool,
+    /// Whether to also build colliders from visual geometry.
     pub createCollidersFromVisualShapes: RprBool,
+    /// Whether to use imported mass/inertia properties.
     pub applyImportedMassProps: RprBool,
+    /// Whether bodies connected by imported joints may collide.
     pub enableJointCollisions: RprBool,
+    /// Whether imported root bodies are fixed.
     pub makeRootsFixed: RprBool,
+    /// Whether to merge empty fixed URDF links.
     pub squeezeEmptyFixedLinks: RprBool,
+    /// Transform applied to the imported model.
     pub shift: RprPose,
+    /// Shape scale along each axis.
     pub scale: RprReal,
+    /// Default collider description; nested geometry resources are borrowed through loading.
     pub colliderBlueprint: RprColliderDesc,
+    /// Default rigid-body description used by the importer.
     pub rigidBodyBlueprint: RprRigidBodyDesc,
 }
 impl Default for RprUrdfLoaderOptions {
@@ -69,11 +80,19 @@ impl RprUrdfLoaderOptions {
         })
     }
 }
+/// Return native default urdf loader options. This POD value owns no resources.
+/// @ingroup robotics
 #[rapier_export]
 pub extern "C" fn rpr_default_urdf_loader_options() -> RprUrdfLoaderOptions {
     RprUrdfLoaderOptions::default()
 }
+/// Loaded URDF robot; insertion clones its simulation objects. Release with the matching Free
+/// function.
+/// @ingroup robotics
 pub struct RprUrdfRobot(pub(crate) UrdfRobot);
+/// Release an owned urdf robot. NULL is allowed. Do not pass borrowed pointers or free the object
+/// twice.
+/// @ingroup robotics
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_urdf_robot(object: *mut RprUrdfRobot) -> RprStatus {
     ffi(|| unsafe {
@@ -86,6 +105,7 @@ pub unsafe extern "C" fn rpr_free_urdf_robot(object: *mut RprUrdfRobot) -> RprSt
 }
 /// Load from a UTF-8 path. Validates options before reading the file.
 /// Options and their blueprint resources are borrowed through this call; the robot is owned.
+/// @ingroup robotics
 #[rapier_export]
 pub unsafe extern "C" fn rpr_urdf_robot_from_file(
     path: *const c_char,
@@ -101,6 +121,8 @@ pub unsafe extern "C" fn rpr_urdf_robot_from_file(
         })
     })
 }
+/// Apply an additional transform to the loaded robot before insertion.
+/// @ingroup robotics
 #[rapier_export(urdf_robot)]
 pub unsafe extern "C" fn rpr_urdf_robot_append_transform(
     robot: *mut RprUrdfRobot,
@@ -111,6 +133,9 @@ pub unsafe extern "C" fn rpr_urdf_robot_append_transform(
         Ok(())
     })
 }
+/// Owned container of borrowed handles to an inserted URDF robot. Release with the matching Free
+/// function.
+/// @ingroup robotics
 pub struct RprUrdfRobotHandles {
     world: *mut RprWorld,
     handles: UrdfHandles,
@@ -119,6 +144,9 @@ enum UrdfHandles {
     Impulse(UrdfRobotHandles<ImpulseJointHandle>),
     Multibody(UrdfRobotHandles<Option<MultibodyJointHandle>>),
 }
+/// Release an owned urdf robot handles. NULL is allowed. Do not pass borrowed pointers or free the
+/// object twice.
+/// @ingroup robotics
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_urdf_robot_handles(
     handles: *mut RprUrdfRobotHandles,
@@ -132,6 +160,7 @@ pub unsafe extern "C" fn rpr_free_urdf_robot_handles(
     })
 }
 /// Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
+/// @ingroup robotics
 #[rapier_export(urdf_robot)]
 pub unsafe extern "C" fn rpr_urdf_robot_insert_using_impulse_joints(
     world: *mut RprWorld,
@@ -165,6 +194,7 @@ pub unsafe extern "C" fn rpr_urdf_robot_insert_using_impulse_joints(
 }
 
 /// Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
+/// @ingroup robotics
 #[rapier_export(urdf_robot)]
 pub unsafe extern "C" fn rpr_urdf_robot_insert_using_multibody_joints(
     world: *mut RprWorld,
@@ -201,6 +231,8 @@ pub unsafe extern "C" fn rpr_urdf_robot_insert_using_multibody_joints(
 }
 
 /// Body handles in source order; absent MJCF bodies have invalid handles.
+/// @see @ref output_buffers
+/// @ingroup robotics
 #[rapier_export(urdf_robot_handles)]
 pub unsafe extern "C" fn rpr_urdf_robot_handles_bodies(
     handles: *const RprUrdfRobotHandles,
@@ -228,19 +260,31 @@ pub unsafe extern "C" fn rpr_urdf_robot_handles_bodies(
 }
 /// Loader configuration. Initialize with DefaultMjcfLoaderOptions; no destructor.
 /// Blueprint array views and shared shapes are borrowed through the load call.
+/// @ingroup robotics
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct RprMjcfLoaderOptions {
+    /// Whether to build colliders from collision geometry.
     pub createCollidersFromCollisionShapes: RprBool,
+    /// Whether to also build colliders from visual geometry.
     pub createCollidersFromVisualShapes: RprBool,
+    /// Whether to use imported mass/inertia properties.
     pub applyImportedMassProps: RprBool,
+    /// Whether bodies connected by imported joints may collide.
     pub enableJointCollisions: RprBool,
+    /// Whether imported root bodies are fixed.
     pub makeRootsFixed: RprBool,
+    /// Whether to omit MJCF plane geometry.
     pub skipPlaneGeoms: RprBool,
+    /// Whether imported joint motors are disabled.
     pub disableJointMotors: RprBool,
+    /// Transform applied to the imported model.
     pub shift: RprPose,
+    /// Shape scale along each axis.
     pub scale: RprReal,
+    /// Default collider description; nested geometry resources are borrowed through loading.
     pub colliderBlueprint: RprColliderDesc,
+    /// Default rigid-body description used by the importer.
     pub rigidBodyBlueprint: RprRigidBodyDesc,
 }
 impl Default for RprMjcfLoaderOptions {
@@ -286,11 +330,18 @@ impl RprMjcfLoaderOptions {
         })
     }
 }
+/// Return native default mjcf loader options. This POD value owns no resources.
+/// @ingroup robotics
 #[rapier_export]
 pub extern "C" fn rpr_default_mjcf_loader_options() -> RprMjcfLoaderOptions {
     RprMjcfLoaderOptions::default()
 }
+/// Loaded MJCF robot and its visual/keyframe data. Release with the matching Free function.
+/// @ingroup robotics
 pub struct RprMjcfRobot(pub(crate) MjcfRobot);
+/// Release an owned mjcf robot. NULL is allowed. Do not pass borrowed pointers or free the object
+/// twice.
+/// @ingroup robotics
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_mjcf_robot(object: *mut RprMjcfRobot) -> RprStatus {
     ffi(|| unsafe {
@@ -303,6 +354,7 @@ pub unsafe extern "C" fn rpr_free_mjcf_robot(object: *mut RprMjcfRobot) -> RprSt
 }
 /// Load from a UTF-8 path. Validates options before reading the file.
 /// Options and their blueprint resources are borrowed through this call; the robot is owned.
+/// @ingroup robotics
 #[rapier_export]
 pub unsafe extern "C" fn rpr_mjcf_robot_from_file(
     path: *const c_char,
@@ -318,6 +370,8 @@ pub unsafe extern "C" fn rpr_mjcf_robot_from_file(
         })
     })
 }
+/// Apply an additional transform to the loaded robot before insertion.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_append_transform(
     robot: *mut RprMjcfRobot,
@@ -328,6 +382,9 @@ pub unsafe extern "C" fn rpr_mjcf_robot_append_transform(
         Ok(())
     })
 }
+/// Owned container of borrowed handles and actuators of an inserted MJCF robot. Release with the
+/// matching Free function.
+/// @ingroup robotics
 pub struct RprMjcfRobotHandles {
     world: *mut RprWorld,
     handles: MjcfHandles,
@@ -336,6 +393,9 @@ enum MjcfHandles {
     Impulse(MjcfRobotHandles<ImpulseJointHandle>),
     Multibody(MjcfRobotHandles<Option<MultibodyJointHandle>>),
 }
+/// Release an owned mjcf robot handles. NULL is allowed. Do not pass borrowed pointers or free the
+/// object twice.
+/// @ingroup robotics
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_mjcf_robot_handles(
     handles: *mut RprMjcfRobotHandles,
@@ -349,6 +409,7 @@ pub unsafe extern "C" fn rpr_free_mjcf_robot_handles(
     })
 }
 /// Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_insert_using_impulse_joints(
     world: *mut RprWorld,
@@ -382,6 +443,7 @@ pub unsafe extern "C" fn rpr_mjcf_robot_insert_using_impulse_joints(
 }
 
 /// Inserts a clone; the source robot remains owned by the caller. Returns owned handles.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_insert_using_multibody_joints(
     world: *mut RprWorld,
@@ -429,6 +491,8 @@ pub(crate) unsafe fn native_mjcf_robot_insert_using_multibody_joints(
     })
 }
 /// Body handles in source order; absent MJCF bodies have invalid handles.
+/// @see @ref output_buffers
+/// @ingroup robotics
 #[rapier_export(mjcf_robot_handles)]
 pub unsafe extern "C" fn rpr_mjcf_robot_handles_bodies(
     handles: *const RprMjcfRobotHandles,
@@ -461,14 +525,19 @@ pub unsafe extern "C" fn rpr_mjcf_robot_handles_bodies(
     }
 }
 /// Resolved model gravity before the caller chooses a world convention.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_gravity(robot: *const RprMjcfRobot) -> RprVector {
     ffi_value(|out: *mut RprVector| ffi(|| unsafe { output(out, get(robot)?.0.gravity.into()) }))
 }
+/// Return the number of source MJCF bodies.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_body_count(robot: *const RprMjcfRobot) -> usize {
     ffi_value(|out: *mut usize| ffi(|| unsafe { output(out, get(robot)?.0.bodies.len()) }))
 }
+/// Return the collider count for a source body index.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_body_collider_count(
     robot: *const RprMjcfRobot,
@@ -489,7 +558,8 @@ pub unsafe extern "C" fn rpr_mjcf_robot_body_collider_count(
         })
     })
 }
-/// Borrowed collider; invalidated by freeing or mutating the robot's storage.
+/// Set collision groups on a collider in the loaded robot, before insertion.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_set_body_collider_collision_groups(
     robot: *mut RprMjcfRobot,
@@ -509,11 +579,15 @@ pub unsafe extern "C" fn rpr_mjcf_robot_set_body_collider_collision_groups(
         Ok(())
     })
 }
+/// Return the number of imported keyframes.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_keyframe_count(robot: *const RprMjcfRobot) -> usize {
     ffi_value(|out: *mut usize| ffi(|| unsafe { output(out, get(robot)?.0.keyframes.len()) }))
 }
 /// Copies a NUL-terminated UTF-8 name. Count includes NUL; unnamed keys return an empty string.
+/// @see @ref output_buffers
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_keyframe_name(
     robot: *const RprMjcfRobot,
@@ -534,6 +608,8 @@ pub unsafe extern "C" fn rpr_mjcf_robot_keyframe_name(
         })
     })
 }
+/// Append a keyframe from the source MJCF model to the loaded robot.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_append_keyframe(
     robot: *mut RprMjcfRobot,
@@ -551,6 +627,9 @@ pub unsafe extern "C" fn rpr_mjcf_robot_append_keyframe(
         Ok(())
     })
 }
+/// Copy actuator controls for the selected keyframe.
+/// @see @ref output_buffers
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_keyframe_controls(
     robot: *const RprMjcfRobot,
@@ -569,6 +648,8 @@ pub unsafe extern "C" fn rpr_mjcf_robot_keyframe_controls(
         })
     })
 }
+/// Return the number of imported actuators.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot_handles)]
 pub unsafe extern "C" fn rpr_mjcf_robot_handles_actuator_count(
     handles: *const RprMjcfRobotHandles,
@@ -585,6 +666,8 @@ pub unsafe extern "C" fn rpr_mjcf_robot_handles_actuator_count(
         })
     })
 }
+/// Apply the selected keyframe to the inserted robot.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot_handles)]
 pub unsafe extern "C" fn rpr_mjcf_robot_handles_apply_keyframe(
     handles: *const RprMjcfRobotHandles,
@@ -624,6 +707,8 @@ pub(crate) unsafe fn native_mjcf_robot_handles_apply_keyframe(
         Ok(())
     })
 }
+/// Apply actuator controls with per-actuator scaling to the inserted robot.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot_handles)]
 pub unsafe extern "C" fn rpr_mjcf_robot_handles_apply_controls_scaled(
     handles: *const RprMjcfRobotHandles,
@@ -671,26 +756,43 @@ pub(crate) unsafe fn native_mjcf_robot_handles_apply_controls_scaled(
     })
 }
 /// A borrowed visual declaration, valid until its robot is freed or its body storage changes.
+/// @ingroup robotics
 #[repr(transparent)]
 pub struct RprMjcfVisualMesh(pub(crate) MjcfVisualMesh);
+/// Imported physically based visual material; no texture ownership.
+/// @ingroup robotics
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprRenderMaterial {
+    /// Material metallic factor.
     pub metallic: f32,
+    /// Material roughness factor.
     pub roughness: f32,
+    /// Material reflectance factor.
     pub reflectance: f32,
+    /// RGB emissive color.
     pub emissive: [f32; 3],
 }
+/// Copied metadata for a borrowed MJCF visual mesh.
+/// @ingroup robotics
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprMjcfVisualMeshInfo {
+    /// Visual pose relative to its source body.
     pub local_pose: RprPose,
+    /// RGBA visual color.
     pub rgba: [f32; 4],
+    /// Copied render material; meaningful when has_material is 1.
     pub material: RprRenderMaterial,
+    /// Whether rgba contains an authored color.
     pub has_color: RprBool,
+    /// Whether material contains authored material data.
     pub has_material: RprBool,
+    /// Whether the visual geometry is a triangle mesh.
     pub is_trimesh: RprBool,
 }
+/// Return the number of visual meshes for a source body.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_body_visual_count(
     robot: *const RprMjcfRobot,
@@ -711,6 +813,9 @@ pub unsafe extern "C" fn rpr_mjcf_robot_body_visual_count(
         })
     })
 }
+/// Borrow a visual mesh by body/visual index. Valid until the robot is freed or its storage
+/// changes; never free this pointer.
+/// @ingroup robotics
 #[rapier_export(mjcf_robot)]
 pub unsafe extern "C" fn rpr_mjcf_robot_body_visual(
     robot: *const RprMjcfRobot,
@@ -732,6 +837,8 @@ pub unsafe extern "C" fn rpr_mjcf_robot_body_visual(
         })
     })
 }
+/// Return a copy of visual pose, color, material, and geometry-kind flags.
+/// @ingroup robotics
 #[rapier_export(mjcf_visual_mesh)]
 pub unsafe extern "C" fn rpr_mjcf_visual_mesh_info(
     visual: *const RprMjcfVisualMesh,
@@ -761,6 +868,7 @@ pub unsafe extern "C" fn rpr_mjcf_visual_mesh_info(
 }
 /// Returns an owned shared shape reference.
 /// Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
+/// @ingroup robotics
 #[rapier_export(mjcf_visual_mesh)]
 pub unsafe extern "C" fn rpr_mjcf_visual_mesh_clone_shape(
     visual: *const RprMjcfVisualMesh,
@@ -776,6 +884,8 @@ pub unsafe extern "C" fn rpr_mjcf_visual_mesh_clone_shape(
     })
 }
 /// Copies flattened pairs of per-vertex UV coordinates.
+/// @see @ref output_buffers
+/// @ingroup robotics
 #[rapier_export(mjcf_visual_mesh)]
 pub unsafe extern "C" fn rpr_mjcf_visual_mesh_uvs(
     visual: *const RprMjcfVisualMesh,
@@ -794,6 +904,8 @@ pub unsafe extern "C" fn rpr_mjcf_visual_mesh_uvs(
     })
 }
 /// Copies flattened triples of per-vertex normals.
+/// @see @ref output_buffers
+/// @ingroup robotics
 #[rapier_export(mjcf_visual_mesh)]
 pub unsafe extern "C" fn rpr_mjcf_visual_mesh_normals(
     visual: *const RprMjcfVisualMesh,
@@ -817,6 +929,8 @@ pub unsafe extern "C" fn rpr_mjcf_visual_mesh_normals(
     })
 }
 /// Copies a NUL-terminated texture path, or an empty string for untextured meshes.
+/// @see @ref output_buffers
+/// @ingroup robotics
 #[rapier_export(mjcf_visual_mesh)]
 pub unsafe extern "C" fn rpr_mjcf_visual_mesh_texture(
     visual: *const RprMjcfVisualMesh,

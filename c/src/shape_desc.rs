@@ -1,6 +1,8 @@
 //! POD shape constructors; input geometry is borrowed until insertion.
 use crate::*;
+/// Return a rounded box description; half_extents exclude the added border_radius.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_round_cuboid_collider_desc(
     half_extents: RprVector,
@@ -16,7 +18,9 @@ pub extern "C" fn rpr_round_cuboid_collider_desc(
         ..RprColliderDesc::default()
     }
 }
+/// Return a capsule description with segment endpoints a/b and the supplied radius.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_capsule_collider_desc(
     a: RprVector,
@@ -34,7 +38,9 @@ pub extern "C" fn rpr_capsule_collider_desc(
         ..RprColliderDesc::default()
     }
 }
+/// Return a segment description with endpoints a and b.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_segment_collider_desc(a: RprVector, b: RprVector) -> RprColliderDesc {
     RprColliderDesc {
@@ -47,7 +53,9 @@ pub extern "C" fn rpr_segment_collider_desc(a: RprVector, b: RprVector) -> RprCo
         ..RprColliderDesc::default()
     }
 }
+/// Return a triangle description with vertices a, b, and c.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_triangle_collider_desc(
     a: RprVector,
@@ -65,7 +73,9 @@ pub extern "C" fn rpr_triangle_collider_desc(
         ..RprColliderDesc::default()
     }
 }
+/// Return a half-space description bounded by a plane through the origin; normal points outward.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_halfspace_collider_desc(normal: RprVector) -> RprColliderDesc {
     RprColliderDesc {
@@ -77,8 +87,10 @@ pub extern "C" fn rpr_halfspace_collider_desc(normal: RprVector) -> RprColliderD
         ..RprColliderDesc::default()
     }
 }
-#[cfg(feature = "dim3")]
+/// Return a Y-aligned cylinder description with the supplied half-height and radius.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
+#[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_cylinder_collider_desc(
     half_height: RprReal,
@@ -94,8 +106,10 @@ pub extern "C" fn rpr_cylinder_collider_desc(
         ..RprColliderDesc::default()
     }
 }
-#[cfg(feature = "dim3")]
+/// Return a Y-aligned cone description with the supplied half-height and base radius.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
+#[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_cone_collider_desc(half_height: RprReal, radius: RprReal) -> RprColliderDesc {
     RprColliderDesc {
@@ -108,8 +122,10 @@ pub extern "C" fn rpr_cone_collider_desc(half_height: RprReal, radius: RprReal) 
         ..RprColliderDesc::default()
     }
 }
-#[cfg(feature = "dim3")]
+/// Return a rounded Y-aligned cylinder description; dimensions exclude border_radius.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
+#[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_round_cylinder_collider_desc(
     half_height: RprReal,
@@ -127,7 +143,9 @@ pub extern "C" fn rpr_round_cylinder_collider_desc(
         ..RprColliderDesc::default()
     }
 }
+/// Return a X-aligned capsule description; half_height is half the segment length, excluding caps.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_capsule_x_collider_desc(
     half_height: RprReal,
@@ -145,7 +163,9 @@ pub extern "C" fn rpr_capsule_x_collider_desc(
         ..RprColliderDesc::default()
     }
 }
+/// Return a Y-aligned capsule description; half_height is half the segment length, excluding caps.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
 #[rapier_export]
 pub extern "C" fn rpr_capsule_y_collider_desc(
     half_height: RprReal,
@@ -163,8 +183,10 @@ pub extern "C" fn rpr_capsule_y_collider_desc(
         ..RprColliderDesc::default()
     }
 }
-#[cfg(feature = "dim3")]
+/// Return a Z-aligned capsule description; half_height is half the segment length, excluding caps.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
+#[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_capsule_z_collider_desc(
     half_height: RprReal,

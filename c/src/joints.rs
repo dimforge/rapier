@@ -231,6 +231,8 @@ pub(crate) unsafe fn rpr_generic_joint_set_user_data(
     })
 }
 
+/// Remove an impulse joint. wake_up wakes its connected bodies.
+/// @ingroup joints
 #[rapier_export]
 pub unsafe extern "C" fn rpr_remove_impulse_joint(
     handle: RprImpulseJointHandle,
@@ -252,6 +254,9 @@ pub unsafe extern "C" fn rpr_remove_impulse_joint(
     })
 }
 
+/// Copy entity handles.
+/// @see @ref output_buffers
+/// @ingroup joints
 #[rapier_export]
 pub unsafe extern "C" fn rpr_impulse_joint_handles(
     world: *const RprWorld,
@@ -274,6 +279,8 @@ pub unsafe extern "C" fn rpr_impulse_joint_handles(
     }
 }
 
+/// Remove an articulation joint. wake_up wakes affected bodies.
+/// @ingroup joints
 #[rapier_export]
 pub unsafe extern "C" fn rpr_remove_multibody_joint(
     handle: RprMultibodyJointHandle,
@@ -296,6 +303,9 @@ pub unsafe extern "C" fn rpr_remove_multibody_joint(
     })
 }
 
+/// Copy entity handles.
+/// @see @ref output_buffers
+/// @ingroup joints
 #[rapier_export]
 pub unsafe extern "C" fn rpr_multibody_joint_handles(
     world: *const RprWorld,
@@ -318,6 +328,8 @@ pub unsafe extern "C" fn rpr_multibody_joint_handles(
     }
 }
 
+/// Return the two bodies connected by an impulse joint.
+/// @ingroup joints
 #[rapier_export(impulse_joint)]
 pub unsafe extern "C" fn rpr_impulse_joint_bodies(handle: RprImpulseJointHandle) -> RprJointBodies {
     let world = handle.world;
@@ -341,15 +353,24 @@ pub unsafe extern "C" fn rpr_impulse_joint_bodies(handle: RprImpulseJointHandle)
     })
 }
 
+/// Damped least-squares inverse-kinematics parameters.
+/// @ingroup math
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprInverseKinematicsOptions {
+    /// Nonnegative motor damping.
     pub damping: RprReal,
+    /// Maximum inverse-kinematics iterations.
     pub max_iters: usize,
+    /// Controlled-axis bitmask; translations precede rotations.
     pub constrained_axes: u8,
+    /// Linear convergence tolerance.
     pub epsilon_linear: RprReal,
+    /// Angular convergence tolerance in radians.
     pub epsilon_angular: RprReal,
 }
+/// Return native default inverse kinematics options. This POD value owns no resources.
+/// @ingroup joints
 #[rapier_export]
 pub extern "C" fn rpr_default_inverse_kinematics_options() -> RprInverseKinematicsOptions {
     let options = InverseKinematicsOption::default();
@@ -362,6 +383,8 @@ pub extern "C" fn rpr_default_inverse_kinematics_options() -> RprInverseKinemati
     }
 }
 
+/// Return the articulation degrees of freedom associated with the joint.
+/// @ingroup joints
 #[rapier_export(multibody_joint)]
 pub unsafe extern "C" fn rpr_multibody_joint_ndofs(handle: RprMultibodyJointHandle) -> usize {
     let world = handle.world;
@@ -383,9 +406,11 @@ pub unsafe extern "C" fn rpr_multibody_joint_ndofs(handle: RprMultibodyJointHand
 }
 
 /// Optional per-link filter, called synchronously. Must not reenter or retain physics objects.
+/// @ingroup joints
 pub type RprIkJointCanMove =
     Option<unsafe extern "C" fn(*mut std::ffi::c_void, RprRigidBodyHandle) -> RprBool>;
 /// Read/write displacement buffer must contain exactly ndofs entries; zero it for a fresh solve.
+/// @ingroup joints
 #[rapier_export(multibody_joint)]
 pub unsafe extern "C" fn rpr_multibody_joint_inverse_kinematics(
     handle: RprMultibodyJointHandle,
@@ -447,6 +472,8 @@ pub unsafe extern "C" fn rpr_multibody_joint_inverse_kinematics(
     })
 }
 
+/// Apply generalized articulation displacements in native degree-of-freedom order.
+/// @ingroup joints
 #[rapier_export(multibody_joint)]
 pub unsafe extern "C" fn rpr_multibody_joint_apply_displacements(
     handle: RprMultibodyJointHandle,

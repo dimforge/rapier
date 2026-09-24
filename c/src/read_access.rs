@@ -1,6 +1,8 @@
 //! Scoped read access derived from the borrows Rapier supplies to callbacks.
 use crate::*;
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Compute a velocity correction from callback-visible body state, updating the PID controller
+/// history. The context is valid only during its callback.
+/// @ingroup callbacks
 #[rapier_export(read_pid_controller)]
 pub unsafe extern "C" fn rpr_read_pid_controller_rigid_body_correction(
     context: *const RprReadContext,
@@ -31,7 +33,9 @@ pub unsafe extern "C" fn rpr_read_pid_controller_rigid_body_correction(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the number of rigid body objects in the world. Uses only the callback-scoped read
+/// context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export]
 pub unsafe extern "C" fn rpr_read_rigid_body_count(context: *const RprReadContext) -> usize {
     ffi_value(|out: *mut usize| {
@@ -40,7 +44,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_count(context: *const RprReadContex
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Copy entity handles. Uses only the callback-scoped read context; never retain the context.
+/// @see @ref output_buffers
+/// @ingroup callbacks
 #[rapier_export]
 pub unsafe extern "C" fn rpr_read_rigid_body_handles(
     context: *const RprReadContext,
@@ -65,7 +71,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_handles(
         )
     }
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Test whether the live world contains this rigid body handle. A removed/stale handle returns
+/// false. Uses only the callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_contains(
     context: *const RprReadContext,
@@ -82,7 +90,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_contains(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the number of collider objects in the world. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export]
 pub unsafe extern "C" fn rpr_read_collider_count(context: *const RprReadContext) -> usize {
     ffi_value(|out: *mut usize| {
@@ -91,7 +101,9 @@ pub unsafe extern "C" fn rpr_read_collider_count(context: *const RprReadContext)
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Copy entity handles. Uses only the callback-scoped read context; never retain the context.
+/// @see @ref output_buffers
+/// @ingroup callbacks
 #[rapier_export]
 pub unsafe extern "C" fn rpr_read_collider_handles(
     context: *const RprReadContext,
@@ -116,7 +128,9 @@ pub unsafe extern "C" fn rpr_read_collider_handles(
         )
     }
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Test whether the live world contains this collider handle. A removed/stale handle returns false.
+/// Uses only the callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_contains(
     context: *const RprReadContext,
@@ -133,7 +147,10 @@ pub unsafe extern "C" fn rpr_read_collider_contains(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return a process-local geometry identity for caching, not a serializable ID. Keep a shared-shape
+/// clone alive while using it as a cache key. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_shape_identity(
     context: *const RprReadContext,
@@ -150,7 +167,9 @@ pub unsafe extern "C" fn rpr_read_collider_shape_identity(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider local mass properties. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_mass_properties(
     context: *const RprReadContext,
@@ -167,7 +186,9 @@ pub unsafe extern "C" fn rpr_read_collider_mass_properties(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body translation/rotation lock bitmask. Uses only the callback-scoped read
+/// context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_locked_axes(
     context: *const RprReadContext,
@@ -184,7 +205,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_locked_axes(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the collider is a voxel shape. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_is_voxels(
     context: *const RprReadContext,
@@ -201,7 +224,9 @@ pub unsafe extern "C" fn rpr_read_collider_is_voxels(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return voxel information at a flat index; found = 0 if absent. Uses only the callback-scoped
+/// read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_voxel_at_flat_id(
     context: *const RprReadContext,
@@ -228,7 +253,9 @@ pub unsafe extern "C" fn rpr_read_collider_voxel_at_flat_id(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body next kinematic world-space pose. Uses only the callback-scoped read
+/// context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_next_position(
     context: *const RprReadContext,
@@ -245,7 +272,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_next_position(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body world-space rotation. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_rotation(
     context: *const RprReadContext,
@@ -262,7 +291,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_rotation(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body world-space center of mass. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_center_of_mass(
     context: *const RprReadContext,
@@ -279,7 +310,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_center_of_mass(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body body-local center of mass. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_local_center_of_mass(
     context: *const RprReadContext,
@@ -296,7 +329,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_local_center_of_mass(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body accumulated user-applied world-space force. Uses only the callback-scoped
+/// read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_user_force(
     context: *const RprReadContext,
@@ -313,7 +348,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_user_force(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body accumulated user-applied world-space torque. Uses only the callback-scoped
+/// read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_user_torque(
     context: *const RprReadContext,
@@ -330,7 +367,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_user_torque(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body body type (RPR_DYNAMIC, RPR_FIXED, or a kinematic kind). Uses only the
+/// callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_body_type(
     context: *const RprReadContext,
@@ -347,7 +386,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_body_type(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body mass. Uses only the callback-scoped read context; never retain the
+/// context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_mass(
     context: *const RprReadContext,
@@ -364,7 +405,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_mass(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body gravity multiplier. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_gravity_scale(
     context: *const RprReadContext,
@@ -381,7 +424,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_gravity_scale(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body linear damping coefficient. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_linear_damping(
     context: *const RprReadContext,
@@ -398,7 +443,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_linear_damping(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body angular damping coefficient. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_angular_damping(
     context: *const RprReadContext,
@@ -415,7 +462,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_angular_damping(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body kinetic energy. Uses only the callback-scoped read context; never retain
+/// the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_kinetic_energy(
     context: *const RprReadContext,
@@ -432,7 +481,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_kinetic_energy(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body soft-CCD prediction distance. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_soft_ccd_prediction(
     context: *const RprReadContext,
@@ -449,7 +500,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_soft_ccd_prediction(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is using continuous collision detection. Uses only the
+/// callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_ccd_enabled(
     context: *const RprReadContext,
@@ -466,7 +519,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_ccd_enabled(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is dynamic. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_dynamic(
     context: *const RprReadContext,
@@ -483,7 +538,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_dynamic(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the associated soft-body handle, or an invalid handle if this is not a soft proxy. Uses
+/// only the callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_soft_body(
     context: *const RprReadContext,
@@ -503,7 +560,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_soft_body(
         },
     )
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is a soft-body proxy. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_soft_frame(
     context: *const RprReadContext,
@@ -520,7 +579,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_soft_frame(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is fixed. Uses only the callback-scoped read context; never retain
+/// the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_fixed(
     context: *const RprReadContext,
@@ -537,7 +598,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_fixed(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is kinematic. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_kinematic(
     context: *const RprReadContext,
@@ -554,7 +617,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_kinematic(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is moving. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_moving(
     context: *const RprReadContext,
@@ -571,7 +636,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_moving(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is currently using CCD for its motion. Uses only the
+/// callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_ccd_active(
     context: *const RprReadContext,
@@ -588,7 +655,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_ccd_active(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return world-space velocity at a world-space point, including angular motion. Uses only the
+/// callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_velocity_at_point(
     context: *const RprReadContext,
@@ -607,7 +676,10 @@ pub unsafe extern "C" fn rpr_read_rigid_body_velocity_at_point(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Copy attached collider handles. Uses only the callback-scoped read context; never retain the
+/// context.
+/// @see @ref output_buffers
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_colliders(
     context: *const RprReadContext,
@@ -635,8 +707,10 @@ pub unsafe extern "C" fn rpr_read_rigid_body_colliders(
         )
     }
 }
+/// Return whether the rigid body is using gyroscopic forces. Uses only the callback-scoped read
+/// context; never retain the context.
+/// @ingroup callbacks
 #[cfg(feature = "dim3")]
-/// Read callback-visible state. The context is valid only until its callback returns.
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_gyroscopic_forces_enabled(
     context: *const RprReadContext,
@@ -653,7 +727,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_gyroscopic_forces_enabled(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider world-space rotation. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_rotation(
     context: *const RprReadContext,
@@ -670,7 +746,9 @@ pub unsafe extern "C" fn rpr_read_collider_rotation(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider collision filtering groups. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_collision_groups(
     context: *const RprReadContext,
@@ -687,7 +765,9 @@ pub unsafe extern "C" fn rpr_read_collider_collision_groups(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider contact-force filtering groups. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_solver_groups(
     context: *const RprReadContext,
@@ -704,7 +784,9 @@ pub unsafe extern "C" fn rpr_read_collider_solver_groups(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider application-owned 128-bit user value. Uses only the callback-scoped read
+/// context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_user_data(
     context: *const RprReadContext,
@@ -721,7 +803,9 @@ pub unsafe extern "C" fn rpr_read_collider_user_data(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider event-generation bitmask (RPR_COLLISION_EVENTS and
+/// RPR_CONTACT_FORCE_EVENTS). Uses only the callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_active_events(
     context: *const RprReadContext,
@@ -738,7 +822,8 @@ pub unsafe extern "C" fn rpr_read_collider_active_events(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider mass. Uses only the callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_mass(
     context: *const RprReadContext,
@@ -755,7 +840,9 @@ pub unsafe extern "C" fn rpr_read_collider_mass(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider mass per unit volume. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_density(
     context: *const RprReadContext,
@@ -772,7 +859,9 @@ pub unsafe extern "C" fn rpr_read_collider_density(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider current volume. Uses only the callback-scoped read context; never retain the
+/// context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_volume(
     context: *const RprReadContext,
@@ -789,7 +878,9 @@ pub unsafe extern "C" fn rpr_read_collider_volume(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider extra separation skin around the shape. Uses only the callback-scoped read
+/// context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_contact_skin(
     context: *const RprReadContext,
@@ -806,7 +897,9 @@ pub unsafe extern "C" fn rpr_read_collider_contact_skin(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider force threshold for contact-force events. Uses only the callback-scoped read
+/// context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_contact_force_event_threshold(
     context: *const RprReadContext,
@@ -823,7 +916,9 @@ pub unsafe extern "C" fn rpr_read_collider_contact_force_event_threshold(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the collider is enabled. Uses only the callback-scoped read context; never retain
+/// the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_is_enabled(
     context: *const RprReadContext,
@@ -840,7 +935,9 @@ pub unsafe extern "C" fn rpr_read_collider_is_enabled(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the current world-space axis-aligned bounds. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_compute_aabb(
     context: *const RprReadContext,
@@ -857,8 +954,10 @@ pub unsafe extern "C" fn rpr_read_collider_compute_aabb(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return an owned wrapper sharing the collider geometry. Release with rpr_free_shared_shape. Uses
+/// only the callback-scoped read context; never retain the context.
 /// Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_clone_shape(
     context: *const RprReadContext,
@@ -875,7 +974,9 @@ pub unsafe extern "C" fn rpr_read_collider_clone_shape(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Validate the index and generation in the live owning world. Cannot detect a world pointer that
+/// has already been freed. Uses only the callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_validate_handle(
     context: *const RprReadContext,
@@ -889,7 +990,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_validate_handle(
         ))
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Validate the index and generation in the live owning world. Cannot detect a world pointer that
+/// has already been freed. Uses only the callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_validate_handle(
     context: *const RprReadContext,
@@ -903,7 +1006,9 @@ pub unsafe extern "C" fn rpr_read_collider_validate_handle(
         ))
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body world-space pose. Uses only the callback-scoped read context; never retain
+/// the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_position(
     context: *const RprReadContext,
@@ -920,7 +1025,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_position(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body world-space translation. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_translation(
     context: *const RprReadContext,
@@ -937,7 +1044,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_translation(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body world-space linear velocity. Uses only the callback-scoped read context;
+/// never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_linvel(
     context: *const RprReadContext,
@@ -954,7 +1063,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_linvel(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body world-space angular velocity (radians per second). Uses only the
+/// callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_angvel(
     context: *const RprReadContext,
@@ -971,7 +1082,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_angvel(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is sleeping. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_sleeping(
     context: *const RprReadContext,
@@ -988,7 +1101,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_sleeping(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the rigid body is enabled. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_is_enabled(
     context: *const RprReadContext,
@@ -1005,7 +1120,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_is_enabled(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the rigid body application-owned 128-bit user value. Uses only the callback-scoped read
+/// context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_rigid_body)]
 pub unsafe extern "C" fn rpr_read_rigid_body_user_data(
     context: *const RprReadContext,
@@ -1022,7 +1139,9 @@ pub unsafe extern "C" fn rpr_read_rigid_body_user_data(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider world-space pose. Uses only the callback-scoped read context; never retain
+/// the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_position(
     context: *const RprReadContext,
@@ -1039,7 +1158,9 @@ pub unsafe extern "C" fn rpr_read_collider_position(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider world-space translation. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_translation(
     context: *const RprReadContext,
@@ -1056,7 +1177,9 @@ pub unsafe extern "C" fn rpr_read_collider_translation(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider friction coefficient. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_friction(
     context: *const RprReadContext,
@@ -1073,7 +1196,9 @@ pub unsafe extern "C" fn rpr_read_collider_friction(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return the collider restitution coefficient. Uses only the callback-scoped read context; never
+/// retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_restitution(
     context: *const RprReadContext,
@@ -1090,7 +1215,9 @@ pub unsafe extern "C" fn rpr_read_collider_restitution(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Return whether the collider is a sensor (detects overlaps without contact forces). Uses only the
+/// callback-scoped read context; never retain the context.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_is_sensor(
     context: *const RprReadContext,
@@ -1107,7 +1234,9 @@ pub unsafe extern "C" fn rpr_read_collider_is_sensor(
         })
     })
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Read the parent body handle during a callback; a standalone collider returns an invalid handle
+/// with OK status.
+/// @ingroup callbacks
 #[rapier_export(read_collider)]
 pub unsafe extern "C" fn rpr_read_collider_parent(
     context: *const RprReadContext,
@@ -1127,7 +1256,10 @@ pub unsafe extern "C" fn rpr_read_collider_parent(
         },
     )
 }
-/// Read callback-visible state. The context is valid only until its callback returns.
+/// Copy callback-visible body states in the supplied handle order. All handles must belong to the
+/// context world.
+/// @see @ref output_buffers
+/// @ingroup callbacks
 #[rapier_export]
 pub unsafe extern "C" fn rpr_read_rigid_body_read_states(
     context: *const RprReadContext,

@@ -54,7 +54,7 @@ robotics = []
 
     # cbindgen emits this mutually recursive pair in pointer-dependency order.
     # C requires the by-value ShapeDesc field to be complete first.
-    compound = re.search(r"typedef struct RprCompoundShapeDesc \{.*?\} RprCompoundShapeDesc;\n", text, re.S)
+    compound = re.search(r"(?:/\*\*(?:(?!\*/).)*\*/\s*)?typedef struct RprCompoundShapeDesc \{.*?\} RprCompoundShapeDesc;\n", text, re.S)
     if compound:
         declaration = compound[0]
         text = text[:compound.start()] + text[compound.end():]

@@ -1,4 +1,6 @@
 use crate::*;
+/// Return the world setting documented by RprIntegrationParameters::dt.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_time_step(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -15,6 +17,8 @@ pub unsafe extern "C" fn rpr_time_step(world: *const RprWorld) -> RprReal {
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::dt.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_time_step(world: *mut RprWorld, value: RprReal) -> RprStatus {
     ffi(|| unsafe {
@@ -30,6 +34,8 @@ pub unsafe extern "C" fn rpr_set_time_step(world: *mut RprWorld, value: RprReal)
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::minCcdDt.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_min_ccd_dt(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -46,6 +52,8 @@ pub unsafe extern "C" fn rpr_min_ccd_dt(world: *const RprWorld) -> RprReal {
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::minCcdDt.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_min_ccd_dt(world: *mut RprWorld, value: RprReal) -> RprStatus {
     ffi(|| unsafe {
@@ -61,6 +69,8 @@ pub unsafe extern "C" fn rpr_set_min_ccd_dt(world: *mut RprWorld, value: RprReal
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::lengthUnit.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_length_unit(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -77,6 +87,8 @@ pub unsafe extern "C" fn rpr_length_unit(world: *const RprWorld) -> RprReal {
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::lengthUnit.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_length_unit(world: *mut RprWorld, value: RprReal) -> RprStatus {
     ffi(|| unsafe {
@@ -92,6 +104,8 @@ pub unsafe extern "C" fn rpr_set_length_unit(world: *mut RprWorld, value: RprRea
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::warmstartCoefficient.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_warmstart_coefficient(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -108,6 +122,8 @@ pub unsafe extern "C" fn rpr_warmstart_coefficient(world: *const RprWorld) -> Rp
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::warmstartCoefficient.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_warmstart_coefficient(
     world: *mut RprWorld,
@@ -127,6 +143,8 @@ pub unsafe extern "C" fn rpr_set_warmstart_coefficient(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::normalizedAllowedLinearError.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_normalized_allowed_linear_error(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -143,6 +161,8 @@ pub unsafe extern "C" fn rpr_normalized_allowed_linear_error(world: *const RprWo
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::normalizedAllowedLinearError.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_normalized_allowed_linear_error(
     world: *mut RprWorld,
@@ -161,6 +181,9 @@ pub unsafe extern "C" fn rpr_set_normalized_allowed_linear_error(
     })
 }
 
+/// Return the world setting documented by
+/// RprIntegrationParameters::normalizedMaxCorrectiveVelocity.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_normalized_max_corrective_velocity(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -177,6 +200,8 @@ pub unsafe extern "C" fn rpr_normalized_max_corrective_velocity(world: *const Rp
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::normalizedMaxCorrectiveVelocity.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_normalized_max_corrective_velocity(
     world: *mut RprWorld,
@@ -195,6 +220,8 @@ pub unsafe extern "C" fn rpr_set_normalized_max_corrective_velocity(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::normalizedPredictionDistance.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_normalized_prediction_distance(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -211,6 +238,8 @@ pub unsafe extern "C" fn rpr_normalized_prediction_distance(world: *const RprWor
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::normalizedPredictionDistance.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_normalized_prediction_distance(
     world: *mut RprWorld,
@@ -229,6 +258,8 @@ pub unsafe extern "C" fn rpr_set_normalized_prediction_distance(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::normalizedMaxLinearVelocity.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_normalized_max_linear_velocity(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -245,6 +276,8 @@ pub unsafe extern "C" fn rpr_normalized_max_linear_velocity(world: *const RprWor
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::normalizedMaxLinearVelocity.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_normalized_max_linear_velocity(
     world: *mut RprWorld,
@@ -263,6 +296,9 @@ pub unsafe extern "C" fn rpr_set_normalized_max_linear_velocity(
     })
 }
 
+/// Return the world setting documented by
+/// RprIntegrationParameters::normalizedContactRecycleDistance.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_normalized_contact_recycle_distance(
     world: *const RprWorld,
@@ -281,6 +317,8 @@ pub unsafe extern "C" fn rpr_normalized_contact_recycle_distance(
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::normalizedContactRecycleDistance.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_normalized_contact_recycle_distance(
     world: *mut RprWorld,
@@ -299,6 +337,8 @@ pub unsafe extern "C" fn rpr_set_normalized_contact_recycle_distance(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::numSolverIterations.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_num_solver_iterations(world: *const RprWorld) -> usize {
     ffi_value(|out: *mut usize| {
@@ -315,6 +355,8 @@ pub unsafe extern "C" fn rpr_num_solver_iterations(world: *const RprWorld) -> us
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::numSolverIterations.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_num_solver_iterations(
     world: *mut RprWorld,
@@ -333,6 +375,8 @@ pub unsafe extern "C" fn rpr_set_num_solver_iterations(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::numInternalPgsIterations.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_num_internal_pgs_iterations(world: *const RprWorld) -> usize {
     ffi_value(|out: *mut usize| {
@@ -349,6 +393,8 @@ pub unsafe extern "C" fn rpr_num_internal_pgs_iterations(world: *const RprWorld)
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::numInternalPgsIterations.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_num_internal_pgs_iterations(
     world: *mut RprWorld,
@@ -367,6 +413,9 @@ pub unsafe extern "C" fn rpr_set_num_internal_pgs_iterations(
     })
 }
 
+/// Return the world setting documented by
+/// RprIntegrationParameters::numInternalStabilizationIterations.
+/// @ingroup errors
 #[rapier_export]
 pub unsafe extern "C" fn rpr_num_internal_stabilization_iterations(
     world: *const RprWorld,
@@ -385,6 +434,9 @@ pub unsafe extern "C" fn rpr_num_internal_stabilization_iterations(
     })
 }
 
+/// Set the world setting documented by
+/// RprIntegrationParameters::numInternalStabilizationIterations.
+/// @ingroup errors
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_num_internal_stabilization_iterations(
     world: *mut RprWorld,
@@ -402,6 +454,8 @@ pub unsafe extern "C" fn rpr_set_num_internal_stabilization_iterations(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::maxCcdSubsteps.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_max_ccd_substeps(world: *const RprWorld) -> usize {
     ffi_value(|out: *mut usize| {
@@ -418,6 +472,8 @@ pub unsafe extern "C" fn rpr_max_ccd_substeps(world: *const RprWorld) -> usize {
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::maxCcdSubsteps.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_max_ccd_substeps(world: *mut RprWorld, value: usize) -> RprStatus {
     ffi(|| unsafe {
@@ -432,6 +488,8 @@ pub unsafe extern "C" fn rpr_set_max_ccd_substeps(world: *mut RprWorld, value: u
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::contactClustering.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_clustering(world: *const RprWorld) -> RprBool {
     ffi_value(|out: *mut RprBool| {
@@ -448,6 +506,8 @@ pub unsafe extern "C" fn rpr_contact_clustering(world: *const RprWorld) -> RprBo
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::contactClustering.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_contact_clustering(
     world: *mut RprWorld,
@@ -466,6 +526,8 @@ pub unsafe extern "C" fn rpr_set_contact_clustering(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::contactRecycling.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_recycling(world: *const RprWorld) -> RprBool {
     ffi_value(|out: *mut RprBool| {
@@ -482,6 +544,8 @@ pub unsafe extern "C" fn rpr_contact_recycling(world: *const RprWorld) -> RprBoo
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::contactRecycling.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_contact_recycling(
     world: *mut RprWorld,
@@ -500,6 +564,8 @@ pub unsafe extern "C" fn rpr_set_contact_recycling(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::frictionInBiasPass.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_friction_in_bias_pass(world: *const RprWorld) -> RprBool {
     ffi_value(|out: *mut RprBool| {
@@ -516,6 +582,8 @@ pub unsafe extern "C" fn rpr_friction_in_bias_pass(world: *const RprWorld) -> Rp
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::frictionInBiasPass.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_friction_in_bias_pass(
     world: *mut RprWorld,
@@ -534,6 +602,8 @@ pub unsafe extern "C" fn rpr_set_friction_in_bias_pass(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::warmstartJoints.
+/// @ingroup joints
 #[rapier_export]
 pub unsafe extern "C" fn rpr_warmstart_joints(world: *const RprWorld) -> RprBool {
     ffi_value(|out: *mut RprBool| {
@@ -550,6 +620,8 @@ pub unsafe extern "C" fn rpr_warmstart_joints(world: *const RprWorld) -> RprBool
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::warmstartJoints.
+/// @ingroup joints
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_warmstart_joints(
     world: *mut RprWorld,
@@ -568,6 +640,8 @@ pub unsafe extern "C" fn rpr_set_warmstart_joints(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::contactSoftness.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_softness(world: *const RprWorld) -> RprSpringCoefficients {
     ffi_value(|out: *mut RprSpringCoefficients| {
@@ -584,6 +658,8 @@ pub unsafe extern "C" fn rpr_contact_softness(world: *const RprWorld) -> RprSpri
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::contactSoftness.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_contact_softness(
     world: *mut RprWorld,
@@ -602,6 +678,8 @@ pub unsafe extern "C" fn rpr_set_contact_softness(
     })
 }
 
+/// Return the world setting documented by RprIntegrationParameters::staticContactSoftness.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_static_contact_softness(
     world: *const RprWorld,
@@ -620,6 +698,8 @@ pub unsafe extern "C" fn rpr_static_contact_softness(
     })
 }
 
+/// Set the world setting documented by RprIntegrationParameters::staticContactSoftness.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_static_contact_softness(
     world: *mut RprWorld,
@@ -644,26 +724,42 @@ use rapier::pipeline::{ContactModificationContext, PairFilterContext};
 use std::{ffi::c_void, sync::Mutex};
 
 /// Collision start/stop flags match Rapier CollisionEventFlags.
+/// @ingroup events
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprCollisionEvent {
+    /// First collider in the pair.
     pub collider1: RprColliderHandle,
+    /// Second collider in the pair.
     pub collider2: RprColliderHandle,
+    /// 1 for a starting event, 0 for a stopping event.
     pub started: RprBool,
+    /// Event flags: bit 0 sensor pair, bit 1 removed collider.
     pub flags: u32,
 }
+/// Contact-force event, enabled by flags and the collider force threshold.
+/// @ingroup events
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprContactForceEvent {
+    /// First collider in the pair.
     pub collider1: RprColliderHandle,
+    /// Second collider in the pair.
     pub collider2: RprColliderHandle,
+    /// Sum of world-space contact forces.
     pub total_force: RprVector,
+    /// Sum of contact force magnitudes.
     pub total_force_magnitude: RprReal,
+    /// World-space direction of the strongest contact force.
     pub max_force_direction: RprVector,
+    /// Magnitude of the strongest contact force.
     pub max_force_magnitude: RprReal,
+    /// 1 for a starting event, 0 for a stopping event.
     pub started: RprBool,
 }
-/// Events accumulate until clear. Copying events never drains them, allowing two-call buffer sizing.
+/// Events accumulate until clear. Copying events never drains them, allowing two-call buffer
+/// sizing.
+/// @ingroup events
 #[derive(Default)]
 pub struct RprEventCollector {
     collisions: Mutex<Vec<RprCollisionEvent>>,
@@ -730,8 +826,10 @@ impl EventHandler for WorldEvents<'_> {
             .push(RprSoftBodyTearEvent(event.clone(), self.world));
     }
 }
-/// Pair callback: -1 rejects a contact pair; 0 detects contacts without impulses; 1 computes impulses.
+/// Pair callback: -1 rejects a contact pair; 0 detects contacts without impulses; 1 computes
+/// impulses.
 /// For sensor intersections only, zero rejects and any positive value accepts.
+/// @ingroup math
 pub type RprPairFilter = Option<
     unsafe extern "C" fn(
         user_data: *mut c_void,
@@ -743,15 +841,23 @@ pub type RprPairFilter = Option<
     ) -> i32,
 >;
 /// Mutable per-manifold properties. Set enabled=0 to discard all its solver contacts.
+/// @ingroup events
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprContactModification {
+    /// World-space contact or surface normal.
     pub normal: RprVector,
+    /// Nonnegative friction coefficient.
     pub friction: RprReal,
+    /// Nonnegative restitution coefficient.
     pub restitution: RprReal,
+    /// Application data; Rapier does not own pointers encoded in it.
     pub user_data: u32,
+    /// Whether this setting/object is enabled (0 or 1).
     pub enabled: RprBool,
 }
+/// Modify aggregate contact properties for one pair; contact is mutable only during this callback.
+/// @ingroup callbacks
 pub type RprModifyContacts = Option<
     unsafe extern "C" fn(
         user_data: *mut c_void,
@@ -762,9 +868,12 @@ pub type RprModifyContacts = Option<
     ),
 >;
 /// Borrowed native contact context. Valid only during its callback; never retain or free it.
+/// @ingroup events
 pub struct RprContactModificationContext {
     raw: *mut c_void,
 }
+/// Modify individual solver contacts through a borrowed context, valid only during the callback.
+/// @ingroup callbacks
 pub type RprModifyContactContext = Option<
     unsafe extern "C" fn(
         user_data: *mut c_void,
@@ -778,13 +887,19 @@ pub type RprModifyContactContext = Option<
 /// Callbacks must not unwind or retain arguments. Use their ReadContext to inspect bodies and
 /// colliders; ordinary access to the stepping world returns WORLD_BUSY. Mutations must be
 /// performed after stepping. With parallel builds
-/// callbacks and their user_data must be safe for concurrent invocation. NULL callbacks use defaults.
+/// callbacks and their user_data must be safe for concurrent invocation. NULL callbacks use
+/// defaults.
+/// @ingroup callbacks
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprPhysicsHooks {
+    /// Application data; Rapier does not own pointers encoded in it.
     pub user_data: *mut c_void,
+    /// Optional contact-pair filter, called only for colliders enabling the hook.
     pub filter_contact_pair: RprPairFilter,
+    /// Optional sensor-pair filter, called only for colliders enabling the hook.
     pub filter_intersection_pair: RprPairFilter,
+    /// Optional legacy aggregate contact-edit callback.
     pub modify_solver_contacts: RprModifyContacts,
     /// Runs after the legacy property callback. Context accessors may be called here.
     pub modify_solver_contacts_context: RprModifyContactContext,
@@ -889,6 +1004,7 @@ impl PhysicsHooks for WorldHooks {
 }
 
 /// Applies Rapier's persistent one-way platform logic to the borrowed manifold.
+/// @ingroup worlds
 #[rapier_export(contact_modification_context)]
 pub unsafe extern "C" fn rpr_contact_modification_context_update_as_oneway_platform(
     context: *mut RprContactModificationContext,
@@ -907,6 +1023,7 @@ pub unsafe extern "C" fn rpr_contact_modification_context_update_as_oneway_platf
 }
 
 /// Sets the tangent velocity of every rigid solver contact in this manifold.
+/// @ingroup worlds
 #[rapier_export(contact_modification_context)]
 pub unsafe extern "C" fn rpr_contact_modification_context_set_tangent_velocity(
     context: *mut RprContactModificationContext,
@@ -926,6 +1043,8 @@ pub unsafe extern "C" fn rpr_contact_modification_context_set_tangent_velocity(
     })
 }
 
+/// Allocate an empty event collector; release it with rpr_free_event_collector.
+/// @ingroup events
 #[rapier_export]
 pub unsafe extern "C" fn rpr_new_event_collector() -> *mut RprEventCollector {
     ffi_value(|out: *mut *mut RprEventCollector| {
@@ -935,6 +1054,9 @@ pub unsafe extern "C" fn rpr_new_event_collector() -> *mut RprEventCollector {
         })
     })
 }
+/// Release an owned event collector. NULL is allowed. Do not pass borrowed pointers or free the
+/// object twice.
+/// @ingroup events
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_event_collector(events: *mut RprEventCollector) -> RprStatus {
     ffi(|| unsafe {
@@ -945,6 +1067,8 @@ pub unsafe extern "C" fn rpr_free_event_collector(events: *mut RprEventCollector
         Ok(())
     })
 }
+/// Discard all collected events. Does not change the world.
+/// @ingroup events
 #[rapier_export(event_collector)]
 pub unsafe extern "C" fn rpr_event_collector_clear(events: *mut RprEventCollector) -> RprStatus {
     ffi(|| unsafe {
@@ -955,6 +1079,9 @@ pub unsafe extern "C" fn rpr_event_collector_clear(events: *mut RprEventCollecto
         Ok(())
     })
 }
+/// Copy the collected collision start/stop events without removing them.
+/// @see @ref output_buffers
+/// @ingroup events
 #[rapier_export(event_collector)]
 pub unsafe extern "C" fn rpr_event_collector_collision_events(
     events: *const RprEventCollector,
@@ -972,6 +1099,9 @@ pub unsafe extern "C" fn rpr_event_collector_collision_events(
         })
     })
 }
+/// Copy the collected contact-force events without removing them.
+/// @see @ref output_buffers
+/// @ingroup events
 #[rapier_export(event_collector)]
 pub unsafe extern "C" fn rpr_event_collector_contact_force_events(
     events: *const RprEventCollector,
@@ -989,6 +1119,8 @@ pub unsafe extern "C" fn rpr_event_collector_contact_force_events(
         })
     })
 }
+/// Return the number of queued soft-body tear events.
+/// @ingroup events
 #[rapier_export(event_collector)]
 pub unsafe extern "C" fn rpr_event_collector_tear_event_count(
     events: *const RprEventCollector,
@@ -998,11 +1130,15 @@ pub unsafe extern "C" fn rpr_event_collector_tear_event_count(
     })
 }
 /// Owned copy of a tear event. Read particle remapping before rebuilding render meshes.
+/// @ingroup events
 #[derive(Clone)]
 pub struct RprSoftBodyTearEvent(pub(crate) SoftBodyTearEvent, pub(crate) *mut RprWorld);
 // Owned event data plus a non-owning world address, never dereferenced by the event.
 unsafe impl Send for RprSoftBodyTearEvent {}
 unsafe impl Sync for RprSoftBodyTearEvent {}
+/// Return an owned copy of a queued tear event; release with rpr_free_soft_body_tear_event. Does
+/// not remove the queued event.
+/// @ingroup events
 #[rapier_export(event_collector)]
 pub unsafe extern "C" fn rpr_event_collector_tear_event(
     events: *const RprEventCollector,
@@ -1022,6 +1158,8 @@ pub unsafe extern "C" fn rpr_event_collector_tear_event(
         })
     })
 }
+/// Return the world-space gravitational acceleration.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_gravity(world: *const RprWorld) -> RprVector {
     ffi_value(|out: *mut RprVector| {
@@ -1035,6 +1173,8 @@ pub unsafe extern "C" fn rpr_gravity(world: *const RprWorld) -> RprVector {
     })
 }
 
+/// Set the world-space gravitational acceleration.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_gravity(world: *mut RprWorld, value: RprVector) -> RprStatus {
     ffi(|| unsafe {
@@ -1051,6 +1191,7 @@ pub unsafe extern "C" fn rpr_set_gravity(world: *mut RprWorld, value: RprVector)
 
 /// Hooks and events may be NULL. This call invalidates all borrowed set-element pointers.
 /// Advance simulation by one timestep. Hooks and events may be NULL.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_step(
     world: *mut RprWorld,
@@ -1080,6 +1221,7 @@ pub unsafe extern "C" fn rpr_step(
 }
 
 /// Refresh collision detection without advancing simulation. Hooks and events may be NULL.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_detect_collisions(
     world: *mut RprWorld,
@@ -1109,7 +1251,11 @@ pub unsafe extern "C" fn rpr_detect_collisions(
 }
 
 /// Immutable owned byte buffer. Release with the matching FreeBytes function.
+/// @ingroup worlds
 pub struct RprBytes(Vec<u8>);
+/// Borrow snapshot bytes without copying; valid until rpr_free_bytes. Never free the returned data
+/// pointer.
+/// @ingroup worlds
 #[rapier_export(bytes)]
 pub unsafe extern "C" fn rpr_bytes_data(bytes: *const RprBytes) -> RprByteView {
     ffi_value(|result: *mut RprByteView| {
@@ -1125,6 +1271,9 @@ pub unsafe extern "C" fn rpr_bytes_data(bytes: *const RprBytes) -> RprByteView {
         })
     })
 }
+/// Release an owned snapshot byte buffer. NULL is allowed. Do not pass borrowed pointers or free
+/// the object twice.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_bytes(bytes: *mut RprBytes) -> RprStatus {
     ffi(|| unsafe {
@@ -1155,6 +1304,9 @@ fn snapshot_options() -> impl Options {
         .with_limit(256 * 1024 * 1024)
         .reject_trailing_bytes()
 }
+/// Return owned snapshot bytes; release them with rpr_free_bytes. See @ref snapshots for
+/// restoration and handle lifetimes.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_serialize_world(world: *const RprWorld) -> *mut RprBytes {
     ffi_value(|out: *mut *mut RprBytes| {
@@ -1176,7 +1328,9 @@ pub unsafe extern "C" fn rpr_serialize_world(world: *const RprWorld) -> *mut Rpr
     })
 }
 
-/// Restore ONLY trusted snapshots produced by the identical Rapier build. Snapshots are not a stable file format.
+/// Restore ONLY trusted snapshots produced by the identical Rapier build. Snapshots are not a
+/// stable file format.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_deserialize_world(data: *const u8, count: usize) -> *mut RprWorld {
     ffi_value(|out: *mut *mut RprWorld| {
@@ -1199,11 +1353,16 @@ pub unsafe extern "C" fn rpr_deserialize_world(data: *const u8, count: usize) ->
     })
 }
 
+/// World-space line segment produced by physics debug rendering.
+/// @ingroup events
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprDebugLine {
+    /// World-space start point.
     pub a: RprVector,
+    /// World-space end point.
     pub b: RprVector,
+    /// RGBA color, four floats.
     pub color: [f32; 4],
 }
 struct Lines(Vec<RprDebugLine>);
@@ -1223,6 +1382,8 @@ impl rapier::pipeline::DebugRenderBackend for Lines {
     }
 }
 /// Color is HSLA (hue in degrees), matching Rapier DebugColor. mode uses DebugRenderMode bits.
+/// @see @ref output_buffers
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_debug_render(
     world: *const RprWorld,
@@ -1247,6 +1408,8 @@ pub unsafe extern "C" fn rpr_debug_render(
     })
 }
 
+/// Set the world setting documented by RprSoftBodiesSettings::resweepStrain.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_soft_bodies_set_resweep_strain(
     world: *mut RprWorld,
@@ -1265,6 +1428,8 @@ pub unsafe extern "C" fn rpr_soft_bodies_set_resweep_strain(
     })
 }
 
+/// Return the world setting documented by RprSoftBodiesSettings::resweepStrain.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_soft_bodies_resweep_strain(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -1279,6 +1444,8 @@ pub unsafe extern "C" fn rpr_soft_bodies_resweep_strain(world: *const RprWorld) 
     })
 }
 
+/// Set the world setting documented by RprSoftBodiesSettings::contactStiffening.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_soft_bodies_set_contact_stiffening(
     world: *mut RprWorld,
@@ -1297,6 +1464,8 @@ pub unsafe extern "C" fn rpr_soft_bodies_set_contact_stiffening(
     })
 }
 
+/// Return the world setting documented by RprSoftBodiesSettings::contactStiffening.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_soft_bodies_contact_stiffening(world: *const RprWorld) -> RprReal {
     ffi_value(|out: *mut RprReal| {
@@ -1311,6 +1480,8 @@ pub unsafe extern "C" fn rpr_soft_bodies_contact_stiffening(world: *const RprWor
     })
 }
 
+/// Set the world setting documented by RprSoftBodiesSettings::maxExtraSubsteps.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_soft_bodies_set_max_extra_substeps(
     world: *mut RprWorld,
@@ -1328,6 +1499,8 @@ pub unsafe extern "C" fn rpr_soft_bodies_set_max_extra_substeps(
     })
 }
 
+/// Return the world setting documented by RprSoftBodiesSettings::maxExtraSubsteps.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_soft_bodies_max_extra_substeps(world: *const RprWorld) -> usize {
     ffi_value(|out: *mut usize| {
@@ -1342,6 +1515,8 @@ pub unsafe extern "C" fn rpr_soft_bodies_max_extra_substeps(world: *const RprWor
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::authoredVelocityMargin.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_authored_velocity_margin(
     world: *mut RprWorld,
@@ -1364,6 +1539,8 @@ pub unsafe extern "C" fn rpr_recovery_set_authored_velocity_margin(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::edgeSpeculation.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_edge_speculation(
     world: *mut RprWorld,
@@ -1382,6 +1559,8 @@ pub unsafe extern "C" fn rpr_recovery_set_edge_speculation(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::invertedCellDetection.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_inverted_cell_detection(
     world: *mut RprWorld,
@@ -1404,6 +1583,8 @@ pub unsafe extern "C" fn rpr_recovery_set_inverted_cell_detection(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::selfCrossingDetection.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_self_crossing_detection(
     world: *mut RprWorld,
@@ -1426,6 +1607,8 @@ pub unsafe extern "C" fn rpr_recovery_set_self_crossing_detection(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::detectionMotionGating.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_detection_motion_gating(
     world: *mut RprWorld,
@@ -1448,6 +1631,8 @@ pub unsafe extern "C" fn rpr_recovery_set_detection_motion_gating(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::crossBodyDetection.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_cross_body_detection(
     world: *mut RprWorld,
@@ -1470,6 +1655,8 @@ pub unsafe extern "C" fn rpr_recovery_set_cross_body_detection(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::selfStandDown.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_self_stand_down(
     world: *mut RprWorld,
@@ -1488,6 +1675,8 @@ pub unsafe extern "C" fn rpr_recovery_set_self_stand_down(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::crossBodyExpelGate.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_cross_body_expel_gate(
     world: *mut RprWorld,
@@ -1510,6 +1699,8 @@ pub unsafe extern "C" fn rpr_recovery_set_cross_body_expel_gate(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::edgeStandDown.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_edge_stand_down(
     world: *mut RprWorld,
@@ -1528,6 +1719,8 @@ pub unsafe extern "C" fn rpr_recovery_set_edge_stand_down(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::crossingRepulsion.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_crossing_repulsion(
     world: *mut RprWorld,
@@ -1550,6 +1743,8 @@ pub unsafe extern "C" fn rpr_recovery_set_crossing_repulsion(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::crossingRepulsionGuide.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_crossing_repulsion_guide(
     world: *mut RprWorld,
@@ -1572,6 +1767,8 @@ pub unsafe extern "C" fn rpr_recovery_set_crossing_repulsion_guide(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::crossingRepulsionSelfGuide.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_crossing_repulsion_self_guide(
     world: *mut RprWorld,
@@ -1594,6 +1791,8 @@ pub unsafe extern "C" fn rpr_recovery_set_crossing_repulsion_self_guide(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::recoveryPace.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_recovery_pace(
     world: *mut RprWorld,
@@ -1612,6 +1811,8 @@ pub unsafe extern "C" fn rpr_recovery_set_recovery_pace(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapConstraints.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_constraints(
     world: *mut RprWorld,
@@ -1634,6 +1835,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_constraints(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapRigid.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_rigid(
     world: *mut RprWorld,
@@ -1652,6 +1855,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_rigid(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapSkipSelfTangled.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_skip_self_tangled(
     world: *mut RprWorld,
@@ -1674,6 +1879,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_skip_self_tangled(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapEdgeStandDown.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_edge_stand_down(
     world: *mut RprWorld,
@@ -1696,6 +1903,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_edge_stand_down(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapConstraintPace.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_constraint_pace(
     world: *mut RprWorld,
@@ -1718,6 +1927,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_constraint_pace(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapSkinVolume.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_skin_volume(
     world: *mut RprWorld,
@@ -1740,6 +1951,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_skin_volume(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapKeptDepth.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_kept_depth(
     world: *mut RprWorld,
@@ -1762,6 +1975,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_kept_depth(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapSelfRegions.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_self_regions(
     world: *mut RprWorld,
@@ -1784,6 +1999,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_self_regions(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapNormalPush.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_normal_push(
     world: *mut RprWorld,
@@ -1806,6 +2023,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_normal_push(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapMultiVolume.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_multi_volume(
     world: *mut RprWorld,
@@ -1828,6 +2047,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_multi_volume(
     })
 }
 
+/// Set the world setting documented by RprSoftRecoverySettings::overlapProgressMargin.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_recovery_set_overlap_progress_margin(
     world: *mut RprWorld,
@@ -1850,6 +2071,8 @@ pub unsafe extern "C" fn rpr_recovery_set_overlap_progress_margin(
     })
 }
 
+/// Set the world setting documented by RprSoftFemParameters::linearTolerance.
+/// @ingroup soft_bodies
 #[cfg(feature = "fem")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_fem_set_linear_tolerance(
@@ -1869,6 +2092,8 @@ pub unsafe extern "C" fn rpr_fem_set_linear_tolerance(
     })
 }
 
+/// Set the world setting documented by RprSoftFemParameters::maxLinearIterations.
+/// @ingroup soft_bodies
 #[cfg(feature = "fem")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_fem_set_max_linear_iterations(
@@ -1888,6 +2113,8 @@ pub unsafe extern "C" fn rpr_fem_set_max_linear_iterations(
     })
 }
 
+/// Set the world setting documented by RprSoftFemParameters::maxDenseDofs.
+/// @ingroup soft_bodies
 #[cfg(feature = "fem")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_fem_set_max_dense_dofs(
@@ -1910,6 +2137,7 @@ pub unsafe extern "C" fn rpr_fem_set_max_dense_dofs(
 /// Takes effect on the next step. Reconfiguration must not race with a step or callback.
 /// Returns RPR_UNSUPPORTED in builds without the parallel feature; keeps the previous
 /// pool when constructing the new one fails. The pool is not included in snapshots.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_num_threads(
     world: *mut RprWorld,
@@ -1943,6 +2171,7 @@ pub unsafe extern "C" fn rpr_set_num_threads(
 /// Removes the world's dedicated pool. A parallel build then uses the calling
 /// context's Rayon pool (normally the global pool), not a single worker.
 /// Returns RPR_UNSUPPORTED in a build without the parallel feature.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_clear_thread_pool(world: *mut RprWorld) -> RprStatus {
     ffi(|| unsafe {
@@ -1970,6 +2199,7 @@ pub unsafe extern "C" fn rpr_clear_thread_pool(world: *mut RprWorld) -> RprStatu
 
 /// Size of the world's dedicated pool, or zero if a parallel build has no dedicated
 /// pool configured. Returns one for a build without the parallel feature.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_num_threads(world: *const RprWorld) -> usize {
     ffi_value(|out: *mut usize| {
@@ -1994,6 +2224,7 @@ pub unsafe extern "C" fn rpr_num_threads(world: *const RprWorld) -> usize {
 
 /// Enable or disable the native pipeline profiling counters. Enabling returns
 /// RPR_UNSUPPORTED if the library was built without the profiler feature.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_counters_enabled(
     world: *mut RprWorld,
@@ -2026,6 +2257,7 @@ pub unsafe extern "C" fn rpr_set_counters_enabled(
 /// Native engine time of the most recent step, in milliseconds, as in the Rust testbed.
 /// Enable counters before stepping. Excludes C callbacks outside the step, rendering,
 /// and dispatch into a dedicated thread pool; remains unchanged while paused.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_step_time_ms(world: *const RprWorld) -> f64 {
     ffi_value(|out: *mut f64| {
@@ -2043,6 +2275,9 @@ pub unsafe extern "C" fn rpr_step_time_ms(world: *const RprWorld) -> f64 {
 /// Read ONLY trusted legacy rigid-world snapshots from debug_deserialize3.rs,
 /// produced by the identical Rapier build. This is not a stable interchange format.
 
+/// Import trusted legacy Rust testbed rigid-state bytes into a new owned world. Release with
+/// rpr_free_world; see @ref snapshots.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_deserialize_rigid_state(
     data: *const u8,

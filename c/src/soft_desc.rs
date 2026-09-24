@@ -1,26 +1,54 @@
 //! Soft-body recipes and borrowed topology. All arrays are copied during insertion.
 #![allow(non_snake_case)]
 use crate::*;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc particles.
 pub const RPR_SOFT_DESC_PARTICLES: u32 = 0;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc rope.
 pub const RPR_SOFT_DESC_ROPE: u32 = 1;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc grid.
 pub const RPR_SOFT_DESC_GRID: u32 = 2;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc cloth.
 pub const RPR_SOFT_DESC_CLOTH: u32 = 3;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc cuboid.
 pub const RPR_SOFT_DESC_CUBOID: u32 = 4;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc surface.
 pub const RPR_SOFT_DESC_SURFACE: u32 = 5;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc disk.
 pub const RPR_SOFT_DESC_DISK: u32 = 6;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc sphere.
 pub const RPR_SOFT_DESC_SPHERE: u32 = 7;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc cloth tube.
 pub const RPR_SOFT_DESC_CLOTH_TUBE: u32 = 8;
+/// @ingroup soft_bodies
+/// Soft-body selector: desc volumetric.
 pub const RPR_SOFT_DESC_VOLUMETRIC: u32 = 9;
+/// Spring-coefficient override for one soft-body edge.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftEdgeSoftness {
+    /// Zero-based edge index.
     pub edge: u32,
+    /// Spring coefficients for constraint correction.
     pub softness: RprSpringCoefficients,
 }
+/// Tear-resistance override for one soft-body edge.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftEdgeTear {
+    /// Zero-based edge index.
     pub edge: u32,
+    /// Nonnegative edge tear-resistance multiplier.
     pub resistance: RprReal,
 }
 /// Copyable recipe, not an owned procedural builder. Initialize before editing.
@@ -28,58 +56,103 @@ pub struct RprSoftEdgeTear {
 /// for topology arrays are element counts (edges, triangles, or tetrahedra).
 /// Nonempty topology overrides the generator's topology. Zero counts retain it.
 /// Generator inputs: a/b are rope ends or center/half-extents; cloth uses a/du/dv.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct RprSoftBodyDesc {
+    /// Discriminant selecting which description fields are read.
     pub kind: u32,
+    /// Recipe origin/center or first rope endpoint; use a recipe constructor.
     pub a: RprVector,
+    /// Recipe half extents, second rope endpoint, or tube axis; use a recipe constructor.
     pub b: RprVector,
+    /// Cloth basis step along its first parameter axis.
     pub du: RprVector,
+    /// Cloth basis step along its second parameter axis.
     pub dv: RprVector,
+    /// First recipe resolution; interpretation depends on kind.
     pub nx: usize,
+    /// Second recipe resolution; interpretation depends on kind.
     pub ny: usize,
+    /// Third recipe resolution; interpretation depends on kind.
     pub nz: usize,
+    /// Radius for the selected primitive or recipe.
     pub radius: RprReal,
+    /// Radius at the second end of a tapered cloth tube.
     pub radiusEnd: RprReal,
+    /// Translation vector.
     pub translation: RprVector,
+    /// Optional total mass override for generated particles.
     pub totalMass: RprOptionalReal,
+    /// Volume-meshing parameters for a volumetric recipe.
     pub meshing: RprVolumeMeshParameters,
+    /// Borrowed initial particle positions.
     pub positions: RprVectorView,
+    /// Borrowed per-particle masses; when empty, particleMass is used.
     pub masses: RprRealView,
+    /// Borrowed indices of pinned particles.
     pub pinned: RprIndexView,
+    /// Borrowed edge topology; count is edges.
     pub edges: RprEdgeView,
+    /// Borrowed bending edge constraints.
     pub bendEdges: RprEdgeView,
+    /// Borrowed indices of edges that resist tension only.
     pub tensionOnlyEdges: RprIndexView,
+    /// Borrowed per-edge softness overrides.
     pub edgeSoftness: RprSoftEdgeSoftnessView,
+    /// Borrowed per-edge tear-resistance overrides.
     pub edgeTearResistance: RprSoftEdgeTearView,
+    /// Borrowed triangles in 2D or tetrahedra in 3D.
     pub cells: RprCellView,
+    /// Borrowed boundary edges in 2D or triangles in 3D.
     pub surface: RprSurfaceElementView,
     #[cfg(feature = "dim3")]
+    /// Borrowed four-vertex bending constraints.
     pub dihedrals: RprDihedralView,
     #[cfg(feature = "dim3")]
+    /// Borrowed wire edges for a surface recipe.
     pub wire: RprEdgeView,
+    /// Borrowed skin vertex positions.
     pub skinVertices: RprVectorView,
+    /// Borrowed skin topology.
     pub skinIndices: RprSurfaceElementView,
+    /// Soft-body material coefficients.
     pub material: RprSoftBodyMaterial,
+    /// RPR_SOFT_CELL_VOLUME, RPR_SOFT_CELL_COROTATIONAL, or RPR_SOFT_CELL_NEO_HOOKEAN.
     pub cellModel: u32,
     /// 0 = constraints, 1 = FEM (requires a library built with FEM).
     pub solver: u32,
+    /// Default nonnegative particle mass.
     pub particleMass: RprReal,
     /// Disabled by default: retain the radius computed by the generator.
     pub particleRadius: RprOptionalReal,
+    /// Whether to preserve volume.
     pub volumePreservation: RprBool,
+    /// Target volume multiplier.
     pub volumeFactor: RprReal,
+    /// Optional shape-matching override; disabled retains recipe defaults.
     pub shapeMatching: RprOptionalBool,
+    /// Whether self-collision is enabled.
     pub selfContacts: RprBool,
+    /// Whether skin elements participate in collision detection.
     pub skinCollision: RprBool,
+    /// Whether the generated collision geometry is enabled.
     pub collisionEnabled: RprBool,
+    /// Collider configuration used by the recipe; shape comes from the generated geometry.
     pub collider: RprColliderDesc,
+    /// Nonnegative linear damping coefficient.
     pub linearDamping: RprReal,
+    /// Multiplier applied to world gravity.
     pub gravityScale: RprReal,
+    /// Extra solver iterations for this body and connected bodies.
     pub additionalSolverIterations: usize,
+    /// Extra PGS iterations for this body.
     pub additionalPgsIterations: usize,
+    /// Whether automatic sleeping is allowed.
     pub canSleep: RprBool,
+    /// Signed dominance group; larger groups dominate smaller groups.
     pub dominanceGroup: i8,
+    /// Application data; Rapier does not own pointers encoded in it.
     pub userData: RprUserData,
 }
 impl Default for RprSoftBodyDesc {
@@ -451,11 +524,14 @@ impl RprSoftBodyDesc {
         )
     }
 }
+/// Return native default soft body desc. This POD value owns no resources.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub extern "C" fn rpr_default_soft_body_desc() -> RprSoftBodyDesc {
     RprSoftBodyDesc::default()
 }
 /// Consumes no caller-owned resources. All borrowed arrays may be released on return.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_insert_soft_body(
     world: *mut RprWorld,
@@ -481,16 +557,27 @@ pub unsafe extern "C" fn rpr_insert_soft_body(
     })
 }
 
+/// @ingroup soft_bodies
+/// Soft-body selector: binding skinned.
 pub const RPR_SOFT_BINDING_SKINNED: u32 = 0;
+/// @ingroup soft_bodies
+/// Soft-body selector: binding direct.
 pub const RPR_SOFT_BINDING_DIRECT: u32 = 1;
+/// @ingroup soft_bodies
+/// Soft-body selector: binding direct by position.
 pub const RPR_SOFT_BINDING_DIRECT_BY_POSITION: u32 = 2;
 /// Non-owning deformable binding description. Direct particle indices are borrowed.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftMeshBindingDesc {
+    /// Discriminant selecting which description fields are read.
     pub kind: u32,
+    /// Borrowed particle indices used for a direct mesh binding.
     pub particles: RprIndexView,
+    /// Nonnegative positional tolerance for direct-by-position binding.
     pub epsilon: RprReal,
+    /// Whether self-collision is enabled.
     pub selfContacts: RprBool,
 }
 impl RprSoftMeshBindingDesc {
@@ -508,6 +595,8 @@ impl RprSoftMeshBindingDesc {
         Ok(b.self_contacts(boolean(self.selfContacts)?))
     }
 }
+/// Return native default soft mesh binding desc. This POD value owns no resources.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub extern "C" fn rpr_default_soft_mesh_binding_desc() -> RprSoftMeshBindingDesc {
     RprSoftMeshBindingDesc {
@@ -517,6 +606,9 @@ pub extern "C" fn rpr_default_soft_mesh_binding_desc() -> RprSoftMeshBindingDesc
         selfContacts: 0,
     }
 }
+/// Create a deformable collider bound to a soft-body cluster. The world owns the collider; binding
+/// arrays are borrowed only during insertion.
+/// @ingroup colliders
 #[rapier_export]
 pub unsafe extern "C" fn rpr_insert_deformable_collider(
     collider: *const RprColliderDesc,

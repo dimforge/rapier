@@ -1,7 +1,10 @@
 //! Typed geometry input boundaries; view counts always count elements.
 use crate::handle_access::forward;
 use crate::*;
+/// Create an owned compound shape by convex decomposition of the input surface. Release it with
+/// rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_convex_decomposition_shared_shape(
     vertices: RprVectorView,
@@ -21,7 +24,10 @@ pub unsafe extern "C" fn rpr_convex_decomposition_shared_shape(
         })
     })
 }
+/// Create an owned voxel shape by quantizing points with the supplied per-axis voxel size. Release
+/// it with rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_voxels_shared_shape_from_points(
     voxel_size: RprVector,
@@ -39,7 +45,10 @@ pub unsafe extern "C" fn rpr_voxels_shared_shape_from_points(
         })
     })
 }
+/// Create an owned voxel shape from a surface mesh with the supplied uniform voxel size. Release it
+/// with rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_voxelized_mesh_shared_shape(
     vertices: RprVectorView,
@@ -61,7 +70,9 @@ pub unsafe extern "C" fn rpr_voxelized_mesh_shared_shape(
         })
     })
 }
+/// Create an owned convex hull of the supplied vertices. Release it with rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_convex_hull_shared_shape(
     vertices: RprVectorView,
@@ -77,7 +88,10 @@ pub unsafe extern "C" fn rpr_convex_hull_shared_shape(
         })
     })
 }
+/// Create an owned triangle mesh from vertices and triangle indices. Release it with
+/// rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_trimesh_shared_shape(
     vertices: RprVectorView,
@@ -97,7 +111,9 @@ pub unsafe extern "C" fn rpr_trimesh_shared_shape(
         })
     })
 }
+/// Create an owned polyline from vertices and edge indices. Release it with rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_polyline_shared_shape(
     vertices: RprVectorView,
@@ -117,8 +133,11 @@ pub unsafe extern "C" fn rpr_polyline_shared_shape(
         })
     })
 }
-#[cfg(feature = "dim2")]
+/// Create an owned oriented 2D polyline from vertices and edge indices. Release it with
+/// rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
+#[cfg(feature = "dim2")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_oriented_polyline_shared_shape(
     vertices: RprVectorView,
@@ -138,8 +157,11 @@ pub unsafe extern "C" fn rpr_oriented_polyline_shared_shape(
         })
     })
 }
-#[cfg(feature = "dim2")]
+/// Create an owned convex polygon from vertices already ordered along its boundary. Release it with
+/// rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
+#[cfg(feature = "dim2")]
 #[rapier_export]
 pub unsafe extern "C" fn rpr_convex_polyline_shared_shape(
     vertices: RprVectorView,
@@ -155,7 +177,9 @@ pub unsafe extern "C" fn rpr_convex_polyline_shared_shape(
         })
     })
 }
+/// Create an owned round convex hull shape. Release it with rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_round_convex_hull_shared_shape(
     vertices: RprVectorView,
@@ -173,7 +197,10 @@ pub unsafe extern "C" fn rpr_round_convex_hull_shared_shape(
         })
     })
 }
+/// Create an owned triangle mesh with the supplied TRIMESH_* processing flags. Release it with
+/// rpr_free_shared_shape.
 /// Copies typed input geometry into an owned shared shape; arrays may be released on return.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_trimesh_shared_shape_with_flags(
     vertices: RprVectorView,

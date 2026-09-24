@@ -1,5 +1,7 @@
 use crate::*;
 
+/// Remove a soft body and its associated simulation objects. Invalidates its handle.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_remove_soft_body(handle: RprSoftBodyHandle) -> RprStatus {
     let world = handle.world;
@@ -316,6 +318,8 @@ pub(crate) unsafe fn native_soft_body_reset_forces(
         Ok(())
     })
 }
+/// Wake the soft body and its rigid proxies.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_wake_up(handle: RprSoftBodyHandle) -> RprStatus {
     let world = handle.world;
@@ -387,6 +391,9 @@ pub(crate) unsafe fn native_soft_body_detach_particle(
     })
 }
 
+/// Release an owned soft body tear event. NULL is allowed. Do not pass borrowed pointers or free
+/// the object twice.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_soft_body_tear_event(
     event: *mut RprSoftBodyTearEvent,
@@ -399,6 +406,8 @@ pub unsafe extern "C" fn rpr_free_soft_body_tear_event(
         Ok(())
     })
 }
+/// Return the source soft-body handle for this tear event.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_soft_body(
     event: *const RprSoftBodyTearEvent,
@@ -410,6 +419,9 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_soft_body(
         },
     )
 }
+/// Copy the soft-body handles produced by the tear.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_bodies(
     event: *const RprSoftBodyTearEvent,
@@ -430,6 +442,8 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_bodies(
         )
     }
 }
+/// Return the destination body and particle index for an original particle.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_particle_destination(
     event: *const RprSoftBodyTearEvent,
@@ -455,6 +469,8 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_particle_destination(
     )
 }
 /// Flat indices; element arity follows the corresponding Rust event field.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_torn_edges(
     event: *const RprSoftBodyTearEvent,
@@ -470,6 +486,8 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_torn_edges(
     })
 }
 /// Flat indices; element arity follows the corresponding Rust event field.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_torn_cells(
     event: *const RprSoftBodyTearEvent,
@@ -485,6 +503,8 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_torn_cells(
     })
 }
 /// Flat indices; element arity follows the corresponding Rust event field.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_removed_edges(
     event: *const RprSoftBodyTearEvent,
@@ -500,6 +520,8 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_removed_edges(
     })
 }
 /// Flat indices; element arity follows the corresponding Rust event field.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_split_particles(
     event: *const RprSoftBodyTearEvent,
@@ -519,6 +541,8 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_split_particles(
     })
 }
 /// Flat indices; element arity follows the corresponding Rust event field.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_inserted_particles(
     event: *const RprSoftBodyTearEvent,
@@ -533,6 +557,9 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_inserted_particles(
         })
     })
 }
+/// Copy original particle indices belonging to a resulting piece.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_piece_particles(
     event: *const RprSoftBodyTearEvent,
@@ -551,22 +578,37 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_piece_particles(
         })
     })
 }
+/// Cluster and proxy remapping after a soft-body split.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprSoftClusterSplit {
+    /// Original cluster index before splitting.
     pub source_cluster: u32,
+    /// Resulting soft-body handle.
     pub soft_body: RprSoftBodyHandle,
+    /// Cluster index within its soft body.
     pub cluster: u32,
+    /// Cluster rigid-proxy body handle.
     pub proxy: RprRigidBodyHandle,
+    /// Whether this split retains the original proxy.
     pub keeps_proxy: RprBool,
 }
+/// Impulse-joint movement between rigid proxies after tearing.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprSoftJointMove {
+    /// Impulse joint that moved between proxies.
     pub joint: RprImpulseJointHandle,
+    /// Original rigid-proxy body.
     pub from: RprRigidBodyHandle,
+    /// Destination rigid-proxy body.
     pub to: RprRigidBodyHandle,
 }
+/// Copy cluster-to-piece and rigid-proxy remapping records.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_clusters(
     event: *const RprSoftBodyTearEvent,
@@ -598,6 +640,9 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_clusters(
         )
     }
 }
+/// Copy impulse-joint remapping records produced by the tear.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_moved_joints(
     event: *const RprSoftBodyTearEvent,
@@ -628,6 +673,9 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_moved_joints(
     }
 }
 
+/// Tear the selected edges and return an owned remapping event. Release it with
+/// rpr_free_soft_body_tear_event.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_tear(
     handle: RprSoftBodyHandle,
@@ -681,6 +729,8 @@ pub unsafe extern "C" fn rpr_soft_body_tear(
     })
 }
 
+/// Create a rigid proxy cluster from the supplied particle indices and return its cluster index.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_add_cluster(
     handle: RprSoftBodyHandle,
@@ -719,6 +769,8 @@ pub unsafe extern "C" fn rpr_soft_body_add_cluster(
     })
 }
 
+/// Remove the selected cluster and its rigid proxy.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_remove_cluster(
     handle: RprSoftBodyHandle,
@@ -872,10 +924,13 @@ pub(crate) unsafe fn native_soft_body_set_cluster_tear_resistance(
 }
 
 /// Stable identity of a live mesh within one soft body; matches Rapier's SoftMeshId.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct RprSoftMeshId {
+    /// Cluster index within its soft body.
     pub cluster: u32,
+    /// Mesh index within the cluster.
     pub mesh: u32,
 }
 impl RprSoftMeshId {
@@ -887,13 +942,19 @@ impl RprSoftMeshId {
     }
 }
 /// Mesh identity and rendering metadata. A render-only mesh has an invalid collider handle.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftMeshInfo {
+    /// Cluster/mesh pair identifying this collision mesh.
     pub id: RprSoftMeshId,
+    /// World-bound collider handle.
     pub collider: RprColliderHandle,
+    /// Indices per mesh element: 2 for an edge or 3 for a triangle.
     pub arity: usize,
+    /// Whether vertex positions are obtained by skinning.
     pub is_skinned: RprBool,
+    /// Whether collision detection is enabled for this mesh.
     pub collision_enabled: RprBool,
 }
 /// Enumerates all live meshes, including skins without a physics collider.
@@ -1088,6 +1149,7 @@ pub(crate) unsafe fn native_soft_body_particle_position(
 
 /// Optional particle destination after a tear. Missing destinations are normal and set
 /// found to false; body/index are only written when a destination exists.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
 pub unsafe extern "C" fn rpr_soft_body_tear_event_try_particle_destination(
     event: *const RprSoftBodyTearEvent,
@@ -1134,6 +1196,7 @@ pub(crate) unsafe fn native_soft_body_set_edge_tear_resistance(
 
 /// Cut using DIM points (a segment in 2D, triangle in 3D). A no-op returns a null event.
 /// The optional owned event must be freed with FreeSoftBodyTearEvent.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_cut_soft_body(
     handle: RprSoftBodyHandle,
@@ -1167,21 +1230,31 @@ pub unsafe extern "C" fn rpr_cut_soft_body(
 }
 
 /// Parameters for the native volumetric mesher. Enclosure: 0 cover, 1 crust (3D).
+/// @ingroup shapes
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprVolumeMeshParameters {
+    /// Positive target cell size for volume meshing.
     pub cell_size: RprReal,
     #[cfg(feature = "dim2")]
+    /// Minimum target element angle in radians; above pi/6, refinement may stop early.
     pub min_angle: RprReal,
     #[cfg(feature = "dim3")]
+    /// Enclosure strategy: 0 covers the whole shape, 1 encloses only its surface.
     pub enclosure: u32,
     #[cfg(feature = "dim3")]
+    /// Number of cover-smoothing passes.
     pub cover_smoothing: u32,
     #[cfg(feature = "dim3")]
+    /// Minimum smoothed-cover distance from the shape, as a fraction of local cell size.
     pub cover_guard: RprReal,
     #[cfg(feature = "dim3")]
+    /// Maximum boundary-cell halvings below cell_size before cover smoothing.
     pub cover_subdivisions: u32,
 }
+/// Return volume-meshing settings for the supplied cell size; this POD value requires no
+/// destructor.
+/// @ingroup worlds
 #[rapier_export]
 pub extern "C" fn rpr_new_volume_mesh_parameters(cell_size: RprReal) -> RprVolumeMeshParameters {
     let p = rapier::parry::transformation::VolumeMeshParameters::new(cell_size);

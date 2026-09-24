@@ -61,3 +61,19 @@ jobs:
           cmake -S c -B build/simd8 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_TESTBED_GRAPHICS=OFF -DRAPIER_PROFILE=debug -DRAPIER_SIMD_LANES=8 -DRAPIER_ENABLE_PARALLEL=ON -DRAPIER_CARGO_TARGET_DIR=${{ github.workspace }}/target
           cmake --build build/simd8 --parallel 2
           ctest --test-dir build/simd8 --output-on-failure
+
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install documentation tools
+        run: sudo apt-get update && sudo apt-get install -y doxygen
+      - name: Generate and validate all API variants
+        run: |
+          cmake -S c/doxygen -B build/c-docs
+          cmake --build build/c-docs --target rapier_docs --parallel 2
+      - name: Upload HTML reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapier-c-api-docs
+          path: build/c-docs/html

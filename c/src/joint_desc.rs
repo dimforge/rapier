@@ -1,42 +1,71 @@
 //! Plain joint configuration, distinct from a borrowed live joint.
 #![allow(non_snake_case)]
 use crate::*;
+/// @ingroup joints
+/// Number of translational and angular joint axes in this dimension.
 #[cfg(feature = "dim2")]
 pub const RPR_JOINT_DOF_COUNT: usize = 3;
+/// @ingroup joints
+/// Number of translational and angular joint axes in this dimension.
 #[cfg(feature = "dim3")]
 pub const RPR_JOINT_DOF_COUNT: usize = 6;
+/// Lower and upper axis limits in length units or radians.
+/// @ingroup joints
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprJointLimits {
+    /// Minimum allowed axis displacement (length or radians).
     pub min: RprReal,
+    /// Maximum allowed axis displacement (length or radians).
     pub max: RprReal,
 }
+/// Position/velocity motor settings for one joint axis.
+/// @ingroup joints
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprJointMotor {
+    /// Motor target velocity (length per second or radians per second).
     pub targetVel: RprReal,
+    /// Motor target position (length or radians).
     pub targetPos: RprReal,
+    /// Nonnegative motor spring stiffness.
     pub stiffness: RprReal,
+    /// Nonnegative motor damping.
     pub damping: RprReal,
+    /// Nonnegative maximum force or torque.
     pub maxForce: RprReal,
+    /// Motor model: 0 acceleration-based, 1 force-based.
     pub model: u32,
 }
 /// Copyable joint configuration. Limits/motors take effect when their axis mask is enabled.
 /// Solver impulses are deliberately excluded. Applying data resets cached limit and motor impulses.
+/// @ingroup joints
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprJointDesc {
+    /// Joint frame in body 1 local coordinates.
     pub localFrame1: RprPose,
+    /// Joint frame in body 2 local coordinates.
     pub localFrame2: RprPose,
+    /// Locked joint degrees of freedom; translations precede rotations.
     pub lockedAxes: u8,
+    /// Axis mask enabling corresponding limits entries.
     pub limitAxes: u8,
+    /// Axis mask enabling corresponding motors entries.
     pub motorAxes: u8,
+    /// Axis mask sharing a coupled constraint.
     pub coupledAxes: u8,
+    /// Axis limits in translation-then-rotation order.
     pub limits: [RprJointLimits; RPR_JOINT_DOF_COUNT],
+    /// Axis motors in translation-then-rotation order.
     pub motors: [RprJointMotor; RPR_JOINT_DOF_COUNT],
+    /// Spring coefficients for constraint correction.
     pub softness: RprSpringCoefficients,
+    /// Whether connected bodies may collide.
     pub contactsEnabled: RprBool,
+    /// Whether this setting/object is enabled (0 or 1).
     pub enabled: RprBool,
+    /// Application data; Rapier does not own pointers encoded in it.
     pub userData: RprUserData,
 }
 impl From<GenericJoint> for RprJointDesc {
@@ -107,6 +136,8 @@ impl RprJointDesc {
         Ok(j)
     }
 }
+/// Return native default joint desc. This POD value owns no resources.
+/// @ingroup joints
 #[rapier_export]
 pub extern "C" fn rpr_default_joint_desc() -> RprJointDesc {
     GenericJoint::new(JointAxesMask::empty()).into()
@@ -139,30 +170,40 @@ fn joint_desc_with_axis(locked_axes: JointAxesMask, axis: RprVector) -> RprJoint
     desc
 }
 
+/// Return a fixed joint description with native defaults; no allocation.
+/// @ingroup joints
 #[rapier_export]
 pub extern "C" fn rpr_fixed_joint_desc() -> RprJointDesc {
     GenericJoint::from(FixedJointBuilder::new().build()).into()
 }
+/// Return a revolute joint description with native defaults; no allocation.
+/// @ingroup joints
 #[cfg(feature = "dim2")]
 #[rapier_export]
 pub extern "C" fn rpr_revolute_joint_desc() -> RprJointDesc {
     GenericJoint::from(RevoluteJointBuilder::new().build()).into()
 }
 /// Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
+/// @ingroup joints
 #[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_revolute_joint_desc(axis_vector: RprVector) -> RprJointDesc {
     joint_desc_with_axis(JointAxesMask::LOCKED_REVOLUTE_AXES, axis_vector)
 }
 /// Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
+/// @ingroup joints
 #[rapier_export]
 pub extern "C" fn rpr_prismatic_joint_desc(axis_vector: RprVector) -> RprJointDesc {
     joint_desc_with_axis(JointAxesMask::LOCKED_PRISMATIC_AXES, axis_vector)
 }
+/// Return a rope joint description with native defaults; no allocation.
+/// @ingroup joints
 #[rapier_export]
 pub extern "C" fn rpr_rope_joint_desc(length: RprReal) -> RprJointDesc {
     GenericJoint::from(RopeJointBuilder::new(length).build()).into()
 }
+/// Return a spring joint description with native defaults; no allocation.
+/// @ingroup joints
 #[rapier_export]
 pub extern "C" fn rpr_spring_joint_desc(
     length: RprReal,
@@ -171,17 +212,23 @@ pub extern "C" fn rpr_spring_joint_desc(
 ) -> RprJointDesc {
     GenericJoint::from(SpringJointBuilder::new(length, stiffness, damping).build()).into()
 }
+/// Return a spherical joint description with native defaults; no allocation.
+/// @ingroup joints
 #[cfg(feature = "dim3")]
 #[rapier_export]
 pub extern "C" fn rpr_spherical_joint_desc() -> RprJointDesc {
     GenericJoint::from(SphericalJointBuilder::new().build()).into()
 }
-#[cfg(feature = "dim2")]
 /// Returns a joint description. Invalid axes produce nonfinite frames, rejected on insertion.
+/// @ingroup joints
+#[cfg(feature = "dim2")]
 #[rapier_export]
 pub extern "C" fn rpr_pin_slot_joint_desc(axis_vector: RprVector) -> RprJointDesc {
     joint_desc_with_axis(JointAxesMask::LOCKED_PIN_SLOT_AXES, axis_vector)
 }
+/// Create an impulse joint connecting two bodies in the same world. The world owns the joint;
+/// wake_up wakes the connected bodies.
+/// @ingroup joints
 #[rapier_export]
 pub unsafe extern "C" fn rpr_insert_impulse_joint(
     body1: RprRigidBodyHandle,
@@ -215,6 +262,9 @@ pub unsafe extern "C" fn rpr_insert_impulse_joint(
     })
 }
 
+/// Create an articulation joint between bodies in the same world. Returns an invalid handle on
+/// failure; check rpr_last_status.
+/// @ingroup joints
 #[rapier_export]
 pub unsafe extern "C" fn rpr_insert_multibody_joint(
     body1: RprRigidBodyHandle,

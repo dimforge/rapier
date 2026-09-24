@@ -17,7 +17,8 @@ pub(crate) unsafe fn forward(status: RprStatus) -> Result {
     }
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the rigid body world-space pose.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_position(handle: RprRigidBodyHandle) -> RprPose {
     let world = handle.world;
@@ -50,7 +51,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_position(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the rigid body world-space translation.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_translation(handle: RprRigidBodyHandle) -> RprVector {
     let world = handle.world;
@@ -83,7 +85,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_translation(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the rigid body world-space linear velocity.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_linvel(handle: RprRigidBodyHandle) -> RprVector {
     let world = handle.world;
@@ -116,7 +119,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_linvel(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the rigid body world-space angular velocity (radians per second).
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_angvel(handle: RprRigidBodyHandle) -> RprAngVector {
     let world = handle.world;
@@ -149,7 +153,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_angvel(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return whether the rigid body is sleeping.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_sleeping(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -182,7 +187,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_sleeping(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return whether the rigid body is enabled.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_enabled(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -215,7 +221,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_enabled(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the rigid body application-owned 128-bit user value.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_user_data(handle: RprRigidBodyHandle) -> RprUserData {
     let world = handle.world;
@@ -248,7 +255,9 @@ pub(crate) unsafe fn native_rigid_body_set_get_user_data(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body world-space pose.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_position(
     handle: RprRigidBodyHandle,
@@ -276,7 +285,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_position(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body world-space translation.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_translation(
     handle: RprRigidBodyHandle,
@@ -304,7 +315,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_translation(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body world-space linear velocity.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_linvel(
     handle: RprRigidBodyHandle,
@@ -332,7 +345,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_linvel(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body world-space angular velocity (radians per second).
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_angvel(
     handle: RprRigidBodyHandle,
@@ -360,7 +375,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_angvel(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body next kinematic world-space pose.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_next_kinematic_position(
     handle: RprRigidBodyHandle,
@@ -386,7 +402,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_next_kinematic_position(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body next kinematic world-space translation.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_next_kinematic_translation(
     handle: RprRigidBodyHandle,
@@ -412,7 +429,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_next_kinematic_translation(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body gravity multiplier.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_gravity_scale(
     handle: RprRigidBodyHandle,
@@ -440,7 +459,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_gravity_scale(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body linear damping coefficient.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_linear_damping(
     handle: RprRigidBodyHandle,
@@ -478,7 +498,8 @@ pub(crate) unsafe fn native_rigid_body_set_set_linear_damping(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body angular damping coefficient.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_angular_damping(
     handle: RprRigidBodyHandle,
@@ -504,7 +525,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_angular_damping(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Enable or disable the rigid body.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_enabled(
     handle: RprRigidBodyHandle,
@@ -542,7 +564,8 @@ pub(crate) unsafe fn native_rigid_body_set_set_enabled(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the rigid body application-owned 128-bit user value.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_user_data(
     handle: RprRigidBodyHandle,
@@ -568,7 +591,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_user_data(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Apply a world-space linear impulse.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_apply_impulse(
     handle: RprRigidBodyHandle,
@@ -596,7 +621,9 @@ pub unsafe extern "C" fn rpr_rigid_body_apply_impulse(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Apply a world-space impulse at a world-space point.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_apply_impulse_at_point(
     handle: RprRigidBodyHandle,
@@ -626,7 +653,9 @@ pub unsafe extern "C" fn rpr_rigid_body_apply_impulse_at_point(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Accumulate a world-space force; it persists until reset.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_add_force(
     handle: RprRigidBodyHandle,
@@ -654,7 +683,9 @@ pub unsafe extern "C" fn rpr_rigid_body_add_force(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Clear accumulated user forces.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_reset_forces(
     handle: RprRigidBodyHandle,
@@ -680,7 +711,8 @@ pub unsafe extern "C" fn rpr_rigid_body_reset_forces(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Put the body to sleep.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_sleep(handle: RprRigidBodyHandle) -> RprStatus {
     let world = handle.world;
@@ -700,7 +732,8 @@ pub unsafe extern "C" fn rpr_rigid_body_sleep(handle: RprRigidBodyHandle) -> Rpr
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the collider world-space pose.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_position(handle: RprColliderHandle) -> RprPose {
     let world = handle.world;
@@ -733,7 +766,8 @@ pub(crate) unsafe fn native_collider_set_get_position(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the collider world-space translation.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_translation(handle: RprColliderHandle) -> RprVector {
     let world = handle.world;
@@ -766,7 +800,8 @@ pub(crate) unsafe fn native_collider_set_get_translation(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the collider friction coefficient.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_friction(handle: RprColliderHandle) -> RprReal {
     let world = handle.world;
@@ -799,7 +834,8 @@ pub(crate) unsafe fn native_collider_set_get_friction(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the collider restitution coefficient.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_restitution(handle: RprColliderHandle) -> RprReal {
     let world = handle.world;
@@ -832,7 +868,8 @@ pub(crate) unsafe fn native_collider_set_get_restitution(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return whether the collider is a sensor (detects overlaps without contact forces).
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_is_sensor(handle: RprColliderHandle) -> RprBool {
     let world = handle.world;
@@ -865,7 +902,8 @@ pub(crate) unsafe fn native_collider_set_get_is_sensor(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the parent body handle, or an invalid handle with OK status for a standalone collider.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_parent(handle: RprColliderHandle) -> RprRigidBodyHandle {
     let world = handle.world;
@@ -898,7 +936,8 @@ pub(crate) unsafe fn native_collider_set_get_parent(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the collider world-space pose.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_position(
     handle: RprColliderHandle,
@@ -920,7 +959,8 @@ pub unsafe extern "C" fn rpr_collider_set_position(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the collider world-space translation.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_translation(
     handle: RprColliderHandle,
@@ -942,7 +982,8 @@ pub unsafe extern "C" fn rpr_collider_set_translation(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the collider friction coefficient.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_friction(
     handle: RprColliderHandle,
@@ -964,7 +1005,8 @@ pub unsafe extern "C" fn rpr_collider_set_friction(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the collider restitution coefficient.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_restitution(
     handle: RprColliderHandle,
@@ -986,7 +1028,8 @@ pub unsafe extern "C" fn rpr_collider_set_restitution(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Enable or disable a sensor (detects overlaps without contact forces) for the collider.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_sensor(
     handle: RprColliderHandle,
@@ -1008,7 +1051,8 @@ pub unsafe extern "C" fn rpr_collider_set_sensor(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the collider collision filtering groups.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_collision_groups(
     handle: RprColliderHandle,
@@ -1030,7 +1074,8 @@ pub unsafe extern "C" fn rpr_collider_set_collision_groups(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the collider application-owned 128-bit user value.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_user_data(
     handle: RprColliderHandle,
@@ -1052,7 +1097,8 @@ pub unsafe extern "C" fn rpr_collider_set_user_data(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return the world-space position of the indexed particle.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_particle_position(
     handle: RprSoftBodyHandle,
@@ -1077,7 +1123,9 @@ pub unsafe extern "C" fn rpr_soft_body_particle_position(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Copy world-space particle positions.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_particle_positions(
     handle: RprSoftBodyHandle,
@@ -1104,7 +1152,8 @@ pub unsafe extern "C" fn rpr_soft_body_particle_positions(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Return a copy of the soft body material parameters.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_material(handle: RprSoftBodyHandle) -> RprSoftBodyMaterial {
     let world = handle.world;
@@ -1125,7 +1174,8 @@ pub unsafe extern "C" fn rpr_soft_body_material(handle: RprSoftBodyHandle) -> Rp
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Set the world-space position of the indexed particle.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_particle_position(
     handle: RprSoftBodyHandle,
@@ -1149,7 +1199,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_particle_position(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Copy material parameters into the soft body.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_material(
     handle: RprSoftBodyHandle,
@@ -1171,7 +1222,9 @@ pub unsafe extern "C" fn rpr_soft_body_set_material(
     })
 }
 
-/// Resolves the handle for this call only. Reports INVALID_HANDLE for a removed/stale element.
+/// Add a world-space force to the indexed particle.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_add_particle_force(
     handle: RprSoftBodyHandle,
@@ -1198,15 +1251,22 @@ pub unsafe extern "C" fn rpr_soft_body_add_particle_force(
 }
 
 /// A copied state snapshot, with no pointers or ownership obligations.
+/// @ingroup rigid_bodies
 #[repr(C)]
 #[derive(Clone, Copy)]
 #[allow(non_snake_case)]
 pub struct RprRigidBodyState {
+    /// World-space pose.
     pub position: RprPose,
+    /// World-space linear velocity.
     pub linvel: RprVector,
+    /// World-space angular velocity in radians per second.
     pub angvel: RprAngVector,
+    /// Whether the body starts/is asleep.
     pub sleeping: RprBool,
+    /// Whether this setting/object is enabled (0 or 1).
     pub enabled: RprBool,
+    /// Application data; Rapier does not own pointers encoded in it.
     pub userData: RprUserData,
 }
 impl From<&RigidBody> for RprRigidBodyState {
@@ -1224,7 +1284,8 @@ impl From<&RigidBody> for RprRigidBodyState {
 
 /// Copies states in the same order as handles, without allocating temporary storage.
 /// All handles are validated before writing. On INVALID_HANDLE outputs are unchanged.
-/// NULL/0 is a size query. BUFFER_TOO_SMALL updates count but leaves states untouched.
+/// NULL/0 is a size query. BUFFER_TOO_SMALL returns the required count and leaves states untouched.
+/// @ingroup rigid_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_rigid_body_read_states(
     world: *const RprWorld,
@@ -1290,6 +1351,7 @@ pub(crate) unsafe fn native_rigid_body_set_read_states(
 }
 
 /// Copies joint configuration without returning a borrowed joint pointer.
+/// @ingroup joints
 #[rapier_export(impulse_joint)]
 pub unsafe extern "C" fn rpr_impulse_joint_desc(handle: RprImpulseJointHandle) -> RprJointDesc {
     let world = handle.world;
@@ -1315,6 +1377,8 @@ pub unsafe extern "C" fn rpr_impulse_joint_desc(handle: RprImpulseJointHandle) -
 }
 
 /// Replaces configuration after validation, resetting cached limit/motor impulses.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup joints
 #[rapier_export(impulse_joint)]
 pub unsafe extern "C" fn rpr_impulse_joint_set_desc(
     handle: RprImpulseJointHandle,

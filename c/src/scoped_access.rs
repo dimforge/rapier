@@ -1,7 +1,9 @@
 //! Complete set-and-handle element access. No borrowed element pointer escapes.
 use crate::handle_access::forward;
 use crate::*;
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return a process-local geometry identity for caching, not a serializable ID. Keep a shared-shape
+/// clone alive while using it as a cache key.
+/// @ingroup shapes
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_shape_identity(handle: RprColliderHandle) -> usize {
     let world = handle.world;
@@ -33,7 +35,8 @@ pub(crate) unsafe fn native_collider_set_get_shape_identity(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the soft body particle count.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_num_particles(handle: RprSoftBodyHandle) -> usize {
     let world = handle.world;
@@ -54,7 +57,9 @@ pub unsafe extern "C" fn rpr_soft_body_num_particles(handle: RprSoftBodyHandle) 
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return a counter that changes when particle connectivity changes; use it to invalidate mesh
+/// caches.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_topology_version(handle: RprSoftBodyHandle) -> u32 {
     let world = handle.world;
@@ -75,7 +80,8 @@ pub unsafe extern "C" fn rpr_soft_body_topology_version(handle: RprSoftBodyHandl
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the soft body mass.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mass(handle: RprSoftBodyHandle) -> RprReal {
     let world = handle.world;
@@ -96,7 +102,8 @@ pub unsafe extern "C" fn rpr_soft_body_mass(handle: RprSoftBodyHandle) -> RprRea
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the soft body current volume.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_volume(handle: RprSoftBodyHandle) -> RprReal {
     let world = handle.world;
@@ -117,7 +124,8 @@ pub unsafe extern "C" fn rpr_soft_body_volume(handle: RprSoftBodyHandle) -> RprR
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the soft body undeformed volume.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_rest_volume(handle: RprSoftBodyHandle) -> RprReal {
     let world = handle.world;
@@ -138,7 +146,8 @@ pub unsafe extern "C" fn rpr_soft_body_rest_volume(handle: RprSoftBodyHandle) ->
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the soft body target volume multiplier.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_volume_factor(handle: RprSoftBodyHandle) -> RprReal {
     let world = handle.world;
@@ -159,7 +168,8 @@ pub unsafe extern "C" fn rpr_soft_body_volume_factor(handle: RprSoftBodyHandle) 
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the soft body world-space center of mass.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_center_of_mass(handle: RprSoftBodyHandle) -> RprVector {
     let world = handle.world;
@@ -180,7 +190,8 @@ pub unsafe extern "C" fn rpr_soft_body_center_of_mass(handle: RprSoftBodyHandle)
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the soft body root rigid-proxy handle.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_root_body(handle: RprSoftBodyHandle) -> RprRigidBodyHandle {
     let world = handle.world;
@@ -201,7 +212,8 @@ pub unsafe extern "C" fn rpr_soft_body_root_body(handle: RprSoftBodyHandle) -> R
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the soft body is enabled.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_is_enabled(handle: RprSoftBodyHandle) -> RprBool {
     let world = handle.world;
@@ -222,7 +234,8 @@ pub unsafe extern "C" fn rpr_soft_body_is_enabled(handle: RprSoftBodyHandle) -> 
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the soft body is sleeping.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_is_sleeping(handle: RprSoftBodyHandle) -> RprBool {
     let world = handle.world;
@@ -243,7 +256,9 @@ pub unsafe extern "C" fn rpr_soft_body_is_sleeping(handle: RprSoftBodyHandle) ->
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy world-space particle velocities.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_particle_velocities(
     handle: RprSoftBodyHandle,
@@ -270,7 +285,9 @@ pub unsafe extern "C" fn rpr_soft_body_particle_velocities(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy flattened edge vertex indices.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_edges(
     handle: RprSoftBodyHandle,
@@ -297,7 +314,9 @@ pub unsafe extern "C" fn rpr_soft_body_edges(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy flattened cell vertex indices.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_cells(
     handle: RprSoftBodyHandle,
@@ -324,7 +343,9 @@ pub unsafe extern "C" fn rpr_soft_body_cells(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy flattened boundary element indices.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_boundary(
     handle: RprSoftBodyHandle,
@@ -351,7 +372,9 @@ pub unsafe extern "C" fn rpr_soft_body_boundary(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy piece identifiers.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_pieces(
     handle: RprSoftBodyHandle,
@@ -380,7 +403,8 @@ pub unsafe extern "C" fn rpr_soft_body_pieces(
     }
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the soft body particle world-space velocity.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_particle_velocity(
     handle: RprSoftBodyHandle,
@@ -404,7 +428,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_particle_velocity(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the next world-space target position of a pinned particle.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_particle_kinematic_target(
     handle: RprSoftBodyHandle,
@@ -428,7 +453,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_particle_kinematic_target(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable pinning the particle for the soft body.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_particle_pinned(
     handle: RprSoftBodyHandle,
@@ -452,7 +478,9 @@ pub unsafe extern "C" fn rpr_soft_body_set_particle_pinned(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Apply a world-space impulse to one particle.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_apply_particle_impulse(
     handle: RprSoftBodyHandle,
@@ -478,7 +506,9 @@ pub unsafe extern "C" fn rpr_soft_body_apply_particle_impulse(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Accumulate a world-space force; it persists until reset.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_add_force(
     handle: RprSoftBodyHandle,
@@ -502,7 +532,9 @@ pub unsafe extern "C" fn rpr_soft_body_add_force(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Apply a world-space linear impulse.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_apply_impulse(
     handle: RprSoftBodyHandle,
@@ -526,7 +558,9 @@ pub unsafe extern "C" fn rpr_soft_body_apply_impulse(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Clear accumulated user forces.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_reset_forces(
     handle: RprSoftBodyHandle,
@@ -548,7 +582,8 @@ pub unsafe extern "C" fn rpr_soft_body_reset_forces(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable the soft body.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_enabled(
     handle: RprSoftBodyHandle,
@@ -570,7 +605,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_enabled(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the soft body target volume multiplier.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_volume_factor(
     handle: RprSoftBodyHandle,
@@ -592,7 +628,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_volume_factor(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Attach a particle to a rigid body at the supplied body-local anchor.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_attach_particle(
     handle: RprSoftBodyHandle,
@@ -619,7 +656,8 @@ pub unsafe extern "C" fn rpr_soft_body_attach_particle(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Remove a particle attachment to a rigid body.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_detach_particle(
     handle: RprSoftBodyHandle,
@@ -641,7 +679,9 @@ pub unsafe extern "C" fn rpr_soft_body_detach_particle(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy cluster indices.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_clusters(
     handle: RprSoftBodyHandle,
@@ -668,7 +708,8 @@ pub unsafe extern "C" fn rpr_soft_body_clusters(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid proxy for the selected cluster.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_cluster_proxy(
     handle: RprSoftBodyHandle,
@@ -693,7 +734,9 @@ pub unsafe extern "C" fn rpr_soft_body_cluster_proxy(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy particle indices for a cluster.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_cluster_particles(
     handle: RprSoftBodyHandle,
@@ -722,7 +765,8 @@ pub unsafe extern "C" fn rpr_soft_body_cluster_particles(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable pinning the cluster for the soft body.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_cluster_pinned(
     handle: RprSoftBodyHandle,
@@ -746,7 +790,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_cluster_pinned(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the next world-space target pose of a pinned cluster.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_cluster_kinematic_target(
     handle: RprSoftBodyHandle,
@@ -770,7 +815,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_cluster_kinematic_target(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable using cluster shape matching for the soft body.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_cluster_shape_matching_enabled(
     handle: RprSoftBodyHandle,
@@ -794,7 +840,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_cluster_shape_matching_enabled(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the soft body cluster shape-matching stiffness multiplier.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_cluster_stiffness_scale(
     handle: RprSoftBodyHandle,
@@ -818,7 +865,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_cluster_stiffness_scale(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the soft body cluster tear-resistance multiplier.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_cluster_tear_resistance(
     handle: RprSoftBodyHandle,
@@ -842,7 +890,9 @@ pub unsafe extern "C" fn rpr_soft_body_set_cluster_tear_resistance(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy collision mesh metadata.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_meshes(
     handle: RprSoftBodyHandle,
@@ -871,7 +921,9 @@ pub unsafe extern "C" fn rpr_soft_body_meshes(
     }
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy world-space vertices for a mesh ID.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mesh_vertices_by_id(
     handle: RprSoftBodyHandle,
@@ -900,7 +952,9 @@ pub unsafe extern "C" fn rpr_soft_body_mesh_vertices_by_id(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy flattened indices for a mesh ID.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mesh_indices_by_id(
     handle: RprSoftBodyHandle,
@@ -929,7 +983,9 @@ pub unsafe extern "C" fn rpr_soft_body_mesh_indices_by_id(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy collision mesh collider handles.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mesh_colliders(
     handle: RprSoftBodyHandle,
@@ -958,7 +1014,9 @@ pub unsafe extern "C" fn rpr_soft_body_mesh_colliders(
     }
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy world-space collision mesh vertices.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mesh_vertices(
     handle: RprSoftBodyHandle,
@@ -988,7 +1046,9 @@ pub unsafe extern "C" fn rpr_soft_body_mesh_vertices(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy flattened collision mesh indices.
+/// @see @ref output_buffers
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mesh_indices(
     handle: RprSoftBodyHandle,
@@ -1018,7 +1078,8 @@ pub unsafe extern "C" fn rpr_soft_body_mesh_indices(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return indices per collision-mesh element (2 for segments, 3 for triangles).
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mesh_arity(
     handle: RprSoftBodyHandle,
@@ -1044,7 +1105,8 @@ pub unsafe extern "C" fn rpr_soft_body_mesh_arity(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the selected collision mesh topology revision for cache invalidation.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mesh_topology_version(
     handle: RprSoftBodyHandle,
@@ -1070,7 +1132,8 @@ pub unsafe extern "C" fn rpr_soft_body_mesh_topology_version(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the soft body soft solver kind (RPR_SOFT_SOLVER_*).
+/// @ingroup soft_bodies
 #[cfg(feature = "fem")]
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_solver(
@@ -1093,7 +1156,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_solver(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the soft body cluster shape-matching target pose.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_cluster_shape_matching_target(
     handle: RprSoftBodyHandle,
@@ -1117,7 +1181,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_cluster_shape_matching_target(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the soft body edge tear-resistance multiplier.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_edge_tear_resistance(
     handle: RprSoftBodyHandle,
@@ -1141,7 +1206,8 @@ pub unsafe extern "C" fn rpr_soft_body_set_edge_tear_resistance(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the selected collision mesh is closed.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_mesh_is_closed(
     handle: RprSoftBodyHandle,
@@ -1167,7 +1233,9 @@ pub unsafe extern "C" fn rpr_soft_body_mesh_is_closed(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body local mass properties added to collider contributions.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_additional_mass_properties(
     handle: RprRigidBodyHandle,
@@ -1195,7 +1263,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_additional_mass_properties(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Recompute body mass and inertia from attached colliders and additional mass properties.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_recompute_mass_properties_from_colliders(
     handle: RprRigidBodyHandle,
@@ -1221,7 +1290,8 @@ pub unsafe extern "C" fn rpr_rigid_body_recompute_mass_properties_from_colliders
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider local mass properties.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_mass_properties(
     handle: RprColliderHandle,
@@ -1243,7 +1313,8 @@ pub unsafe extern "C" fn rpr_collider_set_mass_properties(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider local mass properties.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_mass_properties(
     handle: RprColliderHandle,
@@ -1277,7 +1348,9 @@ pub(crate) unsafe fn native_collider_set_get_mass_properties(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body translation/rotation lock bitmask.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_locked_axes(
     handle: RprRigidBodyHandle,
@@ -1305,7 +1378,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_locked_axes(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body translation/rotation lock bitmask.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_locked_axes(handle: RprRigidBodyHandle) -> u8 {
     let world = handle.world;
@@ -1337,7 +1411,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_locked_axes(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the collider is a voxel shape.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_is_voxels(handle: RprColliderHandle) -> RprBool {
     let world = handle.world;
@@ -1369,7 +1444,8 @@ pub(crate) unsafe fn native_collider_set_get_is_voxels(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return voxel information at a flat index; found = 0 if absent.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_voxel_at_flat_id(
     handle: RprColliderHandle,
@@ -1421,7 +1497,8 @@ pub(crate) unsafe fn native_collider_set_get_voxel_at_flat_id(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Fill or clear the voxel at key; the collider must have a voxel shape.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_voxel(
     handle: RprColliderHandle,
@@ -1445,7 +1522,8 @@ pub unsafe extern "C" fn rpr_collider_set_voxel(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body next kinematic world-space pose.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_next_position(handle: RprRigidBodyHandle) -> RprPose {
     let world = handle.world;
@@ -1477,7 +1555,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_next_position(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body world-space rotation.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_rotation(handle: RprRigidBodyHandle) -> RprRotation {
     let world = handle.world;
@@ -1509,7 +1588,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_rotation(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body world-space center of mass.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_center_of_mass(handle: RprRigidBodyHandle) -> RprVector {
     let world = handle.world;
@@ -1541,7 +1621,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_center_of_mass(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body body-local center of mass.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_local_center_of_mass(
     handle: RprRigidBodyHandle,
@@ -1575,7 +1656,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_local_center_of_mass(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body accumulated user-applied world-space force.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_user_force(handle: RprRigidBodyHandle) -> RprVector {
     let world = handle.world;
@@ -1607,7 +1689,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_user_force(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body accumulated user-applied world-space torque.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_user_torque(handle: RprRigidBodyHandle) -> RprAngVector {
     let world = handle.world;
@@ -1639,7 +1722,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_user_torque(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body body type (RPR_DYNAMIC, RPR_FIXED, or a kinematic kind).
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_body_type(handle: RprRigidBodyHandle) -> u32 {
     let world = handle.world;
@@ -1671,7 +1755,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_body_type(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body mass.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_mass(handle: RprRigidBodyHandle) -> RprReal {
     let world = handle.world;
@@ -1703,7 +1788,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_mass(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body gravity multiplier.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_gravity_scale(handle: RprRigidBodyHandle) -> RprReal {
     let world = handle.world;
@@ -1735,7 +1821,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_gravity_scale(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body linear damping coefficient.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_linear_damping(handle: RprRigidBodyHandle) -> RprReal {
     let world = handle.world;
@@ -1767,7 +1854,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_linear_damping(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body angular damping coefficient.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_angular_damping(handle: RprRigidBodyHandle) -> RprReal {
     let world = handle.world;
@@ -1799,7 +1887,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_angular_damping(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body kinetic energy.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_kinetic_energy(handle: RprRigidBodyHandle) -> RprReal {
     let world = handle.world;
@@ -1831,7 +1920,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_kinetic_energy(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the rigid body soft-CCD prediction distance.
+/// @ingroup soft_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_soft_ccd_prediction(handle: RprRigidBodyHandle) -> RprReal {
     let world = handle.world;
@@ -1863,7 +1953,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_soft_ccd_prediction(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the rigid body is using continuous collision detection.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_ccd_enabled(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -1895,7 +1986,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_ccd_enabled(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the rigid body is dynamic.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_dynamic(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -1927,7 +2019,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_dynamic(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the associated soft-body handle, or an invalid handle if this is not a soft proxy.
+/// @ingroup soft_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_soft_body(handle: RprRigidBodyHandle) -> RprSoftBodyHandle {
     let world = handle.world;
@@ -1959,7 +2052,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_soft_body(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the rigid body is a soft-body proxy.
+/// @ingroup soft_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_soft_frame(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -1991,7 +2085,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_soft_frame(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the rigid body is fixed.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_fixed(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -2023,7 +2118,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_fixed(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the rigid body is kinematic.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_kinematic(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -2055,7 +2151,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_kinematic(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the rigid body is moving.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_moving(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -2087,7 +2184,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_moving(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the rigid body is currently using CCD for its motion.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_is_ccd_active(handle: RprRigidBodyHandle) -> RprBool {
     let world = handle.world;
@@ -2119,7 +2217,9 @@ pub(crate) unsafe fn native_rigid_body_set_get_is_ccd_active(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body world-space rotation.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_rotation(
     handle: RprRigidBodyHandle,
@@ -2147,7 +2247,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_rotation(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body body type (RPR_DYNAMIC, RPR_FIXED, or a kinematic kind).
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_body_type(
     handle: RprRigidBodyHandle,
@@ -2175,7 +2277,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_body_type(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body next kinematic world-space rotation.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_next_kinematic_rotation(
     handle: RprRigidBodyHandle,
@@ -2201,7 +2304,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_next_kinematic_rotation(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body mass added to collider contributions.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_additional_mass(
     handle: RprRigidBodyHandle,
@@ -2229,7 +2334,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_additional_mass(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body soft-CCD prediction distance.
+/// @ingroup soft_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_soft_ccd_prediction(
     handle: RprRigidBodyHandle,
@@ -2255,7 +2361,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_soft_ccd_prediction(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable using continuous collision detection for the rigid body.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_ccd_enabled(
     handle: RprRigidBodyHandle,
@@ -2281,7 +2388,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_ccd_enabled(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable locking translation for the rigid body.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_translations_locked(
     handle: RprRigidBodyHandle,
@@ -2309,7 +2418,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_translations_locked(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable locking rotation for the rigid body.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_rotations_locked(
     handle: RprRigidBodyHandle,
@@ -2337,7 +2448,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_rotations_locked(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body signed dominance group.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_dominance_group(
     handle: RprRigidBodyHandle,
@@ -2363,7 +2475,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_dominance_group(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body additional solver iterations for connected bodies.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_additional_solver_iterations(
     handle: RprRigidBodyHandle,
@@ -2389,7 +2502,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_additional_solver_iterations(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the rigid body additional PGS iterations.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_additional_pgs_iterations(
     handle: RprRigidBodyHandle,
@@ -2415,7 +2529,9 @@ pub unsafe extern "C" fn rpr_rigid_body_set_additional_pgs_iterations(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Accumulate a world-space torque; it persists until reset.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_add_torque(
     handle: RprRigidBodyHandle,
@@ -2443,7 +2559,9 @@ pub unsafe extern "C" fn rpr_rigid_body_add_torque(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Apply a world-space angular impulse.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_apply_torque_impulse(
     handle: RprRigidBodyHandle,
@@ -2471,7 +2589,9 @@ pub unsafe extern "C" fn rpr_rigid_body_apply_torque_impulse(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Accumulate a world-space force applied at a world-space point.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_add_force_at_point(
     handle: RprRigidBodyHandle,
@@ -2501,7 +2621,9 @@ pub unsafe extern "C" fn rpr_rigid_body_add_force_at_point(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Clear accumulated user torques.
+/// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_reset_torques(
     handle: RprRigidBodyHandle,
@@ -2527,7 +2649,8 @@ pub unsafe extern "C" fn rpr_rigid_body_reset_torques(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return world-space velocity at a world-space point, including angular motion.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_velocity_at_point(
     handle: RprRigidBodyHandle,
@@ -2565,7 +2688,9 @@ pub(crate) unsafe fn native_rigid_body_set_get_velocity_at_point(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Copy attached collider handles.
+/// @see @ref output_buffers
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_colliders(
     handle: RprRigidBodyHandle,
@@ -2609,7 +2734,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_colliders(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the rigid body is using gyroscopic forces.
+/// @ingroup rigid_bodies
 #[cfg(feature = "dim3")]
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_gyroscopic_forces_enabled(
@@ -2644,7 +2770,8 @@ pub(crate) unsafe fn native_rigid_body_set_get_gyroscopic_forces_enabled(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable using gyroscopic forces for the rigid body.
+/// @ingroup rigid_bodies
 #[cfg(feature = "dim3")]
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_gyroscopic_forces_enabled(
@@ -2671,7 +2798,8 @@ pub unsafe extern "C" fn rpr_rigid_body_set_gyroscopic_forces_enabled(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider mass per unit volume.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_density(
     handle: RprColliderHandle,
@@ -2693,7 +2821,8 @@ pub unsafe extern "C" fn rpr_collider_set_density(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider mass.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_mass(
     handle: RprColliderHandle,
@@ -2715,7 +2844,8 @@ pub unsafe extern "C" fn rpr_collider_set_mass(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Enable or disable the collider.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_enabled(
     handle: RprColliderHandle,
@@ -2737,7 +2867,8 @@ pub unsafe extern "C" fn rpr_collider_set_enabled(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider contact-force filtering groups.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_solver_groups(
     handle: RprColliderHandle,
@@ -2759,7 +2890,8 @@ pub unsafe extern "C" fn rpr_collider_set_solver_groups(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider friction combination rule (RPR_COMBINE_*).
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_friction_combine_rule(
     handle: RprColliderHandle,
@@ -2781,7 +2913,8 @@ pub unsafe extern "C" fn rpr_collider_set_friction_combine_rule(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider restitution combination rule (RPR_COMBINE_*).
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_restitution_combine_rule(
     handle: RprColliderHandle,
@@ -2803,7 +2936,8 @@ pub unsafe extern "C" fn rpr_collider_set_restitution_combine_rule(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider extra separation skin around the shape.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_contact_skin(
     handle: RprColliderHandle,
@@ -2825,7 +2959,8 @@ pub unsafe extern "C" fn rpr_collider_set_contact_skin(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider force threshold for contact-force events.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_contact_force_event_threshold(
     handle: RprColliderHandle,
@@ -2847,7 +2982,8 @@ pub unsafe extern "C" fn rpr_collider_set_contact_force_event_threshold(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider event-generation bitmask (RPR_COLLISION_EVENTS and RPR_CONTACT_FORCE_EVENTS).
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_active_events(
     handle: RprColliderHandle,
@@ -2869,7 +3005,8 @@ pub unsafe extern "C" fn rpr_collider_set_active_events(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider physics-hook activation bitmask.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_active_hooks(
     handle: RprColliderHandle,
@@ -2891,7 +3028,8 @@ pub unsafe extern "C" fn rpr_collider_set_active_hooks(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider body-type collision activation bitmask.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_active_collision_types(
     handle: RprColliderHandle,
@@ -2913,7 +3051,8 @@ pub unsafe extern "C" fn rpr_collider_set_active_collision_types(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider world-space rotation.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_rotation(handle: RprColliderHandle) -> RprRotation {
     let world = handle.world;
@@ -2945,7 +3084,8 @@ pub(crate) unsafe fn native_collider_set_get_rotation(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider collision filtering groups.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_collision_groups(
     handle: RprColliderHandle,
@@ -2979,7 +3119,8 @@ pub(crate) unsafe fn native_collider_set_get_collision_groups(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider contact-force filtering groups.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_solver_groups(
     handle: RprColliderHandle,
@@ -3013,7 +3154,8 @@ pub(crate) unsafe fn native_collider_set_get_solver_groups(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider application-owned 128-bit user value.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_user_data(handle: RprColliderHandle) -> RprUserData {
     let world = handle.world;
@@ -3045,7 +3187,9 @@ pub(crate) unsafe fn native_collider_set_get_user_data(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider event-generation bitmask (RPR_COLLISION_EVENTS and
+/// RPR_CONTACT_FORCE_EVENTS).
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_active_events(handle: RprColliderHandle) -> u32 {
     let world = handle.world;
@@ -3077,7 +3221,8 @@ pub(crate) unsafe fn native_collider_set_get_active_events(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider mass.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_mass(handle: RprColliderHandle) -> RprReal {
     let world = handle.world;
@@ -3109,7 +3254,8 @@ pub(crate) unsafe fn native_collider_set_get_mass(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider mass per unit volume.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_density(handle: RprColliderHandle) -> RprReal {
     let world = handle.world;
@@ -3141,7 +3287,8 @@ pub(crate) unsafe fn native_collider_set_get_density(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider current volume.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_volume(handle: RprColliderHandle) -> RprReal {
     let world = handle.world;
@@ -3173,7 +3320,8 @@ pub(crate) unsafe fn native_collider_set_get_volume(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider extra separation skin around the shape.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_contact_skin(handle: RprColliderHandle) -> RprReal {
     let world = handle.world;
@@ -3205,7 +3353,8 @@ pub(crate) unsafe fn native_collider_set_get_contact_skin(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the collider force threshold for contact-force events.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_contact_force_event_threshold(
     handle: RprColliderHandle,
@@ -3239,7 +3388,8 @@ pub(crate) unsafe fn native_collider_set_get_contact_force_event_threshold(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return whether the collider is enabled.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_is_enabled(handle: RprColliderHandle) -> RprBool {
     let world = handle.world;
@@ -3271,7 +3421,8 @@ pub(crate) unsafe fn native_collider_set_get_is_enabled(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return the current world-space axis-aligned bounds.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_compute_aabb(handle: RprColliderHandle) -> RprAabb {
     let world = handle.world;
@@ -3303,8 +3454,9 @@ pub(crate) unsafe fn native_collider_set_get_compute_aabb(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Return an owned wrapper sharing the collider geometry. Release with rpr_free_shared_shape.
 /// Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
+/// @ingroup shapes
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_clone_shape(
     handle: RprColliderHandle,
@@ -3338,7 +3490,8 @@ pub(crate) unsafe fn native_collider_set_get_shared_shape(
         ))
     })
 }
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Replace collider geometry by sharing shape; the supplied wrapper is not consumed.
+/// @ingroup shapes
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_shape(
     handle: RprColliderHandle,
@@ -3360,7 +3513,8 @@ pub unsafe extern "C" fn rpr_collider_set_shape(
     })
 }
 
-/// Resolves the generational handle for this call; rejects stale handles.
+/// Set the collider pose relative to the parent rigid body.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_position_wrt_parent(
     handle: RprColliderHandle,
@@ -3382,6 +3536,9 @@ pub unsafe extern "C" fn rpr_collider_set_position_wrt_parent(
     })
 }
 
+/// Validate the index and generation in the live owning world. Cannot detect a world pointer that
+/// has already been freed.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_validate_handle(handle: RprRigidBodyHandle) -> RprStatus {
     let world = handle.world;
@@ -3406,6 +3563,9 @@ pub(crate) unsafe fn native_rigid_body_set_validate_handle(
         Ok(())
     })
 }
+/// Validate the index and generation in the live owning world. Cannot detect a world pointer that
+/// has already been freed.
+/// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_validate_handle(handle: RprColliderHandle) -> RprStatus {
     let world = handle.world;
@@ -3430,6 +3590,9 @@ pub(crate) unsafe fn native_collider_set_validate_handle(
         Ok(())
     })
 }
+/// Validate the index and generation in the live owning world. Cannot detect a world pointer that
+/// has already been freed.
+/// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_validate_handle(handle: RprSoftBodyHandle) -> RprStatus {
     let world = handle.world;

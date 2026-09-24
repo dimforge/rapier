@@ -14,11 +14,15 @@ pub(crate) struct QueryAccess {
     pub userData: *mut std::ffi::c_void,
 }
 /// Copyable query settings. They borrow callback data, never world components.
+/// @ingroup queries
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct RprQueryOptions {
+    /// Query selection settings.
     pub filter: RprQueryFilter,
+    /// Optional additional query filter; nonzero accepts a collider.
     pub predicate: RprQueryPredicate,
+    /// Application data; Rapier does not own pointers encoded in it.
     pub userData: *mut std::ffi::c_void,
 }
 impl Default for RprQueryOptions {
@@ -30,6 +34,8 @@ impl Default for RprQueryOptions {
         }
     }
 }
+/// Return native default query options. This POD value owns no resources.
+/// @ingroup queries
 #[rapier_export]
 pub extern "C" fn rpr_default_query_options() -> RprQueryOptions {
     RprQueryOptions::default()
@@ -93,6 +99,12 @@ impl QueryAccess {
     }
 }
 
+/// Return the closest ray hit, or report RPR_NOT_FOUND on a miss. The ray is origin + direction * t
+/// for 0 <= t <= max_toi; direction need not be normalized. solid treats an interior origin as a
+/// hit at t = 0.
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup queries
 #[rapier_export]
 pub unsafe extern "C" fn rpr_cast_ray(
     world: *const RprWorld,
@@ -137,6 +149,11 @@ pub unsafe extern "C" fn rpr_cast_ray(
     })
 }
 
+/// Return the closest surface projection within max_distance, or report RPR_NOT_FOUND. With solid =
+/// 1, an interior point projects to itself.
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup queries
 #[rapier_export]
 pub unsafe extern "C" fn rpr_project_point(
     world: *const RprWorld,
@@ -175,6 +192,11 @@ pub unsafe extern "C" fn rpr_project_point(
     })
 }
 
+/// Sweep shape from pose along velocity and return the first hit; report RPR_NOT_FOUND on a miss.
+/// Time is bounded by options.max_time_of_impact.
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_cast_shape(
     world: *const RprWorld,
@@ -218,6 +240,11 @@ pub unsafe extern "C" fn rpr_cast_shape(
     })
 }
 
+/// Copy handles of colliders containing the world-space point.
+/// @see @ref output_buffers
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup queries
 #[rapier_export]
 pub unsafe extern "C" fn rpr_intersect_point(
     world: *const RprWorld,
@@ -247,6 +274,12 @@ pub unsafe extern "C" fn rpr_intersect_point(
     }
 }
 
+/// Copy handles of colliders intersecting the shape at its world-space pose. The shape is borrowed
+/// for this call.
+/// @see @ref output_buffers
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup shapes
 #[rapier_export]
 pub unsafe extern "C" fn rpr_intersect_shape(
     world: *const RprWorld,
@@ -280,6 +313,12 @@ pub unsafe extern "C" fn rpr_intersect_shape(
     }
 }
 
+/// Copy broad-phase candidates whose bounding boxes overlap the world-space AABB. Results may
+/// include false positives.
+/// @see @ref output_buffers
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup queries
 #[rapier_export]
 pub unsafe extern "C" fn rpr_intersect_aabb_conservative(
     world: *const RprWorld,
@@ -314,6 +353,11 @@ pub unsafe extern "C" fn rpr_intersect_aabb_conservative(
     }
 }
 
+/// Return the closest ray collider and time, with found = 0 on a miss (RPR_OK). The ray is origin +
+/// direction * t; max_toi bounds t.
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup queries
 #[rapier_export]
 pub unsafe extern "C" fn rpr_cast_ray_toi(
     world: *const RprWorld,
@@ -361,6 +405,11 @@ pub unsafe extern "C" fn rpr_cast_ray_toi(
     })
 }
 
+/// Return the closest ray hit with found = 0 on a miss (RPR_OK). The ray is origin + direction * t;
+/// solid treats an interior origin as a hit at t = 0.
+/// NULL query options use the default filter. Query state reflects the latest Step or
+/// DetectCollisions call.
+/// @ingroup queries
 #[rapier_export]
 pub unsafe extern "C" fn rpr_try_cast_ray(
     world: *const RprWorld,

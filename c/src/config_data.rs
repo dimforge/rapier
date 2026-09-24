@@ -9,49 +9,82 @@ use rapier::dynamics::{
     SoftBodiesSettings, SoftEdgePlasticFlow, SoftPatchConstraints, SoftRecoverySettings,
 };
 
+/// Optional scalar override; enabled = 0 selects no override.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprOptionalReal {
+    /// Whether this setting/object is enabled (0 or 1).
     pub enabled: RprBool,
+    /// Value used when enabled is 1.
     pub value: RprReal,
 }
+/// Optional unsigned integer override; enabled = 0 selects no override.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprOptionalU32 {
+    /// Whether this setting/object is enabled (0 or 1).
     pub enabled: RprBool,
+    /// Value used when enabled is 1.
     pub value: u32,
 }
 /// Optional boolean override. When disabled, retain the recipe's native default.
+/// @ingroup math
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprOptionalBool {
+    /// Whether this setting/object is enabled (0 or 1).
     pub enabled: RprBool,
+    /// Value used when enabled is 1.
     pub value: RprBool,
 }
 /// Plain configuration data; initialize defaults, edit, then apply. No destructor.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftBodyMaterial {
+    /// Spring coefficients for structural edge constraints.
     pub edgeSoftness: RprSpringCoefficients,
+    /// Spring coefficients for bending edges and dihedrals.
     pub bendSoftness: RprSpringCoefficients,
+    /// Spring coefficients for cell and global volume constraints.
     pub volumeSoftness: RprSpringCoefficients,
+    /// Spring coefficients for shape-matching constraints.
     pub shapeMatchingSoftness: RprSpringCoefficients,
+    /// Elastic modulus: force per area in 3D, force per length in 2D; nonnegative.
     pub youngModulus: RprReal,
+    /// Poisson ratio for elastic cells, in [0, 0.5).
     pub poissonRatio: RprReal,
+    /// Nonnegative damping ratio of elastic cells.
     pub elasticDampingRatio: RprReal,
+    /// Cell strain threshold for plastic flow; zero disables plasticity.
     pub plasticYield: RprReal,
+    /// Nonnegative rate per second at which excess cell strain becomes permanent.
     pub plasticCreep: RprReal,
+    /// Maximum accumulated cell plastic stretch, measured by the norm of P - I.
     pub plasticMax: RprReal,
+    /// Rate per second pulling particle velocities toward best-fit rigid motion; zero disables it.
     pub deformationDamping: RprReal,
+    /// Edge strain threshold for plastic flow; zero disables plasticity.
     pub edgePlasticYield: RprReal,
+    /// Nonnegative rate per second at which excess edge strain becomes permanent.
     pub edgePlasticCreep: RprReal,
+    /// Maximum permanent edge-length change as a fraction of its initial length.
     pub edgePlasticMax: RprReal,
+    /// Plastic flow direction: 0 both, 1 compression only, 2 tension only.
     pub edgePlasticFlow: u32,
+    /// Optional strain threshold for tearing; disabled means no strain-based tearing.
     pub tearStrain: RprOptionalReal,
+    /// Optional tensile edge-force threshold for tearing.
     pub tearForce: RprOptionalReal,
+    /// Exponential load-smoothing time constant in seconds; zero disables smoothing.
     pub tearSmoothing: RprReal,
+    /// Tear-threshold multiplier for undamaged interior elements.
     pub interiorStrength: RprReal,
+    /// Maximum ordinary edge tears per step; edges above twice their threshold bypass the limit.
     pub maxTearsPerStep: u32,
+    /// Optional minimum particle count of tear pieces.
     pub minPiece: RprOptionalU32,
 }
 impl From<SoftBodyMaterial> for RprSoftBodyMaterial {
@@ -147,40 +180,71 @@ impl RprSoftBodyMaterial {
         })
     }
 }
+/// Return native default soft body material. This POD value owns no resources.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub extern "C" fn rpr_default_soft_body_material() -> RprSoftBodyMaterial {
     SoftBodyMaterial::default().into()
 }
 /// Plain configuration data; initialize defaults, edit, then apply. No destructor.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftRecoverySettings {
+    /// Expand speculative contact margins to cover particle velocities set between steps.
     pub authoredVelocityMargin: RprBool,
+    /// Enable speculative edge-edge collision constraints.
     pub edgeSpeculation: RprBool,
+    /// Detect inverted cells to support self-contact recovery.
     pub invertedCellDetection: RprBool,
+    /// Detect surface self-crossings each step.
     pub selfCrossingDetection: RprBool,
+    /// Skip self-crossing detection when accumulated motion cannot have created a crossing.
     pub detectionMotionGating: RprBool,
+    /// Detect boundary crossings between soft bodies.
     pub crossBodyDetection: RprBool,
+    /// Disable contacts on tangled features so elasticity can untangle them.
     pub selfStandDown: RprBool,
+    /// Allow contacts at cross-body crossings to expel, but not hold, the intruder.
     pub crossBodyExpelGate: RprBool,
+    /// Disable edge constraints touching cross-body crossings.
     pub edgeStandDown: RprBool,
+    /// Repel crossing features toward their neighborhood's side of the surface.
     pub crossingRepulsion: RprBool,
+    /// Guide cross-body repulsion by overlap-volume normals; closed meshes only.
     pub crossingRepulsionGuide: RprBool,
+    /// Guide self-crossing repulsion by self-intersection-volume normals; closed meshes only.
     pub crossingRepulsionSelfGuide: RprBool,
+    /// Maximum recovery rate in length units per second, scaled by lengthUnit.
     pub recoveryPace: RprReal,
+    /// Enable intersection-volume constraints for overlapping closed surfaces.
     pub overlapConstraints: RprBool,
+    /// Enable intersection-volume constraints against rigid colliders.
     pub overlapRigid: RprBool,
+    /// Skip pair overlap constraints for self-crossed meshes.
     pub overlapSkipSelfTangled: RprBool,
+    /// Disable 3D closed-surface edge constraints where overlap constraints take over.
     pub overlapEdgeStandDown: RprBool,
+    /// Velocity-change limit per step, as a multiple of recoveryPace.
     pub overlapConstraintPace: RprReal,
+    /// Per-point constraints inside overlap patches: 0 keep, 1 stand down, 2 align with overlap
+    /// normal.
     pub overlapPatchConstraints: u32,
+    /// Measure overlap on contact-skin surfaces rather than bare geometry.
     pub overlapSkinVolume: RprBool,
+    /// Overlap depth retained by recovery, as a fraction of the pair's contact skins.
     pub overlapKeptDepth: RprReal,
+    /// Enable recovery of self-intersection regions.
     pub overlapSelfRegions: RprBool,
+    /// Use the overlap normal for recovery pushes.
     pub overlapNormalPush: RprBool,
+    /// Use spatially split overlap-volume constraints.
     pub overlapMultiVolume: RprBool,
+    /// Cells per tangent axis of the multi-volume grid.
     pub overlapSplit: u32,
+    /// Recovery progress patience in steps.
     pub overlapPatience: u32,
+    /// Relative overlap-volume decrease that counts as recovery progress.
     pub overlapProgressMargin: RprReal,
 }
 impl From<SoftRecoverySettings> for RprSoftRecoverySettings {
@@ -258,17 +322,23 @@ impl RprSoftRecoverySettings {
         })
     }
 }
+/// Return native default soft recovery settings. This POD value owns no resources.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub extern "C" fn rpr_default_soft_recovery_settings() -> RprSoftRecoverySettings {
     SoftRecoverySettings::default().into()
 }
 #[cfg(feature = "fem")]
 /// Plain configuration data; initialize defaults, edit, then apply. No destructor.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftFemParameters {
+    /// FEM iterative linear-solver tolerance.
     pub linearTolerance: RprReal,
+    /// Maximum FEM linear-solver iterations.
     pub maxLinearIterations: usize,
+    /// Maximum degrees of freedom solved by the dense FEM solver.
     pub maxDenseDofs: usize,
 }
 #[cfg(feature = "fem")]
@@ -291,20 +361,28 @@ impl RprSoftFemParameters {
         })
     }
 }
+/// Return native default soft fem parameters. This POD value owns no resources.
+/// @ingroup soft_bodies
 #[cfg(feature = "fem")]
 #[rapier_export]
 pub extern "C" fn rpr_default_soft_fem_parameters() -> RprSoftFemParameters {
     SoftFemParameters::default().into()
 }
 /// Plain configuration data; initialize defaults, edit, then apply. No destructor.
+/// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprSoftBodiesSettings {
+    /// Soft-body crossing detection and recovery settings.
     pub recovery: RprSoftRecoverySettings,
+    /// Strain threshold for re-solving soft constraints after contacts within a substep.
     pub resweepStrain: RprReal,
+    /// Maximum additional substeps requested by soft-body motion.
     pub maxExtraSubsteps: usize,
+    /// Multiplier on contact natural frequency for soft-body contacts.
     pub contactStiffening: RprReal,
     #[cfg(feature = "fem")]
+    /// FEM linear-solver settings, present only when RAPIER_FEM is enabled.
     pub fem: RprSoftFemParameters,
 }
 impl From<SoftBodiesSettings> for RprSoftBodiesSettings {
@@ -331,35 +409,59 @@ impl RprSoftBodiesSettings {
         })
     }
 }
+/// Return native default soft bodies settings. This POD value owns no resources.
+/// @ingroup soft_bodies
 #[rapier_export]
 pub extern "C" fn rpr_default_soft_bodies_settings() -> RprSoftBodiesSettings {
     SoftBodiesSettings::default().into()
 }
 /// Plain configuration data; initialize defaults, edit, then apply. No destructor.
+/// @ingroup worlds
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct RprIntegrationParameters {
+    /// Simulation step duration in seconds.
     pub dt: RprReal,
+    /// Minimum CCD substep duration in seconds.
     pub minCcdDt: RprReal,
+    /// Spring coefficients for dynamic contact constraints.
     pub contactSoftness: RprSpringCoefficients,
+    /// Spring coefficients for contacts against fixed bodies.
     pub staticContactSoftness: RprSpringCoefficients,
+    /// Scale applied to cached impulses when warmstarting.
     pub warmstartCoefficient: RprReal,
+    /// Typical world-space length of one meter; scales solver tolerances, not geometry.
     pub lengthUnit: RprReal,
+    /// Soft-body integration and recovery settings.
     pub softBodies: RprSoftBodiesSettings,
+    /// Allowed penetration divided by lengthUnit.
     pub normalizedAllowedLinearError: RprReal,
+    /// Maximum penetration-correction speed divided by lengthUnit.
     pub normalizedMaxCorrectiveVelocity: RprReal,
+    /// Speculative-contact distance divided by lengthUnit.
     pub normalizedPredictionDistance: RprReal,
+    /// Maximum linear speed divided by lengthUnit.
     pub normalizedMaxLinearVelocity: RprReal,
+    /// Number of solver substeps/iterations; must be positive.
     pub numSolverIterations: usize,
+    /// PGS iterations per solver substep.
     pub numInternalPgsIterations: usize,
+    /// Stabilization iterations after velocity solving.
     pub numInternalStabilizationIterations: usize,
+    /// Maximum CCD substeps; 0 disables all CCD for the world.
     pub maxCcdSubsteps: usize,
+    /// Whether to cluster contacts for solving.
     pub contactClustering: RprBool,
+    /// Whether to reuse nearby contacts between steps.
     pub contactRecycling: RprBool,
+    /// Contact recycling distance divided by lengthUnit.
     pub normalizedContactRecycleDistance: RprReal,
+    /// Whether to solve friction in the bias pass.
     pub frictionInBiasPass: RprBool,
+    /// Whether to warmstart joint constraints.
     pub warmstartJoints: RprBool,
     #[cfg(feature = "dim3")]
+    /// Friction model: 0 simplified, 1 Coulomb (3D only).
     pub frictionModel: u32,
 }
 impl From<IntegrationParameters> for RprIntegrationParameters {
@@ -427,11 +529,15 @@ impl RprIntegrationParameters {
         })
     }
 }
+/// Return native default integration parameters. This POD value owns no resources.
+/// @ingroup worlds
 #[rapier_export]
 pub extern "C" fn rpr_default_integration_parameters() -> RprIntegrationParameters {
     IntegrationParameters::default().into()
 }
 
+/// Return a copy of all world integration settings.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_integration_parameters(
     world: *const RprWorld,
@@ -449,6 +555,7 @@ pub unsafe extern "C" fn rpr_integration_parameters(
 }
 
 /// Copies validated values; does not expose a writable alias to Rust memory.
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_set_integration_parameters(
     world: *mut RprWorld,

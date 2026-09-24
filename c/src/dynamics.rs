@@ -706,6 +706,9 @@ pub(crate) unsafe fn native_rigid_body_colliders(
     })
 }
 
+/// Propagate all modified body poses to attached colliders. Run collision detection or step before
+/// querying the broad phase.
+/// @ingroup rigid_bodies
 #[rapier_export]
 pub unsafe extern "C" fn rpr_rigid_body_propagate_modified_body_positions_to_colliders(
     world: *mut RprWorld,
@@ -745,6 +748,8 @@ pub(crate) unsafe fn native_rigid_body_set_gyroscopic_forces_enabled(
 }
 
 /// Copies the island manager's active body handles.
+/// @see @ref output_buffers
+/// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_active_rigid_bodies(
     world: *const RprWorld,
@@ -768,6 +773,7 @@ pub unsafe extern "C" fn rpr_active_rigid_bodies(
 }
 
 /// Wake a body by handle, including a soft-body cluster proxy.
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_wake_up(
     handle: RprRigidBodyHandle,
