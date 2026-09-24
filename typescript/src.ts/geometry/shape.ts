@@ -445,6 +445,11 @@ export abstract class Shape {
 
     /**
      * Computes the time of impact between two moving shapes.
+     *
+     * In the returned hit, `witness1` and `normal1` lie on this shape and are expressed in its
+     * local-space (relative to `shapePos1` and `shapeRot1`), while `witness2` and `normal2` lie on
+     * `shape2` and are expressed in its local-space (relative to `shapePos2` and `shapeRot2`).
+     *
      * @param shapePos1 - The initial position of this shape.
      * @param shapeRot1 - The rotation of this shape.
      * @param shapeVel1 - The velocity of this shape.

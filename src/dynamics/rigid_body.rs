@@ -1559,7 +1559,7 @@ impl RigidBody {
     /// When enabled, rapidly spinning objects resist rotation axis changes (like gyroscopes).
     /// Examples: spinning tops, flywheels, rotating spacecraft.
     ///
-    /// **Default**: Disabled (costs performance, rarely needed in games).
+    /// **Default**: Enabled. Disabling it saves a slight performance overhead.
     #[cfg(feature = "dim3")]
     pub fn enable_gyroscopic_forces(&mut self, enabled: bool) {
         self.forces.gyroscopic_forces_enabled = enabled;
@@ -1690,7 +1690,7 @@ pub struct RigidBodyBuilder {
     ///
     /// See [`RigidBody::set_additional_pgs_iterations`] for additional information.
     pub additional_pgs_iterations: usize,
-    /// Are gyroscopic forces enabled for this rigid-body?
+    /// Are gyroscopic forces enabled for this rigid-body? (default: `true`)
     pub gyroscopic_forces_enabled: bool,
 }
 
@@ -2112,7 +2112,7 @@ impl RigidBodyBuilder {
     /// Enabling gyroscopic forces allows more realistic behaviors like gyroscopic precession,
     /// but result in a slight performance overhead.
     ///
-    /// Disabled by default.
+    /// Enabled by default.
     #[cfg(feature = "dim3")]
     pub fn gyroscopic_forces_enabled(mut self, enabled: bool) -> Self {
         self.gyroscopic_forces_enabled = enabled;

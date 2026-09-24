@@ -206,9 +206,14 @@ impl SoftBody {
         self.particle_radius
     }
 
-    /// The hidden rigid body standing for this soft body in the islands and holding its colliders
-    /// (invalid until inserted in a set). Never move, remove or attach joints to it; it only
-    /// serves to recognize or exclude the soft body's colliders in queries and events.
+    /// The rigid body standing for this soft body in the islands (invalid until inserted in a
+    /// set): the proxy of its first live cluster, initially the whole-body cluster holding all of
+    /// its colliders.
+    ///
+    /// Impulse joints can be attached to it to act on the whole soft body. A tear splitting the
+    /// body moves each of them to the piece closest to its anchor in the rest shape (see
+    /// [`crate::dynamics::SoftBodyTearEvent::moved_joints`]), and a piece's root body may be a
+    /// different rigid body. Never move or remove it: its pose is driven by the particles.
     pub fn root_body(&self) -> RigidBodyHandle {
         self.root_body
     }

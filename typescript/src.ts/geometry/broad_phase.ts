@@ -379,6 +379,10 @@ export class BroadPhase {
      * This is similar to ray-casting except that we are casting a whole shape instead of
      * just a point (the ray origin).
      *
+     * In the returned hit, `witness1` and `normal1` lie on the hit collider and are expressed in
+     * world-space, while `witness2` and `normal2` lie on the cast shape and are expressed in its
+     * local-space (relative to `shapePos` and `shapeRot`).
+     *
      * @param colliders - The set of colliders taking part in this pipeline.
      * @param shapePos - The initial position of the shape to cast.
      * @param shapeRot - The initial rotation of the shape to cast.
