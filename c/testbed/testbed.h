@@ -49,6 +49,11 @@ typedef struct TbRenderMesh {
     float rgba[4], metallic, roughness, reflectance, emissive[3];
 } TbRenderMesh;
 
+#ifdef _MSC_VER
+#pragma warning(push)
+/* Windows jmp_buf requires 16-byte alignment; padding here is intentional. */
+#pragma warning(disable : 4324)
+#endif
 struct Testbed {
     TbTint *bodyColors, *colliderColors;
     size_t bodyColorCount, colliderColorCount;
@@ -96,6 +101,9 @@ struct Testbed {
     size_t settingCount;
     const char *assetRoot;
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 double tbClock(void);
 size_t tbChoice(Testbed *, const char *, size_t, const char *const *, size_t, int live, int reset);

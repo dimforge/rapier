@@ -49,7 +49,7 @@ int main(void) {
     assert(throughSet.y == position.y);
     /* Retained handles survive storage growth and stepping; no element pointer is kept. */
     for (int i = 0; i < 512; ++i) {
-        desc.position.translation.x = 10 + i;
+        desc.position.translation.x = (RAPIER_TYPE(Real))(10 + i);
         RAPIER_FN(InsertRigidBody)(world, &desc);
         OK(RAPIER_FN(LastStatus)());
     }

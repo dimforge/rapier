@@ -4,7 +4,7 @@
 #include "rlgl.h"
 #include <assert.h>
 
-static size_t triangles, lines, translucent;
+static size_t triangles, lineCount, translucent;
 static bool depthWrite = true, pendingTranslucent;
 static int culling = 1, flushed;
 
@@ -64,7 +64,7 @@ static void recordLine(Vector3 a, Vector3 b, Color color) {
     (void)color;
     checkPoint(a);
     checkPoint(b);
-    ++lines;
+    ++lineCount;
 }
 
 static void *boundedRealloc(void *pointer, size_t bytes) {
@@ -119,7 +119,7 @@ static int renderFrame(Testbed *t, void *context) {
         }
         free(handles);
     }
-    triangles = lines = translucent = 0;
+    triangles = lineCount = translucent = 0;
     test->graphics.transparentCount = 0;
     drawSoft(&test->graphics, t, true, (Camera3D){.position = {0, 0, 100}, .fovy = 20});
     assert(translucent == 0); /* No sensor geometry in the opaque pass. */
@@ -130,7 +130,7 @@ static int renderFrame(Testbed *t, void *context) {
     for (size_t i = 1; i < queued; ++i) {
         assert(test->graphics.transparent[i - 1].depth >= test->graphics.transparent[i].depth);
     }
-    assert(triangles + lines > 0);
+    assert(triangles + lineCount > 0);
     assert(test->graphics.entryCapacity < 1024);
     /* Turning surfaces off must also avoid indexing render-only colliders. */
     drawSoft(&test->graphics, t, false, (Camera3D){0});

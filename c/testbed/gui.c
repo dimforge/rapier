@@ -138,7 +138,7 @@ static Camera3D cameraFor(Testbed *t) {
 #if defined(RAPIER_DIM2)
     c.position = (Vector3){t->target[0], t->target[1], 100};
     c.target.z = 0;
-    c.fovy = t->viewWidth * (float)GetScreenHeight() / GetScreenWidth();
+    c.fovy = t->viewWidth * (float)GetScreenHeight() / (float)GetScreenWidth();
     c.projection = CAMERA_ORTHOGRAPHIC;
 #endif
     return c;
@@ -549,7 +549,7 @@ static void sidebar(Testbed *t, UiState *ui, float width) {
 
 static void sceneOverlay(Testbed *t, float sidebarWidth) {
     igSetNextWindowPos(UI2(sidebarWidth + 18, 12), ImGuiCond_Always, UI2(0, 0));
-    igSetNextWindowSize(UI2(fmaxf(100, GetScreenWidth() - sidebarWidth - 36), 0), ImGuiCond_Always);
+    igSetNextWindowSize(UI2(fmaxf(100, (float)GetScreenWidth() - sidebarWidth - 36), 0), ImGuiCond_Always);
     igBegin("Scene", NULL,
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
                 ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings |
@@ -666,7 +666,7 @@ static int renderFrame(Testbed *t, void *context) {
         camera.fovy = fmaxf(0.05f, camera.fovy * expf(-wheel * 0.12f));
         if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
             Vector2 d = GetMouseDelta();
-            float scale = camera.fovy / GetScreenHeight();
+            float scale = camera.fovy / (float)GetScreenHeight();
             camera.position.x -= d.x * scale;
             camera.target.x -= d.x * scale;
             camera.position.y += d.y * scale;
@@ -738,7 +738,7 @@ static int renderFrame(Testbed *t, void *context) {
         uiStatus(t, tbGrabRelease(t, &viewer->grab));
     } else if (!captureMouse && !t->error[0]) {
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            RAPIER_TYPE(Real) radius = (RAPIER_TYPE(Real))(camera.fovy * 8 / GetScreenHeight());
+            RAPIER_TYPE(Real) radius = (RAPIER_TYPE(Real))(camera.fovy * 8 / (float)GetScreenHeight());
             uiStatus(t, tbGrabBegin(t, &viewer->grab, radius));
         }
         Vector3 direction = Vector3Normalize(Vector3Subtract(camera.target, camera.position));

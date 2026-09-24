@@ -13,7 +13,7 @@ int main(void) {
     assert(handle.index == UINT32_MAX && handle.generation == UINT32_MAX);
     for (unsigned i = 0; i < 4; ++i) {
         assert(bodies[i].bodyType == i);
-        bodies[i].position.translation.x = 2 * i;
+        bodies[i].position.translation.x = (RAPIER_TYPE(Real))(2 * i);
         bodies[i].position.translation.y = 5;
         handle = RAPIER_FN(InsertRigidBody)(world, &bodies[i]);
         RAPIER_FN(InsertCollider)(handle, &collider);

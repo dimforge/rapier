@@ -57,13 +57,13 @@ static void rigidDrag(void) {
     addBall(&t, V(3, 0, 0), RAPIER_CONST(FIXED), false);
     CHECK(RAPIER_FN(Step)(t.world, NULL, NULL));
     pointCursor(&t, V(-3, 0, 0));
-    CHECK(tbGrabBegin(&t, &grab, .1));
+    CHECK(tbGrabBegin(&t, &grab, (RAPIER_TYPE(Real))0.1));
     assert(!grab.active);
     pointCursor(&t, V(3, 0, 0));
-    CHECK(tbGrabBegin(&t, &grab, .1));
+    CHECK(tbGrabBegin(&t, &grab, (RAPIER_TYPE(Real))0.1));
     assert(!grab.active);
     pointCursor(&t, V(0, 0, 0));
-    CHECK(tbGrabBegin(&t, &grab, .1));
+    CHECK(tbGrabBegin(&t, &grab, (RAPIER_TYPE(Real))0.1));
     assert(grab.active && !grab.soft && grab.body.index == picked.index);
     checkCounts(&t, 4, 1);
     pointCursor(&t, V(2, 1, 0));
@@ -81,7 +81,7 @@ static void rigidDrag(void) {
     assert(!grab.active);
     checkCounts(&t, 3, 0);
     pointCursor(&t, position);
-    CHECK(tbGrabBegin(&t, &grab, .1));
+    CHECK(tbGrabBegin(&t, &grab, (RAPIER_TYPE(Real))0.1));
     assert(grab.active);
     RAPIER_TYPE(Bool) removed = RAPIER_FN(RemoveRigidBody)(picked, 1);
     CHECK(RAPIER_FN(LastStatus)());
@@ -106,7 +106,7 @@ static void articulatedDrag(void) {
     CHECK(RAPIER_FN(LastStatus)());
     CHECK(RAPIER_FN(Step)(t.world, NULL, NULL));
     pointCursor(&t, V(0, 0, 0));
-    CHECK(tbGrabBegin(&t, &grab, .1));
+    CHECK(tbGrabBegin(&t, &grab, (RAPIER_TYPE(Real))0.1));
     assert(grab.active && grab.body.index == link.index);
     pointCursor(&t, V(2, 0, 0));
     for (int i = 0; i < 120; ++i) {
@@ -136,7 +136,7 @@ static void softDrag(void) {
     builder = RAPIER_FN(ClothSoftBodyDesc)(V(-.5, -.5, 0), V(.5, 0, 0), V(0, .5, 0), 3, 3);
 #endif
 
-    RAPIER_TYPE(ColliderDesc) surface = RAPIER_FN(BallColliderDesc)(.05);
+    RAPIER_TYPE(ColliderDesc) surface = RAPIER_FN(BallColliderDesc)((RAPIER_TYPE(Real))0.05);
     builder.collider = surface;
     RAPIER_TYPE(SoftBodyHandle) handle = RAPIER_FN(InsertSoftBody)(t.world, &builder);
     CHECK(RAPIER_FN(LastStatus)());
@@ -149,7 +149,7 @@ static void softDrag(void) {
     bodyCount = RAPIER_FN(RigidBodyCount)(t.world);
     CHECK(RAPIER_FN(LastStatus)());
     pointCursor(&t, V(-.4, -.4, 0));
-    CHECK(tbGrabBegin(&t, &grab, .2));
+    CHECK(tbGrabBegin(&t, &grab, (RAPIER_TYPE(Real))0.2));
     assert(grab.active && grab.soft);
     CHECK(RAPIER_FN(SoftBody_ValidateHandle)(handle));
     after = RAPIER_FN(SoftBody_Clusters)(handle, NULL, 0);

@@ -16,9 +16,10 @@
 #define EXPECT(expr, code)                                                                         \
     do {                                                                                           \
         RAPIER_TYPE(Status) status_ = (expr);                                                      \
-        if (status_ != (code)) {                                                                   \
+        RAPIER_TYPE(Status) expected_ = (code);                                                    \
+        if (status_ != expected_) {                                                                \
             fprintf(stderr, "%s:%d: expected %u, got %u: %s\n", __FILE__, __LINE__,                \
-                    (unsigned)(code), status_, RAPIER_FN(LastError)());                            \
+                    expected_, status_, RAPIER_FN(LastError)());                                   \
             abort();                                                                               \
         }                                                                                          \
     } while (0)

@@ -809,8 +809,8 @@ void tbGraphicsFrameAll(Testbed *t, Camera3D *camera) {
     Vector3 dir = Vector3Normalize(Vector3Subtract(camera->position, camera->target));
 #if defined(RAPIER_DIM2)
     dir = (Vector3){0, 0, 1};
-    camera->fovy =
-        fmaxf((hi.y - lo.y) * 1.2f, (hi.x - lo.x) * 1.2f * GetScreenHeight() / GetScreenWidth());
+    float inverseAspect = (float)GetScreenHeight() / (float)GetScreenWidth();
+    camera->fovy = fmaxf((hi.y - lo.y) * 1.2f, (hi.x - lo.x) * 1.2f * inverseAspect);
 #endif
     camera->position = Vector3Add(camera->target, Vector3Scale(dir, size * 1.2f));
 }
