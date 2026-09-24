@@ -7,7 +7,7 @@ debug segments rendered is always printed.
 
 Run::
 
-    python python/examples/render/matplotlib_animation.py
+    python bindings/python/examples/render/matplotlib_animation.py
 """
 
 from __future__ import annotations

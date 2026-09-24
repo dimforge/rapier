@@ -12,8 +12,8 @@ import tempfile
 
 from export_names import EXPORTS, c_name
 
-ROOT = Path(__file__).resolve().parents[2]
-VERSION = (ROOT / "c/VERSION").read_text().strip()
+ROOT = Path(__file__).resolve().parents[3]
+VERSION = (ROOT / "bindings/c/VERSION").read_text().strip()
 CC = shlex.split(os.environ.get("CC", "cc"))
 CXX = shlex.split(os.environ.get("CXX", "c++"))
 VARIANTS = [(d, p) for d in (2, 3) for p in (32, 64)]
@@ -39,11 +39,11 @@ with tempfile.TemporaryDirectory(prefix="rapier-c-tests-") as directory:
     temp = Path(directory)
     for (dim, precision), package in zip(VARIANTS, PACKAGES):
         library = package.replace("-", "_")
-        flags = ["-Wall", "-Wextra", "-Werror", "-UNDEBUG", "-I", str(ROOT / "c/include"),
+        flags = ["-Wall", "-Wextra", "-Werror", "-UNDEBUG", "-I", str(ROOT / "bindings/c/include"),
                  f"-DRAPIER_DIM{dim}", f"-DRAPIER_F{precision}",
                  f'-DRAPIER_EXPECTED_VERSION="{VERSION}"']
         header = subprocess.check_output([*CC, "-E", "-P", "-x", "c", *flags,
-                                          str(ROOT / "c/include/rapier.h")], text=True)
+                                          str(ROOT / "bindings/c/include/rapier.h")], text=True)
         symbols = set(re.findall(r"\b(r[23][A-Z]\w*)\s*\(", header))
         assert symbols and all(name.startswith(f"r{dim}") for name in symbols)
         assert f"r{dim}InsertRigidBody" in symbols
@@ -72,7 +72,7 @@ with tempfile.TemporaryDirectory(prefix="rapier-c-tests-") as directory:
         assert not re.search(r"\brpr_\w+\s*\(", header)
         assert not re.search(r"\b(?:Rpr\w*|RPR_\w+|R" + str(5 - dim) + r"[A-Z_]\w*)\b", header)
         macros = subprocess.check_output([*CC, "-E", "-dM", "-x", "c", *flags,
-                                          str(ROOT / "c/include/rapier.h")], text=True)
+                                          str(ROOT / "bindings/c/include/rapier.h")], text=True)
         assert re.search(rf"^#define R{dim}_OK 0$", macros, re.M)
         assert re.search(rf"^#define R{dim}_ABI_VERSION 1$", macros, re.M)
         assert not re.search(r"^#define (?:RPR_|R" + str(5 - dim) + r"_)", macros, re.M)
@@ -113,14 +113,14 @@ with tempfile.TemporaryDirectory(prefix="rapier-c-tests-") as directory:
             + "};\nint main(void) { for (unsigned i = 0; i < sizeof(symbols)/sizeof(symbols[0]); ++i) "
               "if (!symbols[i]) return 1; return 0; }\n")
         for linkage in ("shared", "static"):
-            for source, compiler, standard in [(ROOT / "c/tests/integration.c", CC, "c11"),
-                                                (ROOT / "c/tests/cpp.cpp", CXX, "c++17"),
-                                                (ROOT / "c/tests/pod.c", CC, "c11"),
-                                                (ROOT / "c/tests/handles.c", CC, "c11"),
-                                                (ROOT / "c/tests/initializers.c", CC, "c11"),
-                                                (ROOT / "c/tests/initializers.cpp", CXX, "c++17"),
-                                                (ROOT / "c/tests/array_views.c", CC, "c11"),
-                                                (ROOT / "c/tests/array_views.cpp", CXX, "c++17"),
+            for source, compiler, standard in [(ROOT / "bindings/c/tests/integration.c", CC, "c11"),
+                                                (ROOT / "bindings/c/tests/cpp.cpp", CXX, "c++17"),
+                                                (ROOT / "bindings/c/tests/pod.c", CC, "c11"),
+                                                (ROOT / "bindings/c/tests/handles.c", CC, "c11"),
+                                                (ROOT / "bindings/c/tests/initializers.c", CC, "c11"),
+                                                (ROOT / "bindings/c/tests/initializers.cpp", CXX, "c++17"),
+                                                (ROOT / "bindings/c/tests/array_views.c", CC, "c11"),
+                                                (ROOT / "bindings/c/tests/array_views.cpp", CXX, "c++17"),
                                                 (symbol_source, CC, "c11")]:
                 output = temp / f"{source.stem}-{library}-{linkage}"
                 subprocess.run([*compiler, f"-std={standard}", *flags, str(source),
@@ -147,7 +147,7 @@ int run{dim}(void) {{
 }}
 ''')
             subprocess.run([*CC, "-std=c11", "-Wall", "-Wextra", "-Werror",
-                            f"-DRAPIER_DIM{dim}", f"-DRAPIER_F{precision}", "-I", str(ROOT / "c/include"),
+                            f"-DRAPIER_DIM{dim}", f"-DRAPIER_F{precision}", "-I", str(ROOT / "bindings/c/include"),
                             "-c", str(source), "-o", str(obj)], check=True)
             objects.append(str(obj))
             libraries.append(f"rapier{dim}d" + ("_f64" if precision == 64 else "") + "_ffi")

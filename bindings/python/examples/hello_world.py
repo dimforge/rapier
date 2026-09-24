@@ -2,7 +2,7 @@
 
 Run::
 
-    python python/examples/hello_world.py
+    python bindings/python/examples/hello_world.py
 """
 
 from __future__ import annotations

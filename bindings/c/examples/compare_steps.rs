@@ -1,5 +1,5 @@
 //! Replay trusted C-testbed snapshots with the native Rust API, in the same Cargo
-//! configuration. See c/testbed/tools/README.md. This is a manual benchmark.
+//! configuration. See bindings/c/testbed/tools/README.md. This is a manual benchmark.
 use bincode::Options;
 use rapier::prelude::*;
 use std::{path::Path, time::Instant};

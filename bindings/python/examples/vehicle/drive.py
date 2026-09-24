@@ -6,7 +6,7 @@ force on the rear wheels and reports the chassis velocity.
 
 Run::
 
-    python python/examples/vehicle/drive.py
+    python bindings/python/examples/vehicle/drive.py
 """
 
 from __future__ import annotations

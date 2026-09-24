@@ -2,8 +2,8 @@
 
 These docs cover the ``rapier3d`` engine package (3D / f32).
 
-Build from the ``python/docs/`` directory after the engine package is
-installed (``pip install ./python/rapier-py-3d``, or ``maturin develop``
+Build from the ``bindings/python/docs/`` directory after the engine package is
+installed (``pip install ./bindings/python/rapier-py-3d``, or ``maturin develop``
 in the crate)::
 
     sphinx-build -b html . _build/html
@@ -43,7 +43,7 @@ except Exception as _import_err:  # pragma: no cover - diagnostic path only
     warnings.warn(
         f"Could not import `rapier3d` to read __version__ ({_import_err!r}); "
         "falling back to '0.32.0'. Did you install the engine packages "
-        "(e.g. `maturin develop` in python/rapier-py-3d)?",
+        "(e.g. `maturin develop` in bindings/python/rapier-py-3d)?",
         stacklevel=1,
     )
     version = "0.32.0"

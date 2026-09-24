@@ -14,11 +14,11 @@ pip install rapier-testbed
 From a checkout of the [Rapier repo](https://github.com/dimforge/rapier) (the
 engine packages aren't on PyPI yet — build them first, then install the testbed
 without re-resolving them). Run this **from the repository root** (the
-`./python/...` path is relative to it):
+`./bindings/python/...` path is relative to it):
 
 ```bash
 pip install panda3d numpy
-pip install --no-deps -e ./python/rapier-testbed   # -e: edits picked up without reinstalling
+pip install --no-deps -e ./bindings/python/rapier-testbed   # -e: edits picked up without reinstalling
 ```
 
 ## Run

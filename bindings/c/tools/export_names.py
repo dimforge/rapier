@@ -2,7 +2,7 @@
 from pathlib import Path
 import re
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 EXPORT_ATTRIBUTE = r"#\[rapier_export(?:\(([a-z][a-z0-9_]*)\))?\]"
 DECLARATION = r'pub (?:unsafe )?extern "C" fn (rpr_[a-z0-9_]+)'
 
@@ -28,7 +28,7 @@ def read_exports():
     exports = {}
     # Attributes may be followed by cfg attributes and documentation comments.
     pattern = EXPORT_ATTRIBUTE + r"(?:(?!#\[rapier_export)[\s\S])*?" + DECLARATION
-    for source in sorted((ROOT / "c/src").glob("*.rs")):
+    for source in sorted((ROOT / "bindings/c/src").glob("*.rs")):
         text = source.read_text()
         declarations = set(re.findall(DECLARATION, text))
         annotated = set()

@@ -6,7 +6,7 @@ on top of the step and it keeps moving forward.
 
 Run::
 
-    python python/examples/character/stairs.py
+    python bindings/python/examples/character/stairs.py
 """
 
 from __future__ import annotations

@@ -5,13 +5,13 @@ Each example opens in its own window; close it (press ``Esc`` or use the
 window's close button) and the next example launches automatically. Press
 ``Ctrl-C`` in this terminal to stop the tour.
 
-Requires the testbed to be installed (``python/dev.sh testbed``, or
-``pip install --no-deps -e ./python/rapier-testbed``).
+Requires the testbed to be installed (``bindings/python/dev.sh testbed``, or
+``pip install --no-deps -e ./bindings/python/rapier-testbed``).
 
 Usage:
-    python python/examples_tour.py            # all (3D) examples
-    python python/examples_tour.py --list     # print the example modules and exit
-    python python/examples_tour.py --start NAME   # begin at the first module
+    python bindings/python/examples_tour.py            # all (3D) examples
+    python bindings/python/examples_tour.py --list     # print the example modules and exit
+    python bindings/python/examples_tour.py --start NAME   # begin at the first module
                                                   # whose name contains NAME
 """
 from __future__ import annotations
@@ -61,8 +61,8 @@ def main(argv: list[str]) -> int:
     except ModuleNotFoundError:
         print(
             "rapier_testbed is not installed.\n"
-            "  Run:  python/dev.sh testbed\n"
-            "  or:   pip install --no-deps -e ./python/rapier-testbed",
+            "  Run:  bindings/python/dev.sh testbed\n"
+            "  or:   pip install --no-deps -e ./bindings/python/rapier-testbed",
             file=sys.stderr,
         )
         return 1

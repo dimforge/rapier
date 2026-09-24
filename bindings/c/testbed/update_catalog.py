@@ -2,8 +2,8 @@
 """Regenerate the example registry and audit coverage against the Rust testbed."""
 from pathlib import Path
 import re, json
-root=Path(__file__).resolve().parents[2]
-target=root/'c/testbed'
+root=Path(__file__).resolve().parents[3]
+target=root/'bindings/c/testbed'
 entries=[]
 for dim in [2,3]:
     src=(root/f'examples{dim}d/all_examples{dim}.rs').read_text()

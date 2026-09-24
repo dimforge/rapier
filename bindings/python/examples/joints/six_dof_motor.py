@@ -6,7 +6,7 @@ angular-Z at constant targets. We then report the body's pose.
 
 Run::
 
-    python python/examples/joints/six_dof_motor.py
+    python bindings/python/examples/joints/six_dof_motor.py
 """
 
 from __future__ import annotations

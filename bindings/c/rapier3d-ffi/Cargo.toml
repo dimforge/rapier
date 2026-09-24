@@ -26,7 +26,7 @@ robotics = ["dep:rapier3d-urdf", "dep:rapier3d-mjcf", "dep:rapier3d-meshloader"]
 
 [dependencies]
 rapier-c-macros = { path = "../rapier-c-macros" }
-rapier = { package = "rapier3d", path = "../../crates/rapier3d", features = ["serde-serialize", "debug-render"] }
+rapier = { package = "rapier3d", path = "../../../crates/rapier3d", features = ["serde-serialize", "debug-render"] }
 rapier3d-urdf = { workspace = true, optional = true, features = ["stl", "collada", "wavefront"] }
 rapier3d-mjcf = { workspace = true, optional = true, features = ["stl", "wavefront", "msh"] }
 rapier3d-meshloader = { workspace = true, optional = true, features = ["stl", "collada", "wavefront"] }

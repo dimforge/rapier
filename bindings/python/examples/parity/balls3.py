@@ -11,14 +11,14 @@ Comparison procedure
 
 1. ``cargo run --release -p rapier-testbed3d --bin all_examples3 -- debug_balls3``
    from the workspace root.
-2. ``python python/examples/parity/balls3.py``.
+2. ``python bindings/python/examples/parity/balls3.py``.
 3. Both runs should observe the dynamic balls settle on top of the fixed
    ones in roughly the same configuration. The Python script prints three
    probe positions; the Rust example shows the same scene visually.
 
 Run::
 
-    python python/examples/parity/balls3.py
+    python bindings/python/examples/parity/balls3.py
 """
 
 from __future__ import annotations

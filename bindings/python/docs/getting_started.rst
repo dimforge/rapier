@@ -16,13 +16,13 @@ To build from a `Rapier checkout <https://github.com/dimforge/rapier>`_
 instead — e.g. to develop against local engine changes — use ``maturin``
 on the relevant crate::
 
-    maturin develop --release -m python/rapier-py-3d/Cargo.toml   # editable install
-    maturin build   --release -m python/rapier-py-3d/Cargo.toml   # produces a .whl
+    maturin develop --release -m bindings/python/rapier-py-3d/Cargo.toml   # editable install
+    maturin build   --release -m bindings/python/rapier-py-3d/Cargo.toml   # produces a .whl
 
 For deterministic builds (libm-based transcendentals for cross-platform
 bit-reproducibility) add ``-F determinism``::
 
-    maturin build --release -F determinism -m python/rapier-py-3d/Cargo.toml
+    maturin build --release -F determinism -m bindings/python/rapier-py-3d/Cargo.toml
 
 You can also export ``RAPIER_PY_DETERMINISM=1`` before importing the
 package; note this is informational unless the ``determinism`` feature was

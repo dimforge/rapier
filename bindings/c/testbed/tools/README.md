@@ -1,7 +1,7 @@
 # Comparing C and native Rust step costs
 
 `step_benchmark.c` runs the same C examples and their own physics loops as the
-viewer, using a headless frame function to record timings and snapshots. `c/examples/compare_steps.rs` replays the C world's initial snapshot with
+viewer, using a headless frame function to record timings and snapshots. `bindings/c/examples/compare_steps.rs` replays the C world's initial snapshot with
 native `PhysicsWorld::step`. Both use one worker, disable sleeping, discard 120
 warmup steps, and measure the next 300 steps. Setup, rendering, and serialization
 are outside the measured region. Native Rust checks every final rigid-body pose
@@ -11,7 +11,7 @@ awake. Use only trusted snapshots from the same checkout/configuration.
 From the repository root, on a quiet machine:
 
 ```sh
-cmake -S c -B build/compare3 -DRAPIER_BUILD_TESTBED=ON \
+cmake -S bindings/c -B build/compare3 -DRAPIER_BUILD_TESTBED=ON \
   -DRAPIER_TESTBED_GRAPHICS=OFF -DRAPIER_PROFILE=release \
   -DCMAKE_BUILD_TYPE=Release -DRAPIER_ENABLE_PARALLEL=ON -DRAPIER_SIMD_LANES=4
 cmake --build build/compare3 --config Release --target rapier_testbed_step_benchmark

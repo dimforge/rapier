@@ -8,8 +8,8 @@ import tempfile
 
 from export_names import EXPORT_ATTRIBUTE, c_name
 
-ROOT = Path(__file__).resolve().parents[2]
-DESTINATION = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "c/include/rapier.h"
+ROOT = Path(__file__).resolve().parents[3]
+DESTINATION = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "bindings/c/include/rapier.h"
 
 
 with tempfile.TemporaryDirectory(prefix="rapier-header-") as tmp:
@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix="rapier-header-") as tmp:
     # cbindgen parses source without expanding custom attributes. Give it a
     # temporary declaration view where our export marker is the standard one.
     # Signatures, docs, types, and feature gates all come from the real source.
-    sources = sorted((ROOT / "c/src").glob("*.rs"))
+    sources = sorted((ROOT / "bindings/c/src").glob("*.rs"))
     for source in sources:
         text = re.sub(EXPORT_ATTRIBUTE, "#[unsafe(no_mangle)]", source.read_text())
         (source_dir / source.name).write_text(text)
@@ -40,7 +40,7 @@ robotics = []
 ''')
     raw = project / "rapier.h"
     subprocess.run([
-        "cbindgen", "--config", str(ROOT / "c/cbindgen.toml"),
+        "cbindgen", "--config", str(ROOT / "bindings/c/cbindgen.toml"),
         "--crate", "rapier-c-header", "--output", str(raw),
     ], cwd=project, check=True)
     text = raw.read_text()

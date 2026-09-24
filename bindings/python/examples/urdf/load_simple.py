@@ -5,7 +5,7 @@ URDF loading is 3D / f32 only.
 
 Run::
 
-    python python/examples/urdf/load_simple.py
+    python bindings/python/examples/urdf/load_simple.py
 """
 
 from __future__ import annotations

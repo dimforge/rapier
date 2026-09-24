@@ -1,7 +1,7 @@
 """Tests for the testbed's minimal OBJ loader (``rapier_testbed._obj``).
 
 Skipped unless the testbed package is installed (it isn't part of the engine
-test flow); install with ``pip install --no-deps -e ./python/rapier-testbed``.
+test flow); install with ``pip install --no-deps -e ./bindings/python/rapier-testbed``.
 """
 import numpy as np
 import pytest

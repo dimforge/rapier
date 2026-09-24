@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 #
 # dev.sh — build, test, document, and run the Rapier Python bindings from a
-# checkout. One entry point for everything in python/README.md.
+# checkout. One entry point for everything in bindings/python/README.md.
 #
 # Usage (run from anywhere; paths are resolved relative to the repo):
-#   python/dev.sh                 # all: build + test + docs + testbed (headless smoke)
-#   python/dev.sh build           # build the rapier3d engine package (editable)
-#   python/dev.sh test            # build, then run the full test suite
-#   python/dev.sh docs            # build, then build the HTML docs
-#   python/dev.sh testbed         # build + install testbed, open the picker
-#   python/dev.sh testbed examples3.domino3   # build + install testbed, run one example
-#   python/dev.sh tour            # build + install testbed, run every example in turn
+#   bindings/python/dev.sh                 # all: build + test + docs + testbed (headless smoke)
+#   bindings/python/dev.sh build           # build the rapier3d engine package (editable)
+#   bindings/python/dev.sh test            # build, then run the full test suite
+#   bindings/python/dev.sh docs            # build, then build the HTML docs
+#   bindings/python/dev.sh testbed         # build + install testbed, open the picker
+#   bindings/python/dev.sh testbed examples3.domino3   # build + install testbed, run one example
+#   bindings/python/dev.sh tour            # build + install testbed, run every example in turn
 #                                 #   (close a window to advance; accepts --start NAME)
-#   python/dev.sh clean           # remove build artifacts + the managed venv
+#   bindings/python/dev.sh clean           # remove build artifacts + the managed venv
 #
 # Environment:
 #   PROFILE=debug        # faster compiles, slower runtime (default: release)
@@ -21,7 +21,7 @@
 #
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 PROFILE="${PROFILE:-release}"
@@ -63,7 +63,7 @@ build_all() {
     pip_install maturin
     for c in "${CRATES[@]}"; do
         log "Building $c ($PROFILE)"
-        maturin_develop "python/$c/Cargo.toml"
+        maturin_develop "bindings/python/$c/Cargo.toml"
     done
     python -c "import rapier3d as _; print('built rapier3d, version', _.__version__)"
 }
@@ -71,14 +71,14 @@ build_all() {
 run_tests() {
     pip_install pytest pytest-timeout hypothesis numpy matplotlib
     log "Running the test suite"
-    python -m pytest python/tests -q --timeout=120
+    python -m pytest bindings/python/tests -q --timeout=120
 }
 
 build_docs() {
     pip_install sphinx furo sphinx-autodoc-typehints
     log "Building the HTML docs"
-    ( cd python/docs && sphinx-build -q -b html . _build/html )
-    note "Docs: $REPO_ROOT/python/docs/_build/html/index.html"
+    ( cd bindings/python/docs && sphinx-build -q -b html . _build/html )
+    note "Docs: $REPO_ROOT/bindings/python/docs/_build/html/index.html"
 }
 
 install_testbed() {
@@ -87,7 +87,7 @@ install_testbed() {
     # picked up by `python -m rapier_testbed` without reinstalling. --no-deps
     # because its rapier3d dep is the local build from build_all.
     # Note: --no-deps must precede -e, else pip reads it as the -e target.
-    pip_install --no-deps -e "$REPO_ROOT/python/rapier-testbed"
+    pip_install --no-deps -e "$REPO_ROOT/bindings/python/rapier-testbed"
 }
 
 # --- commands --------------------------------------------------------------
@@ -113,7 +113,7 @@ cmd_tour() {
     # Extra args (--start NAME) pass through to examples_tour.py.
     ensure_venv; build_all; install_testbed
     log "Touring all examples (close each window to advance; Ctrl-C to stop)"
-    python "$REPO_ROOT/python/examples_tour.py" "$@"
+    python "$REPO_ROOT/bindings/python/examples_tour.py" "$@"
 }
 
 cmd_all() {
@@ -128,7 +128,7 @@ cmd_all() {
     cat <<EOF
 
 $(printf '\033[1;32mAll done.\033[0m')
-  • Docs:     open $REPO_ROOT/python/docs/_build/html/index.html
+  • Docs:     open $REPO_ROOT/bindings/python/docs/_build/html/index.html
   • Testbed:  python -m rapier_testbed                      # interactive picker
               python -m rapier_testbed.examples3.domino3    # one example
   • Activate the venv in new shells:  source ${VENV}/bin/activate
@@ -137,7 +137,7 @@ EOF
 
 cmd_clean() {
     log "Removing build artifacts and managed venv"
-    rm -rf "$VENV" python/docs/_build target/wheels
+    rm -rf "$VENV" bindings/python/docs/_build target/wheels
     find python -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     find python -name '*.abi3.so' -delete 2>/dev/null || true
     note "done (run a 'cargo clean' yourself if you also want to wipe target/)"

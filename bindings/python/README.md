@@ -38,17 +38,17 @@ pip install maturin
 
 ## Quick start
 
-[`python/dev.sh`](dev.sh) does everything below in one command — builds the
+[`bindings/python/dev.sh`](dev.sh) does everything below in one command — builds the
 package, runs the test suite, builds the docs, and smoke-tests the testbed. It
 creates and manages a `.venv` at the repo root on first run:
 
 ```bash
-python/dev.sh                 # build + test + docs + testbed (headless smoke)
-python/dev.sh build           # just build the package
-python/dev.sh test            # build + run the test suite
-python/dev.sh docs            # build + build the docs
-python/dev.sh testbed         # build + install testbed, open the picker
-python/dev.sh --help          # all commands and options (e.g. PROFILE=debug)
+bindings/python/dev.sh                 # build + test + docs + testbed (headless smoke)
+bindings/python/dev.sh build           # just build the package
+bindings/python/dev.sh test            # build + run the test suite
+bindings/python/dev.sh docs            # build + build the docs
+bindings/python/dev.sh testbed         # build + install testbed, open the picker
+bindings/python/dev.sh --help          # all commands and options (e.g. PROFILE=debug)
 ```
 
 The sections below are the manual equivalents.
@@ -59,7 +59,7 @@ Build the package, editable, with `maturin develop` (add `--release` for an
 optimized build — slower to compile, much faster at runtime):
 
 ```bash
-maturin develop -m python/rapier-py-3d/Cargo.toml      # 3D f32 -> import rapier3d
+maturin develop -m bindings/python/rapier-py-3d/Cargo.toml      # 3D f32 -> import rapier3d
 ```
 
 ```bash
@@ -91,9 +91,9 @@ another thread raises `RuntimeError`.
 ### Run the test suite
 
 ```bash
-maturin develop --release -m python/rapier-py-3d/Cargo.toml
+maturin develop --release -m bindings/python/rapier-py-3d/Cargo.toml
 pip install pytest pytest-timeout hypothesis numpy matplotlib
-python -m pytest python/tests
+python -m pytest bindings/python/tests
 ```
 
 ## 2. Build and open the docs
@@ -103,7 +103,7 @@ The docs use Sphinx autodoc, so the engine package must be **built first**
 
 ```bash
 pip install sphinx furo sphinx-autodoc-typehints
-cd python/docs
+cd bindings/python/docs
 sphinx-build -b html . _build/html
 open _build/html/index.html          # macOS; Linux: xdg-open; Windows: start
 ```
@@ -118,12 +118,12 @@ examples ported from the Rust `examples3d/`. It drives the 3D engine.
 The testbed depends on `rapier3d`. To run it against your local build, build
 the package first (step 1 above), then install the testbed with `--no-deps` so
 pip uses your local build instead of fetching the published one.
-Run this **from the repository root** (the `./python/...` path is relative to
+Run this **from the repository root** (the `./bindings/python/...` path is relative to
 it, like the build steps above):
 
 ```bash
 pip install panda3d numpy
-pip install --no-deps -e ./python/rapier-testbed
+pip install --no-deps -e ./bindings/python/rapier-testbed
 ```
 
 The `-e` (editable) install means edits to the testbed — examples, camera, etc.
@@ -152,8 +152,8 @@ To walk through **every** example in turn — each opens in a window, and
 closing it launches the next (Ctrl-C to stop):
 
 ```bash
-python python/examples_tour.py          # every 3D example; accepts --start NAME
-python/dev.sh tour                      # same, but builds + installs the testbed first
+python bindings/python/examples_tour.py          # every 3D example; accepts --start NAME
+bindings/python/dev.sh tour                      # same, but builds + installs the testbed first
 ```
 
 ### Controls (in the viewer window)
@@ -169,7 +169,7 @@ python/dev.sh tour                      # same, but builds + installs the testbe
 The examples span categories such as Collisions, Dynamics, Joints, Controls,
 Robotics, Stress Tests, Debug, and Misc. The picker lists them all; each
 example's module name (for direct launch) matches its file under
-`python/rapier-testbed/rapier_testbed/examples3/`.
+`bindings/python/rapier-testbed/rapier_testbed/examples3/`.
 
 ## License
 

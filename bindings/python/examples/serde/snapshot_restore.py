@@ -4,7 +4,7 @@ Demonstrates ``PhysicsWorld.snapshot() / .restore()``.
 
 Run::
 
-    python python/examples/serde/snapshot_restore.py
+    python bindings/python/examples/serde/snapshot_restore.py
 """
 
 from __future__ import annotations

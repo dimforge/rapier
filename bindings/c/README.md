@@ -9,7 +9,7 @@ the repository root.
 ## Build the library
 
 ```sh
-cmake -S c -B build/c -DCMAKE_BUILD_TYPE=Release
+cmake -S bindings/c -B build/c -DCMAKE_BUILD_TYPE=Release
 cmake --build build/c --config Release --parallel
 ```
 
@@ -59,7 +59,7 @@ layout of the linked library.
 ## Run the testbed
 
 ```sh
-cmake -S c -B build/c3 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_DIMENSION=3 \
+cmake -S bindings/c -B build/c3 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_DIMENSION=3 \
   -DRAPIER_PROFILE=release -DCMAKE_BUILD_TYPE=Release
 cmake --build build/c3 --target rapier_testbed --config Release --parallel
 ./build/c3/testbed/rapier_testbed
@@ -78,7 +78,7 @@ headless runs, and [dependencies](testbed/dependencies.md) for offline builds.
 Generate the searchable API reference and usage guides:
 
 ```sh
-cmake -S c/doxygen -B build/c-docs
+cmake -S bindings/c/doxygen -B build/c-docs
 cmake --build build/c-docs --target rapier_docs --parallel
 ```
 
@@ -100,9 +100,9 @@ ctest --test-dir build/c -C Release --output-on-failure
 ```
 
 The headers are checked in; users do not need to generate them. When changing the
-bindings or API comments in `c/src/`, regenerate the header with:
+bindings or API comments in `bindings/c/src/`, regenerate the header with:
 
 ```sh
 cargo install cbindgen --version 0.29.4 --locked
-python3 c/tools/generate-header.py
+python3 bindings/c/tools/generate-header.py
 ```

@@ -3,7 +3,7 @@ import sys
 
 # Run the testbed headlessly (no window) from its sources in the repository.
 os.environ["PANDA_NO_WINDOW"] = "1"
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../python/rapier-testbed"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../bindings/python/rapier-testbed"))
 
 import rapier3d as rp
 

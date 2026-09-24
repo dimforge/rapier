@@ -24,7 +24,7 @@ fem = ["rapier/fem"]
 
 [dependencies]
 rapier-c-macros = { path = "../rapier-c-macros" }
-rapier = { package = "rapier3d-f64", path = "../../crates/rapier3d-f64", features = ["serde-serialize", "debug-render"] }
+rapier = { package = "rapier3d-f64", path = "../../../crates/rapier3d-f64", features = ["serde-serialize", "debug-render"] }
 bincode.workspace = true
 serde.workspace = true
 

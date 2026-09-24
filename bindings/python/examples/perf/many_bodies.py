@@ -5,7 +5,7 @@ so the script finishes in a few seconds and can be part of CI.
 
 Run::
 
-    python python/examples/perf/many_bodies.py
+    python bindings/python/examples/perf/many_bodies.py
 """
 
 from __future__ import annotations

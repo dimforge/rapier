@@ -10,7 +10,7 @@ packages needed to compile raylib's bundled GLFW. See [dependencies.md](dependen
 From the repository root:
 
 ```sh
-cmake -S c -B build/c3 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_DIMENSION=3 \
+cmake -S bindings/c -B build/c3 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_DIMENSION=3 \
   -DRAPIER_PROFILE=release -DCMAKE_BUILD_TYPE=Release
 cmake --build build/c3 --config Release --parallel
 build/c3/testbed/rapier_testbed --example restitution3
@@ -135,7 +135,7 @@ uses the Rust example's SVG tessellator, so there is no SVG dependency at runtim
 To regenerate it after editing the source logo:
 
 ```sh
-cargo run -p rapier-c-logo-mesh > c/testbed/examples2d/utils/logo_mesh.h
+cargo run -p rapier-c-logo-mesh > bindings/c/testbed/examples2d/utils/logo_mesh.h
 ```
 
 `testbed_interactions` drives the actual C example loops with synthetic input:

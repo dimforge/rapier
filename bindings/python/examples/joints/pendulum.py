@@ -6,7 +6,7 @@ regression-test.
 
 Run::
 
-    python python/examples/joints/pendulum.py
+    python bindings/python/examples/joints/pendulum.py
 """
 
 from __future__ import annotations

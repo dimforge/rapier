@@ -17,6 +17,6 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "@dimforge/rapier3d": "file:../../../../typescript/builds/rapier3d/pkg"
+    "@dimforge/rapier3d": "file:../../../../bindings/typescript/builds/rapier3d/pkg"
   }
 }

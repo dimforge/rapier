@@ -1,5 +1,5 @@
 //! Regenerate examples2d/utils/logo_mesh.h with the Rust demo's exact SVG tessellation.
-#[path = "../../../../../examples2d/utils/svg.rs"]
+#[path = "../../../../../../examples2d/utils/svg.rs"]
 mod svg;
 
 fn main() {

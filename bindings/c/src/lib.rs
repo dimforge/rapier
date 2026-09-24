@@ -1,4 +1,4 @@
-//! C ABI shared by the four Rapier dimensions/precisions. See c/README.md.
+//! C ABI shared by the four Rapier dimensions/precisions. See bindings/c/README.md.
 #![deny(unsafe_op_in_unsafe_fn)]
 #![allow(clippy::missing_safety_doc, clippy::too_many_arguments)]
 use rapier::math::{AngVector, Pose, Real, Rotation, Vector};
