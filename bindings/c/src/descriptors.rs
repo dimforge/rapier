@@ -501,7 +501,7 @@ pub const RPR_MASS_PROPERTIES: u32 = 2;
 pub struct RprColliderDesc {
     /// Non-owning shape description; build/insert consumes its views synchronously.
     pub shape: RprShapeDesc,
-    /// Pose relative to the parent body; world-space for an unparented collider.
+    /// Pose relative to the parent body; world-space for a collider without a parent.
     pub position: RprPose,
     /// RPR_MASS_DENSITY, RPR_MASS_TOTAL, or RPR_MASS_PROPERTIES.
     pub massMode: u32,

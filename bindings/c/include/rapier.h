@@ -2483,7 +2483,7 @@ typedef struct R2ColliderDesc {
    */
   struct R2ShapeDesc shape;
   /**
-   * Pose relative to the parent body; world-space for an unparented collider.
+   * Pose relative to the parent body; world-space for a collider without a parent.
    */
   struct R2Pose position;
   /**
@@ -13385,7 +13385,7 @@ typedef struct R3ColliderDesc {
    */
   struct R3ShapeDesc shape;
   /**
-   * Pose relative to the parent body; world-space for an unparented collider.
+   * Pose relative to the parent body; world-space for a collider without a parent.
    */
   struct R3Pose position;
   /**
