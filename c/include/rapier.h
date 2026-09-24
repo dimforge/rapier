@@ -64,6 +64,23 @@
 
 #if defined(RAPIER_DIM2)
 
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup worlds
+ * Friction model solving one Coulomb friction constraint per group of up to 4 contacts plus a
+ * twist constraint; faster but less accurate (default).
+ */
+#define R2_FRICTION_MODEL_SIMPLIFIED 0
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup worlds
+ * Friction model solving one Coulomb friction constraint per contact point.
+ */
+#define R2_FRICTION_MODEL_COULOMB 1
+#endif
+
 #if defined(RAPIER_DIM2)
 /**
  * @ingroup joints
@@ -139,6 +156,30 @@
  * Soft-body selector: desc volumetric.
  */
 #define R2_SOFT_DESC_VOLUMETRIC 9
+
+#if defined(RAPIER_DIM2)
+/**
+ * @ingroup soft_bodies
+ * Soft-body selector: closed counter-clockwise polygon of particles preserving its area (2D).
+ */
+#define R2_SOFT_DESC_POLYGON 10
+#endif
+
+#if defined(RAPIER_DIM2)
+/**
+ * @ingroup soft_bodies
+ * Soft-body selector: triangle mesh without cells, held by shape matching (2D).
+ */
+#define R2_SOFT_DESC_TRIMESH 11
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup soft_bodies
+ * Soft-body selector: cloth with separate warp, weft and shear softness (3D).
+ */
+#define R2_SOFT_DESC_CLOTH_ANISOTROPIC 12
+#endif
 
 /**
  * @ingroup soft_bodies
@@ -269,6 +310,12 @@
 #define R2_SHAPE_DESC_ROUND_CYLINDER 15
 
 /**
+ * @ingroup shapes
+ * ShapeDesc kind selecting a round cone.
+ */
+#define R2_SHAPE_DESC_ROUND_CONE 16
+
+/**
  * @ingroup colliders
  * Mass density.
  */
@@ -351,6 +398,60 @@
  * Use the larger of the two material coefficients.
  */
 #define R2_COMBINE_MAX 3
+
+/**
+ * @ingroup colliders
+ * Use the sum of the two material coefficients, clamped to [0, 1].
+ */
+#define R2_COMBINE_CLAMPED_SUM 4
+
+/**
+ * @ingroup colliders
+ * Use the geometric mean (square root of the product) of the two material coefficients.
+ */
+#define R2_COMBINE_GEOMETRIC_MEAN 5
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between two dynamic bodies.
+ */
+#define R2_COLLISION_TYPES_DYNAMIC_DYNAMIC 1
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between a dynamic and a kinematic body.
+ */
+#define R2_COLLISION_TYPES_DYNAMIC_KINEMATIC 12
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between a dynamic and a fixed body (or a collider without parent).
+ */
+#define R2_COLLISION_TYPES_DYNAMIC_FIXED 2
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between two kinematic bodies.
+ */
+#define R2_COLLISION_TYPES_KINEMATIC_KINEMATIC 52224
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between a kinematic and a fixed body (or a collider without parent).
+ */
+#define R2_COLLISION_TYPES_KINEMATIC_FIXED 8704
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between two fixed bodies (or colliders without parent).
+ */
+#define R2_COLLISION_TYPES_FIXED_FIXED 32
+
+/**
+ * @ingroup colliders
+ * Default active collision types: dynamic-dynamic, dynamic-kinematic, and dynamic-fixed.
+ */
+#define R2_COLLISION_TYPES_DEFAULT 15
 
 /**
  * @ingroup colliders
@@ -537,6 +638,42 @@
  * Use the finite-element solver; requires RAPIER_FEM.
  */
 #define R2_SOFT_SOLVER_FEM 1
+
+/**
+ * @ingroup soft_bodies
+ * Edge plastic flow (R2SoftBodyMaterial::edgePlasticFlow): both a squeeze and a stretch set.
+ */
+#define R2_SOFT_EDGE_PLASTIC_FLOW_BOTH 0
+
+/**
+ * @ingroup soft_bodies
+ * Edge plastic flow: only a squeeze sets; a stretched edge springs back.
+ */
+#define R2_SOFT_EDGE_PLASTIC_FLOW_COMPRESSION 1
+
+/**
+ * @ingroup soft_bodies
+ * Edge plastic flow: only a stretch sets; a squeezed edge springs back.
+ */
+#define R2_SOFT_EDGE_PLASTIC_FLOW_TENSION 2
+
+/**
+ * @ingroup soft_bodies
+ * Overlap patch constraints (R2SoftRecoverySettings::overlapPatchConstraints): keep them.
+ */
+#define R2_SOFT_PATCH_CONSTRAINTS_KEEP 0
+
+/**
+ * @ingroup soft_bodies
+ * Overlap patch constraints: stand them down inside the patch.
+ */
+#define R2_SOFT_PATCH_CONSTRAINTS_STAND_DOWN 1
+
+/**
+ * @ingroup soft_bodies
+ * Overlap patch constraints: align them with the overlap normal.
+ */
+#define R2_SOFT_PATCH_CONSTRAINTS_ALONG_NORMAL 2
 
 /**
  * @ingroup joints
@@ -750,33 +887,70 @@
 
 /**
  * @ingroup joints
- * Skip joints that would close a loop in the articulation.
+ * Do not insert MJCF equality constraints (loop closures) as impulse joints. MJCF only: URDF
+ * insertion rejects it.
  */
 #define R2_MULTIBODY_SKIP_LOOP_CLOSURES 4
 
 /**
  * @ingroup joints
- * Do not import joint motors into the articulation.
+ * Do not import joint motors into the articulation. MJCF only: URDF insertion rejects it.
  */
 #define R2_MULTIBODY_SKIP_JOINT_MOTORS 8
 
 /**
  * @ingroup joints
- * Do not import joint limits into the articulation.
+ * Do not import joint limits into the articulation. MJCF only: URDF insertion rejects it.
  */
 #define R2_MULTIBODY_SKIP_JOINT_LIMITS 16
 
 /**
  * @ingroup joints
- * Do not import joint springs into the articulation.
+ * Do not import joint springs into the articulation. MJCF only: URDF insertion rejects it.
  */
 #define R2_MULTIBODY_SKIP_JOINT_SPRINGS 32
+
+/**
+ * @ingroup shapes
+ * Compute the half-edge topology of the triangle mesh.
+ */
+#define R2_TRIMESH_HALF_EDGE_TOPOLOGY 1
+
+/**
+ * @ingroup shapes
+ * Compute the connected components of the triangle mesh.
+ */
+#define R2_TRIMESH_CONNECTED_COMPONENTS 2
+
+/**
+ * @ingroup shapes
+ * Delete the triangles breaking the half-edge topology.
+ */
+#define R2_TRIMESH_DELETE_BAD_TOPOLOGY_TRIANGLES 4
+
+/**
+ * @ingroup shapes
+ * Treat the triangle mesh as oriented (outward normals) and compute its pseudo-normals.
+ */
+#define R2_TRIMESH_ORIENTED 8
 
 /**
  * @ingroup shapes
  * Merge triangle-mesh vertices with identical positions.
  */
 #define R2_TRIMESH_MERGE_DUPLICATE_VERTICES 16
+
+/**
+ * @ingroup shapes
+ * Delete the triangles with a zero area.
+ */
+#define R2_TRIMESH_DELETE_DEGENERATE_TRIANGLES 32
+
+/**
+ * @ingroup shapes
+ * Delete the triangles sharing their three vertices with another triangle.
+ */
+#define R2_TRIMESH_DELETE_DUPLICATE_TRIANGLES 64
 
 /**
  * @ingroup shapes
@@ -803,6 +977,144 @@
 #define R2_HEIGHTFIELD_FIX_INTERNAL_EDGES 1
 
 /**
+ * @ingroup controllers
+ * Controller axis bit: translation along X.
+ */
+#define R2_AXES_MASK_LIN_X 1
+
+/**
+ * @ingroup controllers
+ * Controller axis bit: translation along Y.
+ */
+#define R2_AXES_MASK_LIN_Y 2
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup controllers
+ * Controller axis bit: translation along Z.
+ */
+#define R2_AXES_MASK_LIN_Z 4
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup controllers
+ * Controller axis bit: rotation about X.
+ */
+#define R2_AXES_MASK_ANG_X 8
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup controllers
+ * Controller axis bit: rotation about Y.
+ */
+#define R2_AXES_MASK_ANG_Y 16
+#endif
+
+/**
+ * @ingroup controllers
+ * Controller axis bit: rotation about Z (the only rotation axis in 2D).
+ */
+#define R2_AXES_MASK_ANG_Z 32
+
+/**
+ * @ingroup errors
+ * ABI feature bit: RAPIER_FEM, which changes the layout of R2IntegrationParameters.
+ */
+#define R2_ABI_FEATURE_FEM 1
+
+/**
+ * @ingroup errors
+ * ABI feature bit: RAPIER_ROBOTICS (3D, f32 only), which declares the URDF/MJCF API.
+ */
+#define R2_ABI_FEATURE_ROBOTICS 2
+
+#if (defined(RAPIER_FEM) && defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup errors
+ * R2_ABI_FEATURE_* bits selected by the defines of this header; pass it to CheckAbi.
+ */
+#define R2_ABI_FEATURES 3
+#endif
+
+#if (defined(RAPIER_FEM) && !(defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32)))
+/**
+ * @ingroup errors
+ * R2_ABI_FEATURE_* bits selected by the defines of this header; pass it to CheckAbi.
+ */
+#define R2_ABI_FEATURES 1
+#endif
+
+#if (!defined(RAPIER_FEM) && defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup errors
+ * R2_ABI_FEATURE_* bits selected by the defines of this header; pass it to CheckAbi.
+ */
+#define R2_ABI_FEATURES 2
+#endif
+
+#if (!defined(RAPIER_FEM) && !(defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32)))
+/**
+ * @ingroup errors
+ * R2_ABI_FEATURE_* bits selected by the defines of this header; pass it to CheckAbi.
+ */
+#define R2_ABI_FEATURES 0
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Load each mesh as a triangle mesh, with the given trimesh flags.
+ */
+#define R2_MESH_CONVERTER_TRIMESH 0
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Replace each mesh by its oriented bounding box.
+ */
+#define R2_MESH_CONVERTER_OBB 1
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Replace each mesh by its axis-aligned bounding box.
+ */
+#define R2_MESH_CONVERTER_AABB 2
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Replace each mesh by its convex hull.
+ */
+#define R2_MESH_CONVERTER_CONVEX_HULL 3
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Replace each mesh by its convex decomposition.
+ */
+#define R2_MESH_CONVERTER_CONVEX_DECOMPOSITION 4
+#endif
+
+/**
+ * @ingroup events
+ * Collision event flag: at least one of the colliders was a sensor when the event fired.
+ */
+#define R2_COLLISION_EVENT_SENSOR 1
+
+/**
+ * @ingroup events
+ * Collision event flag: the collision stopped because at least one collider was removed.
+ */
+#define R2_COLLISION_EVENT_REMOVED 2
+
+/**
  * Immutable owned byte buffer. Release with the matching FreeBytes function.
  * @ingroup worlds
  */
@@ -810,7 +1122,7 @@ typedef struct R2Bytes R2Bytes;
 
 /**
  * Borrowed native contact context. Valid only during its callback; never retain or free it.
- * @ingroup events
+ * @ingroup callbacks
  */
 typedef struct R2ContactModificationContext R2ContactModificationContext;
 
@@ -823,8 +1135,9 @@ typedef struct R2DynamicRayCastVehicleController R2DynamicRayCastVehicleControll
 #endif
 
 /**
- * Events accumulate until clear. Copying events never drains them, allowing two-call buffer
- * sizing.
+ * Events accumulate across steps until r2EventCollector_Clear: reading them never drains the
+ * collector, allowing two-call buffer sizing. Optional callbacks also see each event during the
+ * step.
  * @ingroup events
  */
 typedef struct R2EventCollector R2EventCollector;
@@ -836,6 +1149,24 @@ typedef struct R2EventCollector R2EventCollector;
  * @ingroup controllers
  */
 typedef struct R2KinematicCharacterController R2KinematicCharacterController;
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Shapes loaded from a mesh file (STL, COLLADA or Wavefront OBJ), one per mesh of the file.
+ * Release with the matching Free function.
+ * @ingroup robotics
+ */
+typedef struct R2LoadedMeshes R2LoadedMeshes;
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Owned physics hooks applying the `<contact>` rules (excluded pairs, pair friction) of an
+ * inserted MJCF robot. Release with the matching Free function.
+ * @ingroup robotics
+ */
+typedef struct R2MjcfContactHooks R2MjcfContactHooks;
+#endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
 /**
@@ -1045,7 +1376,7 @@ typedef struct R2SoftBodyMaterial {
    */
   R2Real edgePlasticMax;
   /**
-   * Plastic flow direction: 0 both, 1 compression only, 2 tension only.
+   * Plastic flow direction: R2_SOFT_EDGE_PLASTIC_FLOW_BOTH, _COMPRESSION or _TENSION.
    */
   uint32_t edgePlasticFlow;
   /**
@@ -1152,8 +1483,8 @@ typedef struct R2SoftRecoverySettings {
    */
   R2Real overlapConstraintPace;
   /**
-   * Per-point constraints inside overlap patches: 0 keep, 1 stand down, 2 align with overlap
-   * normal.
+   * Per-point constraints inside overlap patches: R2_SOFT_PATCH_CONSTRAINTS_KEEP, _STAND_DOWN or
+   * _ALONG_NORMAL.
    */
   uint32_t overlapPatchConstraints;
   /**
@@ -1294,7 +1625,7 @@ typedef struct R2IntegrationParameters {
    */
   size_t numSolverIterations;
   /**
-   * PGS iterations per solver substep.
+   * PGS iterations per solver substep; must be positive.
    */
   size_t numInternalPgsIterations;
   /**
@@ -1327,7 +1658,7 @@ typedef struct R2IntegrationParameters {
   R2Bool warmstartJoints;
 #if defined(RAPIER_DIM3)
   /**
-   * Friction model: 0 simplified, 1 Coulomb (3D only).
+   * Friction model of rigid-body contacts, R2_FRICTION_MODEL_* (3D only).
    */
   uint32_t frictionModel;
 #endif
@@ -1933,6 +2264,23 @@ typedef struct R2DihedralView {
 } R2DihedralView;
 
 /**
+ * Borrowed array of soft-body descriptions. count counts descriptions.
+ * Data must remain live through the build/insert call that reads the description.
+ * NULL is permitted only when count is zero.
+ * @ingroup soft_bodies
+ */
+typedef struct R2SoftBodyDescView {
+  /**
+   * Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
+   */
+  const struct R2SoftBodyDesc *data;
+  /**
+   * Number of elements, not bytes unless the element type is a byte.
+   */
+  size_t count;
+} R2SoftBodyDescView;
+
+/**
  * Optional boolean override. When disabled, retain the recipe's native default.
  * @ingroup math
  */
@@ -2003,7 +2351,7 @@ typedef struct R2ShapeDesc {
    */
   R2Real halfHeight;
   /**
-   * Rounding radius for a rounded shape.
+   * Rounding radius of a round cylinder or round cone (the round cuboid reads radius instead).
    */
   R2Real borderRadius;
   /**
@@ -2163,11 +2511,11 @@ typedef struct R2ColliderDesc {
    */
   R2Real restitution;
   /**
-   * R2_COMBINE_AVERAGE, MIN, MULTIPLY, or MAX.
+   * R2_COMBINE_AVERAGE, MIN, MULTIPLY, MAX, CLAMPED_SUM, or GEOMETRIC_MEAN.
    */
   uint32_t frictionCombineRule;
   /**
-   * R2_COMBINE_AVERAGE, MIN, MULTIPLY, or MAX.
+   * R2_COMBINE_AVERAGE, MIN, MULTIPLY, MAX, CLAMPED_SUM, or GEOMETRIC_MEAN.
    */
   uint32_t restitutionCombineRule;
   /**
@@ -2218,6 +2566,8 @@ typedef struct R2ColliderDesc {
  * for topology arrays are element counts (edges, triangles, or tetrahedra).
  * Nonempty topology overrides the generator's topology. Zero counts retain it.
  * Generator inputs: a/b are rope ends or center/half-extents; cloth uses a/du/dv.
+ * R2_SOFT_DESC_POLYGON reads positions; R2_SOFT_DESC_TRIMESH reads positions and cells (its
+ * triangles become edges and a boundary, not cells).
  * @ingroup soft_bodies
  */
 typedef struct R2SoftBodyDesc {
@@ -2241,6 +2591,24 @@ typedef struct R2SoftBodyDesc {
    * Cloth basis step along its second parameter axis.
    */
   struct R2Vector dv;
+#if defined(RAPIER_DIM3)
+  /**
+   * Softness of the anisotropic cloth edges along du (warp).
+   */
+  struct R2SpringCoefficients warpSoftness;
+#endif
+#if defined(RAPIER_DIM3)
+  /**
+   * Softness of the anisotropic cloth edges along dv (weft).
+   */
+  struct R2SpringCoefficients weftSoftness;
+#endif
+#if defined(RAPIER_DIM3)
+  /**
+   * Softness of the anisotropic cloth diagonal edges (shear).
+   */
+  struct R2SpringCoefficients shearSoftness;
+#endif
   /**
    * First recipe resolution; interpretation depends on kind.
    */
@@ -2334,6 +2702,18 @@ typedef struct R2SoftBodyDesc {
    */
   R2SurfaceElementView skinIndices;
   /**
+   * Borrowed descriptions merged into this body, their particles numbered after this one's in
+   * order. Each contributes its particles, masses, pinned particles and elements (after its own
+   * translation and total mass); every other setting comes from this description. Appended
+   * descriptions cannot append others nor have a skin.
+   */
+  struct R2SoftBodyDescView appended;
+  /**
+   * Borrowed structural edges added after appending (seams); indices count this body's particles
+   * then the appended ones. Their rest length is the current distance of their particles.
+   */
+  struct R2EdgeView addedEdges;
+  /**
    * Soft-body material coefficients.
    */
   struct R2SoftBodyMaterial material;
@@ -2365,6 +2745,11 @@ typedef struct R2SoftBodyDesc {
    * Optional shape-matching override; disabled retains recipe defaults.
    */
   struct R2OptionalBool shapeMatching;
+  /**
+   * Optional override of the ORIENTED flag of the generated collision surface (when disabled, a
+   * closed surface is oriented). Set it to false for a shell whose inner side holds bodies.
+   */
+  struct R2OptionalBool oriented;
   /**
    * Whether self-collision is enabled.
    */
@@ -2841,7 +3226,8 @@ typedef struct R2PodLayout {
  */
 typedef struct R2CharacterLength {
   /**
-   * Value used when enabled is 1.
+   * Nonnegative length: a fraction of the character shape height when relative is 1, a
+   * world-space length otherwise.
    */
   R2Real value;
   /**
@@ -2849,6 +3235,29 @@ typedef struct R2CharacterLength {
    */
   R2Bool relative;
 } R2CharacterLength;
+
+/**
+ * Copy of the automatic stepping settings.
+ * @ingroup controllers
+ */
+typedef struct R2CharacterAutostep {
+  /**
+   * Whether automatic stepping is enabled.
+   */
+  R2Bool enabled;
+  /**
+   * Maximum height of the steps climbed automatically.
+   */
+  struct R2CharacterLength max_height;
+  /**
+   * Minimum free width required on top of a step.
+   */
+  struct R2CharacterLength min_width;
+  /**
+   * Whether the character can also step over dynamic bodies.
+   */
+  R2Bool include_dynamic_bodies;
+} R2CharacterAutostep;
 
 /**
  * Allowed character motion and ground-contact state.
@@ -2926,6 +3335,34 @@ typedef struct R2PidGains {
    */
   R2AngVector ang_kd;
 } R2PidGains;
+
+/**
+ * Stateless proportional-derivative controller: a PID controller without integral term, stored as
+ * a plain value. Initialize with r2DefaultPdController.
+ * @ingroup controllers
+ */
+typedef struct R2PdController {
+  /**
+   * Linear proportional gain per axis.
+   */
+  struct R2Vector lin_kp;
+  /**
+   * Linear derivative gain per axis.
+   */
+  struct R2Vector lin_kd;
+  /**
+   * Angular proportional gain per axis.
+   */
+  R2AngVector ang_kp;
+  /**
+   * Angular derivative gain per axis.
+   */
+  R2AngVector ang_kd;
+  /**
+   * Controlled axes, a combination of R2_AXES_MASK_* bits.
+   */
+  uint32_t axes;
+} R2PdController;
 
 /**
  * Linear and angular velocity correction computed by a controller.
@@ -3146,7 +3583,7 @@ typedef struct R2CollisionEvent {
    */
   R2Bool started;
   /**
-   * Event flags: bit 0 sensor pair, bit 1 removed collider.
+   * Bitmask of R2_COLLISION_EVENT_SENSOR and R2_COLLISION_EVENT_REMOVED.
    */
   uint32_t flags;
 } R2CollisionEvent;
@@ -3181,7 +3618,8 @@ typedef struct R2ContactForceEvent {
    */
   R2Real max_force_magnitude;
   /**
-   * 1 for a starting event, 0 for a stopping event.
+   * 1 for the first step the total force magnitude exceeds the threshold, 0 on the following
+   * steps while it stays above it. No event is emitted when the force drops below it.
    */
   R2Bool started;
 } R2ContactForceEvent;
@@ -3190,7 +3628,7 @@ typedef struct R2ContactForceEvent {
  * Pair callback: -1 rejects a contact pair; 0 detects contacts without impulses; 1 computes
  * impulses.
  * For sensor intersections only, zero rejects and any positive value accepts.
- * @ingroup math
+ * @ingroup callbacks
  */
 typedef int32_t (RAPIER_CALL *R2PairFilter)(void *user_data,
                                  const struct R2ReadContext *read,
@@ -3306,7 +3744,7 @@ typedef struct R2DebugLine {
    */
   struct R2Vector b;
   /**
-   * RGBA color, four floats.
+   * HSLA color: hue in degrees, then saturation, lightness and alpha in [0, 1].
    */
   float color[4];
 } R2DebugLine;
@@ -3431,6 +3869,11 @@ typedef struct R2BuildFeatures {
    * Whether this library exposes Rapier's parallel execution and thread-pool APIs.
    */
   R2Bool parallel;
+  /**
+   * Whether the library is built with enhanced-determinism: the simulation, and the math
+   * functions such as r2Sin, give bit-identical results on every platform.
+   */
+  R2Bool enhanced_determinism;
 } R2BuildFeatures;
 
 /**
@@ -3470,7 +3913,7 @@ typedef struct R2ContactPair {
 
 /**
  * Sensor intersection state for a collider pair.
- * @ingroup math
+ * @ingroup events
  */
 typedef struct R2IntersectionPair {
   /**
@@ -3516,6 +3959,18 @@ typedef struct R2ContactPoint {
    * Normal impulse applied at this contact.
    */
   R2Real impulse;
+#if defined(RAPIER_DIM2)
+  /**
+   * Friction impulse along the tangent basis of the contact.
+   */
+  R2Real tangent_impulse[1];
+#endif
+#if defined(RAPIER_DIM3)
+  /**
+   * Friction impulses along the two tangent basis vectors of the contact.
+   */
+  R2Real tangent_impulse[2];
+#endif
 } R2ContactPoint;
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -3820,6 +4275,335 @@ typedef struct R2VoxelQuery {
    */
   R2Bool found;
 } R2VoxelQuery;
+
+/**
+ * Impulses applied by an impulse joint during the last step, along the axes of its joint frame.
+ * @ingroup joints
+ */
+typedef struct R2JointImpulses {
+  /**
+   * Impulse applied along the locked translational axes.
+   */
+  struct R2Vector linear;
+  /**
+   * Angular impulse applied along the locked rotational axes (a scalar in 2D).
+   */
+  R2AngVector angular;
+  /**
+   * Impulse applied by the limit of each axis, in translation-then-rotation order.
+   */
+  R2Real limits[R2_JOINT_DOF_COUNT];
+  /**
+   * Impulse applied by the motor of each axis, in translation-then-rotation order.
+   */
+  R2Real motors[R2_JOINT_DOF_COUNT];
+} R2JointImpulses;
+
+/**
+ * Optional shape-cast result. A miss is found = 0 with status OK.
+ * @ingroup queries
+ */
+typedef struct R2OptionalShapeCastHit {
+  /**
+   * Shape-cast impact details.
+   */
+  struct R2ShapeCastHit hit;
+  /**
+   * Whether a result exists; other result fields are meaningful only when this is 1.
+   */
+  R2Bool found;
+} R2OptionalShapeCastHit;
+
+/**
+ * Optional point projection. A miss is found = 0 with status OK.
+ * @ingroup queries
+ */
+typedef struct R2OptionalPointProjection {
+  /**
+   * Closest projection details.
+   */
+  struct R2PointProjection projection;
+  /**
+   * Whether a result exists; other result fields are meaningful only when this is 1.
+   */
+  R2Bool found;
+} R2OptionalPointProjection;
+
+/**
+ * Rigid motion with constant linear and angular velocities. At time t, the shape at start is
+ * rotated by angvel * t around its local_center point, then translated by linvel * t.
+ * @ingroup queries
+ */
+typedef struct R2NonlinearRigidMotion {
+  /**
+   * World-space pose at time zero.
+   */
+  struct R2Pose start;
+  /**
+   * Rotation center, in the local coordinates of the moving shape.
+   */
+  struct R2Vector local_center;
+  /**
+   * World-space linear velocity.
+   */
+  struct R2Vector linvel;
+  /**
+   * World-space angular velocity, in radians per second.
+   */
+  R2AngVector angvel;
+} R2NonlinearRigidMotion;
+
+/**
+ * Optional contact pair; check found before reading the pair.
+ * @ingroup events
+ */
+typedef struct R2OptionalContactPair {
+  /**
+   * Contact pair summary.
+   */
+  struct R2ContactPair pair;
+  /**
+   * Whether a result exists; other result fields are meaningful only when this is 1.
+   */
+  R2Bool found;
+} R2OptionalContactPair;
+
+/**
+ * Optional intersection pair; check found before reading the pair.
+ * @ingroup events
+ */
+typedef struct R2OptionalIntersectionPair {
+  /**
+   * Intersection pair state.
+   */
+  struct R2IntersectionPair pair;
+  /**
+   * Whether a result exists; other result fields are meaningful only when this is 1.
+   */
+  R2Bool found;
+} R2OptionalIntersectionPair;
+
+/**
+ * Geometric contact manifold of a contact pair: contacts sharing one normal. Local data follow the
+ * pair's own collider1/collider2 order (see r2ContactPair).
+ * @ingroup events
+ */
+typedef struct R2ContactManifold {
+  /**
+   * Contact normal in collider 1 local coordinates, pointing outward from it.
+   */
+  struct R2Vector local_n1;
+  /**
+   * Contact normal in collider 2 local coordinates, pointing outward from it.
+   */
+  struct R2Vector local_n2;
+  /**
+   * World-space contact normal, pointing from collider 1 toward collider 2.
+   */
+  struct R2Vector normal;
+  /**
+   * Index of the subshape of collider 1 (for composite shapes), zero otherwise.
+   */
+  uint32_t subshape1;
+  /**
+   * Index of the subshape of collider 2 (for composite shapes), zero otherwise.
+   */
+  uint32_t subshape2;
+  /**
+   * Number of geometric contact points; see r2ContactPoints.
+   */
+  size_t num_points;
+  /**
+   * Number of solver contacts; see r2SolverContacts.
+   */
+  size_t num_solver_contacts;
+  /**
+   * Application data, persistent across steps and editable by contact-modification hooks.
+   */
+  uint32_t user_data;
+} R2ContactManifold;
+
+/**
+ * Contact seen by the constraint solver. Points are world-space, on each body's surface.
+ * @ingroup events
+ */
+typedef struct R2SolverContact {
+  /**
+   * World-space contact point on collider 1's body.
+   */
+  struct R2Vector point1;
+  /**
+   * World-space contact point on collider 2's body.
+   */
+  struct R2Vector point2;
+  /**
+   * Signed separation along the normal, contact skins deducted; negative means penetration.
+   */
+  R2Real distance;
+  /**
+   * Desired world-space tangent relative velocity, e.g. for conveyor belts; zero by default.
+   */
+  struct R2Vector tangent_velocity;
+} R2SolverContact;
+
+/**
+ * Called during the step for each collision event, after it was added to the collector. contacts
+ * holds the geometric contacts of the pair at that time (none for sensors), in the event's
+ * collider order; it is borrowed for this call only.
+ * @ingroup events
+ */
+typedef void (RAPIER_CALL *R2CollisionEventCallback)(void *user_data,
+                                          const struct R2ReadContext *read,
+                                          const struct R2CollisionEvent *event,
+                                          const struct R2ContactPoint *contacts,
+                                          size_t contact_count);
+
+/**
+ * Called during the step for each contact-force event, after it was added to the collector.
+ * @ingroup events
+ */
+typedef void (RAPIER_CALL *R2ContactForceEventCallback)(void *user_data,
+                                             const struct R2ReadContext *read,
+                                             const struct R2ContactForceEvent *event);
+
+/**
+ * Callbacks invoked while stepping, in addition to collecting the events. They follow the
+ * R2PhysicsHooks rules: never unwind or retain arguments, read through the ReadContext, never
+ * mutate the world, and be safe for concurrent invocation in parallel builds. NULL callbacks are
+ * skipped.
+ * @ingroup events
+ */
+typedef struct R2EventCallbacks {
+  /**
+   * Application data; Rapier does not own pointers encoded in it.
+   */
+  void *user_data;
+  /**
+   * Optional collision start/stop callback.
+   */
+  R2CollisionEventCallback collision_event;
+  /**
+   * Optional contact-force callback.
+   */
+  R2ContactForceEventCallback contact_force_event;
+} R2EventCallbacks;
+
+/**
+ * Debug-render colors and sizes. Colors are HSLA: hue in degrees, then saturation, lightness and
+ * alpha in [0, 1]; multipliers scale each component. Initialize with
+ * r2DefaultDebugRenderStyle.
+ * @ingroup events
+ */
+typedef struct R2DebugRenderStyle {
+  /**
+   * Positive number of subdivisions approximating curved shapes.
+   */
+  uint32_t subdivisions;
+  /**
+   * Positive number of subdivisions approximating the borders of round shapes.
+   */
+  uint32_t border_subdivisions;
+  /**
+   * Color of colliders attached to dynamic bodies.
+   */
+  float collider_dynamic_color[4];
+  /**
+   * Color of colliders attached to fixed bodies.
+   */
+  float collider_fixed_color[4];
+  /**
+   * Color of colliders attached to kinematic bodies.
+   */
+  float collider_kinematic_color[4];
+  /**
+   * Color of colliders without a parent body.
+   */
+  float collider_parentless_color[4];
+  /**
+   * Color of the lines from a body's center of mass to its impulse-joint anchors.
+   */
+  float impulse_joint_anchor_color[4];
+  /**
+   * Color of the line between the two anchors of an impulse joint.
+   */
+  float impulse_joint_separation_color[4];
+  /**
+   * Color of the lines from a body's center of mass to its multibody-joint anchors.
+   */
+  float multibody_joint_anchor_color[4];
+  /**
+   * Color of the line between the two anchors of a multibody joint.
+   */
+  float multibody_joint_separation_color[4];
+  /**
+   * Color multiplier for entities of sleeping bodies.
+   */
+  float sleep_color_multiplier[4];
+  /**
+   * Color multiplier for entities of awake bodies eligible for sleep.
+   */
+  float sleep_eligible_color_multiplier[4];
+  /**
+   * Color multiplier for entities of disabled bodies.
+   */
+  float disabled_color_multiplier[4];
+  /**
+   * Nonnegative length of the rendered body axes.
+   */
+  R2Real rigid_body_axes_length;
+  /**
+   * Color of the segments joining the two points of a contact.
+   */
+  float contact_depth_color[4];
+  /**
+   * Color of the contact normals.
+   */
+  float contact_normal_color[4];
+  /**
+   * Nonnegative length of the contact normals.
+   */
+  R2Real contact_normal_length;
+  /**
+   * Color of soft-body elements.
+   */
+  float soft_body_element_color[4];
+  /**
+   * Color of unloaded soft-body elements when coloring them by load.
+   */
+  float soft_body_slack_color[4];
+  /**
+   * Color of soft-body elements at their tear threshold when coloring them by load.
+   */
+  float soft_body_loaded_color[4];
+  /**
+   * Color of the soft-body cluster frames.
+   */
+  float soft_body_frame_color[4];
+  /**
+   * Color of the collider bounding boxes.
+   */
+  float collider_aabb_color[4];
+  /**
+   * Color of the vertex pseudo-normals of triangle meshes and polylines.
+   */
+  float vertex_pseudo_normal_color[4];
+  /**
+   * Color of the edge pseudo-normals of triangle meshes (3D only).
+   */
+  float edge_pseudo_normal_color[4];
+  /**
+   * Nonnegative length of the pseudo-normals.
+   */
+  R2Real pseudo_normal_length;
+  /**
+   * Color of the normals of soft-body volume contacts.
+   */
+  float volume_contact_normal_color[4];
+  /**
+   * Color of the volume gradients drawn at the particles of a volume constraint.
+   */
+  float volume_gradient_color[4];
+} R2DebugRenderStyle;
 
 /**
  * @ingroup errors
@@ -4325,6 +5109,44 @@ R2Status RAPIER_CALL r2KinematicCharacterController_SetSnapToGround(struct R2Kin
                                                                 struct R2CharacterLength distance);
 
 /**
+ * Return the normalized up direction.
+ * @ingroup controllers
+ */
+RAPIER_API
+struct R2Vector RAPIER_CALL r2KinematicCharacterController_Up(const struct R2KinematicCharacterController *controller);
+
+/**
+ * Return the collision separation margin.
+ * @ingroup controllers
+ */
+RAPIER_API
+struct R2CharacterLength RAPIER_CALL r2KinematicCharacterController_Offset(const struct R2KinematicCharacterController *controller);
+
+/**
+ * Return the automatic stepping settings. When disabled, enabled is 0 and the other fields hold
+ * Rapier's defaults.
+ * @ingroup controllers
+ */
+RAPIER_API
+struct R2CharacterAutostep RAPIER_CALL r2KinematicCharacterController_Autostep(const struct R2KinematicCharacterController *controller);
+
+/**
+ * Set the small distance by which sliding motion is pushed along hit normals to avoid getting stuck;
+ * it must be finite and nonnegative. Large values cause bumps when sliding on flat ground.
+ * @ingroup controllers
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2KinematicCharacterController_SetNormalNudgeFactor(struct R2KinematicCharacterController *controller,
+                                                                     R2Real value);
+
+/**
+ * Return the normal nudge factor set by SetNormalNudgeFactor.
+ * @ingroup controllers
+ */
+RAPIER_API
+R2Real RAPIER_CALL r2KinematicCharacterController_NormalNudgeFactor(const struct R2KinematicCharacterController *controller);
+
+/**
  * Computes movement without moving any collider. Use the returned translation to set the character
  * target.
  * NULL query options use the default filter. Query state reflects the latest Step or
@@ -4351,8 +5173,10 @@ size_t RAPIER_CALL r2KinematicCharacterController_Collisions(const struct R2Kine
                                                      size_t capacity);
 
 /**
- * Applies impulses for the most recent move_shape collisions. Use the same world, shape, dt and
- * filter.
+ * Applies impulses to the dynamic bodies hit by the most recent MoveShape call. Use the same
+ * shape, dt and query options as that call; NULL options use the default filter.
+ * Unlike MoveShape, the options' predicate is called once per collider of the world before the
+ * impulses are applied, while the world is locked for writing: it may only use Read* functions.
  * @ingroup controllers
  */
 RAPIER_API
@@ -4360,11 +5184,11 @@ R2Status RAPIER_CALL r2KinematicCharacterController_SolveCharacterCollisionImpul
                                                                                 const R2SharedShape *shape,
                                                                                 R2Real dt,
                                                                                 R2Real mass,
-                                                                                const struct R2QueryFilter *filter);
+                                                                                const struct R2QueryOptions *options);
 
 /**
- * Allocate a PID controller with supplied gains and controlled axes. Release with
- * r2FreePidController.
+ * Allocate a PID controller with Rapier's defaults: kp = 60, ki = 1 and kd = 0.8 on every axis, all
+ * axes controlled, and zero integrals. Release with r2FreePidController.
  * @ingroup controllers
  */
 RAPIER_API struct R2PidController *RAPIER_CALL r2NewPidController(void);
@@ -4391,12 +5215,44 @@ R2Status RAPIER_CALL r2PidController_SetGains(struct R2PidController *controller
                                        struct R2PidGains gains);
 
 /**
- * AxesMask bits match Rapier: linear X/Y/Z are 1/2/4, angular X/Y/Z are 8/16/32.
+ * Set the controlled axes, a combination of R2_AXES_MASK_* bits. Gains are unchanged; unknown
+ * bits are rejected.
  * @ingroup controllers
  */
 RAPIER_API
 R2Status RAPIER_CALL r2PidController_SetAxes(struct R2PidController *controller,
                                       uint32_t axes);
+
+/**
+ * Return the controlled axes as R2_AXES_MASK_* bits.
+ * @ingroup controllers
+ */
+RAPIER_API uint32_t RAPIER_CALL r2PidController_Axes(const struct R2PidController *controller);
+
+/**
+ * Reset to zero the linear and angular errors accumulated by the integral term.
+ * @ingroup controllers
+ */
+RAPIER_API R2Status RAPIER_CALL r2PidController_ResetIntegrals(struct R2PidController *controller);
+
+/**
+ * Return Rapier's default PD controller: kp = 60 and kd = 0.8 on every axis, all axes controlled.
+ * This POD value owns no resources.
+ * @ingroup controllers
+ */
+RAPIER_API struct R2PdController RAPIER_CALL r2DefaultPdController(void);
+
+/**
+ * Compute the velocity change bringing the body toward the target pose and velocities. Neither the
+ * body nor the controller is modified.
+ * @ingroup controllers
+ */
+RAPIER_API
+struct R2VelocityCorrection RAPIER_CALL r2PdController_RigidBodyCorrection(const struct R2PdController *controller,
+                                                                     struct R2RigidBodyHandle body,
+                                                                     struct R2Pose target_pose,
+                                                                     struct R2Vector target_linvel,
+                                                                     R2AngVector target_angvel);
 
 /**
  * Compute a velocity correction, preserving the body's state and updating PID integrals.
@@ -4488,12 +5344,16 @@ R2Status RAPIER_CALL r2DynamicRayCastVehicleController_SetWheelControls(struct R
 #if defined(RAPIER_DIM3)
 /**
  * Ray-cast wheel contacts and apply vehicle forces for dt seconds. Does not step the world.
+ * NULL options use the default filter. The chassis colliders are always excluded, in addition
+ * to the filter's own exclusions. The options' predicate is called once per collider of the
+ * world before the update, while the world is locked for writing: it may only use Read*
+ * functions.
  * @ingroup controllers
  */
 RAPIER_API
 R2Status RAPIER_CALL r2DynamicRayCastVehicleController_UpdateVehicle(struct R2DynamicRayCastVehicleController *controller,
                                                                  R2Real dt,
-                                                                 const struct R2QueryFilter *filter);
+                                                                 const struct R2QueryOptions *options);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -4691,7 +5551,9 @@ RAPIER_API struct R2JointBodies RAPIER_CALL r2ImpulseJoint_Bodies(struct R2Impul
 RAPIER_API struct R2InverseKinematicsOptions RAPIER_CALL r2DefaultInverseKinematicsOptions(void);
 
 /**
- * Return the articulation degrees of freedom associated with the joint.
+ * Return the degrees of freedom of the whole multibody containing the joint (not of the joint
+ * alone), including the free root of a dynamic multibody. After inserting a joint, the root's
+ * contribution is only updated by the next step.
  * @ingroup joints
  */
 RAPIER_API size_t RAPIER_CALL r2MultibodyJoint_Ndofs(struct R2MultibodyJointHandle handle);
@@ -4801,12 +5663,14 @@ RAPIER_API R2Bool RAPIER_CALL r2SoftBody_Contains(struct R2SoftBodyHandle handle
 
 /**
  * Remove a body and its joints, optionally keeping colliders as standalone objects.
- * Returns whether a body was removed; a stale handle returns false without error.
+ * A removed or stale handle fails with R2_INVALID_HANDLE, like the other Remove functions.
+ * Removing a soft-body cluster proxy removes its cluster (see r2SoftBody_RemoveCluster). The
+ * root body of a soft body is rejected: remove the soft body with r2RemoveSoftBody.
  * @ingroup rigid_bodies
  */
 RAPIER_API
-R2Bool RAPIER_CALL r2RemoveRigidBody(struct R2RigidBodyHandle handle,
-                              R2Bool remove_attached_colliders);
+R2Status RAPIER_CALL r2RemoveRigidBody(struct R2RigidBodyHandle handle,
+                                R2Bool remove_attached_colliders);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::dt.
@@ -4949,14 +5813,14 @@ RAPIER_API R2Status RAPIER_CALL r2SetNumInternalPgsIterations(struct R2World *wo
 /**
  * Return the world setting documented by
  * R2IntegrationParameters::numInternalStabilizationIterations.
- * @ingroup errors
+ * @ingroup worlds
  */
 RAPIER_API size_t RAPIER_CALL r2NumInternalStabilizationIterations(const struct R2World *world);
 
 /**
  * Set the world setting documented by
  * R2IntegrationParameters::numInternalStabilizationIterations.
- * @ingroup errors
+ * @ingroup worlds
  */
 RAPIER_API
 R2Status RAPIER_CALL r2SetNumInternalStabilizationIterations(struct R2World *world,
@@ -5012,25 +5876,25 @@ RAPIER_API R2Status RAPIER_CALL r2SetFrictionInBiasPass(struct R2World *world, R
 
 /**
  * Return the world setting documented by R2IntegrationParameters::warmstartJoints.
- * @ingroup joints
+ * @ingroup worlds
  */
 RAPIER_API R2Bool RAPIER_CALL r2WarmstartJoints(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::warmstartJoints.
- * @ingroup joints
+ * @ingroup worlds
  */
 RAPIER_API R2Status RAPIER_CALL r2SetWarmstartJoints(struct R2World *world, R2Bool value);
 
 /**
  * Return the world setting documented by R2IntegrationParameters::contactSoftness.
- * @ingroup soft_bodies
+ * @ingroup worlds
  */
 RAPIER_API struct R2SpringCoefficients RAPIER_CALL r2ContactSoftness(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::contactSoftness.
- * @ingroup soft_bodies
+ * @ingroup worlds
  */
 RAPIER_API
 R2Status RAPIER_CALL r2SetContactSoftness(struct R2World *world,
@@ -5038,13 +5902,13 @@ R2Status RAPIER_CALL r2SetContactSoftness(struct R2World *world,
 
 /**
  * Return the world setting documented by R2IntegrationParameters::staticContactSoftness.
- * @ingroup soft_bodies
+ * @ingroup worlds
  */
 RAPIER_API struct R2SpringCoefficients RAPIER_CALL r2StaticContactSoftness(const struct R2World *world);
 
 /**
  * Set the world setting documented by R2IntegrationParameters::staticContactSoftness.
- * @ingroup soft_bodies
+ * @ingroup worlds
  */
 RAPIER_API
 R2Status RAPIER_CALL r2SetStaticContactSoftness(struct R2World *world,
@@ -5052,7 +5916,7 @@ R2Status RAPIER_CALL r2SetStaticContactSoftness(struct R2World *world,
 
 /**
  * Applies Rapier's persistent one-way platform logic to the borrowed manifold.
- * @ingroup worlds
+ * @ingroup callbacks
  */
 RAPIER_API
 R2Status RAPIER_CALL r2ContactModificationContext_UpdateAsOnewayPlatform(struct R2ContactModificationContext *context,
@@ -5061,7 +5925,7 @@ R2Status RAPIER_CALL r2ContactModificationContext_UpdateAsOnewayPlatform(struct 
 
 /**
  * Sets the tangent velocity of every rigid solver contact in this manifold.
- * @ingroup worlds
+ * @ingroup callbacks
  */
 RAPIER_API
 R2Status RAPIER_CALL r2ContactModificationContext_SetTangentVelocity(struct R2ContactModificationContext *context,
@@ -5081,13 +5945,13 @@ RAPIER_API struct R2EventCollector *RAPIER_CALL r2NewEventCollector(void);
 RAPIER_API R2Status RAPIER_CALL r2FreeEventCollector(struct R2EventCollector *events);
 
 /**
- * Discard all collected events. Does not change the world.
+ * Discard all collected events. Does not change the world or the callbacks.
  * @ingroup events
  */
 RAPIER_API R2Status RAPIER_CALL r2EventCollector_Clear(struct R2EventCollector *events);
 
 /**
- * Copy the collected collision start/stop events without removing them.
+ * Copy the collision start/stop events collected since the last clear, without removing them.
  * @see @ref output_buffers
  * @ingroup events
  */
@@ -5097,7 +5961,7 @@ size_t RAPIER_CALL r2EventCollector_CollisionEvents(const struct R2EventCollecto
                                             size_t capacity);
 
 /**
- * Copy the collected contact-force events without removing them.
+ * Copy the contact-force events collected since the last clear, without removing them.
  * @see @ref output_buffers
  * @ingroup events
  */
@@ -5107,7 +5971,7 @@ size_t RAPIER_CALL r2EventCollector_ContactForceEvents(const struct R2EventColle
                                                 size_t capacity);
 
 /**
- * Return the number of queued soft-body tear events.
+ * Return the number of soft-body tear events collected since the last clear.
  * @ingroup events
  */
 RAPIER_API size_t RAPIER_CALL r2EventCollector_TearEventCount(const struct R2EventCollector *events);
@@ -5134,8 +5998,9 @@ RAPIER_API struct R2Vector RAPIER_CALL r2Gravity(const struct R2World *world);
 RAPIER_API R2Status RAPIER_CALL r2SetGravity(struct R2World *world, struct R2Vector value);
 
 /**
- * Hooks and events may be NULL. This call invalidates all borrowed set-element pointers.
- * Advance simulation by one timestep. Hooks and events may be NULL.
+ * Advance simulation by one timestep. Hooks and events may be NULL. Events are appended to the
+ * collector, which is never cleared automatically. This call invalidates all borrowed set-element
+ * pointers.
  * @ingroup worlds
  */
 RAPIER_API
@@ -5144,7 +6009,8 @@ R2Status RAPIER_CALL r2Step(struct R2World *world,
                    const struct R2EventCollector *events);
 
 /**
- * Refresh collision detection without advancing simulation. Hooks and events may be NULL.
+ * Refresh collision detection without advancing simulation. Hooks and events may be NULL; events
+ * are appended to the collector.
  * @ingroup worlds
  */
 RAPIER_API
@@ -5181,9 +6047,10 @@ RAPIER_API struct R2Bytes *RAPIER_CALL r2SerializeWorld(const struct R2World *wo
 RAPIER_API struct R2World *RAPIER_CALL r2DeserializeWorld(const uint8_t *data, size_t count);
 
 /**
- * Color is HSLA (hue in degrees), matching Rapier DebugColor. mode uses DebugRenderMode bits.
+ * Copy the debug-render lines of the world with the default style. mode combines R2_DEBUG_* bits;
+ * colors are HSLA (hue in degrees), matching Rapier DebugColor.
  * @see @ref output_buffers
- * @ingroup worlds
+ * @ingroup events
  */
 RAPIER_API
 size_t RAPIER_CALL r2DebugRender(const struct R2World *world,
@@ -5503,7 +6370,9 @@ RAPIER_API
 struct R2SoftBodyHandle RAPIER_CALL r2SoftBodyTearEvent_SoftBody(const struct R2SoftBodyTearEvent *event);
 
 /**
- * Copy the soft-body handles produced by the tear.
+ * Copy the soft bodies the torn body is in after the tear, the one keeping the handle first: the
+ * torn body alone when nothing was split off. Entry i holds the particles given by
+ * r2SoftBodyTearEvent_PieceParticles(event, i, ...).
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
@@ -5571,7 +6440,9 @@ size_t RAPIER_CALL r2SoftBodyTearEvent_InsertedParticles(const struct R2SoftBody
                                                    size_t capacity);
 
 /**
- * Copy original particle indices belonging to a resulting piece.
+ * Copy the particles of the piece_index-th body of r2SoftBodyTearEvent_Bodies, as indices in
+ * the torn body after the tear (the indices the other event fields use); entry i is the piece's
+ * particle i. piece_index must be less than r2SoftBodyTearEvent_PieceCount.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
@@ -5680,7 +6551,7 @@ RAPIER_API const char *RAPIER_CALL r2Version(void);
 RAPIER_API const char *RAPIER_CALL r2BuildProfile(void);
 
 /**
- * Return profiling, SIMD width, and parallelism of the linked library.
+ * Return profiling, SIMD width, parallelism, and determinism of the linked library.
  * @ingroup errors
  */
 RAPIER_API struct R2BuildFeatures RAPIER_CALL r2BuildFeatures(void);
@@ -5732,7 +6603,8 @@ size_t RAPIER_CALL r2ContactPairs(const struct R2World *world,
                          size_t capacity);
 
 /**
- * Return the narrow-phase contact pair for two colliders, or report R2_NOT_FOUND.
+ * Return the narrow-phase contact pair for two colliders, or report R2_NOT_FOUND. Its collider1 and
+ * collider2 follow the narrow-phase order, which may differ from the argument order.
  * @ingroup events
  */
 RAPIER_API
@@ -5752,9 +6624,11 @@ size_t RAPIER_CALL r2IntersectionPairs(const struct R2World *world,
 /**
  * Contact points in collider-local space; normal in world space. Geometric manifolds may be
  * recycled.
+ * local_p1/local_p2 follow the pair's own collider1/collider2 order (see r2ContactPair), which
+ * may differ from the argument order.
  * For clustered solver impulses use contact pair totals. Soft pairs have no rigid manifolds.
  * @see @ref output_buffers
- * @ingroup worlds
+ * @ingroup events
  */
 RAPIER_API
 size_t RAPIER_CALL r2ContactPoints(struct R2ColliderHandle collider1,
@@ -5782,7 +6656,11 @@ R2Status RAPIER_CALL r2MultibodyJoint_SetGeneralizedVelocity(struct R2MultibodyJ
                                                        size_t count);
 
 /**
- * Check this before passing any dimension/precision-dependent structs across the ABI.
+ * Check that the header matches the linked library before passing any structure across the ABI.
+ * Pass R2_ABI_VERSION, R2_DIMENSION, the sizes of R2Real, R2Vector and R2Pose, and
+ * R2_ABI_FEATURES. Fails with R2_INVALID_ARGUMENT when the version, dimension, precision, or
+ * the RAPIER_FEM/RAPIER_ROBOTICS defines differ from the library, since they change structure
+ * layouts.
  * @ingroup errors
  */
 RAPIER_API
@@ -5790,7 +6668,119 @@ R2Status RAPIER_CALL r2CheckAbi(uint32_t version,
                         uint32_t dimension,
                         size_t real_size,
                         size_t vector_size,
-                        size_t pose_size);
+                        size_t pose_size,
+                        uint32_t features);
+
+/**
+ * Copy the rigid bodies quarantined by the most recent Step because their pose or velocity became
+ * non-finite (NaN or infinite). Rapier disabled them, restored their last valid pose when known,
+ * and zeroed their velocities and forces; re-enable them with RigidBody_SetEnabled once the cause
+ * is fixed. The list is cleared at the start of every Step and may hold handles removed since.
+ * @see @ref output_buffers
+ * @ingroup worlds
+ */
+RAPIER_API
+size_t RAPIER_CALL r2QuarantinedRigidBodies(const struct R2World *world,
+                                    struct R2RigidBodyHandle *buffer,
+                                    size_t capacity);
+
+/**
+ * Copy the colliders quarantined by the most recent Step because their own pose or shape became
+ * non-finite, independently of their parent. Rapier disabled them; re-enable them with
+ * Collider_SetEnabled once fixed. The list is cleared at the start of every Step and may hold
+ * handles removed since.
+ * @see @ref output_buffers
+ * @ingroup worlds
+ */
+RAPIER_API
+size_t RAPIER_CALL r2QuarantinedColliders(const struct R2World *world,
+                                 struct R2ColliderHandle *buffer,
+                                 size_t capacity);
+
+/**
+ * Copy the soft bodies quarantined by the most recent Step because a particle position or velocity
+ * became non-finite. Rapier disabled them and zeroed their velocities but left the non-finite
+ * positions: fix them with SoftBody_SetParticlePosition before SoftBody_SetEnabled. The list is
+ * cleared at the start of every Step and may hold handles removed since.
+ * @see @ref output_buffers
+ * @ingroup worlds
+ */
+RAPIER_API
+size_t RAPIER_CALL r2QuarantinedSoftBodies(const struct R2World *world,
+                                   struct R2SoftBodyHandle *buffer,
+                                   size_t capacity);
+
+#if defined(RAPIER_DIM3)
+/**
+ * Return the world setting documented by R2IntegrationParameters::frictionModel.
+ * @ingroup worlds
+ */
+RAPIER_API uint32_t RAPIER_CALL r2FrictionModel(const struct R2World *world);
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * Set the world setting documented by R2IntegrationParameters::frictionModel.
+ * @ingroup worlds
+ */
+RAPIER_API R2Status RAPIER_CALL r2SetFrictionModel(struct R2World *world, uint32_t value);
+#endif
+
+/**
+ * Sine of an angle in radians, computed by Rapier's math backend. With enhanced-determinism
+ * (see BuildFeatures), the result is identical on every platform.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Sin(R2Real x);
+
+/**
+ * Cosine of an angle in radians, computed by Rapier's math backend. See r2Sin.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Cos(R2Real x);
+
+/**
+ * Tangent of an angle in radians, computed by Rapier's math backend. See r2Sin.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Tan(R2Real x);
+
+/**
+ * Arcsine in radians, computed by Rapier's math backend. See r2Sin.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Asin(R2Real x);
+
+/**
+ * Arccosine in radians, computed by Rapier's math backend. See r2Sin.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Acos(R2Real x);
+
+/**
+ * Angle in radians of the point (x, y), in [-pi, pi], computed by Rapier's math backend. See
+ * r2Sin.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Atan2(R2Real y, R2Real x);
+
+/**
+ * Exponential e^x, computed by Rapier's math backend. See r2Sin.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Exp(R2Real x);
+
+/**
+ * Natural logarithm, computed by Rapier's math backend. See r2Sin.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Ln(R2Real x);
+
+/**
+ * base raised to the power exponent, computed by Rapier's math backend. See r2Sin.
+ * @ingroup math
+ */
+RAPIER_API R2Real RAPIER_CALL r2Powf(R2Real base, R2Real exponent);
 
 /**
  * Return owned local-space rendering geometry; release it with r2FreeShapeMesh. subdivisions
@@ -5841,8 +6831,21 @@ R2SharedShape *RAPIER_CALL r2RoundCylinderSharedShape(R2Real half_height,
 
 #if defined(RAPIER_DIM3)
 /**
+ * Create an owned round cone shape. Release it with r2FreeSharedShape.
+ * @ingroup shapes
+ */
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2RoundConeSharedShape(R2Real half_height,
+                                            R2Real radius,
+                                            R2Real border_radius);
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
  * Tessellate a ball or capsule with independent longitude/latitude subdivision counts.
  * Cuboids, cones, cylinders, convex polyhedra, trimeshes, and heightfields are also supported.
+ * ntheta (3 to 4096) is read by balls, capsules, cones and cylinders; nphi (2 to 4096) by balls
+ * and capsules. Other shapes ignore them.
  * @ingroup shapes
  */
 RAPIER_API
@@ -5954,7 +6957,8 @@ struct R2UrdfRobotHandles *RAPIER_CALL r2UrdfRobot_InsertUsingMultibodyJoints(st
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
 /**
- * Body handles in source order; absent MJCF bodies have invalid handles.
+ * One body handle per imported URDF link, in source order. Links merged away by
+ * squeezeEmptyFixedLinks have no entry.
  * @see @ref output_buffers
  * @ingroup robotics
  */
@@ -6229,6 +7233,105 @@ size_t RAPIER_CALL r2MjcfVisualMesh_Texture(const R2MjcfVisualMesh *visual,
                                     size_t capacity);
 #endif
 
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Load a URDF robot from a NUL-terminated UTF-8 string. Relative mesh paths are resolved from
+ * mesh_dir (NULL resolves them from the current directory). Options and their blueprint resources
+ * are borrowed through this call; the robot is owned.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R2UrdfRobot *RAPIER_CALL r2UrdfRobotFromString(const char *urdf,
+                                                const char *mesh_dir,
+                                                const struct R2UrdfLoaderOptions *options);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Release owned MJCF contact hooks. NULL is allowed. Do not free them while a step still uses
+ * them, and do not free them twice.
+ * @ingroup robotics
+ */
+RAPIER_API R2Status RAPIER_CALL r2FreeMjcfContactHooks(struct R2MjcfContactHooks *hooks);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Build the contact rules of an inserted MJCF robot. robot must be the robot these handles were
+ * inserted from. The rules refer to the inserted colliders; the returned hooks are owned.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R2MjcfContactHooks *RAPIER_CALL r2MjcfRobotHandles_ContactHooks(const struct R2MjcfRobotHandles *handles,
+                                                                 const struct R2MjcfRobot *robot);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Return physics hooks forwarding to these contact rules, with hooks as their user_data. Pass
+ * them to r2Step; hooks must outlive every step using them. The inserted colliders already
+ * enable the contact-filtering and contact-modification hooks.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R2PhysicsHooks RAPIER_CALL r2MjcfContactHooks_PhysicsHooks(const struct R2MjcfContactHooks *hooks);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Release owned loaded meshes. NULL is allowed. Do not pass borrowed pointers or free the object
+ * twice.
+ * @ingroup robotics
+ */
+RAPIER_API R2Status RAPIER_CALL r2FreeLoadedMeshes(struct R2LoadedMeshes *meshes);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Load every mesh of a file from a UTF-8 path and convert it into a shape with converter (an
+ * R2_MESH_CONVERTER_* value). trimesh_flags (R2_TRIMESH_* bits) apply to
+ * R2_MESH_CONVERTER_TRIMESH and must be 0 otherwise. scale multiplies the vertices before
+ * conversion. A mesh failing to convert does not fail the load; see r2LoadedMeshes_CloneShape.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R2LoadedMeshes *RAPIER_CALL r2LoadedMeshesFromFile(const char *path,
+                                                    uint32_t converter,
+                                                    uint32_t trimesh_flags,
+                                                    struct R2Vector scale);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Return the number of meshes read from the file, including those that failed to convert.
+ * @ingroup robotics
+ */
+RAPIER_API size_t RAPIER_CALL r2LoadedMeshes_Count(const struct R2LoadedMeshes *meshes);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Return an owned shape wrapper sharing the geometry of a loaded mesh. Release it with
+ * FreeSharedShape. Returns NULL with INVALID_ARGUMENT if the index is out of range or if that
+ * mesh failed to convert.
+ * @ingroup robotics
+ */
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2LoadedMeshes_CloneShape(const struct R2LoadedMeshes *meshes,
+                                              size_t index);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Return the pose to give the shape of a loaded mesh (for example the center of its bounding
+ * box). Reports INVALID_ARGUMENT if the index is out of range or if that mesh failed to convert.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R2Pose RAPIER_CALL r2LoadedMeshes_Pose(const struct R2LoadedMeshes *meshes,
+                                      size_t index);
+#endif
+
 /**
  * Return the rigid body world-space pose.
  * @ingroup rigid_bodies
@@ -6448,7 +7551,8 @@ RAPIER_API R2Bool RAPIER_CALL r2Collider_IsSensor(struct R2ColliderHandle handle
 RAPIER_API struct R2RigidBodyHandle RAPIER_CALL r2Collider_Parent(struct R2ColliderHandle handle);
 
 /**
- * Set the collider world-space pose.
+ * Set the collider world-space pose. For a collider attached to a rigid body, prefer
+ * SetPositionWrtParent: the body pose overwrites it at the next step.
  * @ingroup colliders
  */
 RAPIER_API
@@ -6456,7 +7560,8 @@ R2Status RAPIER_CALL r2Collider_SetPosition(struct R2ColliderHandle handle,
                                     struct R2Pose value);
 
 /**
- * Set the collider world-space translation.
+ * Set the collider world-space translation. For a collider attached to a rigid body, prefer
+ * SetPositionWrtParent: the body pose overwrites it at the next step.
  * @ingroup colliders
  */
 RAPIER_API
@@ -6579,6 +7684,79 @@ R2Status RAPIER_CALL r2ImpulseJoint_SetDesc(struct R2ImpulseJointHandle handle,
                                      R2Bool wake_up);
 
 /**
+ * Return the collider body-type collision activation bitmask (R2_COLLISION_TYPES_* bits).
+ * @ingroup colliders
+ */
+RAPIER_API uint16_t RAPIER_CALL r2Collider_ActiveCollisionTypes(struct R2ColliderHandle handle);
+
+/**
+ * Return the collider physics-hook activation bitmask.
+ * @ingroup colliders
+ */
+RAPIER_API uint32_t RAPIER_CALL r2Collider_ActiveHooks(struct R2ColliderHandle handle);
+
+/**
+ * Return the collider friction combination rule (R2_COMBINE_*).
+ * @ingroup colliders
+ */
+RAPIER_API uint32_t RAPIER_CALL r2Collider_FrictionCombineRule(struct R2ColliderHandle handle);
+
+/**
+ * Return the collider restitution combination rule (R2_COMBINE_*).
+ * @ingroup colliders
+ */
+RAPIER_API uint32_t RAPIER_CALL r2Collider_RestitutionCombineRule(struct R2ColliderHandle handle);
+
+/**
+ * Return the collider pose relative to its parent rigid body, or its world-space pose if it has
+ * no parent.
+ * @ingroup colliders
+ */
+RAPIER_API struct R2Pose RAPIER_CALL r2Collider_PositionWrtParent(struct R2ColliderHandle handle);
+
+/**
+ * Return the rigid body signed dominance group.
+ * @ingroup rigid_bodies
+ */
+RAPIER_API int8_t RAPIER_CALL r2RigidBody_DominanceGroup(struct R2RigidBodyHandle handle);
+
+/**
+ * Return the rigid body additional solver iterations for connected bodies.
+ * @ingroup rigid_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r2RigidBody_AdditionalSolverIterations(struct R2RigidBodyHandle handle);
+
+/**
+ * Return the rigid body additional PGS iterations for connected bodies.
+ * @ingroup rigid_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r2RigidBody_AdditionalPgsIterations(struct R2RigidBodyHandle handle);
+
+/**
+ * Return whether the rigid body may exceed the angular-velocity limit of its CCD.
+ * @ingroup rigid_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RigidBody_IsFastRotationAllowed(struct R2RigidBodyHandle handle);
+
+/**
+ * Set the collider world-space rotation. For a collider attached to a rigid body, prefer
+ * SetPositionWrtParent: the body pose overwrites it at the next step.
+ * @ingroup colliders
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2Collider_SetRotation(struct R2ColliderHandle handle,
+                                    struct R2Rotation value);
+
+/**
+ * Allow or disallow the rigid body to exceed the angular-velocity limit of its CCD (e.g. for
+ * wheels).
+ * @ingroup rigid_bodies
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2RigidBody_SetAllowFastRotation(struct R2RigidBodyHandle handle,
+                                                 R2Bool value);
+
+/**
  * Replace the shape geometry with a borrowed tri mesh. Counts are elements.
  * Copies no arrays. Invalid view metadata leaves the description unchanged.
  * Geometry and flags are validated when the description is built or inserted.
@@ -6626,6 +7804,39 @@ RAPIER_API
 R2Status RAPIER_CALL r2SoftBodyDesc_SetSurfaceMesh(struct R2SoftBodyDesc *desc,
                                               struct R2VectorView vertices,
                                               R2SurfaceElementView elements);
+
+#if defined(RAPIER_DIM2)
+/**
+ * Select a 2D triangle-mesh recipe and borrow its vertices and triangles (stored in positions and
+ * cells). The triangles become structural edges and a boundary, not cells, and shape matching
+ * holds the shape. Other fields are preserved.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetTrimesh(struct R2SoftBodyDesc *desc,
+                                         struct R2VectorView vertices,
+                                         struct R2TriangleView triangles);
+#endif
+
+/**
+ * Borrow descriptions to merge into this body (see R2SoftBodyDesc::appended); preserve all other
+ * fields. No allocation or element reads.
+ * Invalid view metadata leaves the description unchanged.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetAppended(struct R2SoftBodyDesc *desc,
+                                          struct R2SoftBodyDescView view);
+
+/**
+ * Borrow structural edges added after appending (see R2SoftBodyDesc::addedEdges); preserve all
+ * other fields. No allocation or element reads.
+ * Invalid view metadata leaves the description unchanged.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBodyDesc_SetAddedEdges(struct R2SoftBodyDesc *desc,
+                                             struct R2EdgeView view);
 
 /**
  * Borrow skin geometry. Other fields, including skinCollision, are preserved.
@@ -6810,6 +8021,18 @@ struct R2ColliderDesc RAPIER_CALL r2RoundCylinderColliderDesc(R2Real half_height
                                                         R2Real border_radius);
 #endif
 
+#if defined(RAPIER_DIM3)
+/**
+ * Return a rounded Y-aligned cone description; dimensions exclude border_radius.
+ * Returns a description without allocating or validating. Build/insert validates its fields.
+ * @ingroup colliders
+ */
+RAPIER_API
+struct R2ColliderDesc RAPIER_CALL r2RoundConeColliderDesc(R2Real half_height,
+                                                    R2Real radius,
+                                                    R2Real border_radius);
+#endif
+
 /**
  * Return a X-aligned capsule description; half_height is half the segment length, excluding caps.
  * Returns a description without allocating or validating. Build/insert validates its fields.
@@ -6882,6 +8105,36 @@ struct R2SoftBodyDesc RAPIER_CALL r2ClothSoftBodyDesc(struct R2Vector origin,
                                                 struct R2Vector dv,
                                                 size_t nu,
                                                 size_t nv);
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * Return a cloth recipe like r2ClothSoftBodyDesc whose edges along du (warp), along dv (weft)
+ * and diagonal (shear) get their own softness; the material's bendSoftness still applies to the
+ * bending edges. The softness is stored in warpSoftness, weftSoftness and shearSoftness.
+ * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+struct R2SoftBodyDesc RAPIER_CALL r2ClothAnisotropicSoftBodyDesc(struct R2Vector origin,
+                                                            struct R2Vector du,
+                                                            struct R2Vector dv,
+                                                            size_t nu,
+                                                            size_t nv,
+                                                            struct R2SpringCoefficients warp,
+                                                            struct R2SpringCoefficients weft,
+                                                            struct R2SpringCoefficients shear);
+#endif
+
+#if defined(RAPIER_DIM2)
+/**
+ * Return a closed polygon recipe from at least 3 counter-clockwise points: structural edges along
+ * the boundary, bending edges between second neighbors, and area preservation. The points are
+ * borrowed until preview/insertion.
+ * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+ * @ingroup soft_bodies
+ */
+RAPIER_API struct R2SoftBodyDesc RAPIER_CALL r2PolygonSoftBodyDesc(struct R2VectorView points);
 #endif
 
 #if defined(RAPIER_DIM2)
@@ -6960,6 +8213,315 @@ RAPIER_API
 size_t RAPIER_CALL r2SoftBodyDesc_CellIndices(const struct R2SoftBodyDesc *desc,
                                        uint32_t *buffer,
                                        size_t capacity);
+
+/**
+ * Return the world-space velocity of the indexed particle.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+struct R2Vector RAPIER_CALL r2SoftBody_ParticleVelocity(struct R2SoftBodyHandle handle,
+                                                 size_t index);
+
+/**
+ * Return the solver simulating the soft body's elasticity (R2_SOFT_SOLVER_*). Always
+ * R2_SOFT_SOLVER_CONSTRAINTS in a library built without FEM.
+ * @ingroup soft_bodies
+ */
+RAPIER_API uint32_t RAPIER_CALL r2SoftBody_Solver(struct R2SoftBodyHandle handle);
+
+/**
+ * Override the softness of every structural or bending edge fully contained in a live cluster:
+ * regional stiffness for cloth and ropes. A NULL softness restores the body material's.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_SetClusterEdgeSoftness(struct R2SoftBodyHandle handle,
+                                                  uint32_t cluster,
+                                                  const struct R2SpringCoefficients *softness);
+
+/**
+ * Apply a world-space impulse to every free particle within falloff_radius of the world-space
+ * point, scaled linearly from 1 at the point to 0 at that radius and divided by the particle's
+ * mass. A falloff_radius of zero or less gives every free particle the whole impulse. Pinned
+ * particles ignore it.
+ * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_ApplyImpulseAtPoint(struct R2SoftBodyHandle handle,
+                                               struct R2Vector impulse,
+                                               struct R2Vector point,
+                                               R2Real falloff_radius,
+                                               R2Bool wake_up);
+
+/**
+ * Apply an impulse of the given magnitude pointing away from the world-space center to every
+ * free particle within falloff_radius, scaled linearly from 1 at the center to 0 at that
+ * radius and divided by the particle's mass. A particle on the center gets nothing; a
+ * falloff_radius of zero or less pushes every free particle fully. A negative magnitude pulls
+ * toward the center. Pinned particles ignore it.
+ * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2SoftBody_ApplyRadialImpulse(struct R2SoftBodyHandle handle,
+                                             struct R2Vector center,
+                                             R2Real magnitude,
+                                             R2Real falloff_radius,
+                                             R2Bool wake_up);
+
+/**
+ * Undo every permanent (plastic) deformation: edge rest lengths, dihedral rest angles, cell
+ * rest shapes and particle rest positions return to their creation state. The particles stay
+ * put and spring back elastically.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_ResetPlasticity(struct R2SoftBodyHandle handle);
+
+/**
+ * Mark the indexed edge as torn. The tear is applied at the end of the next step and reported
+ * by a tear event; use r2SoftBody_Tear to tear immediately.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_TearEdge(struct R2SoftBodyHandle handle, size_t index);
+
+/**
+ * Mark the indexed cell as torn. The tear is applied at the end of the next step and reported
+ * by a tear event: no cell is removed, one of its particles splits along the plane
+ * perpendicular to the cell's principal rest stretch.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Status RAPIER_CALL r2SoftBody_TearCell(struct R2SoftBodyHandle handle, size_t index);
+
+/**
+ * Return the soft body owning this deformable collider (a soft-body collision mesh), or an invalid
+ * handle for any other collider.
+ * @ingroup colliders
+ */
+RAPIER_API struct R2SoftBodyHandle RAPIER_CALL r2Collider_SoftBody(struct R2ColliderHandle handle);
+
+/**
+ * Return the soft body owning this deformable collider, or an invalid handle for any other
+ * collider. Uses only the callback-scoped read context; never retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+struct R2SoftBodyHandle RAPIER_CALL r2ReadCollider_SoftBody(const struct R2ReadContext *context,
+                                                     struct R2ColliderHandle handle);
+
+/**
+ * Return the number of soft bodies the torn body is in after the tear: the length of
+ * r2SoftBodyTearEvent_Bodies, and the exclusive bound of the piece_index of
+ * r2SoftBodyTearEvent_PieceParticles. It is 1 when nothing was split off.
+ * @ingroup soft_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r2SoftBodyTearEvent_PieceCount(const struct R2SoftBodyTearEvent *event);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::authoredVelocityMargin.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryAuthoredVelocityMargin(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::edgeSpeculation.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryEdgeSpeculation(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::invertedCellDetection.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryInvertedCellDetection(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::selfCrossingDetection.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoverySelfCrossingDetection(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::detectionMotionGating.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryDetectionMotionGating(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::crossBodyDetection.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryCrossBodyDetection(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::selfStandDown.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoverySelfStandDown(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::crossBodyExpelGate.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryCrossBodyExpelGate(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::edgeStandDown.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryEdgeStandDown(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::crossingRepulsion.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryCrossingRepulsion(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::crossingRepulsionGuide.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryCrossingRepulsionGuide(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::crossingRepulsionSelfGuide.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryCrossingRepulsionSelfGuide(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::recoveryPace.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Real RAPIER_CALL r2RecoveryRecoveryPace(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapConstraints.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryOverlapConstraints(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapRigid.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryOverlapRigid(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapSkipSelfTangled.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryOverlapSkipSelfTangled(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapEdgeStandDown.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryOverlapEdgeStandDown(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapConstraintPace.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Real RAPIER_CALL r2RecoveryOverlapConstraintPace(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapPatchConstraints.
+ * @ingroup soft_bodies
+ */
+RAPIER_API uint32_t RAPIER_CALL r2RecoveryOverlapPatchConstraints(const struct R2World *world);
+
+/**
+ * Set the world setting documented by R2SoftRecoverySettings::overlapPatchConstraints.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2RecoverySetOverlapPatchConstraints(struct R2World *world,
+                                                     uint32_t value);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapSkinVolume.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryOverlapSkinVolume(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapKeptDepth.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Real RAPIER_CALL r2RecoveryOverlapKeptDepth(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapSelfRegions.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryOverlapSelfRegions(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapNormalPush.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryOverlapNormalPush(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapMultiVolume.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Bool RAPIER_CALL r2RecoveryOverlapMultiVolume(const struct R2World *world);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapSplit.
+ * @ingroup soft_bodies
+ */
+RAPIER_API uint32_t RAPIER_CALL r2RecoveryOverlapSplit(const struct R2World *world);
+
+/**
+ * Set the world setting documented by R2SoftRecoverySettings::overlapSplit.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapSplit(struct R2World *world, uint32_t value);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapPatience.
+ * @ingroup soft_bodies
+ */
+RAPIER_API uint32_t RAPIER_CALL r2RecoveryOverlapPatience(const struct R2World *world);
+
+/**
+ * Set the world setting documented by R2SoftRecoverySettings::overlapPatience.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Status RAPIER_CALL r2RecoverySetOverlapPatience(struct R2World *world, uint32_t value);
+
+/**
+ * Return the world setting documented by R2SoftRecoverySettings::overlapProgressMargin.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Real RAPIER_CALL r2RecoveryOverlapProgressMargin(const struct R2World *world);
+
+#if defined(RAPIER_FEM)
+/**
+ * Return the world setting documented by R2SoftFemParameters::linearTolerance.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R2Real RAPIER_CALL r2FemLinearTolerance(const struct R2World *world);
+#endif
+
+#if defined(RAPIER_FEM)
+/**
+ * Return the world setting documented by R2SoftFemParameters::maxLinearIterations.
+ * @ingroup soft_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r2FemMaxLinearIterations(const struct R2World *world);
+#endif
+
+#if defined(RAPIER_FEM)
+/**
+ * Return the world setting documented by R2SoftFemParameters::maxDenseDofs.
+ * @ingroup soft_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r2FemMaxDenseDofs(const struct R2World *world);
+#endif
 
 /**
  * Return a process-local geometry identity for caching, not a serializable ID. Keep a shared-shape
@@ -7128,7 +8690,9 @@ R2Status RAPIER_CALL r2SoftBody_AddForce(struct R2SoftBodyHandle handle,
                                   R2Bool wake_up);
 
 /**
- * Apply a world-space linear impulse.
+ * Add the same world-space velocity change to every free particle: the whole body is kicked at
+ * the same velocity, whatever the particle masses (the value is not divided by the mass). Pinned
+ * particles ignore it.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
@@ -7159,7 +8723,9 @@ R2Status RAPIER_CALL r2SoftBody_SetVolumeFactor(struct R2SoftBodyHandle handle,
                                           R2Real value);
 
 /**
- * Attach a particle to a rigid body at the supplied body-local anchor.
+ * Attach a particle to a rigid body by a two-way point-to-point constraint (unlike pinning). The
+ * anchor is the particle's current position, expressed in the rigid body's local frame; a particle
+ * attached twice keeps both attachments. Undo it with r2SoftBody_DetachParticle.
  * @ingroup soft_bodies
  */
 RAPIER_API
@@ -7168,10 +8734,11 @@ R2Status RAPIER_CALL r2SoftBody_AttachParticle(struct R2SoftBodyHandle handle,
                                         struct R2RigidBodyHandle rigid_body);
 
 /**
- * Remove a particle attachment to a rigid body.
+ * Detach a particle from every rigid body it was attached to with r2SoftBody_AttachParticle.
+ * Returns whether it was attached at all.
  * @ingroup soft_bodies
  */
-RAPIER_API R2Status RAPIER_CALL r2SoftBody_DetachParticle(struct R2SoftBodyHandle handle, size_t index);
+RAPIER_API R2Bool RAPIER_CALL r2SoftBody_DetachParticle(struct R2SoftBodyHandle handle, size_t index);
 
 /**
  * Copy cluster indices.
@@ -7230,7 +8797,9 @@ R2Status RAPIER_CALL r2SoftBody_SetClusterShapeMatchingEnabled(struct R2SoftBody
                                                            R2Bool value);
 
 /**
- * Set the soft body cluster shape-matching stiffness multiplier.
+ * Scale the material stiffness (Young modulus) of every cell fully contained in a live cluster:
+ * regional materials without a separate body. Cells straddling the cluster's boundary keep their
+ * stiffness; use r2SoftBody_SetClusterEdgeSoftness for edges.
  * @ingroup soft_bodies
  */
 RAPIER_API
@@ -7505,7 +9074,7 @@ RAPIER_API R2Real RAPIER_CALL r2RigidBody_KineticEnergy(struct R2RigidBodyHandle
 
 /**
  * Return the rigid body soft-CCD prediction distance.
- * @ingroup soft_bodies
+ * @ingroup rigid_bodies
  */
 RAPIER_API R2Real RAPIER_CALL r2RigidBody_SoftCcdPrediction(struct R2RigidBodyHandle handle);
 
@@ -7597,7 +9166,7 @@ R2Status RAPIER_CALL r2RigidBody_SetAdditionalMass(struct R2RigidBodyHandle hand
 
 /**
  * Set the rigid body soft-CCD prediction distance.
- * @ingroup soft_bodies
+ * @ingroup rigid_bodies
  */
 RAPIER_API
 R2Status RAPIER_CALL r2RigidBody_SetSoftCcdPrediction(struct R2RigidBodyHandle handle,
@@ -7884,8 +9453,7 @@ RAPIER_API R2Bool RAPIER_CALL r2Collider_IsEnabled(struct R2ColliderHandle handl
 RAPIER_API struct R2Aabb RAPIER_CALL r2Collider_ComputeAabb(struct R2ColliderHandle handle);
 
 /**
- * Return an owned wrapper sharing the collider geometry. Release with r2FreeSharedShape.
- * Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
+ * Return an owned wrapper sharing the collider geometry. Release it with r2FreeSharedShape.
  * @ingroup shapes
  */
 RAPIER_API R2SharedShape *RAPIER_CALL r2Collider_CloneShape(struct R2ColliderHandle handle);
@@ -8033,7 +9601,7 @@ R2Status RAPIER_CALL r2ImpulseJoint_SetEnabled(struct R2ImpulseJointHandle handl
 
 /**
  * Set the joint desc joint spring coefficients.
- * @ingroup soft_bodies
+ * @ingroup joints
  */
 RAPIER_API
 R2Status RAPIER_CALL r2JointDesc_SetSoftness(struct R2JointDesc *desc,
@@ -8042,7 +9610,7 @@ R2Status RAPIER_CALL r2JointDesc_SetSoftness(struct R2JointDesc *desc,
 /**
  * Set the impulse joint joint spring coefficients.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
- * @ingroup soft_bodies
+ * @ingroup joints
  */
 RAPIER_API
 R2Status RAPIER_CALL r2ImpulseJoint_SetSoftness(struct R2ImpulseJointHandle handle,
@@ -8303,6 +9871,55 @@ R2Status RAPIER_CALL r2ImpulseJoint_SetMotorVelocity(struct R2ImpulseJointHandle
                                                R2Bool wake_up);
 
 /**
+ * Return the impulses applied by the impulse joint during the last step. They are zero before
+ * its first step, and their components are expressed along the axes of the joint frame.
+ * @ingroup joints
+ */
+RAPIER_API struct R2JointImpulses RAPIER_CALL r2ImpulseJoint_Impulses(struct R2ImpulseJointHandle handle);
+
+/**
+ * Return the impulse joint application-owned 128-bit user value.
+ * @ingroup joints
+ */
+RAPIER_API struct R2UserData RAPIER_CALL r2ImpulseJoint_UserData(struct R2ImpulseJointHandle handle);
+
+/**
+ * Return the number of impulse joints in the world.
+ * @ingroup joints
+ */
+RAPIER_API size_t RAPIER_CALL r2ImpulseJointCount(const struct R2World *world);
+
+/**
+ * Return the number of multibody joints in the world, which is the number of handles copied by
+ * r2MultibodyJointHandles.
+ * @ingroup joints
+ */
+RAPIER_API size_t RAPIER_CALL r2MultibodyJointCount(const struct R2World *world);
+
+/**
+ * Copies the multibody joint configuration without returning a borrowed joint pointer.
+ * @ingroup joints
+ */
+RAPIER_API struct R2JointDesc RAPIER_CALL r2MultibodyJoint_Desc(struct R2MultibodyJointHandle handle);
+
+/**
+ * Replaces the multibody joint configuration after validation. lockedAxes defines the degrees of
+ * freedom of the multibody and cannot change: a different value reports INVALID_ARGUMENT.
+ * wake_up = 1 wakes the two connected bodies; 0 preserves their sleep state.
+ * @ingroup joints
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2MultibodyJoint_SetDesc(struct R2MultibodyJointHandle handle,
+                                       const struct R2JointDesc *desc,
+                                       R2Bool wake_up);
+
+/**
+ * Return the two bodies connected by a multibody joint: its parent link, then its own link.
+ * @ingroup joints
+ */
+RAPIER_API struct R2JointBodies RAPIER_CALL r2MultibodyJoint_Bodies(struct R2MultibodyJointHandle handle);
+
+/**
  * Create an owned compound shape by convex decomposition of the input surface. Release it with
  * r2FreeSharedShape.
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
@@ -8340,6 +9957,18 @@ R2SharedShape *RAPIER_CALL r2VoxelizedMeshSharedShape(struct R2VectorView vertic
  */
 RAPIER_API R2SharedShape *RAPIER_CALL r2ConvexHullSharedShape(struct R2VectorView vertices);
 
+#if defined(RAPIER_DIM3)
+/**
+ * Create an owned convex polyhedron from vertices and triangle indices assumed to form a convex
+ * mesh (no convex hull is computed); fails on degenerate input. Release it with r2FreeSharedShape.
+ * Copies typed input geometry into an owned shared shape; arrays may be released on return.
+ * @ingroup shapes
+ */
+RAPIER_API
+R2SharedShape *RAPIER_CALL r2ConvexMeshSharedShape(struct R2VectorView vertices,
+                                             struct R2TriangleView indices);
+#endif
+
 /**
  * Create an owned triangle mesh from vertices and triangle indices. Release it with
  * r2FreeSharedShape.
@@ -8352,6 +9981,7 @@ R2SharedShape *RAPIER_CALL r2TrimeshSharedShape(struct R2VectorView vertices,
 
 /**
  * Create an owned polyline from vertices and edge indices. Release it with r2FreeSharedShape.
+ * Empty indices connect the vertices in order (a line strip).
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
@@ -8427,6 +10057,19 @@ struct R2VelocityCorrection RAPIER_CALL r2ReadPidController_RigidBodyCorrection(
                                                                            struct R2Pose target_pose,
                                                                            struct R2Vector target_linvel,
                                                                            R2AngVector target_angvel);
+
+/**
+ * Compute a PD velocity correction from callback-visible body state. Neither the body nor the
+ * controller is modified. The context is valid only during its callback.
+ * @ingroup callbacks
+ */
+RAPIER_API
+struct R2VelocityCorrection RAPIER_CALL r2ReadPdController_RigidBodyCorrection(const struct R2ReadContext *context,
+                                                                          const struct R2PdController *controller,
+                                                                          struct R2RigidBodyHandle body,
+                                                                          struct R2Pose target_pose,
+                                                                          struct R2Vector target_linvel,
+                                                                          R2AngVector target_angvel);
 
 /**
  * Return the number of rigid body objects in the world. Uses only the callback-scoped read
@@ -9014,11 +10657,331 @@ size_t RAPIER_CALL r2ReadRigidBodyReadStates(const struct R2ReadContext *context
                                        struct R2RigidBodyState *states,
                                        size_t capacity);
 
+/**
+ * Return the collider body-type collision activation bitmask (R2_COLLISION_TYPES_* bits). Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+uint16_t RAPIER_CALL r2ReadCollider_ActiveCollisionTypes(const struct R2ReadContext *context,
+                                                  struct R2ColliderHandle handle);
+
+/**
+ * Return the collider physics-hook activation bitmask. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+uint32_t RAPIER_CALL r2ReadCollider_ActiveHooks(const struct R2ReadContext *context,
+                                        struct R2ColliderHandle handle);
+
+/**
+ * Return the collider friction combination rule (R2_COMBINE_*). Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+uint32_t RAPIER_CALL r2ReadCollider_FrictionCombineRule(const struct R2ReadContext *context,
+                                                 struct R2ColliderHandle handle);
+
+/**
+ * Return the collider restitution combination rule (R2_COMBINE_*). Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+uint32_t RAPIER_CALL r2ReadCollider_RestitutionCombineRule(const struct R2ReadContext *context,
+                                                    struct R2ColliderHandle handle);
+
+/**
+ * Return the collider pose relative to its parent rigid body, or its world-space pose if it has
+ * no parent. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+struct R2Pose RAPIER_CALL r2ReadCollider_PositionWrtParent(const struct R2ReadContext *context,
+                                                     struct R2ColliderHandle handle);
+
+/**
+ * Return the rigid body signed dominance group. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+int8_t RAPIER_CALL r2ReadRigidBody_DominanceGroup(const struct R2ReadContext *context,
+                                           struct R2RigidBodyHandle handle);
+
+/**
+ * Return the rigid body additional solver iterations for connected bodies. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+size_t RAPIER_CALL r2ReadRigidBody_AdditionalSolverIterations(const struct R2ReadContext *context,
+                                                        struct R2RigidBodyHandle handle);
+
+/**
+ * Return the rigid body additional PGS iterations for connected bodies. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+size_t RAPIER_CALL r2ReadRigidBody_AdditionalPgsIterations(const struct R2ReadContext *context,
+                                                     struct R2RigidBodyHandle handle);
+
+/**
+ * Return whether the rigid body may exceed the angular-velocity limit of its CCD. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+R2Bool RAPIER_CALL r2ReadRigidBody_IsFastRotationAllowed(const struct R2ReadContext *context,
+                                                     struct R2RigidBodyHandle handle);
+
+/**
+ * Copy the hits of every collider intersected by the ray, in no particular order. The ray is
+ * origin + direction * t for 0 <= t <= max_toi; direction need not be normalized. solid treats an
+ * interior origin as a hit at t = 0.
+ * @see @ref output_buffers
+ * NULL query options use the default filter. Query state reflects the latest Step or
+ * DetectCollisions call.
+ * @ingroup queries
+ */
+RAPIER_API
+size_t RAPIER_CALL r2IntersectRay(const struct R2World *world,
+                         const struct R2QueryOptions *query_options,
+                         struct R2Vector origin,
+                         struct R2Vector direction,
+                         R2Real max_toi,
+                         R2Bool solid,
+                         struct R2RayHit *buffer,
+                         size_t capacity);
+
+/**
+ * Sweep shape from pose along velocity and return the first hit, with found = 0 on a miss
+ * (R2_OK). Time is bounded by options.max_time_of_impact. The shape is borrowed for this call.
+ * NULL query options use the default filter. Query state reflects the latest Step or
+ * DetectCollisions call.
+ * @ingroup queries
+ */
+RAPIER_API
+struct R2OptionalShapeCastHit RAPIER_CALL r2TryCastShape(const struct R2World *world,
+                                                  const struct R2QueryOptions *query_options,
+                                                  struct R2Pose pose,
+                                                  struct R2Vector velocity,
+                                                  const R2SharedShape *shape,
+                                                  struct R2ShapeCastOptions options);
+
+/**
+ * Return the closest surface projection within max_distance, with found = 0 if there is none
+ * (R2_OK). With solid = 1, an interior point projects to itself.
+ * NULL query options use the default filter. Query state reflects the latest Step or
+ * DetectCollisions call.
+ * @ingroup queries
+ */
+RAPIER_API
+struct R2OptionalPointProjection RAPIER_CALL r2TryProjectPoint(const struct R2World *world,
+                                                        const struct R2QueryOptions *query_options,
+                                                        struct R2Vector point,
+                                                        R2Real max_distance,
+                                                        R2Bool solid);
+
+/**
+ * Return the world-space pose of the motion at the given time.
+ * @ingroup queries
+ */
+RAPIER_API
+struct R2Pose RAPIER_CALL r2NonlinearRigidMotion_PositionAtTime(const struct R2NonlinearRigidMotion *motion,
+                                                           R2Real time);
+
+/**
+ * Sweep shape along a rotating motion and return the first hit between start_time and end_time,
+ * with found = 0 on a miss (R2_OK). With stop_at_penetration = 1, a shape already intersecting a
+ * collider at start_time hits it at start_time; with 0, that penetration is ignored while the
+ * motion separates the shapes. witness1/normal1 are world-space; witness2/normal2 are local to the
+ * shape, posed by r2NonlinearRigidMotion_PositionAtTime at the time of impact.
+ * NULL query options use the default filter. Query state reflects the latest Step or
+ * DetectCollisions call.
+ * @ingroup queries
+ */
+RAPIER_API
+struct R2OptionalShapeCastHit RAPIER_CALL r2TryCastShapeNonlinear(const struct R2World *world,
+                                                            const struct R2QueryOptions *query_options,
+                                                            const struct R2NonlinearRigidMotion *motion,
+                                                            const R2SharedShape *shape,
+                                                            R2Real start_time,
+                                                            R2Real end_time,
+                                                            R2Bool stop_at_penetration);
+
+/**
+ * Return the narrow-phase contact pair for two colliders, with found = 0 if the broad phase
+ * found no potential contact between them (R2_OK). The pair's collider1 and collider2 follow the
+ * narrow-phase order, which may differ from the argument order.
+ * @ingroup events
+ */
+RAPIER_API
+struct R2OptionalContactPair RAPIER_CALL r2TryContactPair(struct R2ColliderHandle collider1,
+                                                   struct R2ColliderHandle collider2);
+
+/**
+ * Return the intersection state of two colliders involving a sensor, or report R2_NOT_FOUND if
+ * the broad phase found no potential intersection. The result keeps the argument order.
+ * @ingroup events
+ */
+RAPIER_API
+struct R2IntersectionPair RAPIER_CALL r2IntersectionPair(struct R2ColliderHandle collider1,
+                                                 struct R2ColliderHandle collider2);
+
+/**
+ * Return the intersection state of two colliders involving a sensor, with found = 0 if the
+ * broad phase found no potential intersection (R2_OK). The pair keeps the argument order.
+ * @ingroup events
+ */
+RAPIER_API
+struct R2OptionalIntersectionPair RAPIER_CALL r2TryIntersectionPair(struct R2ColliderHandle collider1,
+                                                             struct R2ColliderHandle collider2);
+
+/**
+ * Copy the narrow-phase contact pairs involving the collider, including pairs without active
+ * solver contacts. The collider may be either collider1 or collider2 of each pair.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r2Collider_ContactPairs(struct R2ColliderHandle handle,
+                                  struct R2ContactPair *buffer,
+                                  size_t capacity);
+
+/**
+ * Copy the intersection pairs involving the collider, in the narrow-phase order. The collider may
+ * be either collider1 or collider2 of each pair.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r2Collider_IntersectionPairs(struct R2ColliderHandle handle,
+                                       struct R2IntersectionPair *buffer,
+                                       size_t capacity);
+
+/**
+ * Copy the geometric contact manifolds of a contact pair, or report R2_NOT_FOUND without a pair.
+ * Their order matches the manifold_index of r2ContactPoints. Soft pairs have no rigid
+ * manifolds.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r2ContactManifolds(struct R2ColliderHandle collider1,
+                             struct R2ColliderHandle collider2,
+                             struct R2ContactManifold *buffer,
+                             size_t capacity);
+
+/**
+ * Copy the solver contacts of one manifold of a contact pair, or report R2_NOT_FOUND without a
+ * pair. Points are resolved through the bodies' current poses. With contact clustering (3D
+ * composite shapes), the solver may use merged manifolds instead; use contact pair totals then.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r2SolverContacts(struct R2ColliderHandle collider1,
+                           struct R2ColliderHandle collider2,
+                           size_t manifold_index,
+                           struct R2SolverContact *buffer,
+                           size_t capacity);
+
+/**
+ * Return whether the context holds the contact candidates of two soft surfaces rather than a
+ * manifold. Solver-contact accessors see no contacts in a soft context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+R2Bool RAPIER_CALL r2ContactModificationContext_IsSoft(const struct R2ContactModificationContext *context);
+
+/**
+ * Return the number of solver contacts of the manifold; zero for a soft context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+size_t RAPIER_CALL r2ContactModificationContext_SolverContactCount(const struct R2ContactModificationContext *context);
+
+/**
+ * Return a solver contact of the manifold. Inside the hook, points are world-space.
+ * @ingroup callbacks
+ */
+RAPIER_API
+struct R2SolverContact RAPIER_CALL r2ContactModificationContext_SolverContact(const struct R2ContactModificationContext *context,
+                                                                        size_t index);
+
+/**
+ * Replace the points, distance and tangent velocity of a solver contact of the manifold. Points
+ * are world-space; a distance differing from their gap along the normal shifts the contact.
+ * @ingroup callbacks
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2ContactModificationContext_SetSolverContact(struct R2ContactModificationContext *context,
+                                                              size_t index,
+                                                              const struct R2SolverContact *contact);
+
+/**
+ * Remove a solver contact of the manifold. The last solver contact takes its index.
+ * @ingroup callbacks
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2ContactModificationContext_RemoveSolverContact(struct R2ContactModificationContext *context,
+                                                                 size_t index);
+
+/**
+ * Replace the callbacks invoked while stepping with this collector; NULL removes them. They take
+ * effect from the next Step or DetectCollisions call.
+ * @ingroup events
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2EventCollector_SetCallbacks(struct R2EventCollector *events,
+                                            const struct R2EventCallbacks *callbacks);
+
+/**
+ * Return native default debug-render style. This POD value owns no resources.
+ * @ingroup events
+ */
+RAPIER_API struct R2DebugRenderStyle RAPIER_CALL r2DefaultDebugRenderStyle(void);
+
+/**
+ * Copy the debug-render lines of the world drawn with the given style. mode combines R2_DEBUG_*
+ * bits. NULL style uses the default style.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r2DebugRenderWithStyle(const struct R2World *world,
+                                   uint32_t mode,
+                                   const struct R2DebugRenderStyle *style,
+                                   struct R2DebugLine *buffer,
+                                   size_t capacity);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
 
 #else /* RAPIER_DIM3 */
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup worlds
+ * Friction model solving one Coulomb friction constraint per group of up to 4 contacts plus a
+ * twist constraint; faster but less accurate (default).
+ */
+#define R3_FRICTION_MODEL_SIMPLIFIED 0
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup worlds
+ * Friction model solving one Coulomb friction constraint per contact point.
+ */
+#define R3_FRICTION_MODEL_COULOMB 1
+#endif
 
 #if defined(RAPIER_DIM2)
 /**
@@ -9095,6 +11058,30 @@ size_t RAPIER_CALL r2ReadRigidBodyReadStates(const struct R2ReadContext *context
  * Soft-body selector: desc volumetric.
  */
 #define R3_SOFT_DESC_VOLUMETRIC 9
+
+#if defined(RAPIER_DIM2)
+/**
+ * @ingroup soft_bodies
+ * Soft-body selector: closed counter-clockwise polygon of particles preserving its area (2D).
+ */
+#define R3_SOFT_DESC_POLYGON 10
+#endif
+
+#if defined(RAPIER_DIM2)
+/**
+ * @ingroup soft_bodies
+ * Soft-body selector: triangle mesh without cells, held by shape matching (2D).
+ */
+#define R3_SOFT_DESC_TRIMESH 11
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup soft_bodies
+ * Soft-body selector: cloth with separate warp, weft and shear softness (3D).
+ */
+#define R3_SOFT_DESC_CLOTH_ANISOTROPIC 12
+#endif
 
 /**
  * @ingroup soft_bodies
@@ -9225,6 +11212,12 @@ size_t RAPIER_CALL r2ReadRigidBodyReadStates(const struct R2ReadContext *context
 #define R3_SHAPE_DESC_ROUND_CYLINDER 15
 
 /**
+ * @ingroup shapes
+ * ShapeDesc kind selecting a round cone.
+ */
+#define R3_SHAPE_DESC_ROUND_CONE 16
+
+/**
  * @ingroup colliders
  * Mass density.
  */
@@ -9307,6 +11300,60 @@ size_t RAPIER_CALL r2ReadRigidBodyReadStates(const struct R2ReadContext *context
  * Use the larger of the two material coefficients.
  */
 #define R3_COMBINE_MAX 3
+
+/**
+ * @ingroup colliders
+ * Use the sum of the two material coefficients, clamped to [0, 1].
+ */
+#define R3_COMBINE_CLAMPED_SUM 4
+
+/**
+ * @ingroup colliders
+ * Use the geometric mean (square root of the product) of the two material coefficients.
+ */
+#define R3_COMBINE_GEOMETRIC_MEAN 5
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between two dynamic bodies.
+ */
+#define R3_COLLISION_TYPES_DYNAMIC_DYNAMIC 1
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between a dynamic and a kinematic body.
+ */
+#define R3_COLLISION_TYPES_DYNAMIC_KINEMATIC 12
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between a dynamic and a fixed body (or a collider without parent).
+ */
+#define R3_COLLISION_TYPES_DYNAMIC_FIXED 2
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between two kinematic bodies.
+ */
+#define R3_COLLISION_TYPES_KINEMATIC_KINEMATIC 52224
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between a kinematic and a fixed body (or a collider without parent).
+ */
+#define R3_COLLISION_TYPES_KINEMATIC_FIXED 8704
+
+/**
+ * @ingroup colliders
+ * Active collision type bit: contacts between two fixed bodies (or colliders without parent).
+ */
+#define R3_COLLISION_TYPES_FIXED_FIXED 32
+
+/**
+ * @ingroup colliders
+ * Default active collision types: dynamic-dynamic, dynamic-kinematic, and dynamic-fixed.
+ */
+#define R3_COLLISION_TYPES_DEFAULT 15
 
 /**
  * @ingroup colliders
@@ -9493,6 +11540,42 @@ size_t RAPIER_CALL r2ReadRigidBodyReadStates(const struct R2ReadContext *context
  * Use the finite-element solver; requires RAPIER_FEM.
  */
 #define R3_SOFT_SOLVER_FEM 1
+
+/**
+ * @ingroup soft_bodies
+ * Edge plastic flow (R3SoftBodyMaterial::edgePlasticFlow): both a squeeze and a stretch set.
+ */
+#define R3_SOFT_EDGE_PLASTIC_FLOW_BOTH 0
+
+/**
+ * @ingroup soft_bodies
+ * Edge plastic flow: only a squeeze sets; a stretched edge springs back.
+ */
+#define R3_SOFT_EDGE_PLASTIC_FLOW_COMPRESSION 1
+
+/**
+ * @ingroup soft_bodies
+ * Edge plastic flow: only a stretch sets; a squeezed edge springs back.
+ */
+#define R3_SOFT_EDGE_PLASTIC_FLOW_TENSION 2
+
+/**
+ * @ingroup soft_bodies
+ * Overlap patch constraints (R3SoftRecoverySettings::overlapPatchConstraints): keep them.
+ */
+#define R3_SOFT_PATCH_CONSTRAINTS_KEEP 0
+
+/**
+ * @ingroup soft_bodies
+ * Overlap patch constraints: stand them down inside the patch.
+ */
+#define R3_SOFT_PATCH_CONSTRAINTS_STAND_DOWN 1
+
+/**
+ * @ingroup soft_bodies
+ * Overlap patch constraints: align them with the overlap normal.
+ */
+#define R3_SOFT_PATCH_CONSTRAINTS_ALONG_NORMAL 2
 
 /**
  * @ingroup joints
@@ -9706,33 +11789,70 @@ size_t RAPIER_CALL r2ReadRigidBodyReadStates(const struct R2ReadContext *context
 
 /**
  * @ingroup joints
- * Skip joints that would close a loop in the articulation.
+ * Do not insert MJCF equality constraints (loop closures) as impulse joints. MJCF only: URDF
+ * insertion rejects it.
  */
 #define R3_MULTIBODY_SKIP_LOOP_CLOSURES 4
 
 /**
  * @ingroup joints
- * Do not import joint motors into the articulation.
+ * Do not import joint motors into the articulation. MJCF only: URDF insertion rejects it.
  */
 #define R3_MULTIBODY_SKIP_JOINT_MOTORS 8
 
 /**
  * @ingroup joints
- * Do not import joint limits into the articulation.
+ * Do not import joint limits into the articulation. MJCF only: URDF insertion rejects it.
  */
 #define R3_MULTIBODY_SKIP_JOINT_LIMITS 16
 
 /**
  * @ingroup joints
- * Do not import joint springs into the articulation.
+ * Do not import joint springs into the articulation. MJCF only: URDF insertion rejects it.
  */
 #define R3_MULTIBODY_SKIP_JOINT_SPRINGS 32
+
+/**
+ * @ingroup shapes
+ * Compute the half-edge topology of the triangle mesh.
+ */
+#define R3_TRIMESH_HALF_EDGE_TOPOLOGY 1
+
+/**
+ * @ingroup shapes
+ * Compute the connected components of the triangle mesh.
+ */
+#define R3_TRIMESH_CONNECTED_COMPONENTS 2
+
+/**
+ * @ingroup shapes
+ * Delete the triangles breaking the half-edge topology.
+ */
+#define R3_TRIMESH_DELETE_BAD_TOPOLOGY_TRIANGLES 4
+
+/**
+ * @ingroup shapes
+ * Treat the triangle mesh as oriented (outward normals) and compute its pseudo-normals.
+ */
+#define R3_TRIMESH_ORIENTED 8
 
 /**
  * @ingroup shapes
  * Merge triangle-mesh vertices with identical positions.
  */
 #define R3_TRIMESH_MERGE_DUPLICATE_VERTICES 16
+
+/**
+ * @ingroup shapes
+ * Delete the triangles with a zero area.
+ */
+#define R3_TRIMESH_DELETE_DEGENERATE_TRIANGLES 32
+
+/**
+ * @ingroup shapes
+ * Delete the triangles sharing their three vertices with another triangle.
+ */
+#define R3_TRIMESH_DELETE_DUPLICATE_TRIANGLES 64
 
 /**
  * @ingroup shapes
@@ -9759,6 +11879,144 @@ size_t RAPIER_CALL r2ReadRigidBodyReadStates(const struct R2ReadContext *context
 #define R3_HEIGHTFIELD_FIX_INTERNAL_EDGES 1
 
 /**
+ * @ingroup controllers
+ * Controller axis bit: translation along X.
+ */
+#define R3_AXES_MASK_LIN_X 1
+
+/**
+ * @ingroup controllers
+ * Controller axis bit: translation along Y.
+ */
+#define R3_AXES_MASK_LIN_Y 2
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup controllers
+ * Controller axis bit: translation along Z.
+ */
+#define R3_AXES_MASK_LIN_Z 4
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup controllers
+ * Controller axis bit: rotation about X.
+ */
+#define R3_AXES_MASK_ANG_X 8
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * @ingroup controllers
+ * Controller axis bit: rotation about Y.
+ */
+#define R3_AXES_MASK_ANG_Y 16
+#endif
+
+/**
+ * @ingroup controllers
+ * Controller axis bit: rotation about Z (the only rotation axis in 2D).
+ */
+#define R3_AXES_MASK_ANG_Z 32
+
+/**
+ * @ingroup errors
+ * ABI feature bit: RAPIER_FEM, which changes the layout of R3IntegrationParameters.
+ */
+#define R3_ABI_FEATURE_FEM 1
+
+/**
+ * @ingroup errors
+ * ABI feature bit: RAPIER_ROBOTICS (3D, f32 only), which declares the URDF/MJCF API.
+ */
+#define R3_ABI_FEATURE_ROBOTICS 2
+
+#if (defined(RAPIER_FEM) && defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup errors
+ * R3_ABI_FEATURE_* bits selected by the defines of this header; pass it to CheckAbi.
+ */
+#define R3_ABI_FEATURES 3
+#endif
+
+#if (defined(RAPIER_FEM) && !(defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32)))
+/**
+ * @ingroup errors
+ * R3_ABI_FEATURE_* bits selected by the defines of this header; pass it to CheckAbi.
+ */
+#define R3_ABI_FEATURES 1
+#endif
+
+#if (!defined(RAPIER_FEM) && defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup errors
+ * R3_ABI_FEATURE_* bits selected by the defines of this header; pass it to CheckAbi.
+ */
+#define R3_ABI_FEATURES 2
+#endif
+
+#if (!defined(RAPIER_FEM) && !(defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32)))
+/**
+ * @ingroup errors
+ * R3_ABI_FEATURE_* bits selected by the defines of this header; pass it to CheckAbi.
+ */
+#define R3_ABI_FEATURES 0
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Load each mesh as a triangle mesh, with the given trimesh flags.
+ */
+#define R3_MESH_CONVERTER_TRIMESH 0
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Replace each mesh by its oriented bounding box.
+ */
+#define R3_MESH_CONVERTER_OBB 1
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Replace each mesh by its axis-aligned bounding box.
+ */
+#define R3_MESH_CONVERTER_AABB 2
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Replace each mesh by its convex hull.
+ */
+#define R3_MESH_CONVERTER_CONVEX_HULL 3
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * @ingroup robotics
+ * Replace each mesh by its convex decomposition.
+ */
+#define R3_MESH_CONVERTER_CONVEX_DECOMPOSITION 4
+#endif
+
+/**
+ * @ingroup events
+ * Collision event flag: at least one of the colliders was a sensor when the event fired.
+ */
+#define R3_COLLISION_EVENT_SENSOR 1
+
+/**
+ * @ingroup events
+ * Collision event flag: the collision stopped because at least one collider was removed.
+ */
+#define R3_COLLISION_EVENT_REMOVED 2
+
+/**
  * Immutable owned byte buffer. Release with the matching FreeBytes function.
  * @ingroup worlds
  */
@@ -9766,7 +12024,7 @@ typedef struct R3Bytes R3Bytes;
 
 /**
  * Borrowed native contact context. Valid only during its callback; never retain or free it.
- * @ingroup events
+ * @ingroup callbacks
  */
 typedef struct R3ContactModificationContext R3ContactModificationContext;
 
@@ -9779,8 +12037,9 @@ typedef struct R3DynamicRayCastVehicleController R3DynamicRayCastVehicleControll
 #endif
 
 /**
- * Events accumulate until clear. Copying events never drains them, allowing two-call buffer
- * sizing.
+ * Events accumulate across steps until r3EventCollector_Clear: reading them never drains the
+ * collector, allowing two-call buffer sizing. Optional callbacks also see each event during the
+ * step.
  * @ingroup events
  */
 typedef struct R3EventCollector R3EventCollector;
@@ -9792,6 +12051,24 @@ typedef struct R3EventCollector R3EventCollector;
  * @ingroup controllers
  */
 typedef struct R3KinematicCharacterController R3KinematicCharacterController;
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Shapes loaded from a mesh file (STL, COLLADA or Wavefront OBJ), one per mesh of the file.
+ * Release with the matching Free function.
+ * @ingroup robotics
+ */
+typedef struct R3LoadedMeshes R3LoadedMeshes;
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Owned physics hooks applying the `<contact>` rules (excluded pairs, pair friction) of an
+ * inserted MJCF robot. Release with the matching Free function.
+ * @ingroup robotics
+ */
+typedef struct R3MjcfContactHooks R3MjcfContactHooks;
+#endif
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
 /**
@@ -10001,7 +12278,7 @@ typedef struct R3SoftBodyMaterial {
    */
   R3Real edgePlasticMax;
   /**
-   * Plastic flow direction: 0 both, 1 compression only, 2 tension only.
+   * Plastic flow direction: R3_SOFT_EDGE_PLASTIC_FLOW_BOTH, _COMPRESSION or _TENSION.
    */
   uint32_t edgePlasticFlow;
   /**
@@ -10108,8 +12385,8 @@ typedef struct R3SoftRecoverySettings {
    */
   R3Real overlapConstraintPace;
   /**
-   * Per-point constraints inside overlap patches: 0 keep, 1 stand down, 2 align with overlap
-   * normal.
+   * Per-point constraints inside overlap patches: R3_SOFT_PATCH_CONSTRAINTS_KEEP, _STAND_DOWN or
+   * _ALONG_NORMAL.
    */
   uint32_t overlapPatchConstraints;
   /**
@@ -10250,7 +12527,7 @@ typedef struct R3IntegrationParameters {
    */
   size_t numSolverIterations;
   /**
-   * PGS iterations per solver substep.
+   * PGS iterations per solver substep; must be positive.
    */
   size_t numInternalPgsIterations;
   /**
@@ -10283,7 +12560,7 @@ typedef struct R3IntegrationParameters {
   R3Bool warmstartJoints;
 #if defined(RAPIER_DIM3)
   /**
-   * Friction model: 0 simplified, 1 Coulomb (3D only).
+   * Friction model of rigid-body contacts, R3_FRICTION_MODEL_* (3D only).
    */
   uint32_t frictionModel;
 #endif
@@ -10889,6 +13166,23 @@ typedef struct R3DihedralView {
 } R3DihedralView;
 
 /**
+ * Borrowed array of soft-body descriptions. count counts descriptions.
+ * Data must remain live through the build/insert call that reads the description.
+ * NULL is permitted only when count is zero.
+ * @ingroup soft_bodies
+ */
+typedef struct R3SoftBodyDescView {
+  /**
+   * Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
+   */
+  const struct R3SoftBodyDesc *data;
+  /**
+   * Number of elements, not bytes unless the element type is a byte.
+   */
+  size_t count;
+} R3SoftBodyDescView;
+
+/**
  * Optional boolean override. When disabled, retain the recipe's native default.
  * @ingroup math
  */
@@ -10959,7 +13253,7 @@ typedef struct R3ShapeDesc {
    */
   R3Real halfHeight;
   /**
-   * Rounding radius for a rounded shape.
+   * Rounding radius of a round cylinder or round cone (the round cuboid reads radius instead).
    */
   R3Real borderRadius;
   /**
@@ -11119,11 +13413,11 @@ typedef struct R3ColliderDesc {
    */
   R3Real restitution;
   /**
-   * R3_COMBINE_AVERAGE, MIN, MULTIPLY, or MAX.
+   * R3_COMBINE_AVERAGE, MIN, MULTIPLY, MAX, CLAMPED_SUM, or GEOMETRIC_MEAN.
    */
   uint32_t frictionCombineRule;
   /**
-   * R3_COMBINE_AVERAGE, MIN, MULTIPLY, or MAX.
+   * R3_COMBINE_AVERAGE, MIN, MULTIPLY, MAX, CLAMPED_SUM, or GEOMETRIC_MEAN.
    */
   uint32_t restitutionCombineRule;
   /**
@@ -11174,6 +13468,8 @@ typedef struct R3ColliderDesc {
  * for topology arrays are element counts (edges, triangles, or tetrahedra).
  * Nonempty topology overrides the generator's topology. Zero counts retain it.
  * Generator inputs: a/b are rope ends or center/half-extents; cloth uses a/du/dv.
+ * R3_SOFT_DESC_POLYGON reads positions; R3_SOFT_DESC_TRIMESH reads positions and cells (its
+ * triangles become edges and a boundary, not cells).
  * @ingroup soft_bodies
  */
 typedef struct R3SoftBodyDesc {
@@ -11197,6 +13493,24 @@ typedef struct R3SoftBodyDesc {
    * Cloth basis step along its second parameter axis.
    */
   struct R3Vector dv;
+#if defined(RAPIER_DIM3)
+  /**
+   * Softness of the anisotropic cloth edges along du (warp).
+   */
+  struct R3SpringCoefficients warpSoftness;
+#endif
+#if defined(RAPIER_DIM3)
+  /**
+   * Softness of the anisotropic cloth edges along dv (weft).
+   */
+  struct R3SpringCoefficients weftSoftness;
+#endif
+#if defined(RAPIER_DIM3)
+  /**
+   * Softness of the anisotropic cloth diagonal edges (shear).
+   */
+  struct R3SpringCoefficients shearSoftness;
+#endif
   /**
    * First recipe resolution; interpretation depends on kind.
    */
@@ -11290,6 +13604,18 @@ typedef struct R3SoftBodyDesc {
    */
   R3SurfaceElementView skinIndices;
   /**
+   * Borrowed descriptions merged into this body, their particles numbered after this one's in
+   * order. Each contributes its particles, masses, pinned particles and elements (after its own
+   * translation and total mass); every other setting comes from this description. Appended
+   * descriptions cannot append others nor have a skin.
+   */
+  struct R3SoftBodyDescView appended;
+  /**
+   * Borrowed structural edges added after appending (seams); indices count this body's particles
+   * then the appended ones. Their rest length is the current distance of their particles.
+   */
+  struct R3EdgeView addedEdges;
+  /**
    * Soft-body material coefficients.
    */
   struct R3SoftBodyMaterial material;
@@ -11321,6 +13647,11 @@ typedef struct R3SoftBodyDesc {
    * Optional shape-matching override; disabled retains recipe defaults.
    */
   struct R3OptionalBool shapeMatching;
+  /**
+   * Optional override of the ORIENTED flag of the generated collision surface (when disabled, a
+   * closed surface is oriented). Set it to false for a shell whose inner side holds bodies.
+   */
+  struct R3OptionalBool oriented;
   /**
    * Whether self-collision is enabled.
    */
@@ -11797,7 +14128,8 @@ typedef struct R3PodLayout {
  */
 typedef struct R3CharacterLength {
   /**
-   * Value used when enabled is 1.
+   * Nonnegative length: a fraction of the character shape height when relative is 1, a
+   * world-space length otherwise.
    */
   R3Real value;
   /**
@@ -11805,6 +14137,29 @@ typedef struct R3CharacterLength {
    */
   R3Bool relative;
 } R3CharacterLength;
+
+/**
+ * Copy of the automatic stepping settings.
+ * @ingroup controllers
+ */
+typedef struct R3CharacterAutostep {
+  /**
+   * Whether automatic stepping is enabled.
+   */
+  R3Bool enabled;
+  /**
+   * Maximum height of the steps climbed automatically.
+   */
+  struct R3CharacterLength max_height;
+  /**
+   * Minimum free width required on top of a step.
+   */
+  struct R3CharacterLength min_width;
+  /**
+   * Whether the character can also step over dynamic bodies.
+   */
+  R3Bool include_dynamic_bodies;
+} R3CharacterAutostep;
 
 /**
  * Allowed character motion and ground-contact state.
@@ -11882,6 +14237,34 @@ typedef struct R3PidGains {
    */
   R3AngVector ang_kd;
 } R3PidGains;
+
+/**
+ * Stateless proportional-derivative controller: a PID controller without integral term, stored as
+ * a plain value. Initialize with r3DefaultPdController.
+ * @ingroup controllers
+ */
+typedef struct R3PdController {
+  /**
+   * Linear proportional gain per axis.
+   */
+  struct R3Vector lin_kp;
+  /**
+   * Linear derivative gain per axis.
+   */
+  struct R3Vector lin_kd;
+  /**
+   * Angular proportional gain per axis.
+   */
+  R3AngVector ang_kp;
+  /**
+   * Angular derivative gain per axis.
+   */
+  R3AngVector ang_kd;
+  /**
+   * Controlled axes, a combination of R3_AXES_MASK_* bits.
+   */
+  uint32_t axes;
+} R3PdController;
 
 /**
  * Linear and angular velocity correction computed by a controller.
@@ -12102,7 +14485,7 @@ typedef struct R3CollisionEvent {
    */
   R3Bool started;
   /**
-   * Event flags: bit 0 sensor pair, bit 1 removed collider.
+   * Bitmask of R3_COLLISION_EVENT_SENSOR and R3_COLLISION_EVENT_REMOVED.
    */
   uint32_t flags;
 } R3CollisionEvent;
@@ -12137,7 +14520,8 @@ typedef struct R3ContactForceEvent {
    */
   R3Real max_force_magnitude;
   /**
-   * 1 for a starting event, 0 for a stopping event.
+   * 1 for the first step the total force magnitude exceeds the threshold, 0 on the following
+   * steps while it stays above it. No event is emitted when the force drops below it.
    */
   R3Bool started;
 } R3ContactForceEvent;
@@ -12146,7 +14530,7 @@ typedef struct R3ContactForceEvent {
  * Pair callback: -1 rejects a contact pair; 0 detects contacts without impulses; 1 computes
  * impulses.
  * For sensor intersections only, zero rejects and any positive value accepts.
- * @ingroup math
+ * @ingroup callbacks
  */
 typedef int32_t (RAPIER_CALL *R3PairFilter)(void *user_data,
                                  const struct R3ReadContext *read,
@@ -12262,7 +14646,7 @@ typedef struct R3DebugLine {
    */
   struct R3Vector b;
   /**
-   * RGBA color, four floats.
+   * HSLA color: hue in degrees, then saturation, lightness and alpha in [0, 1].
    */
   float color[4];
 } R3DebugLine;
@@ -12387,6 +14771,11 @@ typedef struct R3BuildFeatures {
    * Whether this library exposes Rapier's parallel execution and thread-pool APIs.
    */
   R3Bool parallel;
+  /**
+   * Whether the library is built with enhanced-determinism: the simulation, and the math
+   * functions such as r3Sin, give bit-identical results on every platform.
+   */
+  R3Bool enhanced_determinism;
 } R3BuildFeatures;
 
 /**
@@ -12426,7 +14815,7 @@ typedef struct R3ContactPair {
 
 /**
  * Sensor intersection state for a collider pair.
- * @ingroup math
+ * @ingroup events
  */
 typedef struct R3IntersectionPair {
   /**
@@ -12472,6 +14861,18 @@ typedef struct R3ContactPoint {
    * Normal impulse applied at this contact.
    */
   R3Real impulse;
+#if defined(RAPIER_DIM2)
+  /**
+   * Friction impulse along the tangent basis of the contact.
+   */
+  R3Real tangent_impulse[1];
+#endif
+#if defined(RAPIER_DIM3)
+  /**
+   * Friction impulses along the two tangent basis vectors of the contact.
+   */
+  R3Real tangent_impulse[2];
+#endif
 } R3ContactPoint;
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
@@ -12776,6 +15177,335 @@ typedef struct R3VoxelQuery {
    */
   R3Bool found;
 } R3VoxelQuery;
+
+/**
+ * Impulses applied by an impulse joint during the last step, along the axes of its joint frame.
+ * @ingroup joints
+ */
+typedef struct R3JointImpulses {
+  /**
+   * Impulse applied along the locked translational axes.
+   */
+  struct R3Vector linear;
+  /**
+   * Angular impulse applied along the locked rotational axes (a scalar in 2D).
+   */
+  R3AngVector angular;
+  /**
+   * Impulse applied by the limit of each axis, in translation-then-rotation order.
+   */
+  R3Real limits[R3_JOINT_DOF_COUNT];
+  /**
+   * Impulse applied by the motor of each axis, in translation-then-rotation order.
+   */
+  R3Real motors[R3_JOINT_DOF_COUNT];
+} R3JointImpulses;
+
+/**
+ * Optional shape-cast result. A miss is found = 0 with status OK.
+ * @ingroup queries
+ */
+typedef struct R3OptionalShapeCastHit {
+  /**
+   * Shape-cast impact details.
+   */
+  struct R3ShapeCastHit hit;
+  /**
+   * Whether a result exists; other result fields are meaningful only when this is 1.
+   */
+  R3Bool found;
+} R3OptionalShapeCastHit;
+
+/**
+ * Optional point projection. A miss is found = 0 with status OK.
+ * @ingroup queries
+ */
+typedef struct R3OptionalPointProjection {
+  /**
+   * Closest projection details.
+   */
+  struct R3PointProjection projection;
+  /**
+   * Whether a result exists; other result fields are meaningful only when this is 1.
+   */
+  R3Bool found;
+} R3OptionalPointProjection;
+
+/**
+ * Rigid motion with constant linear and angular velocities. At time t, the shape at start is
+ * rotated by angvel * t around its local_center point, then translated by linvel * t.
+ * @ingroup queries
+ */
+typedef struct R3NonlinearRigidMotion {
+  /**
+   * World-space pose at time zero.
+   */
+  struct R3Pose start;
+  /**
+   * Rotation center, in the local coordinates of the moving shape.
+   */
+  struct R3Vector local_center;
+  /**
+   * World-space linear velocity.
+   */
+  struct R3Vector linvel;
+  /**
+   * World-space angular velocity, in radians per second.
+   */
+  R3AngVector angvel;
+} R3NonlinearRigidMotion;
+
+/**
+ * Optional contact pair; check found before reading the pair.
+ * @ingroup events
+ */
+typedef struct R3OptionalContactPair {
+  /**
+   * Contact pair summary.
+   */
+  struct R3ContactPair pair;
+  /**
+   * Whether a result exists; other result fields are meaningful only when this is 1.
+   */
+  R3Bool found;
+} R3OptionalContactPair;
+
+/**
+ * Optional intersection pair; check found before reading the pair.
+ * @ingroup events
+ */
+typedef struct R3OptionalIntersectionPair {
+  /**
+   * Intersection pair state.
+   */
+  struct R3IntersectionPair pair;
+  /**
+   * Whether a result exists; other result fields are meaningful only when this is 1.
+   */
+  R3Bool found;
+} R3OptionalIntersectionPair;
+
+/**
+ * Geometric contact manifold of a contact pair: contacts sharing one normal. Local data follow the
+ * pair's own collider1/collider2 order (see r3ContactPair).
+ * @ingroup events
+ */
+typedef struct R3ContactManifold {
+  /**
+   * Contact normal in collider 1 local coordinates, pointing outward from it.
+   */
+  struct R3Vector local_n1;
+  /**
+   * Contact normal in collider 2 local coordinates, pointing outward from it.
+   */
+  struct R3Vector local_n2;
+  /**
+   * World-space contact normal, pointing from collider 1 toward collider 2.
+   */
+  struct R3Vector normal;
+  /**
+   * Index of the subshape of collider 1 (for composite shapes), zero otherwise.
+   */
+  uint32_t subshape1;
+  /**
+   * Index of the subshape of collider 2 (for composite shapes), zero otherwise.
+   */
+  uint32_t subshape2;
+  /**
+   * Number of geometric contact points; see r3ContactPoints.
+   */
+  size_t num_points;
+  /**
+   * Number of solver contacts; see r3SolverContacts.
+   */
+  size_t num_solver_contacts;
+  /**
+   * Application data, persistent across steps and editable by contact-modification hooks.
+   */
+  uint32_t user_data;
+} R3ContactManifold;
+
+/**
+ * Contact seen by the constraint solver. Points are world-space, on each body's surface.
+ * @ingroup events
+ */
+typedef struct R3SolverContact {
+  /**
+   * World-space contact point on collider 1's body.
+   */
+  struct R3Vector point1;
+  /**
+   * World-space contact point on collider 2's body.
+   */
+  struct R3Vector point2;
+  /**
+   * Signed separation along the normal, contact skins deducted; negative means penetration.
+   */
+  R3Real distance;
+  /**
+   * Desired world-space tangent relative velocity, e.g. for conveyor belts; zero by default.
+   */
+  struct R3Vector tangent_velocity;
+} R3SolverContact;
+
+/**
+ * Called during the step for each collision event, after it was added to the collector. contacts
+ * holds the geometric contacts of the pair at that time (none for sensors), in the event's
+ * collider order; it is borrowed for this call only.
+ * @ingroup events
+ */
+typedef void (RAPIER_CALL *R3CollisionEventCallback)(void *user_data,
+                                          const struct R3ReadContext *read,
+                                          const struct R3CollisionEvent *event,
+                                          const struct R3ContactPoint *contacts,
+                                          size_t contact_count);
+
+/**
+ * Called during the step for each contact-force event, after it was added to the collector.
+ * @ingroup events
+ */
+typedef void (RAPIER_CALL *R3ContactForceEventCallback)(void *user_data,
+                                             const struct R3ReadContext *read,
+                                             const struct R3ContactForceEvent *event);
+
+/**
+ * Callbacks invoked while stepping, in addition to collecting the events. They follow the
+ * R3PhysicsHooks rules: never unwind or retain arguments, read through the ReadContext, never
+ * mutate the world, and be safe for concurrent invocation in parallel builds. NULL callbacks are
+ * skipped.
+ * @ingroup events
+ */
+typedef struct R3EventCallbacks {
+  /**
+   * Application data; Rapier does not own pointers encoded in it.
+   */
+  void *user_data;
+  /**
+   * Optional collision start/stop callback.
+   */
+  R3CollisionEventCallback collision_event;
+  /**
+   * Optional contact-force callback.
+   */
+  R3ContactForceEventCallback contact_force_event;
+} R3EventCallbacks;
+
+/**
+ * Debug-render colors and sizes. Colors are HSLA: hue in degrees, then saturation, lightness and
+ * alpha in [0, 1]; multipliers scale each component. Initialize with
+ * r3DefaultDebugRenderStyle.
+ * @ingroup events
+ */
+typedef struct R3DebugRenderStyle {
+  /**
+   * Positive number of subdivisions approximating curved shapes.
+   */
+  uint32_t subdivisions;
+  /**
+   * Positive number of subdivisions approximating the borders of round shapes.
+   */
+  uint32_t border_subdivisions;
+  /**
+   * Color of colliders attached to dynamic bodies.
+   */
+  float collider_dynamic_color[4];
+  /**
+   * Color of colliders attached to fixed bodies.
+   */
+  float collider_fixed_color[4];
+  /**
+   * Color of colliders attached to kinematic bodies.
+   */
+  float collider_kinematic_color[4];
+  /**
+   * Color of colliders without a parent body.
+   */
+  float collider_parentless_color[4];
+  /**
+   * Color of the lines from a body's center of mass to its impulse-joint anchors.
+   */
+  float impulse_joint_anchor_color[4];
+  /**
+   * Color of the line between the two anchors of an impulse joint.
+   */
+  float impulse_joint_separation_color[4];
+  /**
+   * Color of the lines from a body's center of mass to its multibody-joint anchors.
+   */
+  float multibody_joint_anchor_color[4];
+  /**
+   * Color of the line between the two anchors of a multibody joint.
+   */
+  float multibody_joint_separation_color[4];
+  /**
+   * Color multiplier for entities of sleeping bodies.
+   */
+  float sleep_color_multiplier[4];
+  /**
+   * Color multiplier for entities of awake bodies eligible for sleep.
+   */
+  float sleep_eligible_color_multiplier[4];
+  /**
+   * Color multiplier for entities of disabled bodies.
+   */
+  float disabled_color_multiplier[4];
+  /**
+   * Nonnegative length of the rendered body axes.
+   */
+  R3Real rigid_body_axes_length;
+  /**
+   * Color of the segments joining the two points of a contact.
+   */
+  float contact_depth_color[4];
+  /**
+   * Color of the contact normals.
+   */
+  float contact_normal_color[4];
+  /**
+   * Nonnegative length of the contact normals.
+   */
+  R3Real contact_normal_length;
+  /**
+   * Color of soft-body elements.
+   */
+  float soft_body_element_color[4];
+  /**
+   * Color of unloaded soft-body elements when coloring them by load.
+   */
+  float soft_body_slack_color[4];
+  /**
+   * Color of soft-body elements at their tear threshold when coloring them by load.
+   */
+  float soft_body_loaded_color[4];
+  /**
+   * Color of the soft-body cluster frames.
+   */
+  float soft_body_frame_color[4];
+  /**
+   * Color of the collider bounding boxes.
+   */
+  float collider_aabb_color[4];
+  /**
+   * Color of the vertex pseudo-normals of triangle meshes and polylines.
+   */
+  float vertex_pseudo_normal_color[4];
+  /**
+   * Color of the edge pseudo-normals of triangle meshes (3D only).
+   */
+  float edge_pseudo_normal_color[4];
+  /**
+   * Nonnegative length of the pseudo-normals.
+   */
+  R3Real pseudo_normal_length;
+  /**
+   * Color of the normals of soft-body volume contacts.
+   */
+  float volume_contact_normal_color[4];
+  /**
+   * Color of the volume gradients drawn at the particles of a volume constraint.
+   */
+  float volume_gradient_color[4];
+} R3DebugRenderStyle;
 
 /**
  * @ingroup errors
@@ -13281,6 +16011,44 @@ R3Status RAPIER_CALL r3KinematicCharacterController_SetSnapToGround(struct R3Kin
                                                                 struct R3CharacterLength distance);
 
 /**
+ * Return the normalized up direction.
+ * @ingroup controllers
+ */
+RAPIER_API
+struct R3Vector RAPIER_CALL r3KinematicCharacterController_Up(const struct R3KinematicCharacterController *controller);
+
+/**
+ * Return the collision separation margin.
+ * @ingroup controllers
+ */
+RAPIER_API
+struct R3CharacterLength RAPIER_CALL r3KinematicCharacterController_Offset(const struct R3KinematicCharacterController *controller);
+
+/**
+ * Return the automatic stepping settings. When disabled, enabled is 0 and the other fields hold
+ * Rapier's defaults.
+ * @ingroup controllers
+ */
+RAPIER_API
+struct R3CharacterAutostep RAPIER_CALL r3KinematicCharacterController_Autostep(const struct R3KinematicCharacterController *controller);
+
+/**
+ * Set the small distance by which sliding motion is pushed along hit normals to avoid getting stuck;
+ * it must be finite and nonnegative. Large values cause bumps when sliding on flat ground.
+ * @ingroup controllers
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3KinematicCharacterController_SetNormalNudgeFactor(struct R3KinematicCharacterController *controller,
+                                                                     R3Real value);
+
+/**
+ * Return the normal nudge factor set by SetNormalNudgeFactor.
+ * @ingroup controllers
+ */
+RAPIER_API
+R3Real RAPIER_CALL r3KinematicCharacterController_NormalNudgeFactor(const struct R3KinematicCharacterController *controller);
+
+/**
  * Computes movement without moving any collider. Use the returned translation to set the character
  * target.
  * NULL query options use the default filter. Query state reflects the latest Step or
@@ -13307,8 +16075,10 @@ size_t RAPIER_CALL r3KinematicCharacterController_Collisions(const struct R3Kine
                                                      size_t capacity);
 
 /**
- * Applies impulses for the most recent move_shape collisions. Use the same world, shape, dt and
- * filter.
+ * Applies impulses to the dynamic bodies hit by the most recent MoveShape call. Use the same
+ * shape, dt and query options as that call; NULL options use the default filter.
+ * Unlike MoveShape, the options' predicate is called once per collider of the world before the
+ * impulses are applied, while the world is locked for writing: it may only use Read* functions.
  * @ingroup controllers
  */
 RAPIER_API
@@ -13316,11 +16086,11 @@ R3Status RAPIER_CALL r3KinematicCharacterController_SolveCharacterCollisionImpul
                                                                                 const R3SharedShape *shape,
                                                                                 R3Real dt,
                                                                                 R3Real mass,
-                                                                                const struct R3QueryFilter *filter);
+                                                                                const struct R3QueryOptions *options);
 
 /**
- * Allocate a PID controller with supplied gains and controlled axes. Release with
- * r3FreePidController.
+ * Allocate a PID controller with Rapier's defaults: kp = 60, ki = 1 and kd = 0.8 on every axis, all
+ * axes controlled, and zero integrals. Release with r3FreePidController.
  * @ingroup controllers
  */
 RAPIER_API struct R3PidController *RAPIER_CALL r3NewPidController(void);
@@ -13347,12 +16117,44 @@ R3Status RAPIER_CALL r3PidController_SetGains(struct R3PidController *controller
                                        struct R3PidGains gains);
 
 /**
- * AxesMask bits match Rapier: linear X/Y/Z are 1/2/4, angular X/Y/Z are 8/16/32.
+ * Set the controlled axes, a combination of R3_AXES_MASK_* bits. Gains are unchanged; unknown
+ * bits are rejected.
  * @ingroup controllers
  */
 RAPIER_API
 R3Status RAPIER_CALL r3PidController_SetAxes(struct R3PidController *controller,
                                       uint32_t axes);
+
+/**
+ * Return the controlled axes as R3_AXES_MASK_* bits.
+ * @ingroup controllers
+ */
+RAPIER_API uint32_t RAPIER_CALL r3PidController_Axes(const struct R3PidController *controller);
+
+/**
+ * Reset to zero the linear and angular errors accumulated by the integral term.
+ * @ingroup controllers
+ */
+RAPIER_API R3Status RAPIER_CALL r3PidController_ResetIntegrals(struct R3PidController *controller);
+
+/**
+ * Return Rapier's default PD controller: kp = 60 and kd = 0.8 on every axis, all axes controlled.
+ * This POD value owns no resources.
+ * @ingroup controllers
+ */
+RAPIER_API struct R3PdController RAPIER_CALL r3DefaultPdController(void);
+
+/**
+ * Compute the velocity change bringing the body toward the target pose and velocities. Neither the
+ * body nor the controller is modified.
+ * @ingroup controllers
+ */
+RAPIER_API
+struct R3VelocityCorrection RAPIER_CALL r3PdController_RigidBodyCorrection(const struct R3PdController *controller,
+                                                                     struct R3RigidBodyHandle body,
+                                                                     struct R3Pose target_pose,
+                                                                     struct R3Vector target_linvel,
+                                                                     R3AngVector target_angvel);
 
 /**
  * Compute a velocity correction, preserving the body's state and updating PID integrals.
@@ -13444,12 +16246,16 @@ R3Status RAPIER_CALL r3DynamicRayCastVehicleController_SetWheelControls(struct R
 #if defined(RAPIER_DIM3)
 /**
  * Ray-cast wheel contacts and apply vehicle forces for dt seconds. Does not step the world.
+ * NULL options use the default filter. The chassis colliders are always excluded, in addition
+ * to the filter's own exclusions. The options' predicate is called once per collider of the
+ * world before the update, while the world is locked for writing: it may only use Read*
+ * functions.
  * @ingroup controllers
  */
 RAPIER_API
 R3Status RAPIER_CALL r3DynamicRayCastVehicleController_UpdateVehicle(struct R3DynamicRayCastVehicleController *controller,
                                                                  R3Real dt,
-                                                                 const struct R3QueryFilter *filter);
+                                                                 const struct R3QueryOptions *options);
 #endif
 
 #if defined(RAPIER_DIM3)
@@ -13647,7 +16453,9 @@ RAPIER_API struct R3JointBodies RAPIER_CALL r3ImpulseJoint_Bodies(struct R3Impul
 RAPIER_API struct R3InverseKinematicsOptions RAPIER_CALL r3DefaultInverseKinematicsOptions(void);
 
 /**
- * Return the articulation degrees of freedom associated with the joint.
+ * Return the degrees of freedom of the whole multibody containing the joint (not of the joint
+ * alone), including the free root of a dynamic multibody. After inserting a joint, the root's
+ * contribution is only updated by the next step.
  * @ingroup joints
  */
 RAPIER_API size_t RAPIER_CALL r3MultibodyJoint_Ndofs(struct R3MultibodyJointHandle handle);
@@ -13757,12 +16565,14 @@ RAPIER_API R3Bool RAPIER_CALL r3SoftBody_Contains(struct R3SoftBodyHandle handle
 
 /**
  * Remove a body and its joints, optionally keeping colliders as standalone objects.
- * Returns whether a body was removed; a stale handle returns false without error.
+ * A removed or stale handle fails with R3_INVALID_HANDLE, like the other Remove functions.
+ * Removing a soft-body cluster proxy removes its cluster (see r3SoftBody_RemoveCluster). The
+ * root body of a soft body is rejected: remove the soft body with r3RemoveSoftBody.
  * @ingroup rigid_bodies
  */
 RAPIER_API
-R3Bool RAPIER_CALL r3RemoveRigidBody(struct R3RigidBodyHandle handle,
-                              R3Bool remove_attached_colliders);
+R3Status RAPIER_CALL r3RemoveRigidBody(struct R3RigidBodyHandle handle,
+                                R3Bool remove_attached_colliders);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::dt.
@@ -13905,14 +16715,14 @@ RAPIER_API R3Status RAPIER_CALL r3SetNumInternalPgsIterations(struct R3World *wo
 /**
  * Return the world setting documented by
  * R3IntegrationParameters::numInternalStabilizationIterations.
- * @ingroup errors
+ * @ingroup worlds
  */
 RAPIER_API size_t RAPIER_CALL r3NumInternalStabilizationIterations(const struct R3World *world);
 
 /**
  * Set the world setting documented by
  * R3IntegrationParameters::numInternalStabilizationIterations.
- * @ingroup errors
+ * @ingroup worlds
  */
 RAPIER_API
 R3Status RAPIER_CALL r3SetNumInternalStabilizationIterations(struct R3World *world,
@@ -13968,25 +16778,25 @@ RAPIER_API R3Status RAPIER_CALL r3SetFrictionInBiasPass(struct R3World *world, R
 
 /**
  * Return the world setting documented by R3IntegrationParameters::warmstartJoints.
- * @ingroup joints
+ * @ingroup worlds
  */
 RAPIER_API R3Bool RAPIER_CALL r3WarmstartJoints(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::warmstartJoints.
- * @ingroup joints
+ * @ingroup worlds
  */
 RAPIER_API R3Status RAPIER_CALL r3SetWarmstartJoints(struct R3World *world, R3Bool value);
 
 /**
  * Return the world setting documented by R3IntegrationParameters::contactSoftness.
- * @ingroup soft_bodies
+ * @ingroup worlds
  */
 RAPIER_API struct R3SpringCoefficients RAPIER_CALL r3ContactSoftness(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::contactSoftness.
- * @ingroup soft_bodies
+ * @ingroup worlds
  */
 RAPIER_API
 R3Status RAPIER_CALL r3SetContactSoftness(struct R3World *world,
@@ -13994,13 +16804,13 @@ R3Status RAPIER_CALL r3SetContactSoftness(struct R3World *world,
 
 /**
  * Return the world setting documented by R3IntegrationParameters::staticContactSoftness.
- * @ingroup soft_bodies
+ * @ingroup worlds
  */
 RAPIER_API struct R3SpringCoefficients RAPIER_CALL r3StaticContactSoftness(const struct R3World *world);
 
 /**
  * Set the world setting documented by R3IntegrationParameters::staticContactSoftness.
- * @ingroup soft_bodies
+ * @ingroup worlds
  */
 RAPIER_API
 R3Status RAPIER_CALL r3SetStaticContactSoftness(struct R3World *world,
@@ -14008,7 +16818,7 @@ R3Status RAPIER_CALL r3SetStaticContactSoftness(struct R3World *world,
 
 /**
  * Applies Rapier's persistent one-way platform logic to the borrowed manifold.
- * @ingroup worlds
+ * @ingroup callbacks
  */
 RAPIER_API
 R3Status RAPIER_CALL r3ContactModificationContext_UpdateAsOnewayPlatform(struct R3ContactModificationContext *context,
@@ -14017,7 +16827,7 @@ R3Status RAPIER_CALL r3ContactModificationContext_UpdateAsOnewayPlatform(struct 
 
 /**
  * Sets the tangent velocity of every rigid solver contact in this manifold.
- * @ingroup worlds
+ * @ingroup callbacks
  */
 RAPIER_API
 R3Status RAPIER_CALL r3ContactModificationContext_SetTangentVelocity(struct R3ContactModificationContext *context,
@@ -14037,13 +16847,13 @@ RAPIER_API struct R3EventCollector *RAPIER_CALL r3NewEventCollector(void);
 RAPIER_API R3Status RAPIER_CALL r3FreeEventCollector(struct R3EventCollector *events);
 
 /**
- * Discard all collected events. Does not change the world.
+ * Discard all collected events. Does not change the world or the callbacks.
  * @ingroup events
  */
 RAPIER_API R3Status RAPIER_CALL r3EventCollector_Clear(struct R3EventCollector *events);
 
 /**
- * Copy the collected collision start/stop events without removing them.
+ * Copy the collision start/stop events collected since the last clear, without removing them.
  * @see @ref output_buffers
  * @ingroup events
  */
@@ -14053,7 +16863,7 @@ size_t RAPIER_CALL r3EventCollector_CollisionEvents(const struct R3EventCollecto
                                             size_t capacity);
 
 /**
- * Copy the collected contact-force events without removing them.
+ * Copy the contact-force events collected since the last clear, without removing them.
  * @see @ref output_buffers
  * @ingroup events
  */
@@ -14063,7 +16873,7 @@ size_t RAPIER_CALL r3EventCollector_ContactForceEvents(const struct R3EventColle
                                                 size_t capacity);
 
 /**
- * Return the number of queued soft-body tear events.
+ * Return the number of soft-body tear events collected since the last clear.
  * @ingroup events
  */
 RAPIER_API size_t RAPIER_CALL r3EventCollector_TearEventCount(const struct R3EventCollector *events);
@@ -14090,8 +16900,9 @@ RAPIER_API struct R3Vector RAPIER_CALL r3Gravity(const struct R3World *world);
 RAPIER_API R3Status RAPIER_CALL r3SetGravity(struct R3World *world, struct R3Vector value);
 
 /**
- * Hooks and events may be NULL. This call invalidates all borrowed set-element pointers.
- * Advance simulation by one timestep. Hooks and events may be NULL.
+ * Advance simulation by one timestep. Hooks and events may be NULL. Events are appended to the
+ * collector, which is never cleared automatically. This call invalidates all borrowed set-element
+ * pointers.
  * @ingroup worlds
  */
 RAPIER_API
@@ -14100,7 +16911,8 @@ R3Status RAPIER_CALL r3Step(struct R3World *world,
                    const struct R3EventCollector *events);
 
 /**
- * Refresh collision detection without advancing simulation. Hooks and events may be NULL.
+ * Refresh collision detection without advancing simulation. Hooks and events may be NULL; events
+ * are appended to the collector.
  * @ingroup worlds
  */
 RAPIER_API
@@ -14137,9 +16949,10 @@ RAPIER_API struct R3Bytes *RAPIER_CALL r3SerializeWorld(const struct R3World *wo
 RAPIER_API struct R3World *RAPIER_CALL r3DeserializeWorld(const uint8_t *data, size_t count);
 
 /**
- * Color is HSLA (hue in degrees), matching Rapier DebugColor. mode uses DebugRenderMode bits.
+ * Copy the debug-render lines of the world with the default style. mode combines R3_DEBUG_* bits;
+ * colors are HSLA (hue in degrees), matching Rapier DebugColor.
  * @see @ref output_buffers
- * @ingroup worlds
+ * @ingroup events
  */
 RAPIER_API
 size_t RAPIER_CALL r3DebugRender(const struct R3World *world,
@@ -14459,7 +17272,9 @@ RAPIER_API
 struct R3SoftBodyHandle RAPIER_CALL r3SoftBodyTearEvent_SoftBody(const struct R3SoftBodyTearEvent *event);
 
 /**
- * Copy the soft-body handles produced by the tear.
+ * Copy the soft bodies the torn body is in after the tear, the one keeping the handle first: the
+ * torn body alone when nothing was split off. Entry i holds the particles given by
+ * r3SoftBodyTearEvent_PieceParticles(event, i, ...).
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
@@ -14527,7 +17342,9 @@ size_t RAPIER_CALL r3SoftBodyTearEvent_InsertedParticles(const struct R3SoftBody
                                                    size_t capacity);
 
 /**
- * Copy original particle indices belonging to a resulting piece.
+ * Copy the particles of the piece_index-th body of r3SoftBodyTearEvent_Bodies, as indices in
+ * the torn body after the tear (the indices the other event fields use); entry i is the piece's
+ * particle i. piece_index must be less than r3SoftBodyTearEvent_PieceCount.
  * @see @ref output_buffers
  * @ingroup soft_bodies
  */
@@ -14636,7 +17453,7 @@ RAPIER_API const char *RAPIER_CALL r3Version(void);
 RAPIER_API const char *RAPIER_CALL r3BuildProfile(void);
 
 /**
- * Return profiling, SIMD width, and parallelism of the linked library.
+ * Return profiling, SIMD width, parallelism, and determinism of the linked library.
  * @ingroup errors
  */
 RAPIER_API struct R3BuildFeatures RAPIER_CALL r3BuildFeatures(void);
@@ -14688,7 +17505,8 @@ size_t RAPIER_CALL r3ContactPairs(const struct R3World *world,
                          size_t capacity);
 
 /**
- * Return the narrow-phase contact pair for two colliders, or report R3_NOT_FOUND.
+ * Return the narrow-phase contact pair for two colliders, or report R3_NOT_FOUND. Its collider1 and
+ * collider2 follow the narrow-phase order, which may differ from the argument order.
  * @ingroup events
  */
 RAPIER_API
@@ -14708,9 +17526,11 @@ size_t RAPIER_CALL r3IntersectionPairs(const struct R3World *world,
 /**
  * Contact points in collider-local space; normal in world space. Geometric manifolds may be
  * recycled.
+ * local_p1/local_p2 follow the pair's own collider1/collider2 order (see r3ContactPair), which
+ * may differ from the argument order.
  * For clustered solver impulses use contact pair totals. Soft pairs have no rigid manifolds.
  * @see @ref output_buffers
- * @ingroup worlds
+ * @ingroup events
  */
 RAPIER_API
 size_t RAPIER_CALL r3ContactPoints(struct R3ColliderHandle collider1,
@@ -14738,7 +17558,11 @@ R3Status RAPIER_CALL r3MultibodyJoint_SetGeneralizedVelocity(struct R3MultibodyJ
                                                        size_t count);
 
 /**
- * Check this before passing any dimension/precision-dependent structs across the ABI.
+ * Check that the header matches the linked library before passing any structure across the ABI.
+ * Pass R3_ABI_VERSION, R3_DIMENSION, the sizes of R3Real, R3Vector and R3Pose, and
+ * R3_ABI_FEATURES. Fails with R3_INVALID_ARGUMENT when the version, dimension, precision, or
+ * the RAPIER_FEM/RAPIER_ROBOTICS defines differ from the library, since they change structure
+ * layouts.
  * @ingroup errors
  */
 RAPIER_API
@@ -14746,7 +17570,119 @@ R3Status RAPIER_CALL r3CheckAbi(uint32_t version,
                         uint32_t dimension,
                         size_t real_size,
                         size_t vector_size,
-                        size_t pose_size);
+                        size_t pose_size,
+                        uint32_t features);
+
+/**
+ * Copy the rigid bodies quarantined by the most recent Step because their pose or velocity became
+ * non-finite (NaN or infinite). Rapier disabled them, restored their last valid pose when known,
+ * and zeroed their velocities and forces; re-enable them with RigidBody_SetEnabled once the cause
+ * is fixed. The list is cleared at the start of every Step and may hold handles removed since.
+ * @see @ref output_buffers
+ * @ingroup worlds
+ */
+RAPIER_API
+size_t RAPIER_CALL r3QuarantinedRigidBodies(const struct R3World *world,
+                                    struct R3RigidBodyHandle *buffer,
+                                    size_t capacity);
+
+/**
+ * Copy the colliders quarantined by the most recent Step because their own pose or shape became
+ * non-finite, independently of their parent. Rapier disabled them; re-enable them with
+ * Collider_SetEnabled once fixed. The list is cleared at the start of every Step and may hold
+ * handles removed since.
+ * @see @ref output_buffers
+ * @ingroup worlds
+ */
+RAPIER_API
+size_t RAPIER_CALL r3QuarantinedColliders(const struct R3World *world,
+                                 struct R3ColliderHandle *buffer,
+                                 size_t capacity);
+
+/**
+ * Copy the soft bodies quarantined by the most recent Step because a particle position or velocity
+ * became non-finite. Rapier disabled them and zeroed their velocities but left the non-finite
+ * positions: fix them with SoftBody_SetParticlePosition before SoftBody_SetEnabled. The list is
+ * cleared at the start of every Step and may hold handles removed since.
+ * @see @ref output_buffers
+ * @ingroup worlds
+ */
+RAPIER_API
+size_t RAPIER_CALL r3QuarantinedSoftBodies(const struct R3World *world,
+                                   struct R3SoftBodyHandle *buffer,
+                                   size_t capacity);
+
+#if defined(RAPIER_DIM3)
+/**
+ * Return the world setting documented by R3IntegrationParameters::frictionModel.
+ * @ingroup worlds
+ */
+RAPIER_API uint32_t RAPIER_CALL r3FrictionModel(const struct R3World *world);
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * Set the world setting documented by R3IntegrationParameters::frictionModel.
+ * @ingroup worlds
+ */
+RAPIER_API R3Status RAPIER_CALL r3SetFrictionModel(struct R3World *world, uint32_t value);
+#endif
+
+/**
+ * Sine of an angle in radians, computed by Rapier's math backend. With enhanced-determinism
+ * (see BuildFeatures), the result is identical on every platform.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Sin(R3Real x);
+
+/**
+ * Cosine of an angle in radians, computed by Rapier's math backend. See r3Sin.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Cos(R3Real x);
+
+/**
+ * Tangent of an angle in radians, computed by Rapier's math backend. See r3Sin.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Tan(R3Real x);
+
+/**
+ * Arcsine in radians, computed by Rapier's math backend. See r3Sin.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Asin(R3Real x);
+
+/**
+ * Arccosine in radians, computed by Rapier's math backend. See r3Sin.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Acos(R3Real x);
+
+/**
+ * Angle in radians of the point (x, y), in [-pi, pi], computed by Rapier's math backend. See
+ * r3Sin.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Atan2(R3Real y, R3Real x);
+
+/**
+ * Exponential e^x, computed by Rapier's math backend. See r3Sin.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Exp(R3Real x);
+
+/**
+ * Natural logarithm, computed by Rapier's math backend. See r3Sin.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Ln(R3Real x);
+
+/**
+ * base raised to the power exponent, computed by Rapier's math backend. See r3Sin.
+ * @ingroup math
+ */
+RAPIER_API R3Real RAPIER_CALL r3Powf(R3Real base, R3Real exponent);
 
 /**
  * Return owned local-space rendering geometry; release it with r3FreeShapeMesh. subdivisions
@@ -14797,8 +17733,21 @@ R3SharedShape *RAPIER_CALL r3RoundCylinderSharedShape(R3Real half_height,
 
 #if defined(RAPIER_DIM3)
 /**
+ * Create an owned round cone shape. Release it with r3FreeSharedShape.
+ * @ingroup shapes
+ */
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3RoundConeSharedShape(R3Real half_height,
+                                            R3Real radius,
+                                            R3Real border_radius);
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
  * Tessellate a ball or capsule with independent longitude/latitude subdivision counts.
  * Cuboids, cones, cylinders, convex polyhedra, trimeshes, and heightfields are also supported.
+ * ntheta (3 to 4096) is read by balls, capsules, cones and cylinders; nphi (2 to 4096) by balls
+ * and capsules. Other shapes ignore them.
  * @ingroup shapes
  */
 RAPIER_API
@@ -14910,7 +17859,8 @@ struct R3UrdfRobotHandles *RAPIER_CALL r3UrdfRobot_InsertUsingMultibodyJoints(st
 
 #if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
 /**
- * Body handles in source order; absent MJCF bodies have invalid handles.
+ * One body handle per imported URDF link, in source order. Links merged away by
+ * squeezeEmptyFixedLinks have no entry.
  * @see @ref output_buffers
  * @ingroup robotics
  */
@@ -15185,6 +18135,105 @@ size_t RAPIER_CALL r3MjcfVisualMesh_Texture(const R3MjcfVisualMesh *visual,
                                     size_t capacity);
 #endif
 
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Load a URDF robot from a NUL-terminated UTF-8 string. Relative mesh paths are resolved from
+ * mesh_dir (NULL resolves them from the current directory). Options and their blueprint resources
+ * are borrowed through this call; the robot is owned.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R3UrdfRobot *RAPIER_CALL r3UrdfRobotFromString(const char *urdf,
+                                                const char *mesh_dir,
+                                                const struct R3UrdfLoaderOptions *options);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Release owned MJCF contact hooks. NULL is allowed. Do not free them while a step still uses
+ * them, and do not free them twice.
+ * @ingroup robotics
+ */
+RAPIER_API R3Status RAPIER_CALL r3FreeMjcfContactHooks(struct R3MjcfContactHooks *hooks);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Build the contact rules of an inserted MJCF robot. robot must be the robot these handles were
+ * inserted from. The rules refer to the inserted colliders; the returned hooks are owned.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R3MjcfContactHooks *RAPIER_CALL r3MjcfRobotHandles_ContactHooks(const struct R3MjcfRobotHandles *handles,
+                                                                 const struct R3MjcfRobot *robot);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Return physics hooks forwarding to these contact rules, with hooks as their user_data. Pass
+ * them to r3Step; hooks must outlive every step using them. The inserted colliders already
+ * enable the contact-filtering and contact-modification hooks.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R3PhysicsHooks RAPIER_CALL r3MjcfContactHooks_PhysicsHooks(const struct R3MjcfContactHooks *hooks);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Release owned loaded meshes. NULL is allowed. Do not pass borrowed pointers or free the object
+ * twice.
+ * @ingroup robotics
+ */
+RAPIER_API R3Status RAPIER_CALL r3FreeLoadedMeshes(struct R3LoadedMeshes *meshes);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Load every mesh of a file from a UTF-8 path and convert it into a shape with converter (an
+ * R3_MESH_CONVERTER_* value). trimesh_flags (R3_TRIMESH_* bits) apply to
+ * R3_MESH_CONVERTER_TRIMESH and must be 0 otherwise. scale multiplies the vertices before
+ * conversion. A mesh failing to convert does not fail the load; see r3LoadedMeshes_CloneShape.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R3LoadedMeshes *RAPIER_CALL r3LoadedMeshesFromFile(const char *path,
+                                                    uint32_t converter,
+                                                    uint32_t trimesh_flags,
+                                                    struct R3Vector scale);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Return the number of meshes read from the file, including those that failed to convert.
+ * @ingroup robotics
+ */
+RAPIER_API size_t RAPIER_CALL r3LoadedMeshes_Count(const struct R3LoadedMeshes *meshes);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Return an owned shape wrapper sharing the geometry of a loaded mesh. Release it with
+ * FreeSharedShape. Returns NULL with INVALID_ARGUMENT if the index is out of range or if that
+ * mesh failed to convert.
+ * @ingroup robotics
+ */
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3LoadedMeshes_CloneShape(const struct R3LoadedMeshes *meshes,
+                                              size_t index);
+#endif
+
+#if (defined(RAPIER_ROBOTICS) && defined(RAPIER_DIM3) && defined(RAPIER_F32))
+/**
+ * Return the pose to give the shape of a loaded mesh (for example the center of its bounding
+ * box). Reports INVALID_ARGUMENT if the index is out of range or if that mesh failed to convert.
+ * @ingroup robotics
+ */
+RAPIER_API
+struct R3Pose RAPIER_CALL r3LoadedMeshes_Pose(const struct R3LoadedMeshes *meshes,
+                                      size_t index);
+#endif
+
 /**
  * Return the rigid body world-space pose.
  * @ingroup rigid_bodies
@@ -15404,7 +18453,8 @@ RAPIER_API R3Bool RAPIER_CALL r3Collider_IsSensor(struct R3ColliderHandle handle
 RAPIER_API struct R3RigidBodyHandle RAPIER_CALL r3Collider_Parent(struct R3ColliderHandle handle);
 
 /**
- * Set the collider world-space pose.
+ * Set the collider world-space pose. For a collider attached to a rigid body, prefer
+ * SetPositionWrtParent: the body pose overwrites it at the next step.
  * @ingroup colliders
  */
 RAPIER_API
@@ -15412,7 +18462,8 @@ R3Status RAPIER_CALL r3Collider_SetPosition(struct R3ColliderHandle handle,
                                     struct R3Pose value);
 
 /**
- * Set the collider world-space translation.
+ * Set the collider world-space translation. For a collider attached to a rigid body, prefer
+ * SetPositionWrtParent: the body pose overwrites it at the next step.
  * @ingroup colliders
  */
 RAPIER_API
@@ -15535,6 +18586,79 @@ R3Status RAPIER_CALL r3ImpulseJoint_SetDesc(struct R3ImpulseJointHandle handle,
                                      R3Bool wake_up);
 
 /**
+ * Return the collider body-type collision activation bitmask (R3_COLLISION_TYPES_* bits).
+ * @ingroup colliders
+ */
+RAPIER_API uint16_t RAPIER_CALL r3Collider_ActiveCollisionTypes(struct R3ColliderHandle handle);
+
+/**
+ * Return the collider physics-hook activation bitmask.
+ * @ingroup colliders
+ */
+RAPIER_API uint32_t RAPIER_CALL r3Collider_ActiveHooks(struct R3ColliderHandle handle);
+
+/**
+ * Return the collider friction combination rule (R3_COMBINE_*).
+ * @ingroup colliders
+ */
+RAPIER_API uint32_t RAPIER_CALL r3Collider_FrictionCombineRule(struct R3ColliderHandle handle);
+
+/**
+ * Return the collider restitution combination rule (R3_COMBINE_*).
+ * @ingroup colliders
+ */
+RAPIER_API uint32_t RAPIER_CALL r3Collider_RestitutionCombineRule(struct R3ColliderHandle handle);
+
+/**
+ * Return the collider pose relative to its parent rigid body, or its world-space pose if it has
+ * no parent.
+ * @ingroup colliders
+ */
+RAPIER_API struct R3Pose RAPIER_CALL r3Collider_PositionWrtParent(struct R3ColliderHandle handle);
+
+/**
+ * Return the rigid body signed dominance group.
+ * @ingroup rigid_bodies
+ */
+RAPIER_API int8_t RAPIER_CALL r3RigidBody_DominanceGroup(struct R3RigidBodyHandle handle);
+
+/**
+ * Return the rigid body additional solver iterations for connected bodies.
+ * @ingroup rigid_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r3RigidBody_AdditionalSolverIterations(struct R3RigidBodyHandle handle);
+
+/**
+ * Return the rigid body additional PGS iterations for connected bodies.
+ * @ingroup rigid_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r3RigidBody_AdditionalPgsIterations(struct R3RigidBodyHandle handle);
+
+/**
+ * Return whether the rigid body may exceed the angular-velocity limit of its CCD.
+ * @ingroup rigid_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RigidBody_IsFastRotationAllowed(struct R3RigidBodyHandle handle);
+
+/**
+ * Set the collider world-space rotation. For a collider attached to a rigid body, prefer
+ * SetPositionWrtParent: the body pose overwrites it at the next step.
+ * @ingroup colliders
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3Collider_SetRotation(struct R3ColliderHandle handle,
+                                    struct R3Rotation value);
+
+/**
+ * Allow or disallow the rigid body to exceed the angular-velocity limit of its CCD (e.g. for
+ * wheels).
+ * @ingroup rigid_bodies
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3RigidBody_SetAllowFastRotation(struct R3RigidBodyHandle handle,
+                                                 R3Bool value);
+
+/**
  * Replace the shape geometry with a borrowed tri mesh. Counts are elements.
  * Copies no arrays. Invalid view metadata leaves the description unchanged.
  * Geometry and flags are validated when the description is built or inserted.
@@ -15582,6 +18706,39 @@ RAPIER_API
 R3Status RAPIER_CALL r3SoftBodyDesc_SetSurfaceMesh(struct R3SoftBodyDesc *desc,
                                               struct R3VectorView vertices,
                                               R3SurfaceElementView elements);
+
+#if defined(RAPIER_DIM2)
+/**
+ * Select a 2D triangle-mesh recipe and borrow its vertices and triangles (stored in positions and
+ * cells). The triangles become structural edges and a boundary, not cells, and shape matching
+ * holds the shape. Other fields are preserved.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetTrimesh(struct R3SoftBodyDesc *desc,
+                                         struct R3VectorView vertices,
+                                         struct R3TriangleView triangles);
+#endif
+
+/**
+ * Borrow descriptions to merge into this body (see R3SoftBodyDesc::appended); preserve all other
+ * fields. No allocation or element reads.
+ * Invalid view metadata leaves the description unchanged.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetAppended(struct R3SoftBodyDesc *desc,
+                                          struct R3SoftBodyDescView view);
+
+/**
+ * Borrow structural edges added after appending (see R3SoftBodyDesc::addedEdges); preserve all
+ * other fields. No allocation or element reads.
+ * Invalid view metadata leaves the description unchanged.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBodyDesc_SetAddedEdges(struct R3SoftBodyDesc *desc,
+                                             struct R3EdgeView view);
 
 /**
  * Borrow skin geometry. Other fields, including skinCollision, are preserved.
@@ -15766,6 +18923,18 @@ struct R3ColliderDesc RAPIER_CALL r3RoundCylinderColliderDesc(R3Real half_height
                                                         R3Real border_radius);
 #endif
 
+#if defined(RAPIER_DIM3)
+/**
+ * Return a rounded Y-aligned cone description; dimensions exclude border_radius.
+ * Returns a description without allocating or validating. Build/insert validates its fields.
+ * @ingroup colliders
+ */
+RAPIER_API
+struct R3ColliderDesc RAPIER_CALL r3RoundConeColliderDesc(R3Real half_height,
+                                                    R3Real radius,
+                                                    R3Real border_radius);
+#endif
+
 /**
  * Return a X-aligned capsule description; half_height is half the segment length, excluding caps.
  * Returns a description without allocating or validating. Build/insert validates its fields.
@@ -15838,6 +19007,36 @@ struct R3SoftBodyDesc RAPIER_CALL r3ClothSoftBodyDesc(struct R3Vector origin,
                                                 struct R3Vector dv,
                                                 size_t nu,
                                                 size_t nv);
+#endif
+
+#if defined(RAPIER_DIM3)
+/**
+ * Return a cloth recipe like r3ClothSoftBodyDesc whose edges along du (warp), along dv (weft)
+ * and diagonal (shear) get their own softness; the material's bendSoftness still applies to the
+ * bending edges. The softness is stored in warpSoftness, weftSoftness and shearSoftness.
+ * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+struct R3SoftBodyDesc RAPIER_CALL r3ClothAnisotropicSoftBodyDesc(struct R3Vector origin,
+                                                            struct R3Vector du,
+                                                            struct R3Vector dv,
+                                                            size_t nu,
+                                                            size_t nv,
+                                                            struct R3SpringCoefficients warp,
+                                                            struct R3SpringCoefficients weft,
+                                                            struct R3SpringCoefficients shear);
+#endif
+
+#if defined(RAPIER_DIM2)
+/**
+ * Return a closed polygon recipe from at least 3 counter-clockwise points: structural edges along
+ * the boundary, bending edges between second neighbors, and area preservation. The points are
+ * borrowed until preview/insertion.
+ * Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+ * @ingroup soft_bodies
+ */
+RAPIER_API struct R3SoftBodyDesc RAPIER_CALL r3PolygonSoftBodyDesc(struct R3VectorView points);
 #endif
 
 #if defined(RAPIER_DIM2)
@@ -15916,6 +19115,315 @@ RAPIER_API
 size_t RAPIER_CALL r3SoftBodyDesc_CellIndices(const struct R3SoftBodyDesc *desc,
                                        uint32_t *buffer,
                                        size_t capacity);
+
+/**
+ * Return the world-space velocity of the indexed particle.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+struct R3Vector RAPIER_CALL r3SoftBody_ParticleVelocity(struct R3SoftBodyHandle handle,
+                                                 size_t index);
+
+/**
+ * Return the solver simulating the soft body's elasticity (R3_SOFT_SOLVER_*). Always
+ * R3_SOFT_SOLVER_CONSTRAINTS in a library built without FEM.
+ * @ingroup soft_bodies
+ */
+RAPIER_API uint32_t RAPIER_CALL r3SoftBody_Solver(struct R3SoftBodyHandle handle);
+
+/**
+ * Override the softness of every structural or bending edge fully contained in a live cluster:
+ * regional stiffness for cloth and ropes. A NULL softness restores the body material's.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_SetClusterEdgeSoftness(struct R3SoftBodyHandle handle,
+                                                  uint32_t cluster,
+                                                  const struct R3SpringCoefficients *softness);
+
+/**
+ * Apply a world-space impulse to every free particle within falloff_radius of the world-space
+ * point, scaled linearly from 1 at the point to 0 at that radius and divided by the particle's
+ * mass. A falloff_radius of zero or less gives every free particle the whole impulse. Pinned
+ * particles ignore it.
+ * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_ApplyImpulseAtPoint(struct R3SoftBodyHandle handle,
+                                               struct R3Vector impulse,
+                                               struct R3Vector point,
+                                               R3Real falloff_radius,
+                                               R3Bool wake_up);
+
+/**
+ * Apply an impulse of the given magnitude pointing away from the world-space center to every
+ * free particle within falloff_radius, scaled linearly from 1 at the center to 0 at that
+ * radius and divided by the particle's mass. A particle on the center gets nothing; a
+ * falloff_radius of zero or less pushes every free particle fully. A negative magnitude pulls
+ * toward the center. Pinned particles ignore it.
+ * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3SoftBody_ApplyRadialImpulse(struct R3SoftBodyHandle handle,
+                                             struct R3Vector center,
+                                             R3Real magnitude,
+                                             R3Real falloff_radius,
+                                             R3Bool wake_up);
+
+/**
+ * Undo every permanent (plastic) deformation: edge rest lengths, dihedral rest angles, cell
+ * rest shapes and particle rest positions return to their creation state. The particles stay
+ * put and spring back elastically.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_ResetPlasticity(struct R3SoftBodyHandle handle);
+
+/**
+ * Mark the indexed edge as torn. The tear is applied at the end of the next step and reported
+ * by a tear event; use r3SoftBody_Tear to tear immediately.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_TearEdge(struct R3SoftBodyHandle handle, size_t index);
+
+/**
+ * Mark the indexed cell as torn. The tear is applied at the end of the next step and reported
+ * by a tear event: no cell is removed, one of its particles splits along the plane
+ * perpendicular to the cell's principal rest stretch.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Status RAPIER_CALL r3SoftBody_TearCell(struct R3SoftBodyHandle handle, size_t index);
+
+/**
+ * Return the soft body owning this deformable collider (a soft-body collision mesh), or an invalid
+ * handle for any other collider.
+ * @ingroup colliders
+ */
+RAPIER_API struct R3SoftBodyHandle RAPIER_CALL r3Collider_SoftBody(struct R3ColliderHandle handle);
+
+/**
+ * Return the soft body owning this deformable collider, or an invalid handle for any other
+ * collider. Uses only the callback-scoped read context; never retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+struct R3SoftBodyHandle RAPIER_CALL r3ReadCollider_SoftBody(const struct R3ReadContext *context,
+                                                     struct R3ColliderHandle handle);
+
+/**
+ * Return the number of soft bodies the torn body is in after the tear: the length of
+ * r3SoftBodyTearEvent_Bodies, and the exclusive bound of the piece_index of
+ * r3SoftBodyTearEvent_PieceParticles. It is 1 when nothing was split off.
+ * @ingroup soft_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r3SoftBodyTearEvent_PieceCount(const struct R3SoftBodyTearEvent *event);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::authoredVelocityMargin.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryAuthoredVelocityMargin(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::edgeSpeculation.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryEdgeSpeculation(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::invertedCellDetection.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryInvertedCellDetection(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::selfCrossingDetection.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoverySelfCrossingDetection(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::detectionMotionGating.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryDetectionMotionGating(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::crossBodyDetection.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryCrossBodyDetection(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::selfStandDown.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoverySelfStandDown(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::crossBodyExpelGate.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryCrossBodyExpelGate(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::edgeStandDown.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryEdgeStandDown(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::crossingRepulsion.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryCrossingRepulsion(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::crossingRepulsionGuide.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryCrossingRepulsionGuide(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::crossingRepulsionSelfGuide.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryCrossingRepulsionSelfGuide(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::recoveryPace.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Real RAPIER_CALL r3RecoveryRecoveryPace(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapConstraints.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryOverlapConstraints(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapRigid.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryOverlapRigid(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapSkipSelfTangled.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryOverlapSkipSelfTangled(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapEdgeStandDown.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryOverlapEdgeStandDown(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapConstraintPace.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Real RAPIER_CALL r3RecoveryOverlapConstraintPace(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapPatchConstraints.
+ * @ingroup soft_bodies
+ */
+RAPIER_API uint32_t RAPIER_CALL r3RecoveryOverlapPatchConstraints(const struct R3World *world);
+
+/**
+ * Set the world setting documented by R3SoftRecoverySettings::overlapPatchConstraints.
+ * @ingroup soft_bodies
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3RecoverySetOverlapPatchConstraints(struct R3World *world,
+                                                     uint32_t value);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapSkinVolume.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryOverlapSkinVolume(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapKeptDepth.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Real RAPIER_CALL r3RecoveryOverlapKeptDepth(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapSelfRegions.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryOverlapSelfRegions(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapNormalPush.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryOverlapNormalPush(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapMultiVolume.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Bool RAPIER_CALL r3RecoveryOverlapMultiVolume(const struct R3World *world);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapSplit.
+ * @ingroup soft_bodies
+ */
+RAPIER_API uint32_t RAPIER_CALL r3RecoveryOverlapSplit(const struct R3World *world);
+
+/**
+ * Set the world setting documented by R3SoftRecoverySettings::overlapSplit.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapSplit(struct R3World *world, uint32_t value);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapPatience.
+ * @ingroup soft_bodies
+ */
+RAPIER_API uint32_t RAPIER_CALL r3RecoveryOverlapPatience(const struct R3World *world);
+
+/**
+ * Set the world setting documented by R3SoftRecoverySettings::overlapPatience.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Status RAPIER_CALL r3RecoverySetOverlapPatience(struct R3World *world, uint32_t value);
+
+/**
+ * Return the world setting documented by R3SoftRecoverySettings::overlapProgressMargin.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Real RAPIER_CALL r3RecoveryOverlapProgressMargin(const struct R3World *world);
+
+#if defined(RAPIER_FEM)
+/**
+ * Return the world setting documented by R3SoftFemParameters::linearTolerance.
+ * @ingroup soft_bodies
+ */
+RAPIER_API R3Real RAPIER_CALL r3FemLinearTolerance(const struct R3World *world);
+#endif
+
+#if defined(RAPIER_FEM)
+/**
+ * Return the world setting documented by R3SoftFemParameters::maxLinearIterations.
+ * @ingroup soft_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r3FemMaxLinearIterations(const struct R3World *world);
+#endif
+
+#if defined(RAPIER_FEM)
+/**
+ * Return the world setting documented by R3SoftFemParameters::maxDenseDofs.
+ * @ingroup soft_bodies
+ */
+RAPIER_API size_t RAPIER_CALL r3FemMaxDenseDofs(const struct R3World *world);
+#endif
 
 /**
  * Return a process-local geometry identity for caching, not a serializable ID. Keep a shared-shape
@@ -16084,7 +19592,9 @@ R3Status RAPIER_CALL r3SoftBody_AddForce(struct R3SoftBodyHandle handle,
                                   R3Bool wake_up);
 
 /**
- * Apply a world-space linear impulse.
+ * Add the same world-space velocity change to every free particle: the whole body is kicked at
+ * the same velocity, whatever the particle masses (the value is not divided by the mass). Pinned
+ * particles ignore it.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
  * @ingroup soft_bodies
  */
@@ -16115,7 +19625,9 @@ R3Status RAPIER_CALL r3SoftBody_SetVolumeFactor(struct R3SoftBodyHandle handle,
                                           R3Real value);
 
 /**
- * Attach a particle to a rigid body at the supplied body-local anchor.
+ * Attach a particle to a rigid body by a two-way point-to-point constraint (unlike pinning). The
+ * anchor is the particle's current position, expressed in the rigid body's local frame; a particle
+ * attached twice keeps both attachments. Undo it with r3SoftBody_DetachParticle.
  * @ingroup soft_bodies
  */
 RAPIER_API
@@ -16124,10 +19636,11 @@ R3Status RAPIER_CALL r3SoftBody_AttachParticle(struct R3SoftBodyHandle handle,
                                         struct R3RigidBodyHandle rigid_body);
 
 /**
- * Remove a particle attachment to a rigid body.
+ * Detach a particle from every rigid body it was attached to with r3SoftBody_AttachParticle.
+ * Returns whether it was attached at all.
  * @ingroup soft_bodies
  */
-RAPIER_API R3Status RAPIER_CALL r3SoftBody_DetachParticle(struct R3SoftBodyHandle handle, size_t index);
+RAPIER_API R3Bool RAPIER_CALL r3SoftBody_DetachParticle(struct R3SoftBodyHandle handle, size_t index);
 
 /**
  * Copy cluster indices.
@@ -16186,7 +19699,9 @@ R3Status RAPIER_CALL r3SoftBody_SetClusterShapeMatchingEnabled(struct R3SoftBody
                                                            R3Bool value);
 
 /**
- * Set the soft body cluster shape-matching stiffness multiplier.
+ * Scale the material stiffness (Young modulus) of every cell fully contained in a live cluster:
+ * regional materials without a separate body. Cells straddling the cluster's boundary keep their
+ * stiffness; use r3SoftBody_SetClusterEdgeSoftness for edges.
  * @ingroup soft_bodies
  */
 RAPIER_API
@@ -16461,7 +19976,7 @@ RAPIER_API R3Real RAPIER_CALL r3RigidBody_KineticEnergy(struct R3RigidBodyHandle
 
 /**
  * Return the rigid body soft-CCD prediction distance.
- * @ingroup soft_bodies
+ * @ingroup rigid_bodies
  */
 RAPIER_API R3Real RAPIER_CALL r3RigidBody_SoftCcdPrediction(struct R3RigidBodyHandle handle);
 
@@ -16553,7 +20068,7 @@ R3Status RAPIER_CALL r3RigidBody_SetAdditionalMass(struct R3RigidBodyHandle hand
 
 /**
  * Set the rigid body soft-CCD prediction distance.
- * @ingroup soft_bodies
+ * @ingroup rigid_bodies
  */
 RAPIER_API
 R3Status RAPIER_CALL r3RigidBody_SetSoftCcdPrediction(struct R3RigidBodyHandle handle,
@@ -16840,8 +20355,7 @@ RAPIER_API R3Bool RAPIER_CALL r3Collider_IsEnabled(struct R3ColliderHandle handl
 RAPIER_API struct R3Aabb RAPIER_CALL r3Collider_ComputeAabb(struct R3ColliderHandle handle);
 
 /**
- * Return an owned wrapper sharing the collider geometry. Release with r3FreeSharedShape.
- * Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
+ * Return an owned wrapper sharing the collider geometry. Release it with r3FreeSharedShape.
  * @ingroup shapes
  */
 RAPIER_API R3SharedShape *RAPIER_CALL r3Collider_CloneShape(struct R3ColliderHandle handle);
@@ -16989,7 +20503,7 @@ R3Status RAPIER_CALL r3ImpulseJoint_SetEnabled(struct R3ImpulseJointHandle handl
 
 /**
  * Set the joint desc joint spring coefficients.
- * @ingroup soft_bodies
+ * @ingroup joints
  */
 RAPIER_API
 R3Status RAPIER_CALL r3JointDesc_SetSoftness(struct R3JointDesc *desc,
@@ -16998,7 +20512,7 @@ R3Status RAPIER_CALL r3JointDesc_SetSoftness(struct R3JointDesc *desc,
 /**
  * Set the impulse joint joint spring coefficients.
  * wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
- * @ingroup soft_bodies
+ * @ingroup joints
  */
 RAPIER_API
 R3Status RAPIER_CALL r3ImpulseJoint_SetSoftness(struct R3ImpulseJointHandle handle,
@@ -17259,6 +20773,55 @@ R3Status RAPIER_CALL r3ImpulseJoint_SetMotorVelocity(struct R3ImpulseJointHandle
                                                R3Bool wake_up);
 
 /**
+ * Return the impulses applied by the impulse joint during the last step. They are zero before
+ * its first step, and their components are expressed along the axes of the joint frame.
+ * @ingroup joints
+ */
+RAPIER_API struct R3JointImpulses RAPIER_CALL r3ImpulseJoint_Impulses(struct R3ImpulseJointHandle handle);
+
+/**
+ * Return the impulse joint application-owned 128-bit user value.
+ * @ingroup joints
+ */
+RAPIER_API struct R3UserData RAPIER_CALL r3ImpulseJoint_UserData(struct R3ImpulseJointHandle handle);
+
+/**
+ * Return the number of impulse joints in the world.
+ * @ingroup joints
+ */
+RAPIER_API size_t RAPIER_CALL r3ImpulseJointCount(const struct R3World *world);
+
+/**
+ * Return the number of multibody joints in the world, which is the number of handles copied by
+ * r3MultibodyJointHandles.
+ * @ingroup joints
+ */
+RAPIER_API size_t RAPIER_CALL r3MultibodyJointCount(const struct R3World *world);
+
+/**
+ * Copies the multibody joint configuration without returning a borrowed joint pointer.
+ * @ingroup joints
+ */
+RAPIER_API struct R3JointDesc RAPIER_CALL r3MultibodyJoint_Desc(struct R3MultibodyJointHandle handle);
+
+/**
+ * Replaces the multibody joint configuration after validation. lockedAxes defines the degrees of
+ * freedom of the multibody and cannot change: a different value reports INVALID_ARGUMENT.
+ * wake_up = 1 wakes the two connected bodies; 0 preserves their sleep state.
+ * @ingroup joints
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3MultibodyJoint_SetDesc(struct R3MultibodyJointHandle handle,
+                                       const struct R3JointDesc *desc,
+                                       R3Bool wake_up);
+
+/**
+ * Return the two bodies connected by a multibody joint: its parent link, then its own link.
+ * @ingroup joints
+ */
+RAPIER_API struct R3JointBodies RAPIER_CALL r3MultibodyJoint_Bodies(struct R3MultibodyJointHandle handle);
+
+/**
  * Create an owned compound shape by convex decomposition of the input surface. Release it with
  * r3FreeSharedShape.
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
@@ -17296,6 +20859,18 @@ R3SharedShape *RAPIER_CALL r3VoxelizedMeshSharedShape(struct R3VectorView vertic
  */
 RAPIER_API R3SharedShape *RAPIER_CALL r3ConvexHullSharedShape(struct R3VectorView vertices);
 
+#if defined(RAPIER_DIM3)
+/**
+ * Create an owned convex polyhedron from vertices and triangle indices assumed to form a convex
+ * mesh (no convex hull is computed); fails on degenerate input. Release it with r3FreeSharedShape.
+ * Copies typed input geometry into an owned shared shape; arrays may be released on return.
+ * @ingroup shapes
+ */
+RAPIER_API
+R3SharedShape *RAPIER_CALL r3ConvexMeshSharedShape(struct R3VectorView vertices,
+                                             struct R3TriangleView indices);
+#endif
+
 /**
  * Create an owned triangle mesh from vertices and triangle indices. Release it with
  * r3FreeSharedShape.
@@ -17308,6 +20883,7 @@ R3SharedShape *RAPIER_CALL r3TrimeshSharedShape(struct R3VectorView vertices,
 
 /**
  * Create an owned polyline from vertices and edge indices. Release it with r3FreeSharedShape.
+ * Empty indices connect the vertices in order (a line strip).
  * Copies typed input geometry into an owned shared shape; arrays may be released on return.
  * @ingroup shapes
  */
@@ -17383,6 +20959,19 @@ struct R3VelocityCorrection RAPIER_CALL r3ReadPidController_RigidBodyCorrection(
                                                                            struct R3Pose target_pose,
                                                                            struct R3Vector target_linvel,
                                                                            R3AngVector target_angvel);
+
+/**
+ * Compute a PD velocity correction from callback-visible body state. Neither the body nor the
+ * controller is modified. The context is valid only during its callback.
+ * @ingroup callbacks
+ */
+RAPIER_API
+struct R3VelocityCorrection RAPIER_CALL r3ReadPdController_RigidBodyCorrection(const struct R3ReadContext *context,
+                                                                          const struct R3PdController *controller,
+                                                                          struct R3RigidBodyHandle body,
+                                                                          struct R3Pose target_pose,
+                                                                          struct R3Vector target_linvel,
+                                                                          R3AngVector target_angvel);
 
 /**
  * Return the number of rigid body objects in the world. Uses only the callback-scoped read
@@ -17969,6 +21558,309 @@ size_t RAPIER_CALL r3ReadRigidBodyReadStates(const struct R3ReadContext *context
                                        size_t handle_count,
                                        struct R3RigidBodyState *states,
                                        size_t capacity);
+
+/**
+ * Return the collider body-type collision activation bitmask (R3_COLLISION_TYPES_* bits). Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+uint16_t RAPIER_CALL r3ReadCollider_ActiveCollisionTypes(const struct R3ReadContext *context,
+                                                  struct R3ColliderHandle handle);
+
+/**
+ * Return the collider physics-hook activation bitmask. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+uint32_t RAPIER_CALL r3ReadCollider_ActiveHooks(const struct R3ReadContext *context,
+                                        struct R3ColliderHandle handle);
+
+/**
+ * Return the collider friction combination rule (R3_COMBINE_*). Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+uint32_t RAPIER_CALL r3ReadCollider_FrictionCombineRule(const struct R3ReadContext *context,
+                                                 struct R3ColliderHandle handle);
+
+/**
+ * Return the collider restitution combination rule (R3_COMBINE_*). Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+uint32_t RAPIER_CALL r3ReadCollider_RestitutionCombineRule(const struct R3ReadContext *context,
+                                                    struct R3ColliderHandle handle);
+
+/**
+ * Return the collider pose relative to its parent rigid body, or its world-space pose if it has
+ * no parent. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+struct R3Pose RAPIER_CALL r3ReadCollider_PositionWrtParent(const struct R3ReadContext *context,
+                                                     struct R3ColliderHandle handle);
+
+/**
+ * Return the rigid body signed dominance group. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+int8_t RAPIER_CALL r3ReadRigidBody_DominanceGroup(const struct R3ReadContext *context,
+                                           struct R3RigidBodyHandle handle);
+
+/**
+ * Return the rigid body additional solver iterations for connected bodies. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+size_t RAPIER_CALL r3ReadRigidBody_AdditionalSolverIterations(const struct R3ReadContext *context,
+                                                        struct R3RigidBodyHandle handle);
+
+/**
+ * Return the rigid body additional PGS iterations for connected bodies. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+size_t RAPIER_CALL r3ReadRigidBody_AdditionalPgsIterations(const struct R3ReadContext *context,
+                                                     struct R3RigidBodyHandle handle);
+
+/**
+ * Return whether the rigid body may exceed the angular-velocity limit of its CCD. Uses only the callback-scoped read context; never
+ * retain the context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+R3Bool RAPIER_CALL r3ReadRigidBody_IsFastRotationAllowed(const struct R3ReadContext *context,
+                                                     struct R3RigidBodyHandle handle);
+
+/**
+ * Copy the hits of every collider intersected by the ray, in no particular order. The ray is
+ * origin + direction * t for 0 <= t <= max_toi; direction need not be normalized. solid treats an
+ * interior origin as a hit at t = 0.
+ * @see @ref output_buffers
+ * NULL query options use the default filter. Query state reflects the latest Step or
+ * DetectCollisions call.
+ * @ingroup queries
+ */
+RAPIER_API
+size_t RAPIER_CALL r3IntersectRay(const struct R3World *world,
+                         const struct R3QueryOptions *query_options,
+                         struct R3Vector origin,
+                         struct R3Vector direction,
+                         R3Real max_toi,
+                         R3Bool solid,
+                         struct R3RayHit *buffer,
+                         size_t capacity);
+
+/**
+ * Sweep shape from pose along velocity and return the first hit, with found = 0 on a miss
+ * (R3_OK). Time is bounded by options.max_time_of_impact. The shape is borrowed for this call.
+ * NULL query options use the default filter. Query state reflects the latest Step or
+ * DetectCollisions call.
+ * @ingroup queries
+ */
+RAPIER_API
+struct R3OptionalShapeCastHit RAPIER_CALL r3TryCastShape(const struct R3World *world,
+                                                  const struct R3QueryOptions *query_options,
+                                                  struct R3Pose pose,
+                                                  struct R3Vector velocity,
+                                                  const R3SharedShape *shape,
+                                                  struct R3ShapeCastOptions options);
+
+/**
+ * Return the closest surface projection within max_distance, with found = 0 if there is none
+ * (R3_OK). With solid = 1, an interior point projects to itself.
+ * NULL query options use the default filter. Query state reflects the latest Step or
+ * DetectCollisions call.
+ * @ingroup queries
+ */
+RAPIER_API
+struct R3OptionalPointProjection RAPIER_CALL r3TryProjectPoint(const struct R3World *world,
+                                                        const struct R3QueryOptions *query_options,
+                                                        struct R3Vector point,
+                                                        R3Real max_distance,
+                                                        R3Bool solid);
+
+/**
+ * Return the world-space pose of the motion at the given time.
+ * @ingroup queries
+ */
+RAPIER_API
+struct R3Pose RAPIER_CALL r3NonlinearRigidMotion_PositionAtTime(const struct R3NonlinearRigidMotion *motion,
+                                                           R3Real time);
+
+/**
+ * Sweep shape along a rotating motion and return the first hit between start_time and end_time,
+ * with found = 0 on a miss (R3_OK). With stop_at_penetration = 1, a shape already intersecting a
+ * collider at start_time hits it at start_time; with 0, that penetration is ignored while the
+ * motion separates the shapes. witness1/normal1 are world-space; witness2/normal2 are local to the
+ * shape, posed by r3NonlinearRigidMotion_PositionAtTime at the time of impact.
+ * NULL query options use the default filter. Query state reflects the latest Step or
+ * DetectCollisions call.
+ * @ingroup queries
+ */
+RAPIER_API
+struct R3OptionalShapeCastHit RAPIER_CALL r3TryCastShapeNonlinear(const struct R3World *world,
+                                                            const struct R3QueryOptions *query_options,
+                                                            const struct R3NonlinearRigidMotion *motion,
+                                                            const R3SharedShape *shape,
+                                                            R3Real start_time,
+                                                            R3Real end_time,
+                                                            R3Bool stop_at_penetration);
+
+/**
+ * Return the narrow-phase contact pair for two colliders, with found = 0 if the broad phase
+ * found no potential contact between them (R3_OK). The pair's collider1 and collider2 follow the
+ * narrow-phase order, which may differ from the argument order.
+ * @ingroup events
+ */
+RAPIER_API
+struct R3OptionalContactPair RAPIER_CALL r3TryContactPair(struct R3ColliderHandle collider1,
+                                                   struct R3ColliderHandle collider2);
+
+/**
+ * Return the intersection state of two colliders involving a sensor, or report R3_NOT_FOUND if
+ * the broad phase found no potential intersection. The result keeps the argument order.
+ * @ingroup events
+ */
+RAPIER_API
+struct R3IntersectionPair RAPIER_CALL r3IntersectionPair(struct R3ColliderHandle collider1,
+                                                 struct R3ColliderHandle collider2);
+
+/**
+ * Return the intersection state of two colliders involving a sensor, with found = 0 if the
+ * broad phase found no potential intersection (R3_OK). The pair keeps the argument order.
+ * @ingroup events
+ */
+RAPIER_API
+struct R3OptionalIntersectionPair RAPIER_CALL r3TryIntersectionPair(struct R3ColliderHandle collider1,
+                                                             struct R3ColliderHandle collider2);
+
+/**
+ * Copy the narrow-phase contact pairs involving the collider, including pairs without active
+ * solver contacts. The collider may be either collider1 or collider2 of each pair.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r3Collider_ContactPairs(struct R3ColliderHandle handle,
+                                  struct R3ContactPair *buffer,
+                                  size_t capacity);
+
+/**
+ * Copy the intersection pairs involving the collider, in the narrow-phase order. The collider may
+ * be either collider1 or collider2 of each pair.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r3Collider_IntersectionPairs(struct R3ColliderHandle handle,
+                                       struct R3IntersectionPair *buffer,
+                                       size_t capacity);
+
+/**
+ * Copy the geometric contact manifolds of a contact pair, or report R3_NOT_FOUND without a pair.
+ * Their order matches the manifold_index of r3ContactPoints. Soft pairs have no rigid
+ * manifolds.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r3ContactManifolds(struct R3ColliderHandle collider1,
+                             struct R3ColliderHandle collider2,
+                             struct R3ContactManifold *buffer,
+                             size_t capacity);
+
+/**
+ * Copy the solver contacts of one manifold of a contact pair, or report R3_NOT_FOUND without a
+ * pair. Points are resolved through the bodies' current poses. With contact clustering (3D
+ * composite shapes), the solver may use merged manifolds instead; use contact pair totals then.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r3SolverContacts(struct R3ColliderHandle collider1,
+                           struct R3ColliderHandle collider2,
+                           size_t manifold_index,
+                           struct R3SolverContact *buffer,
+                           size_t capacity);
+
+/**
+ * Return whether the context holds the contact candidates of two soft surfaces rather than a
+ * manifold. Solver-contact accessors see no contacts in a soft context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+R3Bool RAPIER_CALL r3ContactModificationContext_IsSoft(const struct R3ContactModificationContext *context);
+
+/**
+ * Return the number of solver contacts of the manifold; zero for a soft context.
+ * @ingroup callbacks
+ */
+RAPIER_API
+size_t RAPIER_CALL r3ContactModificationContext_SolverContactCount(const struct R3ContactModificationContext *context);
+
+/**
+ * Return a solver contact of the manifold. Inside the hook, points are world-space.
+ * @ingroup callbacks
+ */
+RAPIER_API
+struct R3SolverContact RAPIER_CALL r3ContactModificationContext_SolverContact(const struct R3ContactModificationContext *context,
+                                                                        size_t index);
+
+/**
+ * Replace the points, distance and tangent velocity of a solver contact of the manifold. Points
+ * are world-space; a distance differing from their gap along the normal shifts the contact.
+ * @ingroup callbacks
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3ContactModificationContext_SetSolverContact(struct R3ContactModificationContext *context,
+                                                              size_t index,
+                                                              const struct R3SolverContact *contact);
+
+/**
+ * Remove a solver contact of the manifold. The last solver contact takes its index.
+ * @ingroup callbacks
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3ContactModificationContext_RemoveSolverContact(struct R3ContactModificationContext *context,
+                                                                 size_t index);
+
+/**
+ * Replace the callbacks invoked while stepping with this collector; NULL removes them. They take
+ * effect from the next Step or DetectCollisions call.
+ * @ingroup events
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3EventCollector_SetCallbacks(struct R3EventCollector *events,
+                                            const struct R3EventCallbacks *callbacks);
+
+/**
+ * Return native default debug-render style. This POD value owns no resources.
+ * @ingroup events
+ */
+RAPIER_API struct R3DebugRenderStyle RAPIER_CALL r3DefaultDebugRenderStyle(void);
+
+/**
+ * Copy the debug-render lines of the world drawn with the given style. mode combines R3_DEBUG_*
+ * bits. NULL style uses the default style.
+ * @see @ref output_buffers
+ * @ingroup events
+ */
+RAPIER_API
+size_t RAPIER_CALL r3DebugRenderWithStyle(const struct R3World *world,
+                                   uint32_t mode,
+                                   const struct R3DebugRenderStyle *style,
+                                   struct R3DebugLine *buffer,
+                                   size_t capacity);
 
 #ifdef __cplusplus
 }  // extern "C"

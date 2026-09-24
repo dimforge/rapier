@@ -532,7 +532,9 @@ pub unsafe extern "C" fn rpr_soft_body_add_force(
     })
 }
 
-/// Apply a world-space linear impulse.
+/// Add the same world-space velocity change to every free particle: the whole body is kicked at
+/// the same velocity, whatever the particle masses (the value is not divided by the mass). Pinned
+/// particles ignore it.
 /// wake_up = 1 wakes affected bodies; 0 preserves their sleep state.
 /// @ingroup soft_bodies
 #[rapier_export(soft_body)]
@@ -628,7 +630,9 @@ pub unsafe extern "C" fn rpr_soft_body_set_volume_factor(
     })
 }
 
-/// Attach a particle to a rigid body at the supplied body-local anchor.
+/// Attach a particle to a rigid body by a two-way point-to-point constraint (unlike pinning). The
+/// anchor is the particle's current position, expressed in the rigid body's local frame; a particle
+/// attached twice keeps both attachments. Undo it with rpr_soft_body_detach_particle.
 /// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_attach_particle(
@@ -656,26 +660,30 @@ pub unsafe extern "C" fn rpr_soft_body_attach_particle(
     })
 }
 
-/// Remove a particle attachment to a rigid body.
+/// Detach a particle from every rigid body it was attached to with rpr_soft_body_attach_particle.
+/// Returns whether it was attached at all.
 /// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_detach_particle(
     handle: RprSoftBodyHandle,
     index: usize,
-) -> RprStatus {
+) -> RprBool {
     let world = handle.world;
-    ffi(|| unsafe {
-        handle.check_world(world)?;
-        let access = get(world)?.write()?;
-        let raw = access.raw();
+    ffi_value(|out: *mut RprBool| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.write()?;
+            let raw = access.raw();
 
-        let set: *mut RprSoftBodySet = std::ptr::addr_of_mut!((*raw).0.soft_bodies).cast();
+            let set: *mut RprSoftBodySet = std::ptr::addr_of_mut!((*raw).0.soft_bodies).cast();
 
-        let element = get_mut(set)?.0.get_mut(handle.raw()).ok_or_else(missing)?;
-        forward(native_soft_body_detach_particle(
-            (element as *mut SoftBody).cast(),
-            index,
-        ))
+            let element = get_mut(set)?.0.get_mut(handle.raw()).ok_or_else(missing)?;
+            forward(native_soft_body_detach_particle(
+                (element as *mut SoftBody).cast(),
+                index,
+                out,
+            ))
+        })
     })
 }
 
@@ -840,7 +848,9 @@ pub unsafe extern "C" fn rpr_soft_body_set_cluster_shape_matching_enabled(
     })
 }
 
-/// Set the soft body cluster shape-matching stiffness multiplier.
+/// Scale the material stiffness (Young modulus) of every cell fully contained in a live cluster:
+/// regional materials without a separate body. Cells straddling the cluster's boundary keep their
+/// stiffness; use rpr_soft_body_set_cluster_edge_softness for edges.
 /// @ingroup soft_bodies
 #[rapier_export(soft_body)]
 pub unsafe extern "C" fn rpr_soft_body_set_cluster_stiffness_scale(
@@ -1921,7 +1931,7 @@ pub(crate) unsafe fn native_rigid_body_set_get_kinetic_energy(
     })
 }
 /// Return the rigid body soft-CCD prediction distance.
-/// @ingroup soft_bodies
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_soft_ccd_prediction(handle: RprRigidBodyHandle) -> RprReal {
     let world = handle.world;
@@ -2335,7 +2345,7 @@ pub unsafe extern "C" fn rpr_rigid_body_set_additional_mass(
 }
 
 /// Set the rigid body soft-CCD prediction distance.
-/// @ingroup soft_bodies
+/// @ingroup rigid_bodies
 #[rapier_export(rigid_body)]
 pub unsafe extern "C" fn rpr_rigid_body_set_soft_ccd_prediction(
     handle: RprRigidBodyHandle,
@@ -3454,8 +3464,7 @@ pub(crate) unsafe fn native_collider_set_get_compute_aabb(
         ))
     })
 }
-/// Return an owned wrapper sharing the collider geometry. Release with rpr_free_shared_shape.
-/// Returns an owned shape wrapper sharing the geometry. Release it with FreeSharedShape.
+/// Return an owned wrapper sharing the collider geometry. Release it with rpr_free_shared_shape.
 /// @ingroup shapes
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_clone_shape(

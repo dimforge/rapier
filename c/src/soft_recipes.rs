@@ -81,6 +81,51 @@ pub extern "C" fn rpr_cloth_soft_body_desc(
         ..RprSoftBodyDesc::default()
     }
 }
+/// Return a cloth recipe like rpr_cloth_soft_body_desc whose edges along du (warp), along dv (weft)
+/// and diagonal (shear) get their own softness; the material's bendSoftness still applies to the
+/// bending edges. The softness is stored in warpSoftness, weftSoftness and shearSoftness.
+/// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim3")]
+#[rapier_export]
+pub extern "C" fn rpr_cloth_anisotropic_soft_body_desc(
+    origin: RprVector,
+    du: RprVector,
+    dv: RprVector,
+    nu: usize,
+    nv: usize,
+    warp: RprSpringCoefficients,
+    weft: RprSpringCoefficients,
+    shear: RprSpringCoefficients,
+) -> RprSoftBodyDesc {
+    RprSoftBodyDesc {
+        kind: RPR_SOFT_DESC_CLOTH_ANISOTROPIC,
+        a: origin,
+        du,
+        dv,
+        nx: nu,
+        ny: nv,
+        warpSoftness: warp,
+        weftSoftness: weft,
+        shearSoftness: shear,
+        ..RprSoftBodyDesc::default()
+    }
+}
+/// Return a closed polygon recipe from at least 3 counter-clockwise points: structural edges along
+/// the boundary, bending edges between second neighbors, and area preservation. The points are
+/// borrowed until preview/insertion.
+/// Initializes a recipe without allocating. Geometry is validated during preview/insertion.
+/// @ingroup soft_bodies
+#[cfg(feature = "dim2")]
+#[rapier_export]
+pub extern "C" fn rpr_polygon_soft_body_desc(points: RprVectorView) -> RprSoftBodyDesc {
+    RprSoftBodyDesc {
+        kind: RPR_SOFT_DESC_POLYGON,
+        volumePreservation: 1,
+        positions: points,
+        ..RprSoftBodyDesc::default()
+    }
+}
 /// Return a closed regular polygon recipe with the specified boundary particle count and area
 /// preservation.
 /// Initializes a recipe without allocating. Geometry is validated during preview/insertion.

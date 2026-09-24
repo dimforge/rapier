@@ -1,10 +1,12 @@
 //! Optional native URDF and MJCF importers (3D f32).
 #![allow(non_snake_case)]
 use crate::*;
+use rapier::parry::shape::TriMeshFlags;
+use rapier3d_mjcf::MjcfContactHooks;
 use rapier3d_mjcf::MjcfVisualMesh;
 use rapier3d_mjcf::{MjcfLoaderOptions, MjcfMultibodyOptions, MjcfRobot, MjcfRobotHandles};
 use rapier3d_urdf::{UrdfLoaderOptions, UrdfMultibodyOptions, UrdfRobot, UrdfRobotHandles};
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, c_char, c_void};
 
 unsafe fn path_string<'a>(path: *const c_char) -> Result<&'a str> {
     ensure(!path.is_null(), "null path")?;
@@ -230,7 +232,8 @@ pub unsafe extern "C" fn rpr_urdf_robot_insert_using_multibody_joints(
     })
 }
 
-/// Body handles in source order; absent MJCF bodies have invalid handles.
+/// One body handle per imported URDF link, in source order. Links merged away by
+/// squeezeEmptyFixedLinks have no entry.
 /// @see @ref output_buffers
 /// @ingroup robotics
 #[rapier_export(urdf_robot_handles)]
@@ -952,6 +955,299 @@ pub unsafe extern "C" fn rpr_mjcf_visual_mesh_texture(
     })
 }
 
+/// Load a URDF robot from a NUL-terminated UTF-8 string. Relative mesh paths are resolved from
+/// mesh_dir (NULL resolves them from the current directory). Options and their blueprint resources
+/// are borrowed through this call; the robot is owned.
+/// @ingroup robotics
+#[rapier_export]
+pub unsafe extern "C" fn rpr_urdf_robot_from_string(
+    urdf: *const c_char,
+    mesh_dir: *const c_char,
+    options: *const RprUrdfLoaderOptions,
+) -> *mut RprUrdfRobot {
+    ffi_value(|out: *mut *mut RprUrdfRobot| {
+        ffi(|| unsafe {
+            out_ptr(out)?;
+            ensure(!urdf.is_null(), "null URDF string")?;
+            let urdf = CStr::from_ptr(urdf)
+                .to_str()
+                .map_err(|_| invalid("URDF string must be UTF-8"))?;
+            let mesh_dir = if mesh_dir.is_null() {
+                "."
+            } else {
+                path_string(mesh_dir)?
+            };
+            let options = get(options)?.raw()?;
+            let (robot, _) = UrdfRobot::from_str(urdf, options, std::path::Path::new(mesh_dir))
+                .map_err(|e| invalid(e.to_string()))?;
+            output(out, Box::into_raw(Box::new(RprUrdfRobot(robot))))
+        })
+    })
+}
+
+/// Owned physics hooks applying the `<contact>` rules (excluded pairs, pair friction) of an
+/// inserted MJCF robot. Release with the matching Free function.
+/// @ingroup robotics
+pub struct RprMjcfContactHooks(pub(crate) MjcfContactHooks);
+/// Release owned MJCF contact hooks. NULL is allowed. Do not free them while a step still uses
+/// them, and do not free them twice.
+/// @ingroup robotics
+#[rapier_export]
+pub unsafe extern "C" fn rpr_free_mjcf_contact_hooks(hooks: *mut RprMjcfContactHooks) -> RprStatus {
+    ffi(|| unsafe {
+        if !hooks.is_null() {
+            get(hooks)?;
+            drop(Box::from_raw(hooks));
+        }
+        Ok(())
+    })
+}
+/// Build the contact rules of an inserted MJCF robot. robot must be the robot these handles were
+/// inserted from. The rules refer to the inserted colliders; the returned hooks are owned.
+/// @ingroup robotics
+#[rapier_export(mjcf_robot_handles)]
+pub unsafe extern "C" fn rpr_mjcf_robot_handles_contact_hooks(
+    handles: *const RprMjcfRobotHandles,
+    robot: *const RprMjcfRobot,
+) -> *mut RprMjcfContactHooks {
+    ffi_value(|out: *mut *mut RprMjcfContactHooks| {
+        ffi(|| unsafe {
+            out_ptr(out)?;
+            let robot = &get(robot)?.0;
+            let hooks = match &get(handles)?.handles {
+                MjcfHandles::Impulse(h) => h.contact_hooks(robot),
+                MjcfHandles::Multibody(h) => h.contact_hooks(robot),
+            };
+            output(out, Box::into_raw(Box::new(RprMjcfContactHooks(hooks))))
+        })
+    })
+}
+/// Return physics hooks forwarding to these contact rules, with hooks as their user_data. Pass
+/// them to rpr_step; hooks must outlive every step using them. The inserted colliders already
+/// enable the contact-filtering and contact-modification hooks.
+/// @ingroup robotics
+#[rapier_export(mjcf_contact_hooks)]
+pub unsafe extern "C" fn rpr_mjcf_contact_hooks_physics_hooks(
+    hooks: *const RprMjcfContactHooks,
+) -> RprPhysicsHooks {
+    ffi_value(|out: *mut RprPhysicsHooks| {
+        ffi(|| unsafe {
+            let native: *const MjcfContactHooks = &get(hooks)?.0;
+            output(
+                out,
+                RprPhysicsHooks {
+                    user_data: native.cast_mut().cast(),
+                    filter_contact_pair: Some(forward_filter_contact_pair::<MjcfContactHooks>),
+                    filter_intersection_pair: Some(
+                        forward_filter_intersection_pair::<MjcfContactHooks>,
+                    ),
+                    modify_solver_contacts: None,
+                    modify_solver_contacts_context: Some(
+                        forward_modify_solver_contacts::<MjcfContactHooks>,
+                    ),
+                },
+            )
+        })
+    })
+}
+
+// The C callbacks below forward to a native PhysicsHooks value given as user_data.
+unsafe fn pair_filter_context<'a>(
+    read: *const RprReadContext,
+    collider1: RprColliderHandle,
+    collider2: RprColliderHandle,
+    body1: RprRigidBodyHandle,
+    body2: RprRigidBodyHandle,
+) -> Option<PairFilterContext<'a>> {
+    let read = unsafe { read.as_ref()? };
+    let body = |h: RprRigidBodyHandle| (h.index != u32::MAX).then(|| h.raw());
+    Some(PairFilterContext {
+        bodies: unsafe { &read.bodies.as_ref()?.0 },
+        colliders: unsafe { &read.colliders.as_ref()?.0 },
+        collider1: collider1.raw(),
+        collider2: collider2.raw(),
+        rigid_body1: body(body1),
+        rigid_body2: body(body2),
+    })
+}
+unsafe extern "C" fn forward_filter_contact_pair<H: PhysicsHooks>(
+    user_data: *mut c_void,
+    read: *const RprReadContext,
+    collider1: RprColliderHandle,
+    collider2: RprColliderHandle,
+    body1: RprRigidBodyHandle,
+    body2: RprRigidBodyHandle,
+) -> i32 {
+    let hooks = unsafe { user_data.cast::<H>().as_ref() };
+    let context = unsafe { pair_filter_context(read, collider1, collider2, body1, body2) };
+    let (Some(hooks), Some(context)) = (hooks, context) else {
+        return 1;
+    };
+    match hooks.filter_contact_pair(&context) {
+        None => -1,
+        Some(flags) if flags.contains(SolverFlags::COMPUTE_RIGID_IMPULSES) => 1,
+        Some(_) => 0,
+    }
+}
+unsafe extern "C" fn forward_filter_intersection_pair<H: PhysicsHooks>(
+    user_data: *mut c_void,
+    read: *const RprReadContext,
+    collider1: RprColliderHandle,
+    collider2: RprColliderHandle,
+    body1: RprRigidBodyHandle,
+    body2: RprRigidBodyHandle,
+) -> i32 {
+    let hooks = unsafe { user_data.cast::<H>().as_ref() };
+    let context = unsafe { pair_filter_context(read, collider1, collider2, body1, body2) };
+    let (Some(hooks), Some(context)) = (hooks, context) else {
+        return 1;
+    };
+    hooks.filter_intersection_pair(&context) as i32
+}
+unsafe extern "C" fn forward_modify_solver_contacts<H: PhysicsHooks>(
+    user_data: *mut c_void,
+    _read: *const RprReadContext,
+    _collider1: RprColliderHandle,
+    _collider2: RprColliderHandle,
+    context: *mut RprContactModificationContext,
+) {
+    let hooks = unsafe { user_data.cast::<H>().as_ref() };
+    let context = unsafe { context.as_mut() };
+    if let (Some(hooks), Some(context)) = (hooks, context) {
+        let native = unsafe { &mut *context.raw.cast::<ContactModificationContext<'_>>() };
+        hooks.modify_solver_contacts(native);
+    }
+}
+
+/// @ingroup robotics
+/// Load each mesh as a triangle mesh, with the given trimesh flags.
+pub const RPR_MESH_CONVERTER_TRIMESH: u32 = 0;
+/// @ingroup robotics
+/// Replace each mesh by its oriented bounding box.
+pub const RPR_MESH_CONVERTER_OBB: u32 = 1;
+/// @ingroup robotics
+/// Replace each mesh by its axis-aligned bounding box.
+pub const RPR_MESH_CONVERTER_AABB: u32 = 2;
+/// @ingroup robotics
+/// Replace each mesh by its convex hull.
+pub const RPR_MESH_CONVERTER_CONVEX_HULL: u32 = 3;
+/// @ingroup robotics
+/// Replace each mesh by its convex decomposition.
+pub const RPR_MESH_CONVERTER_CONVEX_DECOMPOSITION: u32 = 4;
+
+/// Shapes loaded from a mesh file (STL, COLLADA or Wavefront OBJ), one per mesh of the file.
+/// Release with the matching Free function.
+/// @ingroup robotics
+pub struct RprLoadedMeshes {
+    meshes: Vec<std::result::Result<(SharedShape, Pose), String>>,
+}
+/// Release owned loaded meshes. NULL is allowed. Do not pass borrowed pointers or free the object
+/// twice.
+/// @ingroup robotics
+#[rapier_export]
+pub unsafe extern "C" fn rpr_free_loaded_meshes(meshes: *mut RprLoadedMeshes) -> RprStatus {
+    ffi(|| unsafe {
+        if !meshes.is_null() {
+            get(meshes)?;
+            drop(Box::from_raw(meshes));
+        }
+        Ok(())
+    })
+}
+/// Load every mesh of a file from a UTF-8 path and convert it into a shape with converter (an
+/// RPR_MESH_CONVERTER_* value). trimesh_flags (RPR_TRIMESH_* bits) apply to
+/// RPR_MESH_CONVERTER_TRIMESH and must be 0 otherwise. scale multiplies the vertices before
+/// conversion. A mesh failing to convert does not fail the load; see rpr_loaded_meshes_clone_shape.
+/// @ingroup robotics
+#[rapier_export]
+pub unsafe extern "C" fn rpr_loaded_meshes_from_file(
+    path: *const c_char,
+    converter: u32,
+    trimesh_flags: u32,
+    scale: RprVector,
+) -> *mut RprLoadedMeshes {
+    ffi_value(|out: *mut *mut RprLoadedMeshes| {
+        ffi(|| unsafe {
+            out_ptr(out)?;
+            let path = path_string(path)?;
+            let scale = scale.raw()?;
+            ensure(
+                trimesh_flags == 0 || converter == RPR_MESH_CONVERTER_TRIMESH,
+                "trimesh flags require the trimesh converter",
+            )?;
+            let converter = match converter {
+                RPR_MESH_CONVERTER_TRIMESH if trimesh_flags == 0 => MeshConverter::TriMesh,
+                RPR_MESH_CONVERTER_TRIMESH => MeshConverter::TriMeshWithFlags(
+                    u16::try_from(trimesh_flags)
+                        .ok()
+                        .and_then(TriMeshFlags::from_bits)
+                        .ok_or_else(|| invalid("unknown trimesh flags"))?,
+                ),
+                RPR_MESH_CONVERTER_OBB => MeshConverter::Obb,
+                RPR_MESH_CONVERTER_AABB => MeshConverter::Aabb,
+                RPR_MESH_CONVERTER_CONVEX_HULL => MeshConverter::ConvexHull,
+                RPR_MESH_CONVERTER_CONVEX_DECOMPOSITION => MeshConverter::ConvexDecomposition,
+                _ => return Err(invalid("unknown mesh converter")),
+            };
+            let meshes = rapier3d_meshloader::load_from_path(path, &converter, scale)
+                .map_err(|e| invalid(e.to_string()))?
+                .into_iter()
+                .map(|m| m.map(|m| (m.shape, m.pose)).map_err(|e| e.to_string()))
+                .collect();
+            output(out, Box::into_raw(Box::new(RprLoadedMeshes { meshes })))
+        })
+    })
+}
+/// Return the number of meshes read from the file, including those that failed to convert.
+/// @ingroup robotics
+#[rapier_export(loaded_meshes)]
+pub unsafe extern "C" fn rpr_loaded_meshes_count(meshes: *const RprLoadedMeshes) -> usize {
+    ffi_value(|out: *mut usize| ffi(|| unsafe { output(out, get(meshes)?.meshes.len()) }))
+}
+unsafe fn loaded_mesh<'a>(
+    meshes: *const RprLoadedMeshes,
+    index: usize,
+) -> Result<&'a (SharedShape, Pose)> {
+    let mesh = unsafe { get(meshes)? }
+        .meshes
+        .get(index)
+        .ok_or_else(|| invalid("mesh index out of range"))?;
+    mesh.as_ref()
+        .map_err(|e| invalid(format!("mesh conversion failed: {e}")))
+}
+/// Return an owned shape wrapper sharing the geometry of a loaded mesh. Release it with
+/// FreeSharedShape. Returns NULL with INVALID_ARGUMENT if the index is out of range or if that
+/// mesh failed to convert.
+/// @ingroup robotics
+#[rapier_export(loaded_meshes)]
+pub unsafe extern "C" fn rpr_loaded_meshes_clone_shape(
+    meshes: *const RprLoadedMeshes,
+    index: usize,
+) -> *mut RprSharedShape {
+    ffi_value(|out: *mut *mut RprSharedShape| {
+        ffi(|| unsafe {
+            out_ptr(out)?;
+            let (shape, _) = loaded_mesh(meshes, index)?;
+            output(out, Box::into_raw(Box::new(RprSharedShape(shape.clone()))))
+        })
+    })
+}
+/// Return the pose to give the shape of a loaded mesh (for example the center of its bounding
+/// box). Reports INVALID_ARGUMENT if the index is out of range or if that mesh failed to convert.
+/// @ingroup robotics
+#[rapier_export(loaded_meshes)]
+pub unsafe extern "C" fn rpr_loaded_meshes_pose(
+    meshes: *const RprLoadedMeshes,
+    index: usize,
+) -> RprPose {
+    ffi_value(|out: *mut RprPose| {
+        ffi(|| unsafe {
+            let (_, pose) = loaded_mesh(meshes, index)?;
+            output(out, (*pose).into())
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1176,6 +1472,170 @@ mod tests {
             );
             assert_eq!(rpr_free_mjcf_robot_handles(handles), RPR_OK);
             assert_eq!(rpr_free_mjcf_robot(robot), RPR_OK);
+        }
+    }
+
+    #[test]
+    fn urdf_loads_from_a_string() {
+        let urdf = std::ffi::CString::new(
+            r#"<robot name="string"><link name="base">
+            <collision><geometry><sphere radius="0.5"/></geometry></collision>
+            </link></robot>"#,
+        )
+        .unwrap();
+        unsafe {
+            let options = rpr_default_urdf_loader_options();
+            let robot = rpr_urdf_robot_from_string(urdf.as_ptr(), std::ptr::null(), &options);
+            assert_eq!(rpr_last_status(), RPR_OK);
+            let world = rpr_new_world();
+            let handles = rpr_urdf_robot_insert_using_impulse_joints(world, robot);
+            assert_eq!(
+                rpr_urdf_robot_handles_bodies(handles, std::ptr::null_mut(), 0),
+                1
+            );
+            assert_eq!(rpr_collider_count(world), 1);
+            assert_eq!(rpr_free_urdf_robot_handles(handles), RPR_OK);
+            assert_eq!(rpr_free_urdf_robot(robot), RPR_OK);
+            assert_eq!(rpr_free_world(world), RPR_OK);
+
+            let invalid = c"<robot";
+            assert!(
+                rpr_urdf_robot_from_string(invalid.as_ptr(), c".".as_ptr(), &options).is_null()
+            );
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+            assert!(
+                rpr_urdf_robot_from_string(std::ptr::null(), c".".as_ptr(), &options).is_null()
+            );
+            assert_ne!(rpr_last_status(), RPR_OK);
+        }
+    }
+
+    unsafe fn step_overlapping_mjcf_spheres(with_hooks: bool) -> Real {
+        let path = std::env::temp_dir().join(format!(
+            "rapier-c-hooks-{}-{with_hooks}.xml",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"<mujoco><worldbody>
+              <body name="a"><freejoint/><geom type="sphere" size="0.5" mass="1"/></body>
+              <body name="b" pos="0.4 0 0"><freejoint/><geom type="sphere" size="0.5" mass="1"/></body>
+            </worldbody><contact><exclude body1="a" body2="b"/></contact></mujoco>"#,
+        )
+        .unwrap();
+        let cpath = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
+        unsafe {
+            let robot =
+                rpr_mjcf_robot_from_file(cpath.as_ptr(), &rpr_default_mjcf_loader_options());
+            std::fs::remove_file(path).unwrap();
+            assert_eq!(rpr_last_status(), RPR_OK);
+            let world = rpr_new_world();
+            let handles = rpr_mjcf_robot_insert_using_impulse_joints(world, robot);
+            let contact_hooks = rpr_mjcf_robot_handles_contact_hooks(handles, robot);
+            assert_eq!(rpr_last_status(), RPR_OK);
+            let hooks = rpr_mjcf_contact_hooks_physics_hooks(contact_hooks);
+            assert_eq!(rpr_last_status(), RPR_OK);
+            for _ in 0..20 {
+                let hooks: *const RprPhysicsHooks =
+                    if with_hooks { &hooks } else { std::ptr::null() };
+                assert_eq!(rpr_step(world, hooks, std::ptr::null()), RPR_OK);
+            }
+            let mut bodies = [RprRigidBodyHandle::default(); 3];
+            assert_eq!(
+                rpr_mjcf_robot_handles_bodies(handles, bodies.as_mut_ptr(), 3),
+                3
+            );
+            let distance = (rpr_rigid_body_translation(bodies[2]).raw().unwrap()
+                - rpr_rigid_body_translation(bodies[1]).raw().unwrap())
+            .length();
+            assert_eq!(rpr_free_mjcf_contact_hooks(contact_hooks), RPR_OK);
+            assert_eq!(rpr_free_mjcf_robot_handles(handles), RPR_OK);
+            assert_eq!(rpr_free_mjcf_robot(robot), RPR_OK);
+            assert_eq!(rpr_free_world(world), RPR_OK);
+            distance
+        }
+    }
+
+    #[test]
+    fn mjcf_contact_hooks_exclude_pairs_through_c_hooks() {
+        unsafe {
+            // Without the hooks, the overlapping spheres push each other apart.
+            assert!(step_overlapping_mjcf_spheres(false) > 0.45);
+            assert!((step_overlapping_mjcf_spheres(true) - 0.4).abs() < 1.0e-4);
+            assert!(
+                rpr_mjcf_contact_hooks_physics_hooks(std::ptr::null())
+                    .filter_contact_pair
+                    .is_none()
+            );
+            assert_eq!(rpr_last_status(), RPR_NULL_POINTER);
+        }
+    }
+
+    #[test]
+    fn mesh_files_load_as_shapes() {
+        let path = std::env::temp_dir().join(format!("rapier-c-meshes-{}.obj", std::process::id()));
+        std::fs::write(
+            &path,
+            "g box\nv 1 1 1\nv 3 1 1\nv 1 3 1\nv 1 1 3\nv 3 3 3\nf 1 2 3\nf 1 2 4\nf 1 3 4\nf 2 3 5\nf 2 4 5\nf 3 4 5\n\
+             g point\nv 0 0 0\nv 0 0 0\nv 0 0 0\nf 6 7 8\n",
+        )
+        .unwrap();
+        let cpath = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
+        unsafe {
+            let scale = RprVector::from(Vector::splat(2.0));
+            let meshes =
+                rpr_loaded_meshes_from_file(cpath.as_ptr(), RPR_MESH_CONVERTER_AABB, 0, scale);
+            assert_eq!(rpr_last_status(), RPR_OK);
+            assert_eq!(rpr_loaded_meshes_count(meshes), 2);
+            let shape = rpr_loaded_meshes_clone_shape(meshes, 0);
+            assert_eq!(rpr_last_status(), RPR_OK);
+            assert!((*shape).0.as_cuboid().is_some());
+            assert_eq!(rpr_free_shared_shape(shape), RPR_OK);
+            let pose = rpr_loaded_meshes_pose(meshes, 0).raw().unwrap();
+            assert_eq!(pose.translation, Vector::splat(4.0));
+            assert!(rpr_loaded_meshes_clone_shape(meshes, 2).is_null());
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+            assert_eq!(rpr_free_loaded_meshes(meshes), RPR_OK);
+
+            // The convex hull of the point mesh fails without failing the whole file.
+            let meshes = rpr_loaded_meshes_from_file(
+                cpath.as_ptr(),
+                RPR_MESH_CONVERTER_CONVEX_HULL,
+                0,
+                scale,
+            );
+            assert_eq!(rpr_last_status(), RPR_OK);
+            assert_eq!(rpr_loaded_meshes_count(meshes), 2);
+            let shape = rpr_loaded_meshes_clone_shape(meshes, 0);
+            assert!((*shape).0.as_convex_polyhedron().is_some());
+            assert_eq!(rpr_free_shared_shape(shape), RPR_OK);
+            assert!(rpr_loaded_meshes_clone_shape(meshes, 1).is_null());
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+            rpr_loaded_meshes_pose(meshes, 1);
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+            assert_eq!(rpr_free_loaded_meshes(meshes), RPR_OK);
+
+            let meshes = rpr_loaded_meshes_from_file(
+                cpath.as_ptr(),
+                RPR_MESH_CONVERTER_TRIMESH,
+                RPR_TRIMESH_ORIENTED,
+                scale,
+            );
+            assert_eq!(rpr_last_status(), RPR_OK);
+            assert_eq!(rpr_free_loaded_meshes(meshes), RPR_OK);
+            for (converter, flags) in [
+                (RPR_MESH_CONVERTER_CONVEX_HULL, RPR_TRIMESH_ORIENTED),
+                (RPR_MESH_CONVERTER_TRIMESH, 1 << 20),
+                (5, 0),
+            ] {
+                assert!(
+                    rpr_loaded_meshes_from_file(cpath.as_ptr(), converter, flags, scale).is_null()
+                );
+                assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+            }
+            std::fs::remove_file(&path).unwrap();
+            assert!(rpr_loaded_meshes_from_file(cpath.as_ptr(), 0, 0, scale).is_null());
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
         }
     }
 }

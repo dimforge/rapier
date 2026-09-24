@@ -53,7 +53,7 @@ robotics = []
     for source in sources:
         for name, native in re.findall(r"pub struct (Rpr\w+)\(pub\(crate\) (\w+)\)", source.read_text()):
             text = text.replace(f"typedef {native} {name};", f"typedef struct {name} {name};")
-    for name in ["RprPairFilter", "RprModifyContacts", "RprErrorCallback", "RprModifyContactContext", "RprIkJointCanMove", "RprQueryPredicate"]:
+    for name in ["RprPairFilter", "RprModifyContacts", "RprErrorCallback", "RprModifyContactContext", "RprIkJointCanMove", "RprQueryPredicate", "RprCollisionEventCallback", "RprContactForceEventCallback"]:
         text = text.replace(f"(*{name})", f"(RAPIER_CALL *{name})")
     text = text.replace("\n#endif\n  ;", ";\n#endif")
 

@@ -936,7 +936,8 @@ pub(crate) unsafe fn native_collider_set_get_parent(
     })
 }
 
-/// Set the collider world-space pose.
+/// Set the collider world-space pose. For a collider attached to a rigid body, prefer
+/// SetPositionWrtParent: the body pose overwrites it at the next step.
 /// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_position(
@@ -959,7 +960,8 @@ pub unsafe extern "C" fn rpr_collider_set_position(
     })
 }
 
-/// Set the collider world-space translation.
+/// Set the collider world-space translation. For a collider attached to a rigid body, prefer
+/// SetPositionWrtParent: the body pose overwrites it at the next step.
 /// @ingroup colliders
 #[rapier_export(collider)]
 pub unsafe extern "C" fn rpr_collider_set_translation(
@@ -1401,5 +1403,370 @@ pub unsafe extern "C" fn rpr_impulse_joint_set_desc(
             .ok_or_else(missing)?
             .data = desc;
         Ok(())
+    })
+}
+
+/// Return the collider body-type collision activation bitmask (RPR_COLLISION_TYPES_* bits).
+/// @ingroup colliders
+#[rapier_export(collider)]
+pub unsafe extern "C" fn rpr_collider_active_collision_types(handle: RprColliderHandle) -> u16 {
+    let world = handle.world;
+    ffi_value(|out: *mut u16| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_collider_set_get_active_collision_types(
+                std::ptr::addr_of!((*raw).0.colliders).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_collider_set_get_active_collision_types(
+    set: *const RprColliderSet,
+    handle: RprColliderHandle,
+    out: *mut u16,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_collider_active_collision_types(
+            (element as *const Collider).cast(),
+            out,
+        ))
+    })
+}
+
+/// Return the collider physics-hook activation bitmask.
+/// @ingroup colliders
+#[rapier_export(collider)]
+pub unsafe extern "C" fn rpr_collider_active_hooks(handle: RprColliderHandle) -> u32 {
+    let world = handle.world;
+    ffi_value(|out: *mut u32| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_collider_set_get_active_hooks(
+                std::ptr::addr_of!((*raw).0.colliders).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_collider_set_get_active_hooks(
+    set: *const RprColliderSet,
+    handle: RprColliderHandle,
+    out: *mut u32,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_collider_active_hooks(
+            (element as *const Collider).cast(),
+            out,
+        ))
+    })
+}
+
+/// Return the collider friction combination rule (RPR_COMBINE_*).
+/// @ingroup colliders
+#[rapier_export(collider)]
+pub unsafe extern "C" fn rpr_collider_friction_combine_rule(handle: RprColliderHandle) -> u32 {
+    let world = handle.world;
+    ffi_value(|out: *mut u32| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_collider_set_get_friction_combine_rule(
+                std::ptr::addr_of!((*raw).0.colliders).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_collider_set_get_friction_combine_rule(
+    set: *const RprColliderSet,
+    handle: RprColliderHandle,
+    out: *mut u32,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_collider_friction_combine_rule(
+            (element as *const Collider).cast(),
+            out,
+        ))
+    })
+}
+
+/// Return the collider restitution combination rule (RPR_COMBINE_*).
+/// @ingroup colliders
+#[rapier_export(collider)]
+pub unsafe extern "C" fn rpr_collider_restitution_combine_rule(handle: RprColliderHandle) -> u32 {
+    let world = handle.world;
+    ffi_value(|out: *mut u32| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_collider_set_get_restitution_combine_rule(
+                std::ptr::addr_of!((*raw).0.colliders).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_collider_set_get_restitution_combine_rule(
+    set: *const RprColliderSet,
+    handle: RprColliderHandle,
+    out: *mut u32,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_collider_restitution_combine_rule(
+            (element as *const Collider).cast(),
+            out,
+        ))
+    })
+}
+
+/// Return the collider pose relative to its parent rigid body, or its world-space pose if it has
+/// no parent.
+/// @ingroup colliders
+#[rapier_export(collider)]
+pub unsafe extern "C" fn rpr_collider_position_wrt_parent(handle: RprColliderHandle) -> RprPose {
+    let world = handle.world;
+    ffi_value(|out: *mut RprPose| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_collider_set_get_position_wrt_parent(
+                std::ptr::addr_of!((*raw).0.colliders).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_collider_set_get_position_wrt_parent(
+    set: *const RprColliderSet,
+    handle: RprColliderHandle,
+    out: *mut RprPose,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_collider_position_wrt_parent(
+            (element as *const Collider).cast(),
+            out,
+        ))
+    })
+}
+
+/// Return the rigid body signed dominance group.
+/// @ingroup rigid_bodies
+#[rapier_export(rigid_body)]
+pub unsafe extern "C" fn rpr_rigid_body_dominance_group(handle: RprRigidBodyHandle) -> i8 {
+    let world = handle.world;
+    ffi_value(|out: *mut i8| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_rigid_body_set_get_dominance_group(
+                std::ptr::addr_of!((*raw).0.bodies).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_rigid_body_set_get_dominance_group(
+    set: *const RprRigidBodySet,
+    handle: RprRigidBodyHandle,
+    out: *mut i8,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_rigid_body_dominance_group(
+            (element as *const RigidBody).cast(),
+            out,
+        ))
+    })
+}
+
+/// Return the rigid body additional solver iterations for connected bodies.
+/// @ingroup rigid_bodies
+#[rapier_export(rigid_body)]
+pub unsafe extern "C" fn rpr_rigid_body_additional_solver_iterations(
+    handle: RprRigidBodyHandle,
+) -> usize {
+    let world = handle.world;
+    ffi_value(|out: *mut usize| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_rigid_body_set_get_additional_solver_iterations(
+                std::ptr::addr_of!((*raw).0.bodies).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_rigid_body_set_get_additional_solver_iterations(
+    set: *const RprRigidBodySet,
+    handle: RprRigidBodyHandle,
+    out: *mut usize,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_rigid_body_additional_solver_iterations(
+            (element as *const RigidBody).cast(),
+            out,
+        ))
+    })
+}
+
+/// Return the rigid body additional PGS iterations for connected bodies.
+/// @ingroup rigid_bodies
+#[rapier_export(rigid_body)]
+pub unsafe extern "C" fn rpr_rigid_body_additional_pgs_iterations(
+    handle: RprRigidBodyHandle,
+) -> usize {
+    let world = handle.world;
+    ffi_value(|out: *mut usize| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_rigid_body_set_get_additional_pgs_iterations(
+                std::ptr::addr_of!((*raw).0.bodies).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_rigid_body_set_get_additional_pgs_iterations(
+    set: *const RprRigidBodySet,
+    handle: RprRigidBodyHandle,
+    out: *mut usize,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_rigid_body_additional_pgs_iterations(
+            (element as *const RigidBody).cast(),
+            out,
+        ))
+    })
+}
+
+/// Return whether the rigid body may exceed the angular-velocity limit of its CCD.
+/// @ingroup rigid_bodies
+#[rapier_export(rigid_body)]
+pub unsafe extern "C" fn rpr_rigid_body_is_fast_rotation_allowed(
+    handle: RprRigidBodyHandle,
+) -> RprBool {
+    let world = handle.world;
+    ffi_value(|out: *mut RprBool| {
+        ffi(|| unsafe {
+            handle.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_rigid_body_set_get_is_fast_rotation_allowed(
+                std::ptr::addr_of!((*raw).0.bodies).cast(),
+                handle,
+                out,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_rigid_body_set_get_is_fast_rotation_allowed(
+    set: *const RprRigidBodySet,
+    handle: RprRigidBodyHandle,
+    out: *mut RprBool,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let element = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+        forward(native_rigid_body_is_fast_rotation_allowed(
+            (element as *const RigidBody).cast(),
+            out,
+        ))
+    })
+}
+
+/// Set the collider world-space rotation. For a collider attached to a rigid body, prefer
+/// SetPositionWrtParent: the body pose overwrites it at the next step.
+/// @ingroup colliders
+#[rapier_export(collider)]
+pub unsafe extern "C" fn rpr_collider_set_rotation(
+    handle: RprColliderHandle,
+    value: RprRotation,
+) -> RprStatus {
+    let world = handle.world;
+    ffi(|| unsafe {
+        handle.check_world(world)?;
+        let access = get(world)?.write()?;
+        let raw = access.raw();
+
+        let set: *mut RprColliderSet = std::ptr::addr_of_mut!((*raw).0.colliders).cast();
+
+        let element = get_mut(set)?.0.get_mut(handle.raw()).ok_or_else(missing)?;
+        forward(native_collider_set_rotation(
+            (element as *mut Collider).cast(),
+            value,
+        ))
+    })
+}
+
+/// Allow or disallow the rigid body to exceed the angular-velocity limit of its CCD (e.g. for
+/// wheels).
+/// @ingroup rigid_bodies
+#[rapier_export(rigid_body)]
+pub unsafe extern "C" fn rpr_rigid_body_set_allow_fast_rotation(
+    handle: RprRigidBodyHandle,
+    value: RprBool,
+) -> RprStatus {
+    let world = handle.world;
+    ffi(|| unsafe {
+        handle.check_world(world)?;
+        let access = get(world)?.write()?;
+        let raw = access.raw();
+
+        let set: *mut RprRigidBodySet = std::ptr::addr_of_mut!((*raw).0.bodies).cast();
+
+        let element = get_mut(set)?.0.get_mut(handle.raw()).ok_or_else(missing)?;
+        ensure(
+            element.soft_body().is_none(),
+            "mutate soft-body proxies through the soft-body API",
+        )?;
+        forward(native_rigid_body_set_allow_fast_rotation(
+            (element as *mut RigidBody).cast(),
+            value,
+        ))
     })
 }

@@ -44,6 +44,33 @@ pub const RPR_COMBINE_MULTIPLY: u32 = 2;
 /// @ingroup colliders
 /// Use the larger of the two material coefficients.
 pub const RPR_COMBINE_MAX: u32 = 3;
+/// @ingroup colliders
+/// Use the sum of the two material coefficients, clamped to [0, 1].
+pub const RPR_COMBINE_CLAMPED_SUM: u32 = 4;
+/// @ingroup colliders
+/// Use the geometric mean (square root of the product) of the two material coefficients.
+pub const RPR_COMBINE_GEOMETRIC_MEAN: u32 = 5;
+/// @ingroup colliders
+/// Active collision type bit: contacts between two dynamic bodies.
+pub const RPR_COLLISION_TYPES_DYNAMIC_DYNAMIC: u16 = 0b0000_0000_0000_0001;
+/// @ingroup colliders
+/// Active collision type bit: contacts between a dynamic and a kinematic body.
+pub const RPR_COLLISION_TYPES_DYNAMIC_KINEMATIC: u16 = 0b0000_0000_0000_1100;
+/// @ingroup colliders
+/// Active collision type bit: contacts between a dynamic and a fixed body (or a collider without parent).
+pub const RPR_COLLISION_TYPES_DYNAMIC_FIXED: u16 = 0b0000_0000_0000_0010;
+/// @ingroup colliders
+/// Active collision type bit: contacts between two kinematic bodies.
+pub const RPR_COLLISION_TYPES_KINEMATIC_KINEMATIC: u16 = 0b1100_1100_0000_0000;
+/// @ingroup colliders
+/// Active collision type bit: contacts between a kinematic and a fixed body (or a collider without parent).
+pub const RPR_COLLISION_TYPES_KINEMATIC_FIXED: u16 = 0b0010_0010_0000_0000;
+/// @ingroup colliders
+/// Active collision type bit: contacts between two fixed bodies (or colliders without parent).
+pub const RPR_COLLISION_TYPES_FIXED_FIXED: u16 = 0b0000_0000_0010_0000;
+/// @ingroup colliders
+/// Default active collision types: dynamic-dynamic, dynamic-kinematic, and dynamic-fixed.
+pub const RPR_COLLISION_TYPES_DEFAULT: u16 = 0b0000_0000_0000_1111;
 
 /// Cartesian vector with two or three components.
 /// @ingroup math
@@ -344,8 +371,11 @@ pub struct RprBuildFeatures {
     pub simd_lanes: u32,
     /// Whether this library exposes Rapier's parallel execution and thread-pool APIs.
     pub parallel: RprBool,
+    /// Whether the library is built with enhanced-determinism: the simulation, and the math
+    /// functions such as rpr_sin, give bit-identical results on every platform.
+    pub enhanced_determinism: RprBool,
 }
-/// Return profiling, SIMD width, and parallelism of the linked library.
+/// Return profiling, SIMD width, parallelism, and determinism of the linked library.
 /// @ingroup errors
 #[rapier_export]
 pub extern "C" fn rpr_build_features() -> RprBuildFeatures {
@@ -353,6 +383,7 @@ pub extern "C" fn rpr_build_features() -> RprBuildFeatures {
         profiling: cfg!(feature = "profiler") as RprBool,
         simd_lanes: rapier::math::SIMD_WIDTH as u32,
         parallel: cfg!(feature = "parallel") as RprBool,
+        enhanced_determinism: cfg!(feature = "enhanced-determinism") as RprBool,
     }
 }
 
@@ -371,8 +402,13 @@ pub(crate) fn combine(value: u32) -> Result<CoefficientCombineRule> {
         1 => Ok(CoefficientCombineRule::Min),
         2 => Ok(CoefficientCombineRule::Multiply),
         3 => Ok(CoefficientCombineRule::Max),
+        4 => Ok(CoefficientCombineRule::ClampedSum),
+        5 => Ok(CoefficientCombineRule::GeometricMean),
         _ => Err(invalid("unknown combine rule")),
     }
+}
+pub(crate) fn combine_value(rule: CoefficientCombineRule) -> u32 {
+    rule as u32
 }
 
 /// Copyable non-owning handle: world pointer plus entity index and generation.
@@ -659,6 +695,24 @@ pub const RPR_SOFT_SOLVER_CONSTRAINTS: u32 = 0;
 /// @ingroup soft_bodies
 /// Use the finite-element solver; requires RAPIER_FEM.
 pub const RPR_SOFT_SOLVER_FEM: u32 = 1;
+/// @ingroup soft_bodies
+/// Edge plastic flow (RprSoftBodyMaterial::edgePlasticFlow): both a squeeze and a stretch set.
+pub const RPR_SOFT_EDGE_PLASTIC_FLOW_BOTH: u32 = 0;
+/// @ingroup soft_bodies
+/// Edge plastic flow: only a squeeze sets; a stretched edge springs back.
+pub const RPR_SOFT_EDGE_PLASTIC_FLOW_COMPRESSION: u32 = 1;
+/// @ingroup soft_bodies
+/// Edge plastic flow: only a stretch sets; a squeezed edge springs back.
+pub const RPR_SOFT_EDGE_PLASTIC_FLOW_TENSION: u32 = 2;
+/// @ingroup soft_bodies
+/// Overlap patch constraints (RprSoftRecoverySettings::overlapPatchConstraints): keep them.
+pub const RPR_SOFT_PATCH_CONSTRAINTS_KEEP: u32 = 0;
+/// @ingroup soft_bodies
+/// Overlap patch constraints: stand them down inside the patch.
+pub const RPR_SOFT_PATCH_CONSTRAINTS_STAND_DOWN: u32 = 1;
+/// @ingroup soft_bodies
+/// Overlap patch constraints: align them with the overlap normal.
+pub const RPR_SOFT_PATCH_CONSTRAINTS_ALONG_NORMAL: u32 = 2;
 /// @ingroup joints
 /// Joint axis index for translation along local X.
 pub const RPR_AXIS_LIN_X: u32 = 0;
@@ -788,21 +842,40 @@ pub const RPR_MULTIBODY_JOINTS_ARE_KINEMATIC: u8 = 1;
 /// Disable contacts between colliders of the inserted articulation.
 pub const RPR_MULTIBODY_DISABLE_SELF_CONTACTS: u8 = 2;
 /// @ingroup joints
-/// Skip joints that would close a loop in the articulation.
+/// Do not insert MJCF equality constraints (loop closures) as impulse joints. MJCF only: URDF
+/// insertion rejects it.
 pub const RPR_MULTIBODY_SKIP_LOOP_CLOSURES: u8 = 4;
 /// @ingroup joints
-/// Do not import joint motors into the articulation.
+/// Do not import joint motors into the articulation. MJCF only: URDF insertion rejects it.
 pub const RPR_MULTIBODY_SKIP_JOINT_MOTORS: u8 = 8;
 /// @ingroup joints
-/// Do not import joint limits into the articulation.
+/// Do not import joint limits into the articulation. MJCF only: URDF insertion rejects it.
 pub const RPR_MULTIBODY_SKIP_JOINT_LIMITS: u8 = 16;
 /// @ingroup joints
-/// Do not import joint springs into the articulation.
+/// Do not import joint springs into the articulation. MJCF only: URDF insertion rejects it.
 pub const RPR_MULTIBODY_SKIP_JOINT_SPRINGS: u8 = 32;
 
 /// @ingroup shapes
+/// Compute the half-edge topology of the triangle mesh.
+pub const RPR_TRIMESH_HALF_EDGE_TOPOLOGY: u32 = 1;
+/// @ingroup shapes
+/// Compute the connected components of the triangle mesh.
+pub const RPR_TRIMESH_CONNECTED_COMPONENTS: u32 = 2;
+/// @ingroup shapes
+/// Delete the triangles breaking the half-edge topology.
+pub const RPR_TRIMESH_DELETE_BAD_TOPOLOGY_TRIANGLES: u32 = 4;
+/// @ingroup shapes
+/// Treat the triangle mesh as oriented (outward normals) and compute its pseudo-normals.
+pub const RPR_TRIMESH_ORIENTED: u32 = 8;
+/// @ingroup shapes
 /// Merge triangle-mesh vertices with identical positions.
 pub const RPR_TRIMESH_MERGE_DUPLICATE_VERTICES: u32 = 16;
+/// @ingroup shapes
+/// Delete the triangles with a zero area.
+pub const RPR_TRIMESH_DELETE_DEGENERATE_TRIANGLES: u32 = 32;
+/// @ingroup shapes
+/// Delete the triangles sharing their three vertices with another triangle.
+pub const RPR_TRIMESH_DELETE_DUPLICATE_TRIANGLES: u32 = 64;
 /// @ingroup shapes
 /// Correct contact normals at internal mesh edges; includes duplicate-vertex merging.
 pub const RPR_TRIMESH_FIX_INTERNAL_EDGES: u32 = 144;

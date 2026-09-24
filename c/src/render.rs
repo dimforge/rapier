@@ -256,6 +256,30 @@ pub unsafe extern "C" fn rpr_round_cylinder_shared_shape(
     })
 }
 
+/// Create an owned round cone shape. Release it with rpr_free_shared_shape.
+/// @ingroup shapes
+#[cfg(feature = "dim3")]
+#[rapier_export]
+pub unsafe extern "C" fn rpr_round_cone_shared_shape(
+    half_height: RprReal,
+    radius: RprReal,
+    border_radius: RprReal,
+) -> *mut RprSharedShape {
+    ffi_value(|out: *mut *mut RprSharedShape| {
+        ffi(|| unsafe {
+            out_ptr(out)?;
+            output(
+                out,
+                Box::into_raw(Box::new(RprSharedShape(SharedShape::round_cone(
+                    positive(half_height)?,
+                    positive(radius)?,
+                    nonnegative(border_radius)?,
+                )))),
+            )
+        })
+    })
+}
+
 /// Owned indexed geometry from Parry's shape tessellation, preserving its vertex order.
 /// @ingroup shapes
 #[cfg(feature = "dim3")]
@@ -266,6 +290,8 @@ pub struct RprTriMeshData {
 
 /// Tessellate a ball or capsule with independent longitude/latitude subdivision counts.
 /// Cuboids, cones, cylinders, convex polyhedra, trimeshes, and heightfields are also supported.
+/// ntheta (3 to 4096) is read by balls, capsules, cones and cylinders; nphi (2 to 4096) by balls
+/// and capsules. Other shapes ignore them.
 /// @ingroup shapes
 #[cfg(feature = "dim3")]
 #[rapier_export(shared_shape)]
@@ -277,10 +303,16 @@ pub unsafe extern "C" fn rpr_shared_shape_to_trimesh(
     ffi_value(|out: *mut *mut RprTriMeshData| {
         ffi(|| unsafe {
             out_ptr(out)?;
-            ensure(
-                (3..=4096).contains(&ntheta) && (2..=4096).contains(&nphi),
-                "invalid tessellation subdivisions",
-            )?;
+            let check_theta = || ensure((3..=4096).contains(&ntheta), "invalid ntheta");
+            let check_phi = || ensure((2..=4096).contains(&nphi), "invalid nphi");
+            match get(shape)?.0.as_typed_shape() {
+                TypedShape::Ball(_) | TypedShape::Capsule(_) => {
+                    check_theta()?;
+                    check_phi()?;
+                }
+                TypedShape::Cone(_) | TypedShape::Cylinder(_) => check_theta()?,
+                _ => {}
+            }
             let (vertices, indices) = match get(shape)?.0.as_typed_shape() {
                 TypedShape::Ball(s) => s.to_trimesh(ntheta, nphi),
                 TypedShape::Capsule(s) => s.to_trimesh(ntheta, nphi),

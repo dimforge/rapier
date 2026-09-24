@@ -296,7 +296,7 @@ impl From<&ContactPair> for RprContactPair {
     }
 }
 /// Sensor intersection state for a collider pair.
-/// @ingroup math
+/// @ingroup events
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprIntersectionPair {
@@ -332,7 +332,8 @@ pub unsafe extern "C" fn rpr_contact_pairs(
     }
 }
 
-/// Return the narrow-phase contact pair for two colliders, or report RPR_NOT_FOUND.
+/// Return the narrow-phase contact pair for two colliders, or report RPR_NOT_FOUND. Its collider1 and
+/// collider2 follow the narrow-phase order, which may differ from the argument order.
 /// @ingroup events
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_pair(
@@ -408,12 +409,38 @@ pub struct RprContactPoint {
     pub distance: RprReal,
     /// Normal impulse applied at this contact.
     pub impulse: RprReal,
+    /// Friction impulse along the tangent basis of the contact.
+    #[cfg(feature = "dim2")]
+    pub tangent_impulse: [RprReal; 1],
+    /// Friction impulses along the two tangent basis vectors of the contact.
+    #[cfg(feature = "dim3")]
+    pub tangent_impulse: [RprReal; 2],
+}
+/// The geometric contacts of all the manifolds of a pair, in the pair's collider order.
+pub(crate) fn contact_points(pair: &ContactPair) -> Vec<RprContactPoint> {
+    pair.manifolds()
+        .iter()
+        .enumerate()
+        .flat_map(|(i, m)| {
+            m.points.iter().map(move |p| RprContactPoint {
+                manifold_index: i,
+                local_p1: p.local_p1.into(),
+                local_p2: p.local_p2.into(),
+                normal: m.data.normal.into(),
+                distance: p.dist,
+                impulse: p.data.impulse,
+                tangent_impulse: p.data.tangent_impulse.into(),
+            })
+        })
+        .collect()
 }
 /// Contact points in collider-local space; normal in world space. Geometric manifolds may be
 /// recycled.
+/// local_p1/local_p2 follow the pair's own collider1/collider2 order (see rpr_contact_pair), which
+/// may differ from the argument order.
 /// For clustered solver impulses use contact pair totals. Soft pairs have no rigid manifolds.
 /// @see @ref output_buffers
-/// @ingroup worlds
+/// @ingroup events
 #[rapier_export]
 pub unsafe extern "C" fn rpr_contact_points(
     collider1: RprColliderHandle,
@@ -435,22 +462,7 @@ pub unsafe extern "C" fn rpr_contact_points(
                 .0
                 .contact_pair(collider1.raw(), collider2.raw())
                 .ok_or((RPR_NOT_FOUND, "no contact pair".into()))?;
-            let v: Vec<_> = p
-                .manifolds()
-                .iter()
-                .enumerate()
-                .flat_map(|(i, m)| {
-                    m.points.iter().map(move |p| RprContactPoint {
-                        manifold_index: i,
-                        local_p1: p.local_p1.into(),
-                        local_p2: p.local_p2.into(),
-                        normal: m.data.normal.into(),
-                        distance: p.dist,
-                        impulse: p.data.impulse,
-                    })
-                })
-                .collect();
-            copy_out(&v, buffer, capacity, count)
+            copy_out(&contact_points(p), buffer, capacity, count)
         })
     })
 }
@@ -474,7 +486,7 @@ pub unsafe extern "C" fn rpr_multibody_joint_generalized_velocity(
             let set: *const RprMultibodyJointSet =
                 std::ptr::addr_of!((*raw).0.multibody_joints).cast();
 
-            let (m, _) = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
+            let (m, _) = multibody_joint_link(&get(set)?.0, handle)?;
             copy_out(m.generalized_velocity().as_slice(), buffer, capacity, count)
         })
     })
@@ -501,6 +513,7 @@ pub unsafe extern "C" fn rpr_multibody_joint_set_generalized_velocity(
         for &x in v {
             finite(x)?;
         }
+        multibody_joint_link(&get(set)?.0, handle)?;
         let (m, _) = get_mut(set)?.0.get_mut(handle.raw()).ok_or_else(missing)?;
         ensure(
             m.ndofs() == count,
@@ -513,7 +526,11 @@ pub unsafe extern "C" fn rpr_multibody_joint_set_generalized_velocity(
     })
 }
 
-/// Check this before passing any dimension/precision-dependent structs across the ABI.
+/// Check that the header matches the linked library before passing any structure across the ABI.
+/// Pass RPR_ABI_VERSION, RPR_DIMENSION, the sizes of RprReal, RprVector and RprPose, and
+/// RPR_ABI_FEATURES. Fails with RPR_INVALID_ARGUMENT when the version, dimension, precision, or
+/// the RAPIER_FEM/RAPIER_ROBOTICS defines differ from the library, since they change structure
+/// layouts.
 /// @ingroup errors
 #[rapier_export]
 pub unsafe extern "C" fn rpr_check_abi(
@@ -522,6 +539,7 @@ pub unsafe extern "C" fn rpr_check_abi(
     real_size: usize,
     vector_size: usize,
     pose_size: usize,
+    features: u32,
 ) -> RprStatus {
     ffi(|| {
         ensure(
@@ -531,6 +549,28 @@ pub unsafe extern "C" fn rpr_check_abi(
                 && vector_size == std::mem::size_of::<RprVector>()
                 && pose_size == std::mem::size_of::<RprPose>(),
             "header/library ABI mismatch",
+        )?;
+        let mismatch = features ^ RPR_ABI_FEATURES;
+        for (bit, define) in [
+            (RPR_ABI_FEATURE_FEM, "RAPIER_FEM"),
+            (RPR_ABI_FEATURE_ROBOTICS, "RAPIER_ROBOTICS"),
+        ] {
+            if mismatch & bit != 0 {
+                // The bit differs, so the library has it exactly when the header does not.
+                let state = if features & bit != 0 {
+                    "without"
+                } else {
+                    "with"
+                };
+                return Err(invalid(format!(
+                    "header/library ABI mismatch: the library is built {state} the feature \
+                     selected by {define}; the header defines must match it"
+                )));
+            }
+        }
+        ensure(
+            mismatch == 0,
+            "header/library ABI mismatch: unknown ABI features",
         )
     })
 }

@@ -143,6 +143,27 @@ pub extern "C" fn rpr_round_cylinder_collider_desc(
         ..RprColliderDesc::default()
     }
 }
+/// Return a rounded Y-aligned cone description; dimensions exclude border_radius.
+/// Returns a description without allocating or validating. Build/insert validates its fields.
+/// @ingroup colliders
+#[cfg(feature = "dim3")]
+#[rapier_export]
+pub extern "C" fn rpr_round_cone_collider_desc(
+    half_height: RprReal,
+    radius: RprReal,
+    border_radius: RprReal,
+) -> RprColliderDesc {
+    RprColliderDesc {
+        shape: RprShapeDesc {
+            kind: RPR_SHAPE_DESC_ROUND_CONE,
+            halfHeight: half_height,
+            radius,
+            borderRadius: border_radius,
+            ..RprShapeDesc::default()
+        },
+        ..RprColliderDesc::default()
+    }
+}
 /// Return a X-aligned capsule description; half_height is half the segment length, excluding caps.
 /// Returns a description without allocating or validating. Build/insert validates its fields.
 /// @ingroup colliders

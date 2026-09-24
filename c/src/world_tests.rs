@@ -208,16 +208,12 @@ fn removing_a_body_can_preserve_its_colliders() {
         assert_eq!(rpr_last_status(), RPR_OK);
         let collider = rpr_insert_collider(body, &shape);
         assert_eq!(rpr_last_status(), RPR_OK);
-        let mut removed = rpr_remove_rigid_body(body, 0);
-        assert_eq!(rpr_last_status(), RPR_OK);
-        assert_eq!(removed, 1);
+        assert_eq!(rpr_remove_rigid_body(body, 0), RPR_OK);
         let parent = rpr_collider_parent(collider);
         assert_eq!(rpr_last_status(), RPR_OK);
         assert_eq!(parent, RprRigidBodyHandle::default());
         assert_eq!(rpr_rigid_body_validate_handle(body), RPR_INVALID_HANDLE);
-        removed = rpr_remove_rigid_body(body, 1);
-        assert_eq!(rpr_last_status(), RPR_OK);
-        assert_eq!(removed, 0);
+        assert_eq!(rpr_remove_rigid_body(body, 1), RPR_INVALID_HANDLE);
         assert_eq!(rpr_free_world(world), RPR_OK);
     }
 }

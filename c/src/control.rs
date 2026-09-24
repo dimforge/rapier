@@ -17,10 +17,19 @@ pub struct RprKinematicCharacterController {
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
 pub struct RprCharacterLength {
-    /// Value used when enabled is 1.
+    /// Nonnegative length: a fraction of the character shape height when relative is 1, a
+    /// world-space length otherwise.
     pub value: RprReal,
     /// 1 scales value by the character shape size; 0 uses an absolute length.
     pub relative: RprBool,
+}
+impl From<CharacterLength> for RprCharacterLength {
+    fn from(value: CharacterLength) -> Self {
+        match value {
+            CharacterLength::Relative(value) => Self { value, relative: 1 },
+            CharacterLength::Absolute(value) => Self { value, relative: 0 },
+        }
+    }
 }
 impl RprCharacterLength {
     fn raw(self) -> Result<CharacterLength> {
@@ -191,6 +200,87 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_set_snap_to_ground(
         Ok(())
     })
 }
+/// Return the normalized up direction.
+/// @ingroup controllers
+#[rapier_export(kinematic_character_controller)]
+pub unsafe extern "C" fn rpr_kinematic_character_controller_up(
+    controller: *const RprKinematicCharacterController,
+) -> RprVector {
+    ffi_value(|out: *mut RprVector| {
+        ffi(|| unsafe { output(out, get(controller)?.inner.up.into()) })
+    })
+}
+/// Return the collision separation margin.
+/// @ingroup controllers
+#[rapier_export(kinematic_character_controller)]
+pub unsafe extern "C" fn rpr_kinematic_character_controller_offset(
+    controller: *const RprKinematicCharacterController,
+) -> RprCharacterLength {
+    ffi_value(|out: *mut RprCharacterLength| {
+        ffi(|| unsafe { output(out, get(controller)?.inner.offset.into()) })
+    })
+}
+/// Copy of the automatic stepping settings.
+/// @ingroup controllers
+#[repr(C)]
+#[derive(Copy, Clone, Default)]
+pub struct RprCharacterAutostep {
+    /// Whether automatic stepping is enabled.
+    pub enabled: RprBool,
+    /// Maximum height of the steps climbed automatically.
+    pub max_height: RprCharacterLength,
+    /// Minimum free width required on top of a step.
+    pub min_width: RprCharacterLength,
+    /// Whether the character can also step over dynamic bodies.
+    pub include_dynamic_bodies: RprBool,
+}
+/// Return the automatic stepping settings. When disabled, enabled is 0 and the other fields hold
+/// Rapier's defaults.
+/// @ingroup controllers
+#[rapier_export(kinematic_character_controller)]
+pub unsafe extern "C" fn rpr_kinematic_character_controller_autostep(
+    controller: *const RprKinematicCharacterController,
+) -> RprCharacterAutostep {
+    ffi_value(|out: *mut RprCharacterAutostep| {
+        ffi(|| unsafe {
+            let autostep = get(controller)?.inner.autostep;
+            let step = autostep.unwrap_or_default();
+            output(
+                out,
+                RprCharacterAutostep {
+                    enabled: autostep.is_some() as RprBool,
+                    max_height: step.max_height.into(),
+                    min_width: step.min_width.into(),
+                    include_dynamic_bodies: step.include_dynamic_bodies as RprBool,
+                },
+            )
+        })
+    })
+}
+/// Set the small distance by which sliding motion is pushed along hit normals to avoid getting stuck;
+/// it must be finite and nonnegative. Large values cause bumps when sliding on flat ground.
+/// @ingroup controllers
+#[rapier_export(kinematic_character_controller)]
+pub unsafe extern "C" fn rpr_kinematic_character_controller_set_normal_nudge_factor(
+    controller: *mut RprKinematicCharacterController,
+    value: RprReal,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let value = nonnegative(value)?;
+        get_mut(controller)?.inner.normal_nudge_factor = value;
+        Ok(())
+    })
+}
+/// Return the normal nudge factor set by SetNormalNudgeFactor.
+/// @ingroup controllers
+#[rapier_export(kinematic_character_controller)]
+pub unsafe extern "C" fn rpr_kinematic_character_controller_normal_nudge_factor(
+    controller: *const RprKinematicCharacterController,
+) -> RprReal {
+    ffi_value(|out: *mut RprReal| {
+        ffi(|| unsafe { output(out, get(controller)?.inner.normal_nudge_factor) })
+    })
+}
 /// Computes movement without moving any collider. Use the returned translation to set the character
 /// target.
 /// NULL query options use the default filter. Query state reflects the latest Step or
@@ -283,8 +373,55 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_collisions(
         )
     }
 }
-/// Applies impulses for the most recent move_shape collisions. Use the same world, shape, dt and
-/// filter.
+/// Query options of a query pipeline that mutably borrows the rigid bodies. The C predicate cannot
+/// read the world while that borrow is live, so it is evaluated beforehand for every collider.
+pub(crate) struct MutableQueryOptions {
+    filter: QueryFilter<'static>,
+    /// Predicate results indexed by collider index; None without predicate.
+    accepted: Option<Vec<bool>>,
+}
+impl MutableQueryOptions {
+    pub(crate) unsafe fn new(
+        owner: *mut RprWorld,
+        world: &PhysicsWorld,
+        options: *const RprQueryOptions,
+    ) -> Result<Self> {
+        unsafe {
+            let options = if options.is_null() {
+                RprQueryOptions::default()
+            } else {
+                *get(options)?
+            };
+            let filter = options.filter.raw()?;
+            let accepted = options.predicate.map(|predicate| {
+                let read = RprReadContext::new(owner, &world.bodies, &world.colliders);
+                let mut accepted = vec![false; world.colliders.len()];
+                for (handle, _) in world.colliders.iter() {
+                    let index = handle.into_raw_parts().0 as usize;
+                    if index >= accepted.len() {
+                        accepted.resize(index + 1, false);
+                    }
+                    let handle = RprColliderHandle::from(handle).with_world(owner);
+                    accepted[index] = predicate(options.userData, &read, handle) != 0;
+                }
+                accepted
+            });
+            Ok(Self { filter, accepted })
+        }
+    }
+    /// Whether the precomputed predicate accepts this collider.
+    fn accepts(&self, handle: ColliderHandle) -> bool {
+        self.accepted.as_ref().is_none_or(|accepted| {
+            let index = handle.into_raw_parts().0 as usize;
+            accepted.get(index).copied().unwrap_or(false)
+        })
+    }
+}
+
+/// Applies impulses to the dynamic bodies hit by the most recent MoveShape call. Use the same
+/// shape, dt and query options as that call; NULL options use the default filter.
+/// Unlike MoveShape, the options' predicate is called once per collider of the world before the
+/// impulses are applied, while the world is locked for writing: it may only use Read* functions.
 /// @ingroup controllers
 #[rapier_export(kinematic_character_controller)]
 pub unsafe extern "C" fn rpr_kinematic_character_controller_solve_character_collision_impulses(
@@ -292,34 +429,34 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_solve_character_coll
     shape: *const RprSharedShape,
     dt: RprReal,
     mass: RprReal,
-    filter: *const RprQueryFilter,
+    options: *const RprQueryOptions,
 ) -> RprStatus {
     ffi(|| unsafe {
-        let world = get(controller)?.world;
-        if !filter.is_null() {
-            get(filter)?.check_world(world)?;
+        let owner = get(controller)?.world;
+        if !options.is_null() {
+            get(options)?.check_world(owner)?;
         }
-        let access = get(world)?.write()?;
+        let access = get(owner)?.write()?;
         let raw = access.raw();
 
         let world: *mut RprPhysicsWorld = raw;
 
         positive(dt)?;
         positive(mass)?;
-        let f = if filter.is_null() {
-            RprQueryFilter::default()
-        } else {
-            *get(filter)?
-        }
-        .raw()?;
         let c = get(controller)?;
         let shape = &*get(shape)?.0;
+        let options = MutableQueryOptions::new(owner, &get(world)?.0, options)?;
+        let predicate = |handle: ColliderHandle, _: &Collider| options.accepts(handle);
+        let mut filter = options.filter;
+        if options.accepted.is_some() {
+            filter.predicate = Some(&predicate);
+        }
         let w = &mut get_mut(world)?.0;
         let mut q = w.broad_phase.as_query_pipeline_mut(
             w.narrow_phase.query_dispatcher(),
             &mut w.bodies,
             &mut w.colliders,
-            f,
+            filter,
         );
         c.inner
             .solve_character_collision_impulses(dt, &mut q, shape, mass, &c.collisions);
@@ -536,43 +673,61 @@ mod vehicle {
         })
     }
     /// Ray-cast wheel contacts and apply vehicle forces for dt seconds. Does not step the world.
+    /// NULL options use the default filter. The chassis colliders are always excluded, in addition
+    /// to the filter's own exclusions. The options' predicate is called once per collider of the
+    /// world before the update, while the world is locked for writing: it may only use Read*
+    /// functions.
     /// @ingroup controllers
     #[rapier_export(dynamic_ray_cast_vehicle_controller)]
     pub unsafe extern "C" fn rpr_dynamic_ray_cast_vehicle_controller_update_vehicle(
         controller: *mut RprDynamicRayCastVehicleController,
         dt: RprReal,
-        filter: *const RprQueryFilter,
+        options: *const RprQueryOptions,
     ) -> RprStatus {
         ffi(|| unsafe {
-            let world = get(controller)?.1;
-            if !filter.is_null() {
-                get(filter)?.check_world(world)?;
+            let owner = get(controller)?.1;
+            if !options.is_null() {
+                get(options)?.check_world(owner)?;
             }
-            let access = get(world)?.write()?;
+            let access = get(owner)?.write()?;
             let raw = access.raw();
 
             let world: *mut RprPhysicsWorld = raw;
 
             positive(dt)?;
             let c = &mut get_mut(controller)?.0;
-            let mut f = if filter.is_null() {
-                RprQueryFilter::default()
-            } else {
-                *get(filter)?
-            }
-            .raw()?;
-            f.exclude_rigid_body = Some(c.chassis);
-            let w = &mut get_mut(world)?.0;
-            let chassis = w.bodies.get(c.chassis).ok_or_else(missing)?;
+            let chassis_handle = c.chassis;
+            let chassis = get(world)?
+                .0
+                .bodies
+                .get(chassis_handle)
+                .ok_or_else(missing)?;
             ensure(
                 chassis.is_dynamic() && chassis.soft_body().is_none(),
                 "vehicle chassis must be an ordinary dynamic body",
             )?;
+            let options = MutableQueryOptions::new(owner, &get(world)?.0, options)?;
+            let mut filter = options.filter;
+            // Keep the caller's body exclusion; the chassis is then excluded by the predicate.
+            let exclude_chassis = filter
+                .exclude_rigid_body
+                .is_some_and(|h| h != chassis_handle);
+            if filter.exclude_rigid_body.is_none() {
+                filter.exclude_rigid_body = Some(chassis_handle);
+            }
+            let predicate = |handle: ColliderHandle, collider: &Collider| {
+                options.accepts(handle)
+                    && !(exclude_chassis && collider.parent() == Some(chassis_handle))
+            };
+            if options.accepted.is_some() || exclude_chassis {
+                filter.predicate = Some(&predicate);
+            }
+            let w = &mut get_mut(world)?.0;
             let q = w.broad_phase.as_query_pipeline_mut(
                 w.narrow_phase.query_dispatcher(),
                 &mut w.bodies,
                 &mut w.colliders,
-                f,
+                filter,
             );
             c.update_vehicle(dt, q);
             Ok(())
@@ -641,7 +796,7 @@ pub use vehicle::*;
 /// PID controller with persistent integral state.
 /// Stateful proportional-integral-derivative controller. Release with the matching Free function.
 /// @ingroup controllers
-pub struct RprPidController(rapier::control::PidController);
+pub struct RprPidController(pub(crate) rapier::control::PidController);
 
 /// Per-axis proportional, integral, and derivative controller gains.
 /// @ingroup controllers
@@ -662,8 +817,8 @@ pub struct RprPidGains {
     pub ang_kd: RprAngVector,
 }
 
-/// Allocate a PID controller with supplied gains and controlled axes. Release with
-/// rpr_free_pid_controller.
+/// Allocate a PID controller with Rapier's defaults: kp = 60, ki = 1 and kd = 0.8 on every axis, all
+/// axes controlled, and zero integrals. Release with rpr_free_pid_controller.
 /// @ingroup controllers
 #[rapier_export]
 pub unsafe extern "C" fn rpr_new_pid_controller() -> *mut RprPidController {
@@ -736,7 +891,8 @@ pub unsafe extern "C" fn rpr_pid_controller_set_gains(
         Ok(())
     })
 }
-/// AxesMask bits match Rapier: linear X/Y/Z are 1/2/4, angular X/Y/Z are 8/16/32.
+/// Set the controlled axes, a combination of RPR_AXES_MASK_* bits. Gains are unchanged; unknown
+/// bits are rejected.
 /// @ingroup controllers
 #[rapier_export(pid_controller)]
 pub unsafe extern "C" fn rpr_pid_controller_set_axes(
@@ -744,12 +900,140 @@ pub unsafe extern "C" fn rpr_pid_controller_set_axes(
     axes: u32,
 ) -> RprStatus {
     ffi(|| unsafe {
-        let axes = u8::try_from(axes)
-            .ok()
-            .and_then(AxesMask::from_bits)
-            .ok_or_else(|| invalid("unknown PID axes"))?;
+        let axes = axes_mask(axes)?;
         get_mut(controller)?.0.set_axes(axes);
         Ok(())
+    })
+}
+/// Return the controlled axes as RPR_AXES_MASK_* bits.
+/// @ingroup controllers
+#[rapier_export(pid_controller)]
+pub unsafe extern "C" fn rpr_pid_controller_axes(controller: *const RprPidController) -> u32 {
+    ffi_value(|out: *mut u32| {
+        ffi(|| unsafe { output(out, get(controller)?.0.axes().bits() as u32) })
+    })
+}
+/// Reset to zero the linear and angular errors accumulated by the integral term.
+/// @ingroup controllers
+#[rapier_export(pid_controller)]
+pub unsafe extern "C" fn rpr_pid_controller_reset_integrals(
+    controller: *mut RprPidController,
+) -> RprStatus {
+    ffi(|| unsafe {
+        get_mut(controller)?.0.reset_integrals();
+        Ok(())
+    })
+}
+pub(crate) fn axes_mask(axes: u32) -> Result<AxesMask> {
+    u8::try_from(axes)
+        .ok()
+        .and_then(AxesMask::from_bits)
+        .ok_or_else(|| invalid("unknown controller axes"))
+}
+
+/// Stateless proportional-derivative controller: a PID controller without integral term, stored as
+/// a plain value. Initialize with rpr_default_pd_controller.
+/// @ingroup controllers
+#[repr(C)]
+#[derive(Copy, Clone, Default)]
+pub struct RprPdController {
+    /// Linear proportional gain per axis.
+    pub lin_kp: RprVector,
+    /// Linear derivative gain per axis.
+    pub lin_kd: RprVector,
+    /// Angular proportional gain per axis.
+    pub ang_kp: RprAngVector,
+    /// Angular derivative gain per axis.
+    pub ang_kd: RprAngVector,
+    /// Controlled axes, a combination of RPR_AXES_MASK_* bits.
+    pub axes: u32,
+}
+impl RprPdController {
+    pub(crate) fn raw(&self) -> Result<rapier::control::PdController> {
+        Ok(rapier::control::PdController {
+            lin_kp: self.lin_kp.raw()?,
+            lin_kd: self.lin_kd.raw()?,
+            ang_kp: angular(self.ang_kp)?,
+            ang_kd: angular(self.ang_kd)?,
+            axes: axes_mask(self.axes)?,
+        })
+    }
+}
+/// Return Rapier's default PD controller: kp = 60 and kd = 0.8 on every axis, all axes controlled.
+/// This POD value owns no resources.
+/// @ingroup controllers
+#[rapier_export]
+pub extern "C" fn rpr_default_pd_controller() -> RprPdController {
+    let pd = rapier::control::PdController::default();
+    RprPdController {
+        lin_kp: pd.lin_kp.into(),
+        lin_kd: pd.lin_kd.into(),
+        ang_kp: angular_out(pd.ang_kp),
+        ang_kd: angular_out(pd.ang_kd),
+        axes: pd.axes.bits() as u32,
+    }
+}
+/// Compute the velocity change bringing the body toward the target pose and velocities. Neither the
+/// body nor the controller is modified.
+/// @ingroup controllers
+#[rapier_export(pd_controller)]
+pub unsafe extern "C" fn rpr_pd_controller_rigid_body_correction(
+    controller: *const RprPdController,
+    body: RprRigidBodyHandle,
+    target_pose: RprPose,
+    target_linvel: RprVector,
+    target_angvel: RprAngVector,
+) -> RprVelocityCorrection {
+    let world = body.world;
+    ffi_value(|result: *mut RprVelocityCorrection| {
+        let linear = unsafe { std::ptr::addr_of_mut!((*result).linear) };
+        let angular_velocity = unsafe { std::ptr::addr_of_mut!((*result).angularVelocity) };
+
+        ffi(|| unsafe {
+            body.check_world(world)?;
+            let access = get(world)?.read()?;
+            let raw = access.raw();
+
+            crate::handle_access::forward(native_pd_controller_rigid_body_correction(
+                controller,
+                std::ptr::addr_of!((*raw).0.bodies).cast(),
+                body,
+                target_pose,
+                target_linvel,
+                target_angvel,
+                linear,
+                angular_velocity,
+            ))
+        })
+    })
+}
+
+pub(crate) unsafe fn native_pd_controller_rigid_body_correction(
+    controller: *const RprPdController,
+    bodies: *const RprRigidBodySet,
+    body: RprRigidBodyHandle,
+    target_pose: RprPose,
+    target_linvel: RprVector,
+    target_angvel: RprAngVector,
+    linear: *mut RprVector,
+    angular_velocity: *mut RprAngVector,
+) -> RprStatus {
+    ffi(|| unsafe {
+        out_ptr(linear)?;
+        out_ptr(angular_velocity)?;
+        let pd = get(controller)?.raw()?;
+        let pose = target_pose.raw()?;
+        let velocity = RigidBodyVelocity {
+            linvel: target_linvel.raw()?,
+            angvel: angular(target_angvel)?,
+        };
+        let correction = pd.rigid_body_correction(
+            get(bodies)?.0.get(body.raw()).ok_or_else(missing)?,
+            pose,
+            velocity,
+        );
+        output(linear, correction.linvel.into())?;
+        output(angular_velocity, angular_out(correction.angvel))
     })
 }
 /// Compute a velocity correction, preserving the body's state and updating PID integrals.
@@ -844,14 +1128,13 @@ pub unsafe extern "C" fn rpr_kinematic_character_controller_settings(
     ffi_value(|out: *mut RprCharacterControllerSettings| {
         ffi(|| unsafe {
             let c = &get(controller)?.inner;
-            let snap_distance = match c.snap_to_ground {
-                Some(CharacterLength::Relative(value)) => RprCharacterLength { value, relative: 1 },
-                Some(CharacterLength::Absolute(value)) => RprCharacterLength { value, relative: 0 },
-                None => RprCharacterLength {
+            let snap_distance = c.snap_to_ground.map_or(
+                RprCharacterLength {
                     value: 0.1,
                     relative: 1,
                 },
-            };
+                Into::into,
+            );
             output(
                 out,
                 RprCharacterControllerSettings {

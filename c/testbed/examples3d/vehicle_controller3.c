@@ -91,12 +91,12 @@ void tbVehicleController3(Testbed *testbed) {
                 r3DynamicRayCastVehicleController_SetWheelControls(vehicle, i, steeringAngle,
                                                                   engineForce, 0);
             }
-            R3QueryFilter filter = r3DefaultQueryFilter();
-            filter.flags = R3_QUERY_EXCLUDE_DYNAMIC;
-            filter.exclude_rigid_body = vehicleHandle;
+            /* The chassis colliders are always excluded by the controller. */
+            R3QueryOptions options = r3DefaultQueryOptions();
+            options.filter.flags = R3_QUERY_EXCLUDE_DYNAMIC;
 
             R3Real dt = r3TimeStep(world);
-            r3DynamicRayCastVehicleController_UpdateVehicle(vehicle, dt, &filter);
+            r3DynamicRayCastVehicleController_UpdateVehicle(vehicle, dt, &options);
             r3Step(world, NULL, NULL);
         }
     }

@@ -13,7 +13,8 @@ RAII ownership; they do not change the C ABI.
 @section selection Build selection
 Define exactly one of `RAPIER_DIM2` / `RAPIER_DIM3` and one of
 `RAPIER_F32` / `RAPIER_F64` before including the headers. The defaults are 3D/f32.
-Flags must match the linked library; CheckAbi checks version and core layouts.
+Flags must match the linked library, including `RAPIER_FEM` and `RAPIER_ROBOTICS`.
+CheckAbi, given ABI_FEATURES, checks the version, core layouts, and these feature defines.
 PodLayout exposes additional structure sizes for foreign-language bindings.
 Use uint32_t for ABI booleans, not C/C++ bool; inputs must be 0 or 1.
 

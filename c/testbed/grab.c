@@ -39,8 +39,9 @@ RAPIER_TYPE(Status) tbGrabRelease(Testbed *t, TbGrab *grab) {
     if (contains(t, pulled)) {
         TRY(RAPIER_FN(RigidBody_WakeUp)(pulled, 1));
     }
-    RAPIER_FN(RemoveRigidBody)(grab->mouseBody, 1);
-    TRY(RAPIER_FN(LastStatus)());
+    if (contains(t, grab->mouseBody)) { /* A scene may have removed it already. */
+        TRY(RAPIER_FN(RemoveRigidBody)(grab->mouseBody, 1));
+    }
     if (grab->soft) {
         RAPIER_TYPE(RigidBodyHandle) proxies[] = {grab->body, pulled};
         for (size_t i = 0; i < TB_COUNT(proxies); ++i) {
@@ -53,8 +54,15 @@ RAPIER_TYPE(Status) tbGrabRelease(Testbed *t, TbGrab *grab) {
             isFrame = RAPIER_FN(RigidBody_IsSoftFrame)(proxies[i]);
             TRY(RAPIER_FN(LastStatus)());
             if (isFrame) {
-                RAPIER_FN(RemoveRigidBody)(proxies[i], 1);
+                /* A soft-body root cannot be removed (a tear may have made the grab cluster one). */
+                RAPIER_TYPE(SoftBodyHandle) soft = RAPIER_FN(RigidBody_SoftBody)(proxies[i]);
                 TRY(RAPIER_FN(LastStatus)());
+                RAPIER_TYPE(RigidBodyHandle) root = RAPIER_FN(SoftBody_RootBody)(soft);
+                TRY(RAPIER_FN(LastStatus)());
+                if (root.index == proxies[i].index && root.generation == proxies[i].generation) {
+                    continue;
+                }
+                TRY(RAPIER_FN(RemoveRigidBody)(proxies[i], 1));
             }
         }
     }

@@ -31,6 +31,30 @@ pub const RPR_SOFT_DESC_CLOTH_TUBE: u32 = 8;
 /// @ingroup soft_bodies
 /// Soft-body selector: desc volumetric.
 pub const RPR_SOFT_DESC_VOLUMETRIC: u32 = 9;
+/// @ingroup soft_bodies
+/// Soft-body selector: closed counter-clockwise polygon of particles preserving its area (2D).
+#[cfg(feature = "dim2")]
+pub const RPR_SOFT_DESC_POLYGON: u32 = 10;
+/// @ingroup soft_bodies
+/// Soft-body selector: triangle mesh without cells, held by shape matching (2D).
+#[cfg(feature = "dim2")]
+pub const RPR_SOFT_DESC_TRIMESH: u32 = 11;
+/// @ingroup soft_bodies
+/// Soft-body selector: cloth with separate warp, weft and shear softness (3D).
+#[cfg(feature = "dim3")]
+pub const RPR_SOFT_DESC_CLOTH_ANISOTROPIC: u32 = 12;
+/// Borrowed array of soft-body descriptions. count counts descriptions.
+/// Data must remain live through the build/insert call that reads the description.
+/// NULL is permitted only when count is zero.
+/// @ingroup soft_bodies
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct RprSoftBodyDescView {
+    /// Borrowed pointer to contiguous elements; NULL is allowed when count is zero.
+    pub data: *const RprSoftBodyDesc,
+    /// Number of elements, not bytes unless the element type is a byte.
+    pub count: usize,
+}
 /// Spring-coefficient override for one soft-body edge.
 /// @ingroup soft_bodies
 #[repr(C)]
@@ -56,6 +80,8 @@ pub struct RprSoftEdgeTear {
 /// for topology arrays are element counts (edges, triangles, or tetrahedra).
 /// Nonempty topology overrides the generator's topology. Zero counts retain it.
 /// Generator inputs: a/b are rope ends or center/half-extents; cloth uses a/du/dv.
+/// RPR_SOFT_DESC_POLYGON reads positions; RPR_SOFT_DESC_TRIMESH reads positions and cells (its
+/// triangles become edges and a boundary, not cells).
 /// @ingroup soft_bodies
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -70,6 +96,15 @@ pub struct RprSoftBodyDesc {
     pub du: RprVector,
     /// Cloth basis step along its second parameter axis.
     pub dv: RprVector,
+    #[cfg(feature = "dim3")]
+    /// Softness of the anisotropic cloth edges along du (warp).
+    pub warpSoftness: RprSpringCoefficients,
+    #[cfg(feature = "dim3")]
+    /// Softness of the anisotropic cloth edges along dv (weft).
+    pub weftSoftness: RprSpringCoefficients,
+    #[cfg(feature = "dim3")]
+    /// Softness of the anisotropic cloth diagonal edges (shear).
+    pub shearSoftness: RprSpringCoefficients,
     /// First recipe resolution; interpretation depends on kind.
     pub nx: usize,
     /// Second recipe resolution; interpretation depends on kind.
@@ -116,6 +151,14 @@ pub struct RprSoftBodyDesc {
     pub skinVertices: RprVectorView,
     /// Borrowed skin topology.
     pub skinIndices: RprSurfaceElementView,
+    /// Borrowed descriptions merged into this body, their particles numbered after this one's in
+    /// order. Each contributes its particles, masses, pinned particles and elements (after its own
+    /// translation and total mass); every other setting comes from this description. Appended
+    /// descriptions cannot append others nor have a skin.
+    pub appended: RprSoftBodyDescView,
+    /// Borrowed structural edges added after appending (seams); indices count this body's particles
+    /// then the appended ones. Their rest length is the current distance of their particles.
+    pub addedEdges: RprEdgeView,
     /// Soft-body material coefficients.
     pub material: RprSoftBodyMaterial,
     /// RPR_SOFT_CELL_VOLUME, RPR_SOFT_CELL_COROTATIONAL, or RPR_SOFT_CELL_NEO_HOOKEAN.
@@ -132,6 +175,9 @@ pub struct RprSoftBodyDesc {
     pub volumeFactor: RprReal,
     /// Optional shape-matching override; disabled retains recipe defaults.
     pub shapeMatching: RprOptionalBool,
+    /// Optional override of the ORIENTED flag of the generated collision surface (when disabled, a
+    /// closed surface is oriented). Set it to false for a shell whose inner side holds bodies.
+    pub oriented: RprOptionalBool,
     /// Whether self-collision is enabled.
     pub selfContacts: RprBool,
     /// Whether skin elements participate in collision detection.
@@ -185,6 +231,12 @@ impl Default for RprSoftBodyDesc {
             b: Vector::ONE.into(),
             du: Vector::X.into(),
             dv: Vector::Y.into(),
+            #[cfg(feature = "dim3")]
+            warpSoftness: SoftBodyMaterial::default().edge_softness.into(),
+            #[cfg(feature = "dim3")]
+            weftSoftness: SoftBodyMaterial::default().edge_softness.into(),
+            #[cfg(feature = "dim3")]
+            shearSoftness: SoftBodyMaterial::default().edge_softness.into(),
             nx: 2,
             ny: 2,
             nz: 2,
@@ -204,6 +256,8 @@ impl Default for RprSoftBodyDesc {
             wire: RprEdgeView::default(),
             skinVertices: RprVectorView::default(),
             skinIndices: RprSurfaceElementView::default(),
+            appended: RprSoftBodyDescView::default(),
+            addedEdges: RprEdgeView::default(),
             material: SoftBodyMaterial::default().into(),
             cellModel: match SoftBodyCellModel::default() {
                 SoftBodyCellModel::Volume => 0,
@@ -216,6 +270,7 @@ impl Default for RprSoftBodyDesc {
             volumePreservation: 0,
             volumeFactor: 1.0,
             shapeMatching: RprOptionalBool::default(),
+            oriented: RprOptionalBool::default(),
             selfContacts: 0,
             skinCollision: 0,
             collisionEnabled: 1,
@@ -232,6 +287,52 @@ impl Default for RprSoftBodyDesc {
 }
 impl RprSoftBodyDesc {
     pub(crate) unsafe fn raw(&self) -> Result<SoftBodyBuilder> {
+        use crate::geometry::indices_array;
+        let mut b = unsafe { self.raw_piece()? };
+        for piece in unsafe { input(self.appended.data, self.appended.count)? } {
+            ensure(
+                piece.appended.count == 0,
+                "appended soft-body descriptions cannot append others",
+            )?;
+            ensure(
+                piece.skinVertices.count == 0,
+                "appended soft-body descriptions cannot have a skin",
+            )?;
+            let mut other = unsafe { piece.raw()? };
+            ensure(
+                b.positions
+                    .len()
+                    .checked_add(other.positions.len())
+                    .is_some_and(|n| n <= u32::MAX as usize),
+                "too many soft-body particles",
+            )?;
+            // `append` keeps this body's uniform mass unless the piece's masses are explicit.
+            if other.masses.is_empty() && other.particle_mass != b.particle_mass {
+                other.masses = vec![other.particle_mass; other.positions.len()];
+            }
+            // `append` drops the piece's wire: carry it over, shifted.
+            #[cfg(feature = "dim3")]
+            {
+                let offset = b.positions.len() as u32;
+                let wire = std::mem::take(&mut other.wire);
+                b.wire
+                    .extend(wire.into_iter().map(|w| [w[0] + offset, w[1] + offset]));
+            }
+            b = b.append(other);
+        }
+        if self.addedEdges.count != 0 {
+            let edges = unsafe {
+                indices_array::<2>(
+                    self.addedEdges.data.cast(),
+                    self.addedEdges.count,
+                    b.positions.len(),
+                )?
+            };
+            b = b.add_edges(edges);
+        }
+        Ok(b)
+    }
+    unsafe fn raw_piece(&self) -> Result<SoftBodyBuilder> {
         use crate::geometry::indices_array;
         let points = || {
             unsafe { input(self.positions.data, self.positions.count)? }
@@ -262,6 +363,27 @@ impl RprSoftBodyDesc {
                     let b = SoftBodyBuilder::trimesh(vertices, idx);
                     b.ok_or_else(|| invalid("invalid soft surface"))?
                 }
+            }
+            #[cfg(feature = "dim2")]
+            RPR_SOFT_DESC_POLYGON => {
+                ensure(
+                    (3..=u32::MAX as usize).contains(&self.positions.count),
+                    "a soft polygon needs at least 3 points",
+                )?;
+                SoftBodyBuilder::polygon(points()?)
+            }
+            #[cfg(feature = "dim2")]
+            RPR_SOFT_DESC_TRIMESH => {
+                ensure(
+                    self.positions.count > 0 && self.positions.count <= u32::MAX as usize,
+                    "invalid particle count",
+                )?;
+                let vertices = points()?;
+                let idx = unsafe {
+                    indices_array::<3>(self.cells.data.cast(), self.cells.count, vertices.len())?
+                };
+                SoftBodyBuilder::trimesh(vertices, idx)
+                    .ok_or_else(|| invalid("invalid soft triangle mesh"))?
             }
             #[cfg(feature = "dim2")]
             RPR_SOFT_DESC_DISK => {
@@ -344,7 +466,7 @@ impl RprSoftBodyDesc {
                 SoftBodyBuilder::cuboid(self.a.raw()?, self.b.raw()?, self.nx, self.ny, self.nz)
             }
             #[cfg(feature = "dim3")]
-            RPR_SOFT_DESC_CLOTH => {
+            RPR_SOFT_DESC_CLOTH | RPR_SOFT_DESC_CLOTH_ANISOTROPIC => {
                 ensure(
                     self.nx >= 2
                         && self.ny >= 2
@@ -354,13 +476,26 @@ impl RprSoftBodyDesc {
                             .is_some_and(|n| n <= u32::MAX as usize),
                     "invalid cloth size",
                 )?;
-                SoftBodyBuilder::cloth(
-                    self.a.raw()?,
-                    self.du.raw()?,
-                    self.dv.raw()?,
-                    self.nx,
-                    self.ny,
-                )
+                if self.kind == RPR_SOFT_DESC_CLOTH {
+                    SoftBodyBuilder::cloth(
+                        self.a.raw()?,
+                        self.du.raw()?,
+                        self.dv.raw()?,
+                        self.nx,
+                        self.ny,
+                    )
+                } else {
+                    SoftBodyBuilder::cloth_anisotropic(
+                        self.a.raw()?,
+                        self.du.raw()?,
+                        self.dv.raw()?,
+                        self.nx,
+                        self.ny,
+                        self.warpSoftness.raw()?,
+                        self.weftSoftness.raw()?,
+                        self.shearSoftness.raw()?,
+                    )
+                }
             }
             _ => return Err(invalid("unsupported soft-body recipe")),
         };
@@ -384,7 +519,11 @@ impl RprSoftBodyDesc {
             b.bend_edges =
                 unsafe { indices_array::<2>(self.bendEdges.data.cast(), self.bendEdges.count, n)? };
         }
-        if self.cells.count != 0 {
+        #[cfg(feature = "dim2")]
+        let cells_are_generator_input = self.kind == RPR_SOFT_DESC_TRIMESH;
+        #[cfg(feature = "dim3")]
+        let cells_are_generator_input = false;
+        if self.cells.count != 0 && !cells_are_generator_input {
             b.cells = unsafe {
                 indices_array::<{ rapier::math::DIM + 1 }>(
                     self.cells.data.cast(),
@@ -414,15 +553,20 @@ impl RprSoftBodyDesc {
             }
         }
         let edge_count = b.edges.len() + b.bend_edges.len();
-        b.tension_only_edges =
-            unsafe { input(self.tensionOnlyEdges.data, self.tensionOnlyEdges.count)? }.to_vec();
+        // The generator's per-edge overrides index its own edges: drop them with its edges.
+        if self.edges.count != 0 || self.bendEdges.count != 0 {
+            b.tension_only_edges.clear();
+            b.edge_softness.clear();
+            b.edge_tear_resistance.clear();
+        }
+        let tension_only =
+            unsafe { input(self.tensionOnlyEdges.data, self.tensionOnlyEdges.count)? };
         ensure(
-            b.tension_only_edges
-                .iter()
-                .all(|i| (*i as usize) < edge_count),
+            tension_only.iter().all(|i| (*i as usize) < edge_count),
             "tension edge out of bounds",
         )?;
-        b.edge_softness = unsafe { input(self.edgeSoftness.data, self.edgeSoftness.count)? }
+        b.tension_only_edges.extend_from_slice(tension_only);
+        let softness = unsafe { input(self.edgeSoftness.data, self.edgeSoftness.count)? }
             .iter()
             .map(|v| {
                 ensure(
@@ -431,15 +575,16 @@ impl RprSoftBodyDesc {
                 )?;
                 Ok((v.edge, v.softness.raw()?))
             })
-            .collect::<Result<_>>()?;
-        b.edge_tear_resistance =
-            unsafe { input(self.edgeTearResistance.data, self.edgeTearResistance.count)? }
-                .iter()
-                .map(|v| {
-                    ensure((v.edge as usize) < edge_count, "tear edge out of bounds")?;
-                    Ok((v.edge, nonnegative(v.resistance)?))
-                })
-                .collect::<Result<_>>()?;
+            .collect::<Result<Vec<_>>>()?;
+        b.edge_softness.extend(softness);
+        let tear = unsafe { input(self.edgeTearResistance.data, self.edgeTearResistance.count)? }
+            .iter()
+            .map(|v| {
+                ensure((v.edge as usize) < edge_count, "tear edge out of bounds")?;
+                Ok((v.edge, nonnegative(v.resistance)?))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        b.edge_tear_resistance.extend(tear);
         if self.skinVertices.count != 0 {
             let vertices = unsafe { input(self.skinVertices.data, self.skinVertices.count)? }
                 .iter()
@@ -481,6 +626,9 @@ impl RprSoftBodyDesc {
         b.volume_factor = positive(self.volumeFactor)?;
         if boolean(self.shapeMatching.enabled)? {
             b.shape_matching = boolean(self.shapeMatching.value)?;
+        }
+        if boolean(self.oriented.enabled)? {
+            b.oriented = Some(boolean(self.oriented.value)?);
         }
         b.self_contacts = boolean(self.selfContacts)?;
         b.skin_collision = boolean(self.skinCollision)?;

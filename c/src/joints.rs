@@ -297,7 +297,7 @@ pub unsafe extern "C" fn rpr_remove_multibody_joint(
 
         let wake_up = boolean(wake_up)?;
         let set = get_mut(set)?;
-        set.0.get(handle.raw()).ok_or_else(missing)?;
+        multibody_joint_link(&set.0, handle)?;
         set.0.remove(handle.raw(), wake_up);
         Ok(())
     })
@@ -383,7 +383,9 @@ pub extern "C" fn rpr_default_inverse_kinematics_options() -> RprInverseKinemati
     }
 }
 
-/// Return the articulation degrees of freedom associated with the joint.
+/// Return the degrees of freedom of the whole multibody containing the joint (not of the joint
+/// alone), including the free root of a dynamic multibody. After inserting a joint, the root's
+/// contribution is only updated by the next step.
 /// @ingroup joints
 #[rapier_export(multibody_joint)]
 pub unsafe extern "C" fn rpr_multibody_joint_ndofs(handle: RprMultibodyJointHandle) -> usize {
@@ -397,10 +399,7 @@ pub unsafe extern "C" fn rpr_multibody_joint_ndofs(handle: RprMultibodyJointHand
             let set: *const RprMultibodyJointSet =
                 std::ptr::addr_of!((*raw).0.multibody_joints).cast();
 
-            output(
-                out,
-                get(set)?.0.get(handle.raw()).ok_or_else(missing)?.0.ndofs(),
-            )
+            output(out, multibody_joint_link(&get(set)?.0, handle)?.0.ndofs())
         })
     })
 }
@@ -430,8 +429,8 @@ pub unsafe extern "C" fn rpr_multibody_joint_inverse_kinematics(
         let set: *const RprMultibodyJointSet = std::ptr::addr_of!((*raw).0.multibody_joints).cast();
         let bodies: *const RprRigidBodySet = std::ptr::addr_of!((*raw).0.bodies).cast();
 
+        multibody_joint_link(&get(set)?.0, handle)?;
         let (multibody, link_id) = get(set)?.0.get(handle.raw()).ok_or_else(missing)?;
-        ensure(multibody.link(link_id).is_some(), "invalid multibody link")?;
         ensure(
             count == multibody.ndofs(),
             "displacement count must equal articulation dofs",
@@ -493,6 +492,7 @@ pub unsafe extern "C" fn rpr_multibody_joint_apply_displacements(
         for &value in values {
             finite(value)?;
         }
+        multibody_joint_link(&get(set)?.0, handle)?;
         let (multibody, _) = get_mut(set)?.0.get_mut(handle.raw()).ok_or_else(missing)?;
         ensure(
             count == multibody.ndofs(),

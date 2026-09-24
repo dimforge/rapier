@@ -382,12 +382,13 @@ pub(crate) unsafe fn native_soft_body_attach_particle(
 pub(crate) unsafe fn native_soft_body_detach_particle(
     body: *mut RprSoftBody,
     index: usize,
+    out: *mut RprBool,
 ) -> RprStatus {
     ffi(|| unsafe {
+        out_ptr(out)?;
         let b = &mut get_mut(body)?.0;
         ensure(index < b.num_particles(), "particle index out of range")?;
-        b.detach_particle(index);
-        Ok(())
+        output(out, b.detach_particle(index) as RprBool)
     })
 }
 
@@ -419,7 +420,9 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_soft_body(
         },
     )
 }
-/// Copy the soft-body handles produced by the tear.
+/// Copy the soft bodies the torn body is in after the tear, the one keeping the handle first: the
+/// torn body alone when nothing was split off. Entry i holds the particles given by
+/// rpr_soft_body_tear_event_piece_particles(event, i, ...).
 /// @see @ref output_buffers
 /// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
@@ -557,7 +560,9 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_inserted_particles(
         })
     })
 }
-/// Copy original particle indices belonging to a resulting piece.
+/// Copy the particles of the piece_index-th body of rpr_soft_body_tear_event_bodies, as indices in
+/// the torn body after the tear (the indices the other event fields use); entry i is the piece's
+/// particle i. piece_index must be less than rpr_soft_body_tear_event_piece_count.
 /// @see @ref output_buffers
 /// @ingroup soft_bodies
 #[rapier_export(soft_body_tear_event)]
@@ -569,7 +574,14 @@ pub unsafe extern "C" fn rpr_soft_body_tear_event_piece_particles(
 ) -> usize {
     ffi_value(|count: *mut usize| {
         ffi(|| unsafe {
-            let p = get(event)?
+            let event = get(event)?;
+            if event.0.pieces.is_empty() {
+                // Nothing split off: the torn body is the only piece and keeps its particles.
+                ensure(piece_index == 0, "piece index out of range")?;
+                let all: Vec<u32> = (0..event.2 as u32).collect();
+                return copy_out(&all, buffer, capacity, count);
+            }
+            let p = event
                 .0
                 .pieces
                 .get(piece_index)
@@ -720,10 +732,13 @@ pub unsafe extern "C" fn rpr_soft_body_tear(
                 &mut get_mut(impulse_joints)?.0,
                 &mut get_mut(multibody_joints)?.0,
             );
+            let particles = set.0.get(handle.raw()).map_or(0, |b| b.num_particles());
             output(
                 out,
-                e.map(|e| Box::into_raw(Box::new(RprSoftBodyTearEvent(e, handle.world))))
-                    .unwrap_or(std::ptr::null_mut()),
+                e.map(|e| {
+                    Box::into_raw(Box::new(RprSoftBodyTearEvent(e, handle.world, particles)))
+                })
+                .unwrap_or(std::ptr::null_mut()),
             )
         })
     })
@@ -1218,11 +1233,18 @@ pub unsafe extern "C" fn rpr_cut_soft_body(
                 .map(RprVector::raw)
                 .collect::<Result<Vec<_>>>()?;
             let blade: [Vector; rapier::math::DIM] = blade.try_into().unwrap();
-            let event = get_mut(world)?.0.cut_soft_body(handle.raw(), &blade);
+            let world = &mut get_mut(world)?.0;
+            let event = world.cut_soft_body(handle.raw(), &blade);
+            let particles = world
+                .soft_bodies
+                .get(handle.raw())
+                .map_or(0, |b| b.num_particles());
             output(
                 out,
                 event
-                    .map(|e| Box::into_raw(Box::new(RprSoftBodyTearEvent(e, handle.world))))
+                    .map(|e| {
+                        Box::into_raw(Box::new(RprSoftBodyTearEvent(e, handle.world, particles)))
+                    })
                     .unwrap_or(std::ptr::null_mut()),
             )
         })

@@ -14,7 +14,7 @@
 int main(void) {
     CHECK(RAPIER_FN(CheckAbi)(RAPIER_CONST(ABI_VERSION), RAPIER_CONST(DIMENSION),
                               sizeof(RAPIER_TYPE(Real)), sizeof(RAPIER_TYPE(Vector)),
-                              sizeof(RAPIER_TYPE(Pose))));
+                              sizeof(RAPIER_TYPE(Pose)), RAPIER_CONST(ABI_FEATURES)));
 
     RAPIER_TYPE(World) *world = RAPIER_FN(NewWorld)();
     CHECK(RAPIER_FN(LastStatus)());

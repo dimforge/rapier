@@ -162,7 +162,7 @@ static int abi(void) {
     RAPIER_TYPE(Status)
     s = RAPIER_FN(CheckAbi)(RAPIER_CONST(ABI_VERSION), RAPIER_CONST(DIMENSION),
                             sizeof(RAPIER_TYPE(Real)), sizeof(RAPIER_TYPE(Vector)),
-                            sizeof(RAPIER_TYPE(Pose)));
+                            sizeof(RAPIER_TYPE(Pose)), RAPIER_CONST(ABI_FEATURES));
     if (s) {
         fprintf(stderr, "ABI mismatch: %s\n", RAPIER_FN(LastError)());
     }

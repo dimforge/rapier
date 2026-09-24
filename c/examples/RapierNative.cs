@@ -46,7 +46,7 @@ public static class RapierNative
         public World() : base(true) { }
         protected override bool ReleaseHandle() { return r3FreeWorld(handle) == 0; }
     }
-    [DllImport(Library, CallingConvention=CallingConvention.Cdecl, ExactSpelling=true)] static extern uint r3CheckAbi(uint version,uint dimension,UIntPtr realSize,UIntPtr vectorSize,UIntPtr poseSize);
+    [DllImport(Library, CallingConvention=CallingConvention.Cdecl, ExactSpelling=true)] static extern uint r3CheckAbi(uint version,uint dimension,UIntPtr realSize,UIntPtr vectorSize,UIntPtr poseSize,uint features);
     [DllImport(Library, CallingConvention=CallingConvention.Cdecl, ExactSpelling=true)] static extern IntPtr r3LastError();
     [DllImport(Library, CallingConvention=CallingConvention.Cdecl, ExactSpelling=true)] static extern uint r3LastStatus();
     [DllImport(Library, CallingConvention=CallingConvention.Cdecl, ExactSpelling=true)] static extern World r3NewWorld();
@@ -64,7 +64,7 @@ public static class RapierNative
     // The native library must be installed for the process architecture before invoking this method.
     public static Vector SimulateOneSecond()
     {
-        Check(r3CheckAbi(1,3,(UIntPtr)4,(UIntPtr)Marshal.SizeOf<Vector>(),(UIntPtr)Marshal.SizeOf<Pose>()));
+        Check(r3CheckAbi(1,3,(UIntPtr)4,(UIntPtr)Marshal.SizeOf<Vector>(),(UIntPtr)Marshal.SizeOf<Pose>(),0));
         PodLayout layout = r3PodLayout();
         if (layout.rigidBodyDesc != (UIntPtr)Marshal.SizeOf<RigidBodyDesc>())
             throw new InvalidOperationException("RigidBodyDesc layout does not match the native library.");
