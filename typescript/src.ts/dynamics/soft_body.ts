@@ -2,10 +2,13 @@ import {
     RawSoftBodyBuilder,
     RawSoftBodyMaterial,
     RawSoftBodySet,
+    RawSoftBodySolver,
     RawSoftBodyTearEvent,
     RawSoftBodyCellModel,
     RawSoftEdgePlasticFlow,
     RawSoftMeshBindingMode,
+    RawSoftPatchConstraints,
+    RawSoftRecoverySettings,
 } from "../raw";
 import {Rotation, RotationOps, Vector, VectorOps, scratchBuffer} from "../math";
 import {RigidBody, RigidBodyHandle} from "./rigid_body";
@@ -42,6 +45,246 @@ export enum SoftEdgePlasticFlow {
     Both = 0,
     Compression = 1,
     Tension = 2,
+}
+
+/**
+ * Which solver holds the cells of a soft body together.
+ */
+export enum SoftBodySolver {
+    /**
+     * Every element of the lattice becomes a constraint, solved with the contacts and the
+     * joints of the scene.
+     */
+    Constraints = 0,
+    /**
+     * The elasticity of the whole body is assembled into one linear system, solved at each
+     * substep; the stiffness of the body no longer depends on the iteration count. Needs cells.
+     */
+    Fem = 1,
+}
+
+/**
+ * What the per-point constraints of the features an intersection-volume constraint acts on do.
+ */
+export enum SoftPatchConstraints {
+    /**
+     * Keep them as they are (they may fight the volume constraint).
+     */
+    Keep = 0,
+    /**
+     * Stand them down: the volume constraint alone acts on those features.
+     */
+    StandDown = 1,
+    /**
+     * Keep them, but along the volume constraint's normal, so they push the way it does.
+     */
+    AlongNormal = 2,
+}
+
+/**
+ * The tangle detection and recovery settings shared by every soft body of a world.
+ *
+ * A plain JavaScript object; read it from `IntegrationParameters.softBodiesRecovery` and
+ * assign it back to apply it. Every mechanism switches off individually.
+ */
+export class SoftRecoverySettings {
+    /**
+     * Raise the speculative contact margin from velocities authored between steps, so a fast fresh body does not tunnel (default: `true`).
+     */
+    authoredVelocityMargin: boolean;
+    /**
+     * Give the edge-vs-edge pass a speculative reach, so bodies crossing corner-first collide; on, those constraints leave pressed 3D piles crossed (default: `false`).
+     */
+    edgeSpeculation: boolean;
+    /**
+     * Detect inverted cells (material locally inside out) at each step; feeds the self stand-down (default: `true`).
+     */
+    invertedCellDetection: boolean;
+    /**
+     * Detect surface self-crossings at each step; feeds the self stand-down (default: `true`).
+     */
+    selfCrossingDetection: boolean;
+    /**
+     * Skip the self-crossing sweep while the surface could not have moved far enough to cross itself (default: `true`).
+     */
+    detectionMotionGating: boolean;
+    /**
+     * Detect boundary crossings between pairs of soft surfaces (default: `true`).
+     */
+    crossBodyDetection: boolean;
+    /**
+     * Self contacts of tangled features stand down, so the elasticity resolves the tangle instead of freezing it (default: `true`).
+     */
+    selfStandDown: boolean;
+    /**
+     * A vertex constraint touching a boundary crossing between two surfaces may only expel, never hold (default: `true`).
+     */
+    crossBodyExpelGate: boolean;
+    /**
+     * Edge constraints touching a cross-body boundary crossing stand down (default: `true`).
+     */
+    edgeStandDown: boolean;
+    /**
+     * Constraints on crossing-flagged features repel instead of standing down (default: `false`).
+     */
+    crossingRepulsion: boolean;
+    /**
+     * Guide the crossing repulsion by the pair's volume normal rather than the pierced element's plane normal; closed pairs only (default: `false`).
+     */
+    crossingRepulsionGuide: boolean;
+    /**
+     * Guide the self-crossing repulsion by the fold's volume normal; closed meshes only (default: `false`).
+     */
+    crossingRepulsionSelfGuide: boolean;
+    /**
+     * Intersection-volume contact for closed surfaces: one coupled constraint per overlapping pair, corrected by the intersection volume (default: `true`).
+     */
+    overlapConstraints: boolean;
+    /**
+     * Overlap constraints against rigid colliders too (default: `true`).
+     */
+    overlapRigid: boolean;
+    /**
+     * A self-crossed mesh takes no pair constraint, its volume gradient pointing the wrong way there (default: `true`).
+     */
+    overlapSkipSelfTangled: boolean;
+    /**
+     * The 3D closed-closed edge constraints stand down on a pair an overlap constraint owns (default: `true`).
+     */
+    overlapEdgeStandDown: boolean;
+    /**
+     * Measure the intersection volume on the contact skins instead of the geometric surfaces (default: `false`).
+     */
+    overlapSkinVolume: boolean;
+    /**
+     * Volume constraints on a body's self-overlaps between distinct surface regions; closed meshes only (default: `false`).
+     */
+    overlapSelfRegions: boolean;
+    /**
+     * Push along each constraint's normal instead of the volume gradients, so the whole patch separates along one axis (default: `true`).
+     */
+    overlapNormalPush: boolean;
+    /**
+     * Split each pair's patch into a grid of cells, each with its own constraint, so the pressure varies across the patch (default: `false`).
+     */
+    overlapMultiVolume: boolean;
+    /**
+     * Material recovery pace, in length units per second: the corrective rate allowed to deep recovery, demoted intruders and untangling pulls (default: `0.5`).
+     */
+    recoveryPace: number;
+    /**
+     * Bound on the velocity change the coupled constraint may hand any side per step, in multiples of `recoveryPace` (default: `1.0`).
+     */
+    overlapConstraintPace: number;
+    /**
+     * The skin overlap kept at rest, as a fraction of the pair's skins (default: `0.0`).
+     */
+    overlapKeptDepth: number;
+    /**
+     * Relative drop of the overlap estimate that counts as progress for `overlapPatience` (default: `0.02`).
+     */
+    overlapProgressMargin: number;
+    /**
+     * Cells per tangent axis of the multi-volume grid (default: `3`).
+     */
+    overlapSplit: number;
+    /**
+     * Steps without progress of a pair's volume estimate before its positional correction stands down (default: `240`).
+     */
+    overlapPatience: number;
+    /**
+     * What the per-point constraints of the features inside a volume constraint's patch do
+     * (default: `AlongNormal`).
+     */
+    overlapPatchConstraints: SoftPatchConstraints;
+
+    constructor() {
+        SoftRecoverySettings.copyFromRaw(
+            this,
+            new RawSoftRecoverySettings(),
+            true,
+        );
+    }
+
+    /** @internal */
+    public static fromRaw(raw: RawSoftRecoverySettings): SoftRecoverySettings {
+        let res = new SoftRecoverySettings();
+        SoftRecoverySettings.copyFromRaw(res, raw, true);
+        return res;
+    }
+
+    /** @internal */
+    private static copyFromRaw(
+        target: SoftRecoverySettings,
+        raw: RawSoftRecoverySettings,
+        freeRaw: boolean,
+    ) {
+        target.authoredVelocityMargin = raw.authoredVelocityMargin;
+        target.edgeSpeculation = raw.edgeSpeculation;
+        target.invertedCellDetection = raw.invertedCellDetection;
+        target.selfCrossingDetection = raw.selfCrossingDetection;
+        target.detectionMotionGating = raw.detectionMotionGating;
+        target.crossBodyDetection = raw.crossBodyDetection;
+        target.selfStandDown = raw.selfStandDown;
+        target.crossBodyExpelGate = raw.crossBodyExpelGate;
+        target.edgeStandDown = raw.edgeStandDown;
+        target.crossingRepulsion = raw.crossingRepulsion;
+        target.crossingRepulsionGuide = raw.crossingRepulsionGuide;
+        target.crossingRepulsionSelfGuide = raw.crossingRepulsionSelfGuide;
+        target.overlapConstraints = raw.overlapConstraints;
+        target.overlapRigid = raw.overlapRigid;
+        target.overlapSkipSelfTangled = raw.overlapSkipSelfTangled;
+        target.overlapEdgeStandDown = raw.overlapEdgeStandDown;
+        target.overlapSkinVolume = raw.overlapSkinVolume;
+        target.overlapSelfRegions = raw.overlapSelfRegions;
+        target.overlapNormalPush = raw.overlapNormalPush;
+        target.overlapMultiVolume = raw.overlapMultiVolume;
+        target.recoveryPace = raw.recoveryPace;
+        target.overlapConstraintPace = raw.overlapConstraintPace;
+        target.overlapKeptDepth = raw.overlapKeptDepth;
+        target.overlapProgressMargin = raw.overlapProgressMargin;
+        target.overlapSplit = raw.overlapSplit;
+        target.overlapPatience = raw.overlapPatience;
+        target.overlapPatchConstraints =
+            raw.overlapPatchConstraints as number as SoftPatchConstraints;
+        if (freeRaw) {
+            raw.free();
+        }
+    }
+
+    /** @internal */
+    public intoRaw(): RawSoftRecoverySettings {
+        let raw = new RawSoftRecoverySettings();
+        raw.authoredVelocityMargin = this.authoredVelocityMargin;
+        raw.edgeSpeculation = this.edgeSpeculation;
+        raw.invertedCellDetection = this.invertedCellDetection;
+        raw.selfCrossingDetection = this.selfCrossingDetection;
+        raw.detectionMotionGating = this.detectionMotionGating;
+        raw.crossBodyDetection = this.crossBodyDetection;
+        raw.selfStandDown = this.selfStandDown;
+        raw.crossBodyExpelGate = this.crossBodyExpelGate;
+        raw.edgeStandDown = this.edgeStandDown;
+        raw.crossingRepulsion = this.crossingRepulsion;
+        raw.crossingRepulsionGuide = this.crossingRepulsionGuide;
+        raw.crossingRepulsionSelfGuide = this.crossingRepulsionSelfGuide;
+        raw.overlapConstraints = this.overlapConstraints;
+        raw.overlapRigid = this.overlapRigid;
+        raw.overlapSkipSelfTangled = this.overlapSkipSelfTangled;
+        raw.overlapEdgeStandDown = this.overlapEdgeStandDown;
+        raw.overlapSkinVolume = this.overlapSkinVolume;
+        raw.overlapSelfRegions = this.overlapSelfRegions;
+        raw.overlapNormalPush = this.overlapNormalPush;
+        raw.overlapMultiVolume = this.overlapMultiVolume;
+        raw.recoveryPace = this.recoveryPace;
+        raw.overlapConstraintPace = this.overlapConstraintPace;
+        raw.overlapKeptDepth = this.overlapKeptDepth;
+        raw.overlapProgressMargin = this.overlapProgressMargin;
+        raw.overlapSplit = this.overlapSplit;
+        raw.overlapPatience = this.overlapPatience;
+        raw.overlapPatchConstraints = this
+            .overlapPatchConstraints as number as RawSoftPatchConstraints;
+        return raw;
+    }
 }
 
 /**
@@ -708,6 +951,23 @@ export class SoftBody {
     }
 
     /**
+     * The solver holding the cells of this soft body together.
+     */
+    public solver(): SoftBodySolver {
+        return this.rawSet.sbSolver(this.handle) as number as SoftBodySolver;
+    }
+
+    /**
+     * Sets the solver holding the cells of this soft body together.
+     */
+    public setSolver(solver: SoftBodySolver) {
+        this.rawSet.sbSetSolver(
+            this.handle,
+            solver as number as RawSoftBodySolver,
+        );
+    }
+
+    /**
      * Is the global area/volume preservation of this soft body enabled?
      */
     public volumePreservationEnabled(): boolean {
@@ -1186,6 +1446,10 @@ export class SoftBodyDesc {
      */
     cellModel: SoftBodyCellModel;
     /**
+     * The solver holding the cells together.
+     */
+    solver: SoftBodySolver;
+    /**
      * Whether the area/volume enclosed by the body's closed surfaces is preserved (`null`:
      * what the generator chose, off for raw positions).
      */
@@ -1271,6 +1535,7 @@ export class SoftBodyDesc {
         this.masses = null;
         this.pinnedParticles = new Uint32Array(0);
         this.cellModel = SoftBodyCellModel.Volume;
+        this.solver = SoftBodySolver.Constraints;
         this.volumePreservation = null;
         this.volumeFactor = 1.0;
         this.shapeMatching = null;
@@ -1741,6 +2006,14 @@ export class SoftBodyDesc {
     }
 
     /**
+     * Sets the solver holding the cells together (`SoftBodySolver.Fem` needs cells).
+     */
+    public setSolver(solver: SoftBodySolver): SoftBodyDesc {
+        this.solver = solver;
+        return this;
+    }
+
+    /**
      * Enables the preservation of the area/volume enclosed by the body's closed surfaces.
      */
     public setVolumePreservation(enabled: boolean): SoftBodyDesc {
@@ -1918,6 +2191,7 @@ export class SoftBodyDesc {
         }
         raw.setPinnedParticles(this.pinnedParticles);
         raw.setCellModel(this.cellModel as number as RawSoftBodyCellModel);
+        raw.setSolver(this.solver as number as RawSoftBodySolver);
         // The settings a generator may have chosen are only overridden when set here.
         if (this.volumePreservation !== null) {
             raw.setVolumePreservation(this.volumePreservation);

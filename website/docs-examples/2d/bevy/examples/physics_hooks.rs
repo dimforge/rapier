@@ -32,7 +32,7 @@ impl BevyPhysicsHooks for SameUserDataFilter<'_, '_> {
         if self.tags.get(context.collider1()).ok().copied()
             == self.tags.get(context.collider2()).ok().copied()
         {
-            Some(SolverFlags::COMPUTE_IMPULSES)
+            Some(SolverFlags::COMPUTE_RIGID_IMPULSES)
         } else {
             None
         }

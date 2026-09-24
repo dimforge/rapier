@@ -1,0 +1,461 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Rapier supports three ways of holding the particles of a soft-body together: shape matching, constraints, and the
+Finite Elements Method (FEM). They can be combined, e.g., shape matching on top of edge constraints. Note that shape
+matching works on the particles alone, whereas the constraints need edges or cells, and the FEM solver needs cells.
+
+### Shape matching
+Shape matching doesn't need any element. At each timestep, the rest shape of the body is placed where it best fits its
+current shape, i.e., both shapes are given the same center of mass, and the rest shape is given the rotation bringing
+its particles the closest to the current ones. Each particle is then pulled toward its twin in that matched rest shape
+by a spring:
+
+<center>
+![Shape-matching steps](/img/soft_bodies/shape_matching.svg)
+</center>
+
+This is cheap, and a body always recovers its original shape whatever the deformation it went through. On the other
+hand, the particles don't interact with their neighbors: pushing on one particle doesn't pull the ones around it, which
+makes the deformations feel very local. Shape matching is enabled by
+<notjs>`SoftBodyBuilder::shape_matching`</notjs><js>`SoftBodyDesc.setShapeMatching`</js><c>the `shapeMatching` field of the description</c><py>`SoftBodyBuilder.shape_matching`</py>, and the strength of its
+springs is the **shape matching softness** (<notjs>`shape_matching_softness`</notjs><js>`shapeMatchingSoftness`</js><c>`shapeMatchingSoftness`</c><py>`shape_matching_softness`</py>)
+of the [material](./soft_bodies.mdx#constraints):
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='ShapeMatching' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='ShapeMatching' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='ShapeMatching' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='ShapeMatching' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='ShapeMatching' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='ShapeMatching' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='ShapeMatching' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='ShapeMatching' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='ShapeMatching' />
+```
+
+</py>
+
+:::tip
+Use shape matching for low-detail deformations, or whenever computing a topology (edges, cells) isn't desired. It is
+enabled by default by the <notjs>`trimesh` and `polyline` constructors</notjs><js>`trimesh` and `polyline` constructors</js><c>`r3SoftBodyDesc_SetSurfaceMesh` and `r2SoftBodyDesc_SetTrimesh` constructors (unless the `shapeMatching` override disables it)</c><py>`trimesh` constructor</py>. Note however that it performs very poorly for ropes,
+cloth, or any open shape. Also note that combining it with edges makes the deformations spread to the neighbors to look
+more realistic.
+:::
+
+### Constraints
+The constraints-based soft-body solver is the default solver<notjs> (`SoftBodySolver::Constraints`)</notjs><c> (`R3_SOFT_SOLVER_CONSTRAINTS`)</c><py> (`SoftBodySolver.CONSTRAINTS`)</py>, and the most versatile one:
+every edge and cell element of the deformation lattice becomes a constraint, solved together with the contacts and the joints of the scene.
+
+<center>
+![Edge and cell constraints](/img/soft_bodies/spring_constraints.svg)
+</center>
+
+An edge is a spring-damper pulling its two particles back toward its rest length. A cell is either a volume constraint
+keeping its area or its volume, the shape itself being held by the edges, or an elastic element resisting any
+deformation. This is selected by the **cell model** of the body
+(<notjs>`cell_model`</notjs><js>`setCellModel`</js><c>`cellModel`</c><py>`cell_model`, which takes a `SoftBodyCellModel`</py>):
+- <notjs>`Volume`</notjs><js>`Volume`</js><c>`R3_SOFT_CELL_VOLUME`</c><py>`VOLUME`</py>: one constraint per cell keeping its area (2D) or its volume (3D) at its rest value. This is the cheapest
+  model, and combined with the edges it is often enough to obtain a convincing jelly.
+- <notjs>`Corotational`</notjs><js>`Corotational`</js><c>`R3_SOFT_CELL_COROTATIONAL`</c><py>`COROTATIONAL`</py>: linear elasticity expressed in the rotation-free frame of the cell. It is stable at any stiffness and
+  recovers from inverted cells.
+- <notjs>`NeoHookean`</notjs><js>`NeoHookean`</js><c>`R3_SOFT_CELL_NEO_HOOKEAN`</c><py>`NEO_HOOKEAN`</py>: stable Neo-Hookean hyperelasticity. It feels stiffer than linear elasticity on compression, but softer on
+  tension.
+
+The stiffness of every element is configured by the <notc>`SoftBodyMaterial`</notc><c>`R3SoftBodyMaterial`</c> of the body, which can be given to the <notc>builder</notc><c>description</c> or
+set at any time with <rapier>`SoftBody::set_material`</rapier><bevy>the component of the same name, which wraps the
+Rapier material (re-exported as `RapierSoftBodyMaterial`) and overrides the one of the
+builder</bevy><js>`SoftBody.setMaterial`</js><c>`r3SoftBody_SetMaterial` (the current one being given by `r3SoftBody_Material`)</c><py>the `material` property of `SoftBody`</py>.<c> A material is initialized by `r3DefaultSoftBodyMaterial`, or by `r3UniformSoftBodyMaterial` which gives the same softness to every constraint.</c><py> This property is a live view of the material of the body: modifying one of its fields modifies the body, whereas `SoftBodyMaterial.copy` gives a detached copy. A material is created with the `SoftBodyMaterial` constructor, which takes any of its fields as keyword arguments, or with `SoftBodyMaterial.uniform` which gives the same softness to every constraint.</py> The edges and the volume constraints are given a softness, i.e., a
+natural frequency (in Hz) and a damping ratio instead of a stiffness, so it doesn't depend on the masses of the
+particles:
+- The **edge softness** (<notjs>`edge_softness`</notjs><js>`edgeSoftness`</js><c>`edgeSoftness`</c><py>`edge_softness`</py>) for the structural edges;
+- The **bend softness** (<notjs>`bend_softness`</notjs><js>`bendSoftness`</js><c>`bendSoftness`</c><py>`bend_softness`</py>) for the bending edges and the
+  dihedral constraints;
+- The **volume softness** (<notjs>`volume_softness`</notjs><js>`volumeSoftness`</js><c>`volumeSoftness`</c><py>`volume_softness`</py>) for the volume constraints.
+
+The elastic cells are given a Young modulus (<notjs>`young_modulus`</notjs><js>`youngModulus`</js><c>`youngModulus`</c><py>`young_modulus`</py>, in force per unit
+area in 3D, per unit length in 2D), a Poisson ratio (<notjs>`poisson_ratio`</notjs><js>`poissonRatio`</js><c>`poissonRatio`</c><py>`poisson_ratio`</py>), and a
+damping ratio (<notjs>`elastic_damping_ratio`</notjs><js>`elasticDampingRatio`</js><c>`elasticDampingRatio`</c><py>`elastic_damping_ratio`</py>) instead. Their natural frequency
+is derived from these, therefore a body meshed more finely doesn't become stiffer, whereas it becomes more expensive to
+simulate.
+
+Finally, a body with a closed surface can preserve the area (2D) or the volume (3D) it encloses
+(<notjs>`volume_preservation`</notjs><js>`setVolumePreservation`</js><c>`volumePreservation`</c><py>`volume_preservation`, or `enable_volume_preservation` after the insertion</py>), which target can be scaled by a
+<rapier>`volume_factor`</rapier><bevy>`volume_factor` (or a `SoftBodyVolumeFactor` component)</bevy><js>`setVolumeFactor`</js><c>`volumeFactor` (or `r3SoftBody_SetVolumeFactor` after the insertion)</c><py>`volume_factor` (or the `volume_factor` property of `SoftBody` after the insertion)</py>
+greater than 1 in order to inflate  the body, e.g., to simulate a pressurized blob:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Material' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Material' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Material' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Material' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Material' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Material' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='Material' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='Material' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='Material' />
+```
+
+</py>
+
+:::info
+The stiffness effectively simulated by the constraints solver depends on its convergence: with too few iterations, a stiff
+body looks softer than its material says. This is why soft-bodies are configured with 3 additional internal PGS solver iterations by default, which can
+ be modified with
+<notjs>`additional_pgs_iterations`</notjs><js>`setAdditionalPgsIterations`</js><c>`additionalPgsIterations`</c><py>`additional_pgs_iterations`</py>. The whole island a body belongs to
+can also be given additional substeps with
+<notjs>`additional_solver_iterations`</notjs><js>`setAdditionalSolverIterations`</js><c>`additionalSolverIterations`</c><py>`additional_solver_iterations`</py>, just like
+[rigid-bodies](./rigid_bodies.mdx#solver-settings).
+
+<center>
+![The same chain solved with 1, 4, and 32 iterations](/img/soft_bodies/stiffness_iterations.svg)
+</center>
+:::
+
+The following table gathers the settings to look at for the most common problems:
+
+| Problem | What to change |
+|---------|----------------|
+| The body is too soft, or stretches too much. | Raise the natural frequency of the material's <notjs>`edge_softness`</notjs><js>`edgeSoftness`</js><c>`edgeSoftness`</c><py>`edge_softness`</py>, or its <notjs>`young_modulus`</notjs><js>`youngModulus`</js><c>`youngModulus`</c><py>`young_modulus`</py> for the elastic cells. Give it more <notjs>`additional_pgs_iterations`</notjs><js>`setAdditionalPgsIterations`</js><c>`additionalPgsIterations`</c><py>`additional_pgs_iterations`</py>, or switch it to the FEM solver with <notjs>`solver`</notjs><js>`setSolver`</js><c>`solver`</c><py>`solver`</py>. |
+| A cloth stretches, but should still fold easily. | Keep a stiff <notjs>`edge_softness`</notjs><js>`edgeSoftness`</js><c>`edgeSoftness`</c><py>`edge_softness`</py>, and give it a soft <notjs>`bend_softness`</notjs><js>`bendSoftness`</js><c>`bendSoftness`</c><py>`bend_softness`</py>. |
+| A rope compresses like a spring. | Make its edges resist stretching only with <notjs>`tension_only`</notjs><js>`setTensionOnly`</js><c>`tensionOnlyEdges`</c><py>`tension_only`</py>. |
+| The body keeps wobbling after an impact. | Raise the <notjs>`damping_ratio`</notjs><js>`dampingRatio`</js><c>`damping_ratio`</c><py>`damping_ratio`</py> of the material's softnesses and its <notjs>`elastic_damping_ratio`</notjs><js>`elasticDampingRatio`</js><c>`elasticDampingRatio`</c><py>`elastic_damping_ratio`</py>, or its <notjs>`deformation_damping`</notjs><js>`deformationDamping`</js><c>`deformationDamping`</c><py>`deformation_damping`</py> (which damps the deformations but not the motion of the body as a whole). |
+| A closed body collapses, or must be inflated. | Enable <notjs>`volume_preservation`</notjs><js>`setVolumePreservation`</js><c>`volumePreservation`</c><py>`volume_preservation`</py>, and give it a <notjs>`volume_factor`</notjs><js>`setVolumeFactor`</js><c>`volumeFactor`</c><py>`volume_factor`</py> greater than 1. |
+| The deformations are too local. | Combine <notjs>`shape_matching`</notjs><js>`setShapeMatching`</js><c>`shapeMatching`</c><py>`shape_matching`</py> with edges, or rely on edges and cells alone. |
+
+### FEM solver
+The FEM solver (<rapier>`SoftBodySolver::Fem`, behind the `fem` cargo feature</rapier><bevy>`SoftBodySolver::Fem`,
+behind the `fem` feature of `bevy_rapier`, given to the builder or with the `SoftBodyElasticitySolver`
+component</bevy><js>`SoftBodySolver.Fem`</js><c>`R3_SOFT_SOLVER_FEM`, given to the `solver` field of the description or to `r3SoftBody_SetSolver`, and requiring the `fem` feature of the library</c><py>`SoftBodySolver.FEM`, given to the builder with `solver`, or to the `solver` property of `SoftBody` after the insertion</py>) resolves the elasticity of the whole body at once and semi-implicitly:
+the forces and the stiffness of every cell are assembled into a single linear system, solved at each substep. Therefore
+the stiffness of the body no longer depends on the number of solver iterations, which makes it capable of simulating
+very stiff materials, as well as more realistic plastic deformations and failures:
+
+<center>
+![Assembly of the FEM system](/img/soft_bodies/fem_system.svg)
+</center>
+
+This comes at a price: the system is factorized at each timestep, and every constraint touching the body (contacts,
+joints) needs a solve against it. Note that the FEM solver requires cells, so it only applies to the bodies built with
+cells, e.g., with the <notjs>`grid`, `cuboid`, or `volumetric`</notjs><js>`grid`, `cuboid`, or `volumetric`</js><c>`r2GridSoftBodyDesc`, `r3CuboidSoftBodyDesc`, or `r3VolumetricSoftBodyDesc`</c><py>`cuboid`, `volumetric`, or `volumetric_with`</py> constructors. The configuration of its linear solves is shared
+by every body using it, and lives in the [integration parameters](./integration_parameters.mdx#soft_bodies):
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Fem' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Fem' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Fem' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Fem' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Fem' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Fem' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='Fem' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='Fem' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='Fem' />
+```
+
+</py>
+
+The linear solves stop at the relative residual
+<notjs>`linear_tolerance`</notjs><js>`softBodiesFemLinearTolerance`</js><c>`linearTolerance` (set by `r3FemSetLinearTolerance`)</c><py>`linear_tolerance`</py>, or after
+<notjs>`max_linear_iterations`</notjs><js>`softBodiesFemMaxLinearIterations`</js><c>`maxLinearIterations` (set by `r3FemSetMaxLinearIterations`)</c><py>`max_linear_iterations`</py> conjugate-gradient iterations,
+whatever the residual. The bodies with at most
+<notjs>`max_dense_dofs`</notjs><js>`softBodiesFemMaxDenseDofs`</js><c>`maxDenseDofs` (set by `r3FemSetMaxDenseDofs`)</c><py>`max_dense_dofs`</py> degrees of freedom (`600` by default) are
+factorized directly, whereas the larger ones rely on the iterative conjugate gradient.
+
+:::tip
+Use the FEM solver for stiff materials which simulated stiffness must not depend on the iteration count, e.g., the
+chassis of a car or a metal beam. This also results in more realistic plasticity and tearing.
+:::

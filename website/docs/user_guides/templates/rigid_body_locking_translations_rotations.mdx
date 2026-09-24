@@ -5,7 +5,7 @@ It is sometimes useful to prevent a rigid-body from rotating or translating. One
 is to prevent a player modeled as a dynamic rigid-body from tilting. These kind of degree-of-freedom restrictions could
 be achieved by [joints](./joints.mdx), but locking translations/rotations of a single rigid-body wrt. the cartesian coordinate
 axes can be done  in a much more efficient and numerically stable way. That's why rigid-bodies have
-dedicated <rapier>methods</rapier><bevy>flags</bevy><js>methods</js> for this.
+dedicated <rapier>methods</rapier><bevy>flags</bevy><js>methods</js><c>flags</c><py>flags</py> for this.
 
 <rapier>
 
@@ -105,3 +105,59 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+The locked axes are given by a bitmask combining the `R3_LOCK_TRANSLATION_X`, `R3_LOCK_TRANSLATION_Y`,
+`R3_LOCK_TRANSLATION_Z`, `R3_LOCK_ROTATION_X`, `R3_LOCK_ROTATION_Y`, and `R3_LOCK_ROTATION_Z` flags (in 2D, only the
+translations along `X` and `Y`, and the rotation around `Z`, are relevant). It is set with the `lockedAxes` field of
+`R3RigidBodyDesc` when the rigid-body is created, or with `r3RigidBody_SetLockedAxes` afterwards (and read with
+`r3RigidBody_LockedAxes`). The `r3RigidBody_SetTranslationsLocked` and `r3RigidBody_SetRotationsLocked` functions
+lock (or unlock) all the translations or all the rotations at once.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='LockedAxes1' />
+```
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='LockedAxes2' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='LockedAxes1' />
+```
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='LockedAxes2' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+The locked axes are given by a `LockedAxes` value combining, with the `|` operator, the `TRANSLATION_LOCKED_X`,
+`TRANSLATION_LOCKED_Y`, `TRANSLATION_LOCKED_Z`, `ROTATION_LOCKED_X`, `ROTATION_LOCKED_Y`, and `ROTATION_LOCKED_Z`
+flags (or `TRANSLATION_LOCKED` and `ROTATION_LOCKED` to lock all the translations or all the rotations at once). It is
+set with `RigidBodyBuilder.locked_axes` when the rigid-body is created, or with the `RigidBody.locked_axes` property
+afterwards. Alternatively, the `enabled_translations` and `enabled_rotations` builder methods and properties take a
+tuple of three booleans indicating, for each axis, if the corresponding translation or rotation is allowed.
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='LockedAxes1' />
+```
+```python
+<load path='/3d/python/rigid_bodies.py' marker='LockedAxes2' />
+```
+
+</py>

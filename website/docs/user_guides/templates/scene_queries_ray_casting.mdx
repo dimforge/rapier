@@ -69,6 +69,13 @@ get, the more computationally expensive the ray-cast will be.
 </TabItem>
 </Tabs>
 
+The results identify the collider hit by the entity it is attached to. The resulting `RayIntersection` contains the
+world-space hit `point` and `normal`, as well as the index of the part of the shape that was hit (`subshape`) for
+shapes composed of several pieces (compound shapes, triangle meshes, polylines, heightfields, voxels). The closure
+given to `RapierContext::intersect_ray` is also given the Rapier collider (`rapier::geometry::Collider`, not to be
+confused with the `Collider` component) that was hit, which gives access to its shape, position, parent rigid-body,
+etc., without needing an additional ECS query. Returning `false` from that closure stops the search for other hits.
+
 </bevy>
 <js>
 
@@ -96,15 +103,87 @@ get, the more computationally expensive the ray-cast will be.
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+    groupId="dim"
+    defaultValue="2D"
+    values={[
+        {label: 'Example 2D', value: '2D'},
+        {label: 'Example 3D', value: '3D'},
+    ]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/scene_queries2.c' marker='Raycast' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/scene_queries3.c' marker='Raycast' />
+```
+
+</TabItem>
+</Tabs>
+
+`r3CastRayToi` only gives the handle of the first collider hit and the time-of-impact, whereas `r3TryCastRay` also
+gives the world-space `normal` of the collider's shape at the hit point, as well as the feature of the shape that was
+hit (a vertex, an edge, or a face, identified by `feature_type` and `feature_id`). Both set the `found` field of their
+result to 0 if the ray doesn't hit anything. Note that `r3CastRay` gives the same result as `r3TryCastRay` but reports
+a miss as the `R3_NOT_FOUND` error: it is only suitable if the ray is expected to always hit something.
+
+Finally, `r3IntersectRay` gives the hits of every collider intersected by the ray (in no particular order), with the
+same details as `r3TryCastRay`:
+
+<Tabs
+    groupId="dim"
+    defaultValue="2D"
+    values={[
+        {label: 'Example 2D', value: '2D'},
+        {label: 'Example 3D', value: '3D'},
+    ]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/scene_queries2.c' marker='RaycastAll' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/scene_queries3.c' marker='RaycastAll' />
+```
+
+</TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/scene_queries.py' marker='Raycast' />
+```
+
+`QueryPipeline.cast_ray` only gives the handle of the first collider hit and the time-of-impact, whereas
+`QueryPipeline.cast_ray_and_get_normal` also gives a `RayIntersection` with the world-space `normal` of the collider's
+shape at the hit point, as well as the `feature` of the shape that was hit (a vertex, an edge, or a face, identified by
+a `FeatureId`). Both return `None` if the ray doesn't hit anything. Finally, `QueryPipeline.intersect_ray` calls the
+given function with the handle and the `RayIntersection` of every collider intersected by the ray (in no particular
+order), until this function returns `False`.
+
+</py>
 
 Aside from the ray being cast, all these ray-casting methods take a few extra parameters for controlling the behavior
 of the ray-cast:
-- <notjs> **`max_toi`** </notjs><js> **`maxToi`** </js>: is the maximum "time-of-impact" that can be reported by the ray-cast. The notion of "time-of-impact" refer
-to the fact that a ray can be seen as a point starting at `ray.origin` moving at a linear velocity equal
-to `ray.dir`. Therefore, `max_toi` limits the ray-cast to the segment: `[ray.origin, ray.origin + ray.dir * max_toi]`.
-- **`solid`**: this argument controls the behavior of the ray-cast if `ray.origin` is inside of a shape: if `solid` is `true`
+- <notjs> **`max_toi`** </notjs><js> **`maxToi`** </js><c> **`max_toi`** </c><py> **`max_toi`** </py>: is the maximum "time-of-impact" that can be reported by the ray-cast. The notion of "time-of-impact" refer
+to the fact that a ray can be seen as a point starting at <notc>`ray.origin`</notc><c>`origin`</c> moving at a linear velocity equal
+to <notc>`ray.dir`</notc><c>`direction`</c>. Therefore, `max_toi` limits the ray-cast to the segment: <notc>`[ray.origin, ray.origin + ray.dir * max_toi]`</notc><c>`[origin, origin + direction * max_toi]`</c>.
+- **`solid`**: this argument controls the behavior of the ray-cast if <notc>`ray.origin`</notc><c>`origin`</c> is inside of a shape: if `solid` is <notjs>`true`</notjs><js>`true`</js><c>`1`</c><py>`True`</py>
 then the hit point will be the ray origin itself (`toi = 0.0`) because the interior of the shape will be assumed
-to be filled with material. If `solid` is `false` then the shape will be assumed to have an empty interior and
+to be filled with material. If `solid` is <notjs>`false`</notjs><js>`false`</js><c>`0`</c><py>`False`</py> then the shape will be assumed to have an empty interior and
 the hit point will be the first time the ray hits the shape's boundary. The following 2D example illustrates
 the difference between the two scenarios. The ray is in green and the resulting hit point circled in red:
 

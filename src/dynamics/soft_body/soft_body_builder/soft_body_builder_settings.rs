@@ -326,9 +326,7 @@ impl SoftBodyBuilder {
         self
     }
 
-    /// Enables self contacts between the body's surface vertices/edges and its own surface (a
-    /// body colliding through its surface only: the particle balls of a body colliding through
-    /// its particles never collide with each other).
+    /// Enables self contacts between the body's surface vertices/edges and its own surface.
     pub fn self_contacts(mut self, enabled: bool) -> Self {
         self.self_contacts = enabled;
         self
@@ -345,8 +343,7 @@ impl SoftBodyBuilder {
         self
     }
 
-    /// Sets the thickness of the particles (the radius of their ball colliders for a body
-    /// colliding through its particles, the surface collider's contact skin otherwise).
+    /// Sets the thickness of the particles (the contact skin of the body's surface collider).
     pub fn particle_radius(mut self, radius: Real) -> Self {
         self.particle_radius = radius;
         self

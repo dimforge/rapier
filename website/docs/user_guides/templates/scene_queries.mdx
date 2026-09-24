@@ -8,33 +8,150 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 Scene queries are geometric queries that take all the colliders of the physics world into account. These queries are
-available through the <rapier>[QueryPipeline](./simulation_structures.mdx#query-pipeline)</rapier><bevy>`RapierQueryPipeline` component</bevy><js>`World` class</js>.
+available through the <rapier>[QueryPipeline](./simulation_structures.mdx#query-pipeline)</rapier><bevy>`RapierContext` (obtained from the `ReadRapierContext` system parameter)</bevy><js>`World` class</js><c>functions taking the `R3World` as their first argument (e.g. `r3TryCastRay`)</c><py>[QueryPipeline](./simulation_structures.mdx#query-pipeline) of the physics world</py>.
 
 <rapier>
-The `QueryPipeline` is a temporary object that is initialized from the broad-phase, collider set, and rigid-body set.
-It reuses the acceleration data-structure (BVH) from the broad-phase which is automatically updated by the physics
-stepping function.
+The `QueryPipeline` is a temporary object obtained from the physics world with `PhysicsWorld::query_pipeline` (or
+`PhysicsWorld::query_pipeline_with_filter`). It reuses the acceleration data-structure (BVH) of the broad-phase, which
+is automatically updated by the physics stepping function. Therefore the scene queries take into account the positions
+of the colliders at the end of the last timestep:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
 
 ```rust
-// Game loop.
-loop {
-  // Stepping the simulation will update the broad-phase.
-  physics_pipeline.step(...);
-
-  // Init a temporary query pipeline by borrowing from the broad-phase
-  // and collides/rigid-bodies. Scene queries will take into account
-  // the last objects positions know at the end of the last physics
-  // simulation step.
-    let query_pipeline = broad_phase.as_query_pipeline(
-        narrow_phase.query_dispatcher(),
-        rigid_body_set,
-        collider_set,
-        filter,
-    );
-}
+<load path='/2d/rust/examples/rs_scene_queries2.rs' marker='QueryPipeline' />
 ```
 
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_scene_queries3.rs' marker='QueryPipeline' />
+```
+
+  </TabItem>
+</Tabs>
+
 </rapier>
+<bevy>
+
+The `RapierContext` is obtained with `ReadRapierContext::single` (or `WriteRapierContext::single`). Its scene queries
+reuse the acceleration data-structure (BVH) of the broad-phase, which is automatically updated by each
+simulation step. Therefore the scene queries take into account the positions of the colliders at the end of the last
+timestep: a `Transform` modified since then won't be taken into account before the next step.
+
+Each scene query of `RapierContext` creates a temporary `RapierQueryPipeline` configured by its `QueryFilter` argument.
+If you need to run several queries with the same filter, or if you prefer iterators rather than closures for the
+queries returning multiple results, that `RapierQueryPipeline` can be accessed directly with
+`RapierContext::with_query_pipeline`. It also exposes a few other queries not detailed in this guide (e.g.
+`project_point_and_get_feature`, `distance_to_shape`, `closest_points_to_shape`,
+`contact_with_shape`, and the `bvh` itself for custom traversals):
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/scene_queries2.rs' marker='QueryPipeline' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/scene_queries3.rs' marker='QueryPipeline' />
+```
+
+  </TabItem>
+</Tabs>
+
+The queries involving a shape (e.g. `intersect_shape`, `cast_shape`, or `contact_with_shape`) accept any type
+implementing the `AsShape` trait: a `Collider` can be given directly, as well as any Rapier shape (e.g. a `Ball`, or
+`&*shared_shape` for a `SharedShape`). Note that the scene queries rely on the query dispatcher of the physics context,
+so a custom dispatcher given to `RapierContextSimulation::set_query_dispatcher` is taken into account by the scene
+queries as well as by the [character controller](./character_controller.mdx#character-controller).
+
+</bevy>
+<c>
+
+The scene queries reuse the acceleration data-structure (BVH) of the broad-phase, which is automatically updated by
+`r3Step` (and by `r3DetectCollisions`). Therefore the scene queries take into account the positions of the colliders
+at the end of the last timestep: a collider moved since then (e.g. with `r3Collider_SetTranslation`) may not be found
+at its new position before the next step:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/scene_queries2.c' marker='QueryPipeline' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/scene_queries3.c' marker='QueryPipeline' />
+```
+
+  </TabItem>
+</Tabs>
+
+Every scene query takes a pointer to an `R3QueryOptions`, which selects the colliders taken into account (see the
+[query filters](./scene_queries.mdx#query-filters) section). A `NULL` pointer applies the default options, which
+don't exclude any collider. The queries involving a shape (e.g. `r3IntersectShape` or `r3TryCastShape`) take an
+`R3SharedShape`, created by one of the shared-shape constructors (e.g. `r3CuboidSharedShape`) or cloned from the
+shape of an existing collider with `r3Collider_CloneShape`. This shape is owned by the application: it must be freed
+with `r3FreeSharedShape` once it is no longer needed.
+
+The queries finding several colliders copy their results into a buffer given by the application, together with its
+capacity. Calling them with a `NULL` buffer and a zero capacity gives the number of results, then a second call with
+a buffer large enough copies them. If the buffer is too small, nothing is copied: the query returns the required
+number of elements and reports the `R3_BUFFER_TOO_SMALL` error.
+
+</c>
+<py>
+
+The `QueryPipeline` is given by the `PhysicsWorld.query_pipeline` property, which returns the same object every time.
+It reuses the acceleration data-structure (BVH) of the broad-phase, which is automatically updated by
+`PhysicsWorld.step`. Therefore the scene queries take into account the positions of the colliders at the end of the
+last timestep: a collider inserted or moved since then (e.g. by setting its `translation`) may not be found at its new
+position before the next step (a removed collider is never returned though):
+
+```python
+<load path='/3d/python/scene_queries.py' marker='QueryPipeline' />
+```
+
+If the scene queries must see the colliders inserted, moved, or re-shaped since the last step without waiting for the
+next one, `PhysicsWorld.update_query_pipeline` refreshes the BVH of the broad-phase. This doesn't interfere with the
+next step (which still processes these changes), but it recomputes the AABB of every enabled collider, so it shouldn't
+be called when the queries are run right after a step.
+
+Every scene query takes an optional `filter` argument, a `QueryFilter` which selects the colliders taken into account
+(see the [query filters](./scene_queries.mdx#query-filters) section). The queries involving a shape (e.g.
+`QueryPipeline.intersect_shape` or `QueryPipeline.cast_shape`) take a `SharedShape`, created by one of its
+constructors (e.g. `SharedShape.cuboid`) or given by the `shape` property of an existing collider. Finally, the
+queries finding several colliders don't return a list: they call a function given as argument once per collider
+found, and stop the search as soon as this function returns `False`.
+
+</py>
 
 ## Ray-casting
 import RayCasting from './scene_queries_ray_casting.mdx'

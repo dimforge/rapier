@@ -31,12 +31,16 @@
         "pkg/rapier_wasm{{ dimension }}d.d.ts:RawRayColliderIntersection",
         "pkg/rapier_wasm{{ dimension }}d.d.ts:RawRayColliderHit",
         "pkg/rapier_wasm{{ dimension }}d.d.ts:RawRayIntersection",
-        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawColliderShapeCastHit",
         "pkg/rapier_wasm{{ dimension }}d.d.ts:RawShapeContact",
-        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawShapeCastHit",
-        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawQueryPipeline",
         "pkg/rapier_wasm{{ dimension }}d.d.ts:RawDeserializedWorld",
         "pkg/rapier_wasm{{ dimension }}d.d.ts:RawDebugRenderPipeline",
-        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawContactForceEvent"
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawContactForceEvent",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawSoftBodyBuilder",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawSoftBodyMaterial",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawSoftBodySet",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawSoftBodyTearEvent",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawSoftMeshBindingMode",
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawSoftRecoverySettings"{% if dimension == "3" %},
+        "pkg/rapier_wasm{{ dimension }}d.d.ts:RawSdpMatrix3"{% endif %}
     ]
 }

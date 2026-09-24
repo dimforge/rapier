@@ -45,8 +45,8 @@ impl SoftConstraintsSet {
                         || rb.vels.angvel != cluster.last_gather.1
                         || rb.forces.user_force != Vector::ZERO
                         || rb.forces.user_torque != crate::math::AngVector::default();
-                    // A proxy with a collider of its own (not the soft-managed surface or
-                    // balls) takes rigid contacts on its slot: those impulses must be scattered.
+                    // A proxy with a collider of its own (not a soft-managed collision mesh)
+                    // takes rigid contacts on its slot: those impulses must be scattered.
                     let has_user_collider = rb.colliders().iter().any(|co| {
                         colliders
                             .get(*co)

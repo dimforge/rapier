@@ -29,6 +29,9 @@ opt-level = 3
 # Add this to your Cargo.toml
 [profile.dev.package.bevy_rapier3d]
 opt-level = 3
+
+[profile.dev.package.rapier3d]
+opt-level = 3
 ```
 
 </bevy>
@@ -48,6 +51,42 @@ codegen-units = 1
 
 </notjs>
 
+<c>
+
+## My local build of Rapier is slower than the online demos
+Make sure the Rapier library is built in release mode. Rapier can be 100 times slower without optimizations
+enabled. Keep in mind that the optimization of the Rapier library is selected by the `RAPIER_PROFILE` option of CMake
+(`release` by default), independently from the build mode of your own C code (selected by `CMAKE_BUILD_TYPE`): a
+debug build of your application can still use an optimized Rapier library, as long as it isn't configured with
+`-DRAPIER_PROFILE=debug`. The build mode of the library actually loaded by your application is given by
+`r3BuildProfile`:
+
+```c
+<load path='/3d/c/examples/common_mistakes3.c' marker='BuildProfile' />
+```
+
+</c>
+
+<py>
+
+## My local build of Rapier is slower than the online demos
+Make sure the bindings are built in release mode. Rapier can be 100 times slower without optimizations enabled. The
+package installed by `pip` is always optimized, but the bindings built from source are only optimized if `--release`
+is given to maturin, e.g., `maturin develop --release -m python/rapier-py-3d/Cargo.toml` (see
+[building from source](./getting_started_py.mdx#building-from-source)). The build mode of the bindings actually loaded
+by your application is given by the `profile` property of `rapier3d.build_features()`:
+
+```python
+<load path='/3d/python/common_mistakes.py' marker='BuildProfile' />
+```
+
+Keep in mind as well that each call from Python to the bindings has a cost: a script calling a method of every
+rigid-body at each frame may spend more time in Python than in the simulation itself. For example, iterate only on
+the rigid-bodies that moved during the last timestep (see the
+[island manager](./simulation_structures.mdx#island-manager)) rather than on all of them.
+
+</py>
+
 ## Rigid-body isn't affected by gravity
 If you expect your rigid-body to fall because of gravity but it doesn't, please make sure to double-check
 the following:
@@ -65,9 +104,32 @@ sure that at least one of the colliders has a non-zero density (or non-zero mass
 collider).
 :::
 :::warning
-Currently, colliders with triangle-meshes won't have their mass properties computed automatically. So if a rigid-body
-only has triangle-mesh colliders attached to it, you need to set its mass/angular inertia manually.
+The shapes that don't enclose any volume, i.e., the polylines, the half-spaces, the segments, and the triangles in 3D,
+have a zero mass whatever their density. So if a rigid-body only has colliders with such shapes attached to it, you
+need to set its mass/angular inertia manually. Note that a triangle-mesh isn't one of them: its mass properties are
+computed from the volume enclosed by its faces, which assumes that the mesh is closed and that its triangles are
+consistently oriented.
 :::
+
+<c>
+
+:::warning
+Make sure that the descriptions of your rigid-bodies and colliders are initialized by their constructors, e.g.,
+`r3DynamicRigidBodyDesc()` and `r3BallColliderDesc(0.5)`. A zero-initialized description is a disabled object, and a
+zero-initialized rigid-body description has a zero `gravityScale`. See
+[below](./common_mistakes.mdx#my-objects-are-not-inserted-or-dont-behave-as-expected).
+:::
+
+</c>
+
+<py>
+
+:::warning
+A `PhysicsWorld` created without its `gravity` argument, e.g., `PhysicsWorld()`, has no gravity at all. Give it
+explicitly, e.g., `PhysicsWorld(gravity=(0.0, -9.81, 0.0))`, or set its `gravity` property afterwards.
+:::
+
+</py>
 
 ## Applying a force to a rigid-body doesn't work
 If applying a force or an impulse to a rigid-body doesn't work, please make sure to double-check the following:
@@ -103,6 +165,31 @@ If applying a force or an impulse to a rigid-body doesn't work, please make sure
 
 </js>
 
+<c>
+
+- The rigid-body is a dynamic rigid-body.
+- The rigid-body has a non-zero mass (or non-zero angular inertia for torques).
+- The force or impulse must be strong enough to actually push the rigid-body. You may for example try with a very
+  high force/impulse value (say, with a magnitude of `100000.0`) and see if this stronger force works.
+- The rigid-body is [awake](./rigid_bodies.mdx#sleeping), either by calling `r3RigidBody_WakeUp(handle, 1)`
+  explicitly, or by using `1` as the last argument (`wake_up`) of the force/impulse application function.
+
+</c>
+
+<py>
+
+- The rigid-body is a dynamic rigid-body.
+- The rigid-body has a non-zero mass (or non-zero angular inertia for torques).
+- The force or impulse must be strong enough to actually push the rigid-body. You may for example try with a very
+  high force/impulse value (say, with a magnitude of `100_000.0`) and see if this stronger force works.
+- The rigid-body is [awake](./rigid_bodies.mdx#sleeping), either by calling `RigidBody.wake_up()` explicitly, or by
+  keeping the `wake_up` argument of the force/impulse application method to `True` (its default value).
+- The force is applied to the rigid-body of the world, i.e., to the view given by `world.rigid_bodies[handle]`, rather
+  than to a `RigidBody` built by your code before its insertion (see
+  [below](./common_mistakes.mdx#my-modifications-have-no-effect)).
+
+</py>
+
 :::note
 If the rigid-body has no collider attached to it, its mass will be zero unless you gave it a mass (or mass properties)
 explicitly. If the rigid-body has colliders attached to it and you didn't give the rigid-body a mass explicitly, make
@@ -112,14 +199,47 @@ collider).
 
 <notjs>
 
-## The simulation panics!
-It may happen that Rapier panics with the following panic message:
+## A rigid-body suddenly stops being simulated
+
+It may happen that a rigid-body disappears from the simulation, i.e., it stops moving and stops generating contacts,
+without being removed by your own code. This generally means that non-finite values (`NaN` or infinites) appeared in
+its position or in its velocity for one reason or another (could be the simulation diverged, incorrect values provided, etc.)
+
+Rather than panicking or letting these values propagate and corrupt the whole simulation, Rapier detects them at the
+beginning and at the end of each timestep, and puts the affected rigid-body, collider, or soft-body in **quarantine**:
+it is reset to its last valid position when one is known, its velocities are zeroed, and it is disabled.
+
+<rapier>
+
+The quarantined objects of the last timestep are reported by `PhysicsWorld::quarantine` (or by
+`PhysicsPipeline::quarantine` if you step the pipeline yourself). This report is cleared at each timestep, so it must
+be read after the step that generated it. Once the cause is fixed, a quarantined object is brought back into the
+simulation with `RigidBody::set_enabled(true)` (resp. `Collider::set_enabled(true)`):
+
 ```rust
-"assertion failed: proxy.aabb.maxs[dim] >= self.min_bound"
+<load path='/2d/rust/examples/rs_common_mistakes2.rs' marker='Quarantine' />
 ```
-This panics generally means that something went wrong in the simulation, resulting in `NaN` values appearing in the
-collider positions. The most common configuration that makes this panic happen is if two dynamic rigid-bodies with 
-a zero mass start being in contact. To fix this, make sure that your dynamic rigid-bodies have a non-zero mass.
+
+</rapier>
+<bevy>
+
+A warning is logged and a `PhysicsQuarantineEvent` message is sent after each
+simulation step that quarantined something. It gives the entity of the physics context, and the entities of the
+quarantined rigid-bodies, colliders, and soft-bodies (the `bodies`, `colliders`, and `soft_bodies` fields). The plugin
+also inserts the `RigidBodyDisabled` (resp. `ColliderDisabled`, `SoftBodyDisabled`) component on each quarantined
+entity. Once the cause is fixed (e.g. by writing a finite `Velocity` or `Transform`, or by moving the non-finite
+particles of a soft-body back), a quarantined object is brought back into the simulation by removing that component:
+
+```rust
+<load path='/3d/bevy/examples/pipeline_diagnostics3.rs' marker='Quarantine' />
+```
+
+</bevy>
+
+The most common configuration that leads to non-finite values is two dynamic rigid-bodies with a zero mass starting to
+be in contact. Therefore, make sure that your dynamic rigid-bodies have a non-zero mass. Note that the values given to
+the physics engine are checked too: a position or a velocity set to `NaN` by your own code (e.g. after a division by a
+zero-length vector) is caught at the beginning of the next timestep.
 
 :::note
 If the rigid-body has no collider attached to it, its mass will be zero unless you gave it a mass (or mass properties)
@@ -130,12 +250,86 @@ collider).
 
 </notjs>
 
+<c>
+
+## A rigid-body suddenly stops being simulated
+
+It may happen that a rigid-body disappears from the simulation, i.e., it stops moving and stops generating contacts,
+without being removed by your own code. This generally means that non-finite values (`NaN` or infinites) appeared in
+its position or in its velocity for one reason or another (could be the simulation diverged, incorrect values provided, etc.)
+
+Rather than crashing or letting these values propagate and corrupt the whole simulation, Rapier detects them at the
+beginning and at the end of each timestep, and puts the affected rigid-body, collider, or soft-body in **quarantine**:
+it is reset to its last valid position when one is known, its velocities (and the forces applied to it) are zeroed,
+and it is disabled. Note that a quarantined soft-body keeps its non-finite particle positions: they must be fixed
+with `r3SoftBody_SetParticlePosition` before enabling it again.
+
+The quarantined objects of the last timestep are copied by `r3QuarantinedRigidBodies` (resp.
+`r3QuarantinedColliders`, `r3QuarantinedSoftBodies`). This report is cleared at each timestep, so it must be read
+after the step that generated it (keep in mind that it may contain the handles of objects you removed since). Once
+the cause is fixed, a quarantined object is brought back into the simulation with `r3RigidBody_SetEnabled(handle, 1)`
+(resp. `r3Collider_SetEnabled`, `r3SoftBody_SetEnabled`):
+
+```c
+<load path='/2d/c/examples/common_mistakes2.c' marker='Quarantine' />
+```
+
+The most common configuration that leads to non-finite values is two dynamic rigid-bodies with a zero mass starting to
+be in contact. Therefore, make sure that your dynamic rigid-bodies have a non-zero mass. Note that the values given to
+the physics engine are checked too: a position or a velocity set to `NaN` by your own code (e.g. after a division by a
+zero-length vector) is caught at the beginning of the next timestep.
+
+:::note
+If the rigid-body has no collider attached to it, its mass will be zero unless you gave it a mass (or mass properties)
+explicitly. If the rigid-body has colliders attached to it and you didn't give the rigid-body a mass explicitly, make
+sure that at least one of the colliders has a non-zero density (or non-zero mass if you set it explicitly on the
+collider).
+:::
+
+</c>
+
+<py>
+
+## A rigid-body suddenly stops being simulated
+
+It may happen that a rigid-body disappears from the simulation, i.e., it stops moving and stops generating contacts,
+without being removed by your own code. This generally means that non-finite values (`NaN` or infinites) appeared in
+its position or in its velocity for one reason or another (could be the simulation diverged, incorrect values provided, etc.)
+
+Rather than crashing or letting these values propagate and corrupt the whole simulation, Rapier detects them at the
+beginning and at the end of each timestep, and puts the affected rigid-body, collider, or soft-body in **quarantine**:
+it is reset to its last valid position when one is known, its velocities are zeroed, and it is disabled.
+
+The quarantined objects of the last timestep are reported by the `PhysicsWorld.quarantine` property (or by
+`PhysicsPipeline.quarantine` if you step the pipeline yourself), which lists their handles in its `bodies`,
+`colliders`, and `soft_bodies` properties. This report is cleared at each timestep, so it must be read after the step
+that generated it. Once the cause is fixed, a quarantined object is brought back into the simulation by setting its
+`is_enabled` property to `True`:
+
+```python
+<load path='/3d/python/common_mistakes.py' marker='Quarantine' />
+```
+
+The most common configuration that leads to non-finite values is two dynamic rigid-bodies with a zero mass starting to
+be in contact. Therefore, make sure that your dynamic rigid-bodies have a non-zero mass. Note that the values given to
+the physics engine are checked too: a position or a velocity set to `NaN` by your own code (e.g. after a division by a
+zero-length vector) is caught at the beginning of the next timestep.
+
+:::note
+If the rigid-body has no collider attached to it, its mass will be zero unless you gave it a mass (or mass properties)
+explicitly. If the rigid-body has colliders attached to it and you didn't give the rigid-body a mass explicitly, make
+sure that at least one of the colliders has a non-zero density (or non-zero mass if you set it explicitly on the
+collider).
+:::
+
+</py>
+
 ## Why is everything moving in slow-motion?
 A common mistake, especially in 2D, is to use pixels as the length unit in the physics world. Let's say that in 2D
 you have a 100x100 pixels sprite for your player. It may be tempting to use a 100x100 cuboid collider for this
-sprite: <rapier>`ColliderBuilder::cuboid(50.0, 50.0)`</rapier><bevy>`Collider::cuboid(50.0, 50.0)`</bevy><js>`ColliderDesc.cuboid(50.0, 50.0)`</js> (we set `50.0`
+sprite: <rapier>`ColliderBuilder::cuboid(50.0, 50.0)`</rapier><bevy>`Collider::cuboid(50.0, 50.0)`</bevy><js>`ColliderDesc.cuboid(50.0, 50.0)`</js><c>`r2CuboidColliderDesc(r2Vector(50.0, 50.0))`</c><py>`Collider.cuboid(50.0, 50.0, 50.0)`</py> (we set `50.0`
 because this is the half-width of the cuboid). Doing this will make it look like the simulation runs in __slow-motion__
-because the cuboid will be huge compared to the magnitude of the default gravity (-9.81).
+because the cuboid will be huge compared to the magnitude of the <notpy>default gravity</notpy><py>usual gravity</py> (-9.81).
 
 The recommended way of using Rapier is to use [SI units](https://en.wikipedia.org/wiki/International_System_of_Units)
 (meters, seconds, kilograms, etc.) If the player sprite is a 100x100 cuboid, then it is as if your player is 100 meters
@@ -158,9 +352,11 @@ sprite.set_rotation(rigid_body.rotation().angle());
 </rapier>
 <bevy>
 
-In this example, we could set `RapierPhysicsPlugin::pixels_per_meter(50.0)` so that while all the transforms,
-collider size, positions, etc. are expressed in pixels on your end, `bevy_rapier` will automatically divide
-them by 50.0 whenever it inputs/reads data into/from Rapier itself.
+In this example, we could set `RapierPhysicsPlugin::pixels_per_meter(50.0)`: all the transforms, collider sizes,
+velocities, etc. remain expressed in pixels on your end, but this sets the
+[length unit](./integration_parameters.mdx#length_unit) of the simulation to 50, which scales the default gravity
+and the internal tolerances of Rapier accordingly. The simulation then behaves as if the player was measured in
+meters.
 
 </bevy>
 <js>
@@ -169,3 +365,176 @@ All we need to do to keep measures in sync is to multiply by our scaling factor 
 physics engine before rendering.
 
 </js>
+
+<c>
+
+All we need to do to keep measures in sync is to multiply by our scaling factor 50 all the positions given by the
+physics engine before rendering:
+
+```c
+<load path='/2d/c/examples/common_mistakes2.c' marker='PixelsPerMeter' />
+```
+
+Alternatively, the [length unit](./integration_parameters.mdx#length_unit) of the simulation can be set to 50 with
+`r2SetLengthUnit`, which scales the internal tolerances of Rapier accordingly. However, every value given to the
+engine (sizes, positions, velocities, and the gravity) must then be expressed in pixels.
+
+</c>
+
+<py>
+
+All we need to do to keep measures in sync is to multiply by our scaling factor 50 all the positions given by the
+physics engine before rendering:
+
+```python
+<load path='/3d/python/common_mistakes.py' marker='PixelsPerMeter' />
+```
+
+The Python bindings being 3D only, this generally happens with the units of the renderer or of the 3D modeling tool
+the scene comes from (e.g. centimeters). Alternatively, the [length unit](./integration_parameters.mdx#length_unit) of
+the simulation can be set to the number of your units that make one meter with the `length_unit` property of the
+`IntegrationParameters`, which scales the internal tolerances of Rapier accordingly. However, every value given to the
+engine (sizes, positions, velocities, and the gravity) must then be expressed in your own units.
+
+</py>
+
+<c>
+
+## My objects are not inserted, or don't behave as expected
+The descriptions (`R3RigidBodyDesc`, `R3ColliderDesc`, `R3JointDesc`, etc.) must be initialized by one of their
+constructors, which give every field a meaningful default value, before being modified. A zero-initialized
+description (e.g. `R3RigidBodyDesc desc = {0};`) gives a zero value to every field, which is either rejected by the
+insertion (e.g. a 3D rotation made of zeros isn't a valid quaternion), or accepted silently with surprising
+results: a disabled object, a rigid-body with a zero gravity scale, a collider with a zero density and collision
+groups preventing it from colliding with anything, etc.
+
+```c
+<load path='/3d/c/examples/common_mistakes3.c' marker='Descriptions' />
+```
+
+The same applies to the 3D rotations: they are unit quaternions, and a quaternion made of zeros isn't one of them. The
+identity rotation is the quaternion with `w = 1` and `x = y = z = 0`, which is what `r3TranslationPose` gives:
+
+```c
+<load path='/3d/c/examples/common_mistakes3.c' marker='Rotations' />
+```
+
+## A function fails with `R3_INVALID_HANDLE`
+The handle of an object becomes **stale** as soon as its object is removed from the world: the functions given a
+stale handle fail with the `R3_INVALID_HANDLE` error. Note that removing a rigid-body also removes the joints attached
+to it, and its colliders if `r3RemoveRigidBody` is asked to, so their handles become stale as well. If an object may
+have been removed by another part of your application, check its handle first, e.g., with `r3RigidBody_Contains`:
+
+```c
+<load path='/3d/c/examples/common_mistakes3.c' marker='StaleHandles' />
+```
+
+:::danger
+Freeing the world with `r3FreeWorld` invalidates all its handles, including their copies stored anywhere in your
+application. Unlike the handles of removed objects, they can't be detected: using one of them is undefined behavior.
+:::
+
+## A scene query reports an `R3_NOT_FOUND` error
+Some functions report their failure to find something as the `R3_NOT_FOUND` error, e.g., `r3CastRay` when the ray
+doesn't hit anything. This error is given to the error handler (installed with `r3SetErrorHandler`) like any other
+error, which is an issue if your error handler aborts the application. When a miss is an expected outcome, use the
+`Try` variant of the function if there is one, e.g., `r3TryCastRay`, which reports a miss with its `found` field
+instead of an error:
+
+```c
+<load path='/3d/c/examples/common_mistakes3.c' marker='NotFound' />
+```
+
+## The objects allocated by Rapier are leaking or crashing
+The objects allocated by Rapier and owned by your application (the world, the event collectors, the snapshots, the
+shared shapes, the controllers, etc.) must be freed by their dedicated `Free` function, e.g., `r3FreeEventCollector`,
+and never with the `free` function of the C standard library. On the other hand, the objects inserted into the world
+are owned by the world: they are freed by `r3FreeWorld` (or when removed), and must not be freed by your application.
+The descriptions, the handles, and the other plain structures don't own anything and never need to be freed:
+
+```c
+<load path='/3d/c/examples/common_mistakes3.c' marker='Ownership' />
+```
+
+## Some fields of the Rapier structures contain garbage values
+The C definitions given to the compiler must match the library your application is linked to: `RAPIER_DIM2` or
+`RAPIER_DIM3`, `RAPIER_F32` or `RAPIER_F64`, but also `RAPIER_FEM` and `RAPIER_ROBOTICS` if the library is built with
+the corresponding features, since they change the content of some structures (e.g. `R3IntegrationParameters` and
+`R3SoftBodyDesc`), and `RAPIER_PARALLEL` which declares the functions of the parallel builds. The `Rapier::rapier`
+CMake target defines them automatically. If you define them yourself, check them once at the start of your
+application with `r3CheckAbi`, which reports an error if the version, the dimension, the precision, or the
+definitions of the optional features (given by `R3_ABI_FEATURES`) don't match the library:
+
+```c
+<load path='/3d/c/examples/common_mistakes3.c' marker='FeatureDefines' />
+```
+
+## A function fails with `R3_WORLD_BUSY`
+A world can be read by several threads at once, but its modification (and its stepping) requires an exclusive
+access. A modification conflicting with another access fails with the `R3_WORLD_BUSY` error instead of waiting. This
+happens when the world is modified by another thread at the same time, or when a callback called during a timestep
+(e.g. a [physics hook](./advanced_collision_detection.mdx#physics-hooks)) tries to access the world being stepped:
+the callbacks must only read the world through the `R3ReadContext` they are given (with the `r3Read` functions, e.g.,
+`r3ReadRigidBody_Translation`), and defer their modifications until the end of the timestep.
+
+</c>
+
+<py>
+
+## My modifications have no effect
+Indexing a set of the world with a handle, e.g., `world.rigid_bodies[handle]`, gives a live view of the object
+stored in the world: modifying it modifies the simulation. However, the other objects given by the bindings are
+generally copies, and modifying them has no effect on the world:
+- Some structures given by the properties of another object, e.g., the `contact_softness` of the
+  `IntegrationParameters`, are copies which must be assigned back to their property once modified (the docstring of
+  each property tells whether it gives a copy or a live view).
+- A rigid-body or a collider built by your code (e.g. with `RigidBody.dynamic().build()`) is copied into the set it is
+  inserted into: once inserted, it must be modified through the view given by the set, not through the object you
+  built.
+- The vectors, points, and rotations (e.g. `Vec3`) are immutable: `body.translation.y = 2.0` raises an
+  `AttributeError`, so a whole new value must be given to the property instead, e.g., `body.translation = (0.0, 2.0, 0.0)`.
+
+```python
+<load path='/3d/python/common_mistakes.py' marker='Copies' />
+```
+
+## An exception is raised by `PhysicsWorld.step`
+The exceptions raised by your [physics hooks](./advanced_collision_detection.mdx#physics-hooks) or by your
+[event handler](./advanced_collision_detection.mdx#collision-and-contact-force-events) don't interrupt the timestep
+calling them: the first one is raised again by `PhysicsWorld.step` once the timestep is complete (by
+`PhysicsPipeline.step` if you step the pipeline yourself), which is where it can be caught. Set
+`PhysicsWorld.event_error_policy` to `"strict"` to skip the calls to the other callbacks of the timestep once one of
+them failed:
+
+```python
+<load path='/3d/python/common_mistakes.py' marker='CallbackErrors' />
+```
+
+Keep in mind that the world is being modified while these callbacks are called: they can read the world (e.g.
+through the `colliders` and `bodies` properties of the context they are given), but modifying it raises a
+`RuntimeError`. The modifications they need are recorded, e.g., in the attributes of the hooks, and applied once the
+timestep is complete:
+
+```python
+<load path='/3d/python/common_mistakes.py' marker='DeferredChanges' />
+```
+
+## A `RuntimeError` is raised while the world is stepped
+A world can't be modified while it is being stepped. A modification of the world, or of one of its structures,
+raises a `RuntimeError` when:
+- It is done by a physics hook or an event handler during the timestep (see
+  [above](./common_mistakes.mdx#an-exception-is-raised-by-physicsworldstep)).
+- Another thread is stepping the world at the same time (in this case, reading the world raises this error as well).
+  A world can be used from any thread, but not from several threads at once: synchronize these threads (e.g. with a
+  `threading.Lock`), or give each of them its own world (see
+  [threads and the GIL](./simulation_structures.mdx#threads-and-the-gil)).
+
+## An `InvalidHandle` exception is raised
+The handle of an object becomes **stale** as soon as its object is removed from the world: indexing a set with a
+stale handle raises an `InvalidHandle` exception, and so does using a view obtained before the removal. Note that
+removing a rigid-body also removes the joints attached to it, and its colliders, so their handles become stale as
+well. If an object may have been removed by another part of your application, check its handle first with the `in`
+operator, e.g., `handle in world.rigid_bodies`, or use the `get` method of the set which returns `None` instead (see
+[handles](./simulation_structures.mdx#handles)).
+
+</py>

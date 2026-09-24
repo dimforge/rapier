@@ -45,6 +45,21 @@ fn setup_physics(mut commands: Commands) {
     /* Enable CCD when the rigid-body bundle is created. */
     commands.spawn(RigidBody::Dynamic).insert(Ccd::enabled());
     // DOCUSAURUS: Ccd1 stop
+    // DOCUSAURUS: SolverSettings start
+    /* Give a rigid-body more solver accuracy than the rest of the scene. */
+    commands.spawn((
+        RigidBody::Dynamic,
+        // Extra substeps run for the whole island this body belongs to.
+        AdditionalSolverIterations(4),
+        // Extra internal PGS iterations run per substep for that same island.
+        AdditionalPgsIterations(2),
+        // Predictive contacts generated up to that distance ahead of the body's path: a cheaper
+        // alternative to CCD for slow-but-thin or moderately fast objects.
+        SoftCcd { prediction: 0.5 },
+        // Let the body exceed the angular speed cap, e.g. for a wheel.
+        AllowFastRotation,
+    ));
+    // DOCUSAURUS: SolverSettings stop
 }
 
 // DOCUSAURUS: LockedAxes2 start

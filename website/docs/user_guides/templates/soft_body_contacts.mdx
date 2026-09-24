@@ -1,0 +1,200 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+A soft-body collides through the collider covering its surface, which is a deformable triangle-mesh (a polyline in 2D)
+built from the template given to the [builder](./soft_bodies.mdx#creation-and-insertion).
+
+### Thickness
+The radius of the particles
+(<notjs>`particle_radius`</notjs><js>`setParticleRadius`</js><c>the `particleRadius` field of `R3SoftBodyDesc`</c><py>`SoftBodyBuilder.particle_radius`</py>) is
+the thickness of the soft-body wrt. collision-detection: it is the contact skin of its surface collider, i.e., the
+distance kept between the surface and the objects touching it, as well as the distance the solver bounds the motion of
+one particle by at each substep. A radius that is too small relative to the distance between two neighboring particles
+may let thin objects pass through the surface, whereas a radius larger than that distance will make the body collide
+with itself even when it is at rest. Therefore it is recommended to keep it well below the distance between two
+neighboring particles. Note that every constructor picks a sensible default, i.e., about half the length of its edges
+or of its cells.
+
+{/* <center> */}
+{/* ![Particle radius too small, about half the spacing, and too large](/img/soft_bodies/particle_radius.svg) */}
+{/* </center> */}
+
+### Oriented surfaces and shells
+A closed surface (a balloon, a jelly cube, a filled polygon) is **oriented**: its contacts are generated on its outward
+side only, like for an [oriented triangle-mesh](./colliders.mdx#triangle-meshes-and-polylines), so nothing is held
+inside it. An open surface (a rope, a cloth) is two-sided, because a body arriving from either side must be stopped.
+This is what the builder does by default, and it is what a solid body wants. A **shell**, i.e., a closed surface which
+inner side must hold the bodies contained in it, is obtained by asking for a surface that is not oriented
+(<notjs>`oriented`</notjs><js>`setOriented`</js><c>the `oriented` field of `R3SoftBodyDesc`</c><py>`SoftBodyBuilder.oriented`</py>):
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Oriented' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Oriented' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Oriented' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Oriented' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Oriented' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Oriented' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='Oriented' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='Oriented' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='Oriented' />
+```
+
+</py>
+
+:::note
+After the insertion, the shape of the <rapier>`Collider`</rapier><bevy>Rapier collider of the
+surface</bevy><js>`Collider`</js><c>surface collider (given by `r3SoftBody_MeshColliders`)</c><py>surface collider (given by `SoftBody.collision_mesh().collider`)</py> is
+the authority: the flag is changed there, like for any other collider<py> (i.e., by assigning to its `shape` a triangle-mesh with the `TriMeshFlags.ORIENTED` flag toggled)</py>.
+:::
+
+### Self-contacts
+A soft-body doesn't collide with itself by default. Self-contacts are enabled by
+<notjs>`SoftBodyBuilder::self_contacts`</notjs><js>`SoftBodyDesc.setSelfContacts`</js><c>the `selfContacts` field of `R3SoftBodyDesc`</c><py>`SoftBodyBuilder.self_contacts`</py>,
+which makes the vertices and the edges of the surface collide with the surface of their own body: this is what keeps
+a cloth folding onto itself, or a jelly squashed against itself, from passing through itself. Note that they are more
+expensive, since the whole surface must be tested against itself.
+
+### Penetrations and tangles
+The contacts between two meshes are computed triangle by triangle (segment by segment in 2D), without any notion of
+their interiors. As long as the two surfaces don't penetrate, this works well. But as soon as they do, some of these
+local contacts start pointing the wrong way, and actively keep the two surfaces in their penetrating state instead of
+separating them. Deformations make it worse, since a single surface can also cross itself and end up tangled:
+
+<center>
+![Local contacts between penetrating meshes](/img/soft_bodies/mesh_penetration.svg)
+</center>
+
+Rapier handles these configurations by measuring the volume of the overlap between the two surfaces. The gradient of
+that volume gives a good approximation of the direction separating the two bodies, aka. the **volume normal**, which is
+used both to push the overlapping regions apart, and to correct the direction of the local contacts inside them:
+
+<center>
+![Contact directions corrected with the volume normal](/img/soft_bodies/volume_normal_contacts.svg)
+</center>
+
+This is enabled by default for the closed surfaces, against other soft-bodies as well as against rigid colliders.
+
+It is configured, along with the detection and the recovery of the tangled configurations, by the recovery settings of
+the [global settings](./soft_bodies.mdx#global-settings)
+(<rapier>`IntegrationParameters::soft_bodies.recovery`</rapier><bevy>`integration_parameters.soft_bodies.recovery` of the
+`RapierContextSimulation` component</bevy><js>`IntegrationParameters.softBodiesRecovery`</js><c>`softBodies.recovery` of `R3IntegrationParameters`</c><py>`IntegrationParameters.soft_bodies.recovery`</py>).
+Every mechanism can be switched off individually, and the table below lists the ones to look at for the most common
+problems:
+
+| Problem | What to change |
+|---------|----------------|
+| Thin or fast objects pass through a surface. | Raise the particle radius (<notjs>`particle_radius`</notjs><js>`setParticleRadius`</js><c>`particleRadius`</c><py>`particle_radius`</py>). Let the body request more substeps while it is hit fast (<notjs>`max_extra_substeps`</notjs><js>`softBodiesMaxExtraSubsteps`</js><c>`maxExtraSubsteps`</c><py>`max_extra_substeps`</py>). |
+| Two bodies crossing corner-first don't collide. | Enable <notjs>`edge_speculation`</notjs><js>`edgeSpeculation`</js><c>`edgeSpeculation`</c><py>`edge_speculation`</py> (note that it can leave pressed 3D piles crossed). |
+| A body stays tangled with itself. | Keep <notjs>`self_stand_down`</notjs><js>`selfStandDown`</js><c>`selfStandDown`</c><py>`self_stand_down`</py> enabled (the default), which lets the elasticity untangle it, or push the crossed features apart with <notjs>`crossing_repulsion`</notjs><js>`crossingRepulsion`</js><c>`crossingRepulsion`</c><py>`crossing_repulsion`</py>. |
+| The recovery from a penetration is too slow, or too violent. | Change the <notjs>`recovery_pace`</notjs><js>`recoveryPace`</js><c>`recoveryPace`</c><py>`recovery_pace`</py>, i.e., the corrective speed allowed to the recovery (in length units per second). |
+| Soft contacts feel too spongy. | Raise the <notjs>`contact_stiffening`</notjs><js>`softBodiesContactStiffening`</js><c>`contactStiffening`</c><py>`contact_stiffening`</py> of the soft-body contacts relative to the rigid ones. |
+| The overlap of two bodies isn't resolved at all. | Make sure both surfaces are closed: the intersection-volume constraints (<notjs>`overlap_constraints`</notjs><js>`overlapConstraints`</js><c>`overlapConstraints`</c><py>`overlap_constraints`</py>) only apply to them. |
+
+<c>
+
+:::info
+Each of these settings has its own setter (and getter), named after its field: `r3SoftBodiesSetMaxExtraSubsteps` and
+`r3SoftBodiesSetContactStiffening` for the settings of the soft-bodies, and `r3RecoverySetEdgeSpeculation`,
+`r3RecoverySetSelfStandDown`, `r3RecoverySetCrossingRepulsion`, etc. for the recovery settings. See the
+[global settings](./soft_bodies.mdx#global-settings) for an example.
+:::
+
+</c>

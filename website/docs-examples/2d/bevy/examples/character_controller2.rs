@@ -16,6 +16,8 @@ fn main() {
         .add_systems(FixedUpdate, modify_character_controller_snap_to_ground)
         .add_systems(FixedUpdate, read_character_controller_collisions)
         .add_systems(FixedUpdate, modify_character_controller_impulses)
+        .add_systems(FixedUpdate, move_character_manually)
+        .add_systems(Update, update_doors)
         .add_systems(
             Update,
             modify_character_controller_up.run_if(input_just_pressed(KeyCode::KeyG)),
@@ -60,7 +62,6 @@ fn setup_physics_more(mut commands: Commands) {
 
     // DOCUSAURUS: Slopes1 start
     /* Configure the character controller when the collider is created. */
-    // Snap to the ground if the vertical distance to the ground is smaller than 0.5.
     commands
         .spawn(Collider::ball(0.5))
         .insert(KinematicCharacterController {
@@ -86,7 +87,7 @@ fn setup_physics_more(mut commands: Commands) {
             ..default()
         });
 
-    // Autostep if the step height is smaller than 0.5 multiplied by the character’s height,
+    // Autostep if the step height is smaller than 0.3 multiplied by the character’s height,
     // and its width larger than 0.5 multiplied by the character’s width (i.e. half the character’s
     // width).
     commands
@@ -131,6 +132,34 @@ fn setup_physics_more(mut commands: Commands) {
             ..default()
         });
     // DOCUSAURUS: Collisions2 stop
+
+    let platform = commands.spawn(Collider::cuboid(2.0, 0.1)).id();
+
+    // DOCUSAURUS: Filtering start
+    /* Configure the character controller filters when the collider is created. */
+    commands
+        .spawn(Collider::ball(0.5))
+        .insert(KinematicCharacterController {
+            // Ignore all the sensors and all the colliders attached to dynamic rigid-bodies.
+            filter_flags: QueryFilterFlags::EXCLUDE_SENSORS | QueryFilterFlags::EXCLUDE_DYNAMIC,
+            // The character is part of the group 1 and only interacts with the group 2.
+            filter_groups: Some(CollisionGroups::new(Group::GROUP_1, Group::GROUP_2)),
+            // Ignore the collider attached to the `platform` entity.
+            exclude_colliders: [platform].into_iter().collect(),
+            // Ignore the colliders with a ball shape.
+            filter_predicate: Some(ControllerFilterPredicate::new(|_entity, collider| {
+                collider.shape().as_ball().is_none()
+            })),
+            ..default()
+        });
+    // DOCUSAURUS: Filtering stop
+
+    commands.spawn((Collider::cuboid(0.1, 1.0), Door { open: true }));
+    commands.spawn((
+        Collider::ball(0.5),
+        Transform::from_xyz(0.0, 2.0, 0.0),
+        ManualCharacter,
+    ));
 }
 
 // DOCUSAURUS: Setup start
@@ -157,6 +186,63 @@ fn read_result_system(controllers: Query<(Entity, &KinematicCharacterControllerO
 }
 // DOCUSAURUS: Setup stop
 
+// DOCUSAURUS: MoveShape start
+/// Marks a character moved without the `KinematicCharacterController` component.
+#[derive(Component)]
+struct ManualCharacter;
+
+fn move_character_manually(
+    mut context: WriteRapierContext,
+    mut characters: Query<(Entity, &Collider, &mut Transform), With<ManualCharacter>>,
+) -> Result {
+    let mut context = context.single_mut()?;
+    for (entity, collider, mut transform) in characters.iter_mut() {
+        // The translation we would like to apply if there were no obstacles.
+        let desired_translation = Vec2::new(1.0, -0.5);
+        // Configure the controller like with the `KinematicCharacterController` component.
+        let options = MoveShapeOptions {
+            snap_to_ground: Some(CharacterLength::Absolute(0.5)),
+            ..default()
+        };
+        // Make sure the character we are trying to move isn’t considered an obstacle.
+        let filter = QueryFilter::default().exclude_collider(entity);
+        // Calculate the possible movement.
+        let output = context.move_shape(
+            desired_translation,
+            collider,                                     // The character’s shape.
+            transform.translation.truncate(),             // The character’s initial position.
+            transform.rotation.to_euler(EulerRot::ZYX).0, // The character’s rotation.
+            1.0, // The character’s mass, for the impulses applied to dynamic bodies.
+            &options,
+            filter,
+            |collision| println!("The character hit the entity {:?}.", collision.entity),
+        );
+        // The movement isn’t applied automatically.
+        transform.translation += output.effective_translation.extend(0.0);
+    }
+    Ok(())
+}
+// DOCUSAURUS: MoveShape stop
+
+// DOCUSAURUS: ControllerIgnored start
+/// A door the characters can only walk through while it is open.
+#[derive(Component)]
+struct Door {
+    open: bool,
+}
+
+/* Hide the open doors from every controller inside of a system. */
+fn update_doors(mut commands: Commands, doors: Query<(Entity, &Door), Changed<Door>>) {
+    for (entity, door) in doors.iter() {
+        if door.open {
+            commands.entity(entity).insert(ControllerIgnored);
+        } else {
+            commands.entity(entity).remove::<ControllerIgnored>();
+        }
+    }
+}
+// DOCUSAURUS: ControllerIgnored stop
+
 // DOCUSAURUS: UpVector2 start
 /* Modify the character controller’s up vector inside of a system. */
 fn modify_character_controller_up(
@@ -169,7 +255,7 @@ fn modify_character_controller_up(
 // DOCUSAURUS: UpVector2 stop
 
 // DOCUSAURUS: Slopes2 start
-/* Configure snap-to-ground inside of a system. */
+/* Configure the slopes inside of a system. */
 fn modify_character_controller_slopes(
     mut character_controllers: Query<&mut KinematicCharacterController>,
 ) {
@@ -211,11 +297,15 @@ fn modify_character_controller_snap_to_ground(
 // DOCUSAURUS: Collisions1 start
 /* Read the character controller collisions stored in the character controller’s output. */
 fn read_character_controller_collisions(
-    mut character_controller_outputs: Query<&mut KinematicCharacterControllerOutput>,
+    character_controller_outputs: Query<&KinematicCharacterControllerOutput>,
 ) {
-    for mut output in character_controller_outputs.iter_mut() {
+    for output in character_controller_outputs.iter() {
         for collision in &output.collisions {
             // Do something with that collision information.
+            println!(
+                "The character hit the entity {:?} after moving by {}.",
+                collision.entity, collision.translation_applied
+            );
         }
     }
 }

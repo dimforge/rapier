@@ -47,6 +47,68 @@ import RAPIER from '@dimforge/rapier3d';
     let clothHandle = cloth.handle;
     // DOCUSAURUS: Creation stop
 
+    // DOCUSAURUS: Volumetric start
+    // Fill a closed, outward-oriented triangle mesh (here a box) with tetrahedral cells of
+    // about 0.2 in size.
+    let boxVertices = new Float32Array([
+        -0.5, -0.25, -0.25, 0.5, -0.25, -0.25, 0.5, 0.25, -0.25, -0.5, 0.25, -0.25,
+        -0.5, -0.25, 0.25, 0.5, -0.25, 0.25, 0.5, 0.25, 0.25, -0.5, 0.25, 0.25,
+    ]);
+    let boxIndices = new Uint32Array([
+        0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4,
+        3, 7, 6, 3, 6, 2, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5,
+    ]);
+    let blockDesc = RAPIER.SoftBodyDesc.volumetric(boxVertices, boxIndices, 0.2);
+    let block = world.createSoftBody(blockDesc.setTranslation({ x: -3.0, y: 1.0, z: 0.0 }));
+    // DOCUSAURUS: Volumetric stop
+
+    // DOCUSAURUS: Fem start
+    // A stiff beam simulated by the FEM solver: its stiffness doesn't depend on the number of
+    // solver iterations.
+    let beamMaterial = new RAPIER.SoftBodyMaterial();
+    beamMaterial.youngModulus = 1.0e5;
+    beamMaterial.poissonRatio = 0.3;
+    let beamDesc = RAPIER.SoftBodyDesc.cuboid(
+        { x: 0.0, y: 2.0, z: -3.0 }, { x: 1.0, y: 0.1, z: 0.1 }, 11, 3, 3,
+    )
+        .setSolver(RAPIER.SoftBodySolver.Fem)
+        .setCellModel(RAPIER.SoftBodyCellModel.NeoHookean)
+        .setMaterial(beamMaterial)
+        // The particles of the face at `x = -1` are the first 3 × 3 ones.
+        .setPinnedParticles(new Uint32Array([0, 1, 2, 3, 4, 5, 6, 7, 8]));
+    let beam = world.createSoftBody(beamDesc);
+
+    // The tuning of the linear solves of the FEM solver, shared by every body using it.
+    world.integrationParameters.softBodiesFemLinearTolerance = 1.0e-5;
+    world.integrationParameters.softBodiesFemMaxLinearIterations = 20;
+    // DOCUSAURUS: Fem stop
+
+    // DOCUSAURUS: ShapeMatching start
+    // A cloud of particles without any element: shape matching alone pulls them back toward
+    // their rest shape, placed where it best fits the current one.
+    let points = [];
+    for (let i = 0; i < 27; ++i) {
+        points.push((i % 3) * 0.3, (Math.floor(i / 3) % 3) * 0.3 + 4.0, Math.floor(i / 9) * 0.3);
+    }
+    let shapeMaterial = new RAPIER.SoftBodyMaterial();
+    // How fast the particles are pulled back toward their rest shape.
+    shapeMaterial.shapeMatchingSoftness = { naturalFrequency: 5.0, dampingRatio: 1.0 };
+    let pointCloudDesc = new RAPIER.SoftBodyDesc(points)
+        .setShapeMatching(true)
+        .setMaterial(shapeMaterial)
+        .setParticleRadius(0.1);
+    let pointCloud = world.createSoftBody(pointCloudDesc);
+    // DOCUSAURUS: ShapeMatching stop
+
+    // DOCUSAURUS: Oriented start
+    // A shell: a closed surface that is not oriented, so its inner side holds the bodies put
+    // inside it (a bowl, a box, a container). A closed surface is oriented by default.
+    let bowlDesc = RAPIER.SoftBodyDesc.sphere({ x: -3.0, y: 2.0, z: 0.0 }, 0.8, 2)
+        .setOriented(false)
+        .setSoftness(60.0, 1.0);
+    let bowl = world.createSoftBody(bowlDesc);
+    // DOCUSAURUS: Oriented stop
+
     // DOCUSAURUS: Material start
     // Elastic cells: a jelly cube with corotational linear elasticity.
     let material = new RAPIER.SoftBodyMaterial();
@@ -116,10 +178,26 @@ import RAPIER from '@dimforge/rapier3d';
     let ball = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(last.x, last.y - 0.3, last.z));
     world.createCollider(RAPIER.ColliderDesc.ball(0.25).setDensity(2.0), ball);
     rope.attachParticle(29, ball);
-    // The hidden rigid body standing for the whole soft body in joints and islands.
-    let rootBody = rope.rootBody();
-    console.log("root body is a soft frame:", rootBody.isSoftFrame());
     // DOCUSAURUS: Attachments stop
+
+    // DOCUSAURUS: RootBody start
+    // The rigid body the engine created for the whole soft body, read back after its insertion.
+    let rootBody = jelly.rootBody();
+    console.log("root body is a soft frame:", rootBody.isSoftFrame());
+
+    // A rigid collider attached to it follows the frame of the whole body: here a sensor
+    // detecting what comes close to the jelly.
+    world.createCollider(RAPIER.ColliderDesc.ball(1.0).setSensor(true), rootBody);
+
+    // A joint attached to it acts on the soft body as a whole: this one hangs the jelly under a
+    // fixed anchor by a spring.
+    let jellyAnchor = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(3.0, 4.0, 0.0));
+    let jellySpring = RAPIER.JointData.spring(
+        2.5, 60.0, 2.0,
+        { x: 0.0, y: 0.0, z: 0.0 }, { x: 0.0, y: 0.0, z: 0.0 },
+    );
+    world.createImpulseJoint(jellySpring, jellyAnchor, rootBody, true);
+    // DOCUSAURUS: RootBody stop
 
     // DOCUSAURUS: Clusters start
     // A cluster over the top particles of the jelly: a rigid proxy that joints and
@@ -144,6 +222,15 @@ import RAPIER from '@dimforge/rapier3d';
     jelly.setClusterStiffnessScale(cluster, 2.0);
     jelly.enableClusterShapeMatching(cluster, true);
     // DOCUSAURUS: Clusters stop
+
+    // DOCUSAURUS: ClusterControl start
+    // Pin every particle of the cluster, then move it along a path: the cluster behaves like a
+    // kinematic rigid part dragging the rest of the body.
+    jelly.setClusterPinned(cluster, true);
+    jelly.setClusterKinematicTarget(cluster, { x: 3.0, y: 2.0, z: 0.0 }, { w: 1.0, x: 0.0, y: 0.0, z: 0.0 });
+    // Release it: the cluster is simulated again.
+    jelly.setClusterPinned(cluster, false);
+    // DOCUSAURUS: ClusterControl stop
 
     // DOCUSAURUS: DeformableColliders start
     // A deformable triangle mesh bound to the jelly: each vertex is embedded in the cell
@@ -170,6 +257,52 @@ import RAPIER from '@dimforge/rapier3d';
     let skinVertices: Float32Array = jelly.meshVertices(meshIndex);
     console.log("The skin has", skinVertices.length / 3, "vertices");
     // DOCUSAURUS: DeformableColliders stop
+
+    // DOCUSAURUS: Skinning start
+    // A mesh held by a cage of cells (the last `true` argument): only the cells are simulated,
+    // and the mesh (the skin) follows their deformation.
+    let skinnedDesc = RAPIER.SoftBodyDesc.volumetric(boxVertices, boxIndices, 0.25, true)
+        // Collide through the skin instead of the boundary of the cage.
+        .setSkinCollision(true)
+        .setTranslation({ x: 0.0, y: 4.0, z: 3.0 });
+    let skinned = world.createSoftBody(skinnedDesc);
+    // The skin is the body's collision mesh: read its vertices back to render it.
+    let skinPositions: Float32Array = skinned.meshVertices(0);
+    console.log("The skin has", skinPositions.length / 3, "vertices");
+    // DOCUSAURUS: Skinning stop
+
+    // DOCUSAURUS: Plasticity start
+    // The jelly has elastic (corotational) cells: the plasticity of `Volume` cells has no effect.
+    let plasticMaterial = jelly.material();
+    // Cells: the rest shape flows toward the current one past 5% strain, at a rate of 20 per
+    // second, up to a total permanent deformation of 50%.
+    plasticMaterial.plasticYield = 0.05;
+    plasticMaterial.plasticCreep = 20.0;
+    plasticMaterial.plasticMax = 0.5;
+    // Edges: the rest length flows past 10% strain, up to half the initial length, but only
+    // when squeezed (a dent stays, a stretch springs back).
+    plasticMaterial.edgePlasticYield = 0.1;
+    plasticMaterial.edgePlasticCreep = 10.0;
+    plasticMaterial.edgePlasticMax = 0.5;
+    plasticMaterial.edgePlasticFlow = RAPIER.SoftEdgePlasticFlow.Compression;
+    jelly.setMaterial(plasticMaterial);
+    // Every permanent deformation can be undone at once.
+    jelly.resetPlasticity();
+    // DOCUSAURUS: Plasticity stop
+
+    // DOCUSAURUS: TearingMaterial start
+    let tearMaterial = cloth.material();
+    // An edge tears past 40% of stretch, or past a force of 50 along its direction.
+    tearMaterial.tearStrain = 0.4;
+    tearMaterial.tearForce = 50.0;
+    // The load is smoothed over 0.1 second, so a single impact spike doesn't tear.
+    tearMaterial.tearSmoothing = 0.1;
+    // Undamaged interior elements are twice as tough: tears start from the surface.
+    tearMaterial.interiorStrength = 2.0;
+    // A tear never splits off a piece smaller than 10 elements.
+    tearMaterial.minPiece = 10;
+    cloth.setMaterial(tearMaterial);
+    // DOCUSAURUS: TearingMaterial stop
 
     // DOCUSAURUS: Tearing start
     // Elements tear on their own past the material's thresholds; a tear can also be requested.
@@ -219,6 +352,11 @@ import RAPIER from '@dimforge/rapier3d';
     // Stiffening of the soft-body contacts relative to the rigid ones.
     // Default: 4.0
     world.integrationParameters.softBodiesContactStiffening = 4.0;
+    // The tangle detection and recovery stack can be switched off mechanism by mechanism; the
+    // getter gives back a copy, so the settings are assigned back after being changed.
+    let recovery = world.integrationParameters.softBodiesRecovery;
+    recovery.crossingRepulsion = true;
+    world.integrationParameters.softBodiesRecovery = recovery;
     // DOCUSAURUS: Settings stop
 
     // DOCUSAURUS: Removal start

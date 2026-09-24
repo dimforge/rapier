@@ -7,11 +7,174 @@ sidebar_label: Integration parameters
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-Various aspects of the physics simulation can be tuned by modifying the fields of the `IntegrationParameters`.
+Various aspects of the physics simulation can be tuned by modifying the fields of the <notc>`IntegrationParameters`</notc><c>`R3IntegrationParameters`</c>.
 Most of these parameters are somewhat advanced and should not be modified unless you know their meaning and effect.
 Several of them are about balancing efficiency and accuracy. They are given default values that work well in the
 context of video-games or animations. For more realistic simulations you may want to change those parameters to favor
 accuracy over performance.
+
+:::info
+Several parameters are expressed in a **normalized** form, i.e., their value is implicitly multiplied by
+[`length_unit`](./integration_parameters.mdx#length_unit) before being used. Therefore they don't need to be adjusted
+when the world is not measured in meters.
+:::
+
+<bevy>
+
+## Setting the integration parameters
+The integration parameters of a physics context are stored in the
+`RapierContextSimulation::integration_parameters` field of its `RapierContextSimulation` component. The integration
+parameters of the default physics context can be given to the `RapierPhysicsPlugin` directly, together with its
+[configuration](./simulation_structures.mdx#configuration) and the optimization strategy of its broad-phase, by
+initializing it with `RapierContextInitialization::InitializeDefaultRapierContext`. The `IntegrationParameters`
+structure (as well as the `FrictionModel` enum in 3D) is part of the prelude of `bevy_rapier`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/pipeline_config2.rs' marker='ContextInitialization' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/pipeline_config3.rs' marker='ContextInitialization' />
+```
+
+  </TabItem>
+</Tabs>
+
+The `broad_phase_optimization_strategy` selects how the BVH of the broad-phase is kept efficient while the colliders
+move: `BroadPhaseOptimizationStrategy::SubtreeOptimizer` (the default) optimizes different sub-trees at each
+timestep, whereas `BroadPhaseOptimizationStrategy::None` disables this incremental optimization (which is only useful
+for debugging). It can only be selected when the physics context is created, e.g., with
+`RapierContextSimulation::with_broad_phase_optimization_strategy` for a context you spawn yourself.
+
+The integration parameters can then be modified at any time through the `RapierContextSimulation` component:
+
+```rust
+<load path='/3d/bevy/examples/pipeline_config3.rs' marker='IntegrationParameters' />
+```
+
+</bevy>
+
+<c>
+
+## Setting the integration parameters
+The integration parameters are owned by the [world](./simulation_structures.mdx#physics-world). They can be read
+all at once with `r3IntegrationParameters`, which returns a copy of them as an `R3IntegrationParameters` structure,
+and modified all at once by giving such a structure to `r3SetIntegrationParameters`. The
+`r3DefaultIntegrationParameters` function gives the default values of every parameter, which are also the initial
+values of the parameters of a new world:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/integration_parameters2.c' marker='IntegrationParameters' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/integration_parameters3.c' marker='IntegrationParameters' />
+```
+
+  </TabItem>
+</Tabs>
+
+Each parameter can also be read and modified on its own, with a dedicated pair of functions:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/integration_parameters2.c' marker='Setters' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/integration_parameters3.c' marker='Setters' />
+```
+
+  </TabItem>
+</Tabs>
+
+The parameters are validated when they are modified: an invalid value (e.g. a negative `dt`, or zero solver iterations) is rejected with the
+`R3_INVALID_ARGUMENT` error, and leaves the parameters of the world unchanged. The rest of this page names the
+parameters as the Rust version of Rapier does. Here are their C names:
+
+| Parameter                               | Field of `R3IntegrationParameters`   | Getter and setter                                                             |
+|-----------------------------------------|--------------------------------------|-------------------------------------------------------------------------------|
+| `dt`                                    | `dt`                                 | `r3TimeStep`, `r3SetTimeStep`                                                 |
+| `length_unit`                           | `lengthUnit`                         | `r3LengthUnit`, `r3SetLengthUnit`                                             |
+| `max_ccd_substeps`                      | `maxCcdSubsteps`                     | `r3MaxCcdSubsteps`, `r3SetMaxCcdSubsteps`                                     |
+| `min_ccd_dt`                            | `minCcdDt`                           | `r3MinCcdDt`, `r3SetMinCcdDt`                                                 |
+| `num_solver_iterations`                 | `numSolverIterations`                | `r3NumSolverIterations`, `r3SetNumSolverIterations`                           |
+| `num_internal_pgs_iterations`           | `numInternalPgsIterations`           | `r3NumInternalPgsIterations`, `r3SetNumInternalPgsIterations`                 |
+| `num_internal_stabilization_iterations` | `numInternalStabilizationIterations` | `r3NumInternalStabilizationIterations`, `r3SetNumInternalStabilizationIterations` |
+| `warmstart_coefficient`                 | `warmstartCoefficient`               | `r3WarmstartCoefficient`, `r3SetWarmstartCoefficient`                         |
+| `warmstart_joints`                      | `warmstartJoints`                    | `r3WarmstartJoints`, `r3SetWarmstartJoints`                                   |
+| `friction_in_bias_pass`                 | `frictionInBiasPass`                 | `r3FrictionInBiasPass`, `r3SetFrictionInBiasPass`                             |
+| `friction_model` (3D only)              | `frictionModel`                      | `r3FrictionModel`, `r3SetFrictionModel`                                       |
+| `contact_softness`                      | `contactSoftness`                    | `r3ContactSoftness`, `r3SetContactSoftness`                                   |
+| `static_contact_softness`               | `staticContactSoftness`              | `r3StaticContactSoftness`, `r3SetStaticContactSoftness`                       |
+| `normalized_prediction_distance`        | `normalizedPredictionDistance`       | `r3NormalizedPredictionDistance`, `r3SetNormalizedPredictionDistance`         |
+| `normalized_allowed_linear_error`       | `normalizedAllowedLinearError`       | `r3NormalizedAllowedLinearError`, `r3SetNormalizedAllowedLinearError`         |
+| `normalized_max_corrective_velocity`    | `normalizedMaxCorrectiveVelocity`    | `r3NormalizedMaxCorrectiveVelocity`, `r3SetNormalizedMaxCorrectiveVelocity`   |
+| `normalized_max_linear_velocity`        | `normalizedMaxLinearVelocity`        | `r3NormalizedMaxLinearVelocity`, `r3SetNormalizedMaxLinearVelocity`           |
+| `contact_clustering`                    | `contactClustering`                  | `r3ContactClustering`, `r3SetContactClustering`                               |
+| `contact_recycling`                     | `contactRecycling`                   | `r3ContactRecycling`, `r3SetContactRecycling`                                 |
+| `normalized_contact_recycle_distance`   | `normalizedContactRecycleDistance`   | `r3NormalizedContactRecycleDistance`, `r3SetNormalizedContactRecycleDistance` |
+| `soft_bodies`                           | `softBodies`                         | See the [soft-body settings](./soft_bodies.mdx#global-settings)                |
+
+</c>
+
+<py>
+
+## Setting the integration parameters
+The integration parameters are owned by the [physics world](./simulation_structures.mdx#physics-world), and
+exposed as its `PhysicsWorld.integration_parameters` property. This property always gives the same
+`IntegrationParameters` object, so the parameters are modified in place by setting its properties, which have the
+same names as the parameters described in this page. Assigning an `IntegrationParameters` to the property of the world
+copies all its parameters at once, e.g., the default values given by `IntegrationParameters()`:
+
+```python
+<load path='/3d/python/integration_parameters.py' marker='IntegrationParameters' />
+```
+
+:::warning
+The contact softnesses (`contact_softness` and `static_contact_softness`) are given as copies: modifying the object
+read from one of these properties has no effect until it is assigned back to the property. On the other hand, the
+`soft_bodies` settings are a live view of the parameters, like the `IntegrationParameters` of the world itself.
+:::
+
+</py>
+
+## Time-stepping
 
 ### `dt`
 The timestep length used for each update of the physics engine. This is the time by which the physics simulation will
@@ -20,44 +183,307 @@ yield better accuracy. Large timesteps increase the negative effect of some appr
 parts of the equations of motion) and may result in missed collisions (because of collisions that may occur in-between
 timesteps for fast-moving objects).
 
+<bevy>
+
+The `dt` parameter is overwritten by the plugin before each update of the physics according to the `TimestepMode`
+resource, which also selects the number of timesteps executed by each run of the physics systems:
+- `TimestepMode::Variable { max_dt, time_scale, substeps }` (the default, with `max_dt` $= 1 / 60$, `time_scale`
+  $= 1$, and `substeps` $= 1$) advances the simulation by the time elapsed since the last frame multiplied by
+  `time_scale`, without exceeding `max_dt`. This timestep is subdivided into `substeps` timesteps of equal length. No
+  timestep is executed if the elapsed time is zero (e.g. on the first frame).
+- `TimestepMode::Fixed { dt, substeps }` advances the simulation by `dt`, in `substeps` timesteps of equal length,
+  each time the physics systems run. This is the recommended mode when the physics runs in the `FixedUpdate` schedule.
+- `TimestepMode::Interpolated { dt, time_scale, substeps }` executes as many updates of length `dt` as needed for the
+  simulated time to keep up with the real time (possibly none), each of them advancing the simulation by `dt`
+  multiplied by `time_scale` in `substeps` timesteps. The rigid-bodies with a `TransformInterpolation` component have
+  their `Transform` interpolated between the last two timesteps so their motion looks smooth whatever the frame rate.
+
+```rust
+<load path='/3d/bevy/examples/pipeline_config3.rs' marker='TimestepMode' />
+```
+
+:::warning
+The `TimestepMode::Variable` mode depends on the frame rate of your application, therefore it will not give the same
+simulation results twice. Use `TimestepMode::Fixed` (or `TimestepMode::Interpolated`) if you need
+[determinism](./determinism.mdx).
+:::
+
+</bevy>
+
+<c>
+
+Each call to `r3Step` advances the simulation by exactly `dt`. If the physics must follow the real time while the
+frame rate of your application varies, it is recommended to keep `dt` constant and to call `r3Step` as many times as
+needed at each frame, i.e., to accumulate the time elapsed since the last frame, and to execute one timestep each time
+this accumulated time exceeds `dt`. Changing `dt` at each frame instead makes the simulation depend on the frame rate,
+therefore it will not give the same simulation results twice (see [determinism](./determinism.mdx)).
+
+</c>
+
+<py>
+
+Each call to `PhysicsWorld.step` advances the simulation by exactly `dt`. If the physics must follow the real time
+while the frame rate of your application varies, it is recommended to keep `dt` constant and to call
+`PhysicsWorld.step` as many times as needed at each frame, i.e., to accumulate the time elapsed since the last frame
+(e.g. measured with `time.perf_counter`), and to execute one timestep each time this accumulated time exceeds `dt`.
+Changing `dt` at each frame instead makes the simulation depend on the frame rate, therefore it will not give the same
+simulation results twice (see [determinism](./determinism.mdx)).
+
+</py>
+
+### `length_unit`
+The number of your own length units that make one meter. The default is $1.0$, i.e., the simulation is measured in
+meters. Rapier is tuned for human-scale objects measured in meters, therefore a simulation measured in centimeters
+should set this to $100.0$, and a 2D game where a typical object is 100 pixels tall should set it to $100.0$ as well.
+This scales the normalized parameters as well as various internal tolerances, and is the recommended alternative to
+re-tuning every threshold by hand. Learn more about this in the
+[common mistakes](./common_mistakes.mdx#why-is-everything-moving-in-slow-motion) page.
+
+<bevy>
+
+The length unit of the default physics context is set with
+`RapierPhysicsPlugin::with_length_unit`, or with `RapierPhysicsPlugin::pixels_per_meter` in 2D. Note that it also
+scales the default gravity of the physics context and the lengths drawn by the [debug-renderer](./debug_render.mdx).
+
+</bevy>
+
+<c>
+
+Note that the length unit doesn't scale the gravity, nor any of the values you give to the engine: they must be
+expressed in your own units as well, e.g., a simulation measured in centimeters needs a gravity of $-981$ along the
+$y$ axis:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/integration_parameters2.c' marker='LengthUnit' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/integration_parameters3.c' marker='LengthUnit' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+
+<py>
+
+Note that the length unit doesn't scale the gravity, nor any of the values you give to the engine: they must be
+expressed in your own units as well, e.g., a simulation measured in centimeters needs a gravity of $-981$ along the
+$y$ axis:
+
+```python
+<load path='/3d/python/integration_parameters.py' marker='LengthUnit' />
+```
+
+</py>
+
+### `max_ccd_substeps`
+The maximum number of [CCD](./rigid_bodies.mdx#continuous-collision-detection) substeps performed during one timestep.
+The default is $1$. This is also the global switch of CCD: setting it to $0$ disables every form of CCD for this world,
+including the sweeping of the fast dynamic bodies against the fixed colliders.
+
 ### `min_ccd_dt`
 When CCD with multiple substeps is enabled, the timestep is subdivided into smaller pieces. This timestep subdivision
-won't generate timestep lengths smaller than `min_ccd_dt`.
+won't generate timestep lengths smaller than `min_ccd_dt`. The default is $1 / 60 / 100$ seconds.
 
-Setting this to a large value will reduce the opportunity to performing CCD substepping, resulting in potentially more
-time dropped by the motion-clamping mechanism. Setting this to an very small value may lead to numerical instabilities
-and rigid-bodies remaining stuck in place.
+Setting this to a large value will reduce the opportunity to performing CCD substepping. Setting this to a very small
+value may lead to numerical instabilities.
 
-### `erp`
-The Error Reduction Parameter in $[0, 1]$ is the proportion of the positional error to be corrected at each time step.
-An ERP set to 0 means that no penetration will be corrected, and an ERP set to 1 means all
-the penetrations between two solids will be corrected in a single timestep. While setting 1 may sound appealing, this will
-cause objects to jitter in practice because penetration correction may add or remove kinetic energy to the system.
+## Constraints solver
 
-### `joint_erp`
-This is the same as 
+### `num_solver_iterations`
+The number of iterations, aka. substeps, run by the constraints solver. The default is $4$. Higher values give more
+accurate and more stable simulations, at the cost of performance: $8$ to $12$ is a reasonable range for demanding
+scenes (tall stacks, machinery with stiff joints), whereas $1$ or $2$ may be enough if performance matters more than
+accuracy. Note that a single rigid-body can be given additional iterations of its own, as described in the
+[rigid-body solver settings](./rigid_bodies.mdx#solver-settings) section.
 
-### `warmstart_coeff`
-Each cached impulse are multiplied by this coefficient in $[0, 1]$ when they are re-used to initialize the constraints
-solver. The default is $1.0$. A high warm-start coefficient causes faster convergence but may add kinetic energy to the
-system (and cause jitters) for fast objects subject to non-elastic contacts. However $1.0$ still remains a good choice
-for practical applications as it allows convergence of the constraints solver even if the maximum number of solver
-iterations is small.
+### `num_internal_pgs_iterations`
+The number of internal Projected Gauss-Seidel iterations run at each solver iteration. The default is $1$.
 
-### `allowed_linear_error`
-Amount of penetration the engine won't attempt to fix. The default is $0.001$ meters. Setting this to 0 would cause
-jittering because contacts would start and stop being active at a high frequency for resting objects (due to inevitable
-numerical errors). A value too large would cause noticeable penetrations.
+### `num_internal_stabilization_iterations`
+The number of stabilization iterations run at each solver iteration. The default is $1$. These are the iterations
+solving the constraints without their depenetration forces. This is what prevents the energy introduced by the position
+correction from remaining in the simulation.
 
-### `max_linear_correction`
-Maximum translation-based penetration correction performed by the non-linear position solver during a single iteration.
-The default is $100.0$. A value too small would prevent penetrations from being corrected fast enough while a large
-value could cause jittering due to the solver overshooting (i.e. applying a correction that is too large).
+### `warmstart_coefficient`
+Each cached impulse is multiplied by this coefficient in $[0, 1]$ when it is re-used to initialize the constraints
+solver. The default is $1.0$: it allows the convergence of the solver even when the number of iterations is small.
 
-### `max_velocity_iterations`
-Maximum number of iterations performed by the velocity constraints solver for impulse computation. More iterations imply
-greater accuracy at the cost of increased computation times.
+### `warmstart_joints`
+If enabled, the impulse-joint constraints are warm-started like the contacts are, i.e., the impulses accumulated by the
+previous timestep are re-applied at the beginning of each substep instead of restarting from zero. The default is
+<notpy>`false`</notpy><py>`False`</py>. Enabling it noticeably improves the convergence of stiff joint assemblies. Note that the multibody joints are
+not affected by this parameter.
 
-### `max_position_iterations`
-Maximum number of iterations performed by the position-based constraints solver for penetration correction. More iterations
-imply greater accuracy at the cost of increased computation times.
+### `friction_in_bias_pass`
+If enabled, friction is solved during the biased pass of each substep as well as during the unbiased one. The default
+is <notpy>`false`</notpy><py>`False`</py>, which is both cheaper and often more stable.
+
+### `friction_model` (3D only)
+
+<notpy>
+
+The kind of friction constraints solved by the engine. The <notc>`Simplified`</notc><c>`R3_FRICTION_MODEL_SIMPLIFIED`</c> model (the default) solves one
+Coulomb constraint per group of four contacts, plus one purely rotational "twist" constraint eliminating the angular
+motion in the tangent plane of the manifold. The <notc>`Coulomb`</notc><c>`R3_FRICTION_MODEL_COULOMB`</c> model solves one Coulomb constraint per contact point
+instead: it is more mechanically correct but more expensive.
+
+</notpy>
+
+<py>
+
+The kind of friction constraints solved by the engine, given by the `FrictionModel` enum. The
+`FrictionModel.SIMPLIFIED` model (the default) solves one Coulomb constraint per group
+of four contacts, plus one purely rotational "twist" constraint eliminating the angular motion in the tangent plane of
+the manifold. The `FrictionModel.COULOMB` model solves one Coulomb constraint per contact point instead: it is more
+mechanically correct but more expensive.
+
+```python
+<load path='/3d/python/integration_parameters.py' marker='FrictionModel' />
+```
+
+</py>
+
+<c>
+
+```c
+<load path='/3d/c/examples/integration_parameters3.c' marker='FrictionModel' />
+```
+
+</c>
+
+## Contacts
+
+### `contact_softness` and `static_contact_softness`
+The softness of the contact constraints, given as a natural frequency (in Hz) and a damping ratio instead of a
+stiffness, so it doesn't depend on the masses of the colliding bodies. Softer constraints make the contacts more
+compliant (meaning that they allow more penetrations when pressed on), whereas harder constraints feel more rigid
+and correct, but might introduce jitters if too rigid.
+
+<c>
+
+Both are given as an `R3SpringCoefficients` structure, with its `natural_frequency` and `damping_ratio` fields. The
+`static_contact_softness` applies to the contacts where one side is a fixed rigid-body, and is stiffer than
+`contact_softness` by default so the bodies are held firmly against the static walls and floors:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/integration_parameters2.c' marker='ContactSoftness' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/integration_parameters3.c' marker='ContactSoftness' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+
+<py>
+
+Both are given as a `SpringCoefficients`, with its `natural_frequency` and `damping_ratio` properties. The
+`static_contact_softness` applies to the contacts where one side is a fixed rigid-body, and is stiffer than
+`contact_softness` by default so the bodies are held firmly against the static walls and floors. Keep in mind that
+these properties give copies of the coefficients, which must be assigned back once modified:
+
+```python
+<load path='/3d/python/integration_parameters.py' marker='ContactSoftness' />
+```
+
+</py>
+
+### `normalized_prediction_distance`
+The maximal distance separating two objects that will generate predictive (aka. speculative) contacts. The default is
+$0.02$, i.e., four times the geometric slop. Generating contacts before the objects actually touch is what allows the
+solver to stop them exactly at the surface instead of letting them interpenetrate first.
+
+### `normalized_allowed_linear_error`
+The geometric slop distance. The default is $0.005$.
+
+### `normalized_max_corrective_velocity`
+The maximum speed at which the solver is allowed to push penetrating objects apart. The default is $3.0$. Capping this
+velocity is what keeps a deep penetration from being resolved explosively.
+
+### `normalized_max_linear_velocity`
+The maximum linear velocity a rigid-body may have after each substep. The default is $400.0$. This velocity cap helps
+with stability and CCD effectiveness.
+
+### `contact_clustering`
+If enabled, the contact manifolds of a collider pair that share (nearly) the same normal are merged into a single
+cluster manifold before the constraints are generated (default: <notpy>`true`</notpy><py>`True`</py>, 3D only), so at most four contact points are
+solved per contact plane. This is a large gain on the composite shapes (triangle-meshes, heightfields, compound shapes,
+voxels) which generate one manifold per sub-shape.
+
+<notpy>
+
+<notc>
+
+:::warning
+When contact clustering applies, the contacts and impulses seen by the solver must be read from
+`ContactPair::solver_clusters` instead of `ContactPair::manifolds`. See the
+[contact graph](./advanced_collision_detection.mdx#the-contact-graph) section.
+:::
+
+</notc>
+
+</notpy>
+
+<py>
+
+:::warning
+When contact clustering applies, the impulses of the contact points of `ContactPair.manifolds` (which are the points
+of the geometric contact manifolds) don't reflect the impulses applied by the solver. Read the impulses from the totals
+of the `ContactPair` instead (e.g. `ContactPair.total_impulse()` and `ContactPair.total_impulse_magnitude()`), which
+account for the clusters. See the [contact graph](./advanced_collision_detection.mdx#the-contact-graph) section.
+:::
+
+</py>
+
+<c>
+
+:::warning
+When contact clustering applies, the impulses of the contact points given by `r3ContactPoints` (which are the
+points of the geometric contact manifolds) don't reflect the impulses applied by the solver. Read the impulses from
+the totals of the `R3ContactPair` instead (e.g. `total_impulse` and `max_impulse`), which account for the clusters.
+See the [contact graph](./advanced_collision_detection.mdx#the-contact-graph) section.
+:::
+
+</c>
+
+### `contact_recycling` and `normalized_contact_recycle_distance`
+If enabled, a contact pair which relative position moved less than the recycle distance since its last full update
+keeps its existing contact points instead of recomputing them (default: <notpy>`true`</notpy><py>`True`</py>, with a recycle distance of $0.05$).
+
+## Soft-bodies
+
+### `soft_bodies`
+The settings shared by every [soft-body](./soft_bodies.mdx) of the world. They are detailed in the
+[soft-body settings](./soft_bodies.mdx#global-settings) section.<bevy> They are modified
+through the `RapierContextSimulation::integration_parameters` field like the other integration
+parameters.</bevy><c> They are modified through the `softBodies` field of the `R3IntegrationParameters` like the other integration parameters, or with their dedicated functions, e.g., `r3SoftBodiesSetMaxExtraSubsteps`.</c><py> They are given by the `soft_bodies` property of the `IntegrationParameters` as a live view, so they are modified in place like the other integration parameters (its `copy` method gives a detached copy).</py>

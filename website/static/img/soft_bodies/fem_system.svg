@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 327.0" width="820" height="327.0" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img">
+  <title>Finite elements: one global system</title>
+  <desc>Left: a mesh of cells with numbered mass points. Right: the global linear system assembled from all the cells at once; a block is non-zero when two mass points share a cell. The FEM solver solves this whole system each substep instead of correcting the cells one by one.</desc>
+  <rect x="0.5" y="0.5" width="819" height="326.0" rx="12" fill="#ffffff" stroke="#e1e4e8"/>
+  <text x="210.0" y="38.0" font-size="15" fill="#1c1e21" text-anchor="middle" font-weight="600" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">Mesh</text>
+  <text x="600.0" y="38.0" font-size="15" fill="#1c1e21" text-anchor="middle" font-weight="600" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">Assembled system: (M + hD + h²K) Δv = b</text>
+  <polygon points="129.5,210.0 175.5,210.0 152.5,170.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="175.5,210.0 198.5,170.0 152.5,170.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="175.5,210.0 221.5,210.0 198.5,170.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="221.5,210.0 244.5,170.0 198.5,170.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="221.5,210.0 267.5,210.0 244.5,170.0" fill="#fde2c4" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="267.5,210.0 290.5,170.0 244.5,170.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="152.5,170.0 198.5,170.0 175.5,130.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="152.5,170.0 175.5,130.0 129.5,130.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="198.5,170.0 244.5,170.0 221.5,130.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="198.5,170.0 221.5,130.0 175.5,130.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="244.5,170.0 290.5,170.0 267.5,130.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="244.5,170.0 267.5,130.0 221.5,130.0" fill="#d3f3ea" stroke="#1a8870" stroke-width="1.4" stroke-linejoin="round"/>
+  <circle cx="129.5" cy="210.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="129.5" y="214.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">1</text>
+  <circle cx="175.5" cy="210.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="175.5" y="214.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">2</text>
+  <circle cx="221.5" cy="210.0" r="11" fill="#ea8a0c" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="221.5" y="214.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">3</text>
+  <circle cx="267.5" cy="210.0" r="11" fill="#ea8a0c" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="267.5" y="214.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">4</text>
+  <circle cx="152.5" cy="170.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="152.5" y="174.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">5</text>
+  <circle cx="198.5" cy="170.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="198.5" y="174.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">6</text>
+  <circle cx="244.5" cy="170.0" r="11" fill="#ea8a0c" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="244.5" y="174.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">7</text>
+  <circle cx="290.5" cy="170.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="290.5" y="174.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">8</text>
+  <circle cx="129.5" cy="130.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="129.5" y="134.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">9</text>
+  <circle cx="175.5" cy="130.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="175.5" y="134.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">10</text>
+  <circle cx="221.5" cy="130.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="221.5" y="134.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">11</text>
+  <circle cx="267.5" cy="130.0" r="11" fill="#1a8870" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="267.5" y="134.0" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="700">12</text>
+  <rect x="498.0" y="70.0" width="204.0" height="204.0" rx="0" fill="#ffffff" stroke="#4b5563" stroke-width="1.5"/>
+  <rect x="499.0" y="139.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="652.0" y="139.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="618.0" y="122.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="567.0" y="156.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="516.0" y="156.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="584.0" y="224.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="669.0" y="156.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="652.0" y="207.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="601.0" y="241.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="635.0" y="224.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="533.0" y="105.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <rect x="499.0" y="88.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="652.0" y="241.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="584.0" y="105.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="686.0" y="258.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="533.0" y="173.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <rect x="618.0" y="190.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="584.0" y="173.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="686.0" y="173.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="584.0" y="139.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="550.0" y="122.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <rect x="601.0" y="156.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="635.0" y="139.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="601.0" y="122.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <rect x="652.0" y="156.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="567.0" y="224.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="516.0" y="71.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="635.0" y="207.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="584.0" y="241.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="533.0" y="88.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="567.0" y="71.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="516.0" y="105.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="669.0" y="224.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="584.0" y="88.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="618.0" y="258.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="669.0" y="258.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="686.0" y="241.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="550.0" y="190.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="618.0" y="173.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="601.0" y="190.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="669.0" y="173.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="533.0" y="122.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <rect x="516.0" y="139.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="533.0" y="156.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="567.0" y="139.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="584.0" y="156.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="567.0" y="207.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="499.0" y="71.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="652.0" y="224.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="516.0" y="88.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="567.0" y="88.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="686.0" y="190.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="550.0" y="105.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <rect x="669.0" y="241.0" width="15.0" height="15.0" rx="2" fill="#1a8870" stroke="none" stroke-width="1.5"/>
+  <rect x="601.0" y="258.0" width="15.0" height="15.0" rx="2" fill="#7fcab5" stroke="none" stroke-width="1.5"/>
+  <rect x="601.0" y="105.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <rect x="601.0" y="173.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <rect x="550.0" y="173.0" width="15.0" height="15.0" rx="2" fill="#ea8a0c" stroke="none" stroke-width="1.5"/>
+  <text x="490.0" y="82.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">1</text>
+  <text x="506.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">1</text>
+  <text x="490.0" y="99.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">2</text>
+  <text x="523.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">2</text>
+  <text x="490.0" y="116.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">3</text>
+  <text x="540.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">3</text>
+  <text x="490.0" y="133.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">4</text>
+  <text x="557.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">4</text>
+  <text x="490.0" y="150.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">5</text>
+  <text x="574.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">5</text>
+  <text x="490.0" y="167.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">6</text>
+  <text x="591.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">6</text>
+  <text x="490.0" y="184.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">7</text>
+  <text x="608.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">7</text>
+  <text x="490.0" y="201.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">8</text>
+  <text x="625.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">8</text>
+  <text x="490.0" y="218.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">9</text>
+  <text x="642.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">9</text>
+  <text x="490.0" y="235.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">10</text>
+  <text x="659.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">10</text>
+  <text x="490.0" y="252.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">11</text>
+  <text x="676.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">11</text>
+  <text x="490.0" y="269.5" font-size="9" fill="#606770" text-anchor="end" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">12</text>
+  <text x="693.5" y="64.0" font-size="9" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">12</text>
+  <line x1="330.0" y1="170.0" x2="392.0" y2="170.0" stroke="#8b95a1" stroke-width="2" stroke-linecap="butt"/>
+  <polygon points="400.0,170.0 391.0,174.1 391.0,165.9" fill="#8b95a1" stroke="none" stroke-width="1.5" stroke-linejoin="round"/>
+  <text x="365.0" y="160.0" font-size="12" fill="#606770" text-anchor="middle" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">assemble</text>
+  <rect x="158.6" y="293.0" width="20.0" height="14.0" rx="2" fill="#fde2c4" stroke="#ea8a0c" stroke-width="1.2"/>
+  <text x="189.6" y="304.5" font-size="12" fill="#606770" text-anchor="start" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">one cell and its contribution</text>
+  <rect x="415.8" y="293.0" width="20.0" height="14.0" rx="2" fill="#7fcab5" stroke="#1a8870" stroke-width="1.2"/>
+  <text x="446.8" y="304.5" font-size="12" fill="#606770" text-anchor="start" font-weight="normal" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">coupling between two mass points</text>
+</svg>

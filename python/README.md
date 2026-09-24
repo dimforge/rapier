@@ -8,16 +8,20 @@ package wrapping the 3D, `f32` engine:
 | ------------- | -------------- | ------------------ | --- | ------ |
 | `rapier3d`    | `rapier3d`     | `rapier-py-3d`     | 3D  | f32    |
 
-`rapier-py-core` holds the shared PyO3 binding macros (compiled into the
-package; it is not published on its own). The Panda3D visual testbed lives in
-the separate `rapier-testbed` package.
+The Panda3D visual testbed lives in the separate `rapier-testbed` package.
 
 Full documentation lives in [`docs/`](docs/).
 
-> **Note:** this is not yet published on PyPI. The instructions below build
-> the package locally from this checkout. There is currently no source
-> distribution (sdist), so building requires the full git repository plus a
-> Rust toolchain.
+## Installing from PyPI
+
+```bash
+pip install rapier3d
+```
+
+The rest of this page is about building the package from this checkout, e.g. to
+develop the bindings or use unreleased engine changes. There is currently no
+source distribution (sdist), so building requires the full git repository plus
+a Rust toolchain.
 
 ## Prerequisites
 
@@ -111,9 +115,9 @@ examples ported from the Rust `examples3d/`. It drives the 3D engine.
 
 ### Install
 
-The testbed depends on `rapier3d`. Since it isn't on PyPI yet, build it first
-(step 1 above), then install the testbed with `--no-deps` so pip uses your
-local build instead of trying to fetch it.
+The testbed depends on `rapier3d`. To run it against your local build, build
+the package first (step 1 above), then install the testbed with `--no-deps` so
+pip uses your local build instead of fetching the published one.
 Run this **from the repository root** (the `./python/...` path is relative to
 it, like the build steps above):
 

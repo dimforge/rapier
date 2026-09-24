@@ -1,0 +1,519 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+A soft-body can deform permanently in two ways:
+- **Plasticity** changes the rest shape of the body, without any change of its topology: a metal sheet folding on
+  impact, a piece of clay being modeled, the chassis of a car denting.
+- **Tearing** changes its topology: pieces of the body physically disconnect from each other, e.g., a piece of fabric
+  torn in two, or a jelly sliced by a blade.
+
+<center>
+![Plasticity and tearing](/img/soft_bodies/plasticity_tearing.svg)
+</center>
+
+Both are supported by the [constraints](./soft_bodies.mdx#constraints)
+solver<notjs> and by the [FEM](./soft_bodies.mdx#fem-solver) solver</notjs><c> and by the [FEM](./soft_bodies.mdx#fem-solver) solver</c><py> and by the [FEM](./soft_bodies.mdx#fem-solver) solver</py>.
+Note that with the constraints solver, the quality of the plastic deformations follows the convergence of the solver:
+more iterations result in more convincing permanent deformations.
+
+### Plasticity
+Plasticity is configured by the [material](./soft_bodies.mdx#constraints) of the body, separately for its cells and for
+its edges:
+- A cell strained past its **plastic yield**
+  (<notjs>`plastic_yield`</notjs><js>`plasticYield`</js><c>`plasticYield`</c><py>`plastic_yield`</py>) absorbs the strain in excess into its
+  rest shape, at the rate of its **plastic creep**
+  (<notjs>`plastic_creep`</notjs><js>`plasticCreep`</js><c>`plasticCreep`</c><py>`plastic_creep`</py>, per second), up to a total permanent
+  deformation of its **plastic max** (<notjs>`plastic_max`</notjs><js>`plasticMax`</js><c>`plasticMax`</c><py>`plastic_max`</py>). This flow
+  preserves the volume of the cell, and an inverted cell never flows. Note that this only applies to the elastic cells
+  (the <notjs>`Corotational` and `NeoHookean`</notjs><js>`Corotational` and `NeoHookean`</js><c>`R3_SOFT_CELL_COROTATIONAL` and `R3_SOFT_CELL_NEO_HOOKEAN`</c><py>`SoftBodyCellModel.COROTATIONAL` and `SoftBodyCellModel.NEO_HOOKEAN`</py>
+  models): the <notjs>`Volume`</notjs><js>`Volume`</js><c>`R3_SOFT_CELL_VOLUME`</c><py>`SoftBodyCellModel.VOLUME`</py> cells never flow.
+- An edge strained past its **edge plastic yield**
+  (<notjs>`edge_plastic_yield`</notjs><js>`edgePlasticYield`</js><c>`edgePlasticYield`</c><py>`edge_plastic_yield`</py> compared to
+  `|length / rest_length - 1|`) sees its rest length flow toward its current length at the rate of its **edge plastic
+  creep** (<notjs>`edge_plastic_creep`</notjs><js>`edgePlasticCreep`</js><c>`edgePlasticCreep`</c><py>`edge_plastic_creep`</py>), up to a total
+  permanent set of its **edge plastic max**
+  (<notjs>`edge_plastic_max`</notjs><js>`edgePlasticMax`</js><c>`edgePlasticMax`</c><py>`edge_plastic_max`</py>, as a fraction of its initial
+  length). Its **edge plastic flow**
+  (<notjs>`edge_plastic_flow`</notjs><js>`edgePlasticFlow`</js><c>`edgePlasticFlow`</c><py>`edge_plastic_flow`</py>, a `SoftEdgePlasticFlow`) selects whether that happens
+  when it is squeezed, when it is stretched, or both.
+
+A plastic deformation can be undone at any time
+(<rapier>`SoftBody::reset_plasticity`</rapier><bevy>`RapierSoftBody::reset_plasticity`</bevy><js>`SoftBody.resetPlasticity`</js><c>`r3SoftBody_ResetPlasticity`</c><py>`SoftBody.reset_plasticity`</py>),
+the particles springing back elastically from there. Note that the tear thresholds of the edges are always measured on
+their initial length, not on their plastic one:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Plasticity' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Plasticity' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Plasticity' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Plasticity' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+The material is modified through the `SoftBodyMaterial` component of the soft-body entity:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Plasticity' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Plasticity' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+The material is read with `r3SoftBody_Material`, which gives back a copy of the material of the body. That copy is
+modified, then applied with `r3SoftBody_SetMaterial`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='Plasticity' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='Plasticity' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+The `material` property of a soft-body is a live view of its material (a `SoftBodyMaterial`): setting one of its fields
+changes the body directly. Assigning a whole `SoftBodyMaterial` to it replaces the material, and its `copy` method
+gives a detached copy:
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='Plasticity' />
+```
+
+</py>
+
+### Tearing
+Tearing is configured by the material of the body as well. An element tears at the end of the timestep during which its
+load goes beyond one of the two thresholds of the material:
+- The **tear strain** (<notjs>`tear_strain`</notjs><js>`tearStrain`</js><c>`tearStrain`</c><py>`tear_strain`</py>) applies to the edges (a
+  fraction of their initial rest length) and to the elastic cells (their largest tensile strain). Note that volume cells
+  never tear.
+- The **tear force** (<notjs>`tear_force`</notjs><js>`tearForce`</js><c>`tearForce`</c><py>`tear_force`</py>) applies to the edges only: an
+  edge tears if its force along its direction exceeds it.
+
+The other settings of the material shape how a tear propagates:
+- The **tear smoothing** (<notjs>`tear_smoothing`</notjs><js>`tearSmoothing`</js><c>`tearSmoothing`</c><py>`tear_smoothing`</py>) is the time
+  constant (in seconds) over which the load of an element is smoothed before being tested, so that a single impact spike
+  doesn't tear.
+- The **interior strength** (<notjs>`interior_strength`</notjs><js>`interiorStrength`</js><c>`interiorStrength`</c><py>`interior_strength`</py>)
+  makes the undamaged interior elements (without any particle on the surface or on an earlier tear) that many times
+  tougher, so that tears start from the surface or from an existing damage, and run inward.
+- The **max tears per step** (<notjs>`max_tears_per_step`</notjs><js>`maxTearsPerStep`</js><c>`maxTearsPerStep`</c><py>`max_tears_per_step`</py>)
+  bounds how many edges may tear during one step, the most loaded going first, which paces the cracks of a taut sheet
+  (an edge loaded past twice its threshold always tears).
+- The **min piece** (<notjs>`min_piece`</notjs><js>`minPiece`</js><c>`minPiece`</c><py>`min_piece`</py>) is the smallest piece (in elements)
+  a tear may split off, any tear leaving a smaller piece waiting until it doesn't.
+
+Individual edges can be made tougher (or weaker, e.g., a perforation line) with their tear resistance, given to the
+builder
+(<notjs>`edge_tear_resistance`</notjs><js>`setEdgeTearResistance`</js><c>the `edgeTearResistance` field of `R3SoftBodyDesc`</c><py>`SoftBodyBuilder.edge_tear_resistance`</py>)
+or by [cluster](./soft_bodies.mdx#clusters):
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='TearingMaterial' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='TearingMaterial' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='TearingMaterial' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='TearingMaterial' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='TearingMaterial' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='TearingMaterial' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+The optional thresholds of the material (`tearStrain`, `tearForce`, and `minPiece`) are only used when the `enabled`
+field of their `R3OptionalReal` or `R3OptionalU32` is set. The tear resistance of the edges and of the clusters can
+also be changed after the insertion, with `r3SoftBody_SetEdgeTearResistance` and `r3SoftBody_SetClusterTearResistance`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='TearingMaterial' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='TearingMaterial' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+The optional thresholds of the material (`tear_strain`, `tear_force`, and `min_piece`) are disabled when they are set
+to `None`. As for the plasticity, they are set through the live view of the material of the soft-body:
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='TearingMaterial' />
+```
+
+The tear resistance of the edges is given to the builder as a list of `(edge index, resistance)` pairs. It can also be
+changed after the insertion, for the edges and the cells with `SoftBody.set_edge_tear_resistance` and
+`SoftBody.set_cell_tear_resistance`, and for the clusters with `SoftBody.set_cluster_tear_resistance`:
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='TearResistance' />
+```
+
+</py>
+
+A tear can also be requested explicitly, either edge by edge
+(<rapier>`SoftBody::tear_edge`, `tear_cell`</rapier><bevy>`RapierSoftBody::tear_edge`, `tear_cell`</bevy><js>`SoftBody.tearEdge`, `tearCell`</js><c>`r3SoftBody_TearEdge`, `r3SoftBody_TearCell`</c><py>`SoftBody.tear_edge`, `tear_cell`</py>),
+or all at once along a set of edges and through a set of cells
+(<rapier>`PhysicsWorld::tear_soft_body`</rapier><bevy>`RapierContextMut::tear_soft_body`</bevy><js>`World.tearSoftBody`</js><c>`r3SoftBody_Tear`</c><py>`PhysicsWorld.tear_soft_body`</py>).
+Finally, a body can be **cut**
+(<rapier>`PhysicsWorld::cut_soft_body`</rapier><bevy>`RapierContextMut::cut_soft_body`</bevy><js>`World.cutSoftBody`</js><c>`r3CutSoftBody`</c><py>`PhysicsWorld.cut_soft_body`</py>)
+along a blade, i.e., a segment in 2D or a triangle in 3D, which is the most convenient way of slicing a body with the
+weapon of a player. Note that the cuts ignore the min piece threshold.
+
+Tearing and cutting lose no material: the particles are duplicated along the tear instead of being removed, so the area
+(2D) or the volume (3D) of the body is preserved. The pieces a tear disconnects become soft-bodies of their own, which
+keep the material and the settings of the body they come from, the deformable meshes and the joints following the pieces
+they were attached to. Therefore the particles of the torn body are renumbered, and the returned event tells where each
+of them went:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Tearing' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Tearing' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Tearing' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Tearing' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+The largest piece keeps the torn soft-body and its entity, whereas a new entity is spawned for each other piece. That
+entity receives a clone of the components of the torn entity (its material, its mesh synchronization, its render
+components, your own components, etc.) during the next writeback of the physics state, except for the components
+referring to the particles by index (`SoftBodyPinnedParticles`, `SoftBodyKinematicTargets`, `SoftBodyAttachments`,
+`SoftBodyExternalForce`, and `SoftBodyExternalImpulse`): these are remapped to the renumbered particles, the entries of
+the particles moved to a piece being moved to the entity of that piece. The particles pinned by the builder of the
+`SoftBody` component (restored when the `SoftBodyPinnedParticles` component is removed) are remapped the same way.
+Similarly, the [cluster](./soft_bodies.mdx#clusters) entities follow the pieces holding their particles, and a new
+cluster entity is spawned for each piece of a split cluster that is given a proxy of its own. That entity inherits the
+`SoftBodyClusterPinned`, `SoftBodyClusterKinematicTarget` (shifted so that the particles keep their targets),
+`SoftBodyClusterShapeMatching`, and `SoftBodyClusterMaterial` components of the entity of the split cluster.
+
+The pieces of the tears generated by the simulation get their entities during the writeback of the physics state,
+whereas `tear_soft_body` and `cut_soft_body` spawn the entities of the pieces right away with the `Commands` they are
+given. These are returned in a `SoftBodyTearResult` (the first piece being the torn entity itself), next to the event
+of Rapier (its `raw` field) which identifies the pieces by their handle. Note however that these entities only receive
+their components during the next writeback, when the `SoftBodyTearEvent` message described in the
+[next section](./soft_bodies.mdx#tear-events) is sent (and the entities of the split clusters are only spawned
+then):
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Tearing' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Tearing' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+The event returned by `r3SoftBody_Tear` and `r3CutSoftBody` is an owned `R3SoftBodyTearEvent`, to be freed with
+`r3FreeSoftBodyTearEvent`, or `NULL` if the tear or the cut changed nothing. It is read with the following functions:
+- `r3SoftBodyTearEvent_SoftBody` gives the torn soft-body, and `r3SoftBodyTearEvent_Bodies` the soft-bodies it is now
+  made of: the torn body alone if nothing was split off, or its pieces otherwise, the piece keeping the handle of the
+  torn body first (`r3SoftBodyTearEvent_PieceCount` gives their number). The particles of the `i`-th of them (i.e.,
+  their indices in the torn body) are given by `r3SoftBodyTearEvent_PieceParticles`.
+- `r3SoftBodyTearEvent_TryParticleDestination` tells in which soft-body a particle of the torn body is now, and what its
+  index is there (`r3SoftBodyTearEvent_ParticleDestination` does the same, but reports the particles without any
+  destination as an `R3_NOT_FOUND` error).
+- `r3SoftBodyTearEvent_TornEdges`, `r3SoftBodyTearEvent_TornCells`, `r3SoftBodyTearEvent_RemovedEdges`,
+  `r3SoftBodyTearEvent_SplitParticles`, and `r3SoftBodyTearEvent_InsertedParticles` give the details of the change of
+  topology, as flat arrays of particle indices.
+- `r3SoftBodyTearEvent_Clusters` and `r3SoftBodyTearEvent_MovedJoints` give the clusters the tear split, and the joints
+  it moved from a cluster proxy to another.
+
+The arrays are copied with the usual output-buffer protocol: each function returns the number of elements, and copies
+them into the given buffer only if its capacity is large enough (a `NULL` buffer with a capacity of zero gives that
+number first). Finally, `r3SoftBody_TopologyVersion` changes whenever the
+connectivity of the particles of a body changes, which is a convenient way of knowing when the render meshes must be
+rebuilt:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='Tearing' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='Tearing' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+`PhysicsWorld.tear_soft_body` and `PhysicsWorld.cut_soft_body` (or `SoftBodySet.tear` and `SoftBodySet.cut` when the
+sets are used directly) return a `SoftBodyTearEvent`, or `None` if the tear or the cut changed nothing:
+- `soft_body` is the torn soft-body, and `bodies()` the soft-bodies it is now made of: the torn body alone if nothing
+  was split off, or its pieces otherwise. The `pieces` property lists these pieces (empty if nothing was split off),
+  the piece keeping the handle of the torn body first, each `SoftBodyPiece` giving its `soft_body` and its `particles`
+  (i.e., their indices in the torn body).
+- `particle_destination(i)` tells in which soft-body a particle of the torn body is now, and what its index is there,
+  as a `(handle, index)` tuple (or `None` if the particle has no destination).
+- `torn_edges`, `torn_cells`, and `removed_edges` give the particles of the elements involved in the change of topology
+  as NumPy arrays. `split_particles` gives the particles the tear duplicated, as `(copy, source)` pairs, and
+  `inserted_particles` the particles it inserted.
+- `clusters` and `moved_joints` give the clusters the tear split, and the joints it moved from a cluster proxy to
+  another.
+
+A soft-body split off by a tear remembers the body it comes from (`SoftBody.origin`), and the torn body lists the ones
+split off it (`SoftBody.pieces`). Finally, `SoftBody.topology_version` changes whenever the connectivity of the
+particles of a body changes, which is a convenient way of knowing when the render meshes must be rebuilt:
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='Tearing' />
+```
+
+</py>
+
+:::note
+Tearing one edge with
+<rapier>`SoftBody::tear_edge`</rapier><bevy>`RapierSoftBody::tear_edge`</bevy><js>`SoftBody.tearEdge`</js><c>`r3SoftBody_TearEdge`</c><py>`SoftBody.tear_edge`</py>
+only marks it: the tear is applied at the end of the next step, together with the tears the simulation generates itself.
+The methods of the
+<rapier>`PhysicsWorld`</rapier><bevy>`RapierContextMut`</bevy><js>`World`</js><c>world (`r3SoftBody_Tear` and `r3CutSoftBody`)</c><py>`PhysicsWorld`</py>
+tear and cut immediately, which is why they are the ones giving back an event.
+:::
+:::warning
+Volume cells never tear. Therefore a body which cells use the <notjs>`Volume`</notjs><js>`Volume`</js><c>`R3_SOFT_CELL_VOLUME`</c><py>`SoftBodyCellModel.VOLUME`</py> model
+will only tear along its edges, and a material with a tear strain should be combined with the
+<notjs>`Corotational` or the `NeoHookean`</notjs><js>`Corotational` or the `NeoHookean`</js><c>`R3_SOFT_CELL_COROTATIONAL` or the `R3_SOFT_CELL_NEO_HOOKEAN`</c><py>`SoftBodyCellModel.COROTATIONAL` or the `SoftBodyCellModel.NEO_HOOKEAN`</py>
+[cell model](./soft_bodies.mdx#constraints) if you expect it to be torn apart.
+:::

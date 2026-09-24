@@ -101,4 +101,12 @@ let world = new RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 });
     /* Set the collider position wrt. its parent after the collider creation. */
     collider.setTranslationWrtParent({ x: 1.0, y: 2.0, z: 3.0 });
     // DOCUSAURUS: Position4 stop
+
+    // DOCUSAURUS: ContactSkin start
+    /* Set the contact skin when the collider is created. */
+    let skinColliderDesc = RAPIER.ColliderDesc.ball(0.5).setContactSkin(0.01);
+    let skinCollider = world.createCollider(skinColliderDesc);
+    /* Set the contact skin after the collider creation. */
+    skinCollider.setContactSkin(0.01);
+    // DOCUSAURUS: ContactSkin stop
 }

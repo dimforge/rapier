@@ -14,8 +14,8 @@ fn main() {
     use rapier2d::prelude::*;
     use std::f32::consts::PI;
 
-    // The set that will contain our colliders.
-    let mut collider_set = ColliderSet::new();
+    // The world that will contain our colliders.
+    let mut world = PhysicsWorld::new();
 
     // Builder for a ball-shaped collider.
     let _ = ColliderBuilder::ball(0.5);
@@ -53,13 +53,12 @@ fn main() {
         // All done, actually build the collider.
         .build();
 
-    // Insert the collider into the set, without attaching it to a rigid-body.
-    let collider_handle = collider_set.insert(collider.clone());
+    // Insert the collider into the world, without attaching it to a rigid-body.
+    let collider_handle = world.insert_collider(collider.clone(), None);
 
-    let mut rigid_body_set = RigidBodySet::new();
-    let rigid_body_handle = rigid_body_set.insert(RigidBodyBuilder::dynamic().build());
-    // Or insert the collider into the set and attach it to a rigid-body.
-    let handle = collider_set.insert_with_parent(collider, rigid_body_handle, &mut rigid_body_set);
+    let rigid_body_handle = world.insert_body(RigidBodyBuilder::dynamic().build());
+    // Or insert the collider into the world and attach it to a rigid-body.
+    let handle = world.insert_collider(collider, Some(rigid_body_handle));
     // DOCUSAURUS: Creation stop
 
     // DOCUSAURUS: ColliderType1 start
@@ -69,7 +68,7 @@ fn main() {
 
     // DOCUSAURUS: ColliderType2 start
     /* Set the collider type after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider.set_sensor(true);
     assert!(collider.is_sensor());
     // DOCUSAURUS: ColliderType2 stop
@@ -103,7 +102,7 @@ fn main() {
 
     // DOCUSAURUS: Mass start
     let rigid_body = RigidBodyBuilder::dynamic().build();
-    let rigid_body_handle = rigid_body_set.insert(rigid_body);
+    let rigid_body_handle = world.insert_body(rigid_body);
     // First option: by setting the density of the collider (or we could just leave
     //               its default value 1.0).
     let collider = ColliderBuilder::cuboid(1.0, 2.0).density(2.0).build();
@@ -115,7 +114,7 @@ fn main() {
         .build();
     // When the collider is attached, the rigid-body's mass and angular
     // inertia is automatically updated to take the collider into account.
-    collider_set.insert_with_parent(collider, rigid_body_handle, &mut rigid_body_set);
+    world.insert_collider(collider, Some(rigid_body_handle));
     // DOCUSAURUS: Mass stop
 
     // DOCUSAURUS: Position1 start
@@ -130,7 +129,7 @@ fn main() {
 
     // DOCUSAURUS: Position2 start
     /* Set the collider position after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider.set_translation(Vector::new(1.0, 2.0));
     collider.set_rotation(Rotation::new(0.4));
     // Set both the translation and rotation at once.
@@ -141,18 +140,18 @@ fn main() {
 
     // DOCUSAURUS: Position3 start
     let rigid_body = RigidBodyBuilder::dynamic().build();
-    let rigid_body_handle = rigid_body_set.insert(rigid_body);
+    let rigid_body_handle = world.insert_body(rigid_body);
     let collider = ColliderBuilder::ball(0.5)
         .translation(Vector::new(1.0, 2.0))
         .build();
     // Attach the collider to the rigid-body. The collider's position wrt. the rigid-body
     // is automatically set to the collider current position when this method is called.
-    collider_set.insert_with_parent(collider, rigid_body_handle, &mut rigid_body_set);
+    let attached_collider_handle = world.insert_collider(collider, Some(rigid_body_handle));
     // DOCUSAURUS: Position3 stop
 
     // DOCUSAURUS: Position4 start
     /* Set the collider position wrt. its parent after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[attached_collider_handle];
     collider.set_position_wrt_parent(Pose::translation(1.0, 2.0));
     assert_eq!(
         collider.position_wrt_parent().unwrap().translation,
@@ -172,7 +171,7 @@ fn main() {
     // DOCUSAURUS: Friction2 start
     /* Set the friction coefficient and friction combine rule
     after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider.set_friction(0.7);
     collider.set_friction_combine_rule(CoefficientCombineRule::Min);
     assert_eq!(collider.friction(), 0.7);
@@ -194,7 +193,7 @@ fn main() {
     // DOCUSAURUS: Restitution2 start
     /* Set the restitution coefficient and restitution combine rule
     after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider.set_restitution(0.7);
     collider.set_restitution_combine_rule(CoefficientCombineRule::Min);
     assert_eq!(collider.restitution(), 0.7);
@@ -222,7 +221,7 @@ fn main() {
 
     // DOCUSAURUS: Groups2 start
     /* Set the collision groups and solver groups after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider.set_collision_groups(InteractionGroups::new(
         Group::GROUP_1 | Group::GROUP_3 | Group::GROUP_4,
         Group::GROUP_3,
@@ -262,7 +261,7 @@ fn main() {
 
     // DOCUSAURUS: ActiveCollisionTypes2 start
     /* Set the active collision types after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider.set_active_collision_types(
         ActiveCollisionTypes::default() | ActiveCollisionTypes::KINEMATIC_FIXED,
     );
@@ -283,7 +282,7 @@ fn main() {
 
     // DOCUSAURUS: ActiveEvents2 start
     /* Set the active events after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider.set_active_events(ActiveEvents::COLLISION_EVENTS);
     assert!(collider
         .active_events()
@@ -299,7 +298,7 @@ fn main() {
 
     // DOCUSAURUS: ActiveHooks2 start
     /* Set the active hooks after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider
         .set_active_hooks(ActiveHooks::FILTER_CONTACT_PAIRS | ActiveHooks::MODIFY_SOLVER_CONTACTS);
     assert!(collider
@@ -317,8 +316,17 @@ fn main() {
 
     // DOCUSAURUS: UserData2 start
     /* Set the user-data after the collider creation. */
-    let collider = collider_set.get_mut(collider_handle).unwrap();
+    let collider = &mut world.colliders[collider_handle];
     collider.user_data = 42;
     assert_eq!(collider.user_data, 42);
     // DOCUSAURUS: UserData2 stop
+
+    // DOCUSAURUS: ContactSkin start
+    /* Set the contact skin when the collider is created. */
+    let collider = ColliderBuilder::ball(0.5).contact_skin(0.01).build();
+    /* Set the contact skin after the collider creation. */
+    let collider = &mut world.colliders[collider_handle];
+    collider.set_contact_skin(0.01);
+    assert_eq!(collider.contact_skin(), 0.01);
+    // DOCUSAURUS: ContactSkin stop
 }

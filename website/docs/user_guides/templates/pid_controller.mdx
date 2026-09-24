@@ -1,0 +1,221 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+It is generally not recommended to move a rigid-body by setting its pose directly: teleporting it would ignore
+every obstacle on the way. The recommended alternative is generally to push it with a force (or an impulse) that is
+strong enough to reach the target. However, pushing with a single constant force/impulse will generally overshoot
+the target. Thus, ideally, the force or impulse should be carefully selected and updated each frame as the rigid-body
+gets closer to its target.
+
+This is what a **PID controller** (Proportional-Integral-Derivative) is designed to calculate: given the target pose,
+it computes the ideal velocity change bringing the body closer to it. This is the building block of the velocity-based
+character controllers, but it is useful for anything that must follow a target without being teleported: a dynamic moving
+platform, an object held by the player, a following camera, etc.
+
+:::info
+The gains of the controller are what makes it reach its target quickly or smoothly. The proportional gain is applied to
+the position errors and is usually set to a multiple of the inverse of the timestep length (e.g. $60$ for a timestep of
+$1 / 60$ seconds). The derivative gain is applied to the velocity errors and is usually set in $[0, 1]$, where $0$
+means no damping and $1$ means that the velocity errors are corrected within a single timestep.
+:::
+
+<bevy>
+
+The PID controller is the `PidController` component, added to the entity of a (non-fixed)
+rigid-body. Its `target` field is a `PidTarget` holding the world-space pose (and optionally the velocities) the
+rigid-body must be driven toward. Before each simulation step, the plugin computes the velocity correction bringing
+the rigid-body closer to its target, and adds it to its velocity. So moving the target is just a matter of modifying
+the `PidController::target` field.
+
+</bevy>
+<c>
+
+The PID controller is the `R3PidController` object, created by `r3NewPidController` and freed by
+`r3FreePidController`. It is created with a proportional gain of $60$, an integral gain of $1$, and a derivative gain
+of $0.8$, on every coordinate axis (all of them being controlled). Its gains are set per coordinate axis with
+`r3PidController_SetGains`, from an `R3PidGains` structure (its current gains being given by `r3PidController_Gains`).
+At each frame, `r3PidController_RigidBodyCorrection` computes the velocity correction bringing a rigid-body closer to
+its target pose (and target velocities): it is up to you to add it to the velocities of that rigid-body before the
+next `r3Step`.
+
+</c>
+<py>
+
+The PID controller is the `PidController` class. It is created with a proportional gain of $60$, an integral gain of
+$1$, and a derivative gain of $0.8$, on every coordinate axis (all of them being controlled), unless other gains are
+given to the `Kp`, `Ki`, and `Kd` arguments of its constructor (either a single `float` for every linear and angular
+coordinate axis, or one gain per coordinate axis). They can be read and modified afterwards, per coordinate axis, with
+its `lin_kp`, `ang_kp`, `lin_ki`, `ang_ki`, `lin_kd`, and `ang_kd` properties (each one is a `Vec3`, and can be set
+from a vector or from a single `float` for every axis). At each frame, `PidController.rigid_body_correction` computes
+the velocity correction (a `PidCorrection`, with its `linear` and `angular` parts) bringing a rigid-body closer to its
+target pose (and to its target velocities, given as an optional `RigidBodyVelocity` to its `target_vels` argument,
+zero by default): it is up to you to add it to the `linvel` and `angvel` of that rigid-body before the next
+`PhysicsWorld.step`.
+
+</py>
+
+The coordinate axes (linear and/or angular) controlled by the controller can be selected in order, for example, to
+only control the translations of a body while leaving its rotations to the simulation<bevy> (with the `axes` field, an
+`AxesMask`)</bevy><c> (with `r3PidController_SetAxes`, from a combination of the `R3_AXES_MASK_*` bits, the current ones being given by `r3PidController_Axes`)</c><py> (with the `axes` argument of its constructor or its `axes` property, a combination of the `AxesMask` flags)</py>:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_pid_controller2.rs' marker='Pid' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_pid_controller3.rs' marker='Pid' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/pid_controller.ts' marker='Pid' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/pid_controller.ts' marker='Pid' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/pid_controller2.rs' marker='Pid' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/pid_controller3.rs' marker='Pid' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/pid_controller2.c' marker='Pid' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/pid_controller3.c' marker='Pid' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/pid_controller.py' marker='Pid' />
+```
+
+</py>
+
+<rapier>
+
+:::note
+The integral part of the controller accumulates the position errors of the previous timesteps, which is what allows it
+to compensate a permanent perturbation (e.g. the gravity applied to a hovering body). This is also what makes its API
+mutable, and what has to be reset with `PidController::reset_integrals` whenever the controller is given a target it
+never had a chance to reach. The `PdController` is the variant without that integral part: its API is immutable, and
+its behavior is generally good enough for games.
+:::
+
+</rapier>
+<bevy>
+
+:::note
+The integral part of the controller accumulates the position errors of the previous timesteps, which is what allows it
+to compensate a permanent perturbation (e.g. the gravity applied to a hovering body). These accumulated errors are
+stored in the `PidController::lin_integral` and `PidController::ang_integral` fields updated by the plugin, and have
+to be reset with `PidController::reset_integrals` whenever the controller is given a target it never had a chance to
+reach. The `PdController` component is the variant without that integral part, and its behavior is generally good
+enough for games. Use either one or the other on a given entity, but not both.
+:::
+
+</bevy>
+<c>
+
+:::note
+The integral part of the controller accumulates the position errors of the previous timesteps, which is what allows it
+to compensate a permanent perturbation (e.g. the gravity applied to a hovering body). This is also what makes
+`r3PidController_RigidBodyCorrection` modify the controller, and what has to be reset with
+`r3PidController_ResetIntegrals` whenever the controller is given a target it never had a chance to reach. The
+`R3PdController` is the variant without that integral part: it is a plain structure (initialized by
+`r3DefaultPdController`) that `r3PdController_RigidBodyCorrection` doesn't modify, and its behavior is generally good
+enough for games.
+:::
+
+</c>
+<py>
+
+:::note
+The integral part of the controller accumulates the position errors of the previous timesteps, which is what allows it
+to compensate a permanent perturbation (e.g. the gravity applied to a hovering body). These accumulated errors are
+readable with the `PidController.lin_integral` and `PidController.ang_integral` properties. This is also what makes
+`PidController.rigid_body_correction` modify the controller, and what has to be reset with `PidController.reset`
+whenever the controller is given a target it never had a chance to reach. The `PdController` is the variant without
+that integral part (its constructor takes no `Ki` argument): its `rigid_body_correction` method doesn’t modify it (and
+doesn’t need the timestep length), and its behavior is generally good enough for games.
+:::
+
+</py>

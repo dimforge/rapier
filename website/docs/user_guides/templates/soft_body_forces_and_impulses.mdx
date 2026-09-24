@@ -1,0 +1,140 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Forces and impulses can be applied to a soft-body as a whole
+(<rapier>`add_force`, `apply_impulse`</rapier><bevy>`SoftBodyExternalForce::force`,
+`SoftBodyExternalImpulse::velocity_change`</bevy><js>`addForce`, `applyImpulse`</js><c>`r3SoftBody_AddForce`, `r3SoftBody_ApplyImpulse`</c><py>`add_force`, `apply_impulse`</py>),
+or to one particular particle
+(<rapier>`add_particle_force`, `apply_particle_impulse`</rapier><bevy>`SoftBodyExternalForce::particle_forces`,
+`SoftBodyExternalImpulse::particle_impulses`</bevy><js>`addParticleForce`, `applyParticleImpulse`</js><c>`r3SoftBody_AddParticleForce`, `r3SoftBody_ApplyParticleImpulse`</c><py>`add_particle_force`, `apply_particle_impulse`</py>).
+A force added to the whole body is added to each of its free particles and is persistent, i.e., it keeps being applied
+at each step until the forces are reset (<rapier>`reset_forces`</rapier><bevy>i.e., until the `SoftBodyExternalForce` component
+changes or is removed</bevy><js>`resetForces`</js><c>`r3SoftBody_ResetForces`</c><py>`reset_forces`</py>), exactly like the forces of
+a [rigid-body](./rigid_bodies.mdx#forces-and-impulses). An impulse applied to the whole body is a velocity change
+applied to each of its free particles, so the body is kicked as a whole without being deformed. Note that the pinned
+particles ignore both.
+
+Two additional methods are provided for the effects which magnitude depends on the distance to a point: an impulse
+applied within a radius
+(<notjs>`apply_impulse_at_point`</notjs><js>`applyImpulseAtPoint`</js><c>`r3SoftBody_ApplyImpulseAtPoint`</c><py>`apply_impulse_at_point`</py>), and a
+radial blast pushing the particles away from its center
+(<notjs>`apply_radial_impulse`</notjs><js>`applyRadialImpulse`</js><c>`r3SoftBody_ApplyRadialImpulse`</c><py>`apply_radial_impulse`</py>). In both
+cases the impulse is scaled linearly down to zero at the given radius. Like for the rigid-bodies,
+<notpy>the last boolean argument</notpy><py>the `wake_up` argument (`True` by default)</py> of all these methods ensures the soft-body is
+[awake](./rigid_bodies.mdx#sleeping) before the force or the impulse is applied:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Forces' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Forces' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Forces' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Forces' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+The `SoftBodyExternalForce` and `SoftBodyExternalImpulse` components wake the soft-body up
+automatically, and the impulses of the `SoftBodyExternalImpulse` component are reset to zero once they are applied. The
+impulses depending on the distance to a point are applied to the Rapier soft-body of the entity directly:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Forces' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Forces' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='Forces' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='Forces' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='Forces' />
+```
+
+</py>

@@ -9,17 +9,54 @@ import TabItem from '@theme/TabItem';
 
 <notjs>
 
-When the `serde-serialize` feature of Rapier is enabled, most data structures of Rapier become serializable using [serde](http://serde.rs).
+When the `serde-serialize` feature of <rapier>Rapier</rapier><bevy>`bevy_rapier`</bevy> is enabled, most data structures of Rapier become serializable using [serde](http://serde.rs).
 Serialization can be useful to save the complete state of the simulation, e.g., to send it over the network, or to restore
-this state later. In order to fully serialize the simulation state, it is necessary to serialize every structure
-described in the [simulation structures](./simulation_structures.mdx) page, except for the `PhysicsPipeline` and the
-`CollisionPipeline` which don't hold any useful state. The following shows an example of serialization of the
-complete physics state. For convenience, the example defines a `PhysicsState` serializable struct that wraps every
-relevant serializable state. It uses [bincode](https://crates.io/crates/bincode) as the serialization format:
+this state later. <rapier>The complete state of the simulation is serialized by serializing its
+[physics world](./simulation_structures.mdx#physics-world) as a whole, as
+shown by the following example using [bincode](https://crates.io/crates/bincode) as the serialization format. Note that
+if you don't use the physics world, every structure described in the
+[simulation structures](./simulation_structures.mdx) page must be serialized instead, except for the `PhysicsPipeline`
+and the `CollisionPipeline` which don't hold any useful state:</rapier>
+
+<rapier>
 
 ```rust
 <load path='/2d/rust/examples/rs_serialization.rs' marker='Serialization' />
 ```
+
+</rapier>
+<bevy>
+
+The complete state of the simulation is serialized by serializing the components of its
+[physics context](./simulation_structures.mdx#physics-context): `RapierContextSimulation`, `RapierContextColliders`,
+`RapierRigidBodySet`, and `RapierContextJoints` all implement the `Serialize` and `Deserialize` traits of serde. The
+`RapierContext` structure given by the `ReadRapierContext` system parameter implements `Serialize` as well, so the
+four of them can be serialized at once. The `RapierConfiguration` component of the context implements these traits
+too, so it can be saved with them, as in the following example. Restoring a snapshot is done by inserting the
+deserialized components on the entity of the physics context, replacing the previous ones:
+
+```rust
+<load path='/2d/bevy/examples/serialization2.rs' marker='Serialization' />
+```
+
+Some parts of the physics context are skipped by the serialization: the `PhysicsPipeline` and the `CollisionPipeline`
+(which don't hold any useful state), the event handler installed with `RapierContextSimulation::set_event_handler`,
+the events not sent yet, and the step statistics. The maps from entities to handles aren't serialized either: they
+are rebuilt automatically when the components are deserialized, from the user-data of the Rapier objects (which
+contain the bits of their entity). If you restore the sets of a physics context in another way, call
+`RapierContextColliders::rebuild_entity_maps`, `RapierRigidBodySet::rebuild_entity_maps`, and
+`RapierContextJoints::rebuild_entity_maps` to rebuild them.
+
+:::warning
+The Rapier objects refer to their entities by their identifier. Therefore a deserialized physics context is only
+meaningful in a world where the same entities exist with the same identifiers (e.g. when restoring a snapshot of the
+same application). Note as well that the components of your entities (`RigidBody`, `Collider`, `Transform`, etc.),
+and the `TimestepMode` resource, are not part of the serialized components: they must be saved separately (the
+`Collider` component and the `TimestepMode` resource implement the traits of serde as well, whereas most of the other
+components can be serialized through the reflection of Bevy).
+:::
+
+</bevy>
 
 :::info
 If the `enhanced-determinism` feature of Rapier is enabled, and if your platform fulfills the required [determinism
@@ -36,3 +73,142 @@ of type `Uint8Array` that may be saved on the disk, sent through the network, et
 with `let world = World.restoreSnapshot(snapshot);`.
 
 </js>
+
+<c>
+
+The complete state of the simulation can be serialized by taking a snapshot of the
+[physics world](./simulation_structures.mdx#physics-world) with `r3SerializeWorld`. This results in an `R3Bytes`
+object owned by the application, which bytes are borrowed with `r3Bytes_Data` (e.g. to save them on the disk, or to
+send them through the network), and which must be freed with `r3FreeBytes`. The snapshot can then be restored with
+`r3DeserializeWorld`, which creates a new world (freed with `r3FreeWorld` like any other world) in the exact same
+state as the serialized one:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/serialization2.c' marker='Serialization' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/serialization3.c' marker='Serialization' />
+```
+
+  </TabItem>
+</Tabs>
+
+The snapshot contains everything the world is made of: the rigid-bodies, colliders, joints, and soft-bodies
+(including their user data), the gravity, the integration parameters, the island manager, the broad-phase, and the
+narrow-phase (with its contacts). However, the thread pool configured by `r3SetNumThreads` and the profiling counters
+are not part of the snapshot, nor is anything owned by your application (the event collectors, the physics hooks, the
+controllers, etc.): they must be configured again for the deserialized world. Keep in mind that the handles of the
+serialized world keep referring to the serialized world: the handles of the deserialized world must be retrieved from
+it (each object keeps the index and the generation it had in the serialized world):
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/serialization2.c' marker='RestoredHandles' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/serialization3.c' marker='RestoredHandles' />
+```
+
+  </TabItem>
+</Tabs>
+
+:::warning
+A snapshot is not a stable file format: it can only be deserialized by the exact same build of the Rapier library
+(same version, dimension, precision, and features) as the one that serialized it, and `r3DeserializeWorld` rejects the
+snapshots it recognizes as incompatible with the `R3_INVALID_ARGUMENT` error. Only deserialize snapshots coming from a
+trusted source.
+:::
+
+:::info
+If the library is built with the `enhanced-determinism` feature, and if your platform fulfills the required
+[determinism requirements](./determinism.mdx), then you have the guarantee that running the exact same simulation on
+two different machines will result in the exact same snapshot bytes if the world is serialized on both machines after
+the same number of timesteps.
+:::
+
+</c>
+
+<py>
+
+The complete state of the simulation can be serialized by taking a snapshot of the
+[physics world](./simulation_structures.mdx#physics-world) with `PhysicsWorld.snapshot`. This results in a `bytes`
+object that may be saved on the disk, sent through the network, etc. The snapshot can then be restored with the
+`PhysicsWorld.restore` static method, which creates a new world in the exact same state as the serialized one:
+
+```python
+<load path='/3d/python/serialization.py' marker='Serialization' />
+```
+
+The world also supports the [pickle](https://docs.python.org/3/library/pickle.html) module of Python, which relies on
+these snapshots. Therefore, a world can be saved as part of any picklable structure of your application:
+
+```python
+<load path='/3d/python/serialization.py' marker='Pickle' />
+```
+
+The snapshot contains everything the world is made of: the rigid-bodies, colliders, joints, and soft-bodies
+(including their user data), the gravity, the integration parameters, the island manager, the CCD solver, the
+broad-phase, and the narrow-phase (with its contacts). However, the thread pool configured by
+`PhysicsWorld.set_num_threads`, the `PhysicsWorld.event_error_policy` option, the performance counters, and the objects of your application given to the world (the event handler and the physics hooks) are not part of the
+snapshot: they must be configured again for the deserialized world. Each object of the deserialized world keeps the
+index and the generation it had in the serialized world, so the handles of the serialized world can be used with the
+deserialized world as well:
+
+```python
+<load path='/3d/python/serialization.py' marker='RestoredHandles' />
+```
+
+For debugging purposes, `PhysicsWorld.snapshot_json` gives a human-readable snapshot as a JSON string instead, which
+is restored with `PhysicsWorld.restore_json`. It is much larger and slower than the binary snapshot:
+
+```python
+<load path='/3d/python/serialization.py' marker='Json' />
+```
+
+Most of the other objects of the bindings can be pickled on their own too, e.g., the rigid-bodies, colliders, and
+joints (as well as their builders), the shapes, the handles, the sets, the integration parameters, or the mass
+properties. On the other hand, the pipelines and the event collectors can't be pickled:
+
+```python
+<load path='/3d/python/serialization.py' marker='Objects' />
+```
+
+:::warning
+A snapshot is not a stable file format: it should only be restored by the same version of the bindings as the one
+that serialized it. The snapshots recognized as incompatible (or corrupted) are rejected with a `SerializationError`.
+Like any pickled data, only restore snapshots coming from a trusted source.
+:::
+
+:::info
+If the bindings are built with the `determinism` feature, and if your platform fulfills the required
+[determinism requirements](./determinism.mdx), then you have the guarantee that running the exact same simulation on
+two different machines will result in the exact same snapshot bytes if the world is serialized on both machines after
+the same number of timesteps.
+:::
+
+</py>

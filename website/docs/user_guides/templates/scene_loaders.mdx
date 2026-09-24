@@ -1,0 +1,369 @@
+---
+id: scene_loaders
+title: Scene loaders
+sidebar_label: Scene loaders
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<notpy>
+
+Rapier provides companion crates converting some popular robotics formats into the
+rigid-bodies, the colliders, and the joints they contain. Note that these crates are 3D only, and that they are
+released separately from `rapier3d` itself.
+
+</notpy>
+
+<bevy>
+
+These crates are integrated into `bevy_rapier3d` behind the `urdf`, `mjcf`, and
+`meshloader` cargo features (see the `bevy_rapier3d::loaders` module). Instead of inserting anything into the physics
+context directly, the loaders spawn regular entities with rigid-body, collider, and joint components. Therefore
+the spawned objects can be modified, queried, or despawned like any other entity.
+
+:::info
+The scene loaders are not available in `bevy_rapier2d`.
+:::
+
+</bevy>
+<c>
+
+The URDF and MJCF loaders are included in the C library when it is built with the `robotics` feature (see
+[building the C bindings](./getting_started_c.mdx#building-the-c-bindings)), which is only available for the 3D
+library with 32-bits floats. Their types and functions are only declared if `RAPIER_ROBOTICS` is defined (which the
+`Rapier::rapier` CMake target does automatically). The loaded models are owned by the application: they must be freed
+with their dedicated `Free` function once they are no longer needed, and they can be inserted as many times as needed
+before that.
+
+</c>
+<py>
+
+Rapier provides companion crates converting some popular robotics formats into the rigid-bodies, the colliders, and
+the joints they contain. These crates are included in the Python package, so there is nothing more to install: they
+are exposed by the `urdf`, `mjcf`, and `mesh` submodules of the `rapier3d.loaders` module (e.g.,
+`from rapier3d.loaders import urdf`). The loaders insert the rigid-bodies, colliders, and joints of the loaded models
+into the sets of a physics world (`world.rigid_bodies`, `world.colliders`, etc.), and return their handles.
+
+</py>
+
+## URDF
+The [`rapier3d-urdf`](https://crates.io/crates/rapier3d-urdf) crate loads the **Unified Robot Description Format**
+used by the ROS community. A robot is read from a URDF file (or from a string), and is then <rapier>inserted into the
+sets</rapier><bevy>spawned as entities</bevy><c>inserted into the world</c><py>inserted into the world</py> either with impulse joints or with multibody joints.
+
+:::info
+Robotics generally care a lot about joint violation. Then inserting the model using multibody joints is strongly
+recommended since they guarantee the absence of joint violation by encoding the locked degrees of freedom into the
+equations of motion directly instead of relying on the constraints solver (which might not converge).
+:::
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_scene_loaders3.rs' marker='Urdf' />
+```
+
+</rapier>
+<bevy>
+
+The robot is read as an `UrdfModel`, and spawned with `spawn_urdf_robot`. The `UrdfSpawnOptions` select the kind of
+joints (impulse joints by default), the transform of the root entity every link is a child of, and the physics
+context the robot is added to. Each link becomes a rigid-body entity (with an `UrdfLinkId` component), each of its
+shapes a collider entity child of the link, and each joint an `ImpulseJoint` or a `MultibodyJoint` component on the
+entity of its child link. The returned `SpawnedUrdfRobot` lists all these entities, and finds them by their URDF name:
+
+```rust
+<load path='/3d/bevy/examples/scene_loaders3.rs' marker='Urdf' />
+```
+
+The visual elements of the links are not rendered: they are given by the `UrdfLinkVisuals` component so you can
+attach your own meshes to the link entities. On top of what `rapier3d-urdf` converts, the `<dynamics>` (damping and
+friction) and `<mimic>` elements of the joints are applied to multibody joints (as `MultibodyJointDamping`,
+`MultibodyJointFriction`, and `MultibodyJointCouplings` components), but they are ignored by impulse joints.
+
+</bevy>
+<c>
+
+The robot is read as an `R3UrdfRobot` by `r3UrdfRobotFromFile`, then inserted into the world with
+`r3UrdfRobot_InsertUsingImpulseJoints` or `r3UrdfRobot_InsertUsingMultibodyJoints`. Each link becomes a rigid-body
+(with its colliders), and each joint an impulse joint or a multibody joint. The returned `R3UrdfRobotHandles` gives
+the handles of the rigid-bodies created for the links with `r3UrdfRobotHandles_Bodies`, in the order of the links of
+the URDF file:
+
+```c
+<load path='/3d/c/examples/scene_loaders3.c' marker='Urdf' />
+```
+
+The `R3UrdfLoaderOptions` (initialized by `r3DefaultUrdfLoaderOptions`) control the conversion of the robot. The
+insertion of the same loaded robot can be repeated, e.g., after moving it with `r3UrdfRobot_AppendTransform`. When
+inserting with multibody joints, the last argument is a bitmask of options:
+`R3_MULTIBODY_JOINTS_ARE_KINEMATIC` makes the multibody joints kinematic (they are then entirely controlled by the
+application, e.g., through inverse kinematics), and `R3_MULTIBODY_DISABLE_SELF_CONTACTS` ignores the contacts between
+the links of the robot:
+
+```c
+<load path='/3d/c/examples/scene_loaders3.c' marker='UrdfOptions' />
+```
+
+A robot can also be read from a string containing its URDF description with `r3UrdfRobotFromString`, in which case the
+relative paths of its meshes are resolved from the directory given as its second argument (or from the current
+directory if it is `NULL`):
+
+```c
+<load path='/3d/c/examples/scene_loaders3.c' marker='UrdfString' />
+```
+
+</c>
+<py>
+
+The robot is read as an `UrdfRobot` by `urdf.UrdfRobot.from_file` (which also returns the parsed URDF description),
+then inserted into the world with `UrdfRobot.insert_using_impulse_joints` or
+`UrdfRobot.insert_using_multibody_joints`, given the sets it is inserted into. Each link becomes a rigid-body (with its
+colliders), and each joint an impulse joint or a multibody joint. The returned `UrdfRobotHandles` gives the handles of
+the rigid-body and of the colliders created for each link (`UrdfRobotHandles.links`), and the handles of the joint
+created for each URDF joint, together with the handles of the two rigid-bodies it attaches (`UrdfRobotHandles.joints`):
+
+```python
+<load path='/3d/python/scene_loaders.py' marker='Urdf' />
+```
+
+The `UrdfLoaderOptions` control the conversion of the robot. On top of the options shown below, `scale` scales the
+whole robot, `mesh_converter` selects how its meshes are converted into shapes (see [meshes](#meshes)),
+`collider_blueprint` is the collider every collider of the robot is created from, and `squeeze_empty_fixed_links`
+(enabled by default) removes the links without any geometry or inertia that are attached by fixed joints. The
+insertion consumes the `UrdfRobot`: to insert the same robot once more, read it again, or rebuild it from its parsed
+description with `UrdfRobot.from_robot`. It can be moved before its insertion with `UrdfRobot.append_transform`. When
+inserting with multibody joints, the last argument is a combination of `UrdfMultibodyOptions` flags:
+`UrdfMultibodyOptions.JOINTS_ARE_KINEMATIC` makes the multibody joints kinematic (they are then entirely controlled by
+the application, e.g., through inverse kinematics), and `UrdfMultibodyOptions.DISABLE_SELF_CONTACTS` ignores the
+contacts between the links of the robot:
+
+```python
+<load path='/3d/python/scene_loaders.py' marker='UrdfOptions' />
+```
+
+A robot can also be read from a string containing its URDF description with `UrdfRobot.from_str`, in which case the
+directory used to resolve the relative paths of its meshes is given by its `mesh_dir` argument (the current directory
+by default). The parsed URDF description gives the name of each link and joint of the robot:
+
+```python
+<load path='/3d/python/scene_loaders.py' marker='UrdfString' />
+```
+
+</py>
+
+:::warning
+<rapier>The meshes referenced by an URDF file are only loaded if the corresponding cargo feature of the crate is enabled:
+`stl` for the `.stl` files, `collada` for the `.dae` files, and `wavefront` for the `.obj` files.</rapier><bevy>The
+`urdf` feature of `bevy_rapier3d` also enables the loading of the `.stl`, `.dae`, and `.obj` meshes referenced by an
+URDF file.</bevy><c>The `robotics` feature also enables the loading of the `.stl`, `.dae`, and `.obj` meshes referenced by an URDF file.</c><py>The Python package also loads the `.stl`, `.dae`, and `.obj` meshes referenced by an URDF file.</py> Note that a joint inserted as a multibody joint is reset to its neutral position, i.e., all of its
+coordinates are zero.
+:::
+
+## MJCF
+The [`rapier3d-mjcf`](https://crates.io/crates/rapier3d-mjcf) crate loads the **MJCF** XML format of MuJoCo.
+We recommend browsing the [MuJoCo Menagerie repository](https://github.com/google-deepmind/mujoco_menagerie) which
+contains many MJCF models.
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_scene_loaders3.rs' marker='Mjcf' />
+```
+
+</rapier>
+<bevy>
+
+The model is read as an `MjcfRobot`, and spawned with `spawn_mjcf_model`. Unlike the URDF loader, its joints are
+spawned as multibody joints by default (like in MuJoCo), which can be changed with `MjcfSpawnOptions::multibody`. The
+returned `SpawnedMjcfModel` lists the spawned entities, and finds them by their MJCF name. Note that the gravity
+declared by the model isn't applied automatically:
+
+```rust
+<load path='/3d/bevy/examples/scene_loaders3.rs' marker='Mjcf' />
+```
+
+Two more elements of MJCF need your app to be set up accordingly. The contact rules of the model
+(`<contact><exclude>`, and the friction of `<contact><pair>`) are registered in the `MjcfContactFilters` resource
+and applied by the `MjcfPhysicsHooks` [physics hooks](./advanced_collision_detection.mdx#physics-hooks) (if you have
+your own hooks, call `MjcfContactFilters::filter_contact_pair` and `MjcfContactFilters::modify_solver_contacts` from
+them instead). Each actuator of the model is spawned as an entity with an `MjcfActuator` component, which drives the
+motor of its joint once the `MjcfPlugin` is added:
+
+```rust
+<load path='/3d/bevy/examples/scene_loaders3.rs' marker='MjcfPlugins' />
+```
+
+The actuators are then controlled by setting their `MjcfActuator::ctrl` input:
+
+```rust
+<load path='/3d/bevy/examples/scene_loaders3.rs' marker='MjcfActuators' />
+```
+
+</bevy>
+<c>
+
+The model is read as an `R3MjcfRobot` by `r3MjcfRobotFromFile` (with the `R3MjcfLoaderOptions` initialized by
+`r3DefaultMjcfLoaderOptions`), then inserted into the world with `r3MjcfRobot_InsertUsingImpulseJoints` or
+`r3MjcfRobot_InsertUsingMultibodyJoints`. The returned `R3MjcfRobotHandles` gives the handles of the rigid-bodies
+created for the bodies of the model with `r3MjcfRobotHandles_Bodies` (in the order of the model file, with an invalid
+handle for the MJCF bodies that don't have a rigid-body):
+
+```c
+<load path='/3d/c/examples/scene_loaders3.c' marker='Mjcf' />
+```
+
+On top of the fields shared with `R3UrdfLoaderOptions`, the `R3MjcfLoaderOptions` can skip the plane geometries of
+the model (`skipPlaneGeoms`), and disable the motors of its joints (`disableJointMotors`). The collision groups of the
+colliders of the loaded model can also be modified before its insertion with
+`r3MjcfRobot_SetBodyColliderCollisionGroups`.
+
+The bitmask of options given to `r3MjcfRobot_InsertUsingMultibodyJoints` accepts the same flags as for URDF, as well
+as `R3_MULTIBODY_SKIP_LOOP_CLOSURES` (the `<equality>` constraints closing loops aren't inserted as impulse joints),
+`R3_MULTIBODY_SKIP_JOINT_MOTORS`, `R3_MULTIBODY_SKIP_JOINT_LIMITS`, and `R3_MULTIBODY_SKIP_JOINT_SPRINGS`. Note that
+the gravity declared by the model isn't applied automatically: it is given by `r3MjcfRobot_Gravity`. Each actuator of
+the model drives the motor of its joint: `r3MjcfRobotHandles_ApplyControlsScaled` sets the control inputs of all the
+actuators at once, and `r3MjcfRobotHandles_ApplyKeyframe` resets the robot to one of the keyframes of the model:
+
+```c
+<load path='/3d/c/examples/scene_loaders3.c' marker='MjcfActuators' />
+```
+
+The contact rules of the model (`<contact><exclude>`, and the friction of `<contact><pair>`) are applied by
+[physics hooks](./advanced_collision_detection.mdx#physics-hooks) created by `r3MjcfRobotHandles_ContactHooks`, which
+must be given to each simulation step (the inserted colliders already enable the required hooks). These hooks are owned
+by the application, and must outlive every step using them:
+
+```c
+<load path='/3d/c/examples/scene_loaders3.c' marker='MjcfContactHooks' />
+```
+
+Finally, the visual meshes of each body of the model can be read with `r3MjcfRobot_BodyVisualCount` and
+`r3MjcfRobot_BodyVisual`, in order to render the model with your own engine.
+
+</c>
+<py>
+
+The model is read as an `MjcfRobot` by `mjcf.MjcfRobot.from_file` (or from a string with `MjcfRobot.from_str`, in which
+case the directory used to resolve its includes and its meshes is given by its `base_dir` argument), then inserted
+into the world with `MjcfRobot.insert_using_impulse_joints` or `MjcfRobot.insert_using_multibody_joints` (which consume
+the `MjcfRobot`). The returned `MjcfRobotHandles` gives the handles of the rigid-body and colliders created for each
+body of the model (`MjcfRobotHandles.bodies`, with `None` for the MJCF bodies that don't have a rigid-body, e.g., the
+world body), and the handles of the joints created for its joints and for its `<equality>` constraints
+(`MjcfRobotHandles.joints` and `MjcfRobotHandles.equality_joints`):
+
+```python
+<load path='/3d/python/scene_loaders.py' marker='Mjcf' />
+```
+
+On top of the options shared with `UrdfLoaderOptions`, the `MjcfLoaderOptions` can skip the plane geometries of the
+model (`skip_plane_geoms`, enabled by default), disable the motors of its joints (`disable_joint_motors`), and select
+how the `contype` and `conaffinity` attributes of its geometries are converted into collision groups
+(`contact_filter_mode`). The collision groups of the colliders of the model can also be modified after its insertion,
+like for any other collider.
+
+The `MjcfMultibodyOptions` flags given to `MjcfRobot.insert_using_multibody_joints` are the same as for URDF, as well
+as `MjcfMultibodyOptions.SKIP_LOOP_CLOSURES` (the `<equality>` constraints closing loops aren't inserted as impulse
+joints), `MjcfMultibodyOptions.SKIP_JOINT_MOTORS`, `MjcfMultibodyOptions.SKIP_JOINT_LIMITS`, and
+`MjcfMultibodyOptions.SKIP_JOINT_SPRINGS`. Note that the gravity declared by the model isn't applied automatically: it
+is given by `MjcfRobot.gravity`. Each actuator of the model drives the motor of its joint (the actuators are listed by
+`MjcfRobotHandles.actuators`, each giving its `name` and the handle of the `joint` it drives): `MjcfRobotHandles.apply_controls` sets
+the control inputs of all the actuators at once (one per actuator), given the joint set the model was inserted into.
+`MjcfRobotHandles.apply_keyframe` resets the robot to one of the keyframes of the model (listed by
+`MjcfRobotHandles.keyframe_names`), given by its index or its name, and `MjcfRobotHandles.keyframe_controls` gives the
+control inputs that hold the robot in the pose of a keyframe (instead of pulling its position actuators back to zero):
+
+```python
+<load path='/3d/python/scene_loaders.py' marker='MjcfActuators' />
+```
+
+The contact rules of the model (`<contact><exclude>`, and the friction of `<contact><pair>`) are applied by
+[physics hooks](./advanced_collision_detection.mdx#physics-hooks) created by `MjcfRobotHandles.contact_hooks`, which
+must be assigned to `PhysicsWorld.physics_hooks` (where they run natively, without calling back into Python). If you
+have your own physics hooks, call the `filter_contact_pair` and `modify_solver_contacts` methods of these
+`MjcfContactHooks` from them instead:
+
+```python
+<load path='/3d/python/scene_loaders.py' marker='MjcfContactHooks' />
+```
+
+</py>
+
+:::note
+Note that MJCF sometimes describes a whole simulation and not only a scene, therefore some of its elements have no
+equivalent in Rapier, and some others are approximated.
+:::
+
+## Meshes
+
+<notpy>
+
+The [`rapier3d-meshloader`](https://crates.io/crates/rapier3d-meshloader) crate builds shapes from the usual mesh
+files, which is what both the MJCF and URDF loaders use internally. It is useful on its own whenever the collision
+geometry of a scene comes from an asset file rather than from primitive shapes. <notc>The formats it reads are selected by its</notc>
+<notc>cargo features: `stl`, `collada`, and `wavefront`. Each mesh of the file becomes one shape, converted as selected by the `MeshConverter`:</notc><c>It reads the `.stl`, `.dae`, and `.obj` files.</c>
+
+</notpy>
+<py>
+
+The [`rapier3d-meshloader`](https://crates.io/crates/rapier3d-meshloader) crate builds shapes from the usual mesh
+files, which is what both the MJCF and URDF loaders use internally. It is useful on its own whenever the collision
+geometry of a scene comes from an asset file rather than from primitive shapes. It reads the `.stl`, `.dae`, and
+`.obj` files.
+
+</py>
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_scene_loaders3.rs' marker='Meshes' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/scene_loaders3.rs' marker='Meshes' />
+```
+
+`Collider::from_mesh_file` combines all the meshes of the file into a single collider (with a compound shape if there
+are several of them). Use `load_mesh_file_colliders` instead to get one collider per mesh, together with its pose,
+the mesh itself, and its material (which can be converted into a Bevy mesh for rendering with `raw_mesh_to_bevy_mesh`
+if the `to-bevy-mesh` feature is enabled):
+
+```rust
+<load path='/3d/bevy/examples/scene_loaders3.rs' marker='MeshParts' />
+```
+
+</bevy>
+<c>
+
+The mesh loader is included in the C library by the `robotics` feature too. A mesh file is read by
+`r3LoadedMeshesFromFile` into an `R3LoadedMeshes` owned by the application, which gives the shape and the pose of
+each of its meshes (for an `.obj` file, each group and each change of material starts a new mesh). The conversion is
+selected by one of the `R3_MESH_CONVERTER_*` constants (along with the `R3_TRIMESH_*` flags applied to the triangle
+meshes, which are only accepted when converting with `R3_MESH_CONVERTER_TRIMESH`). A mesh that failed to convert
+doesn't fail the whole load: `r3LoadedMeshes_CloneShape` then reports an `R3_INVALID_ARGUMENT` error for that mesh
+only:
+
+```c
+<load path='/3d/c/examples/scene_loaders3.c' marker='Meshes' />
+```
+
+</c>
+<py>
+
+A mesh file is read by `mesh.load_from_path`, which returns a list with one `LoadedShape` per mesh of the file, giving
+its `shape` and its `pose` (as well as the `vertices` and `indices` of the original mesh, as NumPy arrays). A mesh that
+failed to be converted is given as a `MeshConversionError` instead, while a file that can't be read raises a
+`MeshLoaderError`. The conversion is selected by the `converter` argument, one of the `MeshConverter` values
+(`MeshConverter.TRIMESH` by default, `MeshConverter.trimesh_with_flags` applying `TriMeshFlags` to the triangle
+meshes), and the meshes can be scaled by the `scale` argument. A mesh that is already in memory can be converted the
+same way with `mesh.load_from_raw_mesh`:
+
+```python
+<load path='/3d/python/scene_loaders.py' marker='Meshes' />
+```
+
+</py>

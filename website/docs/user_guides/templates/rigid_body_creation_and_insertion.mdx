@@ -4,7 +4,8 @@ import TabItem from '@theme/TabItem';
 <rapier>
 
 A rigid-body is created by a `RigidBodyBuilder` structure that is based on the builder pattern. Then it needs
-to be inserted into the `RigidBodySet` that will be processed by the physics-pipeline or query-pipeline.
+to be inserted into the [physics world](./simulation_structures.mdx#physics-world), i.e., into its `RigidBodySet`,
+which is processed by the physics-pipeline and the query-pipeline.
 
 :::info
 The following example shows several setters that can be called to customize the
@@ -47,7 +48,8 @@ initialize the builder, and `.build()` to actually build the rigid-body.
 
 A rigid-body is created by adding the `RigidBody` component to an entity. Other components
 like `Transform`, `Velocity`, `Ccd`, etc. can be added for further customization of the
-rigid-body.
+rigid-body. Removing one of these optional components afterwards resets the corresponding property of the
+rigid-body to its default value.
 
 :::info
 The following example shows several initialization of components to customize
@@ -119,6 +121,85 @@ values={[
 </Tabs>
 
 </js>
+
+<c>
+
+A rigid-body is created from a `R3RigidBodyDesc` description. This plain structure must first be initialized by one of
+its constructors (which set the default value of every field), then any of its fields can be modified before it is
+inserted into the [physics world](./simulation_structures.mdx#physics-world) with `r3InsertRigidBody`. The world copies
+the description and returns the `R3RigidBodyHandle` identifying the new rigid-body, which is then given to every
+function reading or modifying it.
+
+:::info
+The following example shows several fields that can be set to customize the
+rigid-body being built. The input values are just random so using this example
+as-is will not lead to a useful result.
+:::
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+
+All the fields are optional. The only calls that are required are `r3DynamicRigidBodyDesc()`,
+`r3FixedRigidBodyDesc()`, `r3KinematicVelocityBasedRigidBodyDesc()`, or `r3KinematicPositionBasedRigidBodyDesc()`, to
+initialize the description, and `r3InsertRigidBody` to actually create the rigid-body. The rigid-body is removed
+from the world with `r3RemoveRigidBody`: its last argument indicates if its colliders must be removed as well (if it
+is `0`, they are kept as colliders without parent).
+
+</c>
+
+<py>
+
+A rigid-body is created by a `RigidBodyBuilder` that is based on the builder pattern: each of its methods returns a
+new builder with the corresponding property set, so they can be chained. The builder is obtained from one of the
+static methods of the `RigidBody` class. Then it needs to be inserted into the
+[physics world](./simulation_structures.mdx#physics-world) with `PhysicsWorld.add_body` (or directly into its
+`RigidBodySet` with `world.rigid_bodies.insert`), which returns the `RigidBodyHandle` identifying the new rigid-body.
+
+:::info
+The following example shows several setters that can be called to customize the
+rigid-body being built. The input values are just random so using this example
+as-is will not lead to a useful result.
+:::
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Creation' />
+```
+
+All the properties are optional. The only calls that are required are `RigidBody.fixed()`, `RigidBody.dynamic()`,
+`RigidBody.kinematic_velocity_based()`, `RigidBody.kinematic_position_based()`, or
+`RigidBody.new_body(body_type)`, to initialize the builder. Each of them also accepts the builder properties as
+keyword arguments. Calling `.build()` to actually build the `RigidBody` is optional: `PhysicsWorld.add_body` accepts
+the builder as well, and its optional `colliders` argument attaches a list of [colliders](./colliders.mdx) to the new
+rigid-body in the same call.
+
+Once inserted, the rigid-body is accessed with `world.rigid_bodies[handle]`. The returned `RigidBody` is a view of the
+rigid-body stored in the world: modifying its properties (e.g. `rigid_body.linvel = (1.0, 0.0, 0.0)`) modifies the
+simulated rigid-body directly, and a `RigidBody` built but not inserted yet is copied by the insertion (so modifying it
+afterwards has no effect on the world). The rigid-body is removed from the world, together with its colliders and the
+joints attached to it, with `PhysicsWorld.remove_body`.
+
+</py>
 
 :::info
 Typically, the inertia and center of mass are automatically set to the inertia and center of mass resulting from the

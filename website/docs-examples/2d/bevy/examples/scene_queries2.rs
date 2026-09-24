@@ -1,4 +1,4 @@
-use bevy::{math::bounding::Aabb2d, prelude::*};
+use bevy::{prelude::*, shape::Aabb2d};
 use bevy_rapier2d::prelude::*;
 
 #[derive(PartialEq, Eq, Clone, Copy, Component)]
@@ -17,6 +17,7 @@ fn main() {
         .add_systems(FixedUpdate, cast_shape)
         .add_systems(FixedUpdate, project_point)
         .add_systems(FixedUpdate, test_intersections)
+        .add_systems(FixedUpdate, run_queries_with_pipeline)
         .add_systems(FixedUpdate, cast_ray_filtered)
         .run();
 }
@@ -74,13 +75,13 @@ fn cast_ray(rapier_context: ReadRapierContext) {
         );
     }
 
-    rapier_context.intersections_with_ray(
+    rapier_context.intersect_ray(
         ray_pos,
         ray_dir,
         max_toi,
         solid,
         filter,
-        |entity, intersection| {
+        |entity, _collider, intersection| {
             // Callback called on each collider hit by the ray.
             let hit_point = intersection.point;
             let hit_normal = intersection.normal;
@@ -128,11 +129,13 @@ fn cast_shape(rapier_context: ReadRapierContext) {
 fn project_point(rapier_context: ReadRapierContext) {
     let rapier_context = rapier_context.single().unwrap();
     let point = Vec2::new(1.0, 2.0);
+    let max_dist = 4.0; // Colliders further than this distance are ignored.
     let solid = true;
     let filter = QueryFilter::default();
 
-    if let Some((entity, projection)) = rapier_context.project_point(point, solid, filter) {
-        // The collider closest to the point has this `handle`.
+    if let Some((entity, projection)) = rapier_context.project_point(point, max_dist, solid, filter)
+    {
+        // The collider closest to the point is attached to `entity`.
         println!(
             "Projected point on entity {:?}. Point projection: {}",
             entity, projection.point
@@ -143,7 +146,7 @@ fn project_point(rapier_context: ReadRapierContext) {
         );
     }
 
-    rapier_context.intersections_with_point(point, filter, |entity| {
+    rapier_context.intersect_point(point, filter, |entity, _collider| {
         // Callback called on each collider with a shape containing the point.
         println!("The entity {:?} contains the point.", entity);
         // Return `false` instead if we want to stop searching for other colliders containing this point.
@@ -161,18 +164,18 @@ fn test_intersections(rapier_context: ReadRapierContext) {
     let shape_rot = 0.8;
     let filter = QueryFilter::default();
 
-    rapier_context.intersections_with_shape(shape_pos, shape_rot, &shape, filter, |entity| {
+    rapier_context.intersect_shape(shape_pos, shape_rot, &shape, filter, |entity, _collider| {
         println!("The entity {:?} intersects our shape.", entity);
-        true // Return `false` instead if we want to stop searching for other colliders that contain this point.
+        true // Return `false` instead if we want to stop searching for other colliders intersecting our shape.
     });
 
     let aabb = Aabb2d::new(Vec2::new(-1.0, -2.0), Vec2::new(1.0, 2.0));
-    rapier_context.colliders_with_aabb_intersecting_aabb(aabb, |entity| {
+    rapier_context.intersect_aabb_conservative(aabb, filter, |entity, _collider| {
         println!(
             "The entity {:?} has an AABB intersecting our test AABB",
             entity
         );
-        true // Return `false` instead if we want to stop searching for other colliders that contain this point.
+        true // Return `false` instead if we want to stop searching for other colliders with an intersecting AABB.
     });
 }
 // DOCUSAURUS: IntersectionTest stop
@@ -190,10 +193,10 @@ fn cast_ray_filtered(
     let ray_dir = Vec2::new(0.0, 1.0);
     let max_toi = 4.0;
     let solid = true;
-    let predicate = |handle| {
+    let predicate = |entity, _collider: &_| {
         // We can use a query to bevy inside the predicate.
         custom_data_query
-            .get(handle)
+            .get(entity)
             .is_ok_and(|custom_data| custom_data.data == 10)
     };
     let filter = QueryFilter::exclude_dynamic()
@@ -210,3 +213,35 @@ fn cast_ray_filtered(
     }
 }
 // DOCUSAURUS: QueryFilter stop
+
+// DOCUSAURUS: QueryPipeline start
+/* Run several scene queries sharing the same filter inside of a system. */
+fn run_queries_with_pipeline(rapier_context: ReadRapierContext) {
+    let rapier_context = rapier_context.single().unwrap();
+    let filter = QueryFilter::exclude_dynamic();
+
+    rapier_context.with_query_pipeline(filter, |query_pipeline| {
+        // The scene queries take into account the positions of the colliders at the end of
+        // the last timestep.
+        let ray_pos = Vec2::new(1.0, 2.0);
+        let ray_dir = Vec2::new(0.0, -1.0);
+        if let Some((entity, toi)) = query_pipeline.cast_ray(ray_pos, ray_dir, 4.0, true) {
+            println!(
+                "Entity {:?} hit at point {}",
+                entity,
+                ray_pos + ray_dir * toi
+            );
+        }
+
+        // The methods of the `RapierQueryPipeline` return iterators instead of
+        // calling a closure for each result.
+        for (entity, collider) in query_pipeline.intersect_point(ray_pos) {
+            println!(
+                "The entity {:?} contains the point. Is it a sensor? {}",
+                entity,
+                collider.is_sensor()
+            );
+        }
+    });
+}
+// DOCUSAURUS: QueryPipeline stop

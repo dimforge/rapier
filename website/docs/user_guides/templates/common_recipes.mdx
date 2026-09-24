@@ -7,9 +7,188 @@ sidebar_label: Common recipes
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
+This page provides code snippets that might be relevant for typical usages of the libraries in games.
 
-## Making a moving platform.
-## Making a one-way platform.
-## Making a simple kinematic character controller.
-## Making a simple dynamic character controller.
-## Simulating a conveyor belt.
+## Making a moving platform
+A moving platform must push the objects resting on it without being pushed back by them, which is
+exactly what a [**kinematic** rigid-body](./rigid_bodies.mdx#rigid-body-type) does: it is moved by your own code, and
+the solver treats it as if it is immune to gravity and external forces.
+
+A platform following a path is generally position-based: you give it the position it must reach at the end of the next
+timestep, and the engine derives the velocity needed to get there, so the objects on top of it are pushed with the right
+velocity:
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_common_recipes3.rs' marker='MovingPlatform' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/common_recipes3.rs' marker='MovingPlatform' />
+```
+
+</bevy>
+<c>
+
+```c
+<load path='/3d/c/examples/common_recipes3.c' marker='MovingPlatform' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/common_recipes.py' marker='MovingPlatform' />
+```
+
+</py>
+
+Alternately, if the platform's rigid-body was created with the <rapier>`RigidBodyType::KinematicVelocityBased`</rapier><bevy>`RigidBody::KinematicVelocityBased`</bevy><c>`R3_KINEMATIC_VELOCITY_BASED`</c><py>`RigidBodyType.KINEMATIC_VELOCITY_BASED`</py> type, then it
+needs to be controlled by setting its velocity<bevy> (with its `Velocity` component)</bevy><c> (with `r3RigidBody_SetLinvel` and `r3RigidBody_SetAngvel`)</c><py> (with its `linvel` and `angvel` properties)</py> directly instead of a target position.
+
+:::warning
+<rapier>Don't move a kinematic body by setting its position directly: this teleports it, so it goes through whatever is in
+the way instead of pushing it.</rapier><bevy>Modifying the `Transform` of a
+position-based kinematic body sets its next kinematic position. However, modifying the `Transform` of a
+velocity-based kinematic body teleports it, so it goes through whatever is in the way instead of pushing it.</bevy><c>Don't move a kinematic body by setting its position directly (e.g. with `r3RigidBody_SetTranslation`): this teleports it, so it goes through whatever is in the way instead of pushing it.</c><py>Don't move a kinematic body by setting its position directly (e.g. with its `translation` property): this teleports it, so it goes through whatever is in the way instead of pushing it.</py> Note as well that two kinematic bodies never collide with each other, and that a
+kinematic body pushing another kinematic body has no effect.
+:::
+
+## Making a one-way platform
+A one-way platform lets the character pass through it from below and holds it from
+above. This can be done by looking at the contacts before they reach the solver, with the
+[contact modification](./advanced_collision_detection.mdx#contact-modification) hook, and by discarding those whose
+normal isn't the one the platform accepts. Rapier provides a helper function `update_as_oneway_platform` for that<bevy>
+(`ContactModificationContextView::update_as_oneway_platform`)</bevy><c> (`r3ContactModificationContext_UpdateAsOnewayPlatform`)</c><py> (`ContactModificationContext.update_as_oneway_platform`)</py>:
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_common_recipes3.rs' marker='OneWayPlatform' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/common_recipes3.rs' marker='OneWayPlatform' />
+```
+
+</bevy>
+<c>
+
+```c
+<load path='/3d/c/examples/common_recipes3.c' marker='OneWayPlatform' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/common_recipes.py' marker='OneWayPlatform' />
+```
+
+</py>
+
+The hooks are then given to <rapier>the world at each timestep</rapier><bevy>the `RapierPhysicsPlugin` as its type
+parameter</bevy><c>`r3Step` at each timestep, as the `modify_solver_contacts_context` callback of an `R3PhysicsHooks`</c><py>the world, by assigning them to its `physics_hooks` property</py>, and the platform's collider is flagged as asking for them:
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_common_recipes3.rs' marker='Hooks' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/common_recipes3.rs' marker='HooksPlugin' />
+```
+
+```rust
+<load path='/3d/bevy/examples/common_recipes3.rs' marker='Hooks' />
+```
+
+</bevy>
+<c>
+
+```c
+<load path='/3d/c/examples/common_recipes3.c' marker='Hooks' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/common_recipes.py' marker='Hooks' />
+```
+
+</py>
+
+<notpy>
+
+:::info
+The normal given to `update_as_oneway_platform` is expressed in the local frame of the **first** collider of the pair,
+therefore it must be flipped when the platform happens to be the second one. Don't forget to give the platform's
+collider the <notc>`ActiveHooks::MODIFY_SOLVER_CONTACTS`</notc><c>`R3_MODIFY_SOLVER_CONTACTS`</c> [active hooks](./colliders.mdx#active-hooks), otherwise the hook is
+never called for it.
+:::
+
+</notpy>
+
+<py>
+
+:::info
+The normal given to `update_as_oneway_platform` is expressed in the local frame of the **first** collider of the pair,
+therefore it must be flipped when the platform happens to be the second one. Don't forget to give the platform's
+collider the `ActiveHooks.MODIFY_SOLVER_CONTACTS` [active hooks](./colliders.mdx#active-hooks), otherwise the hook is
+never called for it.
+:::
+
+</py>
+
+## Simulating a conveyor belt
+A conveyor belt is a surface that drags what rests on it without moving itself. This is modeled by an artificial surface
+velocity, which is set on the solver contacts using a contact modification hook<c> (with `r3ContactModificationContext_SetTangentVelocity`)</c><py> (with `ContactModificationContext.set_tangent_velocity`)</py>.
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_common_recipes3.rs' marker='ConveyorBelt' />
+```
+
+</rapier>
+<bevy>
+
+```rust
+<load path='/3d/bevy/examples/common_recipes3.rs' marker='ConveyorBelt' />
+```
+
+</bevy>
+
+<c>
+
+```c
+<load path='/3d/c/examples/common_recipes3.c' marker='ConveyorBelt' />
+```
+
+</c>
+
+<py>
+
+```python
+<load path='/3d/python/common_recipes.py' marker='ConveyorBelt' />
+```
+
+The tangent velocity given to `set_tangent_velocity` is the velocity of the surface of the second collider of the pair
+relative to the surface of the first one, therefore it must be flipped when the belt happens to be the second one.
+Like the one-way platform, the belt's collider must be given the `ActiveHooks.MODIFY_SOLVER_CONTACTS` active hooks.
+Keep in mind as well that the hooks aren't called for the contacts of sleeping rigid-bodies: an object put to sleep
+on the belt before it started moving must be woken up, e.g., with `RigidBody.wake_up`.
+
+</py>

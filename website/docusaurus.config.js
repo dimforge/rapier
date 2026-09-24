@@ -135,6 +135,7 @@ const config = {
     },
   },
   plugins: [
+    require.resolve('./plugins/user-guide-inject'),
     [
       '@docusaurus/plugin-content-docs',
       {

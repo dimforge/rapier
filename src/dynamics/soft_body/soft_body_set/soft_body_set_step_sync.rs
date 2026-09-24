@@ -151,9 +151,8 @@ impl SoftBodySet {
         }
     }
 
-    /// Moves the soft body's colliders to its current particle positions (the surface shape, or
-    /// the particle balls). `rebuild`: the surface topology changed (a tear), the surface shape is
-    /// rebuilt instead of deformed in place.
+    /// Moves the soft body's colliders to its current particle positions. `rebuild`: the surface
+    /// topology changed (a tear), so the surface shape is rebuilt instead of deformed in place.
     pub(super) fn update_colliders(
         sb: &SoftBody,
         bodies: &RigidBodySet,
@@ -186,8 +185,8 @@ impl SoftBodySet {
     }
 
     /// Updates each soft body's derived state at the end of a step: surface orientation, sleep
-    /// state, colliders and particle balls of the awake ones, the coming step's speculative margin
-    /// and the impact-adaptive substep request. A body with a non-finite particle is quarantined.
+    /// state, colliders of the awake ones, the coming step's speculative margin and the
+    /// impact-adaptive substep request. A body with a non-finite particle is quarantined.
     pub fn sync_particle_positions(
         &mut self,
         bodies: &mut RigidBodySet,

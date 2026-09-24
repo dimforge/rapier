@@ -42,6 +42,20 @@ collider's shape and density) to the rigid-body it is attached to:
 ```
 
 </js>
+<c>
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Mass1' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Mass1' />
+```
+
+</py>
 
 Alternatively, it is possible to set the mass properties of a rigid-body when it is created. Keep in mind that
 this won't prevent the colliders' contributions to be added to these values. So make sure to set the attached
@@ -88,6 +102,15 @@ values={[
 <load path='/2d/bevy/examples/rigid_bodies2.rs' marker='Mass3' />
 ```
 
+The resulting mass-properties (including the colliders' contributions) can be read from the `ReadMassProperties`
+component (local-space mass, center-of-mass and angular inertia), inserted automatically with the `RigidBody`
+component, or by adding the `ReadWorldMassProperties` component (world-space center-of-mass and inverse inertia, taking
+the [locked axes](./rigid_bodies.mdx#locking-translationsrotations) into account) to the rigid-body. The latter isn't
+inserted automatically because it changes at each step for every moving rigid-body. Both are updated by the physics
+engine and modifying them has no effect on the simulation.
+The `RapierRigidBodySet` (from the `ReadRapierContext` system parameter) also has helpers taking the rigid-body entity,
+like `RapierRigidBodySet::mass` and `RapierRigidBodySet::center_of_mass`.
+
 </bevy>
 <js>
 
@@ -115,3 +138,69 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Mass2' />
+```
+```c
+<load path='/2d/c/examples/rigid_bodies2.c' marker='Mass3' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='Mass2' />
+```
+```c
+<load path='/3d/c/examples/rigid_bodies3.c' marker='Mass3' />
+```
+
+  </TabItem>
+</Tabs>
+
+The `additionalMass` field of `R3RigidBodyDesc` only adds a mass (the angular inertia being scaled accordingly, based
+on the shapes of the colliders), whereas the `additionalMassProperties` field (taken into account only if `useAdditionalMassProperties`
+is set to `1`) specifies the full mass-properties (mass, center-of-mass, and principal angular inertia) of type
+`R3MassProperties`. After the creation of the rigid-body, they are modified with `r3RigidBody_SetAdditionalMass` and
+`r3RigidBody_SetAdditionalMassProperties` respectively.
+
+The resulting mass-properties (including the colliders' contributions) can be read with `r3RigidBody_Mass`,
+`r3RigidBody_LocalCenterOfMass` (in the local-space of the rigid-body), and `r3RigidBody_CenterOfMass` (in
+world-space). They are updated automatically by the physics engine but, if you need them right after modifying the
+colliders or the additional mass-properties of a rigid-body (without waiting for the next timestep), they can be
+updated manually with `r3RigidBody_RecomputeMassPropertiesFromColliders`.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Mass2' />
+```
+```python
+<load path='/3d/python/rigid_bodies.py' marker='Mass3' />
+```
+
+The `RigidBodyBuilder.additional_mass` method only adds a mass (the angular inertia being scaled accordingly, based
+on the shapes of the colliders), whereas `RigidBodyBuilder.additional_mass_properties` specifies the full
+mass-properties (mass, center-of-mass, and principal angular inertia) given as a `MassProperties`. After the creation
+of the rigid-body, they are modified with `RigidBody.set_additional_mass` and `RigidBody.set_additional_mass_properties`
+respectively.
+
+The resulting mass-properties (including the colliders' contributions) can be read with the `mass`,
+`local_center_of_mass` (in the local-space of the rigid-body), `center_of_mass` (in world-space), and
+`mass_properties` properties of the `RigidBody`. They are updated automatically by the physics engine but, if you
+need them right after modifying the colliders or the additional mass-properties of a rigid-body (without waiting for
+the next timestep), they can be updated manually with `rigid_body.recompute_mass_properties_from_colliders(world.colliders)`.
+
+</py>

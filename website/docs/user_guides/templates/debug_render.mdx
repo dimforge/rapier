@@ -1,0 +1,318 @@
+---
+id: debug_render
+title: Debug-renderer
+sidebar_label: Debug-renderer
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Rapier is a physics engine, it doesn't render anything. What is displayed by your application comes from your own
+renderer, and game assets generally don’t match the shapes seen by the physics engine exactly. Therefore a collider
+given the wrong size, a joint attached at the wrong place, or a rigid-body that is not where its sprite is, can be
+difficult to debug (and easy to misinterpret as physics-engine-bugs).
+
+To help with debugging physics, Rapier’s **debug-renderer** exists to convert the content of the physics scene into a
+set of colored lines that your application to obtain a wireframe view of what Rapier actually sees.
+
+<rapier>
+
+:::info
+The debug-renderer is behind the `debug-render` cargo feature, which is disabled by default.
+:::
+
+Despite its name, the debug-render doesn’t actually contains any windowing/rasterization/shader code. Instead, it provides
+ to a backend implementing `DebugRenderBackend` the set of lines that needs to be displayed by your own graphics engine.
+This makes it possible to integrate the debug-rendering to any graphics stack your application might use.
+From the `DebugRenderBackend`, only the `draw_line` method must be implemented and everything else has a default
+implementation expressed in terms of individual lines.
+
+Note that the colors are given in the HSLA format, therefore a backend expecting RGBA colors is expected to convert them:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_debug_render2.rs' marker='DebugRenderBackend' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_debug_render3.rs' marker='DebugRenderBackend' />
+```
+
+  </TabItem>
+</Tabs>
+
+The `DebugRenderPipeline` is then given the sets of the scene once per rendered frame. Its `DebugRenderStyle` specifies
+the colors and various length properties, whereas its `DebugRenderMode` selects what is drawn so you can select only
+the element types you are interested in debugging.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_debug_render2.rs' marker='DebugRender' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_debug_render3.rs' marker='DebugRender' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<bevy>
+
+:::info
+The debug-renderer is behind the `debug-render-2d` and `debug-render-3d` cargo features (the one matching the
+dimension of the crate is enabled by default, and can also be enabled with the `debug-render` alias). The
+`rapier-debug-render` feature enables the debug-render pipeline of Rapier alone, without any Bevy rendering dependency,
+in case you want to implement your own `DebugRenderBackend`.
+:::
+
+The debug-renderer is enabled by adding the `RapierDebugRenderPlugin` to your app. It
+draws the lines with the gizmos of Bevy, after the propagation of the transforms, for every physics context. The
+plugin is also where the initial `DebugRenderStyle` (the colors and various length properties) and `DebugRenderMode`
+(what is drawn, so you can select only the element types you are interested in debugging) are given. Use
+`RapierDebugRenderPlugin::default().disabled()` to add the plugin without rendering anything until it is enabled:
+
+```rust
+<load path='/3d/bevy/examples/debug_render3.rs' marker='DebugRenderPlugin' />
+```
+
+After initialization, the debug-renderer is controlled by the `DebugRenderContext` resource:
+- `enabled` switches the debug-rendering on and off.
+- `mode` selects what is drawn, with one boolean per flag of `DebugRenderMode` (so it can be edited by the tools
+  based on Bevy's reflection, like the other fields of this resource).
+- `style` gives the colors and the lengths of the lines.
+- `default_collider_debug` selects whether the collider shapes are drawn by default (`ColliderDebug::AlwaysRender`)
+  or only for the colliders asking for it (`ColliderDebug::NeverRender`).
+- `scale_lengths_by_length_unit` (enabled by default) makes the lengths of the `style` expressed in meters: they are
+  multiplied by the [length unit](./integration_parameters.mdx#length_unit) of each physics context, e.g., by the
+  pixels-per-meter in 2D.
+
+```rust
+<load path='/3d/bevy/examples/debug_render3.rs' marker='DebugRenderContext' />
+```
+
+Finally, the rendering of individual objects can be customized by adding the following components to their entities:
+- `ColliderDebugColor` overrides the color of the collider (and of its AABB).
+- `ColliderDebug` overrides the `default_collider_debug` of the `DebugRenderContext` for this collider (its shape, its
+  AABB, and the contact pairs it is involved in).
+- `DebugRenderColor` overrides the color of everything attached to the entity: its collider (unless it has a
+  `ColliderDebugColor`), its rigid-body axes, its joint, and its soft-body.
+- `DebugRenderVisibility::Hidden` hides everything attached to the entity (except a collider with a `ColliderDebug`
+  component).
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/debug_render2.rs' marker='DebugRenderOverrides' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/debug_render3.rs' marker='DebugRenderOverrides' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+The debug shape data is computed by the `World.debugRender` method, which gives back one vertex buffer and one color
+buffer describing the lines to be drawn. These buffers are meant to be given to the line renderer of your application
+as they are:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/debug_render.ts' marker='DebugRender' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/debug_render.ts' marker='DebugRender' />
+```
+
+  </TabItem>
+</Tabs>
+
+Note that the colliders can be filtered out of the debug-rendering, either by their
+[query filter flags](./scene_queries.mdx#query-filters) or by an arbitrary closure, which is useful when only a part
+of a large scene is of interest (not keep in mind that a closure will introduce an overhead).
+
+</js>
+<c>
+
+Despite its name, the debug-renderer doesn’t actually contains any windowing/rasterization/shader code. Instead,
+`r3DebugRender` copies the set of lines that needs to be displayed by your own graphics engine into a buffer of
+`R3DebugLine` given by the application. Each line is given by its world-space end points (`a` and `b`) and its
+`color`. This makes it possible to integrate the debug-rendering to any graphics stack your application might use.
+Note that the colors are given in the HSLA format (the hue being in degrees), therefore a renderer expecting RGBA
+colors is expected to convert them:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/debug_render2.c' marker='DebugColor' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/debug_render3.c' marker='DebugColor' />
+```
+
+  </TabItem>
+</Tabs>
+
+`r3DebugRender` is then called once per rendered frame. Its `mode` argument is a combination of the `R3_DEBUG_*` flags
+(e.g. `R3_DEBUG_COLLIDER_SHAPES` or `R3_DEBUG_CONTACTS`) that selects what is drawn, so you can select only the
+element types you are interested in debugging. Just like the scene queries returning several results, calling it with
+a `NULL` buffer and a zero capacity gives the number of lines, then a second call with a buffer large enough copies
+them (keep in mind that each of these calls computes all the lines):
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/debug_render2.c' marker='DebugRender' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/debug_render3.c' marker='DebugRender' />
+```
+
+  </TabItem>
+</Tabs>
+
+The lines are drawn with the default style. The colors and various length properties of the lines can be customized
+by giving an `R3DebugRenderStyle`, initialized by `r3DefaultDebugRenderStyle`, to `r3DebugRenderWithStyle`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/debug_render2.c' marker='DebugRenderStyle' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/debug_render3.c' marker='DebugRenderStyle' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+Despite its name, the debug-renderer doesn’t actually contains any windowing/rasterization/shader code. Instead, the
+`DebugRenderPipeline` gives the set of lines that needs to be displayed by your own graphics engine (e.g. matplotlib,
+pygame, or any 3D viewer) to a backend. This makes it possible to integrate the debug-rendering to any graphics stack
+your application might use. The backend can be any object with a `draw_line` method (as described by the
+`DebugRenderBackend` protocol), which is called for each line with the kind of object the line belongs to (a
+`DebugRenderObject`), the two end points of the line, and its color. Note that the colors are given in the HSLA format
+(the hue being in degrees), therefore a backend expecting RGBA colors is expected to convert them, e.g., with the
+`DebugColor.rgba` property:
+
+```python
+<load path='/3d/python/debug_render.py' marker='DebugRenderBackend' />
+```
+
+The `DebugRenderPipeline` is then given the sets of the world once per rendered frame (the soft-bodies being
+optional). Its `DebugRenderStyle` specifies the colors and various length properties, whereas its `DebugRenderMode`
+selects what is drawn (its flags being combined with the `|` operator) so you can select only the element types you
+are interested in debugging:
+
+```python
+<load path='/3d/python/debug_render.py' marker='DebugRender' />
+```
+
+Calling a Python method for each line is slow. If you don't need to process the lines one by one,
+`DebugRenderPipeline.render_to_arrays` computes all of them without calling back into Python, and gives them as NumPy
+arrays. Giving a `DebugLineCollector` as the backend of `DebugRenderPipeline.render` also avoids these calls, the
+lines being collected until `DebugLineCollector.clear` is called:
+
+```python
+<load path='/3d/python/debug_render.py' marker='DebugRenderArrays' />
+```
+
+Finally, the style and the mode can be changed at any time with the `style` and `mode` properties of the pipeline. The
+`style` property gives the style used by the pipeline itself, so modifying it changes the next renders (a whole
+`DebugRenderStyle` can also be assigned to it):
+
+```python
+<load path='/3d/python/debug_render.py' marker='DebugRenderStyle' />
+```
+
+</py>
+
+:::warning
+The debug-rendering is not free: it walks every collider of the scene and converts its shape into lines at each frame.
+Therefore it is meant to be enabled only when debugging rather than a player-facing representation of the game objects.
+:::

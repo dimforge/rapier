@@ -6,17 +6,19 @@ import TabItem from '@theme/TabItem';
 pairs, or modify contacts, based on arbitrary user code. In order to enable a physics hook for a pair of colliders, at
 least one of the involved colliders must have the corresponding hook set as active. A hook is activated for a collider
 by setting its corresponding active hooks bit to `1`:
-- Setting the <notjs>`ActiveHooks::FILTER_CONTACT_PAIR`</notjs><js>`ActiveHooks.FILTER_CONTACT_PAIR`</js> bit to 1
+- Setting the <notjs>`ActiveHooks::FILTER_CONTACT_PAIR`</notjs><js>`ActiveHooks.FILTER_CONTACT_PAIR`</js><c>`R3_FILTER_CONTACT_PAIRS`</c><py>`ActiveHooks.FILTER_CONTACT_PAIR`</py> bit to 1
   enables the manual [filtering of all the contact pairs](./advanced_collision_detection.mdx#contact-and-intersection-filtering)
   involving the collider.
-- Setting the <notjs>`ActiveHooks::FILTER_INTERSECTION_PAIR`</notjs><js>`ActiveHooks.FILTER_INTERSECTION_PAIR`</js>bit
-  to 1 enables the manual [filtering of all the contact pairs](./advanced_collision_detection.mdx#contact-and-intersection-filtering)
+- Setting the <notjs>`ActiveHooks::FILTER_INTERSECTION_PAIR`</notjs><js>`ActiveHooks.FILTER_INTERSECTION_PAIR`</js><c>`R3_FILTER_INTERSECTION_PAIR` </c><py>`ActiveHooks.FILTER_INTERSECTION_PAIR` </py>bit
+  to 1 enables the manual [filtering of all the intersection pairs](./advanced_collision_detection.mdx#contact-and-intersection-filtering)
   involving the collider.
 <notjs>- Setting the `ActiveHooks::MODIFY_SOLVER_CONTACTS` bit to 1
   enables the manual [contact modification](./advanced_collision_detection.mdx#contact-modification) for all the contact
   manifolds involving the collider.</notjs>
+<c>- Setting the `R3_MODIFY_SOLVER_CONTACTS` bit to 1 enables the manual [contact modification](./advanced_collision_detection.mdx#contact-modification) for all the contact manifolds involving the collider.</c>
+<py>- Setting the `ActiveHooks.MODIFY_SOLVER_CONTACTS` bit to 1 enables the manual [contact modification](./advanced_collision_detection.mdx#contact-modification) for all the contact manifolds involving the collider.</py>
 
-The active hooks of a collider can be set when the collider is created or after its creation:
+The active hooks of a collider can be set when the collider is created or after its creation<c> (the callbacks themselves are given to `r3Step` as a `R3PhysicsHooks`, see [physics hooks](./advanced_collision_detection.mdx#physics-hooks))</c><py> (the callbacks themselves are given by the object assigned to the `physics_hooks` property of the `PhysicsWorld`, see [physics hooks](./advanced_collision_detection.mdx#physics-hooks))</py>:
 
 <rapier>
 
@@ -48,3 +50,23 @@ The active hooks of a collider can be set when the collider is created or after 
 ```
 
 </js>
+<c>
+
+```c
+<load path='/2d/c/examples/colliders2.c' marker='ActiveHooks1' />
+```
+```c
+<load path='/2d/c/examples/colliders2.c' marker='ActiveHooks2' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/colliders.py' marker='ActiveHooks1' />
+```
+```python
+<load path='/3d/python/colliders.py' marker='ActiveHooks2' />
+```
+
+</py>

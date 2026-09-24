@@ -243,8 +243,8 @@ export class ColliderSet {
     }
 
     /**
-     * Wraps the colliders the engine created on its own (the deformable surfaces and particle
-     * colliders of soft bodies) that have no JavaScript wrapper yet.
+     * Wraps the colliders the engine created on its own (the deformable collision meshes of
+     * soft bodies) that have no JavaScript wrapper yet.
      */
     public mapNewColliders(bodies: RigidBodySet) {
         this.raw.forEachColliderHandle((handle: ColliderHandle) => {

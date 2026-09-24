@@ -1,0 +1,165 @@
+---
+id: getting_started_c
+title: Getting started
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+## Building the C bindings
+The C bindings of **rapier** are a C11 API (with optional C++17 helpers) exposed by a native library compiled from
+the `c` folder of the [Rapier repository](https://github.com/dimforge/rapier). They are built with
+[CMake](https://cmake.org) (3.25 or later), which runs [Cargo](https://doc.rust-lang.org/cargo/) for you, so you
+need a Rust toolchain as well as a C compiler. From the root of the repository:
+
+```sh
+cmake -S c -B build/c -DCMAKE_BUILD_TYPE=Release
+cmake --build build/c --config Release --parallel
+```
+
+This builds the 3D single-precision shared library. Other variants of the library are selected with the following
+options, given to the first command. Each variant must be built in its own build directory:
+- `-DRAPIER_DIMENSION=2`: builds the library for 2D physics simulation instead of 3D.
+- `-DRAPIER_PRECISION=64`: uses 64-bits floats instead of 32-bits floats, for high-precision simulation.
+- `-DRAPIER_SHARED=OFF`: links the static library instead of the shared library.
+- `-DRAPIER_ENABLE_PARALLEL=ON`: enables the parallelism of the physics pipeline. The number of threads is then
+  selected with `r3SetNumThreads`.
+- `-DRAPIER_SIMD_LANES=8`: widens the SIMD of the solver from 4 to 8 lanes (32-bits floats only).
+- `-DRAPIER_FEATURES=...`: a comma-separated list of optional features among:
+  - `enhanced-determinism`: enables cross-platform determinism (assuming the rest of your code is also
+    deterministic) across all 32-bit and 64-bit platforms that implements the IEEE 754-2008 standard strictly. It
+    cannot be combined with 8 SIMD lanes.
+  - `fem`: adds an alternative FEM solver for the [soft-bodies](./soft_bodies.mdx), selected body by body.
+  - `robotics`: adds the [URDF and MJCF loaders](./scene_loaders.mdx) (3D with 32-bits floats only).
+  - `profiler`: enables the internal profiler, which gives the time spent by each stage of a timestep.
+
+## Using the library with CMake
+Once built, the library, its headers, and a CMake package can be installed into a folder of your choice:
+
+```sh
+cmake --install build/c --config Release --prefix /path/to/rapier-sdk
+```
+
+Then, your own project finds it by configuring it with `-DCMAKE_PREFIX_PATH=/path/to/rapier-sdk`:
+
+```cmake
+find_package(Rapier CONFIG REQUIRED)
+target_link_libraries(your_app PRIVATE Rapier::rapier)
+```
+
+The `Rapier::rapier` target supplies the headers, the libraries, and the compile definitions matching the variant of
+the library that was installed. If you don't use CMake, you will have to define these yourself: exactly one of
+`RAPIER_DIM2` or `RAPIER_DIM3`, and one of `RAPIER_F32` or `RAPIER_F64`, before including any header of Rapier (the
+default being 3D with 32-bits floats), as well as `RAPIER_FEM`, `RAPIER_ROBOTICS`, and `RAPIER_PARALLEL` if the
+library was built with the corresponding features. They must match the library you link to: some structures don't
+have the same layout depending on these definitions. Note that when shipping an
+application linked to the shared library, the library must be shipped alongside it (on Windows, the DLL goes next to
+your executable).
+
+## Basic simulation example
+
+Here is a basic example of a C program. This creates a ball bouncing on a fixed ground. Details about the
+elements used in this examples are given in subsequent pages of this guide.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/basic_sim2.c' marker='basic_sim' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/basic_sim3.c' marker='basic_sim' />
+```
+
+  </TabItem>
+</Tabs>
+
+## Conventions of the C API
+
+The headers of the C bindings are:
+- `rapier.h`: the whole C API.
+- `rapier_math.h`: small inline constructors and arithmetic for the math types, e.g., `r3Vector(x, y, z)`.
+- `rapier_helpers.h`: the explicit invalid handles, e.g., `R3_INVALID_RIGID_BODY_HANDLE`.
+- `rapier.hpp`: optional C++ helpers for automatic memory management. They don't change the C API.
+
+Every function name is prefixed by `r2` (for 2D) or `r3` (for 3D), and every type and constant by `R2` or `R3`, so
+that the 2D and 3D versions of a program can be linked together. The `RAPIER_FN(Step)`, `RAPIER_TYPE(World)`, and
+`RAPIER_CONST(OK)` macros resolve to the names of the dimension selected by `RAPIER_DIM2` or `RAPIER_DIM3`, which is
+useful to write code that works in both dimensions. The rest of this guide uses the actual names instead. A method
+of an object is named after the object it applies to, followed by an underscore, e.g.,
+`r3RigidBody_SetTranslation`. Keep in mind that 3D rotations are unit quaternions, and that a zero-initialized
+quaternion isn't a valid rotation.
+
+The API relies on three kinds of values:
+- The **world** (`R3World`) owns every rigid-body, collider, joint, and soft-body of the simulation. It is created with
+  `r3NewWorld` and must be freed with `r3FreeWorld`, which frees everything it contains.
+- The **descriptions** (e.g. `R3RigidBodyDesc`, `R3ColliderDesc`, `R3JointDesc`) are plain structures describing an
+  object to create. They must be initialized by one of their constructors (e.g. `r3DynamicRigidBodyDesc()`, or
+  `r3BallColliderDesc(0.5)`) which set meaningful default values, then any of their fields can be modified before
+  the description is inserted into the world. A description owns nothing and is copied by the insertion: it can be
+  discarded (or reused) afterwards.
+- The **handles** (e.g. `R3RigidBodyHandle`, `R3ColliderHandle`) identify an object inserted into the world. They are
+  small values that don't need to be freed, and that remember the world they belong to: this is why most functions
+  take a handle as their only way of accessing the world, e.g., `r3RigidBody_Translation(handle)`. A handle becomes
+  invalid once its object is removed, or once its world is freed.
+
+A few other objects allocated by Rapier (the event collectors, the controllers, the shared shapes, etc.) are owned by
+the application and must be freed by their dedicated `Free` function (never with the `free` function of C).
+
+### Errors
+Most functions return an `R3Status` which is `R3_OK` in case of success, or an error code otherwise. The functions
+returning another value report their failure on the side instead: `r3LastStatus()` returns the status of the last
+fallible call of the current thread, and `r3LastError()` gives a human-readable description of that error. In both
+cases, it is strongly recommended to install an error handler with `r3SetErrorHandler` (as in the example above) so
+that no error goes unnoticed. Note that failing to find something, e.g., a ray-cast that doesn't hit anything,
+is reported as the `R3_NOT_FOUND` error by some functions: their `Try` variant (e.g. `r3TryCastRay`) can be used when
+this is an expected outcome.
+
+Because the library is loaded dynamically, it is recommended to check once, at the start of your application, that
+your headers (and your feature definitions like `RAPIER_FEM`) match the library actually loaded:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/basic_sim2.c' marker='CheckAbi' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/basic_sim3.c' marker='CheckAbi' />
+```
+
+  </TabItem>
+</Tabs>
+
+### API reference
+Every function of the C API is documented in its header. The same documentation is available as the
+[API reference of the C bindings](/docs/api/c/C), a searchable HTML reference including more details on the
+ownership rules, the threading rules, and the errors. It can also be generated locally with
+[Doxygen](https://www.doxygen.nl) (1.9.4 or later):
+
+```sh
+cmake -S c/doxygen -B build/c-docs
+cmake --build build/c-docs --target rapier_docs --parallel
+```
+
+Then open `build/c-docs/html/index.html` with your web browser.

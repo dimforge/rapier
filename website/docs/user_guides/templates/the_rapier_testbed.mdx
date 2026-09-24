@@ -6,3 +6,218 @@ sidebar_label: The Rapier testbed
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+
+<notpy>
+
+<notc>
+
+The Rapier testbed is a small physics sandbox based on the [kiss3d](https://crates.io/crates/kiss3d) renderer.
+It is designed to easily open a window and render a
+<rapier>[physics world](./simulation_structures.mdx#physics-world)</rapier><bevy>physics world</bevy><js>physics world</js>.
+It provides basic controls like play/pause, grabbing objects with the mouse, changing simulation settings, etc.
+This is the application all the demos of Rapier are written with, and it is generally the quickest way of prototyping a
+scene, or of reproducing a problem before opening an issue.
+
+The testbed is published as the `rapier_testbed2d` and `rapier_testbed3d` crates, which share the same version as Rapier
+itself.
+
+## Example
+A scene is one function building a `PhysicsWorld`, giving it to the viewer, and then stepping it from the rendering
+loop. Note that the loop is what owns the simulation: the viewer only draws the state of the world it is given, and
+tells whether the user asked for the simulation to keep running or to stop:
+
+```rust
+<load path='/3d/rust/examples/rs_testbed3.rs' marker='Scene' />
+```
+
+The testbed itself is started from the `main` function of the application, which lists the scenes it can switch
+between, and runs the one to display. Note that this function relies on the `kiss3d::main` attribute, therefore
+`kiss3d` must be a dependency of the application as well:
+
+```rust
+<load path='/3d/rust/examples/rs_testbed3.rs' marker='Main' />
+```
+
+## Running the demos
+The examples of Rapier are all combined in a single application listing them in a side panel. Running them is the
+fastest way to get an overview of Rapier’s features and performances.
+
+```bash
+git clone https://github.com/dimforge/rapier
+cd rapier
+cargo run --release --bin all_examples2 --features parallel # 2D demos
+cargo run --release --bin all_examples3 --features parallel # 3D demos
+```
+
+:::warning
+Always run the testbed (and Rapier in general) in release mode: a debug build is up to 100 times slower.
+Parallelism is enabled with `--features parallel`.
+:::
+
+</notc>
+
+</notpy>
+
+<c>
+
+The C bindings come with their own testbed: a small physics sandbox written in C, based on the
+[raylib](https://www.raylib.com) renderer and on [Dear ImGui](https://github.com/ocornut/imgui) for its user
+interface. It is designed to render a [physics world](./simulation_structures.mdx#physics-world), and provides basic
+controls like play/pause, grabbing objects with the mouse, changing simulation settings (timestep, gravity, solver
+iterations, number of threads, etc.), saving and restoring snapshots, debug-rendering, etc. It runs the C ports of all
+the demos of Rapier, which are also the most complete examples of usage of the C API.
+
+## Running the demos
+The testbed is part of the `c` folder of the [Rapier repository](https://github.com/dimforge/rapier), and is built
+by enabling the `RAPIER_BUILD_TESTBED` option of CMake. It downloads its graphics dependencies during its first
+configuration (on Linux, the X11 and OpenGL development packages must be installed). From the root of the repository:
+
+```bash
+cmake -S c -B build/c3 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_DIMENSION=3 -DCMAKE_BUILD_TYPE=Release
+cmake --build build/c3 --target rapier_testbed --config Release --parallel
+./build/c3/testbed/rapier_testbed # 3D demos
+```
+
+The 2D demos are built the same way, in another build directory, with `-DRAPIER_DIMENSION=2`. The demos relying on
+optional features (the FEM solver of the soft-bodies, the URDF and MJCF loaders) are only listed if these features
+are enabled, e.g., with `-DRAPIER_FEATURES=fem,robotics`. A demo can be selected at startup with the `--example`
+argument (e.g. `--example restitution3`), and the number of threads used by the simulation with `--threads` (the
+parallelism is enabled by default for the testbed).
+
+:::warning
+Always run the testbed (and Rapier in general) in release mode: a debug build is up to 100 times slower. The build
+mode of the Rapier library actually loaded is displayed by the testbed.
+:::
+
+## Controls
+- `T`: play/pause. `S`: execute one timestep. `R`: restart the demo. `F`: frame the whole simulation.
+- Left drag: pull a dynamic object (or a particle of a soft-body) with a spring joint.
+- Right drag: rotate the camera around its target in 3D, or pan it in 2D. Shift + right drag (or middle drag): pan
+  the camera in 3D. Mouse wheel: zoom.
+- The side panel gives access to the list of demos, the simulation settings, the performance measurements (the time
+  spent by the engine for each timestep, etc.), and the debug-rendering options.
+
+## Headless runs
+The `rapier_testbed_headless` executable (built together with the testbed) runs the same demos without opening any
+window, which is useful to check that a demo runs without errors, or to measure its performance:
+
+```bash
+./build/c3/testbed/rapier_testbed_headless --list
+./build/c3/testbed/rapier_testbed_headless --example restitution3 --steps 120 --threads 1
+```
+
+## Writing a scene
+Unlike the Rust testbed, the C testbed isn't a library meant to be used by your own application: it is an
+application of the Rapier repository, which demos are compiled with it. Each demo is one C function (e.g.
+`tbRestitution3` in `c/testbed/examples3d/restitution3.c`) building a world like in any other application, giving it
+to the viewer, and then stepping it from the rendering loop. Note that the loop is what owns the simulation: the viewer
+only draws the state of the world it is given, and tells whether the user asked for the simulation to keep running or
+to stop:
+
+```c
+<load path='/3d/c/examples/testbed3.c' marker='Scene' />
+```
+
+Therefore, prototyping a scene with the testbed (e.g. for reproducing a problem before opening an issue) is done in
+your local copy of the repository: its source file is added to the `c/testbed/examples3d` folder (resp.
+`examples2d`), which files are all compiled with the testbed, and its function is added to the demos listed by the
+`tbExamples` array of `c/testbed/registry3.c` (resp. `registry2.c`):
+
+```c
+<load path='/3d/c/examples/testbed3.c' marker='Registry' />
+```
+
+:::info
+The registries are generated from the list of the Rust demos by the `c/testbed/update_catalog.py` script, which
+doesn't know about the entries added by hand: they are lost whenever the registries are generated again.
+:::
+
+</c>
+
+<py>
+
+The Python bindings come with their own testbed: a small physics sandbox written in Python, based on the
+[Panda3D](https://www.panda3d.org) renderer. It is designed to easily open a window and render a simulation, and
+provides basic controls like play/pause, single-stepping, restarting the scene, switching between scenes, or showing
+the wireframe of the colliders with the [debug-renderer](./debug_render.mdx). It runs the Python ports of most of the
+3D demos of Rapier, which are also good examples of usage of the bindings. It is generally the quickest way of
+prototyping a scene, or of reproducing a problem before opening an issue.
+
+## Installation
+The testbed is published as the `rapier-testbed` package, which depends on `rapier3d`, NumPy, and Panda3D:
+
+```sh
+pip install rapier-testbed
+```
+
+It can also be installed from the `python/rapier-testbed` folder of the
+[Rapier repository](https://github.com/dimforge/rapier), e.g., to use it with bindings
+[built from source](./getting_started_py.mdx#building-from-source). From the root of the repository, and with your
+virtual environment activated (`--no-deps` keeps the bindings you built instead of downloading them, and `-e` makes
+your modifications of the testbed effective without reinstalling it):
+
+```sh
+pip install panda3d numpy
+pip install --no-deps -e ./python/rapier-testbed
+```
+
+## Running the demos
+The demos are the modules of the `rapier_testbed.examples3` package (e.g. `rapier_testbed/examples3/domino3.py`).
+Running the `rapier_testbed` module lists them by category in the terminal, and asks which one to open. A demo can
+also be opened directly by running its module:
+
+```sh
+python -m rapier_testbed # List the demos, and open the selected one.
+python -m rapier_testbed.examples3.domino3 # Open the domino demo.
+```
+
+The `python/examples_tour.py` script of the repository opens every demo in turn, each of them being opened when the
+window of the previous one is closed.
+
+:::warning
+Always run the testbed with bindings built in release mode (see
+[common mistakes](./common_mistakes.mdx#my-local-build-of-rapier-is-slower-than-the-online-demos)): a debug build is
+up to 100 times slower.
+:::
+
+## Controls
+- `Space`: play/pause. Right arrow: execute one timestep. `R`: restart the demo. `Tab`: open the next demo (the
+  digits `1` to `9` open the demo with this number). `W`: toggle the wireframe of the colliders. `Esc`: close the demo.
+- Left drag: rotate the camera around its target. Right drag: pan the camera. Mouse wheel: zoom.
+- The time spent by the simulation and by the rendering of each frame, as well as the frame rate, are displayed at the
+  top of the window.
+
+## Headless runs
+If the `PANDA_NO_WINDOW` environment variable is set to `1`, the testbed runs the demo for a fixed number of timesteps
+without opening any window, which is useful to check that a demo runs without errors (e.g. in a CI):
+
+```sh
+PANDA_NO_WINDOW=1 python -m rapier_testbed.examples3.domino3
+```
+
+## Writing a scene
+A scene is one function building a [physics world](./simulation_structures.mdx#physics-world), and giving it to the
+testbed with `Testbed.set_world`. Unlike the testbed of the Rust version of Rapier, the testbed owns the simulation
+loop: it steps the world it is given at each frame (with its gravity, integration parameters, physics hooks, and event
+handler), and calls the functions registered by the scene with `Testbed.add_callback` after each timestep, e.g., to
+control the scene or to read the results of the simulation:
+
+```python
+<load path='/3d/python/testbed.py' marker='Scene' />
+```
+
+The scene is then registered with a category and a name, which makes it available in the list of the testbed
+together with the demos, and the testbed can be opened on it directly:
+
+```python
+<load path='/3d/python/testbed.py' marker='Main' />
+```
+
+Instead of a world, `Testbed.set_world` also accepts the sets of a simulation (the rigid-body, collider,
+impulse-joint, and multibody-joint sets, and optionally the soft-body set), which the testbed then steps with its own
+pipeline and integration parameters, and with a gravity of $-9.81$ along the $y$ axis. In this case, the gravity, the
+[physics hooks](./advanced_collision_detection.mdx#physics-hooks), and the
+[event handler](./advanced_collision_detection.mdx#collision-and-contact-force-events) of the simulation are given
+with `Testbed.set_gravity`, `Testbed.set_hooks`, and `Testbed.set_event_handler`.
+
+</py>

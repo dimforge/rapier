@@ -1,0 +1,154 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+A few settings are shared by every soft-body of the world. They are part of the [integration
+parameters](./integration_parameters.mdx#soft_bodies)<bevy> (the `integration_parameters.soft_bodies` field of the
+`RapierContextSimulation` component)</bevy><c> (the `softBodies` field of `R3IntegrationParameters`)</c><py> (the `soft_bodies` property of `IntegrationParameters`, a `SoftBodiesSettings`)</py>, so they can
+be changed between two steps:
+- The **re-sweep strain**
+  (<notjs>`resweep_strain`</notjs><js>`softBodiesResweepStrain`</js><c>`r3SoftBodiesSetResweepStrain`</c><py>`resweep_strain`</py>) is the strain
+  beyond which a constraint is solved once more after the contacts of every substep. This is what keeps a light body
+  buried under heavier ones from being torn apart by them.
+- The **maximum number of extra substeps**
+  (<notjs>`max_extra_substeps`</notjs><js>`softBodiesMaxExtraSubsteps`</js><c>`r3SoftBodiesSetMaxExtraSubsteps`</c><py>`max_extra_substeps`</py>) is
+  the number of substeps a soft-body is allowed to ask for while it is hit fast. Those substeps  bound the motion of its
+  particles, and the motion of the rigid-bodies approaching them, by about one particle radius per substep. Giving zero
+  disables them.
+- The **contact stiffening**
+  (<notjs>`contact_stiffening`</notjs><js>`softBodiesContactStiffening`</js><c>`r3SoftBodiesSetContactStiffening`</c><py>`contact_stiffening`</py>)
+  multiplies the natural frequencies of the contacts involving a soft-body. Those contacts run stiffer than the rigid
+  ones because the mass behind one contact is the mass of a few particles, and not the mass of the whole body.
+
+In addition, the detection of the penetrations and of the tangles, as well as the way the bodies recover from them, are
+configured by the **recovery** settings (<notjs>`recovery`, a `SoftRecoverySettings`</notjs><js>`softBodiesRecovery`,
+a `SoftRecoverySettings`</js><c>`recovery`, an `R3SoftRecoverySettings`</c><py>`recovery`, a `SoftRecoverySettings`</py>), where every mechanism can be switched
+off individually (see the [contacts](./soft_bodies.mdx#penetrations-and-tangles) section for the ones to look at
+first). The tuning of the linear solves of the [FEM solver](./soft_bodies.mdx#fem-solver) lives there as well (<notjs>`fem`, a
+`SoftFemParameters`</notjs><js>the `softBodiesFem*` parameters</js><c>`fem`, an `R3SoftFemParameters`</c><py>`fem`, a `SoftFemParameters`</py>):
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Settings' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Settings' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+Those settings are plain fields of the integration parameters of the world. Note that `softBodiesRecovery` gives back a
+copy of the recovery settings, which is assigned back to the integration parameters to apply it:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Settings' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Settings' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Settings' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Settings' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+Each of these settings has its own getter and setter, named after its field: e.g., `r3SoftBodiesResweepStrain` and
+`r3SoftBodiesSetResweepStrain`, `r3RecoveryCrossingRepulsion` and `r3RecoverySetCrossingRepulsion`, or
+`r3FemLinearTolerance` and `r3FemSetLinearTolerance`. All of them can also be read at once with
+`r3IntegrationParameters`, which returns a copy of the integration parameters of the world: that copy is modified, then
+written back with `r3SetIntegrationParameters`. Note that the `fem` field, as well as the `r3Fem*` functions, only
+exist when the library is built with the `fem` feature:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_body_interactions2.c' marker='Settings' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_body_interactions3.c' marker='Settings' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+The `soft_bodies` property of the integration parameters of the world is a live view of the settings, and so are its
+`recovery` and `fem` properties: setting one of their fields changes the world directly. Assigning a whole
+`SoftBodiesSettings` replaces them all, and their `copy` method gives a detached copy, e.g., to keep them aside before
+an experiment:
+
+```python
+<load path='/3d/python/soft_body_interactions.py' marker='Settings' />
+```
+
+</py>

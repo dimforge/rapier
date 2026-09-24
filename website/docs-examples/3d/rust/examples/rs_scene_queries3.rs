@@ -1,71 +1,45 @@
 use rapier3d::{parry::query::ShapeCastOptions, prelude::*};
 
 fn main() {
-    let mut rigid_body_set = RigidBodySet::new();
-    let mut collider_set = ColliderSet::new();
+    let mut world = PhysicsWorld::new();
 
     /* Create the ground. */
-    let collider = ColliderBuilder::cuboid(100.0, 0.1, 100.0).build();
-    collider_set.insert(collider);
+    world.insert_collider(ColliderBuilder::cuboid(100.0, 0.1, 100.0), None);
 
     /* Create the bouncing ball. */
-    let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(Vector::new(0.0, 10.0, 0.0))
-        .build();
-    let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
-    let ball_body_handle = rigid_body_set.insert(rigid_body);
-    collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
-
-    /* Create other structures necessary for the simulation. */
-    let integration_parameters = IntegrationParameters::default();
-    let mut physics_pipeline = PhysicsPipeline::new();
-    let mut island_manager = IslandManager::new();
-    let mut soft_body_set = SoftBodySet::new();
-    let mut broad_phase = DefaultBroadPhase::new();
-    let mut narrow_phase = NarrowPhase::new();
-    let mut impulse_joint_set = ImpulseJointSet::new();
-    let mut multibody_joint_set = MultibodyJointSet::new();
-    let mut ccd_solver = CCDSolver::new();
-    let physics_hooks = ();
-    let event_handler = ();
-
-    let collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
-        .translation(Vector::new(0.0, 10.0, 0.0))
-        .build();
-    let handle1 = collider_set.insert(collider);
-    let collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
-        .translation(Vector::new(0.0, 15.0, 0.0))
-        .build();
-    let handle_to_remove = collider_set.insert(collider);
-
-    collider_set.remove(
-        handle_to_remove,
-        &mut island_manager,
-        &mut rigid_body_set,
-        &mut soft_body_set,
-        true,
+    let (ball_body_handle, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 10.0, 0.0)),
+        ColliderBuilder::ball(0.5).restitution(0.7),
     );
-    let collider = collider_set.get_mut(handle1).unwrap();
-    collider.set_translation(Vector::new(0.0, 12.0, 0.0));
-    let collider = ColliderBuilder::cuboid(1.0, 1.0, 1.0)
-        .translation(Vector::new(0.0, 10.0, 0.0))
-        .build();
-    let handle2 = collider_set.insert(collider);
-    let modified_colliders = vec![handle1, handle2];
-    let removed_colliders = vec![handle_to_remove];
 
-    raycast_section(&broad_phase, &narrow_phase, &rigid_body_set, &collider_set);
-    shapecast_section(&broad_phase, &narrow_phase, &rigid_body_set, &collider_set);
-    point_projection_section(&broad_phase, &narrow_phase, &rigid_body_set, &collider_set);
-    intersection_section(&broad_phase, &narrow_phase, &rigid_body_set, &collider_set);
+    let handle1 = world.insert_collider(ColliderBuilder::cuboid(1.0, 1.0, 1.0).translation(Vector::new(0.0, 10.0, 0.0)), None);
+    let handle_to_remove =
+        world.insert_collider(ColliderBuilder::cuboid(1.0, 1.0, 1.0).translation(Vector::new(0.0, 15.0, 0.0)), None);
+    world.remove_collider(handle_to_remove);
+    world.colliders[handle1].set_translation(Vector::new(0.0, 12.0, 0.0));
+
+    // DOCUSAURUS: QueryPipeline start
+    // Game loop.
+    for _ in 0..10 {
+        // Stepping the simulation updates the broad-phase the scene queries rely on.
+        world.step();
+
+        // The scene queries take into account the positions of the colliders at the end of
+        // the last timestep.
+        let query_pipeline = world.query_pipeline();
+        // Run the scene queries with `query_pipeline` here.
+    }
+    // DOCUSAURUS: QueryPipeline stop
+
+    raycast_section(&world);
+    shapecast_section(&world);
+    point_projection_section(&world);
+    intersection_section(&world);
 }
 
 #[rustfmt::skip]
 fn raycast_section(
-    broad_phase: &BroadPhaseBvh,
-    narrow_phase: &NarrowPhase,
-    rigid_body_set: &RigidBodySet,
-    collider_set: &ColliderSet,
+    world: &PhysicsWorld,
 ) {
     // DOCUSAURUS: Raycast start
     let ray = Ray::new(Vector::new(1.0, 2.0, 3.0), Vector::new(0.0, 1.0, 0.0));
@@ -73,12 +47,7 @@ fn raycast_section(
     let solid = true;
     let filter = QueryFilter::default();
 
-    let query_pipeline = broad_phase.as_query_pipeline(
-        narrow_phase.query_dispatcher(),
-        rigid_body_set,
-        collider_set,
-        filter,
-    );
+    let query_pipeline = world.query_pipeline_with_filter(filter);
 
     if let Some((handle, toi)) = query_pipeline.cast_ray(
         &ray, max_toi, solid
@@ -111,10 +80,7 @@ fn raycast_section(
 
 #[rustfmt::skip]
 fn shapecast_section(
-    broad_phase: &BroadPhaseBvh,
-    narrow_phase: &NarrowPhase,
-    rigid_body_set: &RigidBodySet,
-    collider_set: &ColliderSet,
+    world: &PhysicsWorld,
 ) {
     // DOCUSAURUS: Shapecast start
     let shape = Cuboid::new(Vector::new(1.0, 2.0, 3.0));
@@ -129,12 +95,7 @@ fn shapecast_section(
         compute_impact_geometry_on_penetration: false,
     };
 
-    let query_pipeline = broad_phase.as_query_pipeline(
-        narrow_phase.query_dispatcher(),
-        rigid_body_set,
-        collider_set,
-        filter,
-    );
+    let query_pipeline = world.query_pipeline_with_filter(filter);
 
     if let Some((handle, hit)) = query_pipeline.cast_shape(
         &shape_pos, shape_vel, &shape, options
@@ -148,10 +109,7 @@ fn shapecast_section(
 
 #[rustfmt::skip]
 fn point_projection_section(
-    broad_phase: &BroadPhaseBvh,
-    narrow_phase: &NarrowPhase,
-    rigid_body_set: &RigidBodySet,
-    collider_set: &ColliderSet,
+    world: &PhysicsWorld,
 ) {
     // DOCUSAURUS: PointProjection start
     let point = Vector::new(1.0, 2.0, 3.0);
@@ -159,12 +117,7 @@ fn point_projection_section(
     let max_dist = 12.0;
     let filter = QueryFilter::default();
 
-    let query_pipeline = broad_phase.as_query_pipeline(
-        narrow_phase.query_dispatcher(),
-        rigid_body_set,
-        collider_set,
-        filter,
-    );
+    let query_pipeline = world.query_pipeline_with_filter(filter);
     
     if let Some((handle, projection)) = query_pipeline.project_point(
         point, max_dist, solid
@@ -183,22 +136,14 @@ fn point_projection_section(
 
 #[rustfmt::skip]
 fn intersection_section(
-    broad_phase: &BroadPhaseBvh,
-    narrow_phase: &NarrowPhase,
-    rigid_body_set: &RigidBodySet,
-    collider_set: &ColliderSet,
+    world: &PhysicsWorld,
 ) {
     // DOCUSAURUS: IntersectionTest start
     let shape = Cuboid::new(Vector::new(1.0, 2.0, 3.0));
     let shape_pos = Pose::new(Vector::new(0.0, 1.0, 0.0), Vector::new(0.2, 0.7, 0.1));
     let filter = QueryFilter::default();
 
-    let query_pipeline = broad_phase.as_query_pipeline(
-        narrow_phase.query_dispatcher(),
-        rigid_body_set,
-        collider_set,
-        filter,
-    );
+    let query_pipeline = world.query_pipeline_with_filter(filter);
 
     for (handle, _) in query_pipeline.intersect_shape(shape_pos, &shape) {
         println!("The collider {:?} intersects our shape.", handle);

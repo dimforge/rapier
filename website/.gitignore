@@ -13,6 +13,12 @@ node_modules
 # WASM demos, built by ./scripts/build-demos.sh
 static/demos
 
+# API references, built by ./scripts/build-api-docs.sh
+static/javascript2d
+static/javascript3d
+static/c
+static/python
+
 # Misc
 .DS_Store
 .env.local
@@ -39,5 +45,6 @@ build
 docs/user_guides/rust
 docs/user_guides/bevy_plugin
 docs/user_guides/javascript
-docs/user_guides/templates_injected
+docs/user_guides/c
+docs/user_guides/python
 tmp_*

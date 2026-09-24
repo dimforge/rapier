@@ -1,0 +1,152 @@
+---
+id: soft_bodies
+title: Soft-bodies
+sidebar_label: Soft-bodies
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+_For a high-level overview of the methods behind our soft-body implementation, see our [blog-post](https://dimforge.com/blog/2026/09/25/soft-bodies-in-the-rapier-physics-engine)._
+
+Rigid-bodies can't deform in any way, which is precisely what makes them cheap and easy to control. Soft-bodies, aka.
+_deformable bodies_, are made for everything that must bend, stretch, or squash: ropes, cloth, jelly, balloons, the
+chassis of a car denting on impact, etc. They live in the same world as the [rigid-bodies](./rigid_bodies.mdx) and the
+[colliders](./colliders.mdx), and interact with all the other features of the engine with little to no restriction:
+- Any kind of [impulse joint](./joints.mdx) can be attached to a soft-body through its
+  [soft frames](./soft_bodies.mdx#soft-frames-joints-and-rigid-colliders), which allows the definition of links between
+  two soft-bodies, between a soft-body and a rigid-body, or between a soft-body and a
+  [multibody](./joint_constraints.mdx#multibodies).
+- [Deformable colliders](./soft_bodies.mdx#deformable-colliders), as well as [rigid ones](./soft_bodies.mdx#clusters),
+  can be attached to a soft-body, sensors included.
+- A detailed mesh can follow the deformations of a coarser simulated lattice
+  ([**skinning**](./soft_bodies.mdx#skinned-soft-bodies)).
+- Parts of a soft-body can be [controlled kinematically](./soft_bodies.mdx#particles-and-kinematic-control).
+- A soft-body can deform permanently ([**plasticity**](./soft_bodies.mdx#plasticity)), and tear apart
+  ([**tearing**](./soft_bodies.mdx#tearing)).
+
+<bevy>
+
+:::info
+In Bevy, a soft-body is an entity with a `SoftBody` component, and most of its properties are
+controlled by components too. The conventions linking the entity to the soft-body (its transform, the rigid-bodies and
+the colliders it stands for, etc.) are detailed in the
+[soft-bodies and entities](./soft_bodies.mdx#soft-bodies-and-entities) section. Note that the
+[FEM solver](./soft_bodies.mdx#fem-solver) requires the `fem` feature of `bevy_rapier`.
+:::
+
+</bevy>
+<c>
+
+:::info
+The [FEM solver](./soft_bodies.mdx#fem-solver) requires the library to be built with the `fem` feature (see
+[building the C bindings](./getting_started_c.mdx#building-the-c-bindings)).
+:::
+
+</c>
+<py>
+
+:::info
+The Python bindings are 3D only: whenever the following sections mention 2D bodies (their triangle cells, the area they
+enclose, or the constructors existing only in 2D), only the 3D counterpart applies. Note that the particles and the
+elements of a soft-body are read as [NumPy](https://numpy.org) arrays, and can be given either as NumPy arrays or as
+sequences of tuples.
+:::
+
+</py>
+
+## Definition of a soft-body
+import Anatomy from './soft_body_anatomy.mdx'
+
+<Anatomy />
+
+## Creation and insertion
+import CreationAndInsertion from './soft_body_creation_and_insertion.mdx'
+
+<CreationAndInsertion />
+
+import Sets from './soft_body_sets.mdx'
+
+<rapier>
+
+## Soft-body set
+
+<Sets />
+
+</rapier>
+<bevy>
+
+## Soft-bodies and entities
+
+<Sets />
+
+</bevy>
+<c>
+
+## Soft-bodies of the world
+
+<Sets />
+
+</c>
+<py>
+
+## Soft-body set
+
+<Sets />
+
+</py>
+
+## Keeping the body together
+import Cohesion from './soft_body_cohesion.mdx'
+
+<Cohesion />
+
+## Contacts and self-intersections
+import Contacts from './soft_body_contacts.mdx'
+
+<Contacts />
+
+## Soft frames: joints and rigid colliders
+import SoftFrames from './soft_body_clusters.mdx'
+
+<SoftFrames />
+
+### Attaching a rigid-body to a particle
+import Attachments from './soft_body_attachments.mdx'
+
+<Attachments />
+
+## Particles and kinematic control
+import Particles from './soft_body_particles.mdx'
+
+<Particles />
+
+## Deformable colliders and skinning
+import DeformableColliders from './soft_body_deformable_colliders.mdx'
+
+<DeformableColliders />
+
+## Plasticity and tearing
+import Tearing from './soft_body_tearing.mdx'
+
+<Tearing />
+
+### Tear events
+import Events from './soft_body_events.mdx'
+
+<Events />
+
+## Forces and impulses
+import ForcesAndImpulses from './soft_body_forces_and_impulses.mdx'
+
+<ForcesAndImpulses />
+
+## Global settings
+import Settings from './soft_body_settings.mdx'
+
+<Settings />
+
+## Removal
+import Removal from './soft_body_removal.mdx'
+
+<Removal />

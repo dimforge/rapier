@@ -1,0 +1,338 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+A soft-body is described by a <rapier>`SoftBodyBuilder`</rapier><bevy>`SoftBodyBuilder` (wrapped by the `SoftBody`
+component)</bevy><js>`SoftBodyDesc`</js><c>`R3SoftBodyDesc`</c><py>`SoftBodyBuilder`</py>, which constructors build the lattice of the most common shapes<js> (their
+JavaScript names are camel-cased, e.g., `clothTube`)</js><py> (static methods of the `SoftBody` class, e.g., `SoftBody.cloth`)</py>:
+
+<notc>
+<notpy>
+
+| Constructor | Dimension | Lattice |
+|-------------|-----------|---------|
+| `rope` | 2D, 3D | Structural and bending edges between the particles of a line. |
+| `cloth`, `cloth_anisotropic`, `cloth_tube` | 3D | Structural, shear and bending edges, with a triangle surface. |
+| `grid` | 2D | Triangle cells filling a rectangle. |
+| `cuboid` | 3D | Tetrahedral cells filling a box. |
+| `polygon`, `disk` | 2D | A closed boundary preserving its area. |
+| `sphere` | 3D | A closed surface preserving its volume, with dihedral bending constraints. |
+| `trimesh`, `polyline` | 2D, 3D (`trimesh`), 2D (`polyline`) | The vertices and edges of a mesh, held by shape matching. |
+| `volumetric` | 2D, 3D | Cells filling a closed mesh. |
+
+</notpy>
+</notc>
+<c>
+
+| Constructor | Dimension | Lattice |
+|-------------|-----------|---------|
+| `r3DefaultSoftBodyDesc`, then `r3SoftBodyDesc_SetParticles` | 2D, 3D | No element at all: only the given particles. |
+| `r3RopeSoftBodyDesc` | 2D, 3D | Structural and bending edges between the particles of a line. |
+| `r3ClothSoftBodyDesc`, `r3ClothAnisotropicSoftBodyDesc`, `r3ClothTubeSoftBodyDesc` | 3D | Structural, shear and bending edges, with a triangle surface. |
+| `r2GridSoftBodyDesc` | 2D | Triangle cells filling a rectangle. |
+| `r3CuboidSoftBodyDesc` | 3D | Tetrahedral cells filling a box. |
+| `r2PolygonSoftBodyDesc`, `r2DiskSoftBodyDesc` | 2D | A closed boundary preserving its area. |
+| `r3SphereSoftBodyDesc` | 3D | A closed surface preserving its volume, with dihedral bending constraints. |
+| `r3SoftBodyDesc_SetSurfaceMesh` | 2D (segments), 3D (triangles) | The vertices and edges of a mesh, held by shape matching. |
+| `r2SoftBodyDesc_SetTrimesh` | 2D | The vertices and edges of a triangle mesh, held by shape matching. |
+| `r3VolumetricSoftBodyDesc` | 2D, 3D | Cells filling a closed mesh. |
+
+The constructors return a description initialized with the default values of every other field, which can then be
+modified before its insertion. The ones existing in a single dimension are only given with their prefix in that
+dimension, e.g., there is no `r3GridSoftBodyDesc`.
+
+</c>
+<py>
+
+| Constructor | Lattice |
+|-------------|---------|
+| `SoftBodyBuilder(positions)` | No element at all: only the given particles. |
+| `SoftBody.rope` | Structural and bending edges between the particles of a line. |
+| `SoftBody.cloth`, `SoftBody.cloth_anisotropic`, `SoftBody.cloth_tube` | Structural, shear and bending edges, with a triangle surface. |
+| `SoftBody.cuboid` | Tetrahedral cells filling a box. |
+| `SoftBody.sphere` | A closed surface preserving its volume, with dihedral bending constraints. |
+| `SoftBody.trimesh` | The vertices and edges of a triangle mesh, held by shape matching. |
+| `SoftBody.volumetric`, `SoftBody.volumetric_with` | Cells filling a closed mesh. |
+
+Every constructor returns a `SoftBodyBuilder`, which setters return a modified copy of the
+builder so they can be chained. These setters can also be given as keyword arguments of the constructors, e.g.,
+`SoftBody.rope(a, b, 20, particle_mass=0.1, pinned_particles=[0])`.
+
+</py>
+
+<bevy>
+
+The `SoftBody` component provides shortcuts for most of these constructors (`SoftBody::rope`,
+`SoftBody::cloth`, `SoftBody::cuboid`, `SoftBody::grid`, `SoftBody::volumetric`, etc.), which positions are expressed in
+the local frame of the entity: the `cuboid`, `sphere`, `grid`, and `disk` shortcuts are centered at its origin. The
+other constructors are used with `SoftBody::new(SoftBodyBuilder::...)`, and the methods of the builder are chained with
+`SoftBody::map`, e.g., `SoftBody::rope(a, b, 20).map(|b| b.particle_mass(0.1))`.
+
+</bevy>
+
+The <notc>`volumetric` constructor</notc><c>`r3VolumetricSoftBodyDesc` constructor</c> is the one to use for an arbitrary solid: it fills a closed mesh (segments in 2D, triangles
+in 3D, oriented outward) with cells of about the requested size. The interior of the mesh is triangulated by Delaunay
+refinement in 2D, whereas in 3D every cell of a lattice the mesh reaches is kept whole: the result contains the mesh
+instead of following it exactly, and its boundary is as blocky as its cells.<notjs> The meshing parameters are spelled
+out by `volumetric_with`: the size of the cells, how much the cover is smoothed and subdivided around the boundary in
+3D, i.e., how closely it follows the mesh, and whether the surface alone is covered, leaving the interior
+empty.</notjs><c> The meshing parameters are given to the constructor as an `R3VolumeMeshParameters`, initialized by `r3NewVolumeMeshParameters` from the size of the cells: in 2D, `min_angle` is the minimum angle of the triangles, whereas in 3D, `cover_smoothing` and `cover_subdivisions` control how much the cover is smoothed and subdivided around the boundary, i.e., how closely it follows the mesh, and `enclosure` whether the surface alone is covered (`1`), leaving the interior empty. Note that the mesh is only filled by the insertion, which reports an error if the mesh isn't closed or encloses nothing at that cell size.</c><py> The meshing parameters are spelled out by `volumetric_with`, which takes a `VolumeMeshParameters`: the size of the cells (`cell_size`), how much the cover is smoothed (`cover_smoothing`) and subdivided (`cover_subdivisions`) around the boundary, i.e., how closely it follows the mesh, and whether the surface alone is covered (`enclosure` set to `MeshEnclosure.CRUST`), leaving the interior empty. Both constructors raise a `MeshConversionError` if the mesh isn't closed, or encloses nothing at that cell size.</py>
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Volumetric' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Volumetric' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Volumetric' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Volumetric' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Volumetric' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Volumetric' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='Volumetric' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='Volumetric' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='Volumetric' />
+```
+
+</py>
+
+The <notc>builder</notc><c>description</c> allows the definition of everything else that is specific to one soft-body: the particles held in place (the
+**pinned** particles, <notjs>`pinned_particles`</notjs><js>`setPinnedParticles`</js><c>`pinned`</c><py>`pinned_particles`</py>), the softness of its constraints
+(<notjs>`softness`</notjs><js>`setSoftness`</js><c>`material`, e.g., the same softness for every constraint with `r3UniformSoftBodyMaterial`</c><py>`softness`</py>), the mass of its particles (one mass for every particle with
+<notjs>`particle_mass`</notjs><js>`setParticleMass`</js><c>`particleMass`</c><py>`particle_mass`</py>, a total mass for the whole body with
+<notjs>`mass`</notjs><js>`setMass`</js><c>`totalMass`</c><py>`mass`</py>, or one mass per particle with
+<notjs>`masses`</notjs><js>`setMasses`</js><c>`masses`</c><py>`masses`</py>), their radius
+(<notjs>`particle_radius`</notjs><js>`setParticleRadius`</js><c>`particleRadius`</c><py>`particle_radius`</py>), the collider its surface is made of, and whether that
+surface is allowed to collide with itself (<notjs>`self_contacts`</notjs><js>`setSelfContacts`</js><c>`selfContacts`</c><py>`self_contacts`</py>). The particles
+can also be given a linear damping (<notjs>`linear_damping`</notjs><js>`setLinearDamping`</js><c>`linearDamping`</c><py>`linear_damping`</py>), a gravity scale
+(<notjs>`gravity_scale`</notjs><js>`setGravityScale`</js><c>`gravityScale`</c><py>`gravity_scale`</py>), a dominance group
+(<notjs>`SoftBodyParticleSettings::dominance_group`</notjs><js>`setDominanceGroup`</js><c>`dominanceGroup`</c><py>`SoftBodyParticleSettings.dominance_group`, given with `particle_settings`</py>), and be allowed to sleep or
+not (<notjs>`can_sleep`</notjs><js>`setCanSleep`</js><c>`canSleep`</c><py>`can_sleep`</py>), exactly like a [rigid-body](./rigid_bodies.mdx). Inserting the
+soft-body into the world (<rapier>`PhysicsWorld::insert_soft_body`</rapier><bevy>i.e., spawning an entity with the
+`SoftBody` component</bevy><js>`World.createSoftBody`</js><c>`r3InsertSoftBody`</c><py>`PhysicsWorld.add_soft_body`</py>) will
+automatically create the rigid-body standing for it (its [root body](./soft_bodies.mdx#the-root-body)), as well as the
+colliders covering its surface:
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='Creation' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='Creation' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='Creation' />
+```
+
+</py>
+
+:::info
+The collider given to <notjs>`SoftBodyBuilder::surface_collider`</notjs><js>`SoftBodyDesc.setSurfaceCollider`</js><c>the `collider` field of the description</c><py>`SoftBodyBuilder.surface_collider`</py> is
+only a template: its shape is replaced by the deformable surface of the soft-body, and its density is ignored, whereas
+all its other properties are kept. Therefore this is where the [friction](./colliders.mdx#friction), the [collision
+groups](./colliders.mdx#collision-groups-and-solver-groups), or the [active events](./colliders.mdx#active-events) of
+the soft-body must be set. A body that should only collide through colliders of your own can be built without any
+default one (<notjs>`no_surface_collider`</notjs><js>`setNoSurfaceCollider`</js><c>`collisionEnabled` set to `0`</c><py>`no_surface_collider`</py>).<bevy> The
+collider components of the soft-body entity (`Friction`, `Restitution`, `CollisionGroups`, `ActiveEvents`, `Sensor`,
+etc.) override the properties of that template, exactly like for a `Collider`: their later modifications are applied to
+the colliders of the surface as well, and removing one of them restores the value of the template (the particle radius
+for the `ContactSkin`).</bevy>
+:::
+
+:::tip
+Two <notc>builders</notc><c>descriptions</c> can be merged into a single soft-body with <notjs>`append`</notjs><js>`append`</js><c>`r3SoftBodyDesc_SetAppended` (each appended description keeps its own particles, masses, and elements, whereas every other setting comes from the description it is appended to)</c><py>`append`</py>, and their pieces
+sewn together with additional edges (<notjs>`add_edges`</notjs><js>`addEdges`</js><c>`r3SoftBodyDesc_SetAddedEdges`</c><py>`add_edges`</py>), which rest length is the distance
+their particles have when they are added. This is, e.g., how the sleeves of a shirt are attached to its body.
+:::

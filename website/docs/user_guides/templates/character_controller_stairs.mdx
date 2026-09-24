@@ -47,3 +47,26 @@ This prevents the player from being teleported on to of a platform while it is i
 ```
 
 </js>
+<c>
+
+Autostepping is configured with `r3KinematicCharacterController_SetAutostep`, which takes whether it is enabled, the
+maximum height and minimum width (both as `R3CharacterLength`, see the
+[character offset](./character_controller.mdx#character-offset)), and whether it is enabled for dynamic bodies. The
+current settings are given by `r3KinematicCharacterController_Autostep` as an `R3CharacterAutostep` structure:
+
+```c
+<load path='/2d/c/examples/character_controller2.c' marker='Stairs' />
+```
+
+</c>
+<py>
+
+Autostepping is configured with the `autostep` property: either `None` (the default) to disable it, or a
+`CharacterAutostep` created from the maximum height and minimum width (both as `CharacterLength`, see the
+[character offset](./character_controller.mdx#character-offset)), and whether it is enabled for dynamic bodies:
+
+```python
+<load path='/3d/python/character_controller.py' marker='Stairs' />
+```
+
+</py>

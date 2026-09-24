@@ -1,0 +1,127 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Removing a soft-body (<rapier>`PhysicsWorld::remove_soft_body`</rapier><bevy>i.e., despawning its entity, or removing
+its `SoftBody` component</bevy><js>`World.removeSoftBody`</js><c>`r3RemoveSoftBody`</c><py>`PhysicsWorld.remove_soft_body`</py>) removes everything the engine created for it: its root
+body, the proxies of its clusters, the colliders of its surface and of its deformable meshes, as well as the joints
+attached to any of them. One cluster can also be removed on its own
+(<rapier>`PhysicsWorld::remove_soft_body_cluster`</rapier><bevy>by despawning its entity, or removing its
+`SoftBodyCluster` component</bevy><js>`World.removeSoftBodyCluster`</js><c>`r3SoftBody_RemoveCluster`</c><py>`PhysicsWorld.remove_soft_body_cluster`</py>):
+
+<rapier>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_soft_bodies2.rs' marker='Removal' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_soft_bodies3.rs' marker='Removal' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+<js>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```js
+<load path='/2d/javascript/src/snippets/soft_bodies.ts' marker='Removal' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```js
+<load path='/3d/javascript/src/snippets/soft_bodies.ts' marker='Removal' />
+```
+
+  </TabItem>
+</Tabs>
+
+</js>
+<bevy>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/soft_bodies2.rs' marker='Removal' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/soft_bodies3.rs' marker='Removal' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/soft_bodies2.c' marker='Removal' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/soft_bodies3.c' marker='Removal' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/soft_bodies.py' marker='Removal' />
+```
+
+</py>
+
+:::warning
+Removing a cluster also removes the particles that only this cluster covered, with their elements and their
+attachments. Therefore removing the last cluster of a soft-body removes the soft-body itself. Note that removing the
+proxy of a cluster <notc>from the rigid-body set</notc><c>with `r3RemoveRigidBody`</c><py> (with `PhysicsWorld.remove_body`, or with `RigidBodySet.remove` given the soft-body set as its `soft_bodies` argument, without which it raises a `ValueError`)</py> is equivalent to removing the cluster.
+:::

@@ -1,7 +1,6 @@
 ---
 id: advanced_collision_detection
 title: Advanced collision-detection
-sidebar_label: Advanced collision-detection
 ---
 
 import Tabs from '@theme/Tabs';
@@ -18,14 +17,16 @@ All the pairs detected by the broad-phase are stored into two graph structures:
 - The [**intersection graph**](./advanced_collision_detection.mdx#the-intersection-graph) stores all the potential intersection pairs (between a sensor collider
   and another collider) as well as the result of the boolean intersection test executed by the narrow-phase.
 
-These two graphs are part of the `NarrowPhase` structure and are automatically updated by the `PhysicsPipeline`
-or the `CollisionPipeline`. Each node of these graph contains a `ColliderHandle`
-and there is one graph edge per pair detected by the broad-phase.
+These two graphs are <notc>part of the `NarrowPhase` structure and are automatically updated by the `PhysicsPipeline` or the `CollisionPipeline`</notc><c>part of the narrow-phase of the `R3World` and are automatically updated by `r3Step` or `r3DetectCollisions`</c>.
+Each node of these graph contains a <notc>`ColliderHandle`</notc><c>`R3ColliderHandle`</c>
+and there is one graph edge per pair detected by the broad-phase.<bevy> The `NarrowPhase` is part of
+the `RapierContextSimulation` component, and these graphs are generally read through the methods of `RapierContext`
+that identify the colliders by their entity.</bevy><py> The `NarrowPhase` of a physics world is given by its `PhysicsWorld.narrow_phase` property.</py>
 
 ## Collision and contact force events
 The narrow-phase can generate collision events between two colliders. Each collision event is given optional flags:
-- `CollisionEventFlags::SENSOR` is set if at least one of the colliders involved in the collision is a sensor.
-- `CollisionEventFlags::REMOVED` is set if a collision stopped because at least one of the colliders involved in the
+- <notjs>`CollisionEventFlags::SENSOR`</notjs><js>`CollisionEventFlags::SENSOR`</js><c>`R3_COLLISION_EVENT_SENSOR`</c><py>`CollisionEventFlags.SENSOR`</py> is set if at least one of the colliders involved in the collision is a sensor.
+- <notjs>`CollisionEventFlags::REMOVED`</notjs><js>`CollisionEventFlags::REMOVED`</js><c>`R3_COLLISION_EVENT_REMOVED`</c><py>`CollisionEventFlags.REMOVED`</py> is set if a collision stopped because at least one of the colliders involved in the
   collision was removed from the physics scene.
 
 In addition, after forces are computed by the constraints solver, contact force events may be generated between two
@@ -33,12 +34,12 @@ colliders subject to non-zero contact forces. Generally, the user isn’t intere
 force magnitudes exceed some threshold. In order to skip low-force events, the engine will compute the sum of the
 magnitude of all the contacts between the two colliders and only trigger a contact force event if that magnitude is
 larger than the threshold set with <rapier>`ColliderBuilder::contact_force_event_threshold` or
-`Collider::set_contact_force_event_threshold`</rapier><bevy>the `ContactForceEventThreshold` component</bevy>
-(defaults to 0) for any of the two colliders with the `ActiveEvents::CONTACT_FORCE_EVENTS` flag enabled.
+`Collider::set_contact_force_event_threshold`</rapier><bevy>the `ContactForceEventThreshold` component</bevy><c>the `contactForceEventThreshold` field of `R3ColliderDesc` or `r3Collider_SetContactForceEventThreshold`</c><py>`ColliderBuilder.contact_force_event_threshold` or the `Collider.contact_force_event_threshold` property</py>
+(defaults to 0) for any of the two colliders with the <notjs>`ActiveEvents::CONTACT_FORCE_EVENTS`</notjs><js>`ActiveEvents::CONTACT_FORCE_EVENTS`</js><c>`R3_CONTACT_FORCE_EVENTS`</c><py>`ActiveEvents.CONTACT_FORCE_EVENTS`</py> flag enabled.
 
 :::warning
 Collision events (resp. contact force events) are only generated between two colliders if at least one of them has the
-`ActiveEvents::COLLISION_EVENTS` flag (resp. `ActiveEvents::CONTACT_FORCE_EVENTS` flags) in its [active events](./colliders.mdx#active-events).
+<notjs>`ActiveEvents::COLLISION_EVENTS`</notjs><js>`ActiveEvents::COLLISION_EVENTS`</js><c>`R3_COLLISION_EVENTS`</c><py>`ActiveEvents.COLLISION_EVENTS`</py> flag (resp. <notjs>`ActiveEvents::CONTACT_FORCE_EVENTS`</notjs><js>`ActiveEvents::CONTACT_FORCE_EVENTS`</js><c>`R3_CONTACT_FORCE_EVENTS`</c><py>`ActiveEvents.CONTACT_FORCE_EVENTS`</py> flags) in its [active events](./colliders.mdx#active-events).
 :::
 
 <rapier>In order to handle these events, it is necessary to collect them using a structure implementing the `EventHandler` trait.
@@ -47,8 +48,10 @@ Because Rapier can be parallelized, this event handler must also implement `Send
 <rapier>
 
 One such structure provided by Rapier is the `rapier::pipeline::ChannelEventCollector`. This event collector contains
-channels from the [crossbeam crate](https://crates.io/crates/crossbeam). These channels will be populated with events
-during each call to `PhysicsPipeline::step`:
+one channel per kind of event (the collision events, the contact force events, and the tear events of the
+[soft-bodies](./soft_bodies.mdx)), taken from the `std::sync::mpsc` module. These channels will be populated with
+events during each call to `PhysicsWorld::step_with_events` (or `PhysicsPipeline::step`). Note that a channel whose
+receiver was dropped simply discards the events of its kind:
 
 ```rust
 <load path='/2d/rust/examples/rs_advanced_collision_detection2.rs' marker='Events' />
@@ -62,19 +65,117 @@ during one substep and steps at a substeps right after).
 
 :::info
 Collision events identify the involved colliders by their handle. It is possible to retrieve the handle of
-the rigid-body a collider is attached to: `collider_set.get(collider_handle).unwrap().parent()`
+the rigid-body a collider is attached to: `world.colliders[collider_handle].parent()`
 :::
 
 </rapier>
 <bevy>
 
-These events can be read using Bevy's event system with `EventReader`:
+These events are sent as the `CollisionEvent` and `ContactForceEvent` Bevy messages, identifying
+the colliders involved by their entity. They can be read with a `MessageReader`. In addition to the force-related
+fields, `ContactForceEvent::started` indicates whether this is the first step during which the contact force exceeds
+the threshold (it is `false` during the next steps as long as the force remains above that threshold). The
+tear events of the [soft-bodies](./soft_bodies.mdx) are sent as `SoftBodyTearEvent` messages:
 
 ```rust
 <load path='/2d/bevy/examples/advanced_collision_detection2.rs' marker='Events' />
 ```
 
+These messages only identify the colliders involved. The contact geometry can be read from the
+[contact graph](./advanced_collision_detection.mdx#the-contact-graph) afterwards, but there are some cases when the
+contact information is no longer available at the end of the timestep (e.g. when running multi-step CCD and the
+contact start during one substep and stops at a substep right after). If you need to access the contact information
+at the exact time a contact event happens, you may install your own implementation of Rapier's `EventHandler` trait
+with `RapierContextSimulation::set_event_handler`. That handler is called in addition to (not instead of) the sending
+of the Bevy messages. Because Rapier can be parallelized, this event handler must also implement `Send + Sync`:
+
+```rust
+<load path='/2d/bevy/examples/advanced_collision_detection2.rs' marker='EventHandler' />
+```
+
 </bevy>
+<c>
+
+These events are collected by an `R3EventCollector`, created by `r3NewEventCollector` and freed by
+`r3FreeEventCollector`. It is given to `r3Step` (or `r3DetectCollisions`), which adds to it the collision events, the
+contact force events, and the tear events of the [soft-bodies](./soft_bodies.mdx) generated during that step. The
+collision events and contact force events are copied into buffers given by the application with
+`r3EventCollector_CollisionEvents` and `r3EventCollector_ContactForceEvents`: calling them with a `NULL` buffer and a
+zero capacity gives the number of events, then a second call with a buffer large enough copies them. The tear events
+are read one by one with `r3EventCollector_TearEvent`, which returns a copy that must be freed with
+`r3FreeSoftBodyTearEvent`. Note that reading the events doesn't remove them from the collector: they accumulate from
+one step to the next until `r3EventCollector_Clear` is called:
+
+```c
+<load path='/2d/c/examples/advanced_collision_detection2.c' marker='Events' />
+```
+
+Each `R3CollisionEvent` indicates whether the collision `started` or stopped, and its `flags` combine the
+`R3_COLLISION_EVENT_SENSOR` and `R3_COLLISION_EVENT_REMOVED` bits described above. In addition to the force-related
+fields, the `started` field of an `R3ContactForceEvent` indicates whether this is the first step during which the
+contact force exceeds the threshold (it is `0` during the next steps as long as the force remains above that
+threshold).
+
+These events only identify the colliders involved. The contact geometry can be read from the
+[contact graph](./advanced_collision_detection.mdx#the-contact-graph) afterwards, but there are some cases when the
+contact information is no longer available at the end of the timestep (e.g. when running multi-step CCD and the
+contact start during one substep and stops at a substep right after). If you need to access the contact information
+at the exact time a contact event happens, you may give an `R3EventCallbacks` to the event collector with
+`r3EventCollector_SetCallbacks` (taking effect from the next step). Its callbacks are called during the step with
+each event, right after it was added to the collector: they complement (and don't replace) the collection of the
+events. The collision event callback is also given the geometric contacts of the pair at that time (in the collider
+order of the event, and none for a sensor), which are only valid during that call. Just like the [physics hooks](./advanced_collision_detection.mdx#physics-hooks), they only have a read-only
+access to the world, and must be thread-safe if the library was built with parallelism enabled.
+
+:::info
+Collision events identify the involved colliders by their handle. It is possible to retrieve the handle of
+the rigid-body a collider is attached to: `r3Collider_Parent(collider_handle)`.
+:::
+
+</c>
+<py>
+
+In order to handle these events, it is necessary to collect them with an event handler assigned to the
+`PhysicsWorld.event_handler` property. One such event handler provided by Rapier is the `ChannelEventCollector`. It
+contains one queue per kind of event (the collision events, the contact force events, and the tear events of the
+[soft-bodies](./soft_bodies.mdx)), which are populated with events during each call to `PhysicsWorld.step`. Its
+`drain_collision_events`, `drain_contact_force_events`, and `drain_soft_body_tear_events` methods give the list of the
+events of their kind and empty the corresponding queue. Note that the events accumulate from one step to the next
+until they are drained (or until `ChannelEventCollector.clear` is called):
+
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='Events' />
+```
+
+Each `CollisionEvent` indicates whether the collision `started` or `stopped`, and its `flags` combine the
+`CollisionEventFlags.SENSOR` and `CollisionEventFlags.REMOVED` bits described above (also given by its `sensor` and
+`removed` properties). Each `ContactForceEvent` gives the sum of the contact forces applied between the two colliders
+(`total_force`) and its magnitude (`total_force_magnitude`), as well as the magnitude and the direction of the largest
+contact force (`max_force_magnitude` and `max_force_direction`).
+
+These events only identify the colliders involved. The contact geometry can be read from the
+[contact graph](./advanced_collision_detection.mdx#the-contact-graph) afterwards, but there are some cases when the
+contact information is no longer available at the end of the timestep (e.g. when running multi-step CCD and the
+contact start during one substep and stops at a substep right after). If you need to access the contact information
+at the exact time a contact event happens, you may assign your own event handler instead: any object with the methods
+of the `EventHandler` protocol (the kinds of events whose method isn't implemented are ignored). These methods are called
+during the step, with a copy of the [contact pair](./advanced_collision_detection.mdx#the-contact-graph) involved.
+They are also given the rigid-body and collider sets of the world (`bodies` and `colliders`), which can be read but not
+modified (a modification raises a `RuntimeError`). Since these methods may be called from the worker threads of the
+step, read the world through these arguments rather than through the `PhysicsWorld` itself. Finally, an exception
+raised by one of these methods is raised again by `PhysicsWorld.step` once the step is complete (see
+`PhysicsWorld.event_error_policy`):
+
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='EventHandler' />
+```
+
+:::info
+Collision events identify the involved colliders by their handle. It is possible to retrieve the handle of
+the rigid-body a collider is attached to: `world.colliders[collider_handle].parent`.
+:::
+
+</py>
 
 
 ## The contact graph
@@ -94,24 +195,26 @@ manifolds stored in a contact pair:
 
 All the **geometric contact** data are expressed in the local-space of the colliders. The **solver contacts** hold one
 anchor per body surface, expressed in the local-space of the body that surface belongs to (so they ride rigidly with
-it); `ContactManifoldData::solver_contact_world_points` resolves them back to world-space through the bodies' current
+it); <rapier>`ContactManifoldData::solver_contact_world_points` resolves</rapier><bevy>`SolverContactView::world_point1`
+and `SolverContactView::world_point2` resolve</bevy><c>`r3SolverContacts` resolves</c><py>`ContactManifoldData.solver_contact_world_points` resolves</py> them back to world-space through the bodies' current
 poses. Inside a contact-modification hook they are world-space instead, since the hook runs before they are localized.
 
 :::info
 Because the solver contacts can be modified by the user, they are transients by nature:
 they are recomputed  at each frame from the geometric contacts. Because of their transient nature, the constraint solver will
-store the forces it computes inside of the geometric contacts `TrackedContact::data::impulse` field instead of the solver
-contacts themselves.
+store the forces it computes inside of the geometric contacts <notjs>`TrackedContact::data::impulse` field</notjs><js>`TrackedContact::data::impulse` field</js><c>(the `impulse` field of `R3ContactPoint`)</c><py>(the `impulse` property of `ContactData`)</py><bevy> (readable with
+`ContactView::impulse`)</bevy> instead of the solver contacts themselves.
 :::
 
 Keep in mind that the contact graph contains one graph edge per pair detected by the broad-phase. So
 the fact that a contact pair can be found in the graph doesn't mean that the corresponding colliders are
 __actually__ in contact (they may just be very close to one another, without touching). It is necessary
 to check either:
-- the`ContactPair::has_any_active_contact` if you need to know if there exist at least one solver contact
+- the<notjs>`ContactPair::has_any_active_contact`</notjs><js>`ContactPair::has_any_active_contact`</js><c> `has_any_active_contact` field of the `R3ContactPair`</c><py> `ContactPair.has_any_active_contact` property</py> if you need to know if there exist at least one solver contact
   between the colliders.
-- the length of `ContactManifold:points` for each manifold in `ContactPair::manifolds` to determine
-  if the colliders are really geometrically touching (independently from contact-modification).
+- the length of <notjs>`ContactManifold:points`</notjs><js>`ContactManifold:points`</js><c>the geometric contacts (`num_points`)</c><py>`ContactManifold.points`</py><bevy> (`ContactManifoldView::num_points`)</bevy> for each manifold in
+  <notjs>`ContactPair::manifolds`</notjs><js>`ContactPair::manifolds`</js><c>the result of `r3ContactManifolds`</c><py>`ContactPair.manifolds`</py> to determine if the colliders are really geometrically touching (independently from
+  contact-modification).
 
 :::info
 There will always be only up to one contact manifold between two colliders with convex primitive shapes. If one
@@ -139,9 +242,47 @@ will be multiple contact manifolds, one for each piece that may result in an act
 ```
 
 </bevy>
+<c>
+
+The contact pair between two colliders is given by `r3TryContactPair`, which sets the `found` field of its result to
+0 if the pair doesn't exist (whereas `r3ContactPair` reports it as the `R3_NOT_FOUND` error). The contact pairs
+involving one particular collider are given by `r3Collider_ContactPairs`, and all the contact pairs of the world by
+`r3ContactPairs`. In addition to `has_any_active_contact`, an `R3ContactPair` gives a summary of the contact impulses
+applied between the two colliders during the last step (`total_impulse`, `max_impulse`, etc.) The contact manifolds of
+a pair are given by `r3ContactManifolds`, their geometric contacts by `r3ContactPoints` (each tagged with the
+`manifold_index` of its manifold), and the solver contacts of one manifold by `r3SolverContacts`:
+
+```c
+<load path='/2d/c/examples/advanced_collision_detection2.c' marker='ContactGraph1' />
+```
+```c
+<load path='/2d/c/examples/advanced_collision_detection2.c' marker='ContactGraph2' />
+```
+
+</c>
+<py>
+
+The contact pair between two colliders is given by `NarrowPhase.contact_pair`, which returns `None` if the pair doesn't
+exist. The contact pairs involving one particular collider are given by `NarrowPhase.contact_pairs_with`, and all the
+contact pairs of the world by `NarrowPhase.contact_pairs`. Keep in mind that these methods give copies of the contact
+pairs: they are not updated by the next timesteps. In addition to `has_any_active_contact`, a `ContactPair` gives a
+summary of the contact impulses applied between the two colliders during the last step (`total_impulse` and
+`total_impulse_magnitude`), and its deepest geometric contact (`find_deepest_contact`). Each element of
+`ContactPair.manifolds` is a `ContactManifold` whose `points` are its geometric contacts (each one being a
+`ContactData`), and whose `data` (a `ContactManifoldData`) contains its world-space contact `normal` as well as its
+solver contacts:
+
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='ContactGraph1' />
+```
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='ContactGraph2' />
+```
+
+</py>
 
 Finally, keep in mind that the contacts and contact manifolds field names frequently end with a digit `1` or `2`.
-For example `contact_pair.manifolds[0].local_n1` and `contact_pair.manifolds[0].local_n2`. Fields ending with
+For example <notc>`contact_pair.manifolds[0].local_n1` and `contact_pair.manifolds[0].local_n2`</notc><c>the `local_n1` and `local_n2` fields of an `R3ContactManifold`</c>. Fields ending with
 the digit `1` relate to the collider identified by `contact_pair.collider1`. Fields ending with the digit `2`
 relate to the collider identified by `contact_pair.collider2`.
 
@@ -151,12 +292,14 @@ the local space of the collider `collider_pair.collider2` and points towards the
 `collider_pair.collider2`.
 
 :::warning
-The contact pair returned by `narrow_phase.contact_pair(handle1, handle2)` does not necessarily
-have `contact_pair.collider1 == handle1 && contact_pair.collider2 == handle2`. It could be swapped:
-`contact_pair.collider1 == handle2 && contact_pair.collider2 == handle1`.
+The contact pair returned by <notc>`narrow_phase.contact_pair(handle1, handle2)`</notc><c>`r3TryContactPair(handle1, handle2)`</c> does not necessarily
+have <notpy>`contact_pair.collider1 == handle1 && contact_pair.collider2 == handle2`</notpy><py>`contact_pair.collider1 == handle1 and contact_pair.collider2 == handle2`</py>. It could be swapped:
+<notpy>`contact_pair.collider1 == handle2 && contact_pair.collider2 == handle1`</notpy><py>`contact_pair.collider1 == handle2 and contact_pair.collider2 == handle1`</py>.
 
 So keep that in mind when reading the contact information because it's `contact_pair.collider1` and `contact_pair.collider2`
-that determine to what collider the digits `1` and `2` relate in the contacts and contact manifolds fields.
+that determine to what collider the digits `1` and `2` relate in the contacts and contact manifolds fields.<bevy> The same
+applies to `RapierContext::contact_pair(entity1, entity2)`: compare `contact_pair.collider1()` with your entities to
+know which one is the first collider.</bevy><c> The same applies to the contacts given by `r3ContactManifolds(handle1, handle2)`, `r3ContactPoints(handle1, handle2)`, and `r3SolverContacts(handle1, handle2)`: compare `contact_pair.collider1` with your handles (i.e. their `index` and `generation` fields) to know which one is the first collider.</c>
 :::
 
 
@@ -190,6 +333,37 @@ Each such edge contains one boolean indicating if the colliders are actually int
 ```
 
 </bevy>
+<c>
+
+The intersection pair between two colliders is given by `r3TryIntersectionPair` (`r3IntersectionPair` reports the
+`R3_NOT_FOUND` error if that pair doesn't exist), the intersection pairs involving one particular collider by
+`r3Collider_IntersectionPairs`, and all the intersection pairs of the world by `r3IntersectionPairs`. The boolean of
+each edge is the `intersecting` field of the `R3IntersectionPair`. Unlike the contact pairs, the pair given by
+`r3TryIntersectionPair` and `r3IntersectionPair` keeps the order of their arguments:
+
+```c
+<load path='/2d/c/examples/advanced_collision_detection2.c' marker='IntersectionGraph1' />
+```
+```c
+<load path='/2d/c/examples/advanced_collision_detection2.c' marker='IntersectionGraph2' />
+```
+
+</c>
+<py>
+
+The boolean of the edge between two colliders is given by `NarrowPhase.intersection_pair`, which returns `None` if that
+pair doesn't exist. The intersection pairs involving one particular collider are given by
+`NarrowPhase.intersection_pairs_with`, and all the intersection pairs of the world by `NarrowPhase.intersection_pairs`,
+each one as a `(collider1, collider2, intersecting)` tuple:
+
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='IntersectionGraph1' />
+```
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='IntersectionGraph2' />
+```
+
+</py>
 
 :::warning
 Keep in mind that intersection tests are performed between two colliders only if at least one of the colliders
@@ -205,7 +379,8 @@ they can be used to [filter contacts](./advanced_collision_detection.mdx#contact
 
 <rapier>
 
-Physics hooks are given as an argument of the `PhysicsPipeline::step` and `CollisionPipeline::step` methods.
+Physics hooks are given as an argument of the `PhysicsWorld::step_with_events`, `PhysicsPipeline::step`, and
+`CollisionPipeline::step` methods.
 All physics hooks are grouped into the `PhysicsHooks` trait that defines one method per kind of hook.
 
 :::info
@@ -223,6 +398,14 @@ attached to the entities to guide contact filtering. For physics hooks to work, 
 - The custom physics hooks must implement the `BevyPhysicsHooks` trait
 - The custom physics hooks must implement `SystemParam` trait for example using `derive` macro
 
+The hooks are given a `PairFilterContextView` (for the filtering hooks) or a `ContactModificationContextView` (for
+the contact modification hook). They give access to the entities of the colliders involved (`collider1()`,
+`collider2()`) and of their rigid-bodies (`rigid_body1()`, `rigid_body2()`), as well as to the raw Rapier context
+(the `raw` field). The methods of `BevyPhysicsHooks` that are not implemented keep the default behavior of Rapier:
+`filter_contact_pair` returns `Some(SolverFlags::COMPUTE_RIGID_IMPULSES)` and `filter_intersection_pair` returns
+`true`. So enabling a hook in the active hooks of a collider without implementing the corresponding method doesn't
+change which pairs interact.
+
 :::note
 If you don't need any physics hooks, `NoUserData` should be passed as a plugin type parameter:
 `RapierPhysicsPlugin::<NoUserData>::default()`.
@@ -230,11 +413,56 @@ If you don't need any physics hooks, `NoUserData` should be passed as a plugin t
 
 
 </bevy>
+<c>
+
+Physics hooks are given as an argument of `r3Step` and `r3DetectCollisions`. They are grouped into the
+`R3PhysicsHooks` structure, which contains one callback per kind of hook, as well as a `user_data` pointer given as
+the first argument of each of these callbacks. A `NULL` callback keeps the default behavior of Rapier, so a
+zero-initialized `R3PhysicsHooks` doesn't change anything.
+
+The callbacks are called during the step, possibly from several threads at once if the library was built with
+parallelism enabled (in which case the callbacks and their `user_data` must be thread-safe). They are given an
+`R3ReadContext` which gives a read-only access to the rigid-bodies and colliders (through the `r3ReadRigidBody_*` and
+`r3ReadCollider_*` functions): any other access to the world being stepped reports the `R3_WORLD_BUSY` error, so any
+modification of the world must be performed after the step. Finally, a callback must not keep its arguments after it
+returns.
+
+:::info
+If no physics hooks are needed by your simulation, it is possible to use `NULL` as the physics hooks argument of
+`r3Step`.
+:::
+
+</c>
+<py>
+
+Physics hooks are given to the physics world by assigning them to its `PhysicsWorld.physics_hooks` property. They can
+be any object with the methods of the `PhysicsHooks` protocol, which defines one method per kind of hook. Only the
+methods of the hooks enabled in the [active hooks](./colliders.mdx#active-hooks) of the colliders are called, and a
+method that isn't implemented keeps the default behavior of Rapier, so the hooks you don't need can be omitted. These
+methods are called during the step, and are given a context (a `PairFilterContext` or a `ContactModificationContext`)
+which identifies the colliders involved (`collider1` and `collider2`) and their rigid-bodies (`rigid_body1` and
+`rigid_body2`, which are `None` for a collider without parent), and gives a read-only access to the colliders and
+rigid-bodies of the world (`colliders` and `bodies`, a modification raising a `RuntimeError`). This context is only
+valid until the method returns. Since the hooks may be called from the worker threads of the step, read the world
+through this context rather than through the `PhysicsWorld` itself. Finally, an exception raised by one of these methods is raised again by `PhysicsWorld.step` once the step is complete
+(see `PhysicsWorld.event_error_policy`).
+
+:::info
+If no physics hooks are needed by your simulation, the `PhysicsWorld.physics_hooks` property can be left to `None`,
+its default value.
+:::
+
+</py>
 
 ### Contact and intersection filtering
 Sometimes, [collision groups and solver groups](./colliders.mdx#collision-groups-and-solver-groups) are not flexible enough
 to achieve the desired behavior. In that case, the contact filtering hooks let you apply custom rules to filter contact
 pairs and intersection pairs:
+
+<notpy>
+
+<notc>
+
 - For each potential contact pair (between two non-sensor colliders) detected by the broad-phase, if at least one
   of the colliders involved in the pair has the bit `ActiveHooks::FILTER_CONTACT_PAIRS` enabled in its
   [active hooks](./colliders.mdx#active-hooks), then `PhysicsHooks::filter_contact_pair` will be called. If this filter
@@ -248,13 +476,61 @@ pairs and intersection pairs:
 
 When `PhysicsHooks::filter_contact_pair` returns `Some(flags)` it needs to provide a set of solver flags for this contact
 pair. These solver flags indicate what happen with the contacts of this contact pair afterwards:
-- If the returned `Some(flags)` contains the `SolverFlags::COMPUTE_IMPULSES` bit, then the constraints solver will
+- If the returned `Some(flags)` contains the `SolverFlags::COMPUTE_RIGID_IMPULSES` bit, then the constraints solver will
   compute forces for these contacts. If this bit is not included in the returned flags, then no contact force will
   be computed for this pair of colliders.
 
 :::note
-Right now there is no solver flags other than `SolverFlags::COMPUTE_IMPULSES`. Other flags may be added in the future.
+Right now there is no solver flags other than `SolverFlags::COMPUTE_RIGID_IMPULSES`. Other flags may be added in the future.
 :::
+
+</notc>
+
+</notpy>
+<c>
+
+- For each potential contact pair (between two non-sensor colliders) detected by the broad-phase, if at least one
+  of the colliders involved in the pair has the bit `R3_FILTER_CONTACT_PAIRS` enabled in its
+  [active hooks](./colliders.mdx#active-hooks), then the `filter_contact_pair` callback will be called. If it returns
+  `-1` then no contact computation will happen for this pair of colliders. Otherwise the narrow-phase will compute
+  contact points.
+- For each potential intersection pair (between a sensor colliders and another collider) detected by the broad-phase, if
+  at least one of the colliders involved in the pair has the bit `R3_FILTER_INTERSECTION_PAIR` enabled in its
+  [active hooks](./colliders.mdx#active-hooks), then the `filter_intersection_pair` callback will be called. If it
+  returns `0` then no intersection computation will happen for this pair of colliders. If it returns a positive value
+  then the narrow-phase will test whether or not they are intersecting.
+
+When `filter_contact_pair` doesn't return `-1`, its return value also indicates what happen with the contacts of this
+contact pair afterwards:
+- If it returns `1`, then the constraints solver will compute forces for these contacts.
+- If it returns `0`, then the contact points are computed, but no contact force will be computed for this pair of
+  colliders.
+
+</c>
+<py>
+
+- For each potential contact pair (between two non-sensor colliders) detected by the broad-phase, if at least one
+  of the colliders involved in the pair has the bit `ActiveHooks.FILTER_CONTACT_PAIRS` enabled in its
+  [active hooks](./colliders.mdx#active-hooks), then `PhysicsHooks.filter_contact_pair` will be called. If this filter
+  returns `None` then no contact computation will happen for this pair of colliders. If it returns solver flags (a
+  `SolverFlags`) then the narrow-phase will compute contact points.
+- For each potential intersection pair (between a sensor colliders and another collider) detected by the broad-phase, if
+  at least one of the colliders involved in the pair has the bit `ActiveHooks.FILTER_INTERSECTION_PAIR` enabled
+  in its [active hooks](./colliders.mdx#active-hooks), then `PhysicsHooks.filter_intersection_pair` will be called. If
+  this filter returns `False` then no intersection computation will happen for this pair of colliders. If it returns
+  `True` then the narrow-phase will test whether or not they are intersecting.
+
+When `PhysicsHooks.filter_contact_pair` doesn't return `None`, the solver flags it returns indicate what happen with
+the contacts of this contact pair afterwards:
+- If the returned flags contain the `SolverFlags.COMPUTE_RIGID_IMPULSES` bit, then the constraints solver will
+  compute forces for these contacts. If this bit is not included in the returned flags (e.g. with
+  `SolverFlags.empty()`), then no contact force will be computed for this pair of colliders.
+
+:::note
+Right now there is no solver flags other than `SolverFlags.COMPUTE_RIGID_IMPULSES`. Other flags may be added in the future.
+:::
+
+</py>
 
 <rapier>
 
@@ -269,7 +545,45 @@ Right now there is no solver flags other than `SolverFlags::COMPUTE_IMPULSES`. O
 <load path='/2d/bevy/examples/physics_hooks.rs' marker='PhysicsHooks' />
 ```
 
+Keep in mind that these filters don't replace the built-in filtering of Rapier: they are only called for the pairs
+that passed it. The pairs of colliders attached to the same rigid-body, or to rigid-bodies linked by a joint with
+contacts disabled, are discarded first, then the pairs rejected by the
+[active collision types](./colliders.mdx#active-collision-types) of both colliders (e.g. between two non-dynamic
+rigid-bodies by default), then the pairs rejected by their
+[collision groups](./colliders.mdx#collision-groups-and-solver-groups). The solver groups are applied to the solver
+flags returned by `filter_contact_pair` afterwards.
+
 </bevy>
+<c>
+
+```c
+<load path='/2d/c/examples/advanced_collision_detection2.c' marker='PhysicsHooks' />
+```
+
+Keep in mind that these filters don't replace the built-in filtering of Rapier: they are only called for the pairs
+that passed it. The pairs of colliders attached to the same rigid-body, or to rigid-bodies linked by a joint with
+contacts disabled, are discarded first, then the pairs rejected by the
+[active collision types](./colliders.mdx#active-collision-types) of both colliders (e.g. between two non-dynamic
+rigid-bodies by default), then the pairs rejected by their
+[collision groups](./colliders.mdx#collision-groups-and-solver-groups). The solver groups are applied to the result of
+`filter_contact_pair` afterwards.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='PhysicsHooks' />
+```
+
+Keep in mind that these filters don't replace the built-in filtering of Rapier: they are only called for the pairs
+that passed it. The pairs of colliders attached to the same rigid-body, or to rigid-bodies linked by a joint with
+contacts disabled, are discarded first, then the pairs rejected by the
+[active collision types](./colliders.mdx#active-collision-types) of both colliders (e.g. between two non-dynamic
+rigid-bodies by default), then the pairs rejected by their
+[collision groups](./colliders.mdx#collision-groups-and-solver-groups). The solver groups are applied to the solver
+flags returned by `filter_contact_pair` afterwards.
+
+</py>
 
 ### Contact modification
 It is possible to modify contacts after they have been computed by the narrow-phase. Contact-modification can have
@@ -279,8 +593,8 @@ multiple advanced usages, for example:
 - The simulation of colliders whose **friction** or **restitution** depends on where they are touched,
   by setting the coefficients from the contact points' location.
 
-The `PhysicsHooks::modify_solver_contacts` methods is called on each contact manifold between two colliders where at
-least one of them has the `ActiveHooks::MODIFY_SOLVER_CONTACTS` flag enabled in its
+The <notjs>`PhysicsHooks::modify_solver_contacts` methods is</notjs><js>`PhysicsHooks::modify_solver_contacts` methods is</js><c>`modify_solver_contacts` and `modify_solver_contacts_context` callbacks are</c><py>`PhysicsHooks.modify_solver_contacts` method is</py> called on each contact manifold between two colliders where at
+least one of them has the <notjs>`ActiveHooks::MODIFY_SOLVER_CONTACTS`</notjs><js>`ActiveHooks::MODIFY_SOLVER_CONTACTS`</js><c>`R3_MODIFY_SOLVER_CONTACTS`</c><py>`ActiveHooks.MODIFY_SOLVER_CONTACTS`</py> flag enabled in its
 [active hooks](./colliders.mdx#active-hooks).
 
 :::warning
@@ -292,7 +606,8 @@ is worth adding.
 
 Contact-modification lets you change most characteristics of a contact: the contact normal, the contact points and
 their penetration depth, and the tangent velocity. The friction and restitution coefficients are combined once per
-manifold, so they are set for the whole manifold (`context.friction` / `context.restitution`) rather than per contact.
+manifold, so they are set for the whole manifold (<rapier>`context.friction` / `context.restitution`</rapier><bevy>`context.set_friction` /
+`context.set_restitution`</bevy><c>the `friction` / `restitution` fields of the `R3ContactModification`</c><py>`context.friction` / `context.restitution`</py>) rather than per contact.
 None of these modifications are persistent (they
 are overwritten during the next timestep). There is one exception though: you can modify a `user_data` associated to
 each `ContactManifold`. This `user_data` will persist throughout timesteps as long as the `ContactManifold` remains alive
@@ -309,11 +624,80 @@ existed during previous timesteps).
 </rapier>
 <bevy>
 
+The `ContactModificationContextView` given to `BevyPhysicsHooks::modify_solver_contacts` exposes
+the contact manifold being modified through getters and setters: `normal`/`set_normal`, `friction`/`set_friction`,
+`restitution`/`set_restitution`, `user_data`/`set_user_data`, and `solver_contacts`/`solver_contacts_mut`. The
+contacts between two soft surfaces are contact candidates rather than a contact manifold: in that case (see
+`ContactModificationContextView::is_soft`), these getters return `None` and these setters do nothing, and the
+candidates can be modified with `ContactModificationContextView::soft_mut` instead. Finally,
+`ContactModificationContextView::update_as_oneway_platform` implements the removal of the contacts required for
+**one-way-platforms**.
+
 ```rust
 <load path='/2d/bevy/examples/contact_modification.rs' marker='ContactModification' />
 ```
 
 </bevy>
+<c>
+
+The contact modification is split into two callbacks of the `R3PhysicsHooks`, both called for each contact manifold:
+- `modify_solver_contacts` is given an `R3ContactModification` holding the properties of the whole manifold: its
+  world-space contact `normal`, its `friction` and `restitution` coefficients, and its persistent `user_data`. Setting
+  its `enabled` field to `0` removes all the solver contacts of the manifold.
+- `modify_solver_contacts_context`, called right after, is given an `R3ContactModificationContext` for modifying the
+  solver contacts themselves. `r3ContactModificationContext_SetTangentVelocity` sets the tangent velocity of every
+  solver contact of the manifold (e.g. for **conveyor belts**), and
+  `r3ContactModificationContext_UpdateAsOnewayPlatform` implements the removal of the contacts required for
+  **one-way-platforms** (it relies on the `user_data` of the manifold).
+
+The contacts between two soft surfaces are contact candidates rather than a contact manifold: in that case,
+`modify_solver_contacts` isn't called and the functions of the `R3ContactModificationContext` above do nothing.
+
+```c
+<load path='/2d/c/examples/advanced_collision_detection2.c' marker='ContactModification' />
+```
+
+The solver contacts can also be modified one by one: `r3ContactModificationContext_SolverContactCount` gives their
+number, `r3ContactModificationContext_SolverContact` and `r3ContactModificationContext_SetSolverContact` read and
+write one of them, and `r3ContactModificationContext_RemoveSolverContact` removes one of them (the last solver contact
+taking its place). Inside the hook, the contact points of an `R3SolverContact` (`point1` and `point2`) are expressed in
+world-space. Finally, `r3ContactModificationContext_IsSoft` indicates whether the context holds the contact candidates
+of two soft surfaces rather than a contact manifold:
+
+```c
+<load path='/2d/c/examples/advanced_collision_detection2.c' marker='ContactModificationPerContact' />
+```
+
+</c>
+<py>
+
+The `ContactModificationContext` given to `PhysicsHooks.modify_solver_contacts` exposes the contact manifold being
+modified through its properties: its world-space contact `normal`, its `friction` and `restitution` coefficients, and
+its persistent `user_data` can be read and modified, whereas `local_n1` and `local_n2` give its contact normal in the
+local-space of each collider. Its solver contacts are given by `solver_contacts` (a list of copies of the
+`SolverContact`) and counted by `num_solver_contacts`. They can be modified one by one with `set_solver_contact`
+(given the index of the solver contact, and the new values of its `point`, `point2`, `dist`, or `tangent_velocity` as
+keyword arguments), removed one by one with `remove_solver_contact`, or all removed at once with
+`clear_solver_contacts`. `set_tangent_velocity` sets the tangent velocity of every solver contact of the manifold at
+once (e.g. for **conveyor belts**): it is the velocity of the surface of the second collider relative to the surface
+of the first one, so a belt dragging objects along a direction `v` sets `v` if it is `collider1`, and `-v` if it is
+`collider2`. Inside the hook, the contact points of a `SolverContact` (`point` and `point2`) are expressed
+in world-space. Note that this hook isn't called for the contacts between two soft surfaces, which are contact
+candidates rather than a contact manifold:
+
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='ContactModification' />
+```
+
+Finally, `ContactModificationContext.update_as_oneway_platform` implements the removal of the contacts required for
+**one-way-platforms** (it relies on the `user_data` of the manifold). It only keeps the contacts whose normal, in the
+local-space of the first collider of the pair, is within the given angle of the given direction:
+
+```python
+<load path='/3d/python/advanced_collision_detection.py' marker='OneWayPlatform' />
+```
+
+</py>
 
 ## Continuous Collision Detection
 Continuous Collision Detection (CCD) is used to make sure that fast-moving objects don't miss any contacts (a problem

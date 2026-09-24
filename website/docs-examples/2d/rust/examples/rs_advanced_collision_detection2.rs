@@ -1,35 +1,16 @@
 use rapier2d::prelude::*;
 
 fn main() {
-    let mut rigid_body_set = RigidBodySet::new();
-    let mut collider_set = ColliderSet::new();
+    let mut world = PhysicsWorld::new();
 
     /* Create the ground. */
-    let collider = ColliderBuilder::cuboid(100.0, 0.1).build();
-    let collider_handle1 = collider_set.insert(collider);
+    let collider_handle1 = world.insert_collider(ColliderBuilder::cuboid(100.0, 0.1), None);
 
     /* Create the bouncing ball. */
-    let rigid_body = RigidBodyBuilder::dynamic()
-        .translation(Vector::new(0.0, 10.0))
-        .build();
-    let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
-    let ball_body_handle = rigid_body_set.insert(rigid_body);
-    let collider_handle2 =
-        collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
-
-    /* Create other structures necessary for the simulation. */
-    let gravity = Vector::new(0.0, -9.81);
-    let integration_parameters = IntegrationParameters::default();
-    let mut physics_pipeline = PhysicsPipeline::new();
-    let mut island_manager = IslandManager::new();
-    let mut broad_phase = DefaultBroadPhase::new();
-    let mut narrow_phase = NarrowPhase::new();
-    let mut impulse_joint_set = ImpulseJointSet::new();
-    let mut multibody_joint_set = MultibodyJointSet::new();
-    let mut soft_body_set = SoftBodySet::new();
-    let mut ccd_solver = CCDSolver::new();
-    let physics_hooks = ();
-    let event_handler = ();
+    let (_ball_body_handle, collider_handle2) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 10.0)),
+        ColliderBuilder::ball(0.5).restitution(0.7),
+    );
 
     // DOCUSAURUS: Events start
     // Initialize the event collector.
@@ -39,21 +20,7 @@ fn main() {
     let event_handler =
         ChannelEventCollector::new(collision_send, contact_force_send, soft_body_tear_send);
 
-    physics_pipeline.step(
-        gravity,
-        &integration_parameters,
-        &mut island_manager,
-        &mut broad_phase,
-        &mut narrow_phase,
-        &mut rigid_body_set,
-        &mut collider_set,
-        &mut impulse_joint_set,
-        &mut multibody_joint_set,
-        &mut soft_body_set,
-        &mut ccd_solver,
-        &physics_hooks,
-        &event_handler,
-    );
+    world.step_with_events(&(), &event_handler);
 
     while let Ok(collision_event) = collision_recv.try_recv() {
         // Handle the collision event.
@@ -73,7 +40,7 @@ fn main() {
 
     // DOCUSAURUS: ContactGraph1 start
     /* Find the contact pair, if it exists, between two colliders. */
-    if let Some(contact_pair) = narrow_phase.contact_pair(collider_handle1, collider_handle2) {
+    if let Some(contact_pair) = world.narrow_phase.contact_pair(collider_handle1, collider_handle2) {
         // The contact pair exists meaning that the broad-phase identified a potential contact.
         if contact_pair.has_any_active_contact() {
             // The contact pair has active contacts, meaning that it
@@ -105,7 +72,7 @@ fn main() {
                 // get the world-space contact point on each body's surface.
                 let (point1, point2) = manifold
                     .data
-                    .solver_contact_world_points(solver_contact, &rigid_body_set);
+                    .solver_contact_world_points(solver_contact, &world.bodies);
                 println!("Found solver contact points: {point1:?}, {point2:?}");
                 // The solver contact distance is negative if there is a penetration.
                 println!("Found solver contact distance: {:?}", solver_contact.dist);
@@ -116,7 +83,7 @@ fn main() {
 
     // DOCUSAURUS: ContactGraph2 start
     /* Iterate through all the contact pairs involving a specific collider. */
-    for contact_pair in narrow_phase.contact_pairs_with(collider_handle1) {
+    for contact_pair in world.narrow_phase.contact_pairs_with(collider_handle1) {
         let other_collider = if contact_pair.collider1 == collider_handle1 {
             contact_pair.collider2
         } else {
@@ -130,7 +97,7 @@ fn main() {
 
     // DOCUSAURUS: IntersectionGraph1 start
     /* Find the intersection pair, if it exists, between two colliders. */
-    if narrow_phase.intersection_pair(collider_handle1, collider_handle2) == Some(true) {
+    if world.narrow_phase.intersection_pair(collider_handle1, collider_handle2) == Some(true) {
         println!(
             "The colliders {:?} and {:?} are intersecting!",
             collider_handle1, collider_handle2
@@ -141,7 +108,7 @@ fn main() {
     // DOCUSAURUS: IntersectionGraph2 start
     /* Iterate through all the intersection pairs involving a specific collider. */
     for (collider1, collider2, intersecting) in
-        narrow_phase.intersection_pairs_with(collider_handle1)
+        world.narrow_phase.intersection_pairs_with(collider_handle1)
     {
         if intersecting {
             println!(

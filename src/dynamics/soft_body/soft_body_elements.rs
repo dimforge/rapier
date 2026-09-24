@@ -264,7 +264,8 @@ pub enum SoftBodyCellModel {
     Corotational,
     /// Stable Neo-Hookean hyperelasticity (Smith et al. 2018): the parameters (plasticity too) and
     /// small-strain behavior of [`SoftBodyCellModel::Corotational`], but Neo-Hookean at large
-    /// strains (stiffens when stretched, inverted cells pushed back through the collapse); 2x cost.
+    /// strains (stiffer than linear elasticity under compression, softer under tension, inverted
+    /// cells pushed back through the collapse); 2x cost.
     NeoHookean,
 }
 

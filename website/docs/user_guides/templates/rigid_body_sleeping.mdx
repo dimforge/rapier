@@ -9,10 +9,15 @@ starts interacting with them (either with a joint, or with one of its attached c
 
 <bevy>
 
-When using the `bevy_rapier` plugin, rigid-bodies are also automatically woken up whenever one of the
+Rigid-bodies are also automatically woken up whenever one of the
 components of the rigid-body is modified (to apply forces, change its position, etc.) They will **not** be awaken
 automatically when changing the gravity though. So you may sometimes want to wake a rigid-body manually by setting
-the component field `Sleeping::sleeping` to `true`.
+the component field `Sleeping::sleeping` to `false`: this wakes up the rigid-body as well as the rigid-bodies
+interacting with it. Setting it to `true` puts the rigid-body to sleep.
+
+The other fields of the `Sleeping` component control when the rigid-body falls asleep: it has to move slower than
+`Sleeping::normalized_linear_threshold` and `Sleeping::angular_threshold` during `Sleeping::time_until_sleep` seconds.
+A rigid-body can be prevented from ever sleeping by giving it the `Sleeping::disabled()` component.
 
 </bevy>
 
@@ -37,7 +42,8 @@ However, a sleeping rigid-body won't respond to any user action. This is why it 
 manually with `RigidBody.wakeUp()`. Some rigid-body methods take an additional `wakeUp` boolean argument that, if
 true, ensures that the rigid-body wakes up before the action takes place. For example:
 - `RigidBody.addForce(force, true)` will wake-up the rigid-body before adding the force.
-- `World.removeJoint(joint, true)` will wake-up the two rigid-bodies attached by the removed joints.
+- `World.removeImpulseJoint(joint, true)` (resp. `World.removeMultibodyJoint`) will wake-up the two rigid-bodies
+  attached by the removed joint.
 - `World.removeCollider(collider, true)` will wake-up the rigid-body the removed collider is attached to.
 
 Unless you want to achieve special effects, it is recommended to always set the `wakeUp` argument to `true`.
@@ -46,3 +52,51 @@ constant gravity with `RigidBody.addForce(force, false)`. This will result in th
 to the rigid-body, but will allow the rigid-body to fall asleep if it reaches a dynamic equilibrium.
 
 </js>
+<c>
+
+However, a sleeping rigid-body won't respond to any user action. This is why it is possible to wake-up the rigid-body
+manually with `r3RigidBody_WakeUp` (if its `strong` argument is `1`, the rigid-body is guaranteed to stay awake for
+several timesteps, otherwise it may fall asleep again immediately). Some functions take an additional `wake_up`
+argument that, if set to `1`, ensures that the rigid-body wakes up before the action takes place. For example:
+- `r3RigidBody_AddForce(handle, force, 1)` will wake-up the rigid-body before adding the force.
+- `r3RemoveImpulseJoint(joint, 1)` (resp. `r3RemoveMultibodyJoint`) will wake-up the two rigid-bodies attached by the
+  removed joint.
+- `r3RemoveCollider(collider, 1)` will wake-up the rigid-body the removed collider is attached to.
+
+Unless you want to achieve special effects, it is recommended to always set the `wake_up` argument to `1`.
+One example of case where setting the argument of `wake_up` to `0` makes sense is to simulate a custom
+constant gravity with `r3RigidBody_AddForce(handle, force, 0)`. This will result in the force being added
+to the rigid-body, but will allow the rigid-body to fall asleep if it reaches a dynamic equilibrium.
+
+Whether a rigid-body is sleeping is given by `r3RigidBody_IsSleeping`, and it can be put to sleep manually with
+`r3RigidBody_Sleep`. A rigid-body can be prevented from ever sleeping by setting the `canSleep` field of its
+`R3RigidBodyDesc` to `0`, or created already asleep by setting its `sleeping` field to `1`.
+
+</c>
+<py>
+
+However, a sleeping rigid-body won't respond to any user action. This is why it is possible to wake-up the rigid-body
+manually with `RigidBody.wake_up()` or `PhysicsWorld.wake_up(handle)` (if their `strong` argument is `True`, the
+default, the rigid-body is guaranteed to stay awake for several timesteps, otherwise it may fall asleep again
+immediately). Setting the pose, the velocities, the gravity scale, the type, or the locked axes of a rigid-body through
+its properties always wakes it up. Some methods take an additional `wake_up` boolean argument that, if `True` (the
+default), ensures that the rigid-body wakes up before the action takes place. For example:
+- `RigidBody.add_force(force, wake_up=True)` will wake-up the rigid-body before adding the force.
+- `ImpulseJointSet.remove(joint, wake_up=True)` (resp. `MultibodyJointSet.remove`) will wake-up the two rigid-bodies
+  attached by the removed joint.
+- `ColliderSet.remove(collider, islands, bodies, wake_up=True)` will wake-up the rigid-body the removed collider is
+  attached to (`PhysicsWorld.remove_collider` always does).
+
+Unless you want to achieve special effects, it is recommended to keep the default value `True` of the `wake_up`
+argument. One example of case where setting the argument of `wake_up` to `False` makes sense is to simulate a custom
+constant gravity with `RigidBody.add_force(force, wake_up=False)`. This will result in the force being added
+to the rigid-body, but will allow the rigid-body to fall asleep if it reaches a dynamic equilibrium.
+
+Whether a rigid-body is sleeping is given by the `RigidBody.is_sleeping` property, and it can be put to sleep manually
+with `RigidBody.sleep()`. A rigid-body can be prevented from ever sleeping with `RigidBodyBuilder.can_sleep(False)`,
+or created already asleep with `RigidBodyBuilder.sleeping(True)`. The velocity thresholds and the delay before the
+rigid-body falls asleep are given by the `linear_threshold`, `angular_threshold`, and `time_until_sleep` attributes of
+the `RigidBodyActivation` returned by the `RigidBody.activation` property. Keep in mind that this property returns a
+copy: the modified `RigidBodyActivation` must be assigned back to `RigidBody.activation` to take effect.
+
+</py>

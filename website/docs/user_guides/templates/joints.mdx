@@ -30,24 +30,113 @@ that are not defined in 2D:
 | Joint           | Allowed DOF in 2D | Allowed DOF in 3D | Rapier support
 |-----------------|-------------------|---------------|---------------|
 | _Fixed joint_       | None           | None| Yes |
-| _Free joint_        | All            | All | Through GenericJoint |
+| _Free joint_        | All            | All | Through <notc>GenericJoint</notc><c>a [generic joint](#generic-joints)</c> |
 | _Prismatic joint_   | 1 Translation  | 1 Translation | Yes |
 | _Revolute joint_    | 1 Rotation     | 1 Rotation    | Yes |
 | _Spherical joint_   | 1 Rotation     | 3 Rotations | Yes|
-| _Cartesian joint_   | 2 Translations | 3 Translations | Through GenericJoint |
-| _Planar joint_      |                | 2 Translations + 1 Rotation | Through GenericJoint |
-| _Cylindrical joint_ |                | 1 Translation + 1 Rotation (along the same axis) | Through GenericJoint |
-| _Pin-slot joint_    |                | 1 Translation + 1 Rotation (along different axes) | Through GenericJoint |
-| _Rectangular joint_ |                | 2 Translations | Through GenericJoint |
-| _Universal joint_   |                | 2 Rotations | Through GenericJoint |
+| _Cartesian joint_   | 2 Translations | 3 Translations | Through <notc>GenericJoint</notc><c>a [generic joint](#generic-joints)</c> |
+| _Planar joint_      |                | 2 Translations + 1 Rotation | Through <notc>GenericJoint</notc><c>a [generic joint](#generic-joints)</c> |
+| _Cylindrical joint_ |                | 1 Translation + 1 Rotation (along the same axis) | Through <notc>GenericJoint</notc><c>a [generic joint](#generic-joints)</c> |
+| _Pin-slot joint_    |                | 1 Translation + 1 Rotation (along different axes) | Through <notc>GenericJoint</notc><c>a [generic joint](#generic-joints)</c> |
+| _Rectangular joint_ |                | 2 Translations | Through <notc>GenericJoint</notc><c>a [generic joint](#generic-joints)</c> |
+| _Universal joint_   |                | 2 Rotations | Through <notc>GenericJoint</notc><c>a [generic joint](#generic-joints)</c> |
 
-Joints must be inserted into either an `ImpulseJointSet` or a `MultibodyJointSet`.
+<rapier>
+
+Joints must be inserted into the physics world either as an impulse joint with `PhysicsWorld::insert_impulse_joint`,
+or as a multibody joint with `PhysicsWorld::insert_multibody_joint` (which store them into the
+`PhysicsWorld::impulse_joints` and `PhysicsWorld::multibody_joints` sets respectively).
 The difference between those is explained in [next section](./joint_constraints.mdx).
 
+</rapier>
+<bevy>
+
+:::info
+In 2D, `bevy_rapier` also exposes the pin-slot joint (aka. groove joint) with the dedicated `PinSlotJoint` type
+(built with `PinSlotJointBuilder`). It allows the relative rotation, and the relative translation along one axis.
+:::
+
+A joint is created by adding either an `ImpulseJoint` or a `MultibodyJoint` component to an entity.
+The difference between those is explained in [next section](./joint_constraints.mdx). The first rigid-body attached
+by the joint is the one of the entity given as the `parent` of the joint, and the second rigid-body is the one of the
+entity containing the joint component (or of its parent entity). Similarly to the attachment of multiple colliders to a
+single rigid-body, multiple impulse joints can be attached to the same rigid-body by adding them to child entities:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/joints2.rs' marker='MultipleJoints' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/joints3.rs' marker='MultipleJoints' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<js>
+
+Joints must be inserted into the physics world either as an impulse joint with `World.createImpulseJoint`, or as a
+multibody joint with `World.createMultibodyJoint` (which store them into the `World.impulseJoints` and
+`World.multibodyJoints` sets respectively).
+The difference between those is explained in [next section](./joint_constraints.mdx).
+
+</js>
+<c>
+
+A joint is described by an `R3JointDesc` which must be initialized by one of the constructors of the joint types
+detailed in this page: `r3FixedJointDesc`, `r3SphericalJointDesc` (3D only), `r3RevoluteJointDesc`, and
+`r3PrismaticJointDesc`. A few other joint types have their own constructors too: `r3RopeJointDesc`,
+`r3SpringJointDesc`, and `r2PinSlotJointDesc` (2D only), and any other combination of free DOF can be described by
+a [generic joint](#generic-joints). Then any of the fields of the description can be modified before the joint is
+inserted into the world either as an impulse joint with `r3InsertImpulseJoint`, or as a multibody joint with
+`r3InsertMultibodyJoint`, given the handles of the two rigid-bodies it attaches. They return an
+`R3ImpulseJointHandle` and an `R3MultibodyJointHandle` respectively. The difference between those is explained in
+[next section](./joint_constraints.mdx).
+
+</c>
+<py>
+
+As the Python bindings are 3D only, only the 3D column of this table is relevant. A joint is created by a builder
+obtained from the static `builder` method of its class (e.g., `FixedJoint.builder()`, or `RevoluteJoint.builder(axis=...)`),
+each method of the builder returning a new builder with the corresponding property set, so they can be chained.
+Joints must be inserted into the physics world either as an impulse joint with `world.impulse_joints.insert`, or as a
+multibody joint with `world.multibody_joints.insert`, given the handles of the two rigid-bodies it attaches (these
+methods accept the builder directly, as well as the joint returned by its `build` method). They return an
+`ImpulseJointHandle` and a `MultibodyJointHandle` respectively. The difference between those is explained in
+[next section](./joint_constraints.mdx). Note that removing a rigid-body with `PhysicsWorld.remove_body` also removes
+all the joints attached to it.
+
+</py>
+
 ## Fixed joint
+
+<notpy>
+
 A fixed joint ensures that two rigid-bodies don't move relative to each other. Fixed joints are characterized by
-one **local frame** (represented by a `Pose`) on each rigid-body. The fixed-joint makes these frames
+one **local frame** (represented by a <notc>`Pose`</notc><c>`R3Pose`</c>) on each rigid-body. The fixed-joint makes these frames
 coincide in world-space.
+
+</notpy>
+<py>
+
+A fixed joint ensures that two rigid-bodies don't move relative to each other. Fixed joints are characterized by
+one **local frame** (represented by an `Isometry3`) on each rigid-body. The fixed-joint makes these frames
+coincide in world-space.
+
+</py>
 
 :::info
 Attaching multiple colliders to a single rigid-body will have the same effect as using one rigid-body
@@ -135,6 +224,47 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+The local frames are the `localFrame1` and `localFrame2` fields of the joint description, expressed in the
+local-space of the first and second rigid-body respectively. Their translation parts are the **local anchors** of the
+joint, which can also be set with `r3JointDesc_SetLocalAnchor1` and `r3JointDesc_SetLocalAnchor2`:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='FixedJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='FixedJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+The local frames are set with the `local_frame1` and `local_frame2` methods of the builder, expressed in the
+local-space of the first and second rigid-body respectively. Their translation parts are the **local anchors** of the
+joint, which can also be set with `local_anchor1` and `local_anchor2`:
+
+```python
+<load path='/3d/python/joints.py' marker='FixedJoint' />
+```
+
+</py>
 
 
 ## Spherical joint
@@ -164,12 +294,29 @@ of the points that need to coincide on the local-space of each rigid-body.
 ```
 
 </js>
+<c>
 
+```c
+<load path='/3d/c/examples/joints3.c' marker='SphericalJoint' />
+```
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/joints.py' marker='SphericalJoint' />
+```
+
+</py>
+
+<notpy>
 
 :::note
-In 2D, revolute joints and spherical joints are the same thing. Therefore, there is no `SphericalJoint` type in
-2D (use the `RevoluteJoint` type instead).
+In 2D, revolute joints and spherical joints are the same thing. Therefore, there is no <notc>`SphericalJoint` type</notc><c>`r2SphericalJointDesc` constructor</c> in
+2D (use the <notc>`RevoluteJoint` type</notc><c>`r2RevoluteJointDesc` constructor</c> instead).
 :::
+
+</notpy>
 
 ## Revolute joint
 The revolute joint prevents any relative movement between two rigid-bodies, except for relative rotations
@@ -254,17 +401,80 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+In 3D, the local axis is given to `r3RevoluteJointDesc`: it sets the rotation of both local frames so that their
+$\mathbf{x}$ axis is aligned with this axis. Different axes on each rigid-body can then be set with
+`r3JointDesc_SetLocalAxis1` and `r3JointDesc_SetLocalAxis2`. In 2D, the rotation axis is implicit, so
+`r2RevoluteJointDesc` takes no argument:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='RevoluteJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='RevoluteJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+The local axis is given to `RevoluteJoint.builder` (it is required since the bindings are 3D only): it sets the
+rotation of both local frames so that their $\mathbf{x}$ axis is aligned with this axis. Different axes on each
+rigid-body can then be set with the `local_axis1` and `local_axis2` methods of the builder. The current angle of the
+joint can be computed from the rotations of its two rigid-bodies with `RevoluteJoint.angle`:
+
+```python
+<load path='/3d/python/joints.py' marker='RevoluteJoint' />
+```
+
+</py>
 
 ## Prismatic joint
+
+<notpy>
+
 The prismatic joint prevents any relative movement between two rigid-bodies, except for relative translations
 along one axis. It is characterized by one **local anchor** as well as one **local axis** on each rigid-body.
-In 3D, an optional **local tangent axis** can be specified for each rigid-body. If a local tangent axis
-equal to zero is specified, it will be computed automatically. Setting this tangent axis lets you control the
-fixed relative orientation of the rigid-bodies.
+<notc>In 3D, an optional **local tangent axis** can be specified for each rigid-body. If a local tangent axis</notc>
+<notc>equal to zero is specified, it will be computed automatically. Setting this tangent axis lets you control the</notc>
+<notc>fixed relative orientation of the rigid-bodies.</notc><c>The local axis is the $\mathbf{x}$ axis of the local frames.</c>
+<c>In 3D, the rotation of the local frames around this axis lets you control the fixed relative orientation of the rigid-bodies.</c>
 
 The prismatic joint supports the application of **joint limits**. This will restrict the relative distance between
-the rigid-body anchors (along the free joint axis) to remain in the specified range `PrismaticJoint::limits`.
+the rigid-body anchors (along the free joint axis) to remain in the specified range <notc>`PrismaticJoint::limits`</notc><c>set with `r3JointDesc_SetLimits`</c>.
 The signed distance is computed as `(anchor2 - anchor1).dot(axis1)`.
+
+</notpy>
+<py>
+
+The prismatic joint prevents any relative movement between two rigid-bodies, except for relative translations
+along one axis. It is characterized by one **local anchor** as well as one **local axis** on each rigid-body. The
+local axis given to `PrismaticJoint.builder` is the $\mathbf{x}$ axis of both local frames, and different axes on each
+rigid-body can be set with the `local_axis1` and `local_axis2` methods of the builder. The rotation of the local frames
+around this axis is computed automatically: use a [generic joint](#generic-joints) with explicit local frames if you
+need to control the fixed relative orientation of the rigid-bodies.
+
+The prismatic joint supports the application of **joint limits**. This will restrict the relative distance between
+the rigid-body anchors (along the free joint axis) to remain in the range set with the `limits(min, max)` method of
+the builder (or with `PrismaticJoint.set_limits`). The signed distance is computed as `(anchor2 - anchor1).dot(axis1)`.
+
+</py>
 
 <rapier>
 
@@ -344,6 +554,54 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+The limits are set along one of the axes of the joint, identified by its index: `R3_AXIS_LIN_X`, `R3_AXIS_LIN_Y`, and
+`R3_AXIS_LIN_Z` for the translations, then `R3_AXIS_ANG_X`, `R3_AXIS_ANG_Y`, and `R3_AXIS_ANG_Z` for the rotations (in
+2D, the only rotation is `R2_AXIS_ANG_X`, i.e., the rotation around $\mathbf{z}$). For a prismatic joint, the free axis
+is `R3_AXIS_LIN_X`. The function `r3JointDesc_SetLimits` also enables the limits of this axis in the `limitAxes`
+bitmask of the description. Limits apply to any free axis of any joint: angular limits of a revolute joint are set on
+its `R3_AXIS_ANG_X` axis (in radians).
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='PrismaticJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='PrismaticJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/joints.py' marker='PrismaticJoint' />
+```
+
+Limits apply to any free axis of any joint: the angular limits of a revolute joint are set the same way (in radians).
+The joints with several free axes (the spherical joint and the [generic joints](#generic-joints)) take the axis the
+limits apply to as their first argument: `JointAxis.LIN_X`, `JointAxis.LIN_Y`, and `JointAxis.LIN_Z` for the
+translations, then `JointAxis.ANG_X`, `JointAxis.ANG_Y`, and `JointAxis.ANG_Z` for the rotations (the free axis of a
+prismatic joint being `JointAxis.LIN_X`, and the one of a revolute joint being `JointAxis.ANG_X`). The limits of an
+axis can be read with the `limits` method of the joint, which returns a `JointLimits` (or `None` if they are not
+enabled).
+
+</py>
 
 ## Joint motors
 Spherical, revolute, and prismatic joints support **joint motors**.
@@ -353,23 +611,24 @@ by the joint, as if a motor was pushing them. The joint motor is simulated with 
 can set a target relative velocity along the free degrees of freedom as well as a target position. The `stiffness` of
 the PD controller controls the strength of the force that will be applied to make the bodies reach the target relative
 positions along the free DOFs. The `damping` of the PD controller controls the strength of the force that will be applied
-to make the bodies reach the target relative velocities along the free DOFs. All joints supporting motors have the
-following methods:
-- <notjs> `configure_motor_position(target_pos, stiffness, damping)` </notjs><js> `configureMotorPosition(targetPos, stiffness, damping)` </js>:
+to make the bodies reach the target relative velocities along the free DOFs. <notc>All joints supporting motors have the</notc>
+<notc>following methods:</notc><c>The motor of each free axis is configured by the following functions (where `axis` is the index of the axis, e.g., `R3_AXIS_LIN_X`):</c>
+- <notjs> `configure_motor_position(target_pos, stiffness, damping)` </notjs><js> `configureMotorPosition(targetPos, stiffness, damping)` </js><c>`r3JointDesc_SetMotorPosition(desc, axis, target_pos, stiffness, damping)`</c><py>`set_motor_position(target_pos, stiffness, damping)`</py>:
   this tells the joint motor that we want the relative position
-  of the rigid-bodies along the free DOFs to be equal to <notjs> `target_pos` </notjs><js> `target_pos` </js>, and that
+  of the rigid-bodies along the free DOFs to be equal to <notjs> `target_pos` </notjs><js> `target_pos` </js><c>`target_pos`</c><py>`target_pos`</py>, and that
   the relative velocity when it reaches that position should be zero.
-- <notjs>`configure_motor_velocity(target_vel, damping)`</notjs><js>`configureMotorVelocity(targetVel, damping)`</js>:
+- <notjs>`configure_motor_velocity(target_vel, damping)`</notjs><js>`configureMotorVelocity(targetVel, damping)`</js><c>`r3JointDesc_SetMotorVelocity(desc, axis, target_vel, damping)`</c><py>`set_motor_velocity(target_vel, factor)`</py>:
   this tells the joint motor that we want the relative relative velocity of the rigid-bodies along the free DOFs to be
-  equal to <notjs>`target_vel`</notjs><js>`targeVel`</js>. There is no restriction on the relative position
+  equal to <notjs>`target_vel`</notjs><js>`targeVel`</js><c>`target_vel`</c><py>`target_vel`</py>. There is no restriction on the relative position
   along the free DOF.
-- <notjs>`configure_motor(target_pos, target_vel, stiffness, damping)`</notjs><js>`configureMotor(targetPos, targetVel, stiffness, damping)`</js>:
+- <notjs>`configure_motor(target_pos, target_vel, stiffness, damping)`</notjs><js>`configureMotor(targetPos, targetVel, stiffness, damping)`</js><c>`r3JointDesc_SetMotor(desc, axis, target_pos, target_vel, stiffness, damping)`</c><py>`set_motor(target_pos, target_vel, stiffness, damping)`</py>:
   this lets you control all the parameters of the motor's spring-like equation. This should be used only if the other configuration methods are not flexible enough.
-- <notjs>`configure_motor_model(model)`</notjs><js>`configureMotorModel(model)`</js>: this selects the mathematical model for the motor's controller. All the available
-  models use a __spring-like__ equation. See the [API documentation of MotorModel](https://docs.rs/rapier3d/latest/rapier3d/dynamics/enum.MotorModel.html)
-  for details.
+- <notjs>`configure_motor_model(model)`</notjs><js>`configureMotorModel(model)`</js><c>`r3JointDesc_SetMotorModel(desc, axis, model)`</c><py>`set_motor_model(model)`</py>: this selects the mathematical model for the motor's controller. All the available
+  models use a __spring-like__ equation. <notc>See the [API documentation of MotorModel](https://docs.rs/rapier3d/latest/rapier3d/dynamics/enum.MotorModel.html)</notc>
+  <notc>for details.</notc><c>With `R3_MOTOR_ACCELERATION_BASED` (the default), the stiffness and damping are scaled by the mass</c><py> With `MotorModel.ACCELERATION_BASED` (the default), the stiffness and damping are scaled by the mass of the rigid-bodies (which makes them easier to tune). With `MotorModel.FORCE_BASED`, they produce absolute forces.</py>
+  <c>of the rigid-bodies (which makes them easier to tune). With `R3_MOTOR_FORCE_BASED`, they produce absolute forces.</c>
   
-It is also possible to configure the maximum impulse applied by the motor: this limits the maximum force/torque the
+It is also possible to configure the maximum impulse applied by the motor<c> with `r3JointDesc_SetMotorMaxForce`</c><py> with `set_motor_max_force`</py>: this limits the maximum force/torque the
 motor is able to deliver. The following examples show the configuration of the joint motor for a prismatic joint:
 
 <rapier>
@@ -450,3 +709,311 @@ values={[
 </Tabs>
 
 </js>
+<c>
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='Motor' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='Motor' />
+```
+
+  </TabItem>
+</Tabs>
+
+Each of these functions also enables the motor of the given axis in the `motorAxes` bitmask of the description.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/joints.py' marker='Motor' />
+```
+
+The builders have the same methods as the joints, without the `set_` prefix (e.g., `motor_velocity` instead of
+`set_motor_velocity`). Like for the limits, the spherical joint and the generic joints take the axis of the motor as
+their first argument, e.g., `set_motor_velocity(JointAxis.ANG_X, target_vel, factor)`. The current configuration of
+a motor can be read with the `motor` method of the joint, which returns a `JointMotor` (or `None` if the motor isn't
+enabled).
+
+</py>
+
+<bevy>
+
+## Modifying joints
+
+After its creation, an impulse joint can be modified through its `ImpulseJoint` component:
+- Modifying `ImpulseJoint::parent` re-attaches the joint to the rigid-body of the new parent entity.
+- Adding the `ImpulseJointDisabled` component disables the joint: it stays attached to its rigid-bodies but is ignored
+  by the constraints solver until this component is removed.
+- The impulses applied by the joint during the last simulation step can be read from its `ImpulseJointImpulses`
+  component (automatically added alongside the `ImpulseJoint`). This can be used to break a joint dynamically, by
+  removing its `ImpulseJoint` component once these impulses exceed some threshold.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/joints2.rs' marker='JointComponents' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/joints3.rs' marker='JointComponents' />
+```
+
+  </TabItem>
+</Tabs>
+
+</bevy>
+<c>
+
+## Generic joints
+
+All the joint constructors only initialize the fields of the same `R3JointDesc` structure, so any other joint can be
+described by modifying these fields directly. The main one is the `lockedAxes` bitmask: it contains one bit per axis
+of the joint (`1 << R3_AXIS_LIN_X` for the translation along $\mathbf{x}$, etc.), each set bit removing the
+corresponding relative DOF. For example, `lockedAxes` is `R3_JOINT_FIXED_AXES` for a fixed joint, and
+`R3_JOINT_REVOLUTE_AXES` for a revolute joint. A description initialized by `r3DefaultJointDesc` locks nothing, which
+is a _Free joint_ until its `lockedAxes` are set. The following fields of the description can be modified for any
+joint:
+- `lockedAxes`, `limitAxes`, and `motorAxes`: the bitmasks of the locked axes, and of the axes with enabled limits and
+  motors. The limits and motors themselves are stored in the `limits` and `motors` arrays (one entry per axis).
+- `contactsEnabled`: whether the colliders of the two rigid-bodies attached by the joint can collide with each other.
+- `softness`: the natural frequency and damping ratio of the joint constraints. Lowering them makes the joint springy
+  instead of rigid. Note that this has no effect on the locked axes of a multibody joint, which can't be violated.
+- `enabled`: whether the joint is enabled. A disabled joint stays attached to its rigid-bodies but is ignored by the
+  constraints solver.
+- `userData`: 128 bits of data freely available to the application.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='GenericJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='GenericJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+The `coupledAxes` bitmask changes the interpretation of the limits and motors of the coupled axes: instead of applying
+to each axis independently, they apply to the combined displacement along all the coupled linear axes (resp. angular
+axes). In this case, only the limit and motor of the first coupled linear axis (resp. angular axis) are used. This is,
+for example, how the rope joint limits the distance between its anchors:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='CoupledAxes' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='CoupledAxes' />
+```
+
+  </TabItem>
+</Tabs>
+
+The rope joint and the spring joint are both built this way, and have their own constructors. In 2D, the pin-slot
+joint (aka. groove joint) is also available: it allows the relative rotation, and the relative translation along
+one axis:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='RopeSpringJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='RopeSpringJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+## Modifying joints
+
+After its insertion, the configuration of an impulse joint can be read with `r3ImpulseJoint_Desc`, and replaced as a
+whole with `r3ImpulseJoint_SetDesc`. Each setter of `R3JointDesc` also has an `r3ImpulseJoint_` counterpart modifying
+the inserted joint directly, e.g., `r3ImpulseJoint_SetMotorVelocity`, or `r3ImpulseJoint_SetLimits`. The last argument
+of these functions indicates whether the rigid-bodies attached by the joint must be woken up. The rigid-bodies attached
+by an impulse joint are given by `r3ImpulseJoint_Bodies`, its user data by `r3ImpulseJoint_UserData`, and a joint is
+removed with `r3RemoveImpulseJoint` (resp. `r3RemoveMultibodyJoint` for a multibody joint). The number of joints of the
+world is given by `r3ImpulseJointCount` and `r3MultibodyJointCount`, and their handles can be listed with
+`r3ImpulseJointHandles` and `r3MultibodyJointHandles`.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='ModifyJoint' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='ModifyJoint' />
+```
+
+  </TabItem>
+</Tabs>
+
+The impulses applied by an impulse joint during the last simulation step are given by `r3ImpulseJoint_Impulses`: the
+`linear` and `angular` impulses applied along the locked axes, as well as the impulses applied by the limit and the motor
+of each axis (the `limits` and `motors` arrays). They are expressed along the axes of the joint frame, and are zero
+before the first simulation step of the joint. This can be used to break a joint dynamically, by removing it once
+these impulses exceed some threshold:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/joints2.c' marker='JointImpulses' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/joints3.c' marker='JointImpulses' />
+```
+
+  </TabItem>
+</Tabs>
+
+</c>
+<py>
+
+## Generic joints
+
+All the joints of this page are specializations of the `GenericJoint` class (given by their `data` property), so
+any other combination of free DOF can be described by a generic joint. Its builder is obtained with
+`GenericJoint.builder(locked_axes=...)`, where `locked_axes` is a `JointAxesMask` with one flag per axis of the joint
+(`JointAxesMask.LIN_X` for the translation along $\mathbf{x}$, etc.) combined with the `|` operator, each flag
+removing the corresponding relative DOF. For example, the locked axes of a fixed joint are
+`JointAxesMask.LOCKED_FIXED_AXES`, and the ones of a revolute joint are `JointAxesMask.LOCKED_REVOLUTE_AXES`. By
+default, nothing is locked, which is a _Free joint_. On top of the local frames, limits, and motors, the following
+properties can be set by the builder of any joint, and read or modified afterward on its `GenericJoint`:
+- `contacts_enabled`: whether the colliders of the two rigid-bodies attached by the joint can collide with each other.
+- `softness`: the natural frequency and damping ratio of the joint constraints (as a `SpringCoefficients`). Lowering
+  them makes the joint springy instead of rigid. Note that this has no effect on the locked axes of a multibody joint,
+  which can't be violated.
+- `user_data`: an integer (of up to 128 bits) freely available to the application.
+
+The axes with enabled limits and motors are given by the `GenericJoint.limit_axes` and `GenericJoint.motor_axes`
+masks.
+
+```python
+<load path='/3d/python/joints.py' marker='GenericJoint' />
+```
+
+The `coupled_axes` mask changes the interpretation of the limits and motors of the coupled axes: instead of applying
+to each axis independently, they apply to the combined displacement along all the coupled linear axes (resp. angular
+axes). In this case, only the limit and motor of the first coupled linear axis (resp. angular axis) are used. This is,
+for example, how the rope joint limits the distance between its anchors:
+
+```python
+<load path='/3d/python/joints.py' marker='CoupledAxes' />
+```
+
+The rope joint and the spring joint are both built this way, and have their own classes: `RopeJoint` and
+`SpringJoint`. The model of the spring can be selected with the `spring_model` method of its builder (with the same
+`MotorModel` values as the joint motors):
+
+```python
+<load path='/3d/python/joints.py' marker='RopeSpringJoint' />
+```
+
+## Modifying joints
+
+After its insertion, an impulse joint is accessed with `world.impulse_joints[handle]` (or with
+`world.impulse_joints.get(handle)`, which returns `None` instead of raising an `InvalidHandle` exception if the handle
+is invalid). This returns an `ImpulseJoint`, which is a live view of the joint: its `data` property is the
+`GenericJoint` of the joint, and modifying it (or assigning a whole new `GenericJoint` to it) modifies the joint
+inserted into the world, and wakes up its rigid-bodies. Setting `GenericJoint.set_enabled(False)` disables the joint:
+it stays attached to its rigid-bodies but is ignored by the constraints solver. The rigid-bodies attached by the joint
+are given by `ImpulseJoint.body1` and `ImpulseJoint.body2`, and can be replaced with `world.impulse_joints.set_bodies`.
+Finally, a joint is removed with `world.impulse_joints.remove` (resp. `world.multibody_joints.remove` for a multibody
+joint). Iterating through `world.impulse_joints` yields the handle and the view of each impulse joint of the world,
+and the handles of the joints attached to a rigid-body are given by `world.impulse_joints.attached_joints`:
+
+```python
+<load path='/3d/python/joints.py' marker='ModifyJoint' />
+```
+
+The impulses applied by an impulse joint during the last simulation step are given by `ImpulseJoint.impulses` (a list
+of 6 values: the 3 linear impulses, then the 3 angular impulses). This can be used to break a joint dynamically, by
+removing it once these impulses exceed some threshold:
+
+```python
+<load path='/3d/python/joints.py' marker='JointImpulses' />
+```
+
+</py>

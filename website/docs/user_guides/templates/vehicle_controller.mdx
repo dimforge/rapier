@@ -1,0 +1,201 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Simulating a car with rigid-bodies and joints, for example using one rigid-body per wheel attached to the chassis by a joint, is
+possible but can be difficult to control for games requiring non-realistic vehicles. This is why Rapier provides a
+**vehicle controller** (the current implementation was ported from the `btRaycastVehicle` of Bullet). The vehicle is a
+single rigid-body modeling its **chassis**, and its wheels are only represented by ray-casts pushing that body along a
+spring-like suspension.
+
+<bevy>
+
+:::info
+The vehicle controller is only available in 3D, i.e., with `bevy_rapier3d`.
+:::
+
+</bevy>
+<c>
+
+:::info
+The vehicle controller is only available in 3D, i.e., with the `r3` functions.
+:::
+
+</c>
+
+### Setup
+The chassis is created like any other dynamic rigid-body, and the wheels are added to the controller afterwards. Each
+wheel is given its position on the chassis, the direction of its suspension (the direction of its ray-cast), its axle,
+the rest length of its suspension, and its radius. The <notc>`WheelTuning`</notc><c>`R3WheelTuning`</c> shared by the wheels is what makes the vehicle
+feel heavy or light by controlling the elastic properties (stiffness and damping) of the suspension, as well as the
+grip of the wheels:
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_vehicle_controller3.rs' marker='Vehicle' />
+```
+
+</rapier>
+<js>
+
+```js
+<load path='/3d/javascript/src/snippets/vehicle_controller.ts' marker='Vehicle' />
+```
+
+</js>
+<bevy>
+
+The vehicle controller is the `RayCastVehicleController` component, added to the entity of the
+chassis' dynamic rigid-body. Its wheels are `VehicleWheel` values stored in its `wheels` field, and can be added,
+removed, or modified at any time:
+
+```rust
+<load path='/3d/bevy/examples/vehicle_controller3.rs' marker='Vehicle' />
+```
+
+</bevy>
+<c>
+
+The vehicle controller is the `R3DynamicRayCastVehicleController` object, created by
+`r3NewDynamicRayCastVehicleController` from the handle of the chassis' dynamic rigid-body. It remembers the world of
+that rigid-body, so it must be freed with `r3FreeDynamicRayCastVehicleController` before that world is freed. The
+wheels are added with `r3DynamicRayCastVehicleController_AddWheel`, which returns the index of the new wheel (starting
+from zero, in insertion order), and the `R3WheelTuning` given to each wheel is initialized with `r3DefaultWheelTuning`:
+
+```c
+<load path='/3d/c/examples/vehicle_controller3.c' marker='Vehicle' />
+```
+
+By default, the vehicle moves forward along the local **x** axis of the chassis, and its local **y** axis points
+upward. Other axes can be selected with `r3DynamicRayCastVehicleController_SetAxes`.
+
+</c>
+<py>
+
+The vehicle controller is the `DynamicRayCastVehicleController` class, created from the handle of the chassis'
+dynamic rigid-body. The wheels are added with its `add_wheel` method, which returns the index of the new wheel
+(starting from zero, in insertion order). The `WheelTuning` given to each wheel is created with keyword arguments
+overriding its default values (as given by `WheelTuning.default()`):
+
+```python
+<load path='/3d/python/vehicle_controller.py' marker='Vehicle' />
+```
+
+By default, the vehicle moves forward along the local **x** axis of the chassis, and its local **y** axis points
+upward. Other axes can be selected with the `index_forward_axis` and `index_up_axis` properties of the controller
+(`0`, `1`, and `2` standing for the **x**, **y**, and **z** axes).
+
+</py>
+
+### Driving the vehicle
+A vehicle is driven by giving each of its wheels an engine force, a brake force, and a steering angle. The controller
+is then updated before each timestep, which is when the ray-casts are made and when the resulting suspension and
+friction forces are applied to the chassis. It is strongly recommended to exclude the chassis from the ray-casts,
+otherwise the ray might hit it and be misinterpreted as being the floor.
+
+<rapier>
+
+```rust
+<load path='/3d/rust/examples/rs_vehicle_controller3.rs' marker='VehicleUpdate' />
+```
+
+</rapier>
+<js>
+
+```js
+<load path='/3d/javascript/src/snippets/vehicle_controller.ts' marker='VehicleUpdate' />
+```
+
+</js>
+<bevy>
+
+The controller is updated automatically by the plugin before each simulation step, and the
+colliders attached to the chassis are always excluded from the ray-casts. Other colliders can be excluded with the
+`filter_flags`, `filter_groups`, `exclude_colliders`, `exclude_rigid_bodies`, and `filter_predicate` fields of
+the `RayCastVehicleController` (similar to the ones of the
+[character controller](./character_controller.mdx#filtering)), or by inserting the `ControllerIgnored` component on them
+(or on their rigid-body). So driving the vehicle is just a matter of modifying
+the engine force, brake, and steering of its wheels:
+
+```rust
+<load path='/3d/bevy/examples/vehicle_controller3.rs' marker='VehicleUpdate' />
+```
+
+:::warning
+The forces applied by the vehicle controller are computed once per update of the plugin, using the length of the last
+simulation timestep. So it is best used with a fixed timestep.
+:::
+
+</bevy>
+<c>
+
+The engine force, brake, and steering angle of a wheel are set with `r3DynamicRayCastVehicleController_SetWheelControls`
+(from the index of the wheel), and the controller is updated with `r3DynamicRayCastVehicleController_UpdateVehicle`
+before each `r3Step`. The colliders attached to the chassis are always excluded from the ray-casts, and the other
+obstacles can be filtered with the `R3QueryOptions` given to the update (see the
+[scene query filters](./scene_queries.mdx#query-filters)). Note that its `predicate` callback, if any, is called once
+for every collider of the world before the update, while the world is locked for writing: it may only use the `Read`
+functions of its `R3ReadContext`.
+
+```c
+<load path='/3d/c/examples/vehicle_controller3.c' marker='VehicleUpdate' />
+```
+
+</c>
+<py>
+
+The engine force, brake, and steering angle of a wheel are set with the `apply_engine_force`, `set_brake`, and
+`set_steering` methods of the controller (from the index of the wheel), and the controller is updated with its
+`update_vehicle` method before each `PhysicsWorld.step`. The colliders attached to the chassis are always excluded
+from the ray-casts, and the other obstacles can be filtered with the optional `QueryFilter` given to `update_vehicle`
+(see the [scene query filters](./scene_queries.mdx#query-filters)). The `predicate` of that filter, if any, is called
+once for every collider before the update, while the sets are locked: it must not modify them.
+
+```python
+<load path='/3d/python/vehicle_controller.py' marker='VehicleUpdate' />
+```
+
+</py>
+
+:::note
+The state of each wheel after an update (whether it touches the floor, the compression of its suspension, its
+rotation angle, etc.) is readable from the controller. This is what the rendering of the wheels can be based on
+ since there is no actual per-wheel rigid-bodies to read their state from.
+:::
+<bevy>
+
+The state of each wheel is written back by the plugin into its `VehicleWheel::state` field (a
+`VehicleWheelState`), and the speed of the vehicle into `RayCastVehicleController::current_vehicle_speed`. The
+`VehicleWheel::local_transform` method computes the transform of a wheel relative to the chassis (including its
+suspension length, steering, and rotation), which can be given directly to the child entity rendering that wheel.
+
+</bevy>
+<c>
+
+The state of the wheels is copied into a buffer of `R3WheelState` by `r3DynamicRayCastVehicleController_Wheels`: the
+world-space center of each wheel, the world-space directions of its suspension and axle, its rotation angle, the length
+and force of its suspension, and its contact with the ground (whether it touches it, the collider touched, and the
+world-space contact point and normal). The speed of the vehicle along its forward axis is given by
+`r3DynamicRayCastVehicleController_CurrentVehicleSpeed`.
+
+```c
+<load path='/3d/c/examples/vehicle_controller3.c' marker='VehicleWheels' />
+```
+
+</c>
+<py>
+
+The state of the wheels is given by the `wheels` method of the controller (or by its `wheel` method for a single
+wheel) as a list of `Wheel` objects. These are copies: modifying them doesn’t affect the vehicle. Each wheel gives its
+world-space `center`, the world-space directions of its `suspension` and `axle`, its `rotation` angle, the force of its
+suspension (`wheel_suspension_force`), and its `raycast_info` (a `RayCastInfo`): the length of its suspension
+(`suspension_length`) and its contact with the ground (`is_in_contact`, the collider touched `ground_object`, and the
+world-space contact point `contact_point_ws` and normal `contact_normal_ws`). The speed of the vehicle along its
+forward axis is given by the `current_vehicle_speed` property of the controller (in meters per second, or with the
+`current_speed_km_hour` method in kilometers per hour).
+
+```python
+<load path='/3d/python/vehicle_controller.py' marker='VehicleWheels' />
+```
+
+</py>

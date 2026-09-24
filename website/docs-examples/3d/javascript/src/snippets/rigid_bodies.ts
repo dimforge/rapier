@@ -141,4 +141,15 @@ let world = new RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 });
     rigidBody.lockRotations(true, true);
     rigidBody.setEnabledRotations(true, false, false, true);
     // DOCUSAURUS: LockedAxes2 stop
+
+    // DOCUSAURUS: SolverSettings start
+    /* Give a rigid-body more solver accuracy than the rest of the scene. */
+    let solverBodyDesc = RAPIER.RigidBodyDesc.dynamic()
+        // Extra substeps run for the whole island component this body belongs to.
+        .setAdditionalSolverIterations(4)
+        // Predictive contacts generated up to that distance ahead of the body's path: a cheaper
+        // alternative to CCD for slow-but-thin or moderately fast objects.
+        .setSoftCcdPrediction(0.5);
+    let solverBody = world.createRigidBody(solverBodyDesc);
+    // DOCUSAURUS: SolverSettings stop
 }

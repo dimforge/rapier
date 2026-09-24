@@ -8,14 +8,14 @@ character controllers in games to determine by how much the player can move befo
 
 :::info
 Just like ray-casting, it is possible to control the behavior of the shape-casting like limiting the distance
-travelled by the shape cast, and ignoring some colliders. See the details about the `max_toi` and
-`filter` arguments in the [ray-casting](./scene_queries.mdx#ray-casting) section.
+travelled by the shape cast, and ignoring some colliders. See the details about the
+<notc>`max_toi` and `filter` arguments</notc><c>`max_toi` and query options arguments</c> in the [ray-casting](./scene_queries.mdx#ray-casting) section.
 :::
 
-There is only one shape-casting method: <rapier>`QueryPipeline::cast_shape`</rapier><bevy>`RapierContext::cast_shape`</bevy><js>`World.castShape`</js>.
-This method has similar arguments as <rapier>`QueryPipeline::cast_ray`</rapier><bevy>`RapierContext::cast_ray`</bevy><js>`World.castRay`</js> except
-that the ray is replaced by three arguments: the **shape** being cast, the **initial position** of the shape (this is analog to `ray.origin`) and
-the **linear velocity** the shape is travelling at (this is analog to `ray.dir`):
+The shape-casting along a straight line is performed by <rapier>`QueryPipeline::cast_shape`</rapier><bevy>`RapierContext::cast_shape`</bevy><js>`World.castShape`</js><c>`r3TryCastShape`</c><py>`QueryPipeline.cast_shape`</py>.
+This method has similar arguments as <rapier>`QueryPipeline::cast_ray`</rapier><bevy>`RapierContext::cast_ray`</bevy><js>`World.castRay`</js><c>`r3TryCastRay`</c><py>`QueryPipeline.cast_ray`</py> except
+that the ray is replaced by three arguments: the **shape** being cast, the **initial position** of the shape (this is analog to <notc>`ray.origin`</notc><c>`origin`</c>) and
+the **linear velocity** the shape is travelling at (this is analog to <notc>`ray.dir`</notc><c>`direction`</c>)<c>, and the `max_toi` is replaced by the `R3ShapeCastOptions`</c><py>, and the `max_toi` is replaced by a `ShapeCastOptions`</py>:
 
 <rapier>
 
@@ -95,18 +95,194 @@ values={[
 </Tabs>
 
 </js>
+<c>
 
-The result of the shape-casting includes the handle of the first collider being hit, as well as
-detailed information about the geometry of the hit:
-- **`hit.toi`**: indicates the time of impact between the shape and the collider hit. This means that
-after travelling a distance of <notjs>`shape_vel * hit.toi`</notjs><js>`shapeVel * hit.toi`</js> the collider and the
-cast shape are exactly touching. If `hit.toi == 0.0` then the shape is already intersecting a collider at its initial
-position.
-- **`hit.witness1`**: indicates the contact point when the cast shape and the collider are touching, expressed in the
-local-space of the collider hit by the shape.
-- **`hit.witness2`**: indicates the contact point when the cast shape and the collider are touching, expressed in the
-local-space of the cast shape.
-- **`hit.normal1`**: indicates the normal at the contact point `hit.witness1`, expressed in the local-space of
-the collider hit by the shape.
-- **`hit.normal2`**: indicates the normal at the contact point `hit.witness2`, expressed in the local-space of
-the cast shape.
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/scene_queries2.c' marker='Shapecast' />
+```
+
+</TabItem>
+<TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/scene_queries3.c' marker='Shapecast' />
+```
+
+</TabItem>
+</Tabs>
+
+The `R3ShapeCastOptions`, initialized by `r3DefaultShapeCastOptions`, control the behavior of the shape-casting:
+- `max_time_of_impact` plays the role of the `max_toi` of the ray-casts: the shape travels at most
+  `shape_vel * max_time_of_impact`.
+- `target_distance` makes the shape-casting report a hit as soon as the cast shape gets closer than this distance to a
+  collider, instead of waiting for an actual contact.
+- `stop_at_penetration` controls the behavior of the shape-casting if the shape is already intersecting a collider at
+  its initial position. If it is `1`, that collider is reported with a time-of-impact equal to zero. If it is `0`,
+  that penetration is ignored if the motion is separating the shapes, and the shape-casting searches for a later
+  impact.
+- `compute_impact_geometry_on_penetration` is detailed below.
+
+`r3TryCastShape` sets the `found` field of its result to 0 if the shape doesn't hit anything, whereas `r3CastShape`
+reports this as the `R3_NOT_FOUND` error.
+
+</c>
+<py>
+
+```python
+<load path='/3d/python/scene_queries.py' marker='Shapecast' />
+```
+
+The cast shape is a `SharedShape`, and its initial position is an `Isometry3`. The `ShapeCastOptions`, whose
+constructor takes each of its properties as a keyword argument, control the behavior of the shape-casting:
+- `max_time_of_impact` plays the role of the `max_toi` of the ray-casts: the shape travels at most
+  `shape_vel * max_time_of_impact`. It is unbounded by default, and `ShapeCastOptions.with_max_time_of_impact` gives
+  the default options with a finite `max_time_of_impact`.
+- `target_distance` makes the shape-casting report a hit as soon as the cast shape gets closer than this distance to a
+  collider, instead of waiting for an actual contact.
+- `stop_at_penetration` controls the behavior of the shape-casting if the shape is already intersecting a collider at
+  its initial position. If it is `True` (the default), that collider is reported with a time-of-impact equal to zero.
+  If it is `False`, that penetration is ignored if the motion is separating the shapes, and the shape-casting searches
+  for a later impact.
+- `compute_impact_geometry_on_penetration` is detailed below.
+
+`QueryPipeline.cast_shape` returns `None` if the shape doesn't hit anything, and the handle of the collider hit
+together with a `ShapeCastHit` otherwise.
+
+</py>
+
+The result of the shape-casting includes <rapier>the handle of the first collider being hit</rapier><bevy>the entity of the first collider being hit</bevy><js>the first collider being hit (`hit.collider`)</js><c>the handle of the first collider being hit (`hit.collider`)</c><py>the handle of the first collider being hit</py>,
+as well as detailed information about the geometry of the hit:
+- **`hit.time_of_impact`**: indicates the time of impact between the shape and the collider hit. This means that
+after travelling a distance of <notjs>`shape_vel * hit.time_of_impact`</notjs><js>`shapeVel * hit.time_of_impact`</js><c>`shape_vel * hit.time_of_impact`</c><py>`shape_vel * hit.time_of_impact`</py> the collider and
+the cast shape are exactly touching. If `hit.time_of_impact == 0.0` then the shape is already intersecting a collider at
+its initial position.
+- **`hit.witness1`**: indicates the contact point on the collider hit when the cast shape and the collider are
+touching, expressed in world-space.
+- **`hit.witness2`**: indicates the contact point on the cast shape when the cast shape and the collider are touching,
+expressed in the local-space of the cast shape.
+- **`hit.normal1`**: indicates the outward normal of the collider hit at the contact point `hit.witness1`, expressed in
+world-space.
+- **`hit.normal2`**: indicates the outward normal of the cast shape at the contact point `hit.witness2`, expressed in
+the local-space of the cast shape.
+
+Because the cast shape moved, `hit.witness2` and `hit.normal2` can be converted to world-space by applying the pose of
+the cast shape at the time of impact, i.e., its initial pose translated by <notjs>`shape_vel * hit.time_of_impact`</notjs><js>`shapeVel * hit.time_of_impact`</js><c>`shape_vel * hit.time_of_impact`</c><py>`shape_vel * hit.time_of_impact`</py>.
+
+<rapier>
+
+If the shape was already intersecting a collider at its initial position, the witness points and normals are only
+reliable if `ShapeCastOptions::compute_impact_geometry_on_penetration` is set to `true`.
+
+</rapier>
+<bevy>
+
+The witness points and normals are grouped into `hit.details` (a `ShapeCastHitDetails`). These details are `None` if
+the shape was already intersecting a collider at its initial position (`hit.status` is then
+`ShapeCastStatus::PenetratingOrWithinTargetDist`) unless `ShapeCastOptions::compute_impact_geometry_on_penetration` is
+set to `true`. Finally, `hit.subshape1` is the index of the part of the collider that was hit if its shape is composed
+of several pieces (compound shapes, triangle meshes, etc.)
+
+Note that the frames are different for `Collider::cast_shape` and `Collider::cast_shape_nonlinear`, which cast a
+collider against another one outside of any physics context: there, every witness point and normal is expressed in the
+local-space of its own shape.
+
+</bevy>
+<c>
+
+If the shape was already intersecting a collider at its initial position (`hit.status` is then
+`R3_SHAPE_CAST_PENETRATING`), the witness points and normals are only reliable if the
+`compute_impact_geometry_on_penetration` field of the `R3ShapeCastOptions` is set to `1`.
+
+</c>
+<py>
+
+If the shape was already intersecting a collider at its initial position (`hit.status` is then
+`ShapeCastStatus.PENETRATING_OR_WITHIN_TARGET_DIST`), the witness points and normals are only reliable if
+`ShapeCastOptions.compute_impact_geometry_on_penetration` is `True` (which is its default value).
+
+</py>
+<notjs>
+
+### Nonlinear shape-casting
+
+The shape-casting above only moves the shape along a straight line: its orientation doesn't change during the cast.
+If the rotation of the shape matters, <rapier>`QueryPipeline::cast_shape_nonlinear`</rapier><bevy>`RapierContext::cast_shape_nonlinear`</bevy> performs a
+**nonlinear shape-casting**: the shape follows a rigid motion combining a constant linear velocity and a constant
+angular velocity. This motion is described by a <rapier>`NonlinearRigidMotion`</rapier><bevy>`NonlinearMotion`</bevy> which contains the initial pose of the
+shape, its linear and angular velocities, and the local-space point around which the shape rotates. At time $t$, the
+shape is rotated by the angular velocity times $t$ around that point, and translated by the linear velocity times $t$.
+The first impact is searched for between the `start_time` and `end_time` arguments. This is typically useful to
+predict if a rotating object (e.g. a spinning blade, a swinging door, or the collider of a rigid-body with a non-zero
+angular velocity) will hit something during a timestep.
+
+If the shape is already intersecting a collider at `start_time`, setting `stop_at_penetration` to `true` makes the cast
+report that collider with a time of impact equal to `start_time`. If it is `false`, that penetration is ignored when the
+motion is separating the shapes, and the cast searches for a later impact that would result in tunnelling. The result
+has the same form as for `cast_shape`<rapier> (with `hit.witness1` and `hit.normal1` in world-space, and `hit.witness2` and
+`hit.normal2` in the local-space of the cast shape, whose pose at the time of impact is given by
+`NonlinearRigidMotion::position_at_time`)</rapier><bevy> (the details are `None` if the hit reported is a penetration at
+`start_time`)</bevy>. Nonlinear shape-casting is more expensive than the linear one, so it is recommended to
+use `cast_shape` whenever the shape doesn't rotate.
+
+</notjs>
+
+<c>
+
+### Nonlinear shape-casting
+
+The shape-casting above only moves the shape along a straight line: its orientation doesn't change during the cast.
+If the rotation of the shape matters, `r3TryCastShapeNonlinear` performs a **nonlinear shape-casting**: the shape
+follows a rigid motion combining a constant linear velocity and a constant angular velocity. This motion is described
+by an `R3NonlinearRigidMotion` which contains the initial pose of the shape (`start`), its linear and angular
+velocities (`linvel` and `angvel`), and the local-space point around which the shape rotates (`local_center`). At time
+$t$, the shape is rotated by the angular velocity times $t$ around that point, and translated by the linear velocity
+times $t$. The first impact is searched for between the `start_time` and `end_time` arguments (`start_time` must
+not be greater than `end_time`). This is typically useful to predict if a rotating object (e.g. a spinning blade, a
+swinging door, or the collider of a rigid-body with a non-zero angular velocity) will hit something during a timestep.
+
+If the shape is already intersecting a collider at `start_time`, setting `stop_at_penetration` to `1` makes the cast
+report that collider with a time of impact equal to `start_time`. If it is `0`, that penetration is ignored when the
+motion is separating the shapes, and the cast searches for a later impact that would result in tunnelling. The result
+has the same form as for `r3TryCastShape` (with `hit.witness1` and `hit.normal1` in world-space, and `hit.witness2`
+and `hit.normal2` in the local-space of the cast shape, whose pose at the time of impact is given by
+`r3NonlinearRigidMotion_PositionAtTime`). Nonlinear shape-casting is more expensive than the linear one, so it is
+recommended to use `r3TryCastShape` whenever the shape doesn't rotate.
+
+</c>
+<py>
+
+### Nonlinear shape-casting
+
+The shape-casting above only moves the shape along a straight line: its orientation doesn't change during the cast.
+If the rotation of the shape matters, `QueryPipeline.cast_shape_nonlinear` performs a **nonlinear shape-casting**: the
+shape follows a rigid motion combining a constant linear velocity and a constant angular velocity. This motion is
+described by a `NonlinearRigidMotion` which contains the initial pose of the shape (`start`), its linear and angular
+velocities (`linvel` and `angvel`), and the local-space point around which the shape rotates (`local_center`). At time
+$t$, the shape is rotated by the angular velocity times $t$ around that point, and translated by the linear velocity
+times $t$. The first impact is searched for between the `start_time` and `end_time` arguments. This is typically
+useful to predict if a rotating object (e.g. a spinning blade, a swinging door, or the collider of a rigid-body with a
+non-zero angular velocity) will hit something during a timestep:
+
+```python
+<load path='/3d/python/scene_queries.py' marker='ShapecastNonlinear' />
+```
+
+The only property of the `ShapeCastOptions` taken into account here is `stop_at_penetration`: if the shape is already
+intersecting a collider at `start_time`, setting it to `True` makes the cast report that collider with a time of impact
+equal to `start_time`. If it is `False`, that penetration is ignored when the motion is separating the shapes, and the
+cast searches for a later impact that would result in tunnelling. The result has the same form as for `cast_shape`
+(with `hit.witness1` and `hit.normal1` in world-space, and `hit.witness2` and `hit.normal2` in the local-space of the
+cast shape, whose pose at the time of impact is given by `NonlinearRigidMotion.position_at_time`). Nonlinear
+shape-casting is more expensive than the linear one, so it is recommended to use `cast_shape` whenever the shape
+doesn't rotate.
+
+</py>

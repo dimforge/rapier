@@ -6,5 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = "0.16"
-bevy_rapier3d = "0.30"
+# The in-development bevy_rapier tracks Bevy's main branch.
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main" }
+# Use the bevy_rapier checkout next to the rapier repository so doc snippets are checked against local changes.
+bevy_rapier3d = { path = "../../../../../bevy_rapier/bevy_rapier3d", features = ["fem", "urdf", "mjcf", "meshloader"] }
+
+# Standalone workspace, excluded from the one of the other snippets (see `docs-examples/Cargo.toml`).
+[workspace]
+
+# Make bevy_rapier use the in-tree rapier too, so the bevy and rust snippets share the same rapier.
+[patch.crates-io]
+rapier3d = { path = "../../../../crates/rapier3d" }

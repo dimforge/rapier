@@ -7,40 +7,384 @@ sidebar_label: Simulation structures
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This page describes <rapier> all the data structures needed for stepping the simulation as illustrated by the
-[basic simulation example](./getting_started.mdx#basic-simulation-example)</rapier><bevy> all the useful
-components and resources added automatically by the `RapierPhysicsPlugin`</bevy>.
+This page describes <rapier> all the data structures needed for stepping the simulation, i.e., the structures owned
+by the [physics world](./simulation_structures.mdx#physics-world)</rapier><bevy>the components making up a
+physics context (spawned automatically by the `RapierPhysicsPlugin`), and the options controlling how it is
+simulated</bevy><c>the [world](./simulation_structures.mdx#physics-world) of the C API, which owns all the data structures needed for stepping the simulation, and these structures</c><py>all the data structures needed for stepping the simulation, i.e., the structures owned by the [physics world](./simulation_structures.mdx#physics-world), and how they are exposed to Python</py>.
 
 <bevy>
 
-## Rapier Context
+## Physics context
+The structures described in this page are stored in the components of a
+**physics context** entity. The `RapierPhysicsPlugin` spawns one automatically during the `PreStartup` schedule,
+marked with the `DefaultRapierContext` component, so most applications don't need to create one themselves (see the
+[multiple physics contexts](./multiple_contexts.mdx) page otherwise). A physics context is made of the following
+components:
+- `RapierContextSimulation` contains the island manager, the broad-phase, the narrow-phase, the CCD solver, the
+  pipelines, and the integration parameters.
+- `RapierContextColliders` contains the collider set.
+- `RapierRigidBodySet` contains the rigid-body set and the soft-body set.
+- `RapierContextJoints` contains the impulse joint set and the multibody joint set.
+- `RapierConfiguration` contains the gravity and the other options of the simulation described in the
+  [configuration](./simulation_structures.mdx#configuration) section.
+- `SimulationToRenderTime` contains the difference between the simulated time and the real time, which is used by the
+  `TimestepMode::Interpolated` timestep mode.
 
-The data structures handled by rapier for a specific context are stored in different components.
+The Rapier objects created from your entities store the bits of their entity in their user-data, and these components
+also map each entity to the handle of its Rapier object, e.g., with `RapierRigidBodySet::rigid_body_entity` or
+`RapierContextColliders::collider_entity`. Keep in mind that these objects are managed by the plugin: they should be
+modified through the components of their entities (rigid-bodies, colliders, joints, etc.) rather than through the
+sets directly.
 
-An ergonomic `QueryData` helper is provided to reduce boilerplate:
-See https://docs.rs/bevy_rapier3d/latest/bevy_rapier3d/plugin/context/systemparams/struct.RapierContext.html
+The `ReadRapierContext` and `WriteRapierContext` system parameters give access to all the components of the default
+physics context at once, through the `RapierContext` and `RapierContextMut` structures (another context can be
+selected with the query filter given as their type parameter). This is what most of the
+[scene queries](./scene_queries.mdx) rely on. When only one of these components is needed, it can be queried directly
+like any other component, e.g., with `Query<&RapierContextSimulation, With<DefaultRapierContext>>`.
 
 </bevy>
 
+<rapier>
+
+## Physics world
+Wiring every structure of this page by hand gives a complete control over the simulation, but this is rarely what an
+application needs. The `PhysicsWorld` is a façade owning all of them (the sets, the pipelines, the gravity, and the
+integration parameters), so a simulation can be created, stepped, and queried with a less verbose API.
+Every structure it owns remains accessible as a public field, therefore switching to the `PhysicsWorld` doesn't give
+up any feature (for example in case where borrowing the entire `PhysicsWorld` would cause borrowing issues):
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_physics_world2.rs' marker='World' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_physics_world3.rs' marker='World' />
+```
+
+  </TabItem>
+</Tabs>
+
+The world also forwards the [scene queries](./scene_queries.mdx) and the most common insertions and removals, which
+saves passing the sets they need to each other:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_physics_world2.rs' marker='WorldQueries' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_physics_world3.rs' marker='WorldQueries' />
+```
+
+  </TabItem>
+</Tabs>
+
+:::info
+The rest of this page describes the structures owned by the `PhysicsWorld`.
+:::
+
+</rapier>
+
+<c>
+
+## Physics world
+The world (`R3World`) owns all the structures described in this page: the sets of rigid-bodies, colliders, joints,
+and soft-bodies, the pipelines, the gravity, and the integration parameters. None of them is accessible directly:
+the world is created by `r3NewWorld`, then everything is inserted, stepped, queried, and removed through the
+functions of the world (or through the handles it returns, which remember the world they belong to). It must be freed
+by `r3FreeWorld`, which frees everything it contains:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/simulation_structures2.c' marker='World' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='World' />
+```
+
+  </TabItem>
+</Tabs>
+
+The [scene queries](./scene_queries.mdx), and everything else the world contains, are read through its functions as
+well:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```c
+<load path='/2d/c/examples/simulation_structures2.c' marker='WorldQueries' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='WorldQueries' />
+```
+
+  </TabItem>
+</Tabs>
+
+### Handles
+Each object inserted into the world is identified by a **handle** (`R3RigidBodyHandle`, `R3ColliderHandle`,
+`R3ImpulseJointHandle`, `R3MultibodyJointHandle`, or `R3SoftBodyHandle`). The world stores its objects in
+generational-arenas, i.e., vectors where each element is indexed by a handle combining an `u32` index and an `u32`
+generation number (in addition to the pointer of its world). This ensures that every object is given a unique
+handle, even if it reuses the slot of an object removed previously. The number of objects of each kind is given by
+`r3RigidBodyCount`, `r3ColliderCount`, `r3ImpulseJointCount`, `r3MultibodyJointCount`, and `r3SoftBodyCount`,
+and their handles are copied into a buffer given by
+the application by `r3RigidBodyHandles`, `r3ColliderHandles`, `r3ImpulseJointHandles`, `r3MultibodyJointHandles`,
+and `r3SoftBodyHandles`. Like every function copying an array, they return the number of elements needed if the
+buffer is `NULL` (or too small), so they are generally called twice:
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='Handles' />
+```
+
+The objects are removed with `r3RemoveRigidBody` (which also removes the joints attached to the rigid-body, and its
+colliders if its second argument is `1`), `r3RemoveCollider`, `r3RemoveImpulseJoint`, `r3RemoveMultibodyJoint`, and
+`r3RemoveSoftBody`. The handle of a removed object is then **stale**: its generation doesn't match the object
+occupying its slot anymore, so the functions given this handle (including the removal functions) fail with the
+`R3_INVALID_HANDLE` error. `r3RigidBody_Contains` (resp. `r3Collider_Contains`, `r3SoftBody_Contains`) tells whether a
+handle still refers to an object of its world:
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='Removal' />
+```
+
+:::warning
+The generation can only detect a stale handle while its world is alive. Once the world is freed by `r3FreeWorld`,
+all its handles (including their copies stored anywhere in your application) must never be used again.
+:::
+
+### User data
+Rigid-bodies, colliders, and impulse joints can store a 128-bit value of your choice, the **user data**
+(`R3UserData`, made of its `low` and `high` 64-bit halves). It is generally used to find the object of your
+application (e.g., the index of a game object) that owns a Rapier object, e.g., after a scene query or an event. It
+is given by the `userData` field of the descriptions, and can be modified at any time, e.g., with
+`r3RigidBody_SetUserData` (resp. `r3Collider_SetUserData`, `r3ImpulseJoint_SetUserData`), and read with
+`r3RigidBody_UserData` (resp. `r3Collider_UserData`, `r3ImpulseJoint_UserData`):
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='UserData' />
+```
+
+### Parallelism
+If the library is built with `-DRAPIER_ENABLE_PARALLEL=ON`, the simulation runs on multiple threads. By default, it
+uses the global thread pool of [rayon](https://crates.io/crates/rayon). `r3SetNumThreads` gives the world its own
+thread pool with the given number of threads (zero selecting a number of threads automatically), `r3NumThreads`
+gives its current size, and `r3ClearThreadPool` switches back to the global pool. These functions fail with the
+`R3_UNSUPPORTED` error if the library isn't built with parallelism, which is indicated by the `parallel` field of
+`r3BuildFeatures()`:
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='ThreadPool' />
+```
+
+Keep in mind that the world isn't a shared structure you can modify from several threads at once: its ordinary reads
+(getters, scene queries) may run concurrently, but its modifications and its stepping require an exclusive access.
+A conflicting access (e.g. modifying a rigid-body while another thread steps its world, or from a
+[physics hook](./simulation_structures.mdx#physics-hooks) running during the step) fails with the `R3_WORLD_BUSY`
+error instead of waiting. Note that in a parallel build, the physics hooks may be called from several threads at
+once.
+
+### Measuring the simulation
+If the library is built with the `profiler` feature (indicated by the `profiling` field of `r3BuildFeatures()`), the
+internal counters of the pipeline can be enabled with `r3SetCountersEnabled`. Then, `r3StepTimeMs` gives the time
+spent by the engine during the last timestep, in milliseconds:
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='StepTime' />
+```
+
+</c>
+
+<py>
+
+## Physics world
+The `PhysicsWorld` owns all the structures described in this page: the sets of rigid-bodies, colliders, joints, and
+soft-bodies, the pipelines, the gravity, and the integration parameters, as well as the
+[physics hooks](./simulation_structures.mdx#physics-hooks) and the
+[event handler](./simulation_structures.mdx#event-handler) given to each timestep. Each of them is exposed as a
+property of the world (e.g. `PhysicsWorld.rigid_bodies`, `PhysicsWorld.colliders`, or `PhysicsWorld.narrow_phase`)
+which returns the same Python object every time, so modifying it modifies the world directly. Therefore, a simulation
+can be created, stepped, and queried without ever creating these structures yourself:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='World' />
+```
+
+:::warning
+Unlike the other versions of Rapier, a `PhysicsWorld` created without its `gravity` argument has no gravity at all.
+:::
+
+The [scene queries](./scene_queries.mdx) are run by the [query pipeline](./simulation_structures.mdx#query-pipeline)
+of the world, and everything else it contains is read through its properties:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='WorldQueries' />
+```
+
+### Handles
+Each object inserted into the world is identified by a **handle** (`RigidBodyHandle`, `ColliderHandle`,
+`ImpulseJointHandle`, `MultibodyJointHandle`, or `SoftBodyHandle`). The world stores its objects in
+generational-arenas, i.e., vectors where each element is indexed by a handle combining an integer index and an integer
+generation number (its `index` and `generation` properties). This ensures that every object is given a unique handle,
+even if it reuses the slot of an object removed previously. The handles are hashable, so they can be used as the keys
+of a `dict`.
+
+Indexing a set with a handle, e.g., `world.rigid_bodies[handle]`, gives a live view of the object it contains rather
+than a copy: modifying this view (e.g. setting its `linvel`) modifies the object stored in the world. The sets can
+also be iterated, which gives `(handle, object)` pairs, and their length is their number of objects:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='Handles' />
+```
+
+The objects are removed with `PhysicsWorld.remove_body` (which also removes the colliders and the joints attached to
+the rigid-body), `PhysicsWorld.remove_collider`, `PhysicsWorld.remove_soft_body`, `ImpulseJointSet.remove`, and
+`MultibodyJointSet.remove`. The handle of a removed object is then **stale**: its generation doesn't match the object
+occupying its slot anymore, so indexing a set with this handle raises an `InvalidHandle` exception, whereas the `get`
+method of the set returns `None`. The `in` operator tells whether a handle still refers to an object of a set:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='Removal' />
+```
+
+:::info
+A view given by a set raises an `InvalidHandle` exception as well once its object is removed. Therefore, it is
+generally simpler to keep the handles of your objects rather than their views, and to index the set again whenever you
+need them.
+:::
+
+### User data
+Rigid-bodies, colliders, and joints can store an integer of your choice (up to 128 bits), the **user data**. It is
+generally used to find the object of your application (e.g., the index of a game object) that owns a Rapier object,
+e.g., after a scene query or an event. It is given by the `user_data` method of the builders, and can be read and
+modified at any time with the `user_data` property of the objects:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='UserData' />
+```
+
+### Threads and the GIL
+The engine is always built with parallelism enabled: by default, the timesteps of every world run on the global pool
+of threads of [rayon](https://crates.io/crates/rayon), with one worker per logical CPU, shared by every world.
+`PhysicsWorld.set_num_threads` gives the world its own pool with the given number of worker threads (`1` running
+everything on the thread calling `PhysicsWorld.step`, and `None` switching back to the global pool), and
+`PhysicsWorld.num_threads` gives its current size. Note that the number of threads never changes the results of the
+simulation:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='ThreadPool' />
+```
+
+`PhysicsWorld.step` releases the GIL while the simulation runs, so your other Python threads keep running meanwhile.
+The GIL is acquired again whenever your [physics hooks](./simulation_structures.mdx#physics-hooks) or your
+[event handler](./simulation_structures.mdx#event-handler) are called during the timestep (possibly from one of the
+worker threads of the world). A world can be used from any thread, but keep in mind that it isn't a shared structure
+you can modify from several threads at once: while a thread steps the world, modifying it (or reading it anywhere else
+than in its callbacks) from another thread raises a `RuntimeError`. Several simulations can run in parallel by giving
+each thread its own world (and possibly its own pool of workers, so they don't compete for the same workers):
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='ParallelWorlds' />
+```
+
+### Measuring the simulation
+The internal counters of the pipeline of the world (the `PhysicsPipeline.counters` property, enabled by default)
+measure each timestep: `Counters.step_time_ms` gives the time spent by the engine during the last timestep, in
+milliseconds, and its `stages`, `cd`, `solver`, and `ccd` properties detail the time spent by each stage of the
+pipeline. The counters are disabled with `Counters.disable`. Note that these timings are only measured if the bindings
+are built with the `profiler` feature, which is indicated by the `profiler` property of `rapier3d.build_features()`:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='Measuring' />
+```
+
+</py>
+
 ## Gravity
 Gravity is represented as a vector. It affects every dynamic rigid-body taking part of the simulation. The gravity
-can be altered at each timestep <rapier>(by passing a different vector to `PhysicsPipeline::step`)</rapier><bevy>(by
-modifying the component field `RapierConfiguration::gravity`)</bevy>.
+can be altered at each timestep <rapier>(by modifying `PhysicsWorld::gravity`, or by passing a different vector to
+`PhysicsPipeline::step`)</rapier><bevy>(by
+modifying the component field `RapierConfiguration::gravity`)</bevy><c>(with `r3SetGravity`, its default value being $-9.81$ along the $y$ axis)</c><py>(by modifying `PhysicsWorld.gravity`, or by passing a different vector to `PhysicsPipeline.step`)</py>.
 Learn more about per-rigid-body gravity modification in [the dedicated section](./rigid_bodies.mdx#gravity).
 
 ## Integration parameters
-The `IntegrationParameters` <bevy>component field from `RapierContext`</bevy> controls various aspects of the physics simulation,
+The <notc>`IntegrationParameters`</notc><c>`R3IntegrationParameters`</c> <bevy>(the `RapierContextSimulation::integration_parameters` field)</bevy><py>(the `PhysicsWorld.integration_parameters` property)</py> controls various aspects of the physics simulation,
 including the timestep length, number of solver iterations, number of CCD substeps, etc. The default integration parameters are set to
 achieve a good balance between performance and accuracy for games. They can be changed to make the simulation more
 accurate at the expense of a bit of performance. Learn more about each integration parameter in
-[the API docs](https://docs.rs/rapier3d/latest/rapier3d/dynamics/struct.IntegrationParameters.html).
+<notjs>[the API docs](https://docs.rs/rapier3d/latest/rapier3d/dynamics/struct.IntegrationParameters.html)</notjs><js>[the API docs](https://docs.rs/rapier3d/latest/rapier3d/dynamics/struct.IntegrationParameters.html)</js><c>[the dedicated page](./integration_parameters.mdx)</c><py>[the dedicated page](./integration_parameters.mdx)</py>.
 
 ## Island manager
-The `IslandManager` <bevy>component field from `RapierContext`</bevy> is responsible for tracking the set of dynamic rigid-bodies that are still moving
+
+<notpy>
+
+The <notc>`IslandManager`</notc><c>island manager of the world</c> <bevy>(the `RapierContextSimulation::islands` field)</bevy> is responsible for tracking the set of dynamic rigid-bodies that are still moving
 and these that are no longer moving (and can ignored by subsequent timesteps to avoid useless computations).
-The island manager is automatically updated by `PhysicsPipeline::step` and can be queried to retrieve
+The island manager is automatically updated by <notc>`PhysicsPipeline::step`</notc><c>`r3Step`</c> and can be queried to retrieve
 the list of all the rigid-bodies modified by the physics engine during the last timestep. This can be useful
 to update the rendering of only the rigid-bodies that moved:
+
+</notpy>
+
+<py>
+
+The `IslandManager` (the `PhysicsWorld.islands` property) is responsible for tracking the set of dynamic rigid-bodies
+that are still moving and these that are no longer moving (and can ignored by subsequent timesteps to avoid useless
+computations). The island manager is automatically updated by `PhysicsPipeline.step` (hence by `PhysicsWorld.step`),
+and can be queried to retrieve the list of all the rigid-bodies modified by the physics engine during the last
+timestep, e.g., with `PhysicsWorld.active_bodies` (iterating the island manager itself gives the same handles). This
+can be useful to update the rendering of only the rigid-bodies that moved:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='IslandManager' />
+```
+
+</py>
 
 <rapier>
 
@@ -51,27 +395,28 @@ to update the rendering of only the rigid-bodies that moved:
 </rapier>
 
 <bevy>
-<technote>
-this is not used, nothing links to it. Also, it's not compiling.
-</technote>
 
 ```rust
-fn print_active_bodies_positions(island_manager: Res<IslandManager>, positions: Query<&RigidBodyPositionComponent>) {
-    // Iter on each dynamic rigid-bodies that moved.
-    for rigid_body_handle in island_manager.active_dynamic_bodies() {
-        if let Ok(rb_pos) = positions.get(rigid_body_handle.entity()) {
-            println!("Rigid body {:?} has a new position: {}", rigid_body_handle, rb_pos.position);
-        }
-    }
-}
+<load path='/2d/bevy/examples/pipeline_config2.rs' marker='ActiveBodies' />
 ```
 
 </bevy>
 
+<c>
+
+```c
+<load path='/2d/c/examples/simulation_structures2.c' marker='IslandManager' />
+```
+
+The states of many rigid-bodies (their pose, velocities, sleeping state, etc.) can also be copied at once with
+`r3RigidBodyReadStates`, in a single call instead of one call per getter and per rigid-body.
+
+</c>
+
 Learn more about sleeping rigid-bodies in [the dedicated section](./rigid_bodies.mdx#sleeping).
 
 ## Physics pipeline
-The `PhysicsPipeline` <bevy>from the `RapierContextSimulation` component </bevy>is responsible for tying everything together in order to run the physics simulation.
+The <notc>`PhysicsPipeline`</notc><c>physics pipeline of the world</c> <bevy>(the `RapierContextSimulation::pipeline` field) </bevy>is responsible for tying everything together in order to run the physics simulation.
 It will take care of updating every data-structures mentioned in this page (except the other pipelines), running the collision-detection,
 running the force computation and integration, and running CCD resolution.
 <rapier>
@@ -80,49 +425,157 @@ running the force computation and integration, and running CCD resolution.
 Its usage is illustrated in [the basic simulation example](./getting_started.mdx#basic-simulation-example).
 
 </rapier>
+<bevy>
+
+The pipeline is run by the systems of the `RapierPhysicsPlugin`, which are organized in
+three system sets executed in this order (in the `PostUpdate` schedule by default, before the propagation of the
+transforms):
+- `PhysicsSet::SyncBackend` creates, modifies, or removes the Rapier objects according to the components of your
+  entities.
+- `PhysicsSet::StepSimulation` steps the simulation of each physics context. The number of timesteps executed at each
+  run of this set, and their length, are selected by the `TimestepMode` resource described in the
+  [integration parameters](./integration_parameters.mdx#time-stepping) page.
+- `PhysicsSet::Writeback` writes the results of the simulation back into the components (`Transform`, `Velocity`,
+  etc.), and sends the [collision events](./advanced_collision_detection.mdx#collision-and-contact-force-events).
+
+Therefore, your systems reading the results of the simulation should run after `PhysicsSet::Writeback` (or in a later
+schedule), and those modifying the components before `PhysicsSet::SyncBackend`. The simulation of a physics context
+can be paused by setting its `RapierConfiguration::physics_pipeline_active` to `false`:
+
+```rust
+<load path='/3d/bevy/examples/pipeline_config3.rs' marker='Pause' />
+```
+
+</bevy>
+<c>
+
+`r3Step` executes one timestep. Its usage is illustrated in
+[the basic simulation example](./getting_started_c.mdx#basic-simulation-example). Its two last arguments are
+optional (`NULL` if unused):
+- the [physics hooks](./simulation_structures.mdx#physics-hooks), an `R3PhysicsHooks` structure of callbacks called
+  during the timestep, e.g., to filter or modify the contacts.
+- the [event collector](./simulation_structures.mdx#event-handler), an `R3EventCollector` recording the collision and
+  contact-force events generated during the timestep.
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='Step' />
+```
+
+</c>
+<py>
+
+`PhysicsWorld.step` executes one timestep with the pipeline of the world (the `PhysicsWorld.physics_pipeline`
+property). Its usage is illustrated in [the basic simulation example](./getting_started_py.mdx#basic-simulation-example).
+The [physics hooks](./simulation_structures.mdx#physics-hooks) and the
+[event handler](./simulation_structures.mdx#event-handler) called during the timestep are the ones stored in the
+`PhysicsWorld.physics_hooks` and `PhysicsWorld.event_handler` properties (`None` if unused). An exception raised by
+one of these callbacks doesn't interrupt the timestep: the first one is raised again by `PhysicsWorld.step` once the
+timestep is complete. Setting `PhysicsWorld.event_error_policy` to `"strict"` (instead of `"defer"`, the default)
+also skips the calls to the other callbacks of the timestep after the first exception.
+
+</py>
 
 ## Collision pipeline
-The `CollisionPipeline` is similar to the `PhysicsPipeline` except that it will only run collision-detection.
+The <notc>`CollisionPipeline`</notc><c>collision pipeline of the world</c> is similar to the <notc>`PhysicsPipeline`</notc><c>physics pipeline</c> except that it will only run collision-detection.
 It won't perform any dynamics (force computation, integration, CCD, etc.) It is generally used instead of
-the `PhysicsPipeline` when one only needs collision-detection.
+the <notc>`PhysicsPipeline`</notc><c>physics pipeline</c> when one only needs collision-detection.
 
 :::info
-Running both the `CollisionPipeline` and the `PhysicsPipeline` is useless because the `PhysicsPipeline` already
+Running both <notc>the `CollisionPipeline` and the `PhysicsPipeline`</notc><c>`r3DetectCollisions` and `r3Step`</c> is useless because <notc>the `PhysicsPipeline`</notc><c>`r3Step`</c> already
 does collision-detection.
 :::
 
+<c>
+
+The collision pipeline is run by `r3DetectCollisions`, which takes the same arguments as `r3Step`. The contact and
+intersection pairs, and the scene queries, are updated (and the collision events and physics hooks are handled) as
+if a timestep was executed, but no forces, joints, or contact responses are applied, and nothing moves by itself:
+the colliders only follow the rigid-bodies you moved. Besides simulations that don't need any dynamics, this is
+useful to update the contacts and the scene queries right after teleporting objects, without waiting for the next
+timestep:
+
+```c
+<load path='/3d/c/examples/simulation_structures3.c' marker='DetectCollisions' />
+```
+
+</c>
+
+<bevy>
+
+A physics context runs its `CollisionPipeline` (the
+`RapierContextSimulation::collision_pipeline` field) instead of its `PhysicsPipeline` if its
+`RapierConfiguration::simulation_mode` is set to `SimulationMode::CollisionOnly` (the default is
+`SimulationMode::Full`). The collision events, the contact and intersection pairs, the physics hooks, and the scene
+queries keep working in this mode, but no forces, joints, or contact responses are applied: the rigid-bodies only move
+when their `Transform` is modified (the kinematic position-based rigid-bodies are teleported to their next kinematic
+position). Note that the contact force events are never emitted in this mode.
+
+</bevy>
+
+<py>
+
+The collision pipeline of the world (the `PhysicsWorld.collision_pipeline` property) is run by
+`PhysicsWorld.detect_collisions`, with the prediction distance of the integration parameters, and the physics hooks
+and event handler of the world (`CollisionPipeline.step` runs it on structures you step yourself). The contact and
+intersection pairs, and the scene queries, are updated (and the
+collision events and physics hooks are handled) as if a timestep was executed, but no forces, joints, or contact
+responses are applied, and nothing moves by itself: the colliders only follow the rigid-bodies you moved. Besides
+simulations that don't need any dynamics, this is useful to update the contacts and the scene queries right after
+teleporting objects, without waiting for the next timestep:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='DetectCollisions' />
+```
+
+</py>
+
 
 ## Query pipeline
-The `QueryPipeline` is responsible for efficiently running [scene queries](./scene_queries.mdx), e.g., ray-casting,
+The <notc>`QueryPipeline`</notc><c>query pipeline of the world</c> is responsible for efficiently running [scene queries](./scene_queries.mdx), e.g., ray-casting,
 shape-casting (sweep tests), intersection tests, on all the colliders of the scene.
 
 <rapier>
 The `QueryPipeline` is a temporary object that is initialized from the broad-phase, collider set, and rigid-body set.
 It reuses the acceleration data-structure (BVH) from the broad-phase which is automatically updated by the physics
-stepping function.
+stepping function. This is what `PhysicsWorld::query_pipeline` does:
 
 ```rust
-// Game loop.
-loop {
-  // Stepping the simulation will update the broad-phase.
-  physics_pipeline.step(...);
-
-  // Init a temporary query pipeline by borrowing from the broad-phase
-  // and collides/rigid-bodies. Scene queries will take into account
-  // the last objects positions know at the end of the last physics
-  // simulation step.
-    let query_pipeline = broad_phase.as_query_pipeline(
-        narrow_phase.query_dispatcher(),
-        rigid_body_set,
-        collider_set,
-        filter,
-    );
-}
+<load path='/2d/rust/examples/rs_simulation_structures2.rs' marker='QueryPipeline' />
 ```
 
 </rapier>
 
-Learn more about scene queries with the `QueryPipeline` in the [dedicated page](./scene_queries.mdx).
+<bevy>
+The `QueryPipeline` is created from the physics context each time a scene query is run
+through the `RapierContext` (see its `RapierContext::with_query_pipeline` method).
+</bevy>
+
+<c>
+
+Every scene query is a function of the world, e.g., `r3CastRay`, which builds a query pipeline internally. It reuses
+the acceleration data-structure (BVH) of the broad-phase, which is only updated by `r3Step` and
+`r3DetectCollisions`. Therefore, the scene queries don't see the colliders inserted, removed, or moved since the last
+call to one of these functions (see the [collision pipeline](./simulation_structures.mdx#collision-pipeline) above).
+
+</c>
+
+<py>
+
+The query pipeline of the world (the `PhysicsWorld.query_pipeline` property) refers to the broad-phase, the
+narrow-phase, and the sets of the world. It reuses the acceleration data-structure (BVH) of the broad-phase, which is
+updated by `PhysicsWorld.step` (and by the [collision pipeline](./simulation_structures.mdx#collision-pipeline) above).
+Therefore, the scene queries don't see the colliders inserted, removed, or moved since the last timestep, unless
+`PhysicsWorld.update_query_pipeline` is called: it refreshes the BVH for these changes (without updating the contacts,
+and without interfering with the next timestep). A `QueryPipeline` can also be created from structures you step
+yourself:
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='QueryPipeline' />
+```
+
+</py>
+
+Learn more about scene queries<notc> with the `QueryPipeline`</notc> in the [dedicated page](./scene_queries.mdx).
 
 <rapier>
 
@@ -146,22 +599,222 @@ an `u32` index and an `u32` generation number. This ensures that every joint is
 given a unique handle.
 Learn more about joints in [the dedicated page](./joints.mdx).
 
+## Soft-body set
+The `SoftBodySet` contains all the **soft-bodies** that needs to be simulated, as well as the particles and the
+elements they are made of. Like the other sets, it is a generational-arena giving a unique handle to each soft-body.
+Note that this set must be given to the pipeline even if the simulation doesn't have any soft-body.
+Learn more about soft-bodies in [the dedicated page](./soft_bodies.mdx).
+
 </rapier>
 
+<py>
+
+## Rigid-body set
+The `RigidBodySet` (the `PhysicsWorld.rigid_bodies` property) contains all the **rigid-bodies** that needs to be
+simulated. Like every set, it gives a unique [handle](./simulation_structures.mdx#handles) to each of them.
+Learn more about rigid-bodies in [the dedicated page](./rigid_bodies.mdx).
+
+## Collider set
+The `ColliderSet` (the `PhysicsWorld.colliders` property) contains all the **colliders** that needs to be simulated.
+Learn more about colliders in [the dedicated page](./colliders.mdx).
+
+## Joint sets
+The `ImpulseJointSet` (the `PhysicsWorld.impulse_joints` property) contains all the **impulse-based joints** that
+needs to be simulated, and the `MultibodyJointSet` (the `PhysicsWorld.multibody_joints` property) contains all the
+**multibody joints**. Learn more about joints in [the dedicated page](./joints.mdx).
+
+## Soft-body set
+The `SoftBodySet` (the `PhysicsWorld.soft_bodies` property) contains all the **soft-bodies** that needs to be
+simulated, as well as the particles and the elements they are made of. Learn more about soft-bodies in
+[the dedicated page](./soft_bodies.mdx).
+
+</py>
+
 ## CCD solver
-The CCD solver <bevy>resource</bevy> is responsible for the resolution of Continuous-Collision-Detection. By itself, this structure
-doesn't expose any useful feature. So it should simply be passed to the `PhysicsPipeline::step` method.
+The CCD solver <bevy>(the `RapierContextSimulation::ccd_solver` field)</bevy> is responsible for the resolution of Continuous-Collision-Detection. By itself, this structure
+doesn't expose any useful feature. <rapier>So it should simply be passed to the `PhysicsPipeline::step` method.</rapier><bevy>It is
+given to the pipeline automatically by the `bevy_rapier` plugin.</bevy><c>It is owned and run by the world.</c><py>So it should simply be passed to `PhysicsPipeline.step`, which `PhysicsWorld.step` does with its own CCD solver (the `PhysicsWorld.ccd_solver` property).</py>
 Learn more about CCD in [the dedicated section](./rigid_bodies.mdx#continuous-collision-detection).
 
 ## Physics hooks
-The physics hooks are trait-objects implementing the `PhysicsHooks` trait. They can be used to apply arbitrary
+
+<notpy>
+
+The physics hooks are <notc>trait-objects implementing the `PhysicsHooks` trait</notc><c>callbacks grouped in an `R3PhysicsHooks` structure given to `r3Step`</c>. They can be used to apply arbitrary
 rules to ignore collision detection between some pairs of colliders. They can also be used to modify the contacts
 processed by the constraints solver for computing forces.
+<bevy>
+The physics hooks are a system parameter implementing the `BevyPhysicsHooks` trait,
+given as the type parameter of the `RapierPhysicsPlugin` (`NoUserData` if there are none).
+</bevy>
+
+</notpy>
+
+<py>
+
+The physics hooks are objects of your own classes implementing the methods of the `PhysicsHooks` protocol
+(`filter_contact_pair`, `filter_intersection_pair`, and `modify_solver_contacts`), stored in the
+`PhysicsWorld.physics_hooks` property. They can be used to apply arbitrary rules to ignore collision detection
+between some pairs of colliders. They can also be used to modify the contacts processed by the constraints solver for
+computing forces. Note that these classes don't need to inherit from `PhysicsHooks`, and only need to define the
+methods they use. The sets being stepped can be read during these calls (e.g. through the `colliders` and `bodies`
+properties of the context they are given), but not modified.
+
+</py>
+
 Learn more about physics hooks in [the dedicated section](./advanced_collision_detection.mdx#physics-hooks).
 
 
 ## Event handler
-The event handlers are trait-objects implementing the `EventHandler` trait. They can be used to get notified
+
+<notpy>
+
+The event handlers are <notc>trait-objects implementing the `EventHandler` trait</notc><c>`R3EventCollector` objects given to `r3Step`, created by `r3NewEventCollector` and freed by `r3FreeEventCollector`</c>. They can be used to get notified
 when two non-sensor colliders start/stop having contacts, and when one sensor collider and one other collider
-start/stop intersecting. Learn more about collision events in
+start/stop intersecting. <bevy>These events are sent as the `CollisionEvent` and
+`ContactForceEvent` Bevy messages, and your own `EventHandler` can be installed in addition with
+`RapierContextSimulation::set_event_handler`. </bevy>Learn more about collision events in
 [the dedicated section](./advanced_collision_detection.mdx#collision-and-contact-force-events).
+
+</notpy>
+
+<py>
+
+The event handlers are objects implementing the methods of the `EventHandler` protocol
+(`handle_collision_event`, `handle_contact_force_event`, and `handle_soft_body_tear_event`), stored in the
+`PhysicsWorld.event_handler` property, e.g., a `ChannelEventCollector` which records the events so they can be read
+after the timestep. They can be used to get notified when two non-sensor colliders start/stop having contacts, and
+when one sensor collider and one other collider start/stop intersecting. Learn more about collision events in
+[the dedicated section](./advanced_collision_detection.mdx#collision-and-contact-force-events).
+
+</py>
+
+<rapier>
+
+## Stepping the structures by hand
+Everything described in this page can be created and stepped without the
+[physics world](./simulation_structures.mdx#physics-world), which is exactly what the world does internally. This is
+useful when the structures must be owned by different parts of your application, e.g., by the resources of an ECS.
+Note that every one of them is then given to the pipeline at each timestep:
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/rust/examples/rs_basic_sim2.rs' marker='basic_sim_manual' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/rust/examples/rs_basic_sim3.rs' marker='basic_sim_manual' />
+```
+
+  </TabItem>
+</Tabs>
+
+</rapier>
+
+<py>
+
+## Stepping the structures by hand
+Everything described in this page can be created and stepped without the
+[physics world](./simulation_structures.mdx#physics-world), which is exactly what the world does internally. This is
+useful when the structures must be owned by different parts of your application. Note that every one of them is then
+given to `PhysicsPipeline.step` at each timestep (except the soft-body set, the physics hooks, and the event handler
+which are optional keyword arguments):
+
+```python
+<load path='/3d/python/simulation_structures.py' marker='basic_sim_manual' />
+```
+
+</py>
+
+<bevy>
+
+## Configuration
+The `RapierConfiguration` component of a physics context contains the options of its simulation that are not part of
+the integration parameters:
+- `gravity` is the gravity vector applied to the dynamic rigid-bodies. Its default value, $-9.81$ along the $y$ axis,
+  is multiplied by the [length unit](./integration_parameters.mdx#length_unit) of the context.
+- `physics_pipeline_active` can be set to `false` to pause the simulation.
+- `simulation_mode` selects between the full simulation (`SimulationMode::Full`) and collision-detection only
+  (`SimulationMode::CollisionOnly`).
+- `num_threads` gives the physics context its own thread pool with the given number of threads. If `None` (the
+  default), the simulation runs on the thread pool of the calling thread (usually the global pool of `rayon`). This is
+  ignored unless the `parallel` feature is enabled (and the `unsync-callbacks` feature isn't).
+- `scaled_shape_subdivision` is the number of subdivisions used to approximate a shape which cannot be represented
+  exactly once the scale of its `Transform` is applied (e.g. a ball with a non-uniform scale becomes a convex polyhedron).
+- `force_update_from_transform_changes` makes the plugin accept every change of the `Transform` of the rigid-bodies,
+  including the changes that may originate from its own writeback.
+
+<Tabs
+groupId="dim"
+defaultValue="2D"
+values={[
+{label: 'Example 2D', value: '2D'},
+{label: 'Example 3D', value: '3D'},
+]}>
+<TabItem value="2D">
+
+```rust
+<load path='/2d/bevy/examples/pipeline_config2.rs' marker='RapierConfiguration' />
+```
+
+  </TabItem>
+  <TabItem value="3D">
+
+```rust
+<load path='/3d/bevy/examples/pipeline_config3.rs' marker='RapierConfiguration' />
+```
+
+  </TabItem>
+</Tabs>
+
+The initial configuration of the default physics context can also be given to the `RapierPhysicsPlugin`, as shown in
+the [integration parameters](./integration_parameters.mdx#setting-the-integration-parameters) page.
+
+## Diagnostics
+The `RapierDiagnosticsPlugin` registers Bevy diagnostics measuring the simulation of every physics context, so
+they can be displayed with any tool reading Bevy's diagnostics, e.g., with the `LogDiagnosticsPlugin` of Bevy:
+
+```rust
+<load path='/3d/bevy/examples/pipeline_diagnostics3.rs' marker='Diagnostics' />
+```
+
+The diagnostics are identified by the constants `RapierDiagnosticsPlugin::STEP_TIME` (the total time spent in the
+simulation steps of a physics update), `RapierDiagnosticsPlugin::STEPS`, `RapierDiagnosticsPlugin::RIGID_BODIES`,
+`RapierDiagnosticsPlugin::ACTIVE_BODIES`, `RapierDiagnosticsPlugin::COLLIDERS`,
+`RapierDiagnosticsPlugin::CONTACT_PAIRS`, `RapierDiagnosticsPlugin::SOLVER_CONSTRAINTS`, etc. The time spent by each
+stage of the pipeline (broad-phase, narrow-phase, solver, CCD, etc.) is only measured if the `profiler` feature is
+enabled. Note that the plugin must run in the same schedule as the physics: if the `RapierPhysicsPlugin` runs in
+`FixedUpdate`, use `RapierDiagnosticsPlugin::default().in_schedule(FixedUpdate)`.
+
+The diagnostics at these paths are the sums of the measurements of all the physics contexts (counts and timings
+alike), so they measure the whole physics workload of the application. If
+`RapierDiagnosticsPlugin::with_per_context_diagnostics(true)` is given, as in the example above, each context is also
+measured separately, at the paths given by `RapierDiagnosticsPlugin::context_path` (e.g. `rapier/12v0/step_time` for
+the step time of the context with the entity `12v0`). These are registered when the context is measured for the first
+time:
+
+```rust
+<load path='/3d/bevy/examples/pipeline_diagnostics3.rs' marker='PerContextDiagnostics' />
+```
+
+The same measurements can be read without Bevy's diagnostics from `RapierContextSimulation::step_stats`, which
+describes the timesteps executed by the last physics update. Only the number of steps and their total time are
+measured unless the counters of the `PhysicsPipeline` are enabled (which the `RapierDiagnosticsPlugin` does for
+every physics context):
+
+```rust
+<load path='/3d/bevy/examples/pipeline_diagnostics3.rs' marker='StepStats' />
+```
+
+</bevy>

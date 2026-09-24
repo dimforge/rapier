@@ -7,4 +7,11 @@ edition = "2021"
 
 [dependencies]
 # Use the in-tree rapier so doc snippets are checked against local changes.
-rapier3d = { path = "../../../../crates/rapier3d", features = ["enhanced-determinism"] }
+rapier3d = { path = "../../../../crates/rapier3d", features = ["enhanced-determinism", "debug-render", "fem"] }
+# The scene loaders of the corresponding guide page.
+rapier3d-urdf = { path = "../../../../crates/rapier3d-urdf" }
+rapier3d-mjcf = { path = "../../../../crates/rapier3d-mjcf" }
+rapier3d-meshloader = { path = "../../../../crates/rapier3d-meshloader" }
+# The testbed of the corresponding guide page.
+rapier_testbed3d = { path = "../../../../crates/rapier_testbed3d" }
+kiss3d = { version = "0.45.0", features = ["egui", "serde"] }

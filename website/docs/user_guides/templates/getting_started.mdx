@@ -1,7 +1,6 @@
 ---
 id: getting_started
 title: Getting started
-sidebar_label: Getting started
 ---
 
 import Tabs from '@theme/Tabs';
@@ -25,20 +24,23 @@ To get the best of **rapier** multiple features can be enabled optionally:
 - `enhanced-determinism`: enables cross-platform determinism (assuming the rest of your code is also deterministic) across
   all 32-bit and 64-bit platforms that implements the
  IEEE 754-2008 standard strictly. This includes most modern processors as well as WASM targets.
-- `wasm-bindgen`: enables usage of `rapier` as a dependency of a WASM crate that is compiled with `wasm-bindgen`.
+- `simd8`: widens the SIMD of the solver from 4 to 8 lanes (32-bit floats only). Note that the compiler only emits
+  actual 256-bit instructions on an AVX-enabled target (e.g. with `RUSTFLAGS="-C target-cpu=native"`); otherwise the
+  8-lanes path will be much slower (it will be emulated as two 128-bit halves).
+- `block-solver`: couples the two normal constraints of a contact pair into a single 2x2 solve. This is enabled by
+  default in 2D, and disabled by default in 3D where it is less effective.
+- `fem`: adds an alternative FEM solver for the [soft-bodies](./soft_bodies.mdx), selected body by body.
+- `unsync-callbacks`: drops the `Sync` requirement from the physics hooks and the event handlers. As a side effect,
+  this removes the thread-pool API of the physics pipeline.
+- `debug-render`: enables the [debug-renderer](./debug_render.mdx) of Rapier.
+- `profiler`: enables the internal profiler, which gives the time spent by each stage of a timestep.
 
 SIMD optimizations (based on the [`wide` crate](https://crates.io/crates/wide)) are always enabled: the
-solver processes 4 contact manifolds per instruction, and falls back to scalar code on targets without
-SIMD support.
-
-:::warning
-Enabling parallelism is only useful if the scene being simulated has a high number of moving rigid-bodies, colliders,
-and/or joints. If the simulation isn't sufficiently complex, the parallelism may actually make the simulation slower
-because of the parallelism overhead.
-:::
+solver processes 4 contact manifolds per instruction (8 with the `simd8` feature), and falls back to scalar code on
+targets without SIMD support.
 
 Currently, the `enhanced-determinism` feature cannot be enabled at the same time as the `simd8` feature,
-which changes the SIMD lane width and is therefore its own determinism domain.
+which changes the SIMD lane width and therefore the simulation results compared to when `simd8` isn’t enabled.
 
 ## Cargo example
 <Tabs
@@ -113,3 +115,13 @@ values={[
 
   </TabItem>
 </Tabs>
+
+<rapier>
+
+:::info
+This example lets the [PhysicsWorld](./simulation_structures.mdx#physics-world) own every structure of the
+simulation. These structures, as well as the way of stepping them by hand without the world, are described in the
+[simulation structures](./simulation_structures.mdx) page.
+:::
+
+</rapier>

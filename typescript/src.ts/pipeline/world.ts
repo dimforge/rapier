@@ -581,7 +581,7 @@ export class World {
 
     /**
      * Creates a new soft body from the given description, with its hidden root rigid body
-     * and its colliders (a deformable surface, or one ball per particle).
+     * and the colliders of its collision meshes.
      *
      * @param desc - The description of the soft body to create.
      */
