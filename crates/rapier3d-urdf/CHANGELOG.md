@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fix
+
+- URDF `<origin rpy>` angles are now composed as fixed-axis roll-pitch-yaw
+  (`Rz(yaw) * Ry(pitch) * Rx(roll)`), as the URDF specification defines. They
+  were composed as intrinsic XYZ Euler angles, which only agrees when at most
+  one angle is non-zero and misplaced every link downstream of an origin such
+  as `rpy="-1.5708 -1.5708 0"`.
+
 ## 0.4.0
 
 ### Modified

@@ -788,6 +788,9 @@ fn urdf_to_colliders(
         .collect()
 }
 
+/// Converts a URDF `<origin>` into a pose. URDF `rpy` are fixed-axis
+/// roll-pitch-yaw angles: the rotation is `Rz(yaw) * Ry(pitch) * Rx(roll)`,
+/// which is glam's intrinsic `ZYX` sequence taken as (yaw, pitch, roll).
 fn urdf_to_pose(pose: &UrdfPose) -> Pose {
     Pose::from_parts(
         Vector::new(
@@ -796,10 +799,10 @@ fn urdf_to_pose(pose: &UrdfPose) -> Pose {
             pose.xyz[2] as Real,
         ),
         Rotation::from_euler(
-            EulerRot::XYZ,
-            pose.rpy[0] as Real,
-            pose.rpy[1] as Real,
+            EulerRot::ZYX,
             pose.rpy[2] as Real,
+            pose.rpy[1] as Real,
+            pose.rpy[0] as Real,
         ),
     )
 }
@@ -945,8 +948,9 @@ fn is_link_empty(link: &urdf_rs::Link) -> bool {
         && inertia.izz == 0.0
 }
 
+/// The inverse of [`urdf_to_pose`]: fixed-axis roll-pitch-yaw from a pose.
 fn pose_to_urdf_pose(pose: &Pose) -> UrdfPose {
-    let (rx, ry, rz) = pose.rotation.to_euler(EulerRot::XYZ);
+    let (rz, ry, rx) = pose.rotation.to_euler(EulerRot::ZYX);
     UrdfPose {
         xyz: urdf_rs::Vec3([
             pose.translation.x as f64,
