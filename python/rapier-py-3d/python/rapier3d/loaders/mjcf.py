@@ -16,8 +16,10 @@ from __future__ import annotations
 
 from .._rapier3d import (  # noqa: F401
     ContactFilterMode,
+    MjcfActuatorHandle,
     MjcfBodyHandle,
     MjcfColliderHandle,
+    MjcfContactHooks,
     MjcfJointHandle,
     MjcfLoaderOptions,
     MjcfModel,
@@ -30,8 +32,10 @@ from .._rapier3d import MjcfError  # noqa: F401  (error type)
 __all__ = [
     "ContactFilterMode",
     "MjcfError",
+    "MjcfActuatorHandle",
     "MjcfBodyHandle",
     "MjcfColliderHandle",
+    "MjcfContactHooks",
     "MjcfJointHandle",
     "MjcfLoaderOptions",
     "MjcfModel",

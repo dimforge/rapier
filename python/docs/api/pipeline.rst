@@ -8,8 +8,9 @@ the spatial / shape query machinery.
 
    Most programs should use :doc:`world` rather than wiring these
    pipelines up by hand. :class:`PhysicsWorld` owns a
-   :class:`PhysicsPipeline` and :class:`QueryPipeline` and steps them for
-   you; the types below are for advanced, hand-rolled simulation loops.
+   :class:`PhysicsPipeline`, a :class:`CollisionPipeline` and a
+   :class:`QueryPipeline` and steps them for you; the types below are for
+   advanced, hand-rolled simulation loops.
 
 .. currentmodule:: rapier3d
 
@@ -18,6 +19,7 @@ Pipelines
 
 .. autoclass:: PhysicsPipeline
 .. autoclass:: CollisionPipeline
+.. autoclass:: Quarantine
 
 Query pipeline & filters
 ------------------------
@@ -46,3 +48,9 @@ Performance counters
 .. autoclass:: CollisionDetectionCounters
 .. autoclass:: SolverCounters
 .. autoclass:: CCDCounters
+
+Build features
+--------------
+
+.. autofunction:: build_features
+.. autoclass:: BuildFeatures

@@ -303,6 +303,8 @@ def test_cut_splits_cloth_into_pieces():
     assert ev.soft_body == h
     assert ev.torn_edges.shape[1] == 2 and ev.torn_edges.shape[0] > 0
     assert len(ev.pieces) == 2
+    # The piece keeping the torn body's handle comes first.
+    assert ev.pieces[0].soft_body == h and ev.bodies()[0] == h
     assert len(w.soft_bodies) == 2
     piece = [p for p in ev.pieces if p.soft_body != h][0]
     assert w.soft_bodies[piece.soft_body].origin == h
@@ -486,3 +488,305 @@ def test_low_level_pipeline_step_with_soft_bodies():
     soft.wake_up(h, bodies, True)
     removed = soft.remove(h, islands, bodies, colliders, ij, mj)
     assert removed is not None and len(soft) == 0
+
+
+# ---- FEM solver ------------------------------------------------------------------
+
+
+def test_fem_solver_selection_and_parameters():
+    beam = rp.SoftBody.cuboid((0, 2, 0), (1.0, 0.1, 0.1), 6, 2, 2).solver(rp.SoftBodySolver.FEM)
+    assert isinstance(beam, rp.SoftBodyBuilder)
+    w = _ground_world()
+    h = w.add_soft_body(beam.cell_model(rp.SoftBodyCellModel.NEO_HOOKEAN).pinned_particles(range(4)))
+    h2 = w.add_soft_body(rp.SoftBody.cuboid((3, 1, 0), (0.3, 0.3, 0.3), 3, 3, 3,
+                                            solver=rp.SoftBodySolver.FEM))
+    sb = w.soft_bodies[h]
+    assert sb.solver == rp.SoftBodySolver.FEM
+    assert w.soft_bodies[h2].solver == rp.SoftBodySolver.FEM
+    assert w.soft_bodies[w.add_soft_body(_cloth(4))].solver == rp.SoftBodySolver.CONSTRAINTS
+    pinned = sb.particle_position(0)
+    for _ in range(10):
+        w.step()
+    assert np.allclose(tuple(sb.particle_position(0)), tuple(pinned))
+    assert np.isfinite(sb.particle_positions).all()
+    sb.solver = rp.SoftBodySolver.CONSTRAINTS
+    assert sb.solver == rp.SoftBodySolver.CONSTRAINTS
+    w.step()
+
+    fem = rp.SoftFemParameters()
+    assert fem.linear_tolerance == pytest.approx(1.0e-5)
+    assert fem.max_linear_iterations == 20
+    assert fem.max_dense_dofs == 600
+    fem = rp.SoftFemParameters(linear_tolerance=1.0e-6, max_linear_iterations=50, max_dense_dofs=10)
+    assert (fem.max_linear_iterations, fem.max_dense_dofs) == (50, 10)
+    with pytest.raises(TypeError):
+        rp.SoftFemParameters(tolerance=1.0)
+    settings = w.integration_parameters.soft_bodies
+    settings.fem = fem
+    assert w.integration_parameters.soft_bodies.fem.max_dense_dofs == 10
+    w.step()
+
+
+# ---- volume meshing and shape meshes ------------------------------------------------
+
+
+def test_shape_to_trimesh():
+    vertices, indices = rp.Cuboid((0.5, 0.25, 0.25)).to_trimesh()
+    assert vertices.shape == (8, 3) and vertices.dtype == np.float32
+    assert indices.shape == (12, 3) and indices.dtype == np.uint32
+    assert np.allclose(np.abs(vertices), (0.5, 0.25, 0.25))
+    vertices, indices = rp.Ball(0.5).to_trimesh(12, 8)
+    assert vertices.shape[1] == 3 and indices.shape[1] == 3 and indices.max() < len(vertices)
+    assert np.allclose(np.linalg.norm(vertices, axis=1), 0.5, atol=1e-5)
+    for shape, args in [
+        (rp.Capsule((0, -0.5, 0), (0, 0.5, 0), 0.2), (8, 4)),
+        (rp.Cylinder(0.5, 0.2), (8,)),
+        (rp.Cone(0.5, 0.2), (8,)),
+    ]:
+        v, i = shape.to_trimesh(*args)
+        assert v.dtype == np.float32 and i.dtype == np.uint32
+        assert len(v) > 0 and len(i) > 0 and i.max() < len(v)
+    for shape in [
+        rp.SharedShape.convex_hull(np.random.default_rng(0).random((20, 3)).astype(np.float32)).as_convex_polyhedron(),
+        rp.SharedShape.heightfield(np.zeros((3, 4), dtype=np.float32), (1, 1, 1)).as_heightfield(),
+        rp.SharedShape.voxels((0.1, 0.1, 0.1), [(0, 0, 0), (1, 0, 0)]).as_voxels(),
+    ]:
+        v, i = shape.to_trimesh()
+        assert v.shape[1] == 3 and i.shape[1] == 3 and len(i) > 0 and i.max() < len(v)
+    with pytest.raises(ValueError):
+        rp.Ball(0.5).to_trimesh(0, 0)
+    with pytest.raises(ValueError):
+        rp.Capsule((0, -0.5, 0), (0, 0.5, 0), 0.2).to_trimesh(8, 1)
+    with pytest.raises(ValueError):
+        rp.Cylinder(0.5, 0.2).to_trimesh(2)
+
+
+def test_volume_mesh_parameters():
+    params = rp.VolumeMeshParameters(0.2)
+    assert params.cell_size == pytest.approx(0.2)
+    assert params.enclosure == rp.MeshEnclosure.COVER
+    assert params.cover_smoothing == 0 and params.cover_subdivisions == 0
+    assert params.cover_guard == pytest.approx(0.15)
+    params = rp.VolumeMeshParameters(0.25, enclosure=rp.MeshEnclosure.CRUST, cover_smoothing=2,
+                                     cover_guard=0.1, cover_subdivisions=1)
+    assert params.enclosure == rp.MeshEnclosure.CRUST
+    params.enclosure = rp.MeshEnclosure.COVER
+    params.cover_subdivisions = 2
+    assert (params.enclosure, params.cover_subdivisions) == (rp.MeshEnclosure.COVER, 2)
+    assert "cover_subdivisions=2" in repr(params)
+
+
+def test_volumetric_with():
+    vertices, indices = rp.Cuboid((0.5, 0.25, 0.25)).to_trimesh()
+    raw = rp.SoftBody.volumetric(vertices, indices, 0.2)
+    same = rp.SoftBody.volumetric_with(vertices, indices, rp.VolumeMeshParameters(0.2))
+    assert same.num_particles == raw.num_particles
+    assert same.current_cells.shape == raw.current_cells.shape
+    params = rp.VolumeMeshParameters(0.2, cover_subdivisions=1, cover_smoothing=4)
+    smooth = rp.SoftBody.volumetric_with(vertices, indices, params, particle_mass=0.1)
+    assert smooth.num_particles > raw.num_particles
+    w = _ground_world()
+    h = w.add_soft_body(smooth.translated((0, 1, 0)))
+    assert w.soft_bodies[h].num_cells > 0
+    # Skinned: the surface becomes the skin the body is drawn as (and here collides through).
+    ball_vertices, ball_indices = rp.Ball(0.5).to_trimesh(16, 16)
+    skinned = rp.SoftBody.volumetric_with(ball_vertices, ball_indices, rp.VolumeMeshParameters(0.25),
+                                          skinned=True).skin_collision(True).translated((0, 3, 0))
+    sh = w.add_soft_body(skinned)
+    skin = w.soft_bodies[sh].collision_mesh()
+    assert skin is not None and skin.is_skinned and skin.vertices.shape == ball_vertices.shape
+    # A crust covers the surface alone, open or not.
+    crust = rp.SoftBody.volumetric_with(vertices, indices,
+                                        rp.VolumeMeshParameters(0.2, enclosure=rp.MeshEnclosure.CRUST))
+    assert crust.num_particles > 0
+    for _ in range(5):
+        w.step()
+    with pytest.raises(rp.MeshConversionError):
+        rp.SoftBody.volumetric_with(np.zeros((0, 3), dtype=np.float32), np.zeros((0, 3), dtype=np.uint32),
+                                    rp.VolumeMeshParameters(0.2))
+
+
+# ---- per-element setters -----------------------------------------------------------
+
+
+def test_particle_array_setters():
+    w = _ground_world()
+    h = w.add_soft_body(_cloth(4))
+    sb = w.soft_bodies[h]
+    positions = sb.particle_positions
+    sb.particle_positions = positions + np.array([0.0, 0.5, 0.0], dtype=np.float32)
+    assert np.allclose(sb.particle_positions, positions + [0.0, 0.5, 0.0])
+    sb.particle_velocities = np.ones_like(positions)
+    assert np.allclose(sb.particle_velocities, 1.0)
+    sb.particle_velocities = [(0.0, 0.0, 0.0)] * sb.num_particles
+    assert np.allclose(sb.particle_velocities, 0.0)
+    # Any memory layout is read row by row.
+    sb.particle_positions = np.asfortranarray(positions)
+    assert np.allclose(sb.particle_positions, positions)
+    with pytest.raises(ValueError):
+        sb.particle_positions = positions[:3]
+    with pytest.raises(ValueError):
+        sb.particle_velocities = np.zeros((sb.num_particles + 1, 3), dtype=np.float32)
+    w.step()
+
+
+def test_tear_resistance_and_damage_setters():
+    w = _ground_world()
+    h = w.add_soft_body(rp.SoftBody.cuboid((0, 1, 0), (0.3, 0.3, 0.3), 3, 3, 3))
+    sb = w.soft_bodies[h]
+    sb.set_edge_tear_resistance(2, 0.5)
+    assert sb.edge(2).tear_resistance == pytest.approx(0.5)
+    sb.set_cell_tear_resistance(1, 3.0)
+    assert sb.cell(1).tear_resistance == pytest.approx(3.0)
+    assert not sb.particle(4).is_damaged
+    sb.set_particle_damaged(4, True)
+    assert sb.particle(4).is_damaged
+    sb.set_particle_damaged(4, False)
+    assert not sb.particle(4).is_damaged
+    with pytest.raises(IndexError):
+        sb.set_edge_tear_resistance(sb.num_edges, 1.0)
+    with pytest.raises(IndexError):
+        sb.set_cell_tear_resistance(sb.num_cells, 1.0)
+    with pytest.raises(IndexError):
+        sb.set_particle_damaged(sb.num_particles, True)
+
+
+def test_cluster_shape_matching_target():
+    w, h = _jelly_world()
+    sb = w.soft_bodies[h]
+    top = np.flatnonzero(sb.particle_positions[:, 1] > 1.5)
+    cluster = w.add_soft_body_cluster(h, top)
+    sb.enable_cluster_shape_matching(cluster, True)
+    sb.set_cluster_shape_matching_target(cluster, rp.Isometry3(translation=(0.0, 3.0, 0.0)))
+    before = sb.particle_positions[top, 1].mean()
+    for _ in range(20):
+        w.step()
+    assert sb.particle_positions[top, 1].mean() > before
+    sb.set_cluster_shape_matching_target(cluster, None)
+    # A cluster that doesn't exist is ignored.
+    sb.set_cluster_shape_matching_target(99, None)
+    w.step()
+
+
+def test_index_arrays_of_any_layout():
+    idx = np.arange(8, dtype=np.uint32)
+    rope = rp.SoftBody.rope((0, 1, 0), (1, 1, 0), 8)
+    soft, bodies, colliders = rp.SoftBodySet(), rp.RigidBodySet(), rp.ColliderSet()
+    h = soft.insert(rope.pinned_particles(idx[::2]), bodies, colliders)
+    assert [p.is_pinned for p in soft[h].particles()] == [i % 2 == 0 for i in range(8)]
+    # Any integer dtype.
+    h = soft.insert(rope.pinned_particles(np.array([1, 3], dtype=np.int64)), bodies, colliders)
+    assert [p.is_pinned for p in soft[h].particles()] == [i in (1, 3) for i in range(8)]
+    with pytest.raises(ValueError):
+        rope.pinned_particles(np.array([-1], dtype=np.int64))
+    edges = np.array([[0, 2, 4], [1, 3, 5]], dtype=np.uint32).T  # A transposed (M, 2) view.
+    builder = rp.SoftBodyBuilder(np.zeros((6, 3), dtype=np.float32)).edges(edges)
+    assert builder.current_edges.tolist() == [[0, 1], [2, 3], [4, 5]]
+    positions = np.asfortranarray(np.array([[0, 0, 0], [1, 2, 3], [4, 5, 6]], dtype=np.float32))
+    assert np.allclose(rp.SoftBodyBuilder(positions).positions, positions)
+
+
+# ---- views and removals --------------------------------------------------------
+
+
+def test_removed_soft_body_view_raises_invalid_handle():
+    w = _ground_world()
+    h = w.add_soft_body(_cloth(4))
+    sb = w.soft_bodies[h]
+    material = sb.material
+    removed = w.remove_soft_body(h)
+    with pytest.raises(rp.InvalidHandle):
+        sb.num_particles
+    with pytest.raises(rp.InvalidHandle):
+        sb.set_particle_position(0, (0, 0, 0))
+    with pytest.raises(rp.InvalidHandle):
+        sb.material
+    with pytest.raises(rp.InvalidHandle):
+        material.young_modulus = 1.0
+    # The removed body owns its state, material included.
+    m = removed.material
+    m.young_modulus = 5.0
+    assert removed.material.young_modulus == pytest.approx(5.0)
+
+
+def test_removing_a_proxy_requires_the_soft_bodies():
+    w = _ground_world()
+    h = w.add_soft_body(_cloth(4))
+    sb = w.soft_bodies[h]
+    root = sb.root_body
+    surface = sb.collision_mesh().collider
+    with pytest.raises(ValueError):
+        w.rigid_bodies.remove(root, w.islands, w.colliders, w.impulse_joints, w.multibody_joints)
+    with pytest.raises(ValueError):
+        w.colliders.remove(surface, w.islands, w.rigid_bodies)
+    # Nothing was removed.
+    assert root in w.rigid_bodies and surface in w.colliders and sb.collision_mesh() is not None
+    w.step()
+    w.rigid_bodies.remove(root, w.islands, w.colliders, w.impulse_joints, w.multibody_joints,
+                          soft_bodies=w.soft_bodies)
+    assert h not in w.soft_bodies
+    # Plain bodies and colliders don't need them.
+    b = w.add_body(rp.RigidBody.dynamic(), colliders=[rp.Collider.ball(0.1)])
+    c = w.rigid_bodies[b].colliders[0]
+    assert w.colliders.remove(c, w.islands, w.rigid_bodies) is not None
+    assert w.rigid_bodies.remove(b, w.islands, w.colliders, w.impulse_joints, w.multibody_joints) is not None
+
+
+def test_material_is_a_live_view():
+    w = _ground_world()
+    h = w.add_soft_body(_cloth(4))
+    sb = w.soft_bodies[h]
+    material = sb.material
+    material.young_modulus = 123.0
+    material.bend_softness = (3.0, 1.0)
+    assert w.soft_bodies[h].material.young_modulus == pytest.approx(123.0)
+    assert w.soft_bodies[h].material.bend_softness.natural_frequency == pytest.approx(3.0)
+    # Assigning a view (even the body's own) replaces the material.
+    sb.material = sb.material
+    other = w.soft_bodies[w.add_soft_body(_cloth(4))]
+    other.material = sb.material
+    assert other.material.young_modulus == pytest.approx(123.0)
+    # A copy is detached.
+    copy = sb.material.copy()
+    copy.young_modulus = 1.0
+    assert sb.material.young_modulus == pytest.approx(123.0)
+    # A builder takes the value.
+    b = _cloth(4).material(sb.material)
+    assert b.current_material.young_modulus == pytest.approx(123.0)
+
+
+def test_soft_body_settings_are_live_views():
+    w = _ground_world()
+    settings = w.integration_parameters.soft_bodies
+    settings.max_extra_substeps = 2
+    settings.recovery.crossing_repulsion = False
+    settings.fem.max_linear_iterations = 33
+    params = w.integration_parameters
+    assert params.soft_bodies.max_extra_substeps == 2
+    assert not params.soft_bodies.recovery.crossing_repulsion
+    assert params.soft_bodies.fem.max_linear_iterations == 33
+    # The copy-and-assign-back pattern still works, from views of the same settings.
+    recovery = settings.recovery
+    recovery.overlap_split = 3
+    settings.recovery = recovery
+    fem = settings.fem
+    fem.linear_tolerance = 1.0e-6
+    settings.fem = fem
+    w.integration_parameters.soft_bodies = settings
+    assert params.soft_bodies.recovery.overlap_split == 3
+    assert params.soft_bodies.fem.linear_tolerance == pytest.approx(1.0e-6)
+    # Copies are detached.
+    detached = settings.copy()
+    detached.max_extra_substeps = 7
+    detached_recovery = settings.recovery.copy()
+    detached_recovery.overlap_split = 9
+    assert params.soft_bodies.max_extra_substeps == 2
+    assert params.soft_bodies.recovery.overlap_split == 3
+    # A standalone settings object has live nested groups too.
+    standalone = rp.SoftBodiesSettings()
+    standalone.fem.max_dense_dofs = 7
+    standalone.recovery.overlap_split = 5
+    assert standalone.fem.max_dense_dofs == 7 and standalone.recovery.overlap_split == 5
+    w.integration_parameters.soft_bodies = standalone
+    assert params.soft_bodies.fem.max_dense_dofs == 7
+    w.step()

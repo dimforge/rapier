@@ -1045,6 +1045,95 @@ fn rotation_from_angle(v: PyVector) -> Rotation3 {
     Rotation3(crate::na::UnitQuaternion::from_scaled_axis(v.0))
 }
 
+/// Transcendental functions computed by Rapier's math backend, exposed as `rapier3d.math.*`.
+///
+/// With the `determinism` feature (`BuildFeatures.enhanced_determinism`), they use libm and give
+/// bit-identical results on every platform, unlike Python's `math` module or NumPy.
+mod deterministic {
+    use crate::na::{ComplexField, RealField};
+    use pyo3::prelude::*;
+    use rapier3d::math::Real;
+
+    /// Sine of an angle in radians, computed by Rapier's math backend.
+    ///
+    /// Computed in the engine's precision (``f32``). When the bindings are built with the
+    /// ``determinism`` feature (see :attr:`~rapier3d.BuildFeatures.enhanced_determinism`),
+    /// the result is identical on every platform.
+    #[pyfunction]
+    pub fn sin(x: Real) -> Real {
+        ComplexField::sin(x)
+    }
+    /// Cosine of an angle in radians, computed by Rapier's math backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn cos(x: Real) -> Real {
+        ComplexField::cos(x)
+    }
+    /// Tangent of an angle in radians, computed by Rapier's math backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn tan(x: Real) -> Real {
+        ComplexField::tan(x)
+    }
+    /// Arcsine in radians, computed by Rapier's math backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn asin(x: Real) -> Real {
+        ComplexField::asin(x)
+    }
+    /// Arccosine in radians, computed by Rapier's math backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn acos(x: Real) -> Real {
+        ComplexField::acos(x)
+    }
+    /// Arctangent in radians, computed by Rapier's math backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn atan(x: Real) -> Real {
+        ComplexField::atan(x)
+    }
+    /// Angle in radians, in ``[-pi, pi]``, of the point ``(x, y)``, computed by Rapier's math
+    /// backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn atan2(y: Real, x: Real) -> Real {
+        RealField::atan2(y, x)
+    }
+    /// Exponential ``e**x``, computed by Rapier's math backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn exp(x: Real) -> Real {
+        ComplexField::exp(x)
+    }
+    /// Natural logarithm, computed by Rapier's math backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn log(x: Real) -> Real {
+        ComplexField::ln(x)
+    }
+    /// ``base`` raised to the power ``exponent``, computed by Rapier's math backend (see
+    /// :func:`sin`).
+    #[pyfunction]
+    pub fn pow(base: Real, exponent: Real) -> Real {
+        ComplexField::powf(base, exponent)
+    }
+    /// Square root, computed by Rapier's math backend (see :func:`sin`).
+    #[pyfunction]
+    pub fn sqrt(x: Real) -> Real {
+        ComplexField::sqrt(x)
+    }
+
+    /// The `_rapier3d._math` submodule holding these functions.
+    pub fn module<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
+        let m = PyModule::new_bound(py, "_math")?;
+        m.add_function(wrap_pyfunction!(sin, &m)?)?;
+        m.add_function(wrap_pyfunction!(cos, &m)?)?;
+        m.add_function(wrap_pyfunction!(tan, &m)?)?;
+        m.add_function(wrap_pyfunction!(asin, &m)?)?;
+        m.add_function(wrap_pyfunction!(acos, &m)?)?;
+        m.add_function(wrap_pyfunction!(atan, &m)?)?;
+        m.add_function(wrap_pyfunction!(atan2, &m)?)?;
+        m.add_function(wrap_pyfunction!(exp, &m)?)?;
+        m.add_function(wrap_pyfunction!(log, &m)?)?;
+        m.add_function(wrap_pyfunction!(pow, &m)?)?;
+        m.add_function(wrap_pyfunction!(sqrt, &m)?)?;
+        Ok(m)
+    }
+}
+
 // ------------------------------------------------------------------
 // register_math
 // ------------------------------------------------------------------
@@ -1060,5 +1149,6 @@ pub fn register_math(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // `AngVector3` is a Python-level alias for `Vec3`.
     m.add("AngVector3", py.get_type_bound::<Vec3>())?;
     m.add_function(crate::pyo3::wrap_pyfunction!(rotation_from_angle, m)?)?;
+    m.add_submodule(&deterministic::module(py)?)?;
     Ok(())
 }

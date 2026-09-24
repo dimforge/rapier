@@ -230,9 +230,52 @@ def test_collector_arrays_match_render_to_arrays(ns):
     a = coll.lines()
     c = coll.colors()
     o = coll.objects()
-    # collector.lines() exposes (2N, D); render_to_arrays() returns (N, 2, D).
-    assert a.shape[0] == 2 * o.shape[0]
+    assert a.shape == (o.shape[0], 2, 3)
     assert c.shape == (o.shape[0], 4)
+    lines, colors, objects = pipe.render_to_arrays(
+        w.rigid_bodies,
+        w.colliders,
+        w.impulse_joints,
+        w.multibody_joints,
+        w.narrow_phase,
+    )
+    np.testing.assert_array_equal(a, lines)
+    np.testing.assert_array_equal(c, colors)
+    np.testing.assert_array_equal(o, objects)
+
+
+def test_empty_collector_lines_shape(ns):
+    assert ns.DebugLineCollector().lines().shape == (0, 2, 3)
+
+
+def test_pipeline_style_is_live(ns):
+    w = _ball_on_ground_world(ns)
+    pipe = ns.DebugRenderPipeline(mode=ns.DebugRenderMode.COLLIDER_SHAPES)
+    assert pipe.style is pipe.style
+
+    def colors():
+        _, colors, _ = pipe.render_to_arrays(
+            w.rigid_bodies, w.colliders, w.impulse_joints, w.multibody_joints, w.narrow_phase
+        )
+        return colors
+
+    def set_colors(style, hsla):
+        style.collider_parentless_color = hsla
+        style.collider_fixed_color = hsla
+        style.collider_dynamic_color = hsla
+
+    # Modifying the returned style changes the rendering (black lines).
+    set_colors(pipe.style, (0.0, 0.0, 0.0, 1.0))
+    assert pipe.style.collider_dynamic_color.hsla == [0.0, 0.0, 0.0, 1.0]
+    np.testing.assert_allclose(colors(), [[0.0, 0.0, 0.0, 1.0]] * len(colors()))
+
+    # Assigning a style copies its values (white lines).
+    style = ns.DebugRenderStyle()
+    set_colors(style, (0.0, 0.0, 1.0, 1.0))
+    pipe.style = style
+    set_colors(style, (0.0, 0.0, 0.0, 1.0))
+    assert pipe.style.collider_dynamic_color.hsla == [0.0, 0.0, 1.0, 1.0]
+    np.testing.assert_allclose(colors(), [[1.0, 1.0, 1.0, 1.0]] * len(colors()))
 
 
 def test_python_backend_receives_calls(ns):
@@ -316,3 +359,12 @@ def test_pipeline_mode_assignment_persists(ns):
     pipe = ns.DebugRenderPipeline()
     pipe.mode = ns.DebugRenderMode.COLLIDER_AABBS
     assert pipe.mode.bits == ns.DebugRenderMode.COLLIDER_AABBS.bits
+
+
+def test_debug_render_style_copy_is_detached():
+    pipeline = dim3.DebugRenderPipeline()
+    detached = pipeline.style.copy()
+    detached.subdivisions = 7
+    assert pipeline.style.subdivisions != 7
+    pipeline.style = detached
+    assert pipeline.style.subdivisions == 7

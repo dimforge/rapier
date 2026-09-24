@@ -37,6 +37,8 @@ Shapes
 .. autoclass:: Cylinder
 .. autoclass:: Cone
 .. autoclass:: ConvexPolyhedron
+.. autoclass:: Voxels
+.. autoclass:: FillMode
 
 Bounding volumes
 ----------------

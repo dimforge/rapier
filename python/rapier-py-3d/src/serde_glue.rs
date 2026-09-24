@@ -141,7 +141,7 @@ impl MultibodyLinkId {
 #[pymethods]
 impl RigidBody {
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let inner = self.to_owned_body();
+        let inner = self.to_owned_body()?;
         let payload = crate::bincode::serialize(&inner).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
@@ -229,7 +229,7 @@ impl RigidBodyBuilder {
 #[pymethods]
 impl Collider {
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let inner = self.to_owned_collider();
+        let inner = self.to_owned_collider()?;
         let payload = crate::bincode::serialize(&inner).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
@@ -417,7 +417,7 @@ impl MultibodyJointSet {
         let buf = blob.as_bytes();
         let body = crate::serde_io::unwrap_bincode(buf)?;
         let inner = crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
-        Ok((MultibodyJointSet)(inner))
+        Ok(MultibodyJointSet::wrap(inner))
     }
 
     /// Pickle support: `(cls.from_bytes, (snapshot_bytes,))`.
@@ -1039,7 +1039,7 @@ impl SpringJointBuilder {
 #[pymethods]
 impl GenericJoint {
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let inner = self.to_owned_generic();
+        let inner = self.to_owned_generic()?;
         let payload = crate::bincode::serialize(&inner).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
@@ -1542,16 +1542,16 @@ impl PhysicsWorld {
     /// `event_error_policy` are **NOT** serialized — re-attach them
     /// after `restore`.
     fn snapshot<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let bodies = self.bodies.borrow(py);
-        let colliders = self.colliders.borrow(py);
-        let ij = self.impulse_joints.borrow(py);
-        let mj = self.multibody_joints.borrow(py);
-        let bp = self.broad_phase.borrow(py);
-        let np = self.narrow_phase.borrow(py);
-        let islands = self.islands.borrow(py);
-        let ccd = self.ccd_solver.borrow(py);
-        let ip = self.integration_parameters.borrow(py);
-        let sb = self.soft_bodies.borrow(py);
+        let bodies = crate::errors::try_borrow(self.bodies.bind(py))?;
+        let colliders = crate::errors::try_borrow(self.colliders.bind(py))?;
+        let ij = crate::errors::try_borrow(self.impulse_joints.bind(py))?;
+        let mj = crate::errors::try_borrow(self.multibody_joints.bind(py))?;
+        let bp = crate::errors::try_borrow(self.broad_phase.bind(py))?;
+        let np = crate::errors::try_borrow(self.narrow_phase.bind(py))?;
+        let islands = crate::errors::try_borrow(self.islands.bind(py))?;
+        let ccd = crate::errors::try_borrow(self.ccd_solver.bind(py))?;
+        let ip = crate::errors::try_borrow(self.integration_parameters.bind(py))?;
+        let sb = crate::errors::try_borrow(self.soft_bodies.bind(py))?;
         let tup = (
             &bodies.0,
             &colliders.0,
@@ -1580,51 +1580,20 @@ impl PhysicsWorld {
         let owned: _PhysicsWorldOwned =
             crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
         let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g, sbs) = owned;
-        let bodies = Py::new(py, RigidBodySet(bs))?;
-        let colliders = Py::new(py, ColliderSet(cs))?;
-        let soft_bodies = Py::new(py, crate::soft_body::SoftBodySet(sbs))?;
-        let impulse_joints = Py::new(py, ImpulseJointSet(ijs))?;
-        let multibody_joints = Py::new(py, MultibodyJointSet(mjs))?;
-        let broad_phase = Py::new(py, BroadPhaseBvh(bps))?;
-        let narrow_phase = Py::new(py, NarrowPhase(nps))?;
-        let islands = Py::new(py, IslandManager(isl))?;
-        let ccd_solver = Py::new(py, CCDSolver(ccd))?;
-        let integration_parameters = Py::new(py, IntegrationParameters(ip))?;
-        let physics_pipeline = Py::new(
-            py,
-            PhysicsPipeline(rapier::pipeline::PhysicsPipeline::new()),
-        )?;
-        let query_pipeline = Py::new(
-            py,
-            QueryPipeline {
-                broad_phase: broad_phase.clone_ref(py),
-                narrow_phase: narrow_phase.clone_ref(py),
-                bodies: bodies.clone_ref(py),
-                colliders: colliders.clone_ref(py),
-            },
-        )?;
-        Py::new(
-            py,
-            PhysicsWorld {
-                bodies,
-                colliders,
-                soft_bodies,
-                impulse_joints,
-                multibody_joints,
-                broad_phase,
-                narrow_phase,
-                islands,
-                ccd_solver,
-                integration_parameters,
-                physics_pipeline,
-                query_pipeline,
-                gravity: Vec3(g),
-                event_handler: None,
-                physics_hooks: None,
-                auto_update_query: false,
-                event_error_policy: "defer".to_string(),
-            },
-        )
+        let parts = crate::pipeline::PhysicsWorldParts {
+            bodies: bs,
+            colliders: cs,
+            impulse_joints: ijs,
+            multibody_joints: mjs,
+            broad_phase: bps,
+            narrow_phase: nps,
+            islands: isl,
+            ccd_solver: ccd,
+            integration_parameters: ip,
+            gravity: g,
+            soft_bodies: sbs,
+        };
+        Py::new(py, PhysicsWorld::from_parts(py, parts, false)?)
     }
 
     /// JSON debug snapshot — slower & much larger but human-readable.
@@ -1632,16 +1601,16 @@ impl PhysicsWorld {
     /// Returns a JSON string with a self-describing envelope:
     ///   `{"_magic": "RPYS", "_version": N, "payload": <inner>}`.
     fn snapshot_json(&self, py: Python<'_>) -> PyResult<String> {
-        let bodies = self.bodies.borrow(py);
-        let colliders = self.colliders.borrow(py);
-        let ij = self.impulse_joints.borrow(py);
-        let mj = self.multibody_joints.borrow(py);
-        let bp = self.broad_phase.borrow(py);
-        let np = self.narrow_phase.borrow(py);
-        let islands = self.islands.borrow(py);
-        let ccd = self.ccd_solver.borrow(py);
-        let ip = self.integration_parameters.borrow(py);
-        let sb = self.soft_bodies.borrow(py);
+        let bodies = crate::errors::try_borrow(self.bodies.bind(py))?;
+        let colliders = crate::errors::try_borrow(self.colliders.bind(py))?;
+        let ij = crate::errors::try_borrow(self.impulse_joints.bind(py))?;
+        let mj = crate::errors::try_borrow(self.multibody_joints.bind(py))?;
+        let bp = crate::errors::try_borrow(self.broad_phase.bind(py))?;
+        let np = crate::errors::try_borrow(self.narrow_phase.bind(py))?;
+        let islands = crate::errors::try_borrow(self.islands.bind(py))?;
+        let ccd = crate::errors::try_borrow(self.ccd_solver.bind(py))?;
+        let ip = crate::errors::try_borrow(self.integration_parameters.bind(py))?;
+        let sb = crate::errors::try_borrow(self.soft_bodies.bind(py))?;
         let tup = (
             &bodies.0,
             &colliders.0,
@@ -1669,51 +1638,20 @@ impl PhysicsWorld {
         let owned: _PhysicsWorldOwned =
             crate::serde_json::from_value(payload).map_err(crate::serde_io::json_err)?;
         let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g, sbs) = owned;
-        let bodies = Py::new(py, RigidBodySet(bs))?;
-        let colliders = Py::new(py, ColliderSet(cs))?;
-        let soft_bodies = Py::new(py, crate::soft_body::SoftBodySet(sbs))?;
-        let impulse_joints = Py::new(py, ImpulseJointSet(ijs))?;
-        let multibody_joints = Py::new(py, MultibodyJointSet(mjs))?;
-        let broad_phase = Py::new(py, BroadPhaseBvh(bps))?;
-        let narrow_phase = Py::new(py, NarrowPhase(nps))?;
-        let islands = Py::new(py, IslandManager(isl))?;
-        let ccd_solver = Py::new(py, CCDSolver(ccd))?;
-        let integration_parameters = Py::new(py, IntegrationParameters(ip))?;
-        let physics_pipeline = Py::new(
-            py,
-            PhysicsPipeline(rapier::pipeline::PhysicsPipeline::new()),
-        )?;
-        let query_pipeline = Py::new(
-            py,
-            QueryPipeline {
-                broad_phase: broad_phase.clone_ref(py),
-                narrow_phase: narrow_phase.clone_ref(py),
-                bodies: bodies.clone_ref(py),
-                colliders: colliders.clone_ref(py),
-            },
-        )?;
-        Py::new(
-            py,
-            PhysicsWorld {
-                bodies,
-                colliders,
-                soft_bodies,
-                impulse_joints,
-                multibody_joints,
-                broad_phase,
-                narrow_phase,
-                islands,
-                ccd_solver,
-                integration_parameters,
-                physics_pipeline,
-                query_pipeline,
-                gravity: Vec3(g),
-                event_handler: None,
-                physics_hooks: None,
-                auto_update_query: false,
-                event_error_policy: "defer".to_string(),
-            },
-        )
+        let parts = crate::pipeline::PhysicsWorldParts {
+            bodies: bs,
+            colliders: cs,
+            impulse_joints: ijs,
+            multibody_joints: mjs,
+            broad_phase: bps,
+            narrow_phase: nps,
+            islands: isl,
+            ccd_solver: ccd,
+            integration_parameters: ip,
+            gravity: g,
+            soft_bodies: sbs,
+        };
+        Py::new(py, PhysicsWorld::from_parts(py, parts, false)?)
     }
 
     /// Pickle support. Returns `(PhysicsWorld.restore, (snapshot_bytes,))`.

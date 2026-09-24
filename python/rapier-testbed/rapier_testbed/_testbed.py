@@ -331,6 +331,8 @@ class Testbed:
 
     def _reset_solver_state(self) -> None:
         ns = self._ns
+        # The ``PhysicsWorld`` given to ``set_world``, if any: it then owns the solver state.
+        self._world: Optional[Any] = None
         self._broad_phase = ns.BroadPhaseBvh()
         self._narrow_phase = ns.NarrowPhase()
         self._islands = ns.IslandManager()
@@ -345,19 +347,34 @@ class Testbed:
     def set_world(
         self,
         bodies: Any,
-        colliders: Any,
-        impulse_joints: Any,
-        multibody_joints: Any,
+        colliders: Optional[Any] = None,
+        impulse_joints: Optional[Any] = None,
+        multibody_joints: Optional[Any] = None,
         soft_bodies: Optional[Any] = None,
     ) -> None:
-        """Bind freshly-built sets as the active simulation state.
+        """Bind freshly-built sets, or a whole :class:`rapier3d.PhysicsWorld`, as the active
+        simulation state.
 
         Mirrors :meth:`rapier_testbed::Testbed::set_world`. Uses the
         testbed's current :attr:`gravity` (defaulting to ``(0, -9.81, 0)``
         if the example doesn't override it). ``soft_bodies`` is the
         :class:`rapier3d.SoftBodySet` of the scene, or ``None`` for a scene
         without soft bodies.
+
+        Given a :class:`rapier3d.PhysicsWorld` instead (``testbed.set_world(world)``), the
+        testbed steps that world with :meth:`~rapier3d.PhysicsWorld.step`, using its gravity,
+        integration parameters, hooks and event handler.
         """
+        if isinstance(bodies, self._ns.PhysicsWorld):
+            if colliders is not None or impulse_joints is not None or multibody_joints is not None:
+                raise TypeError("set_world(world) takes the PhysicsWorld alone")
+            self._set_physics_world(bodies)
+            return
+        if colliders is None or impulse_joints is None or multibody_joints is None:
+            raise TypeError(
+                "set_world expects a PhysicsWorld, or the rigid-body, collider, impulse-joint "
+                "and multibody-joint sets"
+            )
         self.set_world_with_params(
             bodies, colliders, impulse_joints, multibody_joints, self.gravity,
             soft_bodies=soft_bodies,
@@ -387,17 +404,44 @@ class Testbed:
         # Drop per-collider mesh nodes so the next render frame rebuilds.
         self._clear_mesh_cache()
 
+    def _set_physics_world(self, world: Any) -> None:
+        """Bind a ``PhysicsWorld``: the testbed shows and steps its structures."""
+        self._reset_solver_state()
+        self._world = world
+        self.bodies = world.rigid_bodies
+        self.colliders = world.colliders
+        self.impulse_joints = world.impulse_joints
+        self.multibody_joints = world.multibody_joints
+        self.soft_bodies = world.soft_bodies
+        self._broad_phase = world.broad_phase
+        self._narrow_phase = world.narrow_phase
+        self._islands = world.islands
+        self._ccd_solver = world.ccd_solver
+        self._integration_parameters = world.integration_parameters
+        self._physics_pipeline = world.physics_pipeline
+        self.gravity = world.gravity
+        self._hooks = world.physics_hooks
+        self._event_handler = world.event_handler
+        self._step_count = 0
+        self._clear_mesh_cache()
+
     def set_gravity(self, gravity: Any) -> None:
         """Replace the gravity vector for the active world."""
         self.gravity = gravity
+        if self._world is not None:
+            self._world.gravity = gravity
 
     def set_hooks(self, hooks: Optional[Any]) -> None:
         """Install or detach a physics hooks object."""
         self._hooks = hooks
+        if self._world is not None:
+            self._world.physics_hooks = hooks
 
     def set_event_handler(self, events: Optional[Any]) -> None:
         """Install or detach an event handler (e.g. ``ChannelEventCollector``)."""
         self._event_handler = events
+        if self._world is not None:
+            self._world.event_handler = events
 
     def add_callback(self, fn: CallbackFn) -> None:
         """Register a per-frame callback invoked after each successful step.
@@ -471,6 +515,12 @@ class Testbed:
 
     def step_once(self) -> None:
         """Run a single physics step and invoke per-frame callbacks."""
+        if self._world is not None:
+            self._world.step()
+            self._step_count += 1
+            for cb in self._callbacks:
+                cb(self)
+            return
         self._physics_pipeline.step(
             self.gravity,
             self._integration_parameters,

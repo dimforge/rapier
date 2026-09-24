@@ -153,24 +153,24 @@ def test_softness_present_on_all_joint_types(ns):
 
 
 def test_generic_joint_softness_roundtrip(ns):
-    sc = ns.SpringCoefficients(stiffness=12.0, damping=0.8)
+    sc = ns.SpringCoefficients(natural_frequency=12.0, damping_ratio=0.8)
     j = ns.GenericJoint()
     j.softness = sc
-    assert j.softness.stiffness == pytest.approx(12.0)
-    assert j.softness.damping == pytest.approx(0.8)
+    assert j.softness.natural_frequency == pytest.approx(12.0)
+    assert j.softness.damping_ratio == pytest.approx(0.8)
 
 
 def test_fixed_joint_builder_softness_roundtrip(ns):
-    sc = ns.SpringCoefficients(stiffness=15.0, damping=0.6)
+    sc = ns.SpringCoefficients(natural_frequency=15.0, damping_ratio=0.6)
     j = ns.FixedJointBuilder().softness(sc).build()
-    assert j.softness.stiffness == pytest.approx(15.0)
-    assert j.softness.damping == pytest.approx(0.6)
+    assert j.softness.natural_frequency == pytest.approx(15.0)
+    assert j.softness.damping_ratio == pytest.approx(0.6)
     # mutate on the built joint
-    j.softness = ns.SpringCoefficients(stiffness=25.0, damping=1.0)
-    assert j.softness.stiffness == pytest.approx(25.0)
+    j.softness = ns.SpringCoefficients(natural_frequency=25.0, damping_ratio=1.0)
+    assert j.softness.natural_frequency == pytest.approx(25.0)
 
 
 def test_generic_joint_builder_softness(ns):
-    sc = ns.SpringCoefficients(stiffness=9.0, damping=0.5)
+    sc = ns.SpringCoefficients(natural_frequency=9.0, damping_ratio=0.5)
     j = ns.GenericJointBuilder().softness(sc).build()
-    assert j.softness.stiffness == pytest.approx(9.0)
+    assert j.softness.natural_frequency == pytest.approx(9.0)

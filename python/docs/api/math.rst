@@ -29,9 +29,31 @@ Free helpers
 
 .. autofunction:: rotation_from_angle
 
-.. currentmodule:: rapier3d.math
+.. module:: rapier3d.math
 
-Pure-Python helpers re-exported under ``rapier3d.math``:
+Deterministic functions
+-----------------------
 
-.. automodule:: rapier3d.math
-   :no-index:
+Computed by Rapier's math backend, in the engine's precision (``f32``). With
+the ``determinism`` feature (see :attr:`rapier3d.BuildFeatures.enhanced_determinism`),
+they give bit-identical results on every platform, unlike Python's :mod:`math`
+module or NumPy.
+
+.. autofunction:: sin
+.. autofunction:: cos
+.. autofunction:: tan
+.. autofunction:: asin
+.. autofunction:: acos
+.. autofunction:: atan
+.. autofunction:: atan2
+.. autofunction:: exp
+.. autofunction:: log
+.. autofunction:: pow
+.. autofunction:: sqrt
+
+Helpers
+-------
+
+.. autofunction:: lerp
+.. autofunction:: linear_interp
+.. autofunction:: wrap_to_pi

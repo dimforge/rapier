@@ -36,6 +36,7 @@ pub use numpy;
 pub use pyo3;
 pub use serde_json;
 
+pub mod build_info;
 pub mod conv;
 pub mod errors;
 pub mod serde_io;
@@ -82,6 +83,7 @@ fn _rapier3d(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_controllers(py, m)?;
     register_debug_render(py, m)?;
     register_soft_bodies(py, m)?;
+    build_info::register_build_info(m)?;
     m.add("__version__", RAPIER_PY_VERSION)?;
     Ok(())
 }

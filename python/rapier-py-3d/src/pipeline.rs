@@ -314,8 +314,8 @@ impl PointProjection {
 ///   issue); the result should be ignored.
 /// - ``PENETRATING_OR_WITHIN_TARGET_DIST``: the shapes are already in
 ///   contact (or within ``target_distance``) at ``t = 0``.
-#[pyclass(name = "ShapeCastStatus", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "ShapeCastStatus", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShapeCastStatus {
     OUT_OF_ITERATIONS,
     CONVERGED,
@@ -452,27 +452,30 @@ impl ShapeCastOptions {
 /// Result of a shape-cast query.
 ///
 /// :attr:`time_of_impact` is the parametric TOI along the cast
-/// motion. :attr:`witness1` / :attr:`witness2` are the world-space
-/// closest points on the cast shape and the hit collider at the time
-/// of impact; :attr:`normal1` / :attr:`normal2` are the corresponding
-/// outward surface normals. :attr:`status` is a :class:`ShapeCastStatus`
-/// describing how the cast terminated.
+/// motion. :attr:`witness1` / :attr:`normal1` are the closest point and
+/// outward surface normal on the **hit collider** at the time of impact,
+/// in **world space**. :attr:`witness2` / :attr:`normal2` are the ones
+/// on the **cast shape**, in its **local space**: transform them by the
+/// shape's pose at the time of impact to get world-space values (e.g.
+/// ``motion.position_at_time(hit.time_of_impact)`` for a nonlinear cast).
+/// :attr:`status` is a :class:`ShapeCastStatus` describing how the cast
+/// terminated.
 #[pyclass(name = "ShapeCastHit", module = "rapier", frozen)]
 #[derive(Debug, Clone, Copy)]
 pub struct ShapeCastHit {
     /// Parametric TOI along the cast motion.
     #[pyo3(get)]
     pub time_of_impact: Real,
-    /// World-space witness point on the cast shape at impact.
+    /// Witness point on the hit collider at impact, in world space.
     #[pyo3(get)]
     pub witness1: Point3,
-    /// World-space witness point on the hit collider at impact.
+    /// Witness point on the cast shape at impact, in the shape's local space.
     #[pyo3(get)]
     pub witness2: Point3,
-    /// Outward surface normal on the cast shape at impact.
+    /// Outward surface normal on the hit collider at impact, in world space.
     #[pyo3(get)]
     pub normal1: Vec3,
-    /// Outward surface normal on the hit collider at impact.
+    /// Outward surface normal on the cast shape at impact, in the shape's local space.
     #[pyo3(get)]
     pub normal2: Vec3,
     /// Termination status of the cast (see :class:`ShapeCastStatus`).
@@ -775,7 +778,10 @@ impl QueryFilterFlags {
 /// All builder methods (``exclude_sensors``, ``groups``,
 /// ``exclude_collider``, ``predicate``, ...) return a new
 /// :class:`QueryFilter` rather than mutating in place, so they can be
-/// chained.
+/// chained. The current values are read through the :attr:`flags`,
+/// :attr:`interaction_groups`, :attr:`exclude_collider_handle`,
+/// :attr:`exclude_rigid_body_handle` and :attr:`predicate_fn`
+/// properties.
 #[pyclass(name = "QueryFilter", module = "rapier")]
 pub struct QueryFilter {
     pub flags: rapier::pipeline::QueryFilterFlags,
@@ -967,8 +973,9 @@ impl QueryFilter {
     fn get_flags(&self) -> QueryFilterFlags {
         QueryFilterFlags(self.flags)
     }
-    /// Current :class:`InteractionGroups`, or ``None``.
+    /// Current :class:`InteractionGroups`, or ``None`` (set with :meth:`groups`).
     #[getter]
+    #[pyo3(name = "interaction_groups")]
     fn get_groups(&self) -> Option<InteractionGroups> {
         self.groups.map(InteractionGroups)
     }
@@ -984,8 +991,9 @@ impl QueryFilter {
     fn get_exclude_rigid_body(&self) -> Option<RigidBodyHandle> {
         self.exclude_rigid_body.map(RigidBodyHandle)
     }
-    /// Current per-collider predicate, or ``None``.
+    /// Current per-collider predicate, or ``None`` (set with :meth:`predicate`).
     #[getter]
+    #[pyo3(name = "predicate_fn")]
     fn get_predicate(&self, py: Python<'_>) -> Option<PyObject> {
         self.predicate.as_ref().map(|p| p.clone_ref(py))
     }
@@ -1026,6 +1034,28 @@ impl QueryFilter {
 // `QueryPipelineMut`. Both share the same query implementations.
 // =====================================================================
 
+/// Update the BVH leaves of the enabled colliders for scene queries.
+///
+/// Unlike `BroadPhaseBvh::update`, this leaves the collider set's change
+/// lists and the broad-phase pair tracking untouched: the next step still
+/// sees every change (`set_aabb` is the engine's own between-steps path).
+fn refresh_query_bvh(
+    params: &rapier::dynamics::IntegrationParameters,
+    broad_phase: &mut rapier::geometry::BroadPhaseBvh,
+    bodies: &rapier::dynamics::RigidBodySet,
+    colliders: &mut rapier::geometry::ColliderSet,
+) {
+    // Colliders only follow a moved parent body during the step.
+    bodies.propagate_modified_body_positions_to_colliders(colliders);
+    for (handle, co) in colliders.iter_enabled() {
+        let aabb = co.compute_broad_phase_aabb(params, bodies);
+        // A non-finite AABB would corrupt the tree; the next step quarantines it.
+        if aabb.mins.is_finite() && aabb.maxs.is_finite() {
+            broad_phase.set_aabb(params, handle, aabb);
+        }
+    }
+}
+
 /// Scene-query accelerator — a view over the broad-phase BVH.
 ///
 /// A :class:`QueryPipeline` holds shared references to the world's
@@ -1035,12 +1065,13 @@ impl QueryFilter {
 /// those sets, builds the underlying parry ``QueryPipeline``, and
 /// runs the requested query.
 ///
-/// **Validity:** the pipeline reflects the state of the broad-phase
-/// BVH as of the last :meth:`update` (or
-/// :meth:`PhysicsWorld.step` when ``auto_update_query=True``).
-/// After mutating the collider set or moving bodies, call
-/// :meth:`update` to refresh the BVH before issuing queries.
-#[pyclass(name = "QueryPipeline", module = "rapier", unsendable)]
+/// **Validity:** :meth:`PhysicsWorld.step` leaves the broad-phase BVH
+/// up to date with the colliders' positions at the end of the step, so
+/// the queries need no refresh after a step. After adding, moving or
+/// re-shaping colliders (or moving bodies) between steps, call
+/// :meth:`update` (or :meth:`PhysicsWorld.update_query_pipeline`) for
+/// the queries to see these changes before the next step.
+#[pyclass(name = "QueryPipeline", module = "rapier")]
 pub struct QueryPipeline {
     /// The "owned" BVH that backs scene queries.
     pub broad_phase: Py<BroadPhaseBvh>,
@@ -1075,14 +1106,15 @@ impl QueryPipeline {
         }
     }
 
-    /// Re-build the broad-phase BVH from the current body/collider state.
+    /// Refresh the broad-phase BVH for the changes made since the last step.
     ///
-    /// Must be called after inserting/removing colliders or moving
-    /// bodies before issuing queries — otherwise the queries see a
-    /// stale BVH. :meth:`PhysicsWorld.step` calls this automatically
-    /// when ``world.auto_update_query`` is ``True``; the manual
-    /// variant lets you avoid a redundant rebuild when the BVH is
-    /// already up to date.
+    /// :meth:`PhysicsWorld.step` leaves the BVH up to date with the
+    /// colliders' final positions, so queries issued right after a step
+    /// need no refresh. Call this only to make the queries see colliders
+    /// added, moved (directly or through their parent body) or re-shaped
+    /// since then. The refresh doesn't interfere with the next step, which
+    /// still processes these changes; it recomputes the AABB of every
+    /// enabled collider. Removed colliders are never returned by queries.
     ///
     /// :param bodies: Rigid-body set (accepted for API parity; the
     ///     pipeline uses its stored reference).
@@ -1094,21 +1126,11 @@ impl QueryPipeline {
         colliders: Py<ColliderSet>,
     ) -> PyResult<()> {
         let _ = (bodies, colliders); // accepted for API parity
-        let mut bp = self.broad_phase.borrow_mut(py);
-        let bodies = self.bodies.borrow(py);
-        let mut colliders = self.colliders.borrow_mut(py);
+        let mut bp = try_write(&self.broad_phase, py)?;
+        let bodies = try_read(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
         let params = rapier::dynamics::IntegrationParameters::default();
-        let modified = colliders.0.take_modified();
-        let removed = colliders.0.take_removed();
-        let mut events: Vec<rapier::geometry::BroadPhasePairEvent> = Vec::new();
-        bp.0.update(
-            &params,
-            &colliders.0,
-            &bodies.0,
-            &modified,
-            &removed,
-            &mut events,
-        );
+        refresh_query_bvh(&params, &mut bp.0, &bodies.0, &mut colliders.0);
         Ok(())
     }
 
@@ -1132,10 +1154,10 @@ impl QueryPipeline {
     ) -> PyResult<Option<(ColliderHandle, Real)>> {
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1216,10 +1238,10 @@ impl QueryPipeline {
     ) -> PyResult<Option<(ColliderHandle, RayIntersection)>> {
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1305,10 +1327,10 @@ impl QueryPipeline {
     ) -> PyResult<()> {
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1385,23 +1407,26 @@ impl QueryPipeline {
     ///     projects to itself (distance ``0``); if ``False`` it
     ///     projects to the shape's boundary.
     /// :param filter: Optional :class:`QueryFilter`.
+    /// :param max_dist: Largest distance to search; colliders farther
+    ///     than this from ``point`` are ignored. Defaults to unbounded.
     /// :returns: ``(ColliderHandle, PointProjection)`` or ``None`` if
-    ///     no collider passed the filter.
-    #[pyo3(signature = (point, solid, filter=None))]
+    ///     no collider passed the filter (within ``max_dist``).
+    #[pyo3(signature = (point, solid, filter=None, max_dist=None))]
     fn project_point(
         &self,
         py: Python<'_>,
         point: PyPoint,
         solid: bool,
         filter: Option<&QueryFilter>,
+        max_dist: Option<Real>,
     ) -> PyResult<Option<(ColliderHandle, PointProjection)>> {
         let p: rapier::math::Vector = point.0.coords.into();
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1454,7 +1479,7 @@ impl QueryPipeline {
 
             let result = (|qp: rapier::pipeline::QueryPipeline<'_>| {
                 Ok(qp
-                    .project_point(p, Real::MAX, solid)
+                    .project_point(p, max_dist.unwrap_or(Real::MAX), solid)
                     .map(|(h, pp)| (ColliderHandle(h), PointProjection::from_parry(pp))))
             })(qp);
             if let Some(e) = pred_err.into_inner() {
@@ -1484,10 +1509,10 @@ impl QueryPipeline {
         let max_dist = max_dist.unwrap_or(Real::MAX);
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1575,10 +1600,10 @@ impl QueryPipeline {
         let p: rapier::math::Vector = point.0.coords.into();
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1656,7 +1681,9 @@ impl QueryPipeline {
     ///     distance, penetration handling).
     /// :param filter: Optional :class:`QueryFilter`.
     /// :returns: ``(ColliderHandle, ShapeCastHit)`` for the earliest
-    ///     hit, or ``None``.
+    ///     hit, or ``None``. The hit's ``witness1`` / ``normal1`` are on
+    ///     the collider, in world space; ``witness2`` / ``normal2`` on the
+    ///     cast shape, in its local space.
     #[pyo3(signature = (shape_pose, shape_vel, shape, options, filter=None))]
     fn cast_shape(
         &self,
@@ -1671,10 +1698,10 @@ impl QueryPipeline {
         let vel: rapier::math::Vector = shape_vel.0.into();
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1750,7 +1777,10 @@ impl QueryPipeline {
     /// :param start_time: Lower bound on the cast parameter.
     /// :param end_time: Upper bound on the cast parameter.
     /// :param filter: Optional :class:`QueryFilter`.
-    /// :returns: ``(ColliderHandle, ShapeCastHit)`` or ``None``.
+    /// :returns: ``(ColliderHandle, ShapeCastHit)`` or ``None``. The
+    ///     hit's ``witness1`` / ``normal1`` are on the collider, in world
+    ///     space; ``witness2`` / ``normal2`` on the cast shape, in its
+    ///     local space (see :meth:`NonlinearRigidMotion.position_at_time`).
     #[pyo3(signature = (motion, shape, options, start_time=0.0 as Real, end_time=Real::MAX, filter=None))]
     #[allow(clippy::too_many_arguments)]
     fn cast_shape_nonlinear(
@@ -1765,10 +1795,10 @@ impl QueryPipeline {
     ) -> PyResult<Option<(ColliderHandle, ShapeCastHit)>> {
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1858,10 +1888,10 @@ impl QueryPipeline {
         let pose: rapier::math::Pose = shape_pose.0.into();
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -1950,10 +1980,10 @@ impl QueryPipeline {
     ) -> PyResult<()> {
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -2049,10 +2079,10 @@ impl QueryPipeline {
     ) -> PyResult<bool> {
         {
             // Borrow the world's sub-sets immutably (queries are read-only).
-            let bp = self.broad_phase.borrow(py);
-            let np = self.narrow_phase.borrow(py);
-            let bodies = self.bodies.borrow(py);
-            let colliders = self.colliders.borrow(py);
+            let bp = try_read(&self.broad_phase, py)?;
+            let np = try_read(&self.narrow_phase, py)?;
+            let bodies = try_read(&self.bodies, py)?;
+            let colliders = try_read(&self.colliders, py)?;
 
             // Build the raw QueryFilter, handling the (optional) Python predicate.
             // The predicate is captured in a stack-pinned closure so the upstream
@@ -2276,85 +2306,184 @@ impl CCDCounters {
     }
 }
 
-/// Aggregate read-only timing counters from a :class:`PhysicsPipeline`.
+/// Performance counters of a :class:`PhysicsPipeline`: timings and statistics of its last step.
 ///
-/// Disabled by default — call :meth:`enable` before stepping the
-/// pipeline to collect data, then read the per-stage sub-counters
-/// (:attr:`stages`, :attr:`cd`, :attr:`solver`, :attr:`ccd`).
+/// ``PhysicsPipeline.counters`` (e.g. ``world.physics_pipeline.counters``) is a live view of the
+/// pipeline's counters, enabled by default like in Rust: every read reflects the last step, and
+/// :meth:`disable` / :meth:`enable` switch the collection off or on for the next steps. A
+/// ``Counters()`` built directly owns its (unused) data and starts disabled.
 ///
-/// Timing is best-effort and may be zero on platforms without a
-/// high-resolution clock.
+/// The per-stage sub-counters (:attr:`stages`, :attr:`cd`, :attr:`solver`, :attr:`ccd`) are
+/// copies. The timings are zero if the bindings are built without rapier's ``profiler``
+/// feature (see :attr:`BuildFeatures.profiler`).
 #[pyclass(name = "Counters", module = "rapier")]
-#[derive(Clone, Copy)]
-pub struct Counters(pub rapier::counters::Counters);
+pub struct Counters {
+    backing: CountersBacking,
+}
+
+/// Storage backing a `Counters`: owned data, or a live view of a pipeline's counters.
+enum CountersBacking {
+    Owned(Box<rapier::counters::Counters>),
+    Pipeline(Py<PhysicsPipeline>),
+}
+
+impl Counters {
+    fn with_ref<R>(&self, f: impl FnOnce(&rapier::counters::Counters) -> R) -> PyResult<R> {
+        match &self.backing {
+            CountersBacking::Owned(c) => Ok(f(c)),
+            CountersBacking::Pipeline(p) => {
+                Python::with_gil(|py| Ok(f(&try_read(p, py)?.0.counters)))
+            }
+        }
+    }
+
+    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::counters::Counters) -> R) -> PyResult<R> {
+        match &mut self.backing {
+            CountersBacking::Owned(c) => Ok(f(c)),
+            CountersBacking::Pipeline(p) => {
+                Python::with_gil(|py| Ok(f(&mut try_write(p, py)?.0.counters)))
+            }
+        }
+    }
+}
 
 #[pymethods]
 impl Counters {
     /// Construct a disabled ``Counters``. Call :meth:`enable` to start collecting.
     #[new]
     fn new() -> Self {
-        Self(rapier::counters::Counters::new(false))
+        Self {
+            backing: CountersBacking::Owned(Box::new(rapier::counters::Counters::new(false))),
+        }
     }
 
-    /// Enable timing collection on the next ``step()``.
-    fn enable(&mut self) {
-        self.0.enable()
+    /// Enable the collection of the counters for the next steps.
+    fn enable(&mut self) -> PyResult<()> {
+        self.with_mut(|c| c.enable())
     }
-    /// Disable timing collection.
-    fn disable(&mut self) {
-        self.0.disable()
+    /// Disable the collection of the counters.
+    fn disable(&mut self) -> PyResult<()> {
+        self.with_mut(|c| c.disable())
     }
     /// Zero out every sub-counter.
-    fn reset(&mut self) {
-        self.0.reset()
+    fn reset(&mut self) -> PyResult<()> {
+        self.with_mut(|c| c.reset())
     }
     /// ``True`` iff timing collection is currently active.
     #[getter]
-    fn enabled(&self) -> bool {
-        self.0.enabled()
+    fn enabled(&self) -> PyResult<bool> {
+        self.with_ref(|c| c.enabled())
     }
     /// Total time for the last ``step()`` call, in ms.
     #[getter]
-    fn step_time_ms(&self) -> f64 {
-        self.0.step_time_ms()
+    fn step_time_ms(&self) -> PyResult<f64> {
+        self.with_ref(|c| c.step_time_ms())
     }
     /// Time accumulated under the "custom" stage hook, in ms.
     #[getter]
-    fn custom_time_ms(&self) -> f64 {
-        self.0.custom_time_ms()
+    fn custom_time_ms(&self) -> PyResult<f64> {
+        self.with_ref(|c| c.custom_time_ms())
     }
     /// Per-stage breakdown (see :class:`StagesCounters`).
     #[getter]
-    fn stages(&self) -> StagesCounters {
-        StagesCounters(self.0.stages)
+    fn stages(&self) -> PyResult<StagesCounters> {
+        self.with_ref(|c| StagesCounters(c.stages))
     }
     /// Collision-detection breakdown (see :class:`CollisionDetectionCounters`).
     #[getter]
-    fn cd(&self) -> CollisionDetectionCounters {
-        CollisionDetectionCounters(self.0.cd)
+    fn cd(&self) -> PyResult<CollisionDetectionCounters> {
+        self.with_ref(|c| CollisionDetectionCounters(c.cd))
     }
     /// Solver breakdown (see :class:`SolverCounters`).
     #[getter]
-    fn solver(&self) -> SolverCounters {
-        SolverCounters(self.0.solver)
+    fn solver(&self) -> PyResult<SolverCounters> {
+        self.with_ref(|c| SolverCounters(c.solver))
     }
     /// CCD breakdown (see :class:`CCDCounters`).
     #[getter]
-    fn ccd(&self) -> CCDCounters {
-        CCDCounters(self.0.ccd)
+    fn ccd(&self) -> PyResult<CCDCounters> {
+        self.with_ref(|c| CCDCounters(c.ccd))
     }
     /// Pretty-print the entire counter tree to stdout.
     #[pyo3(name = "print")]
-    fn py_print(&self) {
+    fn py_print(&self) -> PyResult<()> {
         use std::println;
-        println!("{}", self.0);
+        self.with_ref(|c| println!("{}", c))
     }
     /// Debug repr — shows enabled state and total step time.
+    fn __repr__(&self) -> PyResult<String> {
+        self.with_ref(|c| {
+            format!(
+                "Counters(enabled={}, step_time_ms={})",
+                if c.enabled() { "True" } else { "False" },
+                c.step_time_ms()
+            )
+        })
+    }
+}
+
+// =====================================================================
+// Quarantine
+// =====================================================================
+
+/// The objects neutralized during the last step because their state became non-finite (NaN
+/// or infinite).
+///
+/// Given by :attr:`PhysicsWorld.quarantine` and :attr:`PhysicsPipeline.quarantine` (a copy,
+/// cleared by each step). A quarantined rigid-body is reset to its last valid pose (when
+/// known), its velocities and forces are zeroed, and it is disabled: set its
+/// :attr:`RigidBody.is_enabled` back to ``True`` once the cause is fixed. A quarantined
+/// collider is disabled. A quarantined soft body is disabled with zeroed velocities, its
+/// non-finite particle positions left as is: fix them before re-enabling it.
+#[pyclass(name = "Quarantine", module = "rapier", frozen)]
+#[derive(Clone)]
+pub struct Quarantine {
+    bodies: Vec<rapier::dynamics::RigidBodyHandle>,
+    colliders: Vec<rapier::geometry::ColliderHandle>,
+    soft_bodies: Vec<rapier::dynamics::SoftBodyHandle>,
+}
+
+impl Quarantine {
+    fn from_rapier(q: &rapier::pipeline::Quarantine) -> Self {
+        Self {
+            bodies: q.bodies().to_vec(),
+            colliders: q.colliders().to_vec(),
+            soft_bodies: q.soft_bodies().to_vec(),
+        }
+    }
+}
+
+#[pymethods]
+impl Quarantine {
+    /// The rigid-bodies quarantined during the last step.
+    #[getter]
+    fn bodies(&self) -> Vec<RigidBodyHandle> {
+        self.bodies.iter().copied().map(RigidBodyHandle).collect()
+    }
+    /// The colliders quarantined during the last step.
+    #[getter]
+    fn colliders(&self) -> Vec<ColliderHandle> {
+        self.colliders.iter().copied().map(ColliderHandle).collect()
+    }
+    /// The soft bodies quarantined during the last step.
+    #[getter]
+    fn soft_bodies(&self) -> Vec<crate::soft_body::SoftBodyHandle> {
+        self.soft_bodies
+            .iter()
+            .copied()
+            .map(crate::soft_body::SoftBodyHandle)
+            .collect()
+    }
+    /// ``True`` if nothing was quarantined during the last step.
+    fn is_empty(&self) -> bool {
+        self.bodies.is_empty() && self.colliders.is_empty() && self.soft_bodies.is_empty()
+    }
     fn __repr__(&self) -> String {
         format!(
-            "Counters(enabled={}, step_time_ms={})",
-            self.0.enabled(),
-            self.0.step_time_ms()
+            "Quarantine(bodies={}, colliders={}, soft_bodies={})",
+            self.bodies.len(),
+            self.colliders.len(),
+            self.soft_bodies.len()
         )
     }
 }
@@ -2370,7 +2499,7 @@ impl Counters {
 /// broad / narrow phase, joints, CCD solver) on each call to
 /// :meth:`step`. For most users the higher-level :class:`PhysicsWorld`
 /// aggregates these and is more convenient.
-#[pyclass(name = "PhysicsPipeline", module = "rapier", unsendable)]
+#[pyclass(name = "PhysicsPipeline", module = "rapier")]
 pub struct PhysicsPipeline(pub rapier::pipeline::PhysicsPipeline);
 
 #[pymethods]
@@ -2381,13 +2510,19 @@ impl PhysicsPipeline {
         Self(rapier::pipeline::PhysicsPipeline::new())
     }
 
-    /// Read-only :class:`Counters` populated by the last :meth:`step`.
-    ///
-    /// Enable timing on the pipeline before stepping to get non-zero
-    /// numbers.
+    /// Live view of the pipeline's performance :class:`Counters` (enabled by default).
     #[getter]
-    fn counters(&self) -> Counters {
-        Counters(self.0.counters)
+    fn counters(slf: &Bound<'_, Self>) -> Counters {
+        Counters {
+            backing: CountersBacking::Pipeline(slf.clone().unbind()),
+        }
+    }
+
+    /// The objects neutralized during the last :meth:`step` because their state became
+    /// non-finite (a :class:`Quarantine` copy).
+    #[getter]
+    fn quarantine(&self) -> Quarantine {
+        Quarantine::from_rapier(self.0.quarantine())
     }
 
     /// The number of worker threads :meth:`step` runs its parallel stages on.
@@ -2434,9 +2569,10 @@ impl PhysicsPipeline {
     /// Releases the GIL via ``Python::allow_threads`` while the
     /// solver runs, so other Python threads can make progress.
     /// Hooks and event-handler callbacks re-acquire the GIL
-    /// transparently before touching Python objects; any exception
-    /// raised inside a callback is captured and re-raised after
-    /// :meth:`step` returns.
+    /// transparently before touching Python objects; they receive
+    /// ``bodies`` and ``colliders`` (and ``soft_bodies``), which they
+    /// can read but not modify. Any exception raised inside a callback
+    /// is captured and re-raised after :meth:`step` returns.
     ///
     /// :param gravity: World-space gravity vector.
     /// :param integration_parameters: Solver tuning parameters.
@@ -2477,14 +2613,14 @@ impl PhysicsPipeline {
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
+        bodies: &Bound<'_, RigidBodySet>,
+        colliders: &Bound<'_, ColliderSet>,
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
         ccd_solver: &mut CCDSolver,
         hooks: Option<&Bound<'_, PyAny>>,
         events: Option<&Bound<'_, PyAny>>,
-        soft_bodies: Option<&mut crate::soft_body::SoftBodySet>,
+        soft_bodies: Option<&Bound<'_, crate::soft_body::SoftBodySet>>,
     ) -> PyResult<()> {
         let hooks_obj: Option<Py<PyAny>> = hooks.and_then(|h| {
             if h.is_none() {
@@ -2501,17 +2637,28 @@ impl PhysicsPipeline {
             }
         });
         let err_slot = std::sync::Arc::new(std::sync::Mutex::new(DeferredError::default()));
-        let hooks_box = build_physics_hooks(py, hooks_obj.as_ref(), err_slot.clone());
-        let events_box = build_event_handler(py, events_obj.as_ref(), err_slot.clone());
+        let sets = CallbackSets {
+            bodies: bodies.clone().unbind(),
+            colliders: colliders.clone().unbind(),
+            soft_bodies: soft_bodies.map(|s| s.clone().unbind()),
+        };
+        let hooks_box = build_physics_hooks(py, hooks_obj.as_ref(), err_slot.clone(), &sets);
+        let events_box = build_event_handler(py, events_obj.as_ref(), err_slot.clone(), &sets);
 
+        let mut bodies = bodies.try_borrow_mut()?;
+        let mut colliders = colliders.try_borrow_mut()?;
+        let mut soft_bodies = soft_bodies.map(|s| s.try_borrow_mut()).transpose()?;
         let g: rapier::math::Vector = gravity.0.into();
         let mut scratch_soft_bodies = rapier::dynamics::SoftBodySet::new();
-        let sb_inner = soft_bodies.map_or(&mut scratch_soft_bodies, |s| &mut s.0);
+        let sb_inner = soft_bodies
+            .as_mut()
+            .map_or(&mut scratch_soft_bodies, |s| &mut s.0);
         let pp_inner = &mut self.0;
         let ip_inner = &integration_parameters.0;
         let islands_inner = &mut islands.0;
         let bp_inner = &mut broad_phase.0;
         let np_inner = &mut narrow_phase.0;
+        multibody_joints.wake_up_modified_bodies(&mut bodies.0);
         let bodies_inner = &mut bodies.0;
         let colliders_inner = &mut colliders.0;
         let ij_inner = &mut impulse_joints.0;
@@ -2562,7 +2709,7 @@ impl PhysicsPipeline {
 /// phases and emits collision / contact-force events but **skips**
 /// joint and constraint solving. Useful for static scene queries,
 /// trigger evaluation, or driving custom controllers.
-#[pyclass(name = "CollisionPipeline", module = "rapier", unsendable)]
+#[pyclass(name = "CollisionPipeline", module = "rapier")]
 pub struct CollisionPipeline(pub rapier::pipeline::CollisionPipeline);
 
 #[pymethods]
@@ -2606,8 +2753,8 @@ impl CollisionPipeline {
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
-        bodies: &mut RigidBodySet,
-        colliders: &mut ColliderSet,
+        bodies: &Bound<'_, RigidBodySet>,
+        colliders: &Bound<'_, ColliderSet>,
         hooks: Option<&Bound<'_, PyAny>>,
         events: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<()> {
@@ -2626,9 +2773,16 @@ impl CollisionPipeline {
             }
         });
         let err_slot = std::sync::Arc::new(std::sync::Mutex::new(DeferredError::default()));
-        let hooks_box = build_physics_hooks(py, hooks_obj.as_ref(), err_slot.clone());
-        let events_box = build_event_handler(py, events_obj.as_ref(), err_slot.clone());
+        let sets = CallbackSets {
+            bodies: bodies.clone().unbind(),
+            colliders: colliders.clone().unbind(),
+            soft_bodies: None,
+        };
+        let hooks_box = build_physics_hooks(py, hooks_obj.as_ref(), err_slot.clone(), &sets);
+        let events_box = build_event_handler(py, events_obj.as_ref(), err_slot.clone(), &sets);
 
+        let mut bodies = bodies.try_borrow_mut()?;
+        let mut colliders = colliders.try_borrow_mut()?;
         let cp_inner = &mut self.0;
         let islands_inner = &mut islands.0;
         let bp_inner = &mut broad_phase.0;
@@ -2676,28 +2830,30 @@ impl CollisionPipeline {
 ///
 /// A :class:`PhysicsWorld` owns the body / collider / joint sets,
 /// broad / narrow phase, island manager, CCD solver, integration
-/// parameters, and physics + query pipelines. It exposes them as
+/// parameters, and physics, collision and query pipelines. It exposes them as
 /// stable properties (the same Python object is returned on every
 /// access, so mutations persist)::
 ///
-///     world = PhysicsWorld(gravity=Vec3(0.0, -9.81, 0.0),
-///                          auto_update_query=True)
-///     ground = world.add_collider(ColliderBuilder.cuboid(50, 0.1, 50))
+///     world = PhysicsWorld(gravity=(0.0, -9.81, 0.0))  # zero gravity by default
+///     ground = world.add_collider(Collider.cuboid(50, 0.1, 50))
 ///     ball = world.add_body(
-///         RigidBodyBuilder.dynamic().translation(Vec3(0, 5, 0)),
-///         colliders=[ColliderBuilder.ball(0.5)],
+///         RigidBody.dynamic(translation=(0, 5, 0)),
+///         colliders=[Collider.ball(0.5)],
 ///     )
 ///     for _ in range(60):
 ///         world.step()
 ///
 ///     assert world.rigid_bodies is world.rigid_bodies  # stable
 ///
-/// Configure scene queries via :attr:`auto_update_query` (refresh the
-/// :class:`QueryPipeline` after every step) or call
-/// :meth:`update_query_pipeline` manually for finer control. Attach a
+/// The :attr:`query_pipeline` is up to date after every :meth:`step`;
+/// call :meth:`update_query_pipeline` only for its queries to see the
+/// changes made to the colliders since then. Attach a
 /// :class:`ChannelEventCollector` to :attr:`event_handler` to consume
 /// collision / contact-force events.
-#[pyclass(name = "PhysicsWorld", module = "rapier", unsendable)]
+///
+/// A world can be used from any thread, but not by two threads at once: while it is being
+/// stepped (which releases the GIL), using it from another thread raises ``RuntimeError``.
+#[pyclass(name = "PhysicsWorld", module = "rapier")]
 pub struct PhysicsWorld {
     pub bodies: Py<RigidBodySet>,
     pub colliders: Py<ColliderSet>,
@@ -2710,6 +2866,7 @@ pub struct PhysicsWorld {
     pub ccd_solver: Py<CCDSolver>,
     pub integration_parameters: Py<IntegrationParameters>,
     pub physics_pipeline: Py<PhysicsPipeline>,
+    pub collision_pipeline: Py<CollisionPipeline>,
     pub query_pipeline: Py<QueryPipeline>,
     pub gravity: Vec3,
     pub event_handler: Option<Py<PyAny>>,
@@ -2721,50 +2878,52 @@ pub struct PhysicsWorld {
     pub event_error_policy: String,
 }
 
-#[pymethods]
+/// The simulation state of a `PhysicsWorld`, as stored by its snapshots.
+pub(crate) struct PhysicsWorldParts {
+    pub bodies: rapier::dynamics::RigidBodySet,
+    pub colliders: rapier::geometry::ColliderSet,
+    pub impulse_joints: rapier::dynamics::ImpulseJointSet,
+    pub multibody_joints: rapier::dynamics::MultibodyJointSet,
+    pub broad_phase: rapier::geometry::BroadPhaseBvh,
+    pub narrow_phase: rapier::geometry::NarrowPhase,
+    pub islands: rapier::dynamics::IslandManager,
+    pub ccd_solver: rapier::dynamics::CCDSolver,
+    pub integration_parameters: rapier::dynamics::IntegrationParameters,
+    pub gravity: crate::na::SVector<Real, 3>,
+    pub soft_bodies: rapier::dynamics::SoftBodySet,
+}
+
+impl Default for PhysicsWorldParts {
+    fn default() -> Self {
+        Self {
+            bodies: rapier::dynamics::RigidBodySet::new(),
+            colliders: rapier::geometry::ColliderSet::new(),
+            impulse_joints: rapier::dynamics::ImpulseJointSet::new(),
+            multibody_joints: rapier::dynamics::MultibodyJointSet::new(),
+            broad_phase: rapier::geometry::BroadPhaseBvh::new(),
+            narrow_phase: rapier::geometry::NarrowPhase::new(),
+            islands: rapier::dynamics::IslandManager::new(),
+            ccd_solver: rapier::dynamics::CCDSolver::new(),
+            integration_parameters: rapier::dynamics::IntegrationParameters::default(),
+            // Zero gravity, unlike the Rust `PhysicsWorld::new()`: kept for compatibility.
+            gravity: crate::na::Vector3::zeros(),
+            soft_bodies: rapier::dynamics::SoftBodySet::new(),
+        }
+    }
+}
+
 impl PhysicsWorld {
-    /// Construct a new world with default sub-states.
-    ///
-    /// :param gravity: World-space gravity vector. Defaults to zero
-    ///     (no gravity).
-    /// :param auto_update_query: When ``True``, :meth:`step` calls
-    ///     :meth:`update_query_pipeline` automatically; otherwise the
-    ///     :attr:`query_pipeline` reflects the previous
-    ///     :meth:`update` call.
-    #[new]
-    #[pyo3(signature = (gravity=None, auto_update_query=false))]
-    fn new(py: Python<'_>, gravity: Option<PyVector>, auto_update_query: bool) -> PyResult<Self> {
-        let g = gravity
-            .map(|v| v.0)
-            .unwrap_or_else(crate::na::SVector::<Real, 3>::zeros);
-
-        let bodies = Py::new(py, RigidBodySet(rapier::dynamics::RigidBodySet::new()))?;
-        let colliders = Py::new(py, ColliderSet(rapier::geometry::ColliderSet::new()))?;
-        let soft_bodies = Py::new(
-            py,
-            crate::soft_body::SoftBodySet(rapier::dynamics::SoftBodySet::new()),
-        )?;
-        let impulse_joints = Py::new(
-            py,
-            ImpulseJointSet(rapier::dynamics::ImpulseJointSet::new()),
-        )?;
-        let multibody_joints = Py::new(
-            py,
-            MultibodyJointSet(rapier::dynamics::MultibodyJointSet::new()),
-        )?;
-        let broad_phase = Py::new(py, BroadPhaseBvh(rapier::geometry::BroadPhaseBvh::new()))?;
-        let narrow_phase = Py::new(py, NarrowPhase(rapier::geometry::NarrowPhase::new()))?;
-        let islands = Py::new(py, IslandManager(rapier::dynamics::IslandManager::new()))?;
-        let ccd_solver = Py::new(py, CCDSolver(rapier::dynamics::CCDSolver::new()))?;
-        let integration_parameters = Py::new(
-            py,
-            IntegrationParameters(rapier::dynamics::IntegrationParameters::default()),
-        )?;
-        let physics_pipeline = Py::new(
-            py,
-            PhysicsPipeline(rapier::pipeline::PhysicsPipeline::new()),
-        )?;
-
+    /// Wraps the given simulation state into a world with fresh pipelines, no event handler
+    /// and no hooks.
+    pub(crate) fn from_parts(
+        py: Python<'_>,
+        parts: PhysicsWorldParts,
+        auto_update_query: bool,
+    ) -> PyResult<Self> {
+        let bodies = Py::new(py, RigidBodySet(parts.bodies))?;
+        let colliders = Py::new(py, ColliderSet(parts.colliders))?;
+        let broad_phase = Py::new(py, BroadPhaseBvh(parts.broad_phase))?;
+        let narrow_phase = Py::new(py, NarrowPhase(parts.narrow_phase))?;
         let query_pipeline = Py::new(
             py,
             QueryPipeline {
@@ -2774,26 +2933,55 @@ impl PhysicsWorld {
                 colliders: colliders.clone_ref(py),
             },
         )?;
-
         Ok(Self {
             bodies,
             colliders,
-            soft_bodies,
-            impulse_joints,
-            multibody_joints,
+            soft_bodies: Py::new(py, crate::soft_body::SoftBodySet(parts.soft_bodies))?,
+            impulse_joints: Py::new(py, ImpulseJointSet(parts.impulse_joints))?,
+            multibody_joints: Py::new(py, MultibodyJointSet::wrap(parts.multibody_joints))?,
             broad_phase,
             narrow_phase,
-            islands,
-            ccd_solver,
-            integration_parameters,
-            physics_pipeline,
+            islands: Py::new(py, IslandManager(parts.islands))?,
+            ccd_solver: Py::new(py, CCDSolver(parts.ccd_solver))?,
+            integration_parameters: Py::new(
+                py,
+                IntegrationParameters(parts.integration_parameters),
+            )?,
+            physics_pipeline: Py::new(
+                py,
+                PhysicsPipeline(rapier::pipeline::PhysicsPipeline::new()),
+            )?,
+            collision_pipeline: Py::new(
+                py,
+                CollisionPipeline(rapier::pipeline::CollisionPipeline::new()),
+            )?,
             query_pipeline,
-            gravity: Vec3(g),
+            gravity: Vec3(parts.gravity),
             event_handler: None,
             physics_hooks: None,
             auto_update_query,
             event_error_policy: "defer".to_string(),
         })
+    }
+}
+
+#[pymethods]
+impl PhysicsWorld {
+    /// Construct a new world with default sub-states.
+    ///
+    /// :param gravity: World-space gravity vector. Defaults to zero (no gravity), unlike the
+    ///     Rust ``PhysicsWorld::new()`` which uses ``(0, -9.81, 0)``: pass
+    ///     ``gravity=(0.0, -9.81, 0.0)`` for the usual Earth gravity.
+    /// :param auto_update_query: Kept for compatibility, it has no
+    ///     effect (see :attr:`auto_update_query`).
+    #[new]
+    #[pyo3(signature = (gravity=None, auto_update_query=false))]
+    fn new(py: Python<'_>, gravity: Option<PyVector>, auto_update_query: bool) -> PyResult<Self> {
+        let mut parts = PhysicsWorldParts::default();
+        if let Some(g) = gravity {
+            parts.gravity = g.0;
+        }
+        Self::from_parts(py, parts, auto_update_query)
     }
 
     // ---- shared sub-set accessors (return the same Python objects) ----
@@ -2856,7 +3044,7 @@ impl PhysicsWorld {
         py: Python<'_>,
         ip: &IntegrationParameters,
     ) -> PyResult<()> {
-        let mut cur = self.integration_parameters.borrow_mut(py);
+        let mut cur = try_write(&self.integration_parameters, py)?;
         cur.0 = ip.0;
         Ok(())
     }
@@ -2870,28 +3058,42 @@ impl PhysicsWorld {
     fn query_pipeline(&self, py: Python<'_>) -> Py<QueryPipeline> {
         self.query_pipeline.clone_ref(py)
     }
+    /// The world's :class:`CollisionPipeline`, used by :meth:`detect_collisions` (stable
+    /// across calls).
+    #[getter]
+    fn collision_pipeline(&self, py: Python<'_>) -> Py<CollisionPipeline> {
+        self.collision_pipeline.clone_ref(py)
+    }
+
+    /// The objects neutralized during the last :meth:`step` because their state became
+    /// non-finite (a :class:`Quarantine` copy, cleared by each step).
+    #[getter]
+    fn quarantine(&self, py: Python<'_>) -> PyResult<Quarantine> {
+        Ok(Quarantine::from_rapier(
+            try_read(&self.physics_pipeline, py)?.0.quarantine(),
+        ))
+    }
 
     /// The number of worker threads :meth:`step` runs its parallel stages on.
     #[getter]
-    fn num_threads(&self, py: Python<'_>) -> usize {
-        self.physics_pipeline.borrow(py).num_threads()
+    fn num_threads(&self, py: Python<'_>) -> PyResult<usize> {
+        Ok(try_read(&self.physics_pipeline, py)?.num_threads())
     }
 
     /// Choose how many worker threads :meth:`step` runs its parallel stages on.
     ///
-    /// See :meth:`PhysicsPipeline.set_num_threads`; this forwards to the world's
-    /// own :attr:`physics_pipeline`, so worlds do not share a worker pool.
+    /// See :meth:`PhysicsPipeline.set_num_threads`, which this forwards to. By default,
+    /// every world runs on rayon's global pool; a worker count gives this world a pool of
+    /// its own, so worlds stepped from different Python threads don't compete for workers.
     ///
     /// :param num_threads: Worker count, or ``None`` to go back to rayon's global
-    ///     pool (as many workers as logical CPUs). ``1`` runs everything inline on
-    ///     the calling thread.
+    ///     pool (as many workers as logical CPUs, shared by every world). ``1`` runs
+    ///     everything inline on the calling thread.
     /// :raises ValueError: If ``num_threads`` is 0.
     /// :raises RapierError: If the thread pool could not be built.
     #[pyo3(signature = (num_threads=None))]
     fn set_num_threads(&self, py: Python<'_>, num_threads: Option<usize>) -> PyResult<()> {
-        self.physics_pipeline
-            .borrow_mut(py)
-            .set_num_threads(num_threads)
+        try_write(&self.physics_pipeline, py)?.set_num_threads(num_threads)
     }
 
     /// World-space gravity vector applied to dynamic bodies.
@@ -2937,13 +3139,11 @@ impl PhysicsWorld {
         self.physics_hooks = v.map(|p| p.clone_ref(py));
     }
 
-    /// When ``True``, :meth:`step` refreshes the query pipeline after each call.
+    /// Kept for compatibility, it has no effect: :meth:`step` always leaves
+    /// the :attr:`query_pipeline` up to date.
     ///
-    /// Trade-off: setting this to ``True`` keeps :attr:`query_pipeline`
-    /// always fresh but adds a BVH rebuild after every step. Setting
-    /// it to ``False`` avoids the redundant rebuild — useful when you
-    /// only query infrequently or only after several steps; call
-    /// :meth:`update_query_pipeline` manually before issuing queries.
+    /// Call :meth:`update_query_pipeline` for the queries to see changes
+    /// made to the colliders after the last step.
     #[getter]
     fn auto_update_query(&self) -> bool {
         self.auto_update_query
@@ -2988,8 +3188,9 @@ impl PhysicsWorld {
     /// :attr:`physics_hooks`, and :attr:`event_handler`. Releases the
     /// GIL via ``Python::allow_threads`` while the solver runs;
     /// callbacks re-acquire the GIL before invoking Python code.
-    /// When :attr:`auto_update_query` is ``True``, the query pipeline
-    /// is refreshed after the step. Exceptions raised inside Python
+    /// The :attr:`query_pipeline` is up to date after the step.
+    /// During the callbacks, the rigid-body, collider and soft-body
+    /// sets can be read (not modified). Exceptions raised inside Python
     /// callbacks are deferred per :attr:`event_error_policy` and
     /// re-raised after the step completes.
     fn step(&self, py: Python<'_>) -> PyResult<()> {
@@ -3001,24 +3202,32 @@ impl PhysicsWorld {
             aborted: false,
             policy_strict: self.event_error_policy == "strict",
         }));
-        let hooks_box = build_physics_hooks(py, self.physics_hooks.as_ref(), err_slot.clone());
-        let events_box = build_event_handler(py, self.event_handler.as_ref(), err_slot.clone());
+        let sets = CallbackSets {
+            bodies: self.bodies.clone_ref(py),
+            colliders: self.colliders.clone_ref(py),
+            soft_bodies: Some(self.soft_bodies.clone_ref(py)),
+        };
+        let hooks_box =
+            build_physics_hooks(py, self.physics_hooks.as_ref(), err_slot.clone(), &sets);
+        let events_box =
+            build_event_handler(py, self.event_handler.as_ref(), err_slot.clone(), &sets);
         {
-            let mut pp = self.physics_pipeline.borrow_mut(py);
-            let ip = self.integration_parameters.borrow(py);
-            let mut islands = self.islands.borrow_mut(py);
-            let mut bp = self.broad_phase.borrow_mut(py);
-            let mut np = self.narrow_phase.borrow_mut(py);
-            let mut bodies = self.bodies.borrow_mut(py);
-            let mut colliders = self.colliders.borrow_mut(py);
-            let mut ij = self.impulse_joints.borrow_mut(py);
-            let mut mj = self.multibody_joints.borrow_mut(py);
-            let mut sb = self.soft_bodies.borrow_mut(py);
-            let mut ccd = self.ccd_solver.borrow_mut(py);
+            let mut pp = try_write(&self.physics_pipeline, py)?;
+            let ip = try_read(&self.integration_parameters, py)?;
+            let mut islands = try_write(&self.islands, py)?;
+            let mut bp = try_write(&self.broad_phase, py)?;
+            let mut np = try_write(&self.narrow_phase, py)?;
+            let mut bodies = try_write(&self.bodies, py)?;
+            let mut colliders = try_write(&self.colliders, py)?;
+            let mut ij = try_write(&self.impulse_joints, py)?;
+            let mut mj = try_write(&self.multibody_joints, py)?;
+            let mut sb = try_write(&self.soft_bodies, py)?;
+            let mut ccd = try_write(&self.ccd_solver, py)?;
             let g_engine: rapier::math::Vector = g.into();
             // Borrow the inner rapier values explicitly so the
             // `Ungil` closure doesn't capture any `Python<'_>` token
             // (which is `!Send`).
+            mj.wake_up_modified_bodies(&mut bodies.0);
             let pp_inner = &mut pp.0;
             let ip_inner = &ip.0;
             let islands_inner = &mut islands.0;
@@ -3056,8 +3265,72 @@ impl PhysicsWorld {
                 );
             });
         }
-        if self.auto_update_query {
-            self.update_query_pipeline(py)?;
+        drop(hooks_box);
+        drop(events_box);
+        let mut slot = err_slot.lock().unwrap();
+        if let Some(e) = slot.err.take() {
+            return Err(e);
+        }
+        Ok(())
+    }
+
+    /// Update the broad-phase and the narrow-phase without advancing the simulation.
+    ///
+    /// Useful after teleporting bodies or modifying colliders, when the contacts and the
+    /// scene queries must reflect the changes right away. Runs the world's
+    /// :attr:`collision_pipeline` with the prediction distance of its
+    /// :attr:`integration_parameters`, calling the installed :attr:`physics_hooks` and
+    /// :attr:`event_handler` like :meth:`step` (and re-raising their exceptions the same way).
+    fn detect_collisions(&self, py: Python<'_>) -> PyResult<()> {
+        let err_slot = std::sync::Arc::new(std::sync::Mutex::new(DeferredError {
+            err: None,
+            aborted: false,
+            policy_strict: self.event_error_policy == "strict",
+        }));
+        let sets = CallbackSets {
+            bodies: self.bodies.clone_ref(py),
+            colliders: self.colliders.clone_ref(py),
+            soft_bodies: None,
+        };
+        let hooks_box =
+            build_physics_hooks(py, self.physics_hooks.as_ref(), err_slot.clone(), &sets);
+        let events_box =
+            build_event_handler(py, self.event_handler.as_ref(), err_slot.clone(), &sets);
+        {
+            let mut cp = try_write(&self.collision_pipeline, py)?;
+            let ip = try_read(&self.integration_parameters, py)?;
+            let mut islands = try_write(&self.islands, py)?;
+            let mut bp = try_write(&self.broad_phase, py)?;
+            let mut np = try_write(&self.narrow_phase, py)?;
+            let mut bodies = try_write(&self.bodies, py)?;
+            let mut colliders = try_write(&self.colliders, py)?;
+            let prediction_distance = ip.0.prediction_distance();
+            let cp_inner = &mut cp.0;
+            let islands_inner = &mut islands.0;
+            let bp_inner = &mut bp.0;
+            let np_inner = &mut np.0;
+            let bodies_inner = &mut bodies.0;
+            let colliders_inner = &mut colliders.0;
+            let hooks_ref: &dyn rapier::pipeline::PhysicsHooks = match hooks_box.as_deref() {
+                Some(h) => h,
+                None => &(),
+            };
+            let events_ref: &dyn rapier::pipeline::EventHandler = match events_box.as_deref() {
+                Some(e) => e,
+                None => &(),
+            };
+            py.allow_threads(|| {
+                cp_inner.step(
+                    prediction_distance,
+                    islands_inner,
+                    bp_inner,
+                    np_inner,
+                    bodies_inner,
+                    colliders_inner,
+                    hooks_ref,
+                    events_ref,
+                );
+            });
         }
         drop(hooks_box);
         drop(events_box);
@@ -3068,32 +3341,22 @@ impl PhysicsWorld {
         Ok(())
     }
 
-    /// Refresh the :attr:`query_pipeline`'s broad-phase BVH.
+    /// Refresh the :attr:`query_pipeline`'s broad-phase BVH for the changes
+    /// made since the last step.
     ///
-    /// Drains the collider set's ``modified`` / ``removed`` change
-    /// sets and updates the BVH. Call this manually before issuing
-    /// scene queries when :attr:`auto_update_query` is ``False``, or
-    /// after directly mutating colliders / bodies and wanting an
-    /// immediate refresh.
+    /// :meth:`step` leaves the BVH up to date with the colliders' final
+    /// positions, so queries issued right after a step need no refresh.
+    /// Call this only to make the queries see colliders added, moved
+    /// (directly or through their parent body) or re-shaped since then.
+    /// The refresh doesn't interfere with the next :meth:`step`, which
+    /// still processes these changes; it recomputes the AABB of every
+    /// enabled collider. Removed colliders are never returned by queries.
     fn update_query_pipeline(&self, py: Python<'_>) -> PyResult<()> {
-        let ip = self.integration_parameters.borrow(py);
-        let bodies = self.bodies.borrow(py);
-        let mut colliders = self.colliders.borrow_mut(py);
-        let mut bp = self.broad_phase.borrow_mut(py);
-        // Drain the colliders' "modified" / "removed" change sets so
-        // the broad-phase BVH catches up without double-handling them
-        // on the next `step()`.
-        let modified = colliders.0.take_modified();
-        let removed = colliders.0.take_removed();
-        let mut events: Vec<rapier::geometry::BroadPhasePairEvent> = Vec::new();
-        bp.0.update(
-            &ip.0,
-            &colliders.0,
-            &bodies.0,
-            &modified,
-            &removed,
-            &mut events,
-        );
+        let ip = try_read(&self.integration_parameters, py)?;
+        let bodies = try_read(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
+        let mut bp = try_write(&self.broad_phase, py)?;
+        refresh_query_bvh(&ip.0, &mut bp.0, &bodies.0, &mut colliders.0);
         Ok(())
     }
 
@@ -3109,8 +3372,8 @@ impl PhysicsWorld {
     ///     immediately once sleep conditions are met.
     #[pyo3(signature = (handle, strong=true))]
     fn wake_up(&self, py: Python<'_>, handle: &RigidBodyHandle, strong: bool) -> PyResult<()> {
-        let mut islands = self.islands.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
+        let mut islands = try_write(&self.islands, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
         islands.0.wake_up(&mut bodies.0, handle.0, strong);
         Ok(())
     }
@@ -3120,8 +3383,8 @@ impl PhysicsWorld {
     /// :param strong: See :meth:`wake_up`.
     #[pyo3(signature = (strong=true))]
     fn wake_up_all(&self, py: Python<'_>, strong: bool) -> PyResult<()> {
-        let mut islands = self.islands.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
+        let mut islands = try_write(&self.islands, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
         let handles: Vec<_> = bodies.0.iter().map(|(h, _)| h).collect();
         for handle in handles {
             islands.0.wake_up(&mut bodies.0, handle, strong);
@@ -3137,33 +3400,47 @@ impl PhysicsWorld {
     /// transforms, since the poses of sleeping bodies haven't moved
     /// since the last step. Look each handle up via
     /// :attr:`rigid_bodies`.
-    fn active_bodies(&self, py: Python<'_>) -> Vec<RigidBodyHandle> {
-        let islands = self.islands.borrow(py);
-        islands.0.active_bodies().map(RigidBodyHandle).collect()
+    fn active_bodies(&self, py: Python<'_>) -> PyResult<Vec<RigidBodyHandle>> {
+        let islands = try_read(&self.islands, py)?;
+        Ok(islands.0.active_bodies().map(RigidBodyHandle).collect())
     }
 
-    /// Drop every body, collider, joint, and pipeline state.
+    /// Drop every body, collider, joint, soft body, and pipeline state.
     ///
-    /// Leaves :attr:`gravity`, :attr:`integration_parameters`, and
-    /// :attr:`auto_update_query` untouched. Equivalent to constructing
-    /// a fresh world while reusing the same Python wrapper objects.
+    /// Leaves :attr:`gravity`, :attr:`integration_parameters`, :attr:`auto_update_query`,
+    /// the installed callbacks and the worker-thread count untouched. Equivalent to
+    /// constructing a fresh world while reusing the same Python wrapper objects.
     fn clear(&self, py: Python<'_>) -> PyResult<()> {
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut colliders = self.colliders.borrow_mut(py);
-        let mut ij = self.impulse_joints.borrow_mut(py);
-        let mut mj = self.multibody_joints.borrow_mut(py);
-        let mut bp = self.broad_phase.borrow_mut(py);
-        let mut np = self.narrow_phase.borrow_mut(py);
-        let mut islands = self.islands.borrow_mut(py);
-        let mut ccd = self.ccd_solver.borrow_mut(py);
+        let mut sb = try_write(&self.soft_bodies, py)?;
+        let mut pp = try_write(&self.physics_pipeline, py)?;
+        let mut cp = try_write(&self.collision_pipeline, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
+        let mut ij = try_write(&self.impulse_joints, py)?;
+        let mut mj = try_write(&self.multibody_joints, py)?;
+        let mut bp = try_write(&self.broad_phase, py)?;
+        let mut np = try_write(&self.narrow_phase, py)?;
+        let mut islands = try_write(&self.islands, py)?;
+        let mut ccd = try_write(&self.ccd_solver, py)?;
         bodies.0 = rapier::dynamics::RigidBodySet::new();
         colliders.0 = rapier::geometry::ColliderSet::new();
         ij.0 = rapier::dynamics::ImpulseJointSet::new();
         mj.0 = rapier::dynamics::MultibodyJointSet::new();
+        mj.1.clear();
         bp.0 = rapier::geometry::BroadPhaseBvh::new();
         np.0 = rapier::geometry::NarrowPhase::new();
         islands.0 = rapier::dynamics::IslandManager::new();
         ccd.0 = rapier::dynamics::CCDSolver::new();
+        sb.0 = rapier::dynamics::SoftBodySet::new();
+        // Keep the thread pool and the enabled state of the counters of the pipeline.
+        let pool = pp.0.thread_pool();
+        let counters_enabled = pp.0.counters.enabled();
+        pp.0 = rapier::pipeline::PhysicsPipeline::new();
+        pp.0.set_thread_pool(pool);
+        if !counters_enabled {
+            pp.0.counters.disable();
+        }
+        cp.0 = rapier::pipeline::CollisionPipeline::new();
         Ok(())
     }
 
@@ -3188,14 +3465,14 @@ impl PhysicsWorld {
         let body = if let Ok(b) = builder.extract::<PyRef<'_, RigidBodyBuilder>>() {
             b.builder.clone().build()
         } else if let Ok(rb) = builder.extract::<PyRef<'_, RigidBody>>() {
-            rb.to_owned_body()
+            rb.to_owned_body()?
         } else {
             return Err(PyTypeError::new_err(
                 "PhysicsWorld.add_body expects a RigidBody or RigidBodyBuilder",
             ));
         };
         let parent_handle = {
-            let mut bset = self.bodies.borrow_mut(py);
+            let mut bset = try_write(&self.bodies, py)?;
             RigidBodyHandle(bset.0.insert(body))
         };
         if let Some(coll_list) = colliders {
@@ -3203,14 +3480,14 @@ impl PhysicsWorld {
                 let coll = if let Ok(b) = item.extract::<PyRef<'_, ColliderBuilder>>() {
                     b.builder.clone().build()
                 } else if let Ok(c) = item.extract::<PyRef<'_, Collider>>() {
-                    c.to_owned_collider()
+                    c.to_owned_collider()?
                 } else {
                     return Err(PyTypeError::new_err(
                         "PhysicsWorld.add_body colliders must be Collider or ColliderBuilder instances",
                     ));
                 };
-                let mut cset = self.colliders.borrow_mut(py);
-                let mut bset = self.bodies.borrow_mut(py);
+                let mut cset = try_write(&self.colliders, py)?;
+                let mut bset = try_write(&self.bodies, py)?;
                 cset.0
                     .insert_with_parent(coll, parent_handle.0, &mut bset.0);
             }
@@ -3236,17 +3513,17 @@ impl PhysicsWorld {
         let coll = if let Ok(b) = builder.extract::<PyRef<'_, ColliderBuilder>>() {
             b.builder.clone().build()
         } else if let Ok(c) = builder.extract::<PyRef<'_, Collider>>() {
-            c.to_owned_collider()
+            c.to_owned_collider()?
         } else {
             return Err(PyTypeError::new_err(
                 "PhysicsWorld.add_collider expects a Collider or ColliderBuilder",
             ));
         };
-        let mut cset = self.colliders.borrow_mut(py);
+        let mut cset = try_write(&self.colliders, py)?;
         let handle = match parent {
             None => cset.0.insert(coll),
             Some(h) => {
-                let mut bset = self.bodies.borrow_mut(py);
+                let mut bset = try_write(&self.bodies, py)?;
                 cset.0.insert_with_parent(coll, h.0, &mut bset.0)
             }
         };
@@ -3259,12 +3536,12 @@ impl PhysicsWorld {
     /// :returns: The removed :class:`RigidBody`, or ``None`` if the
     ///     handle was already invalid.
     fn remove_body(&self, py: Python<'_>, handle: &RigidBodyHandle) -> PyResult<Option<RigidBody>> {
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut islands = self.islands.borrow_mut(py);
-        let mut colliders = self.colliders.borrow_mut(py);
-        let mut ij = self.impulse_joints.borrow_mut(py);
-        let mut mj = self.multibody_joints.borrow_mut(py);
-        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut islands = try_write(&self.islands, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
+        let mut ij = try_write(&self.impulse_joints, py)?;
+        let mut mj = try_write(&self.multibody_joints, py)?;
+        let mut sb = try_write(&self.soft_bodies, py)?;
         Ok(bodies
             .0
             .remove(
@@ -3289,10 +3566,10 @@ impl PhysicsWorld {
         py: Python<'_>,
         handle: &ColliderHandle,
     ) -> PyResult<Option<Collider>> {
-        let mut cset = self.colliders.borrow_mut(py);
-        let mut bset = self.bodies.borrow_mut(py);
-        let mut islands = self.islands.borrow_mut(py);
-        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut cset = try_write(&self.colliders, py)?;
+        let mut bset = try_write(&self.bodies, py)?;
+        let mut islands = try_write(&self.islands, py)?;
+        let mut sb = try_write(&self.soft_bodies, py)?;
         Ok(cset
             .0
             .remove(handle.0, &mut islands.0, &mut bset.0, &mut sb.0, true)
@@ -3310,15 +3587,15 @@ impl PhysicsWorld {
         &self,
         py: Python<'_>,
         builder: &crate::soft_body::SoftBodyBuilder,
-    ) -> crate::soft_body::SoftBodyHandle {
-        let mut sb = self.soft_bodies.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut colliders = self.colliders.borrow_mut(py);
-        crate::soft_body::SoftBodyHandle(sb.0.insert(
+    ) -> PyResult<crate::soft_body::SoftBodyHandle> {
+        let mut sb = try_write(&self.soft_bodies, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
+        Ok(crate::soft_body::SoftBodyHandle(sb.0.insert(
             builder.builder.clone(),
             &mut bodies.0,
             &mut colliders.0,
-        ))
+        )))
     }
 
     /// Remove a soft body with its proxies, colliders and attached joints.
@@ -3328,22 +3605,24 @@ impl PhysicsWorld {
         &self,
         py: Python<'_>,
         handle: &crate::soft_body::SoftBodyHandle,
-    ) -> Option<crate::soft_body::SoftBody> {
-        let mut sb = self.soft_bodies.borrow_mut(py);
-        let mut islands = self.islands.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut colliders = self.colliders.borrow_mut(py);
-        let mut ij = self.impulse_joints.borrow_mut(py);
-        let mut mj = self.multibody_joints.borrow_mut(py);
-        sb.0.remove(
-            handle.0,
-            &mut islands.0,
-            &mut bodies.0,
-            &mut colliders.0,
-            &mut ij.0,
-            &mut mj.0,
-        )
-        .map(crate::soft_body::SoftBody::new_owned)
+    ) -> PyResult<Option<crate::soft_body::SoftBody>> {
+        let mut sb = try_write(&self.soft_bodies, py)?;
+        let mut islands = try_write(&self.islands, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
+        let mut ij = try_write(&self.impulse_joints, py)?;
+        let mut mj = try_write(&self.multibody_joints, py)?;
+        Ok(sb
+            .0
+            .remove(
+                handle.0,
+                &mut islands.0,
+                &mut bodies.0,
+                &mut colliders.0,
+                &mut ij.0,
+                &mut mj.0,
+            )
+            .map(crate::soft_body::SoftBody::new_owned))
     }
 
     /// Insert a collider holding a soft body's deformable collision mesh, bound to the cluster
@@ -3357,9 +3636,9 @@ impl PhysicsWorld {
         binding: &crate::soft_body::SoftMeshBinding,
         parent: &RigidBodyHandle,
     ) -> PyResult<ColliderHandle> {
-        let mut colliders = self.colliders.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut sb = self.soft_bodies.borrow_mut(py);
+        let mut colliders = try_write(&self.colliders, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut sb = try_write(&self.soft_bodies, py)?;
         colliders.insert_deformable(builder, binding, parent, &mut bodies, &mut sb)
     }
 
@@ -3372,9 +3651,9 @@ impl PhysicsWorld {
         handle: &crate::soft_body::SoftBodyHandle,
         particles: &Bound<'_, PyAny>,
     ) -> PyResult<Option<u32>> {
-        let mut sb = self.soft_bodies.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut colliders = self.colliders.borrow_mut(py);
+        let mut sb = try_write(&self.soft_bodies, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
         sb.add_cluster(handle, particles, &mut bodies, &mut colliders)
     }
 
@@ -3385,14 +3664,14 @@ impl PhysicsWorld {
         py: Python<'_>,
         handle: &crate::soft_body::SoftBodyHandle,
         cluster: u32,
-    ) -> bool {
-        let mut sb = self.soft_bodies.borrow_mut(py);
-        let mut islands = self.islands.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut colliders = self.colliders.borrow_mut(py);
-        let mut ij = self.impulse_joints.borrow_mut(py);
-        let mut mj = self.multibody_joints.borrow_mut(py);
-        sb.remove_cluster(
+    ) -> PyResult<bool> {
+        let mut sb = try_write(&self.soft_bodies, py)?;
+        let mut islands = try_write(&self.islands, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
+        let mut ij = try_write(&self.impulse_joints, py)?;
+        let mut mj = try_write(&self.multibody_joints, py)?;
+        Ok(sb.remove_cluster(
             handle,
             cluster,
             &mut islands,
@@ -3400,7 +3679,7 @@ impl PhysicsWorld {
             &mut colliders,
             &mut ij,
             &mut mj,
-        )
+        ))
     }
 
     /// Tear a soft body at once along the given edges and through the given cells, without
@@ -3414,12 +3693,12 @@ impl PhysicsWorld {
         edges: &Bound<'_, PyAny>,
         cells: &Bound<'_, PyAny>,
     ) -> PyResult<Option<crate::soft_body::SoftBodyTearEvent>> {
-        let mut sb = self.soft_bodies.borrow_mut(py);
-        let mut islands = self.islands.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut colliders = self.colliders.borrow_mut(py);
-        let mut ij = self.impulse_joints.borrow_mut(py);
-        let mut mj = self.multibody_joints.borrow_mut(py);
+        let mut sb = try_write(&self.soft_bodies, py)?;
+        let mut islands = try_write(&self.islands, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
+        let mut ij = try_write(&self.impulse_joints, py)?;
+        let mut mj = try_write(&self.multibody_joints, py)?;
         sb.tear(
             handle,
             edges,
@@ -3441,14 +3720,14 @@ impl PhysicsWorld {
         py: Python<'_>,
         handle: &crate::soft_body::SoftBodyHandle,
         blade: (PyVector, PyVector, PyVector),
-    ) -> Option<crate::soft_body::SoftBodyTearEvent> {
-        let mut sb = self.soft_bodies.borrow_mut(py);
-        let mut islands = self.islands.borrow_mut(py);
-        let mut bodies = self.bodies.borrow_mut(py);
-        let mut colliders = self.colliders.borrow_mut(py);
-        let mut ij = self.impulse_joints.borrow_mut(py);
-        let mut mj = self.multibody_joints.borrow_mut(py);
-        sb.cut(
+    ) -> PyResult<Option<crate::soft_body::SoftBodyTearEvent>> {
+        let mut sb = try_write(&self.soft_bodies, py)?;
+        let mut islands = try_write(&self.islands, py)?;
+        let mut bodies = try_write(&self.bodies, py)?;
+        let mut colliders = try_write(&self.colliders, py)?;
+        let mut ij = try_write(&self.impulse_joints, py)?;
+        let mut mj = try_write(&self.multibody_joints, py)?;
+        Ok(sb.cut(
             handle,
             blade,
             &mut islands,
@@ -3456,18 +3735,18 @@ impl PhysicsWorld {
             &mut colliders,
             &mut ij,
             &mut mj,
-        )
+        ))
     }
 
     /// Debug repr — shows body, collider and soft-body counts.
-    fn __repr__(&self, py: Python<'_>) -> String {
-        let nb = self.bodies.borrow(py).0.len();
-        let nc = self.colliders.borrow(py).0.len();
-        let ns = self.soft_bodies.borrow(py).0.len();
-        format!(
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        let nb = try_read(&self.bodies, py)?.0.len();
+        let nc = try_read(&self.colliders, py)?.0.len();
+        let ns = try_read(&self.soft_bodies, py)?.0.len();
+        Ok(format!(
             "PhysicsWorld(bodies={}, colliders={}, soft_bodies={})",
             nb, nc, ns
-        )
+        ))
     }
 }
 
@@ -3496,6 +3775,7 @@ pub fn register_pipeline(
     m.add_class::<SolverCounters>()?;
     m.add_class::<CCDCounters>()?;
     m.add_class::<Counters>()?;
+    m.add_class::<Quarantine>()?;
     m.add_class::<PhysicsPipeline>()?;
     m.add_class::<CollisionPipeline>()?;
     m.add_class::<PhysicsWorld>()?;

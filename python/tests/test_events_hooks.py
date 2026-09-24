@@ -326,3 +326,345 @@ def test_modify_solver_contacts_can_clear(ns):
         w.step()
     # The hook must have been called at least once.
     assert invocations[0] > 0
+
+
+# ---- reading the world from the callbacks ----------------------------------
+
+
+def _ball_on_ground_with_events(ns, events=None, hooks=None):
+    events = events if events is not None else ns.ActiveEvents.COLLISION_EVENTS
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0))
+    builder = ns.Collider.cuboid(10, 0.1, 10).active_events(events).user_data(7)
+    if hooks is not None:
+        builder = builder.active_hooks(hooks)
+    ground = w.add_collider(builder)
+    body = w.add_body(
+        ns.RigidBody.dynamic(translation=(0, 0.7, 0)),
+        colliders=[ns.Collider.ball(0.5).user_data(8).contact_force_event_threshold(0.0)],
+    )
+    ball = w.rigid_bodies[body].colliders[0]
+    return w, ground, body, ball
+
+
+def test_event_handler_receives_readable_sets(ns):
+    w, ground, body, ball = _ball_on_ground_with_events(ns)
+    stored_view = w.rigid_bodies[body]
+    seen = []
+
+    class Handler:
+        def handle_collision_event(self, bodies, colliders, event, contact_pair):
+            assert bodies is w.rigid_bodies and colliders is w.colliders
+            seen.append((
+                colliders[ground].user_data,
+                colliders.get(ball).user_data,
+                bodies[body].translation.y,
+                stored_view.translation.y,
+                w.colliders[ball].user_data,
+                len(colliders),
+                ball in colliders,
+                body in bodies,
+                sorted(h.index for h, _ in colliders),
+                len(list(bodies.handles())),
+            ))
+
+    w.event_handler = Handler()
+    for _ in range(30):
+        w.step()
+    assert seen
+    ud_ground, ud_ball, y, y_view, ud_world, n, has_ball, has_body, handles, nbodies = seen[0]
+    assert (ud_ground, ud_ball, ud_world) == (7, 8, 8)
+    assert y == y_view and 0.5 < y < 0.7
+    assert (n, has_ball, has_body, handles, nbodies) == (2, True, True, [0, 1], 1)
+
+
+def test_contact_force_handler_receives_readable_sets(ns):
+    w, ground, body, ball = _ball_on_ground_with_events(ns, ns.ActiveEvents.CONTACT_FORCE_EVENTS)
+    seen = []
+
+    class Handler:
+        def handle_contact_force_event(self, dt, bodies, colliders, pair, magnitude):
+            other = pair.collider2 if pair.collider1 == ground else pair.collider1
+            seen.append((colliders[other].user_data, bodies[colliders[other].parent].is_dynamic))
+
+    w.event_handler = Handler()
+    for _ in range(30):
+        w.step()
+    assert seen and seen[0] == (8, True)
+
+
+def test_modifying_or_querying_the_world_from_a_callback_raises(ns):
+    w, ground, body, ball = _ball_on_ground_with_events(ns)
+
+    class Handler:
+        def __init__(self, action):
+            self.action = action
+
+        def handle_collision_event(self, bodies, colliders, event, contact_pair):
+            self.action()
+
+    actions = [
+        lambda: w.colliders.insert(ns.Collider.ball(1.0)),
+        lambda: w.query_pipeline.cast_ray(ns.Ray((0, 5, 0), (0, -1, 0)), 10.0, True),
+        lambda: w.update_query_pipeline(),
+        lambda: w.step(),
+    ]
+    for action in actions:
+        w, ground, body, ball = _ball_on_ground_with_events(ns)
+        w.event_handler = Handler(action)
+        with pytest.raises(RuntimeError):
+            for _ in range(30):
+                w.step()
+
+
+def test_sets_are_not_lent_outside_callbacks(ns):
+    w, ground, body, ball = _ball_on_ground_with_events(ns)
+    kept = []
+
+    class Handler:
+        def handle_collision_event(self, bodies, colliders, event, contact_pair):
+            kept.append(colliders)
+
+    w.event_handler = Handler()
+    for _ in range(30):
+        w.step()
+    assert kept
+    # After the step, the sets are ordinary (mutable) sets again.
+    kept[0][ball].user_data = 3
+    assert w.colliders[ball].user_data == 3
+
+
+def test_pair_filter_context_sets(ns):
+    w, ground, body, ball = _ball_on_ground_with_events(
+        ns, hooks=ns.ActiveHooks.FILTER_CONTACT_PAIRS
+    )
+    seen = []
+
+    class Hooks:
+        def filter_contact_pair(self, ctx):
+            ud1 = ctx.colliders[ctx.collider1].user_data
+            ud2 = ctx.colliders[ctx.collider2].user_data
+            seen.append((ud1, ud2, ctx.bodies is w.rigid_bodies))
+            return None  # Discard the pair.
+
+    w.physics_hooks = Hooks()
+    for _ in range(60):
+        w.step()
+    assert seen and set(seen[0][:2]) == {7, 8} and seen[0][2]
+    # The ball fell through the ground.
+    assert w.rigid_bodies[body].translation.y < 0.0
+
+
+def test_hooks_missing_optional_methods(ns):
+    w, ground, body, ball = _ball_on_ground_with_events(
+        ns,
+        ns.ActiveEvents.COLLISION_EVENTS | ns.ActiveEvents.CONTACT_FORCE_EVENTS,
+        ns.ActiveHooks.FILTER_CONTACT_PAIRS | ns.ActiveHooks.MODIFY_SOLVER_CONTACTS,
+    )
+    modified = [0]
+
+    class OnlyModify:
+        def modify_solver_contacts(self, ctx):
+            modified[0] += 1
+
+    class NoMethods:
+        pass
+
+    w.physics_hooks = OnlyModify()
+    w.event_handler = NoMethods()
+    for _ in range(30):
+        w.step()
+    assert modified[0] > 0
+    # The pair wasn't filtered out: the ball rests on the ground.
+    assert w.rigid_bodies[body].translation.y > 0.5
+
+
+# ---- contact modification ----------------------------------------------------
+
+
+def test_set_solver_contact(ns):
+    w, ground, body, ball = _ball_on_ground_with_events(
+        ns, hooks=ns.ActiveHooks.MODIFY_SOLVER_CONTACTS
+    )
+    results = []
+    contexts = []
+
+    class Hooks:
+        def modify_solver_contacts(self, ctx):
+            contexts.append(ctx)
+            n = ctx.num_solver_contacts()
+            with pytest.raises(IndexError):
+                ctx.set_solver_contact(n, dist=0.0)
+            if n == 0:
+                return
+            before = ctx.solver_contacts[0]
+            ctx.set_solver_contact(0, tangent_velocity=(1.0, 2.0, 3.0), dist=before.dist + 0.25)
+            after = ctx.solver_contacts[0]
+            # Unset arguments are kept.
+            assert after.point == before.point and after.point2 == before.point2
+            ctx.set_solver_contact(0, point=(1, 2, 3), point2=(4, 5, 6))
+            moved = ctx.solver_contacts[0]
+            results.append((after.dist - before.dist, after.tangent_velocity, moved.point, moved.point2))
+
+    w.physics_hooks = Hooks()
+    for _ in range(10):
+        w.step()
+    assert results
+    ddist, tv, p1, p2 = results[0]
+    assert ddist == pytest.approx(0.25)
+    assert (tv.x, tv.y, tv.z) == pytest.approx((1, 2, 3))
+    assert (p1.x, p1.y, p1.z) == pytest.approx((1, 2, 3))
+    assert (p2.x, p2.y, p2.z) == pytest.approx((4, 5, 6))
+    with pytest.raises(RuntimeError):
+        contexts[0].set_solver_contact(0, dist=0.0)
+    with pytest.raises(RuntimeError):
+        contexts[0].set_tangent_velocity((0, 0, 1))
+
+
+@pytest.mark.parametrize("belt_first", [True, False])
+def test_set_tangent_velocity_conveyor(ns, belt_first):
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0))
+
+    def add_belt():
+        return w.add_collider(
+            ns.Collider.cuboid(10, 0.1, 10).active_hooks(ns.ActiveHooks.MODIFY_SOLVER_CONTACTS)
+        )
+
+    def add_box():
+        return w.add_body(
+            ns.RigidBody.dynamic(translation=(0, 0.4, 0)),
+            colliders=[ns.Collider.cuboid(0.25, 0.25, 0.25)],
+        )
+
+    if belt_first:
+        belt, box = add_belt(), add_box()
+    else:
+        box, belt = add_box(), add_belt()
+    seen = []
+
+    class Conveyor:
+        def modify_solver_contacts(self, ctx):
+            # The velocity is the one of collider2's surface relative to collider1's.
+            vz = 2.0 if ctx.collider1 == belt else -2.0
+            ctx.set_tangent_velocity((0.0, 0.0, vz))
+            seen.extend(c.tangent_velocity.z == vz for c in ctx.solver_contacts)
+
+    w.physics_hooks = Conveyor()
+    for _ in range(60):
+        w.step()
+    assert seen and all(seen)
+    assert w.rigid_bodies[box].linvel.z > 1.0
+
+
+# ---- contact graph -------------------------------------------------------------
+
+
+def test_manifold_solver_contacts_and_world_points(ns):
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0))
+    ground = w.add_collider(ns.Collider.cuboid(10, 0.1, 10))
+    body = w.add_body(
+        ns.RigidBody.dynamic(translation=(0.3, 1.0, 0.2)), colliders=[ns.Collider.ball(0.5)]
+    )
+    ball = w.rigid_bodies[body].colliders[0]
+    for _ in range(120):
+        w.step()
+    pair = w.narrow_phase.contact_pair(ground, ball)
+    assert pair is not None and pair.has_any_active_contact
+    y = w.rigid_bodies[body].translation.y
+    n = 0
+    for manifold in pair.manifolds:
+        assert len(manifold.data.solver_contacts) == manifold.data.num_active_contacts
+        for i, point in enumerate(manifold.points):
+            assert point.contact_id == i
+        for sc in manifold.data.solver_contacts:
+            n += 1
+            assert sc.contact_id < len(manifold.points)
+            assert (sc.tangent_velocity.x, sc.tangent_velocity.y, sc.tangent_velocity.z) == (0, 0, 0)
+            p1, p2 = manifold.data.solver_contact_world_points(sc, w.rigid_bodies)
+            # On the ground's top face and on the bottom of the ball.
+            assert (p1.x, p1.y, p1.z) == pytest.approx((0.3, 0.1, 0.2), abs=1e-3)
+            assert (p2.x, p2.y, p2.z) == pytest.approx((0.3, y - 0.5, 0.2), abs=1e-3)
+    assert n > 0
+    assert pair.find_deepest_contact().contact_id == 0
+    assert "ContactPair(" in repr(pair)
+    assert "ContactManifoldData(" in repr(pair.manifolds[0].data)
+    assert "SolverContact(" in repr(pair.manifolds[0].data.solver_contacts[0])
+
+
+def test_contact_and_intersection_pairs_with(ns):
+    w = ns.PhysicsWorld(gravity=(0, 0, 0))
+    ground = w.add_collider(ns.Collider.cuboid(10, 0.1, 10))
+
+    def ball_at(x, y, z, radius=0.5, sensor=False):
+        body = w.add_body(
+            ns.RigidBody.dynamic(translation=(x, y, z)),
+            colliders=[ns.Collider.ball(radius).sensor(sensor)],
+        )
+        return w.rigid_bodies[body].colliders[0]
+
+    a = ball_at(0, 0.55, 0)
+    b = ball_at(5, 0.55, 0)
+    sensor = ball_at(0, 0.55, 0, radius=1.0, sensor=True)
+    far = ball_at(50, 50, 50)
+    w.step()
+    pairs = w.narrow_phase.contact_pairs_with(ground)
+    others = {p.collider2 if p.collider1 == ground else p.collider1 for p in pairs}
+    assert others == {a, b}
+    assert w.narrow_phase.contact_pairs_with(far) == []
+    inter = w.narrow_phase.intersection_pairs_with(sensor)
+    assert any(i and {c1, c2} == {sensor, a} for c1, c2, i in inter)
+    assert all(sensor in (c1, c2) for c1, c2, _ in inter)
+    assert w.narrow_phase.intersection_pairs_with(far) == []
+
+
+def test_contact_force_event_repr(ns):
+    w = _heavy_ball_on_ground(ns)
+    collector = ns.ChannelEventCollector()
+    w.event_handler = collector
+    for _ in range(60):
+        w.step()
+    forces = collector.drain_contact_force_events()
+    assert forces and repr(forces[0]).startswith("ContactForceEvent(")
+
+
+def test_hooks_read_sets_from_worker_threads(ns):
+    # With several workers, the hooks run on the engine's threads.
+    import gc
+
+    # Collect the previous tests' garbage now: unsendable objects freed by a GC pass
+    # running on a worker thread would be reported as unraisable errors.
+    gc.collect()
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0))
+    w.set_num_threads(4)
+    w.add_collider(
+        ns.Collider.cuboid(50, 0.1, 50)
+        .active_hooks(ns.ActiveHooks.FILTER_CONTACT_PAIRS | ns.ActiveHooks.MODIFY_SOLVER_CONTACTS)
+        .user_data(1000)
+    )
+    for i in range(400):
+        w.add_body(
+            ns.RigidBody.dynamic(translation=((i % 20) * 1.1 - 10, 0.6 + (i // 20) * 1.1, 0)),
+            colliders=[ns.Collider.ball(0.5).user_data(i)],
+        )
+    reads = []
+
+    class Hooks:
+        def filter_contact_pair(self, ctx):
+            body = ctx.rigid_body1 if ctx.rigid_body1 is not None else ctx.rigid_body2
+            reads.append((ctx.colliders[ctx.collider1].user_data, ctx.bodies[body].is_dynamic))
+            return ns.SolverFlags.COMPUTE_IMPULSES
+
+        def modify_solver_contacts(self, ctx):
+            reads.append((ctx.colliders[ctx.collider2].user_data, True))
+
+    w.physics_hooks = Hooks()
+    for _ in range(20):
+        w.step()
+    assert reads and all(0 <= ud <= 1000 and dynamic for ud, dynamic in reads)
+
+
+def test_broad_phase_pair_event_flags():
+    pair = dim3.ColliderPair(dim3.ColliderHandle.from_raw_parts(0, 0), dim3.ColliderHandle.from_raw_parts(1, 0))
+    added = dim3.BroadPhasePairEvent.added(pair)
+    removed = dim3.BroadPhasePairEvent.removed(pair)
+    assert added.is_added and not added.is_removed
+    assert removed.is_removed and not removed.is_added

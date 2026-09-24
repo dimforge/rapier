@@ -65,18 +65,24 @@ python -c "import rapier3d; print(rapier3d.__version__)"   # smoke check
 ### Threads
 
 The engine is always built multi-threaded, and `step()` releases the GIL while
-it runs. A world defaults to one worker per logical CPU; each world owns its
-pool, so worlds stepped from different Python threads don't compete:
+it runs. By default, every world runs its parallel stages on rayon's global
+pool (one worker per logical CPU), shared by all the worlds of the process.
+`set_num_threads(n)` gives a world its own pool of `n` workers, so worlds
+stepped from different Python threads don't compete for the same workers:
 
 ```python
-world.set_num_threads(4)     # four workers for this world
+world.set_num_threads(4)     # a pool of four workers for this world alone
 world.num_threads            # -> 4
 world.set_num_threads(1)     # everything inline on the calling thread
-world.set_num_threads(None)  # back to one worker per logical CPU
+world.set_num_threads(None)  # back to the shared global pool
 ```
 
 The worker count never changes the result: the same scene stepped with 1 and
 with 8 workers gives bit-identical states.
+
+A world can be used from any Python thread, but not by two threads at once:
+while it is being stepped, using it (or one of its sets or objects) from
+another thread raises `RuntimeError`.
 
 ### Run the test suite
 

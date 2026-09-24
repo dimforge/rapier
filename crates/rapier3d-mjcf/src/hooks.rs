@@ -64,6 +64,16 @@ impl MjcfContactHooks {
     pub fn has_overrides(&self) -> bool {
         !self.overrides.is_empty()
     }
+
+    /// `true` if contacts between the colliders `a` and `b` are excluded.
+    pub fn is_excluded(&self, a: ColliderHandle, b: ColliderHandle) -> bool {
+        self.exclude.contains(&(a, b))
+    }
+
+    /// The override registered for the pair of colliders `a` and `b`, if any.
+    pub fn pair_override(&self, a: ColliderHandle, b: ColliderHandle) -> Option<PairOverride> {
+        self.overrides.get(&(a, b)).copied()
+    }
 }
 
 impl PhysicsHooks for MjcfContactHooks {

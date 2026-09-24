@@ -443,3 +443,359 @@ def test_wheel_tuning_default_kwargs(ns):
     t2 = ns.WheelTuning(suspension_stiffness=10.0, friction_slip=5.0)
     assert abs(t2.suspension_stiffness - 10.0) < 1e-5
     assert abs(t2.friction_slip - 5.0) < 1e-5
+
+
+# ---------------------------------------------------------------------------
+# PD / PID gains, integrals and target velocities.
+# ---------------------------------------------------------------------------
+
+
+def _vec_close(v, expected, tol=1e-5):
+    return all(abs(a - b) < tol for a, b in zip((v.x, v.y, v.z), expected))
+
+
+def test_pid_scalar_gains_apply_to_every_axis(ns):
+    pid = ns.PidController(Kp=60.0, Ki=0.5, Kd=0.8)
+    for name, k in [("kp", 60.0), ("ki", 0.5), ("kd", 0.8)]:
+        assert _vec_close(getattr(pid, "lin_" + name), (k, k, k))
+        assert _vec_close(getattr(pid, "ang_" + name), (k, k, k))
+    pd = ns.PdController(Kp=10, Kd=2.0)
+    assert _vec_close(pd.lin_kp, (10.0, 10.0, 10.0))
+    assert _vec_close(pd.ang_kd, (2.0, 2.0, 2.0))
+    # Per-axis gains still work.
+    pid = ns.PidController(Kp=(1.0, 2.0, 3.0))
+    assert _vec_close(pid.lin_kp, (1.0, 2.0, 3.0))
+    assert _vec_close(pid.ang_kp, (1.0, 2.0, 3.0))
+    with pytest.raises(TypeError):
+        ns.PidController(Kp="fast")
+
+
+@pytest.mark.parametrize("cls", ["PdController", "PidController"])
+def test_controller_gain_properties(ns, cls):
+    ctrl = getattr(ns, cls)()
+    names = ["lin_kp", "ang_kp", "lin_kd", "ang_kd"]
+    if cls == "PidController":
+        names += ["lin_ki", "ang_ki"]
+    for name in names:
+        setattr(ctrl, name, (1.0, 2.0, 3.0))
+        assert _vec_close(getattr(ctrl, name), (1.0, 2.0, 3.0))
+        setattr(ctrl, name, 4.0)
+        assert _vec_close(getattr(ctrl, name), (4.0, 4.0, 4.0))
+        with pytest.raises(TypeError):
+            setattr(ctrl, name, "x")
+    # The linear and angular gains are independent.
+    ctrl.lin_kp = 5.0
+    ctrl.ang_kp = 6.0
+    assert _vec_close(ctrl.lin_kp, (5.0, 5.0, 5.0))
+    assert _vec_close(ctrl.ang_kp, (6.0, 6.0, 6.0))
+
+
+def test_pid_axes_setter_and_integrals(ns):
+    pid = ns.PidController(Kp=1.0, Ki=1.0, Kd=0.0)
+    assert not hasattr(pid, "axes_attr")
+    pid.axes = ns.AxesMask.LIN_X
+    assert pid.axes == ns.AxesMask.LIN_X
+
+    assert _vec_close(pid.lin_integral, (0.0, 0.0, 0.0))
+    assert _vec_close(pid.ang_integral, (0.0, 0.0, 0.0))
+    with pytest.raises(AttributeError):
+        pid.lin_integral = (1.0, 0.0, 0.0)
+    with pytest.raises(AttributeError):
+        pid.ang_integral = (1.0, 0.0, 0.0)
+
+    pose = ns.Isometry3.identity()
+    target = ns.Isometry3.from_translation(1.0, 0.0, 0.0)
+    pid.position_correction(0.5, pose, target)
+    pid.position_correction(0.5, pose, target)
+    assert pid.lin_integral.x > 0.0
+    pid.reset()
+    assert _vec_close(pid.lin_integral, (0.0, 0.0, 0.0))
+
+
+def test_controller_target_vels(ns):
+    w = ns.PhysicsWorld(gravity=(0, 0, 0))
+    h = w.add_body(ns.RigidBody.dynamic(translation=(0, 0, 0)).build())
+    body = w.rigid_bodies[h]
+    target = ns.Isometry3.identity()
+    target_vels = ns.RigidBodyVelocity(linvel=(2.0, 0.0, 0.0), angvel=(0.0, 3.0, 0.0))
+
+    pd = ns.PdController(Kp=10.0, Kd=1.0)
+    corr = pd.rigid_body_correction(body, target)
+    assert _vec_close(corr.linear, (0.0, 0.0, 0.0))
+    corr = pd.rigid_body_correction(body, target, target_vels)
+    assert corr.linear.x > 0.0
+    assert corr.angular.y > 0.0
+
+    pid = ns.PidController(Kp=10.0, Ki=0.0, Kd=1.0)
+    corr = pid.rigid_body_correction(1.0 / 60.0, body, target, target_vels=target_vels)
+    assert corr.linear.x > 0.0
+    assert corr.angular.y > 0.0
+    corr = pid.rigid_body_correction(1.0 / 60.0, body, target, None)
+    assert _vec_close(corr.linear, (0.0, 0.0, 0.0))
+
+
+def test_pid_scalar_gains_reach_target(ns):
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0))
+    w.colliders.insert(ns.Collider.cuboid(100.0, 0.1, 100.0).build())
+    h = w.add_body(
+        ns.RigidBody.dynamic(translation=(0.0, 1.0, 0.0)),
+        colliders=[ns.Collider.ball(0.5)],
+    )
+    axes = ns.AxesMask.LIN_X | ns.AxesMask.LIN_Y | ns.AxesMask.LIN_Z
+    pid = ns.PidController(axes=axes, Kp=60.0, Ki=0.0, Kd=0.8)
+    target = ns.Isometry3.from_translation(3.0, 2.0, 0.0)
+    for _ in range(200):
+        body = w.rigid_bodies[h]
+        corr = pid.rigid_body_correction(w.integration_parameters.dt, body, target)
+        body.linvel = body.linvel + corr.linear
+        w.step()
+    assert (w.rigid_bodies[h].translation - target.translation).norm() < 0.05
+
+
+def test_axes_mask_doc_is_3d_only(ns):
+    assert "2D" not in ns.AxesMask.__doc__
+
+
+# ---------------------------------------------------------------------------
+# KinematicCharacterController configuration and collision impulses.
+# ---------------------------------------------------------------------------
+
+
+def test_character_controller_none_disables_features(ns):
+    default = ns.KinematicCharacterController()
+    assert default.snap_to_ground == ns.CharacterLength.relative(0.2)
+    assert default.autostep is None
+
+    ctrl = ns.KinematicCharacterController(snap_to_ground=None, autostep=None)
+    assert ctrl.snap_to_ground is None
+    assert ctrl.autostep is None
+
+    ctrl = ns.KinematicCharacterController(snap_to_ground=0.3, autostep=ns.CharacterAutostep())
+    assert ctrl.snap_to_ground == ns.CharacterLength.absolute(0.3)
+    assert ctrl.autostep is not None
+
+
+def test_character_controller_repr(ns):
+    r = repr(ns.KinematicCharacterController())
+    assert "snap_to_ground=CharacterLength.relative(0.2)" in r
+    assert "offset=CharacterLength.relative(0.01)" in r
+    assert "autostep=None" in r
+    r = repr(ns.KinematicCharacterController(autostep=ns.CharacterAutostep(max_height=0.5)))
+    assert "CharacterAutostep(max_height=CharacterLength.absolute(0.5)" in r
+    assert "=set" not in r
+
+
+def _pushable_box_world(ns):
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0), auto_update_query=True)
+    w.add_body(
+        ns.RigidBody.fixed(translation=(0, -1.0, 0)),
+        colliders=[ns.Collider.cuboid(50, 1, 50)],
+    )
+    box = w.add_body(
+        ns.RigidBody.dynamic(translation=(1.0, 0.5, 0)),
+        colliders=[ns.Collider.cuboid(0.5, 0.5, 0.5)],
+    )
+    w.update_query_pipeline()
+    return w, box
+
+
+def _push_box(ns, w, filter, character_pos):
+    ctrl = ns.KinematicCharacterController(up=(0, 1, 0), slide=True)
+    shape = ns.SharedShape.ball(0.4)
+    pose = ns.Isometry3.from_translation(0.0, 0.45, 0.0)
+    collisions = []
+    ctrl.move_shape(
+        1.0 / 60.0,
+        w.rigid_bodies,
+        w.colliders,
+        w.query_pipeline,
+        shape,
+        pose,
+        (1.0, 0.0, 0.0),
+        filter,
+        events_callback=collisions.append,
+    )
+    assert collisions
+    ctrl.solve_character_collision_impulses(
+        1.0 / 60.0,
+        w.rigid_bodies,
+        w.colliders,
+        w.query_pipeline,
+        shape,
+        character_pos,
+        10.0,
+        collisions,
+        filter,
+    )
+    return collisions
+
+
+def test_character_collision_hit_alias(ns):
+    w, _ = _pushable_box_world(ns)
+    collisions = _push_box(ns, w, ns.QueryFilter(), None)
+    for c in collisions:
+        assert c.hit.time_of_impact == c.toi.time_of_impact
+        assert c.hit.normal1 == c.toi.normal1
+
+
+def test_solve_character_collision_impulses_honors_predicate(ns):
+    # Without a predicate the character pushes the box.
+    w, box = _pushable_box_world(ns)
+    pose = ns.Isometry3.from_translation(0.0, 0.45, 0.0)
+    _push_box(ns, w, ns.QueryFilter(), pose)
+    assert w.rigid_bodies[box].linvel.x > 0.0
+
+    # The predicate is evaluated on every collider, and can read it.
+    w, box = _pushable_box_world(ns)
+    seen = []
+    box_colliders = set(w.rigid_bodies[box].colliders)
+
+    def predicate(handle, collider):
+        seen.append(handle)
+        return collider.parent != box
+
+    impulse_filter = ns.QueryFilter(predicate=predicate)
+    # `move_shape` still collides with the box: only the impulses skip it.
+    ctrl = ns.KinematicCharacterController(up=(0, 1, 0), slide=True)
+    shape = ns.SharedShape.ball(0.4)
+    collisions = []
+    ctrl.move_shape(
+        1.0 / 60.0, None, None, w.query_pipeline, shape, pose, (1.0, 0.0, 0.0),
+        events_callback=collisions.append,
+    )
+    assert collisions
+    seen.clear()
+    ctrl.solve_character_collision_impulses(
+        1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline, shape, None, 10.0,
+        collisions, impulse_filter,
+    )
+    assert box_colliders <= set(seen)
+    assert w.rigid_bodies[box].linvel.x == 0.0
+
+    # Predicate errors propagate.
+    def failing(handle, collider):
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        ctrl.solve_character_collision_impulses(
+            1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline, shape, None, 10.0,
+            collisions, ns.QueryFilter(predicate=failing),
+        )
+
+
+def test_character_controller_rejects_foreign_sets(ns):
+    w, _ = _pushable_box_world(ns)
+    ctrl = ns.KinematicCharacterController()
+    shape = ns.SharedShape.ball(0.4)
+    pose = ns.Isometry3.from_translation(0.0, 0.45, 0.0)
+    # `None` is accepted for the unused sets.
+    mv = ctrl.move_shape(1.0 / 60.0, None, None, w.query_pipeline, shape, pose, (0.1, 0.0, 0.0))
+    assert isinstance(mv, ns.EffectiveCharacterMovement)
+    with pytest.raises(ValueError):
+        ctrl.move_shape(
+            1.0 / 60.0, ns.RigidBodySet(), w.colliders, w.query_pipeline, shape, pose,
+            (0.1, 0.0, 0.0),
+        )
+    with pytest.raises(ValueError):
+        ctrl.solve_character_collision_impulses(
+            1.0 / 60.0, w.rigid_bodies, ns.ColliderSet(), w.query_pipeline, shape, None,
+            1.0, [],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Vehicle wheels: world-space state, index errors, and query filters.
+# ---------------------------------------------------------------------------
+
+
+def _settled_vehicle(ns, filter=None, frames=120, steering=0.0):
+    w = ns.PhysicsWorld(gravity=(0, -9.81, 0), auto_update_query=True)
+    ground = w.add_body(
+        ns.RigidBody.fixed(translation=(0, -0.1, 0)),
+        colliders=[ns.Collider.cuboid(50, 0.1, 50)],
+    )
+    h, veh = _build_vehicle(ns, w)
+    veh.set_steering(0, steering)
+    for _ in range(frames):
+        w.step()
+        w.update_query_pipeline()
+        f = filter(ground) if callable(filter) else filter
+        veh.update_vehicle(1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline, f)
+    return w, h, veh
+
+
+def test_wheel_world_space_state(ns):
+    w, h, veh = _settled_vehicle(ns, steering=0.3)
+    chassis = w.rigid_bodies[h]
+    for i, wheel in enumerate(veh.wheels()):
+        info = wheel.raycast_info
+        assert info.is_in_contact
+        # The center lies along the suspension, below the hard point.
+        expected = info.hard_point_ws + wheel.suspension * info.suspension_length
+        assert (wheel.center - expected).norm() < 1e-4
+        assert wheel.center.y < chassis.translation.y
+        assert _vec_close(wheel.suspension, (0.0, -1.0, 0.0), 1e-2)
+        assert abs(wheel.axle.norm() - 1.0) < 1e-4
+        if i == 0:
+            # The steered axle turns around the vertical axis.
+            assert abs(wheel.axle.x) > 0.1
+        else:
+            assert _vec_close(wheel.axle, (0.0, 0.0, 1.0), 1e-2)
+    with pytest.raises(AttributeError):
+        veh.wheel(0).center = (0.0, 0.0, 0.0)
+
+
+def test_wheel_index_out_of_range_raises_index_error(ns):
+    w = ns.PhysicsWorld()
+    _, veh = _build_vehicle(ns, w)
+    for bad in (4, 100, -1):
+        with pytest.raises(IndexError):
+            veh.wheel(bad)
+        with pytest.raises(IndexError):
+            veh.set_brake(bad, 1.0)
+        with pytest.raises(IndexError):
+            veh.set_steering(bad, 1.0)
+        with pytest.raises(IndexError):
+            veh.apply_engine_force(bad, 1.0)
+
+
+def test_update_vehicle_honors_predicate(ns):
+    # A predicate rejecting the ground: the wheels find nothing and the vehicle falls.
+    def reject_ground(ground):
+        def predicate(handle, collider):
+            return collider.parent != ground
+
+        return ns.QueryFilter(predicate=predicate)
+
+    w, h, veh = _settled_vehicle(ns, reject_ground, frames=30)
+    assert not any(wheel.raycast_info.is_in_contact for wheel in veh.wheels())
+
+    # An accepting predicate keeps the default behaviour.
+    w, h, veh = _settled_vehicle(ns, ns.QueryFilter(predicate=lambda h, c: True))
+    assert all(wheel.raycast_info.is_in_contact for wheel in veh.wheels())
+    assert 0.25 < w.rigid_bodies[h].translation.y < 0.34
+
+    def failing(handle, collider):
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        veh.update_vehicle(
+            1.0 / 60.0, w.rigid_bodies, w.colliders, w.query_pipeline,
+            ns.QueryFilter(predicate=failing),
+        )
+
+
+def test_update_vehicle_excludes_chassis_with_other_body_exclusion(ns):
+    # Excluding another body must not make the wheels hit the chassis.
+    other = ns.RigidBodyHandle.invalid()
+    w, h, veh = _settled_vehicle(ns, ns.QueryFilter(exclude_rigid_body=other))
+    assert 0.25 < w.rigid_bodies[h].translation.y < 0.34
+    for wheel in veh.wheels():
+        assert wheel.raycast_info.ground_object not in set(w.rigid_bodies[h].colliders)
+
+
+def test_update_vehicle_rejects_foreign_sets(ns):
+    w = ns.PhysicsWorld()
+    _, veh = _build_vehicle(ns, w)
+    with pytest.raises(ValueError):
+        veh.update_vehicle(1.0 / 60.0, ns.RigidBodySet(), w.colliders, w.query_pipeline)

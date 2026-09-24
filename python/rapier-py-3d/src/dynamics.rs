@@ -15,7 +15,7 @@
 use crate::*;
 use rapier3d as rapier;
 
-use crate::pyo3::exceptions::{PyNotImplementedError, PyTypeError};
+use crate::pyo3::exceptions::{PyNotImplementedError, PyTypeError, PyValueError};
 use crate::pyo3::prelude::*;
 use crate::pyo3::pyclass::CompareOp;
 
@@ -145,8 +145,8 @@ impl RigidBodyHandle {
 ///   ``angvel`` each frame; pushes dynamic bodies, ignores contacts.
 /// - ``KINEMATIC_POSITION_BASED`` — animated by setting ``position``
 ///   each frame; pushes dynamic bodies, ignores contacts.
-#[pyclass(name = "RigidBodyType", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[pyclass(name = "RigidBodyType", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RigidBodyType {
     /// Fully simulated: responds to forces, gravity and contacts.
     DYNAMIC,
@@ -202,9 +202,16 @@ impl RigidBodyType {
 /// When two colliders touch, each has its own coefficient (friction or
 /// restitution) and a rule. The effective coefficient is derived by
 /// applying the combine rule of the *highest priority* among the two
-/// (``MAX > MULTIPLY > MIN > AVERAGE``).
-#[pyclass(name = "CoefficientCombineRule", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// (``GEOMETRIC_MEAN > CLAMPED_SUM > MAX > MULTIPLY > MIN > AVERAGE``).
+#[pyclass(
+    name = "CoefficientCombineRule",
+    module = "rapier",
+    eq,
+    eq_int,
+    hash,
+    frozen
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CoefficientCombineRule {
     /// Arithmetic mean of the two coefficients.
     AVERAGE,
@@ -366,33 +373,69 @@ impl RigidBodyActivation {
 // SpringCoefficients
 // ============================================================
 
-/// Soft-constraint spring parameters used for contact and joint
-/// regularization.
+/// Soft-constraint spring parameters used for contact, joint and soft-body regularization: a
+/// natural frequency (in Hz) and a damping ratio (unitless, ``1`` is critically damped).
 ///
-/// Internally Rapier converts ``stiffness`` (natural frequency, Hz)
-/// and ``damping`` (damping ratio, unitless, ``1`` = critical) to the
-/// effective spring/damper coefficients used by the solver. Defaults
-/// suitable for typical contacts and joints can be obtained via
+/// Rapier converts them to the effective spring/damper coefficients used by the solver.
+/// Defaults suitable for typical contacts and joints can be obtained via
 /// ``SpringCoefficients.contact_defaults()`` and
 /// ``SpringCoefficients.joint_defaults()``.
 #[pyclass(name = "SpringCoefficients", module = "rapier")]
 #[derive(Debug, Clone, Copy)]
 pub struct SpringCoefficients(pub rapier::dynamics::SpringCoefficients<Real>);
 
+/// Warns that a `SpringCoefficients` name is a deprecated alias.
+fn warn_spring_alias(py: Python<'_>, old: &str, new: &str) -> PyResult<()> {
+    PyErr::warn_bound(
+        py,
+        &py.get_type_bound::<crate::pyo3::exceptions::PyDeprecationWarning>(),
+        &format!("SpringCoefficients.{old} is deprecated, use {new}"),
+        1,
+    )
+}
+
 #[pymethods]
 impl SpringCoefficients {
-    /// Build a spring with the given natural frequency and damping
-    /// ratio.
+    /// Build a spring with the given natural frequency (Hz) and damping ratio; each one left
+    /// out takes its :meth:`contact_defaults` value (``30.0`` Hz and ``10.0``).
     ///
-    /// :param stiffness: natural frequency in Hz (default ``30.0``).
-    /// :param damping: damping ratio (default ``5.0``).
+    /// The ``stiffness`` and ``damping`` keywords are deprecated aliases of
+    /// ``natural_frequency`` and ``damping_ratio``.
     #[new]
-    #[pyo3(signature = (stiffness=30.0 as Real, damping=5.0 as Real))]
-    fn new(stiffness: Real, damping: Real) -> Self {
-        Self(rapier::dynamics::SpringCoefficients {
-            natural_frequency: stiffness,
-            damping_ratio: damping,
-        })
+    #[pyo3(signature = (natural_frequency=None, damping_ratio=None, *, stiffness=None, damping=None))]
+    fn new(
+        py: Python<'_>,
+        natural_frequency: Option<Real>,
+        damping_ratio: Option<Real>,
+        stiffness: Option<Real>,
+        damping: Option<Real>,
+    ) -> PyResult<Self> {
+        let defaults = rapier::dynamics::SpringCoefficients::<Real>::contact_defaults();
+        let pick = |value: Option<Real>, alias: Option<Real>, name: &str, old: &str| match (
+            value, alias,
+        ) {
+            (Some(_), Some(_)) => Err(PyTypeError::new_err(format!(
+                "SpringCoefficients: `{old}` is an alias of `{name}`; give only one of them"
+            ))),
+            (None, Some(v)) => {
+                warn_spring_alias(py, old, name)?;
+                Ok(Some(v))
+            }
+            (v, None) => Ok(v),
+        };
+        let natural_frequency = pick(
+            natural_frequency,
+            stiffness,
+            "natural_frequency",
+            "stiffness",
+        )?
+        .unwrap_or(defaults.natural_frequency);
+        let damping_ratio = pick(damping_ratio, damping, "damping_ratio", "damping")?
+            .unwrap_or(defaults.damping_ratio);
+        Ok(Self(rapier::dynamics::SpringCoefficients::new(
+            natural_frequency,
+            damping_ratio,
+        )))
     }
     /// Return the default spring coefficients used for contact
     /// regularization.
@@ -406,15 +449,17 @@ impl SpringCoefficients {
     fn joint_defaults() -> Self {
         Self(rapier::dynamics::SpringCoefficients::joint_defaults())
     }
-    /// Spring natural frequency (alias for ``natural_frequency``).
+    /// Deprecated alias of :attr:`natural_frequency`.
     #[getter]
-    fn stiffness(&self) -> Real {
-        self.0.natural_frequency
+    fn stiffness(&self, py: Python<'_>) -> PyResult<Real> {
+        warn_spring_alias(py, "stiffness", "natural_frequency")?;
+        Ok(self.0.natural_frequency)
     }
-    /// Set the natural frequency.
     #[setter]
-    fn set_stiffness(&mut self, v: Real) {
+    fn set_stiffness(&mut self, py: Python<'_>, v: Real) -> PyResult<()> {
+        warn_spring_alias(py, "stiffness", "natural_frequency")?;
         self.0.natural_frequency = v;
+        Ok(())
     }
     /// Natural frequency of the spring, in Hz.
     #[getter]
@@ -426,15 +471,17 @@ impl SpringCoefficients {
     fn set_natural_frequency(&mut self, v: Real) {
         self.0.natural_frequency = v;
     }
-    /// Damping ratio (alias for ``damping_ratio``).
+    /// Deprecated alias of :attr:`damping_ratio`.
     #[getter]
-    fn damping(&self) -> Real {
-        self.0.damping_ratio
+    fn damping(&self, py: Python<'_>) -> PyResult<Real> {
+        warn_spring_alias(py, "damping", "damping_ratio")?;
+        Ok(self.0.damping_ratio)
     }
-    /// Set the damping ratio.
     #[setter]
-    fn set_damping(&mut self, v: Real) {
+    fn set_damping(&mut self, py: Python<'_>, v: Real) -> PyResult<()> {
+        warn_spring_alias(py, "damping", "damping_ratio")?;
         self.0.damping_ratio = v;
+        Ok(())
     }
     /// Damping ratio (unitless, ``1.0`` is critically damped).
     #[getter]
@@ -448,7 +495,7 @@ impl SpringCoefficients {
     }
     fn __repr__(&self) -> String {
         format!(
-            "SpringCoefficients(stiffness={}, damping={})",
+            "SpringCoefficients(natural_frequency={}, damping_ratio={})",
             self.0.natural_frequency, self.0.damping_ratio
         )
     }
@@ -464,7 +511,7 @@ impl SpringCoefficients {
 /// The island manager is updated by ``PhysicsWorld.step`` each frame
 /// and is mainly used internally by the solver. Iterating the
 /// manager yields the handles of bodies that are awake this step.
-#[pyclass(name = "IslandManager", module = "rapier", unsendable)]
+#[pyclass(name = "IslandManager", module = "rapier")]
 pub struct IslandManager(pub rapier::dynamics::IslandManager);
 
 #[pymethods]
@@ -575,7 +622,7 @@ impl RigidBodyHandleIter {
 /// should rely on ``PhysicsWorld.step``, which manages a ``CCDSolver``
 /// internally; this class exists mainly to mirror the engine's
 /// structure.
-#[pyclass(name = "CCDSolver", module = "rapier", unsendable)]
+#[pyclass(name = "CCDSolver", module = "rapier")]
 pub struct CCDSolver(pub rapier::dynamics::CCDSolver);
 
 #[pymethods]
@@ -612,33 +659,43 @@ impl CCDSolver {
 // FrictionModel (3D only)
 // ============================================================
 
-/// Friction model used by the 3D contact solver.
+/// Friction model used by the contact solver between rigid bodies (multibodies always use
+/// ``COULOMB``).
 ///
-/// - ``COEFFICIENT`` — simplified pyramidal friction. Faster and
-///   numerically friendly; the default.
-/// - ``COULOMB`` — circular Coulomb friction cone. More physically
-///   correct, slightly more expensive.
-#[pyclass(name = "FrictionModel", module = "rapier", eq, eq_int)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// - ``SIMPLIFIED`` (the default): one Coulomb friction constraint per group of up to four
+///   contacts of a manifold, plus a rotational "twist" constraint. Much faster to solve, but
+///   less accurate. ``COEFFICIENT`` is a deprecated alias.
+/// - ``COULOMB``: one Coulomb friction constraint per contact point.
+#[pyclass(name = "FrictionModel", module = "rapier", eq, eq_int, hash, frozen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FrictionModel {
-    /// Cheap pyramidal approximation of the friction cone.
-    COEFFICIENT,
-    /// True circular Coulomb friction cone.
+    /// One friction constraint per group of contacts, plus a twist constraint (default).
+    SIMPLIFIED,
+    /// One Coulomb friction constraint per contact point.
     COULOMB,
+}
+
+#[pymethods]
+impl FrictionModel {
+    /// Deprecated alias of ``SIMPLIFIED``.
+    #[classattr]
+    fn COEFFICIENT() -> Self {
+        Self::SIMPLIFIED
+    }
 }
 
 impl FrictionModel {
     #[inline]
     pub(crate) fn to_rapier(self) -> rapier::dynamics::FrictionModel {
         match self {
-            Self::COEFFICIENT => rapier::dynamics::FrictionModel::Simplified,
+            Self::SIMPLIFIED => rapier::dynamics::FrictionModel::Simplified,
             Self::COULOMB => rapier::dynamics::FrictionModel::Coulomb,
         }
     }
     #[inline]
     pub(crate) fn from_rapier(r: rapier::dynamics::FrictionModel) -> Self {
         match r {
-            rapier::dynamics::FrictionModel::Simplified => Self::COEFFICIENT,
+            rapier::dynamics::FrictionModel::Simplified => Self::SIMPLIFIED,
             rapier::dynamics::FrictionModel::Coulomb => Self::COULOMB,
         }
     }
@@ -994,9 +1051,9 @@ impl RigidBodyVelocity {
 
 /// Accumulated external forces, torques and gravity scaling.
 ///
-/// ``force`` and ``torque`` accumulate over a single step and are
-/// cleared automatically before the next ``step()`` (unlike impulses,
-/// which act once instantaneously).
+/// ``force`` and ``torque`` are the user forces: they are not cleared by the
+/// simulation and keep being applied at every step until reset (unlike
+/// impulses, which act once instantaneously).
 #[pyclass(name = "RigidBodyForces", module = "rapier")]
 #[derive(Debug, Clone, Copy)]
 pub struct RigidBodyForces {
@@ -1217,14 +1274,21 @@ impl IntegrationParameters {
     fn set_dt(&mut self, v: Real) {
         self.0.dt = v;
     }
-    /// The settings shared by every soft body (a copy: assign it back to apply changes).
+    /// The settings shared by every soft body, as a live view: setting one of its fields
+    /// changes these parameters. Assigning a :class:`SoftBodiesSettings` replaces them all.
     #[getter]
-    fn soft_bodies(&self) -> crate::soft_body::SoftBodiesSettings {
-        crate::soft_body::SoftBodiesSettings(self.0.soft_bodies)
+    fn soft_bodies(slf: &Bound<'_, Self>) -> crate::soft_body::SoftBodiesSettings {
+        crate::soft_body::SoftBodiesSettings::in_params(slf.clone().unbind())
     }
     #[setter]
-    fn set_soft_bodies(&mut self, v: &crate::soft_body::SoftBodiesSettings) {
-        self.0.soft_bodies = v.0;
+    fn set_soft_bodies(
+        slf: &Bound<'_, Self>,
+        v: &Bound<'_, crate::soft_body::SoftBodiesSettings>,
+    ) -> PyResult<()> {
+        // Read the value first: `v` may be a view of these very parameters.
+        let value = v.try_borrow()?.get()?;
+        slf.try_borrow_mut()?.0.soft_bodies = value;
+        Ok(())
     }
     /// Minimum substep length used by CCD, in seconds.
     #[getter]
@@ -1397,12 +1461,38 @@ impl IntegrationParameters {
         self.0.static_contact_softness = v.0;
     }
 
-    /// 3D friction model used by the contact solver.
+    /// If ``True``, friction is also solved during the biased (position-correcting) pass of
+    /// each substep instead of only during the unbiased one (default: ``False``). Leaving it off
+    /// makes contacts cheaper and keeps tall stacks stable.
+    #[getter]
+    fn friction_in_bias_pass(&self) -> bool {
+        self.0.friction_in_bias_pass
+    }
+    /// Solve friction during the biased pass too.
+    #[setter]
+    fn set_friction_in_bias_pass(&mut self, v: bool) {
+        self.0.friction_in_bias_pass = v;
+    }
+    /// If ``True``, the impulse joints are warm-started like contacts: the impulses of the
+    /// previous step, scaled by :attr:`warmstart_coefficient`, are re-applied at the start of
+    /// each substep (default: ``False``). Improves the convergence of stiff joint assemblies;
+    /// multibody joints are unaffected.
+    #[getter]
+    fn warmstart_joints(&self) -> bool {
+        self.0.warmstart_joints
+    }
+    /// Enable or disable the warm-starting of the impulse joints.
+    #[setter]
+    fn set_warmstart_joints(&mut self, v: bool) {
+        self.0.warmstart_joints = v;
+    }
+
+    /// Friction model used by the contact solver (see :class:`FrictionModel`).
     #[getter]
     fn friction_model(&self) -> FrictionModel {
         FrictionModel::from_rapier(self.0.friction_model)
     }
-    /// Set the 3D friction model.
+    /// Set the friction model.
     #[setter]
     fn set_friction_model(&mut self, v: FrictionModel) {
         self.0.friction_model = v.to_rapier();
@@ -1534,40 +1624,39 @@ impl RigidBody {
 
     /// Run `f` with a shared reference to the underlying body. For an
     /// `InSet` view this briefly borrows the set; a stale handle (body
-    /// already removed) panics, surfacing as a Python exception.
-    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::RigidBody) -> R) -> R {
+    /// already removed) raises `InvalidHandle`.
+    fn with_ref<R>(&self, f: impl FnOnce(&rapier::dynamics::RigidBody) -> R) -> PyResult<R> {
         match &self.backing {
-            RigidBodyBacking::Owned(b) => f(b),
+            RigidBodyBacking::Owned(b) => Ok(f(b)),
             RigidBodyBacking::InSet { set, handle } => Python::with_gil(|py| {
-                let set = set.bind(py).borrow();
-                let body = set
-                    .0
-                    .get(*handle)
-                    .expect("RigidBody refers to a body that was removed from its set");
-                f(body)
+                RigidBodySet::read(set.bind(py), |set| set.get(*handle).map(f))?
+                    .ok_or_else(|| crate::errors::stale_view("RigidBody"))
             }),
         }
     }
 
     /// Run `f` with a mutable reference to the underlying body, writing
     /// straight through to the set for an `InSet` view.
-    fn with_mut<R>(&mut self, f: impl FnOnce(&mut rapier::dynamics::RigidBody) -> R) -> R {
+    fn with_mut<R>(
+        &mut self,
+        f: impl FnOnce(&mut rapier::dynamics::RigidBody) -> R,
+    ) -> PyResult<R> {
         match &mut self.backing {
-            RigidBodyBacking::Owned(b) => f(b),
+            RigidBodyBacking::Owned(b) => Ok(f(b)),
             RigidBodyBacking::InSet { set, handle } => Python::with_gil(|py| {
-                let mut set = set.bind(py).borrow_mut();
+                let mut set = crate::errors::try_borrow_mut(set.bind(py))?;
                 let body = set
                     .0
                     .get_mut(*handle)
-                    .expect("RigidBody refers to a body that was removed from its set");
-                f(body)
+                    .ok_or_else(|| crate::errors::stale_view("RigidBody"))?;
+                Ok(f(body))
             }),
         }
     }
 
     /// Clone the underlying body out (used by `insert` and by callers
     /// that need an owned `&rapier::RigidBody`).
-    pub fn to_owned_body(&self) -> rapier::dynamics::RigidBody {
+    pub fn to_owned_body(&self) -> PyResult<rapier::dynamics::RigidBody> {
         self.with_ref(|b| b.clone())
     }
 }
@@ -1578,7 +1667,7 @@ impl RigidBody {
 
     /// World-space pose of the body (read+write).
     #[getter]
-    fn position(&self) -> Isometry3 {
+    fn position(&self) -> PyResult<Isometry3> {
         self.with_ref(|b| {
             let r = b.position();
             let na_iso: crate::na::Isometry<Real, _, 3> = (*r).into();
@@ -1588,14 +1677,15 @@ impl RigidBody {
     /// Teleport the body to ``p`` (wakes it). Use sparingly on
     /// dynamic bodies as this bypasses the integrator.
     #[setter]
-    fn set_position(&mut self, p: PyIsometry) {
+    fn set_position(&mut self, p: PyIsometry) -> PyResult<()> {
         let g: rapier::math::Pose = p.0.into();
-        self.with_mut(|b| b.set_position(g, true));
+        self.with_mut(|b| b.set_position(g, true))?;
+        Ok(())
     }
 
     /// Translation portion of the pose (read+write).
     #[getter]
-    fn translation(&self) -> Vec3 {
+    fn translation(&self) -> PyResult<Vec3> {
         self.with_ref(|b| {
             let v: crate::na::SVector<Real, 3> = b.translation().into();
             Vec3(v)
@@ -1603,14 +1693,15 @@ impl RigidBody {
     }
     /// Set the translation, leaving the rotation unchanged.
     #[setter]
-    fn set_translation(&mut self, v: PyVector) {
+    fn set_translation(&mut self, v: PyVector) -> PyResult<()> {
         let g: rapier::math::Vector = v.0.into();
-        self.with_mut(|b| b.set_translation(g, true));
+        self.with_mut(|b| b.set_translation(g, true))?;
+        Ok(())
     }
 
     /// Rotation portion of the pose (read+write).
     #[getter]
-    fn rotation(&self) -> Rotation3 {
+    fn rotation(&self) -> PyResult<Rotation3> {
         self.with_ref(|b| {
             let r = *b.rotation();
             Rotation3(r.into())
@@ -1618,14 +1709,15 @@ impl RigidBody {
     }
     /// Set the rotation, leaving the translation unchanged.
     #[setter]
-    fn set_rotation(&mut self, r: PyRotation) {
+    fn set_rotation(&mut self, r: PyRotation) -> PyResult<()> {
         let g: rapier::math::Rotation = r.0.into();
-        self.with_mut(|b| b.set_rotation(g, true));
+        self.with_mut(|b| b.set_rotation(g, true))?;
+        Ok(())
     }
 
     /// Linear velocity in world space (read+write).
     #[getter]
-    fn linvel(&self) -> Vec3 {
+    fn linvel(&self) -> PyResult<Vec3> {
         self.with_ref(|b| {
             let v: crate::na::SVector<Real, 3> = b.linvel().into();
             Vec3(v)
@@ -1633,35 +1725,36 @@ impl RigidBody {
     }
     /// Set the linear velocity (wakes the body).
     #[setter]
-    fn set_linvel(&mut self, v: PyVector) {
+    fn set_linvel(&mut self, v: PyVector) -> PyResult<()> {
         let g: rapier::math::Vector = v.0.into();
-        self.with_mut(|b| b.set_linvel(g, true));
+        self.with_mut(|b| b.set_linvel(g, true))?;
+        Ok(())
     }
 
     /// Total mass of the body (colliders + additional) (read-only).
     #[getter]
-    fn mass(&self) -> Real {
+    fn mass(&self) -> PyResult<Real> {
         self.with_ref(|b| b.mass())
     }
     /// Inverse mass — ``0`` for fixed or infinite-mass bodies
     /// (read-only).
     #[getter]
-    fn inv_mass(&self) -> Real {
+    fn inv_mass(&self) -> PyResult<Real> {
         self.with_ref(|b| b.mass_properties().local_mprops.inv_mass)
     }
 
     /// Center of mass in world space (read-only).
     #[getter]
-    fn center_of_mass(&self) -> Point3 {
-        let v: crate::na::SVector<Real, 3> = self.with_ref(|b| b.center_of_mass()).into();
-        Point3(crate::na::Point::from(v))
+    fn center_of_mass(&self) -> PyResult<Point3> {
+        let v: crate::na::SVector<Real, 3> = self.with_ref(|b| b.center_of_mass())?.into();
+        Ok(Point3(crate::na::Point::from(v)))
     }
 
     /// Center of mass in body-local space (read-only).
     #[getter]
-    fn local_center_of_mass(&self) -> Point3 {
-        let v: crate::na::SVector<Real, 3> = self.with_ref(|b| b.local_center_of_mass()).into();
-        Point3(crate::na::Point::from(v))
+    fn local_center_of_mass(&self) -> PyResult<Point3> {
+        let v: crate::na::SVector<Real, 3> = self.with_ref(|b| b.local_center_of_mass())?.into();
+        Ok(Point3(crate::na::Point::from(v)))
     }
 
     /// Body-local mass properties (read-only).
@@ -1670,140 +1763,143 @@ impl RigidBody {
     /// ``set_additional_mass_properties`` or
     /// ``recompute_mass_properties_from_colliders``.
     #[getter]
-    fn mass_properties(&self) -> MassProperties {
+    fn mass_properties(&self) -> PyResult<MassProperties> {
         self.with_ref(|b| MassProperties(b.mass_properties().local_mprops))
     }
 
     /// Behavior class of the body (dynamic/fixed/kinematic)
     /// (read+write).
     #[getter]
-    fn body_type(&self) -> RigidBodyType {
-        RigidBodyType::from_rapier(self.with_ref(|b| b.body_type()))
+    fn body_type(&self) -> PyResult<RigidBodyType> {
+        Ok(RigidBodyType::from_rapier(
+            self.with_ref(|b| b.body_type())?,
+        ))
     }
     /// Change the body's behavior class.
     #[setter]
-    fn set_body_type(&mut self, t: RigidBodyType) {
+    fn set_body_type(&mut self, t: RigidBodyType) -> PyResult<()> {
         let rt = t.to_rapier();
-        self.with_mut(|b| b.set_body_type(rt, true));
+        self.with_mut(|b| b.set_body_type(rt, true))?;
+        Ok(())
     }
 
     /// Multiplier applied to the world gravity for this body
     /// (read+write). ``0`` disables gravity for the body.
     #[getter]
-    fn gravity_scale(&self) -> Real {
+    fn gravity_scale(&self) -> PyResult<Real> {
         self.with_ref(|b| b.gravity_scale())
     }
     /// Set the gravity scale.
     #[setter]
-    fn set_gravity_scale(&mut self, v: Real) {
-        self.with_mut(|b| b.set_gravity_scale(v, true));
+    fn set_gravity_scale(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|b| b.set_gravity_scale(v, true))
     }
 
     /// Per-second linear-velocity damping coefficient (read+write).
     #[getter]
-    fn linear_damping(&self) -> Real {
+    fn linear_damping(&self) -> PyResult<Real> {
         self.with_ref(|b| b.linear_damping())
     }
     /// Set the linear damping coefficient.
     #[setter]
-    fn set_linear_damping(&mut self, v: Real) {
-        self.with_mut(|b| b.set_linear_damping(v));
+    fn set_linear_damping(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|b| b.set_linear_damping(v))
     }
 
     /// Per-second angular-velocity damping coefficient (read+write).
     #[getter]
-    fn angular_damping(&self) -> Real {
+    fn angular_damping(&self) -> PyResult<Real> {
         self.with_ref(|b| b.angular_damping())
     }
     /// Set the angular damping coefficient.
     #[setter]
-    fn set_angular_damping(&mut self, v: Real) {
-        self.with_mut(|b| b.set_angular_damping(v));
+    fn set_angular_damping(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|b| b.set_angular_damping(v))
     }
 
     /// Dominance group of the body (read+write); see
     /// ``RigidBodyDominance``.
     #[getter]
-    fn dominance_group(&self) -> i8 {
+    fn dominance_group(&self) -> PyResult<i8> {
         self.with_ref(|b| b.dominance_group())
     }
     /// Set the dominance group (``[-127, 127]``).
     #[setter]
-    fn set_dominance_group(&mut self, v: i8) {
-        self.with_mut(|b| b.set_dominance_group(v));
+    fn set_dominance_group(&mut self, v: i8) -> PyResult<()> {
+        self.with_mut(|b| b.set_dominance_group(v))
     }
 
     /// Extra solver iterations spent on this body's island
     /// (read+write). ``0`` keeps the global default.
     #[getter]
-    fn additional_solver_iterations(&self) -> usize {
+    fn additional_solver_iterations(&self) -> PyResult<usize> {
         self.with_ref(|b| b.additional_solver_iterations())
     }
     /// Extra internal PGS iterations run per substep for the island component containing
     /// this body (default ``0``); the component runs the largest request.
     #[getter]
-    fn additional_pgs_iterations(&self) -> usize {
+    fn additional_pgs_iterations(&self) -> PyResult<usize> {
         self.with_ref(|b| b.additional_pgs_iterations())
     }
     #[setter]
-    fn set_additional_pgs_iterations(&mut self, v: usize) {
+    fn set_additional_pgs_iterations(&mut self, v: usize) -> PyResult<()> {
         self.with_mut(|b| b.set_additional_pgs_iterations(v))
     }
     /// Is this body the proxy of a soft-body cluster?
     #[getter]
-    fn is_soft_frame(&self) -> bool {
+    fn is_soft_frame(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_soft_frame())
     }
     /// The soft body this body is a cluster proxy of, if any.
     #[getter]
-    fn soft_body(&self) -> Option<crate::soft_body::SoftBodyHandle> {
+    fn soft_body(&self) -> PyResult<Option<crate::soft_body::SoftBodyHandle>> {
         self.with_ref(|b| b.soft_body().map(crate::soft_body::SoftBodyHandle))
     }
     /// The index of the cluster this proxy stands for in its soft body, if any.
     #[getter]
-    fn soft_cluster(&self) -> Option<u32> {
+    fn soft_cluster(&self) -> PyResult<Option<u32>> {
         self.with_ref(|b| b.soft_cluster())
     }
     /// Set the number of additional solver iterations.
     #[setter]
-    fn set_additional_solver_iterations(&mut self, v: usize) {
-        self.with_mut(|b| b.set_additional_solver_iterations(v));
+    fn set_additional_solver_iterations(&mut self, v: usize) -> PyResult<()> {
+        self.with_mut(|b| b.set_additional_solver_iterations(v))
     }
 
     /// Currently locked degrees of freedom (read+write).
     #[getter]
-    fn locked_axes(&self) -> LockedAxes {
-        LockedAxes(self.with_ref(|b| b.locked_axes()))
+    fn locked_axes(&self) -> PyResult<LockedAxes> {
+        Ok(LockedAxes(self.with_ref(|b| b.locked_axes())?))
     }
     /// Replace the locked axes flag set (wakes the body).
     #[setter]
-    fn set_locked_axes(&mut self, v: LockedAxes) {
-        self.with_mut(|b| b.set_locked_axes(v.0, true));
+    fn set_locked_axes(&mut self, v: LockedAxes) -> PyResult<()> {
+        self.with_mut(|b| b.set_locked_axes(v.0, true))
     }
 
     /// Whether the body is currently sleeping (read-only).
     #[getter]
-    fn is_sleeping(&self) -> bool {
+    fn is_sleeping(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_sleeping())
     }
     /// Whether the body is currently moving (read-only).
     #[getter]
-    fn is_moving(&self) -> bool {
+    fn is_moving(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_moving())
     }
     /// Whether the body is dynamic (read-only).
     #[getter]
-    fn is_dynamic(&self) -> bool {
+    fn is_dynamic(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_dynamic())
     }
     /// Whether the body is kinematic (either variant) (read-only).
     #[getter]
-    fn is_kinematic(&self) -> bool {
+    fn is_kinematic(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_kinematic())
     }
     /// Whether the body is fixed (read-only).
     #[getter]
-    fn is_fixed(&self) -> bool {
+    fn is_fixed(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_fixed())
     }
 
@@ -1811,77 +1907,94 @@ impl RigidBody {
     ///
     /// A disabled body is fully skipped by the solver and queries.
     #[getter]
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_enabled())
     }
     /// Enable or disable the body.
     #[setter]
-    fn set_is_enabled(&mut self, v: bool) {
-        self.with_mut(|b| b.set_enabled(v));
+    fn set_is_enabled(&mut self, v: bool) -> PyResult<()> {
+        self.with_mut(|b| b.set_enabled(v))
     }
 
     /// Whether substep CCD is enabled for this body (read+write).
     #[getter]
-    fn ccd_enabled(&self) -> bool {
+    fn ccd_enabled(&self) -> PyResult<bool> {
         self.with_ref(|b| b.is_ccd_enabled())
     }
     /// Enable or disable substep CCD for this body.
     #[setter]
-    fn set_ccd_enabled(&mut self, v: bool) {
-        self.with_mut(|b| b.enable_ccd(v));
+    fn set_ccd_enabled(&mut self, v: bool) -> PyResult<()> {
+        self.with_mut(|b| b.enable_ccd(v))
     }
 
     /// Soft-CCD prediction distance (read+write); ``0`` disables it.
     #[getter]
-    fn soft_ccd_prediction(&self) -> Real {
+    fn soft_ccd_prediction(&self) -> PyResult<Real> {
         self.with_ref(|b| b.soft_ccd_prediction())
     }
     /// Set the soft-CCD prediction distance.
     #[setter]
-    fn set_soft_ccd_prediction(&mut self, v: Real) {
-        self.with_mut(|b| b.set_soft_ccd_prediction(v));
+    fn set_soft_ccd_prediction(&mut self, v: Real) -> PyResult<()> {
+        self.with_mut(|b| b.set_soft_ccd_prediction(v))
+    }
+
+    /// Whether this body may exceed the angular speed cap (read+write).
+    ///
+    /// By default the angular velocity is clamped at each substep (about 45 degrees per
+    /// substep) to keep CCD reliable; enable this for bodies that must spin fast, e.g. wheels.
+    #[getter]
+    fn allow_fast_rotation(&self) -> PyResult<bool> {
+        self.with_ref(|b| b.is_fast_rotation_allowed())
+    }
+    /// Allow or disallow this body to exceed the angular speed cap.
+    #[setter]
+    fn set_allow_fast_rotation(&mut self, v: bool) -> PyResult<()> {
+        self.with_mut(|b| b.set_allow_fast_rotation(v))?;
+        Ok(())
     }
 
     /// Application-defined ``u128`` payload attached to this body
     /// (read+write).
     #[getter]
-    fn user_data(&self) -> u128 {
+    fn user_data(&self) -> PyResult<u128> {
         self.with_ref(|b| b.user_data)
     }
     /// Set the application-defined payload.
     #[setter]
-    fn set_user_data(&mut self, v: u128) {
-        self.with_mut(|b| b.user_data = v);
+    fn set_user_data(&mut self, v: u128) -> PyResult<()> {
+        self.with_mut(|b| b.user_data = v)
     }
 
-    /// Force accumulated by user calls during the current step
-    /// (read-only). Cleared automatically before the next step.
+    /// Force accumulated by ``add_force`` / ``add_force_at_point`` (read-only).
+    ///
+    /// It is not cleared by the simulation: it keeps being applied at every step until
+    /// ``reset_forces`` is called. Always zero for non-dynamic bodies.
     #[getter]
-    fn user_force(&self) -> Vec3 {
-        let v: crate::na::SVector<Real, 3> = self.with_ref(|b| b.user_force()).into();
-        Vec3(v)
+    fn user_force(&self) -> PyResult<Vec3> {
+        let v: crate::na::SVector<Real, 3> = self.with_ref(|b| b.user_force())?.into();
+        Ok(Vec3(v))
     }
 
     /// Handles of all colliders attached to this body (read-only).
     #[getter]
-    fn colliders(&self) -> Vec<ColliderHandle> {
+    fn colliders(&self) -> PyResult<Vec<ColliderHandle>> {
         self.with_ref(|b| b.colliders().iter().copied().map(ColliderHandle).collect())
     }
 
     /// Activation / sleep state of this body (read+write).
     #[getter]
-    fn activation(&self) -> RigidBodyActivation {
+    fn activation(&self) -> PyResult<RigidBodyActivation> {
         self.with_ref(|b| RigidBodyActivation(*b.activation()))
     }
     /// Replace the activation state.
     #[setter]
-    fn set_activation(&mut self, v: RigidBodyActivation) {
-        self.with_mut(|b| *b.activation_mut() = v.0);
+    fn set_activation(&mut self, v: RigidBodyActivation) -> PyResult<()> {
+        self.with_mut(|b| *b.activation_mut() = v.0)
     }
 
     /// Predicted world-space pose after the next step (read-only).
     #[getter]
-    fn next_position(&self) -> Isometry3 {
+    fn next_position(&self) -> PyResult<Isometry3> {
         self.with_ref(|b| {
             let p: crate::na::Isometry<Real, _, 3> = (*b.next_position()).into();
             Isometry3(p)
@@ -1890,33 +2003,42 @@ impl RigidBody {
 
     // ---- mutating methods ----
 
-    /// Accumulate a force to be applied during the next step.
+    /// Add a persistent force to this body.
     ///
-    /// Forces accumulate over the step and are cleared automatically
-    /// before the next ``step()``. Use ``apply_impulse`` for an
-    /// instantaneous velocity change.
+    /// Successive calls accumulate, and the force is not cleared by the simulation: it keeps
+    /// being applied at every step until ``reset_forces`` is called (call it after stepping to
+    /// apply a force for a single step). Use ``apply_impulse`` for an instantaneous velocity
+    /// change. Only affects dynamic bodies.
     ///
     /// :param force: force vector in world space.
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (force, wake_up=true))]
-    fn add_force(&mut self, force: PyVector, wake_up: bool) {
+    fn add_force(&mut self, force: PyVector, wake_up: bool) -> PyResult<()> {
         let g: rapier::math::Vector = force.0.into();
-        self.with_mut(|b| b.add_force(g, wake_up));
+        self.with_mut(|b| b.add_force(g, wake_up))?;
+        Ok(())
     }
 
-    /// Accumulate a force applied at a given world-space point.
+    /// Add a persistent force applied at a given world-space point.
     ///
     /// Equivalent to applying ``force`` at the body's center of mass
-    /// plus a torque ``(point - com) × force``.
+    /// plus a torque ``(point - com) × force``. Like ``add_force``, both
+    /// persist until ``reset_forces`` / ``reset_torques`` are called.
     ///
     /// :param force: force vector in world space.
     /// :param point: application point in world space.
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (force, point, wake_up=true))]
-    fn add_force_at_point(&mut self, force: PyVector, point: PyPoint, wake_up: bool) {
+    fn add_force_at_point(
+        &mut self,
+        force: PyVector,
+        point: PyPoint,
+        wake_up: bool,
+    ) -> PyResult<()> {
         let f: rapier::math::Vector = force.0.into();
         let p: rapier::math::Vector = point.0.coords.into();
-        self.with_mut(|b| b.add_force_at_point(f, p, wake_up));
+        self.with_mut(|b| b.add_force_at_point(f, p, wake_up))?;
+        Ok(())
     }
 
     /// Apply an instantaneous linear impulse (units: ``N·s``).
@@ -1924,9 +2046,10 @@ impl RigidBody {
     /// :param impulse: impulse vector in world space.
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (impulse, wake_up=true))]
-    fn apply_impulse(&mut self, impulse: PyVector, wake_up: bool) {
+    fn apply_impulse(&mut self, impulse: PyVector, wake_up: bool) -> PyResult<()> {
         let g: rapier::math::Vector = impulse.0.into();
-        self.with_mut(|b| b.apply_impulse(g, wake_up));
+        self.with_mut(|b| b.apply_impulse(g, wake_up))?;
+        Ok(())
     }
 
     /// Apply an instantaneous impulse at a given world-space point.
@@ -1935,25 +2058,31 @@ impl RigidBody {
     /// :param point: application point in world space.
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (impulse, point, wake_up=true))]
-    fn apply_impulse_at_point(&mut self, impulse: PyVector, point: PyPoint, wake_up: bool) {
+    fn apply_impulse_at_point(
+        &mut self,
+        impulse: PyVector,
+        point: PyPoint,
+        wake_up: bool,
+    ) -> PyResult<()> {
         let imp: rapier::math::Vector = impulse.0.into();
         let p: rapier::math::Vector = point.0.coords.into();
-        self.with_mut(|b| b.apply_impulse_at_point(imp, p, wake_up));
+        self.with_mut(|b| b.apply_impulse_at_point(imp, p, wake_up))?;
+        Ok(())
     }
 
-    /// Clear any accumulated forces on this body.
+    /// Clear the forces added with ``add_force`` / ``add_force_at_point``.
     ///
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (wake_up=true))]
-    fn reset_forces(&mut self, wake_up: bool) {
-        self.with_mut(|b| b.reset_forces(wake_up));
+    fn reset_forces(&mut self, wake_up: bool) -> PyResult<()> {
+        self.with_mut(|b| b.reset_forces(wake_up))
     }
-    /// Clear any accumulated torques on this body.
+    /// Clear the torques added with ``add_torque`` / ``add_force_at_point``.
     ///
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (wake_up=true))]
-    fn reset_torques(&mut self, wake_up: bool) {
-        self.with_mut(|b| b.reset_torques(wake_up));
+    fn reset_torques(&mut self, wake_up: bool) -> PyResult<()> {
+        self.with_mut(|b| b.reset_torques(wake_up))
     }
 
     /// Wake the body, allowing it to participate in the next step.
@@ -1961,12 +2090,12 @@ impl RigidBody {
     /// :param strong: if ``True`` (default), reset the sleep timer
     ///     so the body stays awake longer before re-sleeping.
     #[pyo3(signature = (strong=true))]
-    fn wake_up(&mut self, strong: bool) {
-        self.with_mut(|b| b.wake_up(strong));
+    fn wake_up(&mut self, strong: bool) -> PyResult<()> {
+        self.with_mut(|b| b.wake_up(strong))
     }
     /// Put the body to sleep immediately.
-    fn sleep(&mut self) {
-        self.with_mut(|b| b.sleep());
+    fn sleep(&mut self) -> PyResult<()> {
+        self.with_mut(|b| b.sleep())
     }
 
     /// World-space velocity at the given world-space point.
@@ -1975,17 +2104,17 @@ impl RigidBody {
     /// ``v_point = linvel + angvel × (point - com)``.
     ///
     /// :param point: world-space point.
-    fn velocity_at_point(&self, point: PyPoint) -> Vec3 {
+    fn velocity_at_point(&self, point: PyPoint) -> PyResult<Vec3> {
         let p: rapier::math::Vector = point.0.coords.into();
-        let v: crate::na::SVector<Real, 3> = self.with_ref(|b| b.velocity_at_point(p)).into();
-        Vec3(v)
+        let v: crate::na::SVector<Real, 3> = self.with_ref(|b| b.velocity_at_point(p))?.into();
+        Ok(Vec3(v))
     }
 
     /// Kinetic energy of the body.
     ///
     /// :returns: :math:`E_k = \\tfrac{1}{2} m \\|v\\|^2 +
     ///     \\tfrac{1}{2} \\omega^\\top I \\omega`.
-    fn kinetic_energy(&self) -> Real {
+    fn kinetic_energy(&self) -> PyResult<Real> {
         self.with_ref(|b| b.kinetic_energy())
     }
 
@@ -1996,7 +2125,7 @@ impl RigidBody {
     ///     :math:`\\mathbf{p}` is the predicted position.
     /// :param dt: integration step in seconds.
     /// :param gravity: gravity vector in world space.
-    fn gravitational_potential_energy(&self, dt: Real, gravity: PyVector) -> Real {
+    fn gravitational_potential_energy(&self, dt: Real, gravity: PyVector) -> PyResult<Real> {
         let g: rapier::math::Vector = gravity.0.into();
         self.with_ref(|b| b.gravitational_potential_energy(dt, g))
     }
@@ -2006,11 +2135,11 @@ impl RigidBody {
     /// is not modified.
     ///
     /// :param dt: prediction horizon in seconds.
-    fn predict_position_using_velocity(&self, dt: Real) -> Isometry3 {
+    fn predict_position_using_velocity(&self, dt: Real) -> PyResult<Isometry3> {
         let p: crate::na::Isometry<Real, _, 3> = self
-            .with_ref(|b| b.predict_position_using_velocity(dt))
+            .with_ref(|b| b.predict_position_using_velocity(dt))?
             .into();
-        Isometry3(p)
+        Ok(Isometry3(p))
     }
 
     /// Predict the body's pose after ``dt`` seconds using its
@@ -2018,7 +2147,7 @@ impl RigidBody {
     /// integrating (the body is not modified).
     ///
     /// :param dt: prediction horizon in seconds.
-    fn predict_position_using_velocity_and_forces(&self, dt: Real) -> Isometry3 {
+    fn predict_position_using_velocity_and_forces(&self, dt: Real) -> PyResult<Isometry3> {
         self.with_ref(|b| {
             let p: crate::na::Isometry<Real, _, 3> =
                 b.predict_position_using_velocity_and_forces(dt).into();
@@ -2035,8 +2164,11 @@ impl RigidBody {
     ///
     /// :param colliders: the ``ColliderSet`` holding this body's
     ///     colliders.
-    fn recompute_mass_properties_from_colliders(&mut self, colliders: &ColliderSet) {
-        self.with_mut(|b| b.recompute_mass_properties_from_colliders(&colliders.0));
+    fn recompute_mass_properties_from_colliders(
+        &mut self,
+        colliders: &ColliderSet,
+    ) -> PyResult<()> {
+        self.with_mut(|b| b.recompute_mass_properties_from_colliders(&colliders.0))
     }
 
     /// Add ``mass`` on top of the colliders' contribution.
@@ -2044,8 +2176,8 @@ impl RigidBody {
     /// :param mass: extra mass to add.
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (mass, wake_up=true))]
-    fn set_additional_mass(&mut self, mass: Real, wake_up: bool) {
-        self.with_mut(|b| b.set_additional_mass(mass, wake_up));
+    fn set_additional_mass(&mut self, mass: Real, wake_up: bool) -> PyResult<()> {
+        self.with_mut(|b| b.set_additional_mass(mass, wake_up))
     }
 
     /// Add full mass properties on top of the colliders'
@@ -2054,29 +2186,78 @@ impl RigidBody {
     /// :param mp: extra mass properties.
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (mp, wake_up=true))]
-    fn set_additional_mass_properties(&mut self, mp: &MassProperties, wake_up: bool) {
-        self.with_mut(|b| b.set_additional_mass_properties(mp.0, wake_up));
+    fn set_additional_mass_properties(
+        &mut self,
+        mp: &MassProperties,
+        wake_up: bool,
+    ) -> PyResult<()> {
+        self.with_mut(|b| b.set_additional_mass_properties(mp.0, wake_up))
     }
 
-    /// Convenience for accumulating ``gravity * mass`` as a force
-    /// during the current step (useful when stepping with gravity
-    /// disabled globally).
+    /// Add ``gravity * mass`` to this body's persistent force (see ``add_force``).
+    ///
+    /// Useful for a body with a custom gravity while the world gravity is zero. Like any
+    /// force added with ``add_force``, it keeps applying at every step until
+    /// ``reset_forces`` is called.
     ///
     /// :param gravity: gravity acceleration vector.
-    fn add_gravitational_force(&mut self, gravity: PyVector) {
-        // Add gravity * mass as a force.
+    /// :param wake_up: if ``True`` (default), wake the body up.
+    #[pyo3(signature = (gravity, wake_up=true))]
+    fn add_gravitational_force(&mut self, gravity: PyVector, wake_up: bool) -> PyResult<()> {
         let g: rapier::math::Vector = gravity.0.into();
-        let m = self.with_ref(|b| b.mass());
-        self.with_mut(|b| b.add_force(g * m, true));
+        self.with_mut(|b| {
+            let m = b.mass();
+            b.add_force(g * m, wake_up)
+        })?;
+        Ok(())
     }
 
-    fn __repr__(&self) -> String {
-        let p = self.with_ref(|b| b.translation());
-        format!(
+    /// Set the translation a position-based kinematic body will reach at the next step.
+    ///
+    /// Only affects ``KINEMATIC_POSITION_BASED`` bodies. The body is not moved right away:
+    /// its velocity is deduced from this target at the next step, which then moves it there
+    /// (pushing the dynamic bodies on its way). The target is readable from
+    /// ``next_position``.
+    ///
+    /// :param translation: world-space translation to reach.
+    fn set_next_kinematic_translation(&mut self, translation: PyVector) -> PyResult<()> {
+        let g: rapier::math::Vector = translation.0.into();
+        self.with_mut(|b| b.set_next_kinematic_translation(g))?;
+        Ok(())
+    }
+
+    /// Set the rotation a position-based kinematic body will reach at the next step.
+    ///
+    /// Only affects ``KINEMATIC_POSITION_BASED`` bodies; its angular velocity is deduced
+    /// from this target at the next step. See ``set_next_kinematic_translation``.
+    ///
+    /// :param rotation: world-space rotation to reach.
+    fn set_next_kinematic_rotation(&mut self, rotation: PyRotation) -> PyResult<()> {
+        let g: rapier::math::Rotation = rotation.0.into();
+        self.with_mut(|b| b.set_next_kinematic_rotation(g))?;
+        Ok(())
+    }
+
+    /// Set the pose a position-based kinematic body will reach at the next step.
+    ///
+    /// Only affects ``KINEMATIC_POSITION_BASED`` bodies; its linear and angular velocities
+    /// are deduced from this target at the next step. See
+    /// ``set_next_kinematic_translation``.
+    ///
+    /// :param pose: world-space pose to reach.
+    fn set_next_kinematic_position(&mut self, pose: PyIsometry) -> PyResult<()> {
+        let g: rapier::math::Pose = pose.0.into();
+        self.with_mut(|b| b.set_next_kinematic_position(g))?;
+        Ok(())
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        let p = self.with_ref(|b| b.translation())?;
+        Ok(format!(
             "RigidBody(translation={:?}, type={:?})",
             p,
-            self.with_ref(|b| b.body_type())
-        )
+            self.with_ref(|b| b.body_type())?
+        ))
     }
 }
 
@@ -2157,6 +2338,10 @@ impl RigidBodyBuilder {
             "soft_ccd_prediction" => {
                 let f: Real = v.extract()?;
                 self.builder = self.builder.clone().soft_ccd_prediction(f);
+            }
+            "allow_fast_rotation" => {
+                let b: bool = v.extract()?;
+                self.builder = self.builder.clone().allow_fast_rotation(b);
             }
             "dominance_group" => {
                 let g: i8 = v.extract()?;
@@ -2304,6 +2489,15 @@ impl RigidBodyBuilder {
             builder: self.builder.clone().soft_ccd_prediction(f),
         }
     }
+    /// Allow the body to exceed the angular speed cap (default ``False``).
+    ///
+    /// By default the angular velocity is clamped at each substep (about 45 degrees per
+    /// substep) to keep CCD reliable; enable this for bodies that must spin fast, e.g. wheels.
+    fn allow_fast_rotation(&self, b: bool) -> Self {
+        Self {
+            builder: self.builder.clone().allow_fast_rotation(b),
+        }
+    }
     /// Set the dominance group for contact biasing.
     fn dominance_group(&self, g: i8) -> Self {
         Self {
@@ -2428,72 +2622,77 @@ impl RigidBody {
     // 3D-specific accessors (vector angvel)
     /// Angular velocity as a world-space 3-vector (read+write).
     #[getter]
-    fn angvel(&self) -> Vec3 {
-        let v: crate::na::Vector3<Real> = self.with_ref(|b| b.angvel()).into();
-        Vec3(v)
+    fn angvel(&self) -> PyResult<Vec3> {
+        let v: crate::na::Vector3<Real> = self.with_ref(|b| b.angvel())?.into();
+        Ok(Vec3(v))
     }
     /// Set the angular velocity (wakes the body).
     #[setter]
-    fn set_angvel(&mut self, v: PyVector) {
+    fn set_angvel(&mut self, v: PyVector) -> PyResult<()> {
         let g: rapier::math::Vector = v.0.into();
-        self.with_mut(|b| b.set_angvel(g, true));
+        self.with_mut(|b| b.set_angvel(g, true))?;
+        Ok(())
     }
 
-    /// Torque accumulated by user calls during the current step
-    /// (read-only). Cleared automatically at the next step.
+    /// Torque accumulated by ``add_torque`` / ``add_force_at_point`` (read-only).
+    ///
+    /// It is not cleared by the simulation: it keeps being applied at every step until
+    /// ``reset_torques`` is called. Always zero for non-dynamic bodies.
     #[getter]
-    fn user_torque(&self) -> Vec3 {
-        let v: crate::na::Vector3<Real> = self.with_ref(|b| b.user_torque()).into();
-        Vec3(v)
+    fn user_torque(&self) -> PyResult<Vec3> {
+        let v: crate::na::Vector3<Real> = self.with_ref(|b| b.user_torque())?.into();
+        Ok(Vec3(v))
     }
 
     /// Per-axis rotation enable mask as ``(rx, ry, rz)`` booleans
     /// (``True`` = free to rotate).
     #[getter]
-    fn enabled_rotations(&self) -> (bool, bool, bool) {
-        let arr = self.with_ref(|b| b.is_rotation_locked());
-        (!arr[0], !arr[1], !arr[2])
+    fn enabled_rotations(&self) -> PyResult<(bool, bool, bool)> {
+        let arr = self.with_ref(|b| b.is_rotation_locked())?;
+        Ok((!arr[0], !arr[1], !arr[2]))
     }
     /// Enable / disable rotation around each axis.
     ///
     /// :param v: tuple ``(rx, ry, rz)`` of booleans where ``True``
     ///     allows rotation and ``False`` locks it.
     #[setter]
-    fn set_enabled_rotations(&mut self, v: (bool, bool, bool)) {
-        self.with_mut(|b| b.set_enabled_rotations(v.0, v.1, v.2, true));
+    fn set_enabled_rotations(&mut self, v: (bool, bool, bool)) -> PyResult<()> {
+        self.with_mut(|b| b.set_enabled_rotations(v.0, v.1, v.2, true))
     }
 
     /// Per-axis translation enable mask as ``(tx, ty, tz)`` booleans
     /// (``True`` = free to translate).
     #[getter]
-    fn enabled_translations(&self) -> (bool, bool, bool) {
-        let la = self.with_ref(|b| b.locked_axes());
-        (
+    fn enabled_translations(&self) -> PyResult<(bool, bool, bool)> {
+        let la = self.with_ref(|b| b.locked_axes())?;
+        Ok((
             !la.contains(rapier::dynamics::LockedAxes::TRANSLATION_LOCKED_X),
             !la.contains(rapier::dynamics::LockedAxes::TRANSLATION_LOCKED_Y),
             !la.contains(rapier::dynamics::LockedAxes::TRANSLATION_LOCKED_Z),
-        )
+        ))
     }
     /// Enable / disable translation along each axis.
     ///
     /// :param v: tuple ``(tx, ty, tz)`` of booleans.
     #[setter]
-    fn set_enabled_translations(&mut self, v: (bool, bool, bool)) {
-        self.with_mut(|b| b.set_enabled_translations(v.0, v.1, v.2, true));
+    fn set_enabled_translations(&mut self, v: (bool, bool, bool)) -> PyResult<()> {
+        self.with_mut(|b| b.set_enabled_translations(v.0, v.1, v.2, true))
     }
 
-    /// Accumulate a torque to be applied during the next step.
+    /// Add a persistent torque to this body.
     ///
-    /// The torque is cleared after the step (like ``add_force``);
-    /// use ``apply_torque_impulse`` for an instantaneous change of
-    /// angular velocity.
+    /// Successive calls accumulate, and the torque is not cleared by the simulation: it keeps
+    /// being applied at every step until ``reset_torques`` is called. Use
+    /// ``apply_torque_impulse`` for an instantaneous change of angular velocity. Only affects
+    /// dynamic bodies.
     ///
     /// :param torque: torque vector in world space.
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (torque, wake_up=true))]
-    fn add_torque(&mut self, torque: PyVector, wake_up: bool) {
+    fn add_torque(&mut self, torque: PyVector, wake_up: bool) -> PyResult<()> {
         let g: rapier::math::Vector = torque.0.into();
-        self.with_mut(|b| b.add_torque(g, wake_up));
+        self.with_mut(|b| b.add_torque(g, wake_up))?;
+        Ok(())
     }
 
     /// Apply an instantaneous angular impulse (units: ``N·m·s``).
@@ -2501,22 +2700,23 @@ impl RigidBody {
     /// :param torque_impulse: torque impulse vector in world space.
     /// :param wake_up: if ``True`` (default), wake the body up.
     #[pyo3(signature = (torque_impulse, wake_up=true))]
-    fn apply_torque_impulse(&mut self, torque_impulse: PyVector, wake_up: bool) {
+    fn apply_torque_impulse(&mut self, torque_impulse: PyVector, wake_up: bool) -> PyResult<()> {
         let g: rapier::math::Vector = torque_impulse.0.into();
-        self.with_mut(|b| b.apply_torque_impulse(g, wake_up));
+        self.with_mut(|b| b.apply_torque_impulse(g, wake_up))?;
+        Ok(())
     }
 
     /// Whether gyroscopic forces are accounted for during integration
     /// (read+write). Useful for asymmetric inertia tensors (e.g.
     /// spinning tops).
     #[getter]
-    fn gyroscopic_forces_enabled(&self) -> bool {
+    fn gyroscopic_forces_enabled(&self) -> PyResult<bool> {
         self.with_ref(|b| b.gyroscopic_forces_enabled())
     }
     /// Enable or disable gyroscopic forces.
     #[setter]
-    fn set_gyroscopic_forces_enabled(&mut self, v: bool) {
-        self.with_mut(|b| b.enable_gyroscopic_forces(v));
+    fn set_gyroscopic_forces_enabled(&mut self, v: bool) -> PyResult<()> {
+        self.with_mut(|b| b.enable_gyroscopic_forces(v))
     }
 
     /// Predict the angular velocity after ``dt`` seconds *with*
@@ -2525,11 +2725,11 @@ impl RigidBody {
     /// The body is not modified.
     ///
     /// :param dt: integration timestep in seconds.
-    fn angvel_with_gyroscopic_forces(&self, dt: Real) -> Vec3 {
+    fn angvel_with_gyroscopic_forces(&self, dt: Real) -> PyResult<Vec3> {
         let v: crate::na::Vector3<Real> = self
-            .with_ref(|b| b.angvel_with_gyroscopic_forces(dt))
+            .with_ref(|b| b.angvel_with_gyroscopic_forces(dt))?
             .into();
-        Vec3(v)
+        Ok(Vec3(v))
     }
 
     // 3D-only builder static methods
@@ -2652,8 +2852,24 @@ impl RigidBodyBuilder {
 /// Bodies returned by ``get`` / ``__getitem__`` / iteration are live
 /// **views** into the set: ``set[h].linvel = v`` mutates the stored
 /// body in place, with no copy.
-#[pyclass(name = "RigidBodySet", module = "rapier", unsendable)]
+#[pyclass(name = "RigidBodySet", module = "rapier")]
 pub struct RigidBodySet(pub rapier::dynamics::RigidBodySet);
+
+impl RigidBodySet {
+    /// Run `f` on the set, also while a step lends it to a physics hook or
+    /// event handler.
+    pub(crate) fn read<R>(
+        slf: &Bound<'_, Self>,
+        f: impl FnOnce(&rapier::dynamics::RigidBodySet) -> R,
+    ) -> PyResult<R> {
+        // A lent set is read first: the running step holds the set mutably borrowed, so
+        // `try_borrow` fails until it ends.
+        crate::events_hooks::with_lent_or(slf.as_ptr(), f, |f| match slf.try_borrow() {
+            Ok(set) => Ok(f(&set.0)),
+            Err(_) => Err(crate::events_hooks::stepping_error("RigidBodySet")),
+        })
+    }
+}
 
 #[pymethods]
 impl RigidBodySet {
@@ -2677,7 +2893,7 @@ impl RigidBodySet {
             return Ok(RigidBodyHandle(self.0.insert(rb)));
         }
         if let Ok(rb) = body.extract::<PyRef<'_, RigidBody>>() {
-            let cloned = rb.to_owned_body();
+            let cloned = rb.to_owned_body()?;
             return Ok(RigidBodyHandle(self.0.insert(cloned)));
         }
         Err(PyTypeError::new_err(
@@ -2699,6 +2915,9 @@ impl RigidBodySet {
     /// ``soft_bodies`` is the world's :class:`SoftBodySet`: removing the proxy of a
     /// soft-body cluster removes that cluster. It can be left out for a world without soft
     /// bodies.
+    ///
+    /// :raises ValueError: if the body is the proxy of a soft-body cluster and
+    ///     ``soft_bodies`` is left out.
     #[pyo3(signature = (handle, islands, colliders, impulse_joints, multibody_joints, remove_attached_colliders=true, soft_bodies=None))]
     #[allow(clippy::too_many_arguments)]
     fn remove(
@@ -2710,10 +2929,27 @@ impl RigidBodySet {
         multibody_joints: &mut MultibodyJointSet,
         remove_attached_colliders: bool,
         soft_bodies: Option<&mut crate::soft_body::SoftBodySet>,
-    ) -> Option<RigidBody> {
+    ) -> PyResult<Option<RigidBody>> {
         let mut scratch = rapier::dynamics::SoftBodySet::new();
-        let soft_bodies = soft_bodies.map_or(&mut scratch, |s| &mut s.0);
-        self.0
+        let soft_bodies = match soft_bodies {
+            Some(s) => &mut s.0,
+            None => {
+                // Removing a proxy without its soft body would leave the body without its cluster.
+                if self
+                    .0
+                    .get(handle.0)
+                    .is_some_and(|rb| rb.soft_body().is_some())
+                {
+                    return Err(PyValueError::new_err(
+                        "the rigid body is the proxy of a soft-body cluster: pass the world's \
+                         SoftBodySet as `soft_bodies` to remove it",
+                    ));
+                }
+                &mut scratch
+            }
+        };
+        Ok(self
+            .0
             .remove(
                 handle.0,
                 &mut islands.0,
@@ -2723,7 +2959,7 @@ impl RigidBodySet {
                 soft_bodies,
                 remove_attached_colliders,
             )
-            .map(RigidBody::new_owned)
+            .map(RigidBody::new_owned))
     }
 
     /// Return a live **view** of the body identified by ``handle``, or
@@ -2731,21 +2967,23 @@ impl RigidBodySet {
     ///
     /// The returned body reads and writes straight through to the set:
     /// ``set.get(h).linvel = v`` persists immediately, with no copy.
-    fn get(slf: &Bound<'_, Self>, handle: &RigidBodyHandle) -> Option<RigidBody> {
-        slf.borrow().0.get(handle.0)?;
-        Some(RigidBody {
+    fn get(slf: &Bound<'_, Self>, handle: &RigidBodyHandle) -> PyResult<Option<RigidBody>> {
+        if !Self::read(slf, |set| set.contains(handle.0))? {
+            return Ok(None);
+        }
+        Ok(Some(RigidBody {
             backing: RigidBodyBacking::InSet {
                 set: slf.clone().unbind(),
                 handle: handle.0,
             },
-        })
+        }))
     }
 
     /// Indexing form of ``get`` — returns a live view into the set.
     ///
     /// :raises InvalidHandle: if ``handle`` does not match any body.
     fn __getitem__(slf: &Bound<'_, Self>, handle: &RigidBodyHandle) -> PyResult<RigidBody> {
-        if slf.borrow().0.get(handle.0).is_none() {
+        if !Self::read(slf, |set| set.contains(handle.0))? {
             return Err(crate::errors::InvalidHandle::new_err(format!(
                 "no rigid body for {:?}",
                 handle.0.into_raw_parts()
@@ -2761,13 +2999,13 @@ impl RigidBodySet {
 
     /// ``handle in self`` — whether ``handle`` refers to a body
     /// stored in this set.
-    fn __contains__(&self, handle: &RigidBodyHandle) -> bool {
-        self.0.contains(handle.0)
+    fn __contains__(slf: &Bound<'_, Self>, handle: &RigidBodyHandle) -> PyResult<bool> {
+        Self::read(slf, |set| set.contains(handle.0))
     }
 
     /// Number of bodies in the set.
-    fn __len__(&self) -> usize {
-        self.0.len()
+    fn __len__(slf: &Bound<'_, Self>) -> PyResult<usize> {
+        Self::read(slf, |set| set.len())
     }
 
     /// Remove every body from the set.
@@ -2781,7 +3019,7 @@ impl RigidBodySet {
     /// Each yielded body is a live view into the set (no copy).
     fn __iter__(slf: &Bound<'_, Self>) -> PyResult<Py<RigidBodySetIter>> {
         let handles: Vec<rapier::dynamics::RigidBodyHandle> =
-            slf.borrow().0.iter().map(|(h, _)| h).collect();
+            Self::read(slf, |set| set.iter().map(|(h, _)| h).collect())?;
         Py::new(
             slf.py(),
             RigidBodySetIter {
@@ -2793,8 +3031,10 @@ impl RigidBodySet {
     }
 
     /// Iterate over the handles of every body in the set.
-    fn handles(slf: PyRef<'_, Self>) -> PyResult<Py<RigidBodyHandleIter>> {
-        let handles: Vec<RigidBodyHandle> = slf.0.iter().map(|(h, _)| RigidBodyHandle(h)).collect();
+    fn handles(slf: &Bound<'_, Self>) -> PyResult<Py<RigidBodyHandleIter>> {
+        let handles: Vec<RigidBodyHandle> = Self::read(slf, |set| {
+            set.iter().map(|(h, _)| RigidBodyHandle(h)).collect()
+        })?;
         Py::new(slf.py(), RigidBodyHandleIter { handles, i: 0 })
     }
 }

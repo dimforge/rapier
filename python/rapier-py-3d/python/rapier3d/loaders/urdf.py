@@ -17,6 +17,7 @@ from .._rapier3d import (  # noqa: F401
     UrdfMultibodyOptions,
     UrdfRobot,
     UrdfRobotHandles,
+    UrdfVisual,
 )
 from .._rapier3d import UrdfError  # noqa: F401  (error type)
 
@@ -32,4 +33,5 @@ __all__ = [
     "UrdfMultibodyOptions",
     "UrdfRobot",
     "UrdfRobotHandles",
+    "UrdfVisual",
 ]

@@ -71,5 +71,6 @@ Runtime joint records
 ---------------------
 
 .. autoclass:: ImpulseJoint
+.. autoclass:: MultibodyJoint
 .. autoclass:: MultibodyLink
 .. autoclass:: Multibody
