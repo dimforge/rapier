@@ -9,9 +9,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-# The engine package lives under python/rapier-py-3d (rapier3d, f32); the
-# pure-Python testbed under python/rapier-testbed; the test suite under
-# python/tests.
+# The engine package lives under bindings/python/rapier-py-3d (rapier3d, f32); the
+# pure-Python testbed under bindings/python/rapier-testbed; the test suite under
+# bindings/python/tests.
 jobs:
   lint-rust:
     runs-on: ubuntu-latest
@@ -66,11 +66,11 @@ jobs:
       # environment so the test suite can import it.
       - name: Build & install engine package
         shell: bash
-        run: python -m pip install --no-build-isolation ./python/rapier-py-3d
+        run: python -m pip install --no-build-isolation ./bindings/python/rapier-py-3d
       - name: Install testbed (no deps; engine package already present)
         shell: bash
-        run: python -m pip install --no-deps ./python/rapier-testbed
+        run: python -m pip install --no-deps ./bindings/python/rapier-testbed
       - name: Smoke (import surface)
-        run: python -m pytest python/tests/test_smoke.py python/tests/test_math.py -v
+        run: python -m pytest bindings/python/tests/test_smoke.py bindings/python/tests/test_math.py -v
       - name: Full test suite
-        run: python -m pytest python/tests/ -q --timeout=120
+        run: python -m pytest bindings/python/tests/ -q --timeout=120

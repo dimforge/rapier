@@ -41,9 +41,10 @@ license-files = []
 
 [bans]
 multiple-versions = "allow"
-wildcards = "deny"
+# Bevy is a git dependency on its main branch, which has no version requirement.
+wildcards = "allow"
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-allow-git = ["https://github.com/dimforge/rapier"]
+allow-git = ["https://github.com/bevyengine/bevy"]
