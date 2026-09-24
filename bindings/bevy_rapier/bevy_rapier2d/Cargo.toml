@@ -1,0 +1,133 @@
+[package]
+name = "bevy_rapier2d"
+version = "0.36.0"
+authors = ["Sébastien Crozet <developer@crozet.re>"]
+description = "2-dimensional physics engine in Rust, official Bevy plugin."
+documentation = "http://docs.rs/bevy_rapier2d"
+homepage = "http://rapier.rs"
+repository = "https://github.com/dimforge/bevy_rapier"
+readme = "../README.md"
+keywords = ["physics", "dynamics", "rigid", "real-time", "joints"]
+license = "Apache-2.0"
+edition = "2021"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+path = "../src/lib.rs"
+required-features = ["dim2"]
+
+[lints]
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(feature, values("dim3", "urdf", "mjcf", "meshloader"))',
+] }
+clippy = { needless_lifetimes = "allow" }
+
+[features]
+default = [
+    "dim2",
+    "async-collider",
+    "debug-render-2d",
+    "picking-backend",
+    "to-bevy-mesh",
+]
+dim2 = []
+# Alias of the debug-render feature matching this crate's dimension.
+debug-render = ["debug-render-2d"]
+debug-render-2d = [
+    "bevy/bevy_core_pipeline",
+    "bevy/bevy_sprite",
+    "bevy/bevy_gizmos",
+    "rapier2d/debug-render",
+    "bevy/bevy_asset",
+]
+debug-render-3d = [
+    "bevy/bevy_core_pipeline",
+    "bevy/bevy_pbr",
+    "bevy/bevy_gizmos",
+    "rapier2d/debug-render",
+    "bevy/bevy_asset",
+]
+rapier-debug-render = ["rapier2d/debug-render"]
+
+parallel = ["rapier2d/parallel"]
+simd8 = ["rapier2d/simd8"]
+serde-serialize = ["rapier2d/serde-serialize", "bevy/serialize", "serde"]
+enhanced-determinism = ["rapier2d/enhanced-determinism"]
+# Couples the two normal constraints of a contact pair into a single 2x2 block solve.
+block-solver = ["rapier2d/block-solver"]
+# Enables Rapier's internal profiler, needed for the timings reported by `RapierDiagnosticsPlugin`.
+profiler = ["rapier2d/profiler"]
+# Drops the `Sync` requirement of Rapier's callbacks (this also removes the dedicated thread-pool
+# support enabled by `parallel`).
+unsync-callbacks = ["rapier2d/unsync-callbacks"]
+# Opt-in bounds checks on the solver's unchecked SIMD gathers (for debugging).
+solver-bounds-checks = ["rapier2d/solver-bounds-checks"]
+# Enables the experimental FEM soft-body solver.
+fem = ["rapier2d/fem"]
+picking-backend = ["bevy/bevy_picking", "bevy/bevy_render"]
+async-collider = [
+    "bevy/bevy_asset",
+    "bevy/bevy_world_serialization",
+    "bevy/bevy_render",
+    "bevy/bevy_image",
+]
+to-bevy-mesh = ["bevy/bevy_render", "bevy/bevy_asset"]
+
+[dependencies]
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = ["std"] }
+nalgebra = { version = "0.35", features = ["convert-glam033"] }
+rapier2d = { workspace = true }
+bitflags = "2.10.0"
+log = "0.4"
+serde = { version = "1", features = ["derive"], optional = true }
+
+[dev-dependencies]
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false, features = [
+    "x11",
+    "bevy_state",
+    "bevy_window",
+    "bevy_debug_stepping",
+    "bevy_log",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_ui_render",
+    "default_font",
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_sprite",
+    "bevy_sprite_render",
+    "bevy_gizmos",
+    "bevy_gizmos_render",
+    "bevy_color",
+    "bevy_camera",
+] }
+oorandom = "11"
+approx = "0.5.1"
+glam = { version = "0.33", features = ["approx"] }
+serde_json = "1.0"
+
+[package.metadata.docs.rs]
+# Enable all the features when building the docs on docs.rs
+features = ["debug-render-2d", "serde-serialize"]
+
+[package.metadata.cargo-all-features]
+
+# `enhanced-determinism` enables `glam/scalar-math` (through parry), which removes the serde
+# impls of `glam::BVec3A`/`BVec4A` that `bevy_reflect` requires unconditionally.
+denylist = ["enhanced-determinism"]
+
+# Features "dim2" and "dim3" are incompatible, so skip permutations including them
+skip_feature_sets = [["enhanced-determinism", "simd8"]]
+
+always_include_features = ["dim2"]
+
+# The maximum number of features to try at once. Does not count features from `always_include_features`.
+# This is useful for reducing the number of combinations run for a crate with a large amount of features,
+# since in most cases a bug just needs a small set of 2-3 features to reproduce.
+max_combination_size = 1
+
+[[example]]
+name = "soft_fem2"
+required-features = ["fem"]

@@ -1,0 +1,54 @@
+<!-- A primitives-only MJCF scene written for the bevy_rapier examples: an actuated cart-pole, a
+     damped double pendulum with springs, and a few free bodies. -->
+<mujoco model="cart_pole">
+  <compiler angle="radian" autolimits="true"/>
+  <option gravity="0 0 -9.81"/>
+
+  <default>
+    <geom contype="1" conaffinity="1" friction="0.8"/>
+  </default>
+
+  <worldbody>
+    <geom name="floor" type="plane" size="5 5 0.1"/>
+    <geom name="rail" type="box" pos="0 0 1" size="1.6 0.02 0.02" contype="0" conaffinity="0"/>
+
+    <body name="cart" pos="0 0 1">
+      <joint name="slider" type="slide" axis="1 0 0" range="-1.5 1.5" damping="1"/>
+      <geom name="cart_geom" type="box" size="0.15 0.1 0.05" mass="1"/>
+      <body name="pole" pos="0 0 0">
+        <joint name="pole_hinge" type="hinge" axis="0 1 0" damping="0.02"/>
+        <geom name="pole_geom" type="capsule" fromto="0 0 0 0 0 0.6" size="0.03" mass="0.2"/>
+      </body>
+    </body>
+
+    <body name="link1" pos="0 1 1.5">
+      <joint name="hinge1" type="hinge" axis="0 1 0" damping="0.1" armature="0.01" stiffness="1"/>
+      <geom name="link1_geom" type="capsule" fromto="0 0 0 0.4 0 0" size="0.04" mass="0.5"/>
+      <body name="link2" pos="0.4 0 0">
+        <joint name="hinge2" type="hinge" axis="0 1 0" frictionloss="0.05"/>
+        <geom name="link2_geom" type="capsule" fromto="0 0 0 0.4 0 0" size="0.04" mass="0.5"/>
+      </body>
+    </body>
+
+    <body name="box" pos="-0.4 0 2">
+      <freejoint/>
+      <geom name="box_geom" type="box" size="0.1 0.1 0.1" mass="0.3"/>
+    </body>
+    <body name="ghost_box" pos="0.4 0 2">
+      <freejoint/>
+      <geom name="ghost_box_geom" type="box" size="0.1 0.1 0.1" mass="0.3"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <!-- The ghost box goes through the cart and the pole. -->
+    <exclude body1="ghost_box" body2="cart"/>
+    <exclude body1="ghost_box" body2="pole"/>
+    <pair geom1="box_geom" geom2="cart_geom" friction="0.1"/>
+  </contact>
+
+  <actuator>
+    <motor name="cart_motor" joint="slider" gear="10" ctrlrange="-1 1"/>
+    <position name="elbow_servo" joint="hinge2" kp="2" kv="0.2"/>
+  </actuator>
+</mujoco>

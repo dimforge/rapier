@@ -1,0 +1,148 @@
+<?xml version="1.0"?>
+<!-- A small primitives-only arm with a two-finger gripper, written for the bevy_rapier examples. -->
+<robot name="arm">
+  <link name="world"/>
+
+  <link name="base">
+    <inertial>
+      <mass value="5"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.08"/>
+    </inertial>
+    <visual><geometry><cylinder radius="0.2" length="0.1"/></geometry></visual>
+    <collision>
+      <origin xyz="0 0 0.05"/>
+      <geometry><cylinder radius="0.2" length="0.1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="turret">
+    <inertial>
+      <origin xyz="0 0 0.15"/>
+      <mass value="2"/>
+      <inertia ixx="0.02" ixy="0" ixz="0" iyy="0.02" iyz="0" izz="0.01"/>
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0.15"/>
+      <geometry><cylinder radius="0.08" length="0.3"/></geometry>
+    </collision>
+  </link>
+
+  <link name="upper_arm">
+    <inertial>
+      <origin xyz="0 0 0.3"/>
+      <mass value="1"/>
+      <inertia ixx="0.03" ixy="0" ixz="0" iyy="0.03" iyz="0" izz="0.002"/>
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0.3"/>
+      <geometry><box size="0.08 0.08 0.6"/></geometry>
+    </collision>
+  </link>
+
+  <link name="forearm">
+    <inertial>
+      <origin xyz="0 0 0.25"/>
+      <mass value="0.6"/>
+      <inertia ixx="0.013" ixy="0" ixz="0" iyy="0.013" iyz="0" izz="0.001"/>
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0.25"/>
+      <geometry><capsule radius="0.035" length="0.43"/></geometry>
+    </collision>
+  </link>
+
+  <link name="hand">
+    <inertial>
+      <mass value="0.2"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+    <collision><geometry><box size="0.2 0.05 0.04"/></geometry></collision>
+  </link>
+
+  <link name="left_finger">
+    <inertial>
+      <origin xyz="0 0 0.05"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0.05"/>
+      <geometry><box size="0.02 0.04 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <link name="right_finger">
+    <inertial>
+      <origin xyz="0 0 0.05"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <collision>
+      <origin xyz="0 0 0.05"/>
+      <geometry><box size="0.02 0.04 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <!-- Empty frame, removed by the loader. -->
+  <link name="tool_center_point"/>
+
+  <joint name="world_anchor" type="fixed">
+    <parent link="world"/>
+    <child link="base"/>
+  </joint>
+
+  <joint name="base_yaw" type="continuous">
+    <parent link="base"/>
+    <child link="turret"/>
+    <origin xyz="0 0 0.1"/>
+    <axis xyz="0 0 1"/>
+    <dynamics damping="0.5" friction="0.1"/>
+  </joint>
+
+  <joint name="shoulder" type="revolute">
+    <parent link="turret"/>
+    <child link="upper_arm"/>
+    <origin xyz="0 0 0.3"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.5" upper="1.5" effort="50" velocity="2"/>
+    <dynamics damping="0.5"/>
+  </joint>
+
+  <joint name="elbow" type="revolute">
+    <parent link="upper_arm"/>
+    <child link="forearm"/>
+    <origin xyz="0 0 0.6"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.5" upper="2.5" effort="30" velocity="2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <joint name="wrist" type="fixed">
+    <parent link="forearm"/>
+    <child link="hand"/>
+    <origin xyz="0 0 0.5"/>
+  </joint>
+
+  <joint name="left_finger_joint" type="prismatic">
+    <parent link="hand"/>
+    <child link="left_finger"/>
+    <origin xyz="0.05 0 0.02"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.04" upper="0.03" effort="10" velocity="0.2"/>
+  </joint>
+
+  <joint name="right_finger_joint" type="prismatic">
+    <parent link="hand"/>
+    <child link="right_finger"/>
+    <origin xyz="-0.05 0 0.02"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.03" upper="0.04" effort="10" velocity="0.2"/>
+    <mimic joint="left_finger_joint" multiplier="-1"/>
+  </joint>
+
+  <joint name="tool_center_point_joint" type="fixed">
+    <parent link="hand"/>
+    <child link="tool_center_point"/>
+    <origin xyz="0 0 0.12"/>
+  </joint>
+</robot>

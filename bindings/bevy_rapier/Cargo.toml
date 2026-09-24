@@ -1,0 +1,29 @@
+[workspace]
+members = ["bevy_rapier2d", "bevy_rapier3d", "bevy_rapier_benches3d", "ci"]
+resolver = "2"
+
+[workspace.dependencies]
+rapier2d = "0.35.3"
+rapier3d = "0.35.3"
+rapier3d-urdf = { version = "0.35.3", path = "../rapier/crates/rapier3d-urdf" }
+rapier3d-mjcf = { version = "0.35.3", path = "../rapier/crates/rapier3d-mjcf" }
+rapier3d-meshloader = { version = "0.35.3", path = "../rapier/crates/rapier3d-meshloader", default-features = false }
+
+[profile.dev]
+# Use slightly better optimization by default, as examples otherwise seem laggy.
+opt-level = 1
+
+[profile.release]
+codegen-units = 1
+
+[patch.crates-io]
+#nalgebra = { path = "../nalgebra" }
+#parry2d = { path = "../parry/crates/parry2d" }
+#parry3d = { path = "../parry/crates/parry3d" }
+rapier2d = { path = "../rapier/crates/rapier2d" }
+rapier3d = { path = "../rapier/crates/rapier3d" }
+#nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
+#parry2d = { git = "https://github.com/dimforge/parry", branch = "master" }
+#parry3d = { git = "https://github.com/dimforge/parry", branch = "master" }
+#rapier2d = { git = "https://github.com/dimforge/rapier", branch = "character-controller" }
+#rapier3d = { git = "https://github.com/dimforge/rapier", branch = "character-controller" }
