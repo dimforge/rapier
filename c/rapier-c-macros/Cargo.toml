@@ -1,0 +1,10 @@
+[package]
+name = "rapier-c-macros"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+proc-macro = true
