@@ -597,6 +597,18 @@ impl StagedIslandSolver {
             .any(|(b, c)| b.has_bouncy_seed(c.num_contacts));
         self.any_bouncy.store(generic_bouncy, Ordering::Relaxed);
 
+        // Constraint statistics, summed over the CCD substeps.
+        if counters.enabled {
+            let num_rigid_contacts: usize = graph
+                .buckets()
+                .flat_map(|(_, refs)| refs)
+                .chain(graph.generic())
+                .map(|r| store.get(*r).data.solver_contacts.len())
+                .sum();
+            counters.solver.nconstraints += graph.len() + joint_indices.len();
+            counters.solver.ncontacts += num_rigid_contacts + self.soft_constraints.contacts.len();
+        }
+
         counters.solver.velocity_assembly_time.pause();
         counters.solver.velocity_resolution_time.resume();
 

@@ -200,6 +200,11 @@ pub struct IntegrationParameters {
     /// - 120 FPS: `1.0 / 120.0` ≈ 0.0083 seconds
     ///
     /// Smaller timesteps are more accurate but require more CPU time per second of simulated time.
+    ///
+    /// With a zero (or negative) `dt`, [`PhysicsPipeline::step`](crate::pipeline::PhysicsPipeline::step)
+    /// only applies the user changes and updates the collision detection (contacts, collision
+    /// events, scene queries): no time passes, so no body moves (kinematic bodies included) and
+    /// velocities are left untouched.
     pub dt: Real,
     /// Minimum timestep size when using CCD with multiple substeps (default: `1.0 / 60.0 / 100.0`).
     ///

@@ -164,6 +164,10 @@ impl PhysicsPipeline {
     /// * `hooks` - Optional callbacks to customize collision filtering and contact modification
     /// * `events` - Optional handler to receive collision events (when objects start/stop touching)
     ///
+    /// A step with a zero [`IntegrationParameters::dt`] (e.g. the first frame of a variable
+    /// timestep) doesn't simulate anything: it only applies the user changes and updates the
+    /// collision detection.
+    ///
     /// # Example
     ///
     /// ```

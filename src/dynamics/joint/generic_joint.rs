@@ -244,8 +244,16 @@ impl JointMotor {
             // keep_lhs,
             target_pos: self.target_pos,
             target_vel: self.target_vel,
-            max_impulse: self.max_force * dt,
+            max_impulse: Self::max_impulse(self.max_force, dt),
         }
+    }
+
+    /// The largest impulse a motor with the given max force can apply during `dt`.
+    ///
+    /// This is zero if `dt` is zero, even for an infinite `max_force` (whose product with `dt`
+    /// would be NaN).
+    pub(crate) fn max_impulse(max_force: Real, dt: Real) -> Real {
+        if dt == 0.0 { 0.0 } else { max_force * dt }
     }
 }
 
@@ -854,5 +862,27 @@ impl GenericJointBuilder {
 impl From<GenericJointBuilder> for GenericJoint {
     fn from(val: GenericJointBuilder) -> GenericJoint {
         val.0
+    }
+}
+
+#[cfg(all(test, feature = "alloc"))]
+mod test {
+    use super::JointMotor;
+    use crate::math::Real;
+
+    #[test]
+    fn infinite_motor_force_with_zero_dt_has_finite_impulse_bounds() {
+        let motor = JointMotor {
+            max_force: Real::INFINITY,
+            target_vel: 1.0,
+            damping: 1.0,
+            ..Default::default()
+        };
+        assert_eq!(motor.motor_params(0.0).max_impulse, 0.0);
+        assert_eq!(motor.motor_params(1.0 / 60.0).max_impulse, Real::INFINITY);
+
+        let motor = JointMotor::default();
+        assert_eq!(motor.motor_params(0.0).max_impulse, 0.0);
+        assert_eq!(motor.motor_params(0.5).max_impulse, Real::MAX * 0.5);
     }
 }

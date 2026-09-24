@@ -426,9 +426,27 @@ impl PhysicsPipeline {
         removed_colliders.clear();
         self.counters.stages.user_changes.pause();
 
+        // A zero-length step only applies the user changes and updates the contacts: no time
+        // passes, so the dynamics (solver, integration, CCD, soft-body tears) are skipped.
+        if integration_parameters.dt <= 0.0 {
+            // The solver graph consumes this step's contact updates, as the solve would have.
+            narrow_phase.maintain_solver_contact_graph(
+                islands,
+                bodies,
+                colliders,
+                multibody_joints,
+            );
+            colliders.set_modified(modified_colliders);
+            self.counters.step_completed();
+            return;
+        }
+
         let mut remaining_time = integration_parameters.dt;
         let mut integration_parameters = *integration_parameters;
 
+        // CCD substeps are only reported when the CCD had to act during the step.
+        let mut num_passes = 0;
+        let mut any_ccd_active = false;
         let (ccd_is_enabled, mut remaining_substeps) =
             if integration_parameters.max_ccd_substeps == 0 {
                 (false, 1)
@@ -452,6 +470,7 @@ impl PhysicsPipeline {
                 //       these forces have not been integrated to the body's velocity yet.
                 let ccd_active =
                     ccd_solver.update_ccd_active_flags(islands, bodies, remaining_time, true);
+                any_ccd_active |= ccd_active;
                 self.join_deferred_bvh_optimize(broad_phase);
                 let first_impact = if ccd_active {
                     ccd_solver.find_first_impact(
@@ -498,7 +517,7 @@ impl PhysicsPipeline {
                 remaining_substeps = 0;
             }
 
-            self.counters.ccd.num_substeps += 1;
+            num_passes += 1;
 
             self.counters.custom.resume();
             self.interpolate_kinematic_velocities(&integration_parameters, islands, bodies);
@@ -530,6 +549,7 @@ impl PhysicsPipeline {
                         false,
                     ),
                 };
+                any_ccd_active |= ccd_active;
                 if ccd_active {
                     self.join_deferred_bvh_optimize(broad_phase);
                     self.run_ccd_motion_clamping(
@@ -593,6 +613,10 @@ impl PhysicsPipeline {
                 self.counters.cd.final_broad_phase_time.pause();
                 self.counters.stages.collision_detection_time.pause();
             }
+        }
+
+        if any_ccd_active {
+            self.counters.ccd.num_substeps = num_passes;
         }
 
         // Finally, make sure we update the world mass-properties of the rigid-bodies
