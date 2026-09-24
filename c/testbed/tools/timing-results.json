@@ -1,0 +1,194 @@
+[
+  {
+    "scene": "primitives3",
+    "repeat": 0,
+    "language": "C",
+    "output": "C primitives3 bodies=1281 awake_dynamic=1280 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.944213 engine_ms=1.934008",
+    "wall_ms": 1.944213,
+    "engine_ms": 1.934008
+  },
+  {
+    "scene": "primitives3",
+    "repeat": 0,
+    "language": "Rust",
+    "output": "Rust bodies=1281 awake_dynamic=1280 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.963726 engine_ms=1.954551 final_state=exact_match",
+    "wall_ms": 1.963726,
+    "engine_ms": 1.954551
+  },
+  {
+    "scene": "primitives3",
+    "repeat": 1,
+    "language": "C",
+    "output": "C primitives3 bodies=1281 awake_dynamic=1280 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.954273 engine_ms=1.943762",
+    "wall_ms": 1.954273,
+    "engine_ms": 1.943762
+  },
+  {
+    "scene": "primitives3",
+    "repeat": 1,
+    "language": "Rust",
+    "output": "Rust bodies=1281 awake_dynamic=1280 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=2.374521 engine_ms=2.329513 final_state=exact_match",
+    "wall_ms": 2.374521,
+    "engine_ms": 2.329513
+  },
+  {
+    "scene": "primitives3",
+    "repeat": 2,
+    "language": "C",
+    "output": "C primitives3 bodies=1281 awake_dynamic=1280 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=2.027337 engine_ms=2.017319",
+    "wall_ms": 2.027337,
+    "engine_ms": 2.017319
+  },
+  {
+    "scene": "primitives3",
+    "repeat": 2,
+    "language": "Rust",
+    "output": "Rust bodies=1281 awake_dynamic=1280 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=2.002452 engine_ms=1.993252 final_state=exact_match",
+    "wall_ms": 2.002452,
+    "engine_ms": 1.993252
+  },
+  {
+    "scene": "stress_tests_boxes3",
+    "repeat": 0,
+    "language": "C",
+    "output": "C stress_tests_boxes3 bodies=1001 awake_dynamic=1000 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.916960 engine_ms=1.906777",
+    "wall_ms": 1.91696,
+    "engine_ms": 1.906777
+  },
+  {
+    "scene": "stress_tests_boxes3",
+    "repeat": 0,
+    "language": "Rust",
+    "output": "Rust bodies=1001 awake_dynamic=1000 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.939562 engine_ms=1.928838 final_state=exact_match",
+    "wall_ms": 1.939562,
+    "engine_ms": 1.928838
+  },
+  {
+    "scene": "stress_tests_boxes3",
+    "repeat": 1,
+    "language": "C",
+    "output": "C stress_tests_boxes3 bodies=1001 awake_dynamic=1000 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=2.035717 engine_ms=2.000051",
+    "wall_ms": 2.035717,
+    "engine_ms": 2.000051
+  },
+  {
+    "scene": "stress_tests_boxes3",
+    "repeat": 1,
+    "language": "Rust",
+    "output": "Rust bodies=1001 awake_dynamic=1000 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.945655 engine_ms=1.935830 final_state=exact_match",
+    "wall_ms": 1.945655,
+    "engine_ms": 1.93583
+  },
+  {
+    "scene": "stress_tests_boxes3",
+    "repeat": 2,
+    "language": "C",
+    "output": "C stress_tests_boxes3 bodies=1001 awake_dynamic=1000 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.932433 engine_ms=1.921569",
+    "wall_ms": 1.932433,
+    "engine_ms": 1.921569
+  },
+  {
+    "scene": "stress_tests_boxes3",
+    "repeat": 2,
+    "language": "Rust",
+    "output": "Rust bodies=1001 awake_dynamic=1000 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.933630 engine_ms=1.923563 final_state=exact_match",
+    "wall_ms": 1.93363,
+    "engine_ms": 1.923563
+  },
+  {
+    "scene": "stress_tests_boxes2",
+    "repeat": 0,
+    "language": "C",
+    "output": "C stress_tests_boxes2 bodies=3383 awake_dynamic=3380 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.395520 engine_ms=1.386361",
+    "wall_ms": 1.39552,
+    "engine_ms": 1.386361
+  },
+  {
+    "scene": "stress_tests_boxes2",
+    "repeat": 0,
+    "language": "Rust",
+    "output": "Rust bodies=3383 awake_dynamic=3380 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.392803 engine_ms=1.384000 final_state=exact_match",
+    "wall_ms": 1.392803,
+    "engine_ms": 1.384
+  },
+  {
+    "scene": "stress_tests_boxes2",
+    "repeat": 1,
+    "language": "C",
+    "output": "C stress_tests_boxes2 bodies=3383 awake_dynamic=3380 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.395897 engine_ms=1.386971",
+    "wall_ms": 1.395897,
+    "engine_ms": 1.386971
+  },
+  {
+    "scene": "stress_tests_boxes2",
+    "repeat": 1,
+    "language": "Rust",
+    "output": "Rust bodies=3383 awake_dynamic=3380 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.413250 engine_ms=1.403848 final_state=exact_match",
+    "wall_ms": 1.41325,
+    "engine_ms": 1.403848
+  },
+  {
+    "scene": "stress_tests_boxes2",
+    "repeat": 2,
+    "language": "C",
+    "output": "C stress_tests_boxes2 bodies=3383 awake_dynamic=3380 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.469100 engine_ms=1.459211",
+    "wall_ms": 1.4691,
+    "engine_ms": 1.459211
+  },
+  {
+    "scene": "stress_tests_boxes2",
+    "repeat": 2,
+    "language": "Rust",
+    "output": "Rust bodies=3383 awake_dynamic=3380 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=1.474797 engine_ms=1.464414 final_state=exact_match",
+    "wall_ms": 1.474797,
+    "engine_ms": 1.464414
+  },
+  {
+    "scene": "stress_tests_keva3",
+    "repeat": 0,
+    "language": "C",
+    "output": "C stress_tests_keva3 bodies=38271 awake_dynamic=38270 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=118.190743 engine_ms=118.121810",
+    "wall_ms": 118.190743,
+    "engine_ms": 118.12181
+  },
+  {
+    "scene": "stress_tests_keva3",
+    "repeat": 0,
+    "language": "Rust",
+    "output": "Rust bodies=38271 awake_dynamic=38270 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=121.134219 engine_ms=121.063087 final_state=exact_match",
+    "wall_ms": 121.134219,
+    "engine_ms": 121.063087
+  },
+  {
+    "scene": "stress_tests_keva3",
+    "repeat": 1,
+    "language": "C",
+    "output": "C stress_tests_keva3 bodies=38271 awake_dynamic=38270 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=120.751150 engine_ms=120.728234",
+    "wall_ms": 120.75115,
+    "engine_ms": 120.728234
+  },
+  {
+    "scene": "stress_tests_keva3",
+    "repeat": 1,
+    "language": "Rust",
+    "output": "Rust bodies=38271 awake_dynamic=38270 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=120.755595 engine_ms=120.734268 final_state=exact_match",
+    "wall_ms": 120.755595,
+    "engine_ms": 120.734268
+  },
+  {
+    "scene": "stress_tests_keva3",
+    "repeat": 2,
+    "language": "C",
+    "output": "C stress_tests_keva3 bodies=38271 awake_dynamic=38270 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=120.229320 engine_ms=120.200951",
+    "wall_ms": 120.22932,
+    "engine_ms": 120.200951
+  },
+  {
+    "scene": "stress_tests_keva3",
+    "repeat": 2,
+    "language": "Rust",
+    "output": "Rust bodies=38271 awake_dynamic=38270 SIMD=4 workers=1 warmup=120 measured=300 wall_ms=123.052455 engine_ms=123.034317 final_state=exact_match",
+    "wall_ms": 123.052455,
+    "engine_ms": 123.034317
+  }
+]

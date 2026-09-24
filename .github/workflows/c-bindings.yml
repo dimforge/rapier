@@ -1,0 +1,63 @@
+name: C bindings
+on:
+  push:
+    paths: ['c/**', 'src/**', 'crates/rapier*/**', 'Cargo.toml', '.github/workflows/c-bindings.yml']
+  pull_request:
+    paths: ['c/**', 'src/**', 'crates/rapier*/**', 'Cargo.toml', '.github/workflows/c-bindings.yml']
+  workflow_dispatch:
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        variant:
+          - {dimension: 2, parallel: "OFF"}
+          - {dimension: 3, parallel: "ON"}
+        precision: [32, 64]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux graphics build prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
+      - name: Configure
+        run: cmake -S c -B build/c -DRAPIER_DIMENSION=${{ matrix.variant.dimension }} -DRAPIER_PRECISION=${{ matrix.precision }} -DRAPIER_ENABLE_PARALLEL=${{ matrix.variant.parallel }} -DRAPIER_BUILD_TESTBED=ON -DRAPIER_PROFILE=debug -DRAPIER_CARGO_TARGET_DIR=${{ github.workspace }}/target
+      - name: Build
+        run: cmake --build build/c --config Release --parallel 2
+      - name: Test
+        run: ctest --test-dir build/c -C Release --output-on-failure
+      - name: Install
+        run: cmake --install build/c --config Release --prefix build/install
+      - name: Consume installed package
+        run: |
+          cmake -S c/tests/consumer -B build/consumer -DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/install
+          cmake --build build/consumer --config Release
+          ctest --test-dir build/consumer -C Release --output-on-failure
+  abi-and-features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cbindgen --version 0.29.4 --locked
+      - name: Header matches source
+        run: |
+          sh c/tools/generate-header.sh
+          git diff --exit-code -- c/include/rapier.h
+      - run: cargo fmt -p rapier-c-macros -p rapier3d-ffi -- --check
+      - run: cargo test -p rapier-c-macros -p rapier2d-ffi -p rapier3d-ffi -p rapier2d-f64-ffi -p rapier3d-f64-ffi
+      - run: cargo clippy -p rapier-c-macros -p rapier2d-ffi -p rapier3d-ffi -p rapier2d-f64-ffi -p rapier3d-f64-ffi --no-deps -- -D warnings
+      - name: Every ABI symbol and both linkage modes
+        run: python3 c/tools/test-native.py
+      - name: Optional feature combinations
+        run: cargo check -p rapier2d-ffi -p rapier3d-ffi -p rapier2d-f64-ffi -p rapier3d-f64-ffi --features parallel,fem,enhanced-determinism
+      - name: Eight-lane SIMD with parallel execution
+        run: |
+          cmake -S c -B build/simd8 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_TESTBED_GRAPHICS=OFF -DRAPIER_PROFILE=debug -DRAPIER_SIMD_LANES=8 -DRAPIER_ENABLE_PARALLEL=ON -DRAPIER_CARGO_TARGET_DIR=${{ github.workspace }}/target
+          cmake --build build/simd8 --parallel 2
+          ctest --test-dir build/simd8 --output-on-failure

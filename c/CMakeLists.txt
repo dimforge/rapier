@@ -16,12 +16,14 @@ set_property(CACHE RAPIER_PRECISION PROPERTY STRINGS 32 64)
 option(RAPIER_SHARED "Link the shared library (otherwise static)" ON)
 option(RAPIER_BUILD_TESTS "Build C/C++ integration tests" ON)
 option(RAPIER_BUILD_EXAMPLES "Build the falling-ball example" ON)
+option(RAPIER_BUILD_TESTBED "Build the C example testbed" OFF)
+option(RAPIER_TESTBED_GRAPHICS "Include the vendored raylib viewer" ON)
 set(RAPIER_PROFILE "release" CACHE STRING "Cargo release or debug profile")
 set_property(CACHE RAPIER_PROFILE PROPERTY STRINGS release debug)
 set(RAPIER_FEATURES "" CACHE STRING "Additional Cargo features: enhanced-determinism,fem,profiler,robotics")
 # Accept the earlier parallel/simd8 feature spelling as defaults, while the
 # explicit options below determine the final effective feature set.
-set(RAPIER_DEFAULT_PARALLEL OFF)
+set(RAPIER_DEFAULT_PARALLEL "${RAPIER_BUILD_TESTBED}")
 set(RAPIER_DEFAULT_SIMD_LANES "4")
 if(RAPIER_FEATURES MATCHES "(^|,)parallel(,|$)")
   set(RAPIER_DEFAULT_PARALLEL ON)
@@ -195,3 +197,6 @@ configure_package_config_file(cmake/RapierConfig.cmake.in "${CMAKE_CURRENT_BINAR
 write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/RapierConfigVersion.cmake" VERSION ${PROJECT_VERSION} COMPATIBILITY ExactVersion)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/RapierConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/RapierConfigVersion.cmake" DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Rapier")
 
+if(RAPIER_BUILD_TESTBED)
+  add_subdirectory(testbed)
+endif()
