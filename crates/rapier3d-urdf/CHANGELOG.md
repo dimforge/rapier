@@ -1,6 +1,6 @@
-## Unreleased
+## v0.36.0 (24 September 2026)
 
-### Fix
+### Fixed
 
 - URDF `<origin rpy>` angles are now composed as fixed-axis roll-pitch-yaw
   (`Rz(yaw) * Ry(pitch) * Rx(roll)`), as the URDF specification defines. They
