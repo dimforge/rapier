@@ -45,7 +45,7 @@ pub(crate) struct AwakeSoftBody {
     /// Set by the writeback stage when an element was strained past the material's tear
     /// strain (the tearing pass at the end of the step removes it).
     pub torn: AtomicBool,
-    /// Largest normal approach speed of the rigid bodies met by the surface this step (`None`:
+    /// Largest normal approach speed of the rigid bodies met by the surface this pass (`None`:
     /// no contact constraint at all), set by the contact assembly.
     pub contact_approach_speed: Option<Real>,
     /// The body's shape-matched clusters this step, with their warm-started fit rotation:

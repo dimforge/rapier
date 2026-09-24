@@ -218,6 +218,8 @@ pub(super) fn sync_soft_body(
 ) -> SyncOutcome {
     // The coming step's length: the margin and the impact substeps predict its travel.
     let dt = params.dt;
+    // The next step's first solve starts a new contact history entry.
+    sb.contact_approach_step_open = false;
     // Inactive: asleep, or disabled (then not asleep, just out of the simulation).
     let sleeping = inactive && sb.enabled;
     if sb.is_finite() {

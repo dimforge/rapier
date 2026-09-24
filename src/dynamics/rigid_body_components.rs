@@ -1127,16 +1127,12 @@ impl RigidBodyCcd {
         &self,
         dt: Real,
         vels: &RigidBodyVelocity<Real>,
-        forces: Option<&RigidBodyForces>,
+        forces: Option<(&RigidBodyForces, &RigidBodyMassProps)>,
         max_extent: Real,
     ) -> bool {
-        let max_point_velocity = if let Some(forces) = forces {
-            let linear_part = (vels.linvel + forces.force * dt).length();
-            #[cfg(feature = "dim2")]
-            let angular_part = (vels.angvel + forces.torque * dt).abs() * max_extent;
-            #[cfg(feature = "dim3")]
-            let angular_part = (vels.angvel + forces.torque * dt).length() * max_extent;
-            linear_part + angular_part
+        // Same velocity prediction as the CCD sweep: forces divided by the mass and inertia.
+        let max_point_velocity = if let Some((forces, mprops)) = forces {
+            self.max_point_velocity(&forces.integrate(dt, vels, mprops), max_extent)
         } else {
             self.max_point_velocity(vels, max_extent)
         };
@@ -1510,6 +1506,33 @@ impl RigidBodyActivation {
 mod tests {
     use super::*;
     use crate::math::Real;
+
+    #[test]
+    fn heavy_body_under_gravity_is_not_moving_fast() {
+        let (dt, mass, extent) = (1.0 / 60.0, 1000.0, 0.5);
+        #[cfg(feature = "dim2")]
+        let local_mprops = MassProperties::new(Vector::ZERO, mass, 1.0);
+        #[cfg(feature = "dim3")]
+        let local_mprops = MassProperties::new(Vector::ZERO, mass, Vector::splat(1.0));
+        let mut mprops = RigidBodyMassProps::from(local_mprops);
+        mprops.update_world_mass_properties(RigidBodyType::Dynamic, &Pose::default());
+        let mut forces = RigidBodyForces::default();
+        forces.compute_effective_force_and_torque(Vector::Y * -9.81, Vector::splat(mass));
+        let ccd = RigidBodyCcd {
+            ccd_thickness: extent,
+            ..Default::default()
+        };
+
+        // Gravity alone moves a resting body by about 0.003 in one step, whatever its mass.
+        let resting = RigidBodyVelocity::default();
+        assert!(!ccd.is_moving_fast(dt, &resting, Some((&forces, &mprops)), extent));
+
+        let fast = RigidBodyVelocity {
+            linvel: Vector::X * 60.0,
+            ..Default::default()
+        };
+        assert!(ccd.is_moving_fast(dt, &fast, Some((&forces, &mprops)), extent));
+    }
 
     #[test]
     fn test_interpolate_velocity() {

@@ -67,14 +67,18 @@ impl CCDSolver {
             // Default tier: every fast dynamic body is a CCD origin. `ccd_enabled`
             // no longer gates *activation*, only the sweep *scope* (fixed-only vs all bodies),
             // applied later during pair selection.
-            if rb.is_dynamic() {
+            if rb.is_soft_frame() {
+                // A cluster proxy's pose is derived from its particles: it is never swept.
+                rb.ccd.ccd_active = false;
+            } else if rb.is_dynamic() {
                 let moving_fast = if include_forces {
-                    // Pre-solve (substep splitter): `next_position` isn't solved yet, use
-                    // the velocity-based estimate including forces.
+                    // Pre-solve (substep splitter): `next_position` isn't solved yet, use the
+                    // current velocity with forces, like `find_first_impact`. The last solved
+                    // motion (`ccd_vels`) is stale, or zero on a body's first step.
                     rb.ccd.is_moving_fast(
                         dt,
-                        &rb.ccd_vels,
-                        Some(&rb.forces),
+                        &rb.vels,
+                        Some((&rb.forces, &rb.mprops)),
                         rb.mprops.max_extent(),
                     )
                 } else {

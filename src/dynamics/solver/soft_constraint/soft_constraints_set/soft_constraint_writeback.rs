@@ -187,8 +187,19 @@ impl SoftConstraintsSet {
             }
             sb.plastic_flowing = awake.plastic_flow.load(Ordering::Relaxed);
             sb.tearing_pending |= awake.torn.load(Ordering::Relaxed);
-            sb.contact_approach_speeds =
-                [awake.contact_approach_speed, sb.contact_approach_speeds[0]];
+            // One history entry per step: its first pass shifts the history, its later CCD
+            // passes keep the largest approach speed.
+            let speed = awake.contact_approach_speed;
+            if sb.contact_approach_step_open {
+                let entry = &mut sb.contact_approach_speeds[0];
+                *entry = match (*entry, speed) {
+                    (Some(a), Some(b)) => Some(a.max(b)),
+                    (a, b) => a.or(b),
+                };
+            } else {
+                sb.contact_approach_speeds = [speed, sb.contact_approach_speeds[0]];
+                sb.contact_approach_step_open = true;
+            }
             // Summed by the contact writeback that follows the solve.
             sb.contact_load = 0.0;
         }

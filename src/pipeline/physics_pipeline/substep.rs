@@ -81,6 +81,8 @@ impl PhysicsPipeline {
         self.counters.ccd.toi_computation_time.pause();
     }
 
+    /// `integration_parameters.dt` is the length of the interval the soft-CCD prediction of the
+    /// broad-phase AABBs covers: the next CCD pass, or the next step after the last pass.
     fn advance_to_final_positions(
         &mut self,
         integration_parameters: &IntegrationParameters,
@@ -482,7 +484,7 @@ impl PhysicsPipeline {
 
         let mut remaining_time = integration_parameters.dt;
         // The CCD passes shrink `integration_parameters.dt`: what predicts the next step (the
-        // end-of-step soft-body sync) reads the full step's parameters instead.
+        // end-of-step AABBs and soft-body sync) reads the full step's parameters instead.
         let step_parameters = *integration_parameters;
         let mut integration_parameters = *integration_parameters;
 
@@ -610,7 +612,13 @@ impl PhysicsPipeline {
             }
 
             self.counters.stages.update_time.resume();
-            self.advance_to_final_positions(&integration_parameters, islands, bodies, colliders);
+            // After the last pass, the AABBs predict the whole next step, not another pass.
+            let prediction_parameters = if remaining_substeps > 0 {
+                &integration_parameters
+            } else {
+                &step_parameters
+            };
+            self.advance_to_final_positions(prediction_parameters, islands, bodies, colliders);
             // Neutralize bodies whose integrated pose went non-finite before the remaining
             // CCD substeps can spread their velocities.
             self.quarantine.apply_end_step(bodies, colliders);
@@ -651,7 +659,7 @@ impl PhysicsPipeline {
                 // harvested by `advance_to_final_positions`.
                 self.counters.stages.collision_detection_time.resume();
                 self.counters.cd.final_broad_phase_time.resume();
-                self.update_moved_collider_aabbs(&integration_parameters, broad_phase);
+                self.update_moved_collider_aabbs(&step_parameters, broad_phase);
                 self.counters.cd.final_broad_phase_time.pause();
                 self.counters.stages.collision_detection_time.pause();
             }
