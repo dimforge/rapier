@@ -1,3 +1,38 @@
+## Unreleased
+
+### Added
+
+- `Multibody::remove_dof_coupling`, `Multibody::retain_dof_couplings` and
+  `Multibody::clear_dof_couplings` to remove DoF couplings.
+- `rapier3d-urdf`: `UrdfLink::urdf_link_index` and `UrdfJoint::urdf_joint_index` (and related) map the
+  loaded links and joints to their URDF counterparts, even when empty links are squeezed.
+
+### Fixed
+
+- `CollisionPipeline::step` no longer trips a debug assertion when a moving body touches another
+  collider.
+- A zero-length step no longer corrupts the simulation: it only applies the user changes and runs
+  the collision detection.
+- Enabling or disabling an impulse joint now updates the islands of its bodies.
+- Multibody DoF couplings and disabled self-contacts are no longer lost when multibodies merge or split.
+- `PhysicsPipeline::counters` now fills the contact pair, contact, and constraint counts.
+- `rapier3d-urdf`: the fixed children of a squeezed empty link now stay rigidly attached together, and
+  the joint taking over the removed link's joint keeps its original pivot.
+- 2D soft-body cluster proxies now follow counterclockwise rotations of their particles.
+- The rigid colliders attached to soft-body cluster proxies no longer lag one step behind their proxy.
+- The broad-phase AABBs of soft-body surfaces now match their end-of-step geometry.
+- When the CCD splits a step, the end-of-step soft-body motion margin and soft-CCD AABBs now cover the
+  full next step instead of the last CCD pass.
+- The CCD now also splits the first step of a fast body at its impact.
+- The soft-body contact history driving the extra substeps now counts steps instead of CCD passes.
+- The CCD fast-body check now divides the applied forces by the body's mass, so heavy bodies under
+  gravity are no longer flagged as fast.
+
+### Modified
+
+- The soft-body motion margin now only pads deformable colliders, not the rigid colliders of clusters.
+- `RigidBodyCcd::is_moving_fast` now takes the mass-properties along with the forces.
+
 ## v0.35.3 (28 August 2026)
 
 ### Fixed
@@ -36,7 +71,7 @@
 
 ### Added
 
-- `ContactForceEvent::first_tick`: `true` on the step a pair's total contact force first
+- `ContactForceEvent::started`: `true` on the step a pair's total contact force first
   exceeds its `contact_force_event_threshold` (coming from below it, or from separation),
   `false` while it stays above on consecutive steps — the analogue of PhysX's
   "threshold force found" vs "persists" report. The status resets when the force drops

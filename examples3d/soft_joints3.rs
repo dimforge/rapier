@@ -309,14 +309,18 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
     /*
      * Kinematic cluster (no joint): a banner whose pinned top-edge cluster is waved rigidly.
      */
+    let (banner_width, banner_height) = (14, 10);
     let banner = world.insert_soft_body(SoftBodyBuilder::cloth(
         Vector::new(-8.0, 3.2, 4.0),
         Vector::X * 0.18,
         Vector::Y * -0.18,
-        14,
-        10,
+        banner_width,
+        banner_height,
     ));
-    let top_edge: Vec<u32> = (0..14).collect();
+    // Cloth particles are column-major: particle `i * banner_height` is at the top of column `i`.
+    let top_edge: Vec<u32> = (0..banner_width)
+        .map(|i| (i * banner_height) as u32)
+        .collect();
     let banner_grip = world
         .add_soft_body_cluster(banner, &top_edge)
         .expect("banner grip cluster");
@@ -349,7 +353,7 @@ pub async fn run(viewer: &mut TestbedViewer) -> anyhow::Result<()> {
             // The same-body hinge flaps.
             if let Some(j) = world.impulse_joints.get_mut(flap_joint, true) {
                 j.data
-                    .set_motor_position(JointAxis::AngZ, 0.8 * (1.4 * t).sin(), 80.0, 10.0);
+                    .set_motor_position(JointAxis::AngX, 0.8 * (1.4 * t).sin(), 80.0, 10.0);
             }
             // The banner's grip waves.
             let grip_pose = Pose::from_parts(

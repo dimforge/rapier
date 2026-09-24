@@ -4,7 +4,7 @@ use core::fmt::{Display, Formatter, Result};
 /// Performance counters related to collision detection.
 #[derive(Default, Clone, Copy, Debug)]
 pub struct CollisionDetectionCounters {
-    /// Number of contact pairs detected.
+    /// Number of contact pairs tracked by the narrow-phase (touching or not).
     pub ncontact_pairs: usize,
     /// Time spent for the broad-phase of the collision detection.
     pub broad_phase_time: Timer,

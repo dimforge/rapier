@@ -60,6 +60,10 @@
   `ColliderDesc.compound` and `ColliderDesc.convexDecomposition`.
 - The testbeds gained soft-body demos ("soft bodies" in 2D and 3D, "soft tearing" in 3D).
 
+### Fixed
+
+- The shape-cast docs now state the frame (world or local) of each witness point and normal.
+
 ## 0.20.0 (08 August 2026)
 
 ### Breaking changes

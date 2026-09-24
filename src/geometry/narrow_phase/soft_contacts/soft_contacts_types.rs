@@ -38,12 +38,12 @@ impl SoftDetectionCtx<'_> {
             || (sb1.origin().is_some() && sb1.origin() == sb2.origin())
     }
 
-    /// The speculative motion margin of a soft body's collider, held by its parent cluster proxy
-    /// (zero without a parent).
+    /// The speculative motion margin of a soft body's deformable collider, held by its parent
+    /// cluster proxy (zero for a rigid collider or without a parent).
     pub fn motion_margin(&self, co: &Collider) -> Real {
         co.parent()
             .and_then(|h| self.bodies.get(h))
-            .map_or(0.0, |rb| rb.soft_motion_margin)
+            .map_or(0.0, |rb| co.soft_motion_margin(rb))
     }
 }
 

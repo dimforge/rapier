@@ -152,14 +152,28 @@ pub struct UrdfLoaderOptions {
     /// chain stays equivalent.
     ///
     /// Concretely:
-    /// - When an empty link sits between a parent and a non-empty child connected by a
-    ///   **fixed** joint, the empty link and the fixed joint are dropped and the surviving
-    ///   joint inherits the type/axis/limits of the parent joint, with its origin composed
-    ///   so the child ends up at the same world pose.
+    /// - When an empty link is attached to its parent by a **fixed** joint, the empty link
+    ///   and that joint are dropped, and all its children (whatever their joint types) are
+    ///   attached to its parent directly, with their joint origins composed so they end up at
+    ///   the same pose.
+    /// - When an empty link is attached to its parent by a **moving** joint and to at least
+    ///   one child by a **fixed** joint, the empty link and its parent joint are dropped, and
+    ///   one of these fixed children (preferably a non-empty one) becomes its representative:
+    ///   its joint takes over the type, axis, limits, and pivot of the dropped parent joint.
+    ///   The other children of the empty link (whatever their joint types) are attached to the
+    ///   representative with their joint origins composed. This way, all the fixed children
+    ///   keep moving together as one rigid group, driven by the single original moving joint.
+    /// - An empty link attached to its parent and to all its children by moving joints is
+    ///   kept, since it is needed to chain these joints.
     /// - When the empty link is the **root** and is connected to its child(ren) by a fixed
     ///   joint, the link and the joint are removed, and the child is forced to be a fixed
     ///   rigid-body (independently of [`Self::make_roots_fixed`]).
     /// - Empty leaves (no children) are simply dropped.
+    ///
+    /// A dropped parent joint is recorded in the [`UrdfJoint::merged_urdf_joint_indices`] of
+    /// at most one joint: the joint of the representative (or of one of the fixed children if
+    /// the dropped joint is fixed). Some dropped joints have no counterpart at all, e.g., the
+    /// joint of an empty leaf, or the fixed joint of an empty link with only moving children.
     ///
     /// This avoids ending up with bodyless, mass-less rigid-bodies that exist only to act
     /// as named frames in the URDF (a common pattern for `world` anchors and `*_tcp`
@@ -223,6 +237,11 @@ pub struct UrdfLink {
     /// corresponding [`UrdfLoaderOptions`] option is enabled), each paired with an
     /// optional visual override (see [`UrdfCollider::visual`]).
     pub colliders: Vec<UrdfCollider>,
+    /// Index, in the original [`Robot::links`], of the URDF link this link was built from.
+    ///
+    /// This can differ from this link's index in [`UrdfRobot::links`] when empty links were
+    /// removed (see [`UrdfLoaderOptions::squeeze_empty_fixed_links`]).
+    pub urdf_link_index: usize,
 }
 
 /// An urdf joint loaded as a rapier [`GenericJoint`].
@@ -236,6 +255,38 @@ pub struct UrdfJoint {
     /// Index of the rigid-body (from the [`UrdfRobot`] array) at the second
     /// endpoint of this joint.
     pub link2: LinkId,
+    /// Index, in the original [`Robot::joints`], of the URDF joint this joint was built from.
+    ///
+    /// This is the URDF joint attached to the child link [`Self::link2`]. It can differ from
+    /// this joint's index in [`UrdfRobot::joints`] when empty links were removed (see
+    /// [`UrdfLoaderOptions::squeeze_empty_fixed_links`]). In that case, the URDF parent link
+    /// of the joint might also have been replaced by another one (see [`Self::link1`]).
+    pub urdf_joint_index: usize,
+    /// Indices, in the original [`Robot::joints`], of the URDF joints that were merged into
+    /// this joint when the empty links between them were removed (see
+    /// [`UrdfLoaderOptions::squeeze_empty_fixed_links`]).
+    ///
+    /// They are ordered from the child side to the parent side. The last one (if any) is the
+    /// joint this joint inherited its type, axis, limits, dynamics, and mimic from (see
+    /// [`Self::source_urdf_joint_index`]). This is empty if no joint was merged into this one.
+    ///
+    /// A URDF joint is merged into at most one joint, even if the empty link it led to had
+    /// several children.
+    pub merged_urdf_joint_indices: Vec<usize>,
+}
+
+impl UrdfJoint {
+    /// Index, in the original [`Robot::joints`], of the URDF joint this joint inherited its
+    /// type, axis, limits, dynamics, and mimic from.
+    ///
+    /// This is [`Self::urdf_joint_index`], unless other joints were merged into this one (see
+    /// [`Self::merged_urdf_joint_indices`]).
+    pub fn source_urdf_joint_index(&self) -> usize {
+        self.merged_urdf_joint_indices
+            .last()
+            .copied()
+            .unwrap_or(self.urdf_joint_index)
+    }
 }
 
 /// A robot represented as a set of rapier rigid-bodies, colliders, and joints.
@@ -243,11 +294,15 @@ pub struct UrdfJoint {
 pub struct UrdfRobot {
     /// The bodies and colliders loaded from the urdf file.
     ///
-    /// This vector matches the order of [`Robot::links`].
+    /// This vector follows the order of [`Robot::links`], but some links might be missing if
+    /// [`UrdfLoaderOptions::squeeze_empty_fixed_links`] is enabled. Use
+    /// [`UrdfLink::urdf_link_index`] to find the URDF link each element was built from.
     pub links: Vec<UrdfLink>,
     /// The joints loaded from the urdf file.
     ///
-    /// This vector matches the order of [`Robot::joints`].
+    /// This vector follows the order of [`Robot::joints`], but some joints might be missing if
+    /// [`UrdfLoaderOptions::squeeze_empty_fixed_links`] is enabled. Use
+    /// [`UrdfJoint::urdf_joint_index`] to find the URDF joint each element was built from.
     pub joints: Vec<UrdfJoint>,
 }
 
@@ -292,7 +347,12 @@ pub struct UrdfRobotHandles<JointHandle> {
 
 impl UrdfRobot {
     /// Parses a URDF file and returns both the rapier objects (`UrdfRobot`) and the original urdf
-    /// structures (`Robot`). Both structures are arranged the same way, with matching indices for each part.
+    /// structures (`Robot`).
+    ///
+    /// Both structures are arranged in the same order, but some links and joints of the `Robot`
+    /// might have no counterpart in the `UrdfRobot` if [`UrdfLoaderOptions::squeeze_empty_fixed_links`]
+    /// is enabled. Use [`UrdfLink::urdf_link_index`] and [`UrdfJoint::urdf_joint_index`] to find the
+    /// `Robot` element each `UrdfRobot` element was built from.
     ///
     /// If the URDF file references external meshes, they will be loaded automatically if the format
     /// is supported. The format is detected from the file’s extension. All the mesh formats are
@@ -322,7 +382,12 @@ impl UrdfRobot {
     }
 
     /// Parses a string in URDF format and returns both the rapier objects (`UrdfRobot`) and the original urdf
-    /// structures (`Robot`). Both structures are arranged the same way, with matching indices for each part.
+    /// structures (`Robot`).
+    ///
+    /// Both structures are arranged in the same order, but some links and joints of the `Robot`
+    /// might have no counterpart in the `UrdfRobot` if [`UrdfLoaderOptions::squeeze_empty_fixed_links`]
+    /// is enabled. Use [`UrdfLink::urdf_link_index`] and [`UrdfJoint::urdf_joint_index`] to find the
+    /// `Robot` element each `UrdfRobot` element was built from.
     ///
     /// If the URDF file references external meshes, they will be loaded automatically if the format
     /// is supported. The format is detected from the file’s extension. All the mesh formats are
@@ -346,7 +411,12 @@ impl UrdfRobot {
     }
 
     /// From an already loaded urdf file as a `Robot`, this creates the matching rapier objects
-    /// (`UrdfRobot`). Both structures are arranged the same way, with matching indices for each part.
+    /// (`UrdfRobot`).
+    ///
+    /// Both structures are arranged in the same order, but some links and joints of the `Robot`
+    /// might have no counterpart in the `UrdfRobot` if [`UrdfLoaderOptions::squeeze_empty_fixed_links`]
+    /// is enabled. Use [`UrdfLink::urdf_link_index`] and [`UrdfJoint::urdf_joint_index`] to find the
+    /// `Robot` element each `UrdfRobot` element was built from.
     ///
     /// If the URDF file references external meshes, they will be loaded automatically if the format
     /// is supported. The format is detected mostly from the file’s extension. All the mesh formats are
@@ -363,15 +433,25 @@ impl UrdfRobot {
         // Optionally rewrite the URDF graph to remove empty links connected by fixed
         // joints so we don't end up with bodyless rigid-bodies that exist only to
         // serve as named frames.
-        let (robot_owned, force_fixed_links): (std::borrow::Cow<Robot>, HashSet<String>) =
+        let (robot_owned, squeeze): (std::borrow::Cow<Robot>, SqueezeResult) =
             if options.squeeze_empty_fixed_links {
                 let mut clone = robot.clone();
-                let force_fixed = squeeze_empty_fixed_links(&mut clone);
-                (std::borrow::Cow::Owned(clone), force_fixed)
+                let squeeze = squeeze_empty_fixed_links(&mut clone);
+                (std::borrow::Cow::Owned(clone), squeeze)
             } else {
-                (std::borrow::Cow::Borrowed(robot), HashSet::new())
+                (
+                    std::borrow::Cow::Borrowed(robot),
+                    SqueezeResult::identity(robot),
+                )
             };
         let robot = robot_owned.as_ref();
+        let SqueezeResult {
+            force_fixed: force_fixed_links,
+            link_ids,
+            joint_ids,
+            mut merged_joint_ids,
+            child_offsets,
+        } = squeeze;
 
         let mut name_to_link_id = HashMap::new();
         let mut link_is_root = vec![true; robot.links.len()];
@@ -395,27 +475,34 @@ impl UrdfRobot {
                 let mut body = urdf_to_rigid_body(&options, &link.inertial);
                 let new_pos = options.shift * body.position();
                 body.set_position(new_pos, false);
-                UrdfLink { body, colliders }
-            })
-            .collect();
-        let joints: Vec<_> = robot
-            .joints
-            .iter()
-            .map(|joint| {
-                let link1 = name_to_link_id[&joint.parent.link];
-                let link2 = name_to_link_id[&joint.child.link];
-                let pose1 = *links[link1].body.position();
-                let rb2 = &mut links[link2].body;
-                let joint = urdf_to_joint(&options, joint, &pose1, rb2);
-                link_is_root[link2] = false;
-
-                UrdfJoint {
-                    joint,
-                    link1,
-                    link2,
+                UrdfLink {
+                    body,
+                    colliders,
+                    urdf_link_index: link_ids[id],
                 }
             })
             .collect();
+        // A joint places its child link relative to its parent link, so the parent must be
+        // placed first.
+        let mut joints: Vec<Option<UrdfJoint>> = vec![None; robot.joints.len()];
+        for i in joints_from_roots_to_leaves(robot) {
+            let joint = &robot.joints[i];
+            let link1 = name_to_link_id[&joint.parent.link];
+            let link2 = name_to_link_id[&joint.child.link];
+            let pose1 = *links[link1].body.position();
+            let rb2 = &mut links[link2].body;
+            let generic_joint = urdf_to_joint(&options, joint, &child_offsets[i], &pose1, rb2);
+            link_is_root[link2] = false;
+
+            joints[i] = Some(UrdfJoint {
+                joint: generic_joint,
+                link1,
+                link2,
+                urdf_joint_index: joint_ids[i],
+                merged_urdf_joint_indices: std::mem::take(&mut merged_joint_ids[i]),
+            });
+        }
+        let joints = joints.into_iter().flatten().collect();
 
         if options.make_roots_fixed {
             for (link, is_root) in links.iter_mut().zip(link_is_root.iter().copied()) {
@@ -720,6 +807,7 @@ fn urdf_to_pose(pose: &UrdfPose) -> Pose {
 fn urdf_to_joint(
     options: &UrdfLoaderOptions,
     joint: &Joint,
+    child_offset: &Pose,
     pose1: &Pose,
     link2: &mut RigidBody,
 ) -> GenericJoint {
@@ -742,7 +830,13 @@ fn urdf_to_joint(
     )
     .normalize_or_zero();
 
-    link2.set_position(pose1 * joint_to_parent, false);
+    // The pose of the child link in the joint frame, which isn't the identity if the joint was
+    // merged with the fixed joints following it.
+    let mut child_offset = *child_offset;
+    child_offset.translation *= options.scale;
+    let joint_to_child = child_offset.inverse();
+
+    link2.set_position(pose1 * joint_to_parent * child_offset, false);
 
     let mut builder =
         GenericJointBuilder::new(locked_axes).contacts_enabled(options.enable_joint_collisions);
@@ -753,11 +847,14 @@ fn urdf_to_joint(
         // `local_axis2` would yield mismatched secondary axes, leaving the joint
         // unsatisfied at rest and snapping the bodies on the first step.
         let basis = GenericJoint::complete_ang_frame(joint_axis);
-        let frame2 = Pose::from_rotation(basis);
-        let frame1 = joint_to_parent * frame2;
-        builder = builder.local_frame1(frame1).local_frame2(frame2);
+        let basis = Pose::from_rotation(basis);
+        builder = builder
+            .local_frame1(joint_to_parent * basis)
+            .local_frame2(joint_to_child * basis);
     } else {
-        builder = builder.local_frame1(joint_to_parent);
+        builder = builder
+            .local_frame1(joint_to_parent)
+            .local_frame2(joint_to_child);
     }
 
     match joint.joint_type {
@@ -860,128 +957,236 @@ fn pose_to_urdf_pose(pose: &Pose) -> UrdfPose {
     }
 }
 
-fn compose_urdf_pose(parent: &UrdfPose, child: &UrdfPose) -> UrdfPose {
-    pose_to_urdf_pose(&(urdf_to_pose(parent) * urdf_to_pose(child)))
-}
+/// The indices of the joints of `robot`, ordered so that the joint attached to a link comes
+/// before the joints attached to its children.
+fn joints_from_roots_to_leaves(robot: &Robot) -> Vec<usize> {
+    let mut child_joints: HashMap<&str, Vec<usize>> = HashMap::new();
+    let mut child_links = HashSet::new();
+    for (i, joint) in robot.joints.iter().enumerate() {
+        child_joints
+            .entry(joint.parent.link.as_str())
+            .or_default()
+            .push(i);
+        child_links.insert(joint.child.link.as_str());
+    }
 
-/// Re-expresses a joint axis (originally specified in the empty link's frame) in
-/// the new child's frame after splicing through the empty link.
-fn rotate_axis_into_child_frame(axis: &urdf_rs::Vec3, child_origin: &UrdfPose) -> urdf_rs::Vec3 {
-    let pose = urdf_to_pose(child_origin);
-    let v = Vector::new(axis[0] as Real, axis[1] as Real, axis[2] as Real);
-    let r = pose.rotation.inverse() * v;
-    urdf_rs::Vec3([r.x as f64, r.y as f64, r.z as f64])
-}
-
-/// Rewrites `robot` to remove empty links connected by fixed joints. Returns the
-/// names of links that should be marked as fixed-base bodies (because the empty
-/// root that anchored them to the world was removed).
-///
-/// See [`UrdfLoaderOptions::squeeze_empty_fixed_links`] for the precise rules.
-fn squeeze_empty_fixed_links(robot: &mut Robot) -> HashSet<String> {
-    let mut force_fixed: HashSet<String> = HashSet::new();
-
-    loop {
-        let empty_names: Vec<String> = robot
-            .links
-            .iter()
-            .filter(|l| is_link_empty(l))
-            .map(|l| l.name.clone())
-            .collect();
-        if empty_names.is_empty() {
-            break;
-        }
-
-        let mut progressed = false;
-
-        for empty_name in &empty_names {
-            let parent_joint_idx = robot
-                .joints
-                .iter()
-                .position(|j| j.child.link == *empty_name);
-            let child_joint_indices: Vec<usize> = robot
-                .joints
-                .iter()
-                .enumerate()
-                .filter_map(|(i, j)| (j.parent.link == *empty_name).then_some(i))
-                .collect();
-
-            match parent_joint_idx {
-                Some(pj_idx) => {
-                    let parent_joint = robot.joints[pj_idx].clone();
-                    let mut spliced_any = false;
-
-                    for &cj_idx in &child_joint_indices {
-                        if robot.joints[cj_idx].joint_type != urdf_rs::JointType::Fixed {
-                            continue;
-                        }
-                        let child_origin = robot.joints[cj_idx].origin.clone();
-                        let new_origin = compose_urdf_pose(&parent_joint.origin, &child_origin);
-                        let new_axis =
-                            rotate_axis_into_child_frame(&parent_joint.axis.xyz, &child_origin);
-
-                        let cj = &mut robot.joints[cj_idx];
-                        cj.parent = parent_joint.parent.clone();
-                        cj.origin = new_origin;
-                        cj.joint_type = parent_joint.joint_type.clone();
-                        cj.axis.xyz = new_axis;
-                        cj.limit = parent_joint.limit.clone();
-                        cj.dynamics = parent_joint.dynamics.clone();
-                        cj.mimic = parent_joint.mimic.clone();
-                        cj.safety_controller = parent_joint.safety_controller.clone();
-                        cj.calibration = parent_joint.calibration.clone();
-                        spliced_any = true;
-                    }
-
-                    let still_has_child = robot
-                        .joints
-                        .iter()
-                        .enumerate()
-                        .any(|(i, j)| i != pj_idx && j.parent.link == *empty_name);
-
-                    if !still_has_child {
-                        robot.joints.remove(pj_idx);
-                        if let Some(li) = robot.links.iter().position(|l| &l.name == empty_name) {
-                            robot.links.remove(li);
-                        }
-                        progressed = true;
-                        break;
-                    } else if spliced_any {
-                        progressed = true;
-                        break;
-                    }
-                }
-                None => {
-                    // Empty root.
-                    let mut spliced_any = false;
-                    // Remove fixed children (in reverse to keep indices valid) and
-                    // remember their freed children so we can fix them later.
-                    for &cj_idx in child_joint_indices.iter().rev() {
-                        if robot.joints[cj_idx].joint_type == urdf_rs::JointType::Fixed {
-                            force_fixed.insert(robot.joints[cj_idx].child.link.clone());
-                            robot.joints.remove(cj_idx);
-                            spliced_any = true;
-                        }
-                    }
-                    let still_has_child = robot.joints.iter().any(|j| j.parent.link == *empty_name);
-                    if !still_has_child {
-                        if let Some(li) = robot.links.iter().position(|l| &l.name == empty_name) {
-                            robot.links.remove(li);
-                        }
-                        progressed = true;
-                        break;
-                    } else if spliced_any {
-                        progressed = true;
-                        break;
-                    }
-                }
+    let mut order = Vec::with_capacity(robot.joints.len());
+    let mut visited = vec![false; robot.joints.len()];
+    let mut stack: Vec<&str> = robot
+        .links
+        .iter()
+        .map(|link| link.name.as_str())
+        .filter(|name| !child_links.contains(name))
+        .collect();
+    while let Some(link) = stack.pop() {
+        for &i in child_joints.get(link).into_iter().flatten() {
+            if !visited[i] {
+                visited[i] = true;
+                order.push(i);
+                stack.push(robot.joints[i].child.link.as_str());
             }
-        }
-
-        if !progressed {
-            break;
         }
     }
 
-    force_fixed
+    // Joints unreachable from a root (in an invalid URDF with a kinematic loop) keep their order.
+    order.extend((0..robot.joints.len()).filter(|i| !visited[*i]));
+    order
+}
+
+/// The outcome of [`squeeze_empty_fixed_links`].
+struct SqueezeResult {
+    /// Names of the links that must be fixed because the empty root anchoring them was removed.
+    force_fixed: HashSet<String>,
+    /// For each remaining link, its index in the original robot.
+    link_ids: Vec<usize>,
+    /// For each remaining joint, its index in the original robot.
+    joint_ids: Vec<usize>,
+    /// For each remaining joint, the original indices of the joints merged into it.
+    merged_joint_ids: Vec<Vec<usize>>,
+    /// For each remaining joint, the pose (in URDF units) of its child link in the joint frame.
+    ///
+    /// This isn't the identity when the joint took over a moving joint leading to an empty link.
+    child_offsets: Vec<Pose>,
+}
+
+impl SqueezeResult {
+    /// The result of squeezing a robot without any empty link.
+    fn identity(robot: &Robot) -> Self {
+        Self {
+            force_fixed: HashSet::new(),
+            link_ids: (0..robot.links.len()).collect(),
+            joint_ids: (0..robot.joints.len()).collect(),
+            merged_joint_ids: vec![vec![]; robot.joints.len()],
+            child_offsets: vec![Pose::IDENTITY; robot.joints.len()],
+        }
+    }
+
+    fn remove_link(&mut self, robot: &mut Robot, name: &str) {
+        if let Some(id) = robot.links.iter().position(|l| l.name == name) {
+            robot.links.remove(id);
+            self.link_ids.remove(id);
+        }
+    }
+
+    fn remove_joint(&mut self, robot: &mut Robot, id: usize) {
+        robot.joints.remove(id);
+        self.joint_ids.remove(id);
+        self.merged_joint_ids.remove(id);
+        self.child_offsets.remove(id);
+    }
+
+    /// Records that the joint `parent_joint` was merged into the joint `joint`.
+    fn merge_parent_joint(&mut self, joint: usize, parent_joint: usize) {
+        let parent_id = self.joint_ids[parent_joint];
+        let parent_merged = self.merged_joint_ids[parent_joint].clone();
+        let merged = &mut self.merged_joint_ids[joint];
+        merged.push(parent_id);
+        merged.extend(parent_merged);
+    }
+}
+
+/// Attaches the joint `joint` of an empty link to `new_parent`, where `new_parent_to_link` is
+/// the pose of the empty link in the frame of `new_parent`.
+fn reparent_joint(robot: &mut Robot, joint: usize, new_parent: &str, new_parent_to_link: &Pose) {
+    let joint = &mut robot.joints[joint];
+    joint.parent.link = new_parent.to_string();
+    joint.origin = pose_to_urdf_pose(&(new_parent_to_link * urdf_to_pose(&joint.origin)));
+}
+
+/// Among the fixed joints attaching children to an empty link, picks the one that takes over
+/// the empty link's parent joint.
+///
+/// Non-empty children are preferred, then empty children that have children themselves.
+fn pick_representative(robot: &Robot, fixed_child_joints: &[usize]) -> Option<usize> {
+    let is_empty = |name: &str| {
+        robot
+            .links
+            .iter()
+            .find(|l| l.name == name)
+            .is_none_or(is_link_empty)
+    };
+    let has_children = |name: &str| robot.joints.iter().any(|j| j.parent.link == name);
+    fixed_child_joints.iter().copied().min_by_key(|&i| {
+        let child = robot.joints[i].child.link.as_str();
+        if !is_empty(child) {
+            0
+        } else if has_children(child) {
+            1
+        } else {
+            2
+        }
+    })
+}
+
+/// Rewrites `robot` to remove empty links connected by fixed joints, and tracks the
+/// original indices of the remaining links and joints.
+///
+/// See [`UrdfLoaderOptions::squeeze_empty_fixed_links`] for the precise rules.
+fn squeeze_empty_fixed_links(robot: &mut Robot) -> SqueezeResult {
+    let mut result = SqueezeResult::identity(robot);
+    while squeeze_one_empty_link(robot, &mut result) {}
+    result
+}
+
+/// Removes one empty link (or the fixed joints of an empty root) from `robot`, returning `false`
+/// if no empty link can be removed.
+fn squeeze_one_empty_link(robot: &mut Robot, result: &mut SqueezeResult) -> bool {
+    let empty_names: Vec<String> = robot
+        .links
+        .iter()
+        .filter(|l| is_link_empty(l))
+        .map(|l| l.name.clone())
+        .collect();
+
+    for empty_name in &empty_names {
+        let parent_joint = robot
+            .joints
+            .iter()
+            .position(|j| j.child.link == *empty_name);
+        let child_joints: Vec<usize> = robot
+            .joints
+            .iter()
+            .enumerate()
+            .filter_map(|(i, j)| (j.parent.link == *empty_name).then_some(i))
+            .collect();
+        let fixed_child_joints: Vec<usize> = child_joints
+            .iter()
+            .copied()
+            .filter(|i| robot.joints[*i].joint_type == urdf_rs::JointType::Fixed)
+            .collect();
+
+        match parent_joint {
+            Some(pj) if robot.joints[pj].joint_type == urdf_rs::JointType::Fixed => {
+                // The empty link is rigidly attached to its parent: attach its children to its
+                // parent directly. One fixed child records the removed joint.
+                let parent = robot.joints[pj].parent.link.clone();
+                let parent_to_link =
+                    urdf_to_pose(&robot.joints[pj].origin) * result.child_offsets[pj];
+                for &cj in &child_joints {
+                    reparent_joint(robot, cj, &parent, &parent_to_link);
+                }
+                if let Some(rep) = pick_representative(robot, &fixed_child_joints) {
+                    result.merge_parent_joint(rep, pj);
+                }
+                result.remove_joint(robot, pj);
+                result.remove_link(robot, empty_name);
+                return true;
+            }
+            Some(pj) if child_joints.is_empty() => {
+                // Empty leaf.
+                result.remove_joint(robot, pj);
+                result.remove_link(robot, empty_name);
+                return true;
+            }
+            Some(pj) => {
+                // The empty link is moved by its parent joint: one of its fixed children (the
+                // representative) takes over that joint, and its other children are attached to
+                // the representative so they all keep moving together.
+                let Some(rep) = pick_representative(robot, &fixed_child_joints) else {
+                    // Only moving children: the empty link is needed between the moving joints.
+                    continue;
+                };
+                let rep_link = robot.joints[rep].child.link.clone();
+                let link_to_rep =
+                    urdf_to_pose(&robot.joints[rep].origin) * result.child_offsets[rep];
+                let rep_to_link = link_to_rep.inverse();
+                for &cj in &child_joints {
+                    if cj != rep {
+                        reparent_joint(robot, cj, &rep_link, &rep_to_link);
+                    }
+                }
+
+                // The joint keeps its origin and axis in the frame of the empty link, which
+                // becomes the representative's offset from the joint frame.
+                let rep_joint = &robot.joints[rep];
+                let mut merged_joint = robot.joints[pj].clone();
+                merged_joint.name = rep_joint.name.clone();
+                merged_joint.child = rep_joint.child.clone();
+                robot.joints[rep] = merged_joint;
+                result.child_offsets[rep] = result.child_offsets[pj] * link_to_rep;
+                result.merge_parent_joint(rep, pj);
+
+                result.remove_joint(robot, pj);
+                result.remove_link(robot, empty_name);
+                return true;
+            }
+            None => {
+                // Empty root: its fixed children are anchored to the world instead.
+                // Remove them in reverse to keep the indices valid.
+                for &cj in fixed_child_joints.iter().rev() {
+                    let child = robot.joints[cj].child.link.clone();
+                    result.force_fixed.insert(child);
+                    result.remove_joint(robot, cj);
+                }
+                if fixed_child_joints.len() == child_joints.len() {
+                    result.remove_link(robot, empty_name);
+                    return true;
+                } else if !fixed_child_joints.is_empty() {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
 }

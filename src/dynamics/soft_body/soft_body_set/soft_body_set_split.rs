@@ -521,6 +521,7 @@ fn extract_piece(
     body.modified = true;
     body.tearing_pending = false;
     body.contact_approach_speeds = [None; 2];
+    body.contact_approach_step_open = false;
     body.contact_load = 0.0;
     body.load_extra_substeps = 0;
     (body, moves, remap)

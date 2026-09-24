@@ -81,6 +81,8 @@ impl PhysicsPipeline {
         self.counters.ccd.toi_computation_time.pause();
     }
 
+    /// `integration_parameters.dt` is the length of the interval the soft-CCD prediction of the
+    /// broad-phase AABBs covers: the next CCD pass, or the next step after the last pass.
     fn advance_to_final_positions(
         &mut self,
         integration_parameters: &IntegrationParameters,
@@ -103,7 +105,7 @@ impl PhysicsPipeline {
         let collider_aabb = |co: &crate::geometry::Collider,
                              rb: &crate::dynamics::RigidBody|
          -> crate::geometry::Aabb {
-            let mut aabb = co.compute_collision_aabb(prediction / 2.0 + rb.soft_motion_margin);
+            let mut aabb = co.compute_collision_aabb(prediction / 2.0 + co.soft_motion_margin(rb));
             if rb.soft_ccd_prediction() > 0.0 {
                 let next_pose = rb.predict_position_using_velocity_and_forces_with_max_dist(
                     dt,
@@ -131,18 +133,22 @@ impl PhysicsPipeline {
                     continue;
                 }
                 rb.pos.position = rb.pos.next_position;
-                for co_handle in rb.colliders.0.iter() {
-                    let co = colliders.index_mut_internal(*co_handle);
-                    let new_pos = rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
-                    co.pos = crate::geometry::ColliderPosition(new_pos);
-                    if co.is_enabled() {
-                        let aabb = collider_aabb(co, rb);
-                        if aabb.mins.is_finite() && aabb.maxs.is_finite() {
-                            self.end_step_collider_aabbs.push((*co_handle, aabb));
-                        } else {
-                            // Finite body pose but non-finite AABB: the collider's own
-                            // geometry is invalid.
-                            self.quarantine.collider_workspace.push(*co_handle);
+                // A cluster proxy's pose isn't integrated: the end-of-step soft-body sync moves
+                // its colliders to its fresh pose and refreshes their AABBs instead.
+                if !rb.is_soft_frame() {
+                    for co_handle in rb.colliders.0.iter() {
+                        let co = colliders.index_mut_internal(*co_handle);
+                        let new_pos = rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
+                        co.pos = crate::geometry::ColliderPosition(new_pos);
+                        if co.is_enabled() {
+                            let aabb = collider_aabb(co, rb);
+                            if aabb.mins.is_finite() && aabb.maxs.is_finite() {
+                                self.end_step_collider_aabbs.push((*co_handle, aabb));
+                            } else {
+                                // Finite body pose but non-finite AABB: the collider's own
+                                // geometry is invalid.
+                                self.quarantine.collider_workspace.push(*co_handle);
+                            }
                         }
                     }
                 }
@@ -189,17 +195,20 @@ impl PhysicsPipeline {
                         }
                         rb.pos.position = rb.pos.next_position;
 
-                        for co_handle in rb.colliders.0.iter() {
-                            let co = colliders.index_mut_internal(*co_handle);
-                            let new_pos =
-                                rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
-                            co.pos = crate::geometry::ColliderPosition(new_pos);
-                            if co.is_enabled() {
-                                let aabb = collider_aabb(co, rb);
-                                if aabb.mins.is_finite() && aabb.maxs.is_finite() {
-                                    moved.push((*co_handle, aabb));
-                                } else {
-                                    quarantined_colliders.push(*co_handle);
+                        // Cluster proxies' colliders: see the serial branch.
+                        if !rb.is_soft_frame() {
+                            for co_handle in rb.colliders.0.iter() {
+                                let co = colliders.index_mut_internal(*co_handle);
+                                let new_pos =
+                                    rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
+                                co.pos = crate::geometry::ColliderPosition(new_pos);
+                                if co.is_enabled() {
+                                    let aabb = collider_aabb(co, rb);
+                                    if aabb.mins.is_finite() && aabb.maxs.is_finite() {
+                                        moved.push((*co_handle, aabb));
+                                    } else {
+                                        quarantined_colliders.push(*co_handle);
+                                    }
                                 }
                             }
                         }
@@ -238,6 +247,37 @@ impl PhysicsPipeline {
 
         for (handle, aabb) in &self.end_step_collider_aabbs {
             broad_phase.set_aabb(integration_parameters, *handle, *aabb);
+        }
+    }
+
+    /// Feeds the broad-phase the AABBs of the colliders the soft-body sync deformed or moved to
+    /// their proxies' fresh poses, like `update_moved_collider_aabbs` does for the advanced bodies.
+    fn update_soft_synced_collider_aabbs(
+        &mut self,
+        integration_parameters: &IntegrationParameters,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        broad_phase: &mut BroadPhaseBvh,
+    ) {
+        if self.soft_synced_colliders.is_empty() {
+            return;
+        }
+        self.join_deferred_bvh_optimize(broad_phase);
+
+        for handle in &self.soft_synced_colliders {
+            let Some(co) = colliders.get(*handle) else {
+                continue;
+            };
+            if !co.is_enabled() {
+                continue;
+            }
+            // The AABB the next broad-phase update computes (soft-body motion margin included
+            // for the deformable colliders only).
+            let aabb = co.compute_broad_phase_aabb(integration_parameters, bodies);
+            // A non-finite AABB would corrupt the tree; the next steps' quarantine handles it.
+            if aabb.mins.is_finite() && aabb.maxs.is_finite() {
+                broad_phase.set_aabb(integration_parameters, *handle, aabb);
+            }
         }
     }
 
@@ -372,6 +412,7 @@ impl PhysicsPipeline {
         }
 
         // Persistent islands: apply the joint connectivity edits (in order).
+        impulse_joints.flush_modified_joints();
         let joint_island_events: Vec<_> = core::mem::take(&mut impulse_joints.island_events);
         for event in joint_island_events {
             islands.apply_impulse_joint_island_event(bodies, event);
@@ -426,9 +467,30 @@ impl PhysicsPipeline {
         removed_colliders.clear();
         self.counters.stages.user_changes.pause();
 
+        // A zero-length step only applies the user changes and updates the contacts: no time
+        // passes, so the dynamics (solver, integration, CCD, soft-body tears) are skipped.
+        if integration_parameters.dt <= 0.0 {
+            // The solver graph consumes this step's contact updates, as the solve would have.
+            narrow_phase.maintain_solver_contact_graph(
+                islands,
+                bodies,
+                colliders,
+                multibody_joints,
+            );
+            colliders.set_modified(modified_colliders);
+            self.counters.step_completed();
+            return;
+        }
+
         let mut remaining_time = integration_parameters.dt;
+        // The CCD passes shrink `integration_parameters.dt`: what predicts the next step (the
+        // end-of-step AABBs and soft-body sync) reads the full step's parameters instead.
+        let step_parameters = *integration_parameters;
         let mut integration_parameters = *integration_parameters;
 
+        // CCD substeps are only reported when the CCD had to act during the step.
+        let mut num_passes = 0;
+        let mut any_ccd_active = false;
         let (ccd_is_enabled, mut remaining_substeps) =
             if integration_parameters.max_ccd_substeps == 0 {
                 (false, 1)
@@ -452,6 +514,7 @@ impl PhysicsPipeline {
                 //       these forces have not been integrated to the body's velocity yet.
                 let ccd_active =
                     ccd_solver.update_ccd_active_flags(islands, bodies, remaining_time, true);
+                any_ccd_active |= ccd_active;
                 self.join_deferred_bvh_optimize(broad_phase);
                 let first_impact = if ccd_active {
                     ccd_solver.find_first_impact(
@@ -498,7 +561,7 @@ impl PhysicsPipeline {
                 remaining_substeps = 0;
             }
 
-            self.counters.ccd.num_substeps += 1;
+            num_passes += 1;
 
             self.counters.custom.resume();
             self.interpolate_kinematic_velocities(&integration_parameters, islands, bodies);
@@ -530,6 +593,7 @@ impl PhysicsPipeline {
                         false,
                     ),
                 };
+                any_ccd_active |= ccd_active;
                 if ccd_active {
                     self.join_deferred_bvh_optimize(broad_phase);
                     self.run_ccd_motion_clamping(
@@ -548,7 +612,13 @@ impl PhysicsPipeline {
             }
 
             self.counters.stages.update_time.resume();
-            self.advance_to_final_positions(&integration_parameters, islands, bodies, colliders);
+            // After the last pass, the AABBs predict the whole next step, not another pass.
+            let prediction_parameters = if remaining_substeps > 0 {
+                &integration_parameters
+            } else {
+                &step_parameters
+            };
+            self.advance_to_final_positions(prediction_parameters, islands, bodies, colliders);
             // Neutralize bodies whose integrated pose went non-finite before the remaining
             // CCD substeps can spread their velocities.
             self.quarantine.apply_end_step(bodies, colliders);
@@ -589,10 +659,14 @@ impl PhysicsPipeline {
                 // harvested by `advance_to_final_positions`.
                 self.counters.stages.collision_detection_time.resume();
                 self.counters.cd.final_broad_phase_time.resume();
-                self.update_moved_collider_aabbs(&integration_parameters, broad_phase);
+                self.update_moved_collider_aabbs(&step_parameters, broad_phase);
                 self.counters.cd.final_broad_phase_time.pause();
                 self.counters.stages.collision_detection_time.pause();
             }
+        }
+
+        if any_ccd_active {
+            self.counters.ccd.num_substeps = num_passes;
         }
 
         // Finally, make sure we update the world mass-properties of the rigid-bodies
@@ -619,12 +693,22 @@ impl PhysicsPipeline {
         );
         // Update the soft bodies' derived state (sleep state, surface orientation, substep
         // requests) and their colliders (picked up by the next step's user-changes handling).
-        soft_bodies.sync_particle_positions(
+        self.soft_synced_colliders.clear();
+        soft_bodies.sync_particle_positions_and_collect(
             bodies,
             colliders,
-            &integration_parameters,
+            &step_parameters,
+            integration_parameters.dt,
             &mut self.quarantine.soft_bodies,
+            &mut self.soft_synced_colliders,
         );
+        // The surfaces followed the particles and the rigid colliders on the proxies moved with
+        // them: the broad phase follows, so scene queries between steps see their final geometry.
+        self.counters.stages.collision_detection_time.resume();
+        self.counters.cd.final_broad_phase_time.resume();
+        self.update_soft_synced_collider_aabbs(&step_parameters, bodies, colliders, broad_phase);
+        self.counters.cd.final_broad_phase_time.pause();
+        self.counters.stages.collision_detection_time.pause();
 
         self.counters.step_completed();
     }

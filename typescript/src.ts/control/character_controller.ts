@@ -25,11 +25,11 @@ export class CharacterCollision {
     public toi: number;
     /** The world-space contact point on the collider when the collision happens. */
     public witness1: Vector;
-    /** The local-space contact point on the character when the collision happens. */
+    /** The world-space contact point on the character when the collision happens. */
     public witness2: Vector;
     /** The world-space outward contact normal on the collider when the collision happens. */
     public normal1: Vector;
-    /** The local-space outward contact normal on the character when the collision happens. */
+    /** The world-space outward contact normal on the character when the collision happens. */
     public normal2: Vector;
 }
 

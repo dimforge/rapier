@@ -440,7 +440,12 @@ impl JointConstraintBuilderSimd {
                 cfm_gain,
                 target_pos: self.motor_target_pos,
                 target_vel: self.motor_target_vel,
-                max_impulse: self.motor_max_force * dt,
+                // See `JointMotor::max_impulse`: an infinite max force times a zero dt is NaN.
+                max_impulse: if params.dt == 0.0 {
+                    zero
+                } else {
+                    self.motor_max_force * dt
+                },
             }
         });
         #[cfg(feature = "dim3")]

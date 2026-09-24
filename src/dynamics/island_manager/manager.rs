@@ -133,10 +133,11 @@ impl IslandManager {
 
         // Non-fixed enabled endpoints must be registered in the active set. (Two awake
         // touching bodies sharing an island is structural: there is at most one awake
-        // island.)
+        // island.) An island manager without any island tracks no body at all, like the
+        // one driven by the `CollisionPipeline` which never registers bodies.
         #[cfg(debug_assertions)]
         for handle in [handle1, handle2].into_iter().flatten() {
-            if let Some(rb) = bodies.get(handle) {
+            if let Some(rb) = bodies.get(handle).filter(|_| !self.islands.is_empty()) {
                 debug_assert!(
                     rb.is_fixed() || !rb.is_enabled() || rb.ids.active_island_id != u32::MAX
                 );

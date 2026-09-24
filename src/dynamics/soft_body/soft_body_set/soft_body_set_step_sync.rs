@@ -7,7 +7,7 @@ use crate::dynamics::soft_body::{SoftBody, SoftBodyHandle, SoftBodyTearEvent};
 use crate::dynamics::{
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
 };
-use crate::geometry::ColliderSet;
+use crate::geometry::{ColliderHandle, ColliderPosition, ColliderSet};
 use crate::math::{DIM, Pose, Real, Vector};
 use crate::pipeline::EventHandler;
 #[cfg(not(feature = "std"))]
@@ -76,7 +76,8 @@ impl SoftBodySet {
                         if let Some(rb) = bodies.get_mut_internal(cluster.proxy()) {
                             rb.soft_motion_margin = rb.soft_motion_margin.max(margin);
                         }
-                        // Flagged as modified so the broad phase updates their AABBs with the raised margin.
+                        // The margin only pads the deformable colliders: flagged as modified so
+                        // the broad phase updates their AABBs with it.
                         for mesh in cluster.meshes() {
                             let _ = colliders.get_mut(mesh.collider());
                         }
@@ -128,8 +129,9 @@ impl SoftBodySet {
             // bit-for-bit, so the frozen contact anchors are not re-linearized by fit noise.
             let prev = rb.pos.position;
             let dt = (frame.pose.translation - prev.translation).length();
+            // The 2D angle is signed: take its magnitude so either direction leaves the dead zone.
             #[cfg(feature = "dim2")]
-            let dr = frame.pose.rotation.angle_between(&prev.rotation);
+            let dr = frame.pose.rotation.angle_between(&prev.rotation).abs();
             #[cfg(feature = "dim3")]
             let dr = frame.pose.rotation.angle_between(prev.rotation);
             if dt < 1.0e-6 && dr < 1.0e-6 {
@@ -193,6 +195,29 @@ impl SoftBodySet {
         params: &IntegrationParameters,
         quarantined: &mut Vec<SoftBodyHandle>,
     ) {
+        self.sync_particle_positions_and_collect(
+            bodies,
+            colliders,
+            params,
+            params.dt,
+            quarantined,
+            &mut Vec::new(),
+        );
+    }
+
+    /// [`Self::sync_particle_positions`], also collecting into `synced_colliders` the deformed
+    /// surface colliders and the rigid colliders moved to their proxy's fresh pose, whose
+    /// broad-phase AABBs must follow. `params` are the full step's (sizing the coming step's
+    /// margin and substeps); `last_pass_dt` is the length of the step's last CCD pass.
+    pub(crate) fn sync_particle_positions_and_collect(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+        params: &IntegrationParameters,
+        last_pass_dt: Real,
+        quarantined: &mut Vec<SoftBodyHandle>,
+        synced_colliders: &mut Vec<ColliderHandle>,
+    ) {
         // Every body reads its own particles and writes only itself: updated in parallel, then
         // the writes to the shared sets are applied in body order. Disabled bodies are left
         // alone, like sleeping ones.
@@ -209,8 +234,9 @@ impl SoftBodySet {
             })
             .collect();
         let mut outcomes = Vec::with_capacity(soft_bodies.len());
-        let sync =
-            |(sb, inactive): &mut (&mut SoftBody, bool)| sync_soft_body(sb, *inactive, params);
+        let sync = |(sb, inactive): &mut (&mut SoftBody, bool)| {
+            sync_soft_body(sb, *inactive, params, last_pass_dt)
+        };
         #[cfg(feature = "parallel")]
         {
             use rayon::prelude::*;
@@ -255,18 +281,29 @@ impl SoftBodySet {
                         co.deform_pose(frame);
                         let pose = *co.position();
                         co.deform_shape(|shape| mesh.deform_shape(sb, &pose, shape));
+                        synced_colliders.push(mesh.collider());
                     }
                 }
-                // The proxy's colliders (its meshes and the rigid colliders a user hung on it) ride
-                // the cluster's frame, which moves with the particles: they share its speculative margin.
+                // The speculative margin pads the proxy's deformable colliders only: the rigid
+                // colliders a user hung on it get the AABB of any dynamic body's collider.
                 let Some(rb) = bodies.get_mut_internal(cluster.proxy()) else {
                     continue;
                 };
                 rb.soft_motion_margin = margin;
-                // Flagged as modified so the broad phase updates their AABBs with the new margin.
-                let proxy_colliders = rb.colliders().to_vec();
-                for handle in proxy_colliders {
-                    let _ = colliders.get_mut(handle);
+                let proxy_pose = rb.pos.position;
+                // Flagged as modified: the meshes were deformed and the rigid ones move below.
+                for handle in rb.colliders() {
+                    let Some(co) = colliders.get_mut(*handle) else {
+                        continue;
+                    };
+                    // The rigid ones follow its fresh pose: the end-of-step advance leaves the
+                    // proxies' colliders to this sync.
+                    if !co.is_deformable_collider() {
+                        if let Some(parent) = co.parent.as_ref() {
+                            co.pos = ColliderPosition(proxy_pose * parent.pos_wrt_parent);
+                            synced_colliders.push(*handle);
+                        }
+                    }
                 }
             }
         }

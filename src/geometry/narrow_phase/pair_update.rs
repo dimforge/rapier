@@ -317,10 +317,11 @@ pub(super) fn process_pair(
 
         let pos12 = co1.pos.inv_mul(&co2.pos);
 
-        // Soft bodies add the farthest motion of their particles over the step (speculative
-        // contacts instead of continuous collision detection for deformable geometry).
-        let soft_margin1 = rb1.map_or(0.0, |rb| rb.soft_motion_margin);
-        let soft_margin2 = rb2.map_or(0.0, |rb| rb.soft_motion_margin);
+        // Soft-body surfaces add the farthest motion of their particles over the step (speculative
+        // contacts instead of continuous collision detection for deformable geometry). Rigid
+        // colliders on cluster proxies get no margin, like colliders on dynamic bodies.
+        let soft_margin1 = rb1.map_or(0.0, |rb| co1.soft_motion_margin(rb));
+        let soft_margin2 = rb2.map_or(0.0, |rb| co2.soft_motion_margin(rb));
         let soft_body_prediction = soft_margin1 + soft_margin2;
         let contact_skin_sum = co1.contact_skin() + co2.contact_skin();
         let soft_ccd_prediction1 = rb1.map(|rb| rb.soft_ccd_prediction()).unwrap_or(0.0);

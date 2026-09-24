@@ -155,6 +155,7 @@ impl PhysicsPipeline {
             events,
         );
 
+        self.counters.cd.ncontact_pairs = narrow_phase.contact_graph().graph.edges.len();
         self.counters.cd.narrow_phase_time.pause();
         self.counters.stages.collision_detection_time.pause();
     }

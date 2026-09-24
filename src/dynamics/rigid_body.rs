@@ -76,8 +76,9 @@ pub struct RigidBody {
     /// (`u32::MAX` for regular rigid bodies).
     #[cfg_attr(feature = "serde-serialize", serde(default = "invalid_soft_cluster"))]
     pub(crate) soft_cluster: u32,
-    /// The speculative margin of a soft-frame proxy's colliders, set by the soft-body step: the
-    /// farthest particle travel of its soft body over the coming step (zero for regular bodies).
+    /// The speculative margin of a soft-frame proxy's deformable colliders, set by the soft-body
+    /// step: the farthest particle travel of its soft body over the coming step (zero for
+    /// regular bodies).
     pub(crate) soft_motion_margin: Real,
     /// User-defined data associated to this rigid-body.
     pub user_data: u128,
@@ -1559,7 +1560,7 @@ impl RigidBody {
     /// When enabled, rapidly spinning objects resist rotation axis changes (like gyroscopes).
     /// Examples: spinning tops, flywheels, rotating spacecraft.
     ///
-    /// **Default**: Disabled (costs performance, rarely needed in games).
+    /// **Default**: Enabled. Disabling it saves a slight performance overhead.
     #[cfg(feature = "dim3")]
     pub fn enable_gyroscopic_forces(&mut self, enabled: bool) {
         self.forces.gyroscopic_forces_enabled = enabled;
@@ -1690,7 +1691,7 @@ pub struct RigidBodyBuilder {
     ///
     /// See [`RigidBody::set_additional_pgs_iterations`] for additional information.
     pub additional_pgs_iterations: usize,
-    /// Are gyroscopic forces enabled for this rigid-body?
+    /// Are gyroscopic forces enabled for this rigid-body? (default: `true`)
     pub gyroscopic_forces_enabled: bool,
 }
 
@@ -2112,7 +2113,7 @@ impl RigidBodyBuilder {
     /// Enabling gyroscopic forces allows more realistic behaviors like gyroscopic precession,
     /// but result in a slight performance overhead.
     ///
-    /// Disabled by default.
+    /// Enabled by default.
     #[cfg(feature = "dim3")]
     pub fn gyroscopic_forces_enabled(mut self, enabled: bool) -> Self {
         self.gyroscopic_forces_enabled = enabled;

@@ -126,8 +126,13 @@ pub struct SoftBody {
     /// Largest normal approach speed of the rigid bodies met by the surface, for the last step
     /// and the one before (`None`: no contact constraint that step); with the particle speeds, it drives
     /// the impact-adaptive substeps (`IntegrationParameters::soft_bodies.max_extra_substeps`).
+    /// A step split into several CCD passes counts once, with the largest speed of its passes.
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub(crate) contact_approach_speeds: [Option<Real>; 2],
+    /// Set by the first solve of a step, which shifted `contact_approach_speeds`: the step's later
+    /// CCD passes merge into its entry. Cleared by the end-of-step sync.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) contact_approach_step_open: bool,
     /// Total normal impulse of the surface's contact constraints over the last step, and the extra
     /// substeps currently requested from that load (see `sync_particle_positions`).
     #[cfg_attr(feature = "serde-serialize", serde(default))]

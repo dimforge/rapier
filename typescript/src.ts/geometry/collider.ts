@@ -1117,6 +1117,10 @@ export class Collider {
     /**
      * Computes the smallest time between this and the given shape under translational movement are separated by a distance smaller or equal to distance.
      *
+     * In the returned hit, `witness1` and `normal1` lie on this collider and are expressed in its
+     * local-space, while `witness2` and `normal2` lie on `shape2` and are expressed in its
+     * local-space (relative to `shape2Pos` and `shape2Rot`).
+     *
      * @param collider1Vel - The constant velocity of the current shape to cast (i.e. the cast direction).
      * @param shape2 - The shape to cast against.
      * @param shape2Pos - The position of the second shape.
@@ -1179,6 +1183,10 @@ export class Collider {
 
     /**
      * Computes the smallest time between this and the given collider under translational movement are separated by a distance smaller or equal to distance.
+     *
+     * In the returned hit, `collider` is `collider2`; `witness1` and `normal1` lie on this collider
+     * and are expressed in its local-space, while `witness2` and `normal2` lie on `collider2` and
+     * are expressed in its local-space.
      *
      * @param collider1Vel - The constant velocity of the current collider to cast (i.e. the cast direction).
      * @param collider2 - The collider to cast against.

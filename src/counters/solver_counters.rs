@@ -4,9 +4,11 @@ use core::fmt::{Display, Formatter, Result};
 /// Performance counters related to constraints resolution.
 #[derive(Default, Clone, Copy, Debug)]
 pub struct SolverCounters {
-    /// Number of constraints generated.
+    /// Number of contact manifolds and impulse joints handed to the constraints solver (summed
+    /// over the CCD substeps). Sleeping bodies' contacts and joints aren't counted.
     pub nconstraints: usize,
-    /// Number of contacts found.
+    /// Number of contact points handed to the constraints solver, soft-body contacts included
+    /// (summed over the CCD substeps).
     pub ncontacts: usize,
     /// Time spent for the resolution of the constraints (force computation).
     pub velocity_resolution_time: Timer,
