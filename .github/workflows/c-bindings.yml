@@ -1,8 +1,10 @@
 name: C bindings
 on:
   push:
+    branches: [master]
     paths: ['c/**', 'src/**', 'crates/rapier*/**', 'Cargo.toml', '.github/workflows/c-bindings.yml']
   pull_request:
+    branches: [master]
     paths: ['c/**', 'src/**', 'crates/rapier*/**', 'Cargo.toml', '.github/workflows/c-bindings.yml']
   workflow_dispatch:
 jobs:
