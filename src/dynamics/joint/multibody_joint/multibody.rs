@@ -188,6 +188,8 @@ impl Multibody {
         let mut result = vec![];
         let mut link2mb = vec![usize::MAX; self.links.len()];
         let mut link_id2new_id = vec![usize::MAX; self.links.len()];
+        // Links whose joint is replaced by a fixed one: their DoFs no longer exist.
+        let mut joint_replaced = vec![false; self.links.len()];
 
         // Split multibody and update the set of links and ndofs.
         for (i, mut link) in self.links.0.into_iter().enumerate() {
@@ -210,6 +212,7 @@ impl Multibody {
             if is_new_root {
                 let joint = MultibodyJoint::fixed(*link.local_to_world());
                 link.joint = joint;
+                joint_replaced[i] = true;
             }
 
             curr_mb.ndofs += link.joint().ndofs();
@@ -252,6 +255,19 @@ impl Multibody {
                     0
                 };
                 assembly_id += link_ndofs;
+            }
+        }
+
+        // Keep the couplings whose DoFs still exist and ended up in the same multibody.
+        for coupling in &self.couplings {
+            let (l1, l2) = (coupling.link1, coupling.link2);
+            let kept = |l: usize| link_id2new_id[l] != usize::MAX && !joint_replaced[l];
+            if kept(l1) && kept(l2) && link2mb[l1] == link2mb[l2] {
+                result[link2mb[l1]].couplings.push(MultibodyDofCoupling {
+                    link1: link_id2new_id[l1],
+                    link2: link_id2new_id[l2],
+                    ..*coupling
+                });
             }
         }
 
@@ -314,6 +330,20 @@ impl Multibody {
         self.links.append(&mut rhs.links);
         self.ndofs = self.velocities.len();
         self.workspace.resize(self.links.len(), self.ndofs);
+
+        // The rhs couplings follow its links, except the ones on its root whose joint was replaced.
+        self.couplings.extend(
+            rhs.couplings
+                .iter()
+                .filter(|c| c.link1 != 0 && c.link2 != 0)
+                .map(|c| MultibodyDofCoupling {
+                    link1: c.link1 + base_internal_id,
+                    link2: c.link2 + base_internal_id,
+                    ..*c
+                }),
+        );
+        // Self-contacts stay disabled for the links of a multibody that had them disabled.
+        self.self_contacts_enabled &= rhs.self_contacts_enabled;
     }
 
     /// Whether self-contacts are enabled on this multibody.
@@ -1095,8 +1125,29 @@ impl Multibody {
     }
 
     /// The DoF couplings declared on this multibody.
+    ///
+    /// Couplings follow the multibody's topology changes (link insertions, merges and splits);
+    /// a coupling is dropped once one of its DoFs no longer exists, or when its two DoFs end up
+    /// in different multibodies.
     pub fn couplings(&self) -> &[MultibodyDofCoupling] {
         &self.couplings
+    }
+
+    /// Removes the `i`-th DoF coupling (in the order of [`Self::couplings`]) and returns it.
+    ///
+    /// Returns `None` if there is no such coupling. The couplings after it shift down by one.
+    pub fn remove_dof_coupling(&mut self, i: usize) -> Option<MultibodyDofCoupling> {
+        (i < self.couplings.len()).then(|| self.couplings.remove(i))
+    }
+
+    /// Keeps only the DoF couplings for which `f` returns `true`.
+    pub fn retain_dof_couplings(&mut self, f: impl FnMut(&MultibodyDofCoupling) -> bool) {
+        self.couplings.retain(f);
+    }
+
+    /// Removes all the DoF couplings of this multibody.
+    pub fn clear_dof_couplings(&mut self) {
+        self.couplings.clear();
     }
 
     /// The number of dry-friction rows `link_id`'s joint will emit: one per

@@ -55,6 +55,13 @@ pub struct ImpulseJointSet {
     /// drained at the start of the next timestep, in order.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) island_events: Vec<crate::dynamics::ImpulseJointIslandEvent>,
+    /// Joints accessed mutably since the last timestep: their enabled status may have changed,
+    /// so their island links are refreshed by [`Self::flush_modified_joints`].
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    modified_joints: Vec<ImpulseJointHandle>,
+    /// Set by [`Self::iter_mut`]: every joint counts as modified.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    all_joints_modified: bool,
     /// Bumped by every mutation that can affect the solver's joint constraint assembly (joint
     /// insertion/removal, mutable joint access, user-changes to a rigid-body with attached joints).
     /// The solver reuses its joint assembly while this, the joint list, and the island epoch are unchanged.
@@ -77,6 +84,8 @@ impl ImpulseJointSet {
             to_wake_up: HashSet::default(),
             to_join: HashSet::default(),
             island_events: Vec::new(),
+            modified_joints: Vec::new(),
+            all_joints_modified: false,
             assembly_epoch: 0,
             selection_epochs: None,
         }
@@ -239,6 +248,7 @@ impl ImpulseJointSet {
     ) -> Option<&mut ImpulseJoint> {
         self.bump_assembly_epoch();
         let id = self.joint_ids.get(handle.0)?;
+        self.modified_joints.push(handle);
         let joint = self.joint_graph.graph.edge_weight_mut(*id);
         if wake_up_connected_bodies {
             if let Some(joint) = &joint {
@@ -270,6 +280,7 @@ impl ImpulseJointSet {
     ) -> Option<(&mut ImpulseJoint, ImpulseJointHandle)> {
         self.bump_assembly_epoch();
         let (id, handle) = self.joint_ids.get_unknown_gen(i)?;
+        self.modified_joints.push(ImpulseJointHandle(handle));
         Some((
             self.joint_graph.graph.edge_weight_mut(*id)?,
             ImpulseJointHandle(handle),
@@ -292,11 +303,53 @@ impl ImpulseJointSet {
     /// Each iteration yields `(joint_handle, &mut joint)`.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (ImpulseJointHandle, &mut ImpulseJoint)> {
         self.bump_assembly_epoch();
+        self.all_joints_modified = true;
         self.joint_graph
             .graph
             .edges
             .iter_mut()
             .map(|e| (e.weight.handle, &mut e.weight))
+    }
+
+    /// Queues an island link (or unlink) for each joint accessed mutably since the last call,
+    /// matching its current enabled status, so enabling or disabling a joint merges or splits
+    /// islands. Both events are no-ops for a joint already in that state.
+    pub(crate) fn flush_modified_joints(&mut self) {
+        let mut handles = core::mem::take(&mut self.modified_joints);
+        let all = core::mem::take(&mut self.all_joints_modified);
+        let graph = &self.joint_graph.graph;
+        let island_events = &mut self.island_events;
+        let mut push_event = |joint: &ImpulseJoint| {
+            island_events.push(if joint.data.is_enabled() {
+                crate::dynamics::ImpulseJointIslandEvent::Link {
+                    handle: joint.handle,
+                    body1: joint.body1,
+                    body2: joint.body2,
+                }
+            } else {
+                crate::dynamics::ImpulseJointIslandEvent::Unlink {
+                    handle: joint.handle,
+                }
+            });
+        };
+
+        if all {
+            graph.edges.iter().for_each(|edge| push_event(&edge.weight));
+        } else {
+            for handle in &handles {
+                if let Some(joint) = self
+                    .joint_ids
+                    .get(handle.0)
+                    .and_then(|id| graph.edge_weight(*id))
+                {
+                    push_event(joint);
+                }
+            }
+        }
+
+        // Keep the allocation.
+        handles.clear();
+        self.modified_joints = handles;
     }
 
     pub(crate) fn joints_mut(&mut self) -> &mut [JointGraphEdge] {
