@@ -1,0 +1,50 @@
+[advisories]
+yanked = "deny"
+ignore = [
+    # paste was announced as unmaintained with no explanation or replacement
+    # See: 
+    # - https://rustsec.org/advisories/RUSTSEC-2024-0436
+    # - https://github.com/bevyengine/bevy/pull/18209
+    # Bevy relies on this in multiple indirect ways, so ignoring it is the only feasible current solution
+    "RUSTSEC-2024-0436",
+    # quick-xml advisories: pulled in transitively via bevy -> wayland-scanner, which
+    # pins quick-xml 0.39 and has no compatible upgrade to the patched >=0.41.0 yet.
+    # See: https://rustsec.org/advisories/RUSTSEC-2026-0194
+    "RUSTSEC-2026-0194",
+    # See: https://rustsec.org/advisories/RUSTSEC-2026-0195
+    "RUSTSEC-2026-0195",
+    # ttf-parser is unmaintained with no safe upgrade available; pulled in transitively
+    # via bevy -> ab_glyph -> owned_ttf_parser.
+    # See: https://rustsec.org/advisories/RUSTSEC-2026-0192
+    "RUSTSEC-2026-0192",
+]
+
+[licenses]
+allow = [
+    "MIT-0",
+    "MIT",
+    "Apache-2.0",
+    "Zlib",
+    "CC0-1.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "NCSA",
+    "Apache-2.0 WITH LLVM-exception",
+]
+
+[[licenses.clarify]]
+name = "stretch"
+expression = "MIT"
+license-files = []
+
+[bans]
+multiple-versions = "allow"
+# Bevy is a git dependency on its main branch, which has no version requirement.
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = ["https://github.com/bevyengine/bevy"]

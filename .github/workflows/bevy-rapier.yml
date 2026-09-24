@@ -1,0 +1,142 @@
+name: Bevy plugin
+
+# `bindings/bevy_rapier` is its own Cargo workspace (it tracks Bevy's main branch), building
+# `bevy_rapier2d` and `bevy_rapier3d` against the rapier crates of this repository. It runs
+# on engine changes too, so a rapier change breaking the plugin is caught in its own PR.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "bindings/bevy_rapier/**"
+      - "src/**"
+      - "crates/rapier*/**"
+      - "crates/mjcf-rs/**"
+      - "Cargo.toml"
+      - "website/docs-examples/*/bevy/**"
+      - ".github/workflows/bevy-rapier.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "bindings/bevy_rapier/**"
+      - "src/**"
+      - "crates/rapier*/**"
+      - "crates/mjcf-rs/**"
+      - "Cargo.toml"
+      - "website/docs-examples/*/bevy/**"
+      - ".github/workflows/bevy-rapier.yml"
+  workflow_dispatch:
+
+# A new push to a PR cancels the still-running build of the previous push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: none
+
+defaults:
+  run:
+    working-directory: bindings/bevy_rapier
+
+jobs:
+  check-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+  doc:
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bindings/bevy_rapier
+      - run: sudo apt update && sudo apt-get install pkg-config libx11-dev libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - name: Cargo doc
+        run: cargo doc --no-deps
+  test:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bindings/bevy_rapier
+      - run: sudo apt update && sudo apt-get install pkg-config libx11-dev libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - run: cargo install cargo-all-features
+      - name: Clippy for bevy_rapier2d
+        run: cargo clippy --verbose -p bevy_rapier2d --examples
+      - name: Clippy for bevy_rapier3d
+        run: cargo clippy --verbose -p bevy_rapier3d --examples
+      - name: Clippy for bevy_rapier2d (debug-render, simd, serde)
+        run: cargo clippy --verbose -p bevy_rapier2d --features debug-render-2d,simd8,serde-serialize,picking-backend
+      - name: Clippy for bevy_rapier3d (debug-render, simd, serde)
+        run: cargo clippy --verbose -p bevy_rapier3d --features debug-render-3d,simd8,serde-serialize,picking-backend
+      - name: Test for bevy_rapier2d
+        run: cargo test --verbose -p bevy_rapier2d
+      - name: Test for bevy_rapier3d
+        run: cargo test --verbose -p bevy_rapier3d
+      - name: Test for no conflicting system order ambiguity
+        run: cargo run --bin ambiguity_detection
+      - name: Check all features individually
+        run: cargo check-all-features
+  test-wasm:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bindings/bevy_rapier
+      - name: Clippy bevy_rapier2d
+        run: cd bevy_rapier2d && cargo clippy --verbose --features bevy/webgl2 --target wasm32-unknown-unknown
+      - name: Clippy bevy_rapier3d
+        run: cd bevy_rapier3d && cargo clippy --verbose --features bevy/webgl2 --target wasm32-unknown-unknown
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check dependencies
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: bindings/bevy_rapier/Cargo.toml
+  # Checks the Bevy documentation snippets compile against the in-tree bevy_rapier. Both
+  # snippet crates are standalone workspaces sharing one target directory.
+  website-bevy-snippets:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/website/docs-examples/target
+    defaults:
+      run:
+        working-directory: website/docs-examples
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            website/docs-examples/2d/bevy -> ../../target
+            website/docs-examples/3d/bevy -> ../../target
+      - run: sudo apt update && sudo apt-get install pkg-config libx11-dev libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - name: Check the 2D snippets
+        run: cd 2d/bevy && cargo check --examples
+      - name: Check the 3D snippets
+        run: cd 3d/bevy && cargo check --examples

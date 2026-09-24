@@ -1,0 +1,10 @@
+[package]
+name = "rapier-c-logo-mesh"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+rapier2d = { path = "../../../../../crates/rapier2d" }
+lyon = "0.17"
+usvg = "0.14"

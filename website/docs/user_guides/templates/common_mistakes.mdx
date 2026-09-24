@@ -72,7 +72,7 @@ debug build of your application can still use an optimized Rapier library, as lo
 ## My local build of Rapier is slower than the online demos
 Make sure the bindings are built in release mode. Rapier can be 100 times slower without optimizations enabled. The
 package installed by `pip` is always optimized, but the bindings built from source are only optimized if `--release`
-is given to maturin, e.g., `maturin develop --release -m python/rapier-py-3d/Cargo.toml` (see
+is given to maturin, e.g., `maturin develop --release -m bindings/python/rapier-py-3d/Cargo.toml` (see
 [building from source](./getting_started_py.mdx#building-from-source)). The build mode of the bindings actually loaded
 by your application is given by the `profile` property of `rapier3d.build_features()`:
 

@@ -1,0 +1,41 @@
+[package]
+name = "rapier3d-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "C ABI for rapier3d"
+publish = false
+build = "../build.rs"
+
+[lib]
+name = "rapier3d_ffi"
+path = "../src/lib.rs"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = ["dim3", "f32"]
+dim3 = []
+f32 = []
+parallel = ["rapier/parallel"]
+profiler = ["rapier/profiler"]
+simd8 = ["rapier/simd8"]
+enhanced-determinism = ["rapier/enhanced-determinism"]
+fem = ["rapier/fem"]
+robotics = ["dep:rapier3d-urdf", "dep:rapier3d-mjcf", "dep:rapier3d-meshloader"]
+
+[dependencies]
+rapier-c-macros = { path = "../rapier-c-macros" }
+rapier = { package = "rapier3d", path = "../../../crates/rapier3d", features = ["serde-serialize", "debug-render"] }
+rapier3d-urdf = { workspace = true, optional = true, features = ["stl", "collada", "wavefront"] }
+rapier3d-mjcf = { workspace = true, optional = true, features = ["stl", "wavefront", "msh"] }
+rapier3d-meshloader = { workspace = true, optional = true, features = ["stl", "collada", "wavefront"] }
+bincode.workspace = true
+serde.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("dim2", "dim3", "f32", "f64", "robotics"))'] }
+
+[[example]]
+name = "compare_steps"
+path = "../examples/compare_steps.rs"

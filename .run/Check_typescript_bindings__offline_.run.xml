@@ -2,7 +2,7 @@
   <configuration default="false" name="Check typescript bindings (offline)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="Bindings">
     <option name="buildProfileId" value="dev" />
     <option name="command" value="check --offline" />
-    <option name="workingDirectory" value="file://$PROJECT_DIR$/typescript" />
+    <option name="workingDirectory" value="file://$PROJECT_DIR$/bindings/typescript" />
     <envs />
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />

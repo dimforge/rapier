@@ -1,6 +1,6 @@
 #!/bin/bash
 # Runs the Python snippets of the user-guide against the in-tree bindings.
-# Build them first with `python/dev.sh build` (or set PYTHON to an interpreter where `rapier3d` is installed).
+# Build them first with `bindings/python/dev.sh build` (or set PYTHON to an interpreter where `rapier3d` is installed).
 # Usage: ./run_snippets.sh [snippet.py]...
 
 cd "$(dirname "${BASH_SOURCE[0]}")"

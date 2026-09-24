@@ -1,6 +1,6 @@
 [workspace]
 members = ["2d/rust", "3d/rust", "inject_file"]
-# The bevy snippets need a bevy_rapier checkout next to the rapier repository: they are standalone workspaces so
-# the other crates (including `inject_file`) build without it.
+# The bevy snippets build against the in-tree bevy_rapier (`bindings/bevy_rapier`), which tracks Bevy's main
+# branch: they are standalone workspaces so the other crates (including `inject_file`) build without Bevy.
 exclude = ["2d/bevy", "3d/bevy"]
 resolver = "2"

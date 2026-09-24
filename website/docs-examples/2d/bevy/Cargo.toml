@@ -8,14 +8,10 @@ edition = "2021"
 [dependencies]
 # The in-development bevy_rapier tracks Bevy's main branch.
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main" }
-# Use the bevy_rapier checkout next to the rapier repository so doc snippets are checked against local changes.
-bevy_rapier2d = { path = "../../../../../bevy_rapier/bevy_rapier2d", features = ["fem", "serde-serialize"] }
+# Use the in-tree bevy_rapier so doc snippets are checked against local changes.
+bevy_rapier2d = { path = "../../../../bindings/bevy_rapier/bevy_rapier2d", features = ["fem", "serde-serialize"] }
 # Used For serialization
 bincode = { version = "2.0.1", features = ["serde"] }
 
 # Standalone workspace, excluded from the one of the other snippets (see `docs-examples/Cargo.toml`).
 [workspace]
-
-# Make bevy_rapier use the in-tree rapier too, so the bevy and rust snippets share the same rapier.
-[patch.crates-io]
-rapier2d = { path = "../../../../crates/rapier2d" }

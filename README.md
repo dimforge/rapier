@@ -54,13 +54,14 @@ The easiest way to get started with Rapier is to:
 | Variant | Examples | User-guide snippets |
 | --- | --- | --- |
 | Rust | [`examples2d/`](examples2d/), [`examples3d/`](examples3d/), [`examples3d-f64/`](examples3d-f64/) | [2D](website/docs-examples/2d/rust/examples/), [3D](website/docs-examples/3d/rust/examples/) |
-| C | [`c/examples/`](c/examples/), testbed scenes in [`c/testbed/examples2d/`](c/testbed/examples2d/) and [`c/testbed/examples3d/`](c/testbed/examples3d/) | [2D](website/docs-examples/2d/c/examples/), [3D](website/docs-examples/3d/c/examples/) |
-| JavaScript | testbed demos in [`typescript/testbed2d/src/demos/`](typescript/testbed2d/src/demos/) and [`typescript/testbed3d/src/demos/`](typescript/testbed3d/src/demos/) | [2D](website/docs-examples/2d/javascript/src/snippets/), [3D](website/docs-examples/3d/javascript/src/snippets/) |
-| Python | [`python/examples/`](python/examples/), testbed scenes in [`python/rapier-testbed/rapier_testbed/examples3/`](python/rapier-testbed/rapier_testbed/examples3/) | [3D](website/docs-examples/3d/python/) |
-| Bevy plugin | [`bevy_rapier2d/examples/`](https://github.com/dimforge/bevy_rapier/tree/master/bevy_rapier2d/examples) and [`bevy_rapier3d/examples/`](https://github.com/dimforge/bevy_rapier/tree/master/bevy_rapier3d/examples) in the [bevy_rapier](https://github.com/dimforge/bevy_rapier) repository | [2D](website/docs-examples/2d/bevy/examples/), [3D](website/docs-examples/3d/bevy/examples/) |
+| C | [`bindings/c/examples/`](bindings/c/examples/), testbed scenes in [`bindings/c/testbed/examples2d/`](bindings/c/testbed/examples2d/) and [`bindings/c/testbed/examples3d/`](bindings/c/testbed/examples3d/) | [2D](website/docs-examples/2d/c/examples/), [3D](website/docs-examples/3d/c/examples/) |
+| JavaScript | testbed demos in [`bindings/typescript/testbed2d/src/demos/`](bindings/typescript/testbed2d/src/demos/) and [`bindings/typescript/testbed3d/src/demos/`](bindings/typescript/testbed3d/src/demos/) | [2D](website/docs-examples/2d/javascript/src/snippets/), [3D](website/docs-examples/3d/javascript/src/snippets/) |
+| Python | [`bindings/python/examples/`](bindings/python/examples/), testbed scenes in [`bindings/python/rapier-testbed/rapier_testbed/examples3/`](bindings/python/rapier-testbed/rapier_testbed/examples3/) | [3D](website/docs-examples/3d/python/) |
+| Bevy plugin | [`bindings/bevy_rapier/bevy_rapier2d/examples/`](bindings/bevy_rapier/bevy_rapier2d/examples/) and [`bindings/bevy_rapier/bevy_rapier3d/examples/`](bindings/bevy_rapier/bevy_rapier3d/examples/) | [2D](website/docs-examples/2d/bevy/examples/), [3D](website/docs-examples/3d/bevy/examples/) |
 
 The user-guide snippets are the code shown in the [user guide](https://rapier.rs/docs/): they are compiled (and, for
-C and Python, run) to make sure the guide stays up to date.
+C and Python, run) to make sure the guide stays up to date. The bindings and the Bevy plugin live in the
+[`bindings/`](bindings/) directory.
 
 ## Performance
 
@@ -82,20 +83,20 @@ rapier3d = { version = "*", features = ["parallel"] }
 
 ## C and C++ bindings
 
-See [`c/README.md`](c/README.md) for the C ABI, C++ ownership helpers, native build instructions,
+See [`bindings/c/README.md`](bindings/c/README.md) for the C ABI, C++ ownership helpers, native build instructions,
 and Unity/Unreal integration guidance. The bindings cover 2D/3D and f32/f64, including soft bodies.
 
 ## Python bindings
 
 The Python bindings ship as a single package, `rapier3d`, wrapping the 3D engine with 32-bit floats (there
-are no 2D or f64 Python bindings yet). See [`python/README.md`](python/README.md) for how to build the bindings,
-the docs, and the testbed from a checkout, [`python/docs/`](python/docs/) for the API documentation, and the
+are no 2D or f64 Python bindings yet). See [`bindings/python/README.md`](bindings/python/README.md) for how to build the bindings,
+the docs, and the testbed from a checkout, [`bindings/python/docs/`](bindings/python/docs/) for the API documentation, and the
 [user guide](https://rapier.rs/docs/) for its Python version.
 
 ## AI coding disclaimer and policy
 
 AI coding is extensively used for the implementation and maintenance of the following crates: `mjcf-rs`,
-`rapier3d-mjcf`, as well as the Python bindings (`python/rapier-py*`), including their tests, examples, and docs.
+`rapier3d-mjcf`, as well as the Python bindings (`bindings/python/rapier-py*`), including their tests, examples, and docs.
 
 We actively use AI assistance (with human reviews) for the following tasks:
 - Documentation generation.

@@ -1,0 +1,26 @@
+[package]
+name = "bevy_rapier_benches3d"
+version = "0.1.0"
+description = "Custom benchmarks for bevy_rapier."
+readme = "./README.md"
+license = "Apache-2.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rapier3d = { workspace = true }
+bevy_rapier3d = { version = "0.36", path = "../bevy_rapier3d" }
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false }
+
+[dev-dependencies]
+divan = "0.1"
+
+[[bench]]
+name = "cubes"
+harness = false
+
+[[bench]]
+name = "many_pyramids3"
+harness = false

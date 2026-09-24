@@ -312,7 +312,7 @@ jobs:
         run: cd website/docs-examples && cargo test
   # Checks the JavaScript documentation snippets build against the in-tree bindings, so a
   # snippet may use an API before it is released on npm. The snippet package depends on
-  # `typescript/builds/rapier{2,3}d/pkg` through a `file:` path, which this job builds first
+  # `bindings/typescript/builds/rapier{2,3}d/pkg` through a `file:` path, which this job builds first
   # (the same two steps a local checkout runs).
   website-javascript-snippets:
     runs-on: ubuntu-latest
@@ -323,14 +323,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: typescript
+          workspaces: bindings/typescript
       - name: Generate the binding crates
-        working-directory: ./typescript
+        working-directory: ./bindings/typescript
         run: |
           npm ci
           cargo run -p prepare_builds -- -d dim${{ matrix.dimension == '2d' && '2' || '3' }} -f non-deterministic
       - name: Build the in-tree bindings
-        working-directory: ./typescript/builds/rapier${{ matrix.dimension }}
+        working-directory: ./bindings/typescript/builds/rapier${{ matrix.dimension }}
         run: |
           npm i
           npm run build:wasm

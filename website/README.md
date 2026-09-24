@@ -62,7 +62,7 @@ Examples that read assets from disk (URDF/MJCF robots, `.obj` meshes, scene dump
 ### API references
 
 The JavaScript, C, and Python API pages embed the references generated from the bindings of this repository
-(typedoc for `typescript/`, Doxygen for `c/`, Sphinx for `python/`). They are build artifacts: `static/javascript2d`,
+(typedoc for `bindings/typescript/`, Doxygen for `bindings/c/`, Sphinx for `bindings/python/`). They are build artifacts: `static/javascript2d`,
 `static/javascript3d`, `static/c`, and `static/python` are gitignored, so they must be generated once before `yarn build`
 (or `yarn start`) can serve them.
 
@@ -75,7 +75,7 @@ $ ./scripts/build-api-docs.sh py         # just the Python one
 
 The JavaScript reference requires `wasm-pack` and `npm` (it builds the 2D and 3D packages first); the C
 reference requires `cmake`, a C compiler, `python3`, and Doxygen 1.9.4 or later; the Python reference builds the
-package with `python/dev.sh docs` (Rust toolchain and `python3`). `publish.sh` and
+package with `bindings/python/dev.sh docs` (Rust toolchain and `python3`). `publish.sh` and
 `yarn build:all` run this build themselves.
 
 ### Deployment

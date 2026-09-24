@@ -9,21 +9,21 @@ on:
         # the `paths` list below only ever gates the `master` pushes.
         tags: ["js-v*"]
         paths:
-            - "typescript/**"
+            - "bindings/typescript/**"
             - ".github/workflows/typescript-bindings.yml"
     pull_request:
         branches: [master]
         paths:
-            - "typescript/**"
+            - "bindings/typescript/**"
             - ".github/workflows/typescript-bindings.yml"
     workflow_dispatch:
 
 env:
     CARGO_TERM_COLOR: always
 
-# The JS/Wasm bindings live under `typescript/`, which is a self-contained Cargo
-# workspace (it pulls `rapier2d`/`rapier3d` from crates.io, not from the crates
-# in this repo). Every step therefore runs inside that directory.
+# The JS/Wasm bindings live under `bindings/typescript/`, which is a self-contained Cargo
+# workspace (its `[patch.crates-io]` builds `rapier2d`/`rapier3d` from the crates
+# of this repo). Every step therefore runs inside that directory.
 
 # Never cancel a run that can publish: interrupting the `publish` job partway
 # leaves some of the twelve packages released and the rest missing.
@@ -36,7 +36,7 @@ jobs:
         runs-on: ubuntu-latest
         defaults:
             run:
-                working-directory: typescript
+                working-directory: bindings/typescript
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
@@ -54,7 +54,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         defaults:
             run:
-                working-directory: typescript
+                working-directory: bindings/typescript
         env:
             RUSTFLAGS: -D warnings
         steps:
@@ -66,8 +66,8 @@ jobs:
                       ~/.cargo/registry/index/
                       ~/.cargo/registry/cache/
                       ~/.cargo/git/db/
-                      typescript/target/
-                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('typescript/builds/prepare_builds/templates/Cargo.toml.tera') }}
+                      bindings/typescript/target/
+                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('bindings/typescript/builds/prepare_builds/templates/Cargo.toml.tera') }}
                   restore-keys: |
                       ${{ runner.os }}-cargo-js-
             - run: npm ci;
@@ -101,7 +101,7 @@ jobs:
               with:
                   name: pkg no-compat ${{ matrix.os }}
                   path: |
-                      typescript/builds/*/pkg
+                      bindings/typescript/builds/*/pkg
                   overwrite: true
     build-compat:
         strategy:
@@ -110,7 +110,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         defaults:
             run:
-                working-directory: typescript
+                working-directory: bindings/typescript
         env:
             RUSTFLAGS: -D warnings
         steps:
@@ -122,8 +122,8 @@ jobs:
                       ~/.cargo/registry/index/
                       ~/.cargo/registry/cache/
                       ~/.cargo/git/db/
-                      typescript/target/
-                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('typescript/builds/prepare_builds/templates/Cargo.toml.tera') }}
+                      bindings/typescript/target/
+                  key: ${{ runner.os }}-cargo-js-${{ hashFiles('bindings/typescript/builds/prepare_builds/templates/Cargo.toml.tera') }}
                   restore-keys: |
                       ${{ runner.os }}-cargo-js-
             - run: npm ci;
@@ -161,7 +161,7 @@ jobs:
               with:
                   name: pkg compat ${{ matrix.os }}
                   path: |
-                      typescript/rapier-compat/builds/*/pkg
+                      bindings/typescript/rapier-compat/builds/*/pkg
                   overwrite: true
     # Publishes with npm Trusted Publishing: instead of a long-lived `NPM_TOKEN`,
     # npm mints a short-lived credential from the GitHub OIDC token of this very
@@ -186,17 +186,17 @@ jobs:
             id-token: write
         defaults:
             run:
-                working-directory: typescript
+                working-directory: bindings/typescript
         steps:
             - uses: actions/checkout@v4
             - uses: actions/download-artifact@v4
               with:
                   name: pkg no-compat ubuntu-latest
-                  path: typescript/builds
+                  path: bindings/typescript/builds
             - uses: actions/download-artifact@v4
               with:
                   name: pkg compat ubuntu-latest
-                  path: typescript/rapier-compat/builds
+                  path: bindings/typescript/rapier-compat/builds
             # No `registry-url`: that would write an `.npmrc` expecting a
             # `NODE_AUTH_TOKEN`, which trusted publishing replaces.
             - uses: actions/setup-node@v4

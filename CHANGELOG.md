@@ -9,6 +9,12 @@
 - `rapier3d-mjcf`: `MjcfContactHooks::is_excluded` and `MjcfContactHooks::pair_override` to query the
   contact rules of a model.
 
+### Modified
+
+- The C, Python, and JavaScript/TypeScript bindings moved to the `bindings/` directory.
+- The `bevy_rapier2d` and `bevy_rapier3d` plugins now live in this repository, in `bindings/bevy_rapier`, and
+  build against the in-tree rapier crates.
+
 ### Fixed
 
 - `CollisionPipeline::step` no longer trips a debug assertion when a moving body touches another

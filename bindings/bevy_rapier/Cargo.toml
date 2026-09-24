@@ -1,0 +1,26 @@
+[workspace]
+members = ["bevy_rapier2d", "bevy_rapier3d", "bevy_rapier_benches3d", "ci"]
+resolver = "2"
+
+[workspace.dependencies]
+# Build against the rapier crates of this repository so bevy_rapier always tracks the in-tree engine.
+rapier2d = { version = "0.35.3", path = "../../crates/rapier2d" }
+rapier3d = { version = "0.35.3", path = "../../crates/rapier3d" }
+rapier3d-urdf = { version = "0.35.3", path = "../../crates/rapier3d-urdf" }
+rapier3d-mjcf = { version = "0.35.3", path = "../../crates/rapier3d-mjcf" }
+rapier3d-meshloader = { version = "0.35.3", path = "../../crates/rapier3d-meshloader", default-features = false }
+
+[profile.dev]
+# Use slightly better optimization by default, as examples otherwise seem laggy.
+opt-level = 1
+
+[profile.release]
+codegen-units = 1
+
+[patch.crates-io]
+#nalgebra = { path = "../../../nalgebra" }
+#parry2d = { path = "../../../parry/crates/parry2d" }
+#parry3d = { path = "../../../parry/crates/parry3d" }
+#nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "dev" }
+#parry2d = { git = "https://github.com/dimforge/parry", branch = "master" }
+#parry3d = { git = "https://github.com/dimforge/parry", branch = "master" }

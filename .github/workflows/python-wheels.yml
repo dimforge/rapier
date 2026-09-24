@@ -22,7 +22,7 @@ on:
   pull_request:
     branches: [master]
     paths:
-      - "python/**"
+      - "bindings/python/**"
       - ".github/workflows/python-wheels.yml"
   workflow_dispatch:
 
@@ -53,7 +53,7 @@ jobs:
           command: build
           target: ${{ matrix.platform.target }}
           manylinux: ${{ matrix.platform.manylinux }}
-          args: --release --out dist -m python/${{ matrix.package.dir }}/Cargo.toml
+          args: --release --out dist -m bindings/python/${{ matrix.package.dir }}/Cargo.toml
           sccache: "true"
       - uses: actions/upload-artifact@v4
         with:

@@ -2,10 +2,10 @@ name: C bindings
 on:
   push:
     branches: [master]
-    paths: ['c/**', 'src/**', 'crates/rapier*/**', 'Cargo.toml', '.github/workflows/c-bindings.yml']
+    paths: ['bindings/c/**', 'src/**', 'crates/rapier*/**', 'Cargo.toml', '.github/workflows/c-bindings.yml']
   pull_request:
     branches: [master]
-    paths: ['c/**', 'src/**', 'crates/rapier*/**', 'Cargo.toml', '.github/workflows/c-bindings.yml']
+    paths: ['bindings/c/**', 'src/**', 'crates/rapier*/**', 'Cargo.toml', '.github/workflows/c-bindings.yml']
   workflow_dispatch:
 jobs:
   native:
@@ -26,7 +26,7 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
       - name: Configure
-        run: cmake -S c -B build/c -DRAPIER_DIMENSION=${{ matrix.variant.dimension }} -DRAPIER_PRECISION=${{ matrix.precision }} -DRAPIER_ENABLE_PARALLEL=${{ matrix.variant.parallel }} -DRAPIER_BUILD_TESTBED=ON -DRAPIER_PROFILE=debug -DRAPIER_CARGO_TARGET_DIR=${{ github.workspace }}/target
+        run: cmake -S bindings/c -B build/c -DRAPIER_DIMENSION=${{ matrix.variant.dimension }} -DRAPIER_PRECISION=${{ matrix.precision }} -DRAPIER_ENABLE_PARALLEL=${{ matrix.variant.parallel }} -DRAPIER_BUILD_TESTBED=ON -DRAPIER_PROFILE=debug -DRAPIER_CARGO_TARGET_DIR=${{ github.workspace }}/target
       - name: Build
         run: cmake --build build/c --config Release --parallel 2
       - name: Test
@@ -35,7 +35,7 @@ jobs:
         run: cmake --install build/c --config Release --prefix build/install
       - name: Consume installed package
         run: |
-          cmake -S c/tests/consumer -B build/consumer -DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/install
+          cmake -S bindings/c/tests/consumer -B build/consumer -DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/install
           cmake --build build/consumer --config Release
           ctest --test-dir build/consumer -C Release --output-on-failure
   abi-and-features:
@@ -49,18 +49,18 @@ jobs:
       - run: cargo install cbindgen --version 0.29.4 --locked
       - name: Header matches source
         run: |
-          sh c/tools/generate-header.sh
-          git diff --exit-code -- c/include/rapier.h
+          sh bindings/c/tools/generate-header.sh
+          git diff --exit-code -- bindings/c/include/rapier.h
       - run: cargo fmt -p rapier-c-macros -p rapier3d-ffi -- --check
       - run: cargo test -p rapier-c-macros -p rapier2d-ffi -p rapier3d-ffi -p rapier2d-f64-ffi -p rapier3d-f64-ffi
       - run: cargo clippy -p rapier-c-macros -p rapier2d-ffi -p rapier3d-ffi -p rapier2d-f64-ffi -p rapier3d-f64-ffi --no-deps -- -D warnings
       - name: Every ABI symbol and both linkage modes
-        run: python3 c/tools/test-native.py
+        run: python3 bindings/c/tools/test-native.py
       - name: Optional feature combinations
         run: cargo check -p rapier2d-ffi -p rapier3d-ffi -p rapier2d-f64-ffi -p rapier3d-f64-ffi --features parallel,fem,enhanced-determinism
       - name: Eight-lane SIMD with parallel execution
         run: |
-          cmake -S c -B build/simd8 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_TESTBED_GRAPHICS=OFF -DRAPIER_PROFILE=debug -DRAPIER_SIMD_LANES=8 -DRAPIER_ENABLE_PARALLEL=ON -DRAPIER_CARGO_TARGET_DIR=${{ github.workspace }}/target
+          cmake -S bindings/c -B build/simd8 -DRAPIER_BUILD_TESTBED=ON -DRAPIER_TESTBED_GRAPHICS=OFF -DRAPIER_PROFILE=debug -DRAPIER_SIMD_LANES=8 -DRAPIER_ENABLE_PARALLEL=ON -DRAPIER_CARGO_TARGET_DIR=${{ github.workspace }}/target
           cmake --build build/simd8 --parallel 2
           ctest --test-dir build/simd8 --output-on-failure
 
@@ -72,7 +72,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y doxygen
       - name: Generate and validate all API variants
         run: |
-          cmake -S c/doxygen -B build/c-docs
+          cmake -S bindings/c/doxygen -B build/c-docs
           cmake --build build/c-docs --target rapier_docs --parallel 2
       - name: Upload HTML reference
         uses: actions/upload-artifact@v4

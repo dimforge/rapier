@@ -8,12 +8,8 @@ edition = "2021"
 [dependencies]
 # The in-development bevy_rapier tracks Bevy's main branch.
 bevy = { git = "https://github.com/bevyengine/bevy", branch = "main" }
-# Use the bevy_rapier checkout next to the rapier repository so doc snippets are checked against local changes.
-bevy_rapier3d = { path = "../../../../../bevy_rapier/bevy_rapier3d", features = ["fem", "urdf", "mjcf", "meshloader"] }
+# Use the in-tree bevy_rapier so doc snippets are checked against local changes.
+bevy_rapier3d = { path = "../../../../bindings/bevy_rapier/bevy_rapier3d", features = ["fem", "urdf", "mjcf", "meshloader"] }
 
 # Standalone workspace, excluded from the one of the other snippets (see `docs-examples/Cargo.toml`).
 [workspace]
-
-# Make bevy_rapier use the in-tree rapier too, so the bevy and rust snippets share the same rapier.
-[patch.crates-io]
-rapier3d = { path = "../../../../crates/rapier3d" }
