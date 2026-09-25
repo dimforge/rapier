@@ -1321,17 +1321,40 @@ pub struct MjcfJointHandle {
 /// Handle of one MJCF ``<actuator>`` after insertion.
 ///
 /// :ivar name: The actuator's ``name`` attribute, if any.
+/// :ivar kind: Actuator subtype, one of ``"Motor"``, ``"Position"``,
+///     ``"Velocity"``, ``"IntVelocity"``, ``"Damper"``, ``"General"``.
+/// :ivar joint_name: Name of the MJCF joint it drives, if any.
 /// :ivar joint: The joint the actuator drives: an
 ///     :class:`ImpulseJointHandle` (impulse-joint path), a
 ///     :class:`MultibodyJointHandle` (multibody path), or ``None`` if it
 ///     drives no joint (e.g. a tendon) or its joint was dropped as a loop
 ///     closure.
+/// :ivar gear: The six ``gear`` entries.
+/// :ivar ctrl_range: ``[min, max]`` from ``ctrlrange``, or ``None``.
+/// :ivar force_range: ``[min, max]`` from ``forcerange``, or ``None``.
+/// :ivar kp: ``kp`` of a ``<position>`` actuator, or ``None``.
+/// :ivar kv: ``kv`` of a ``<velocity>`` / ``<damper>`` actuator, or
+///     ``None``.
 #[pyclass(name = "MjcfActuatorHandle", module = "rapier")]
 pub struct MjcfActuatorHandle {
     #[pyo3(get)]
     pub name: Option<String>,
     #[pyo3(get)]
+    pub kind: String,
+    #[pyo3(get)]
+    pub joint_name: Option<String>,
+    #[pyo3(get)]
     pub joint: crate::pyo3::PyObject,
+    #[pyo3(get)]
+    pub gear: Vec<f64>,
+    #[pyo3(get)]
+    pub ctrl_range: Option<[f64; 2]>,
+    #[pyo3(get)]
+    pub force_range: Option<[f64; 2]>,
+    #[pyo3(get)]
+    pub kp: Option<f64>,
+    #[pyo3(get)]
+    pub kv: Option<f64>,
 }
 
 #[pymethods]
@@ -1376,6 +1399,14 @@ enum MjcfInsertedHandles {
 /// :ivar actuators: One :class:`MjcfActuatorHandle` per ``<actuator>``,
 ///     in model order (the order of the ``ctrl`` values of
 ///     :meth:`apply_controls`).
+/// :ivar body_names: MJCF name of each body, aligned with
+///     :py:attr:`bodies`. Copied off the robot at insertion time, since
+///     inserting consumes it.
+/// :ivar joint_names: MJCF name of each joint, aligned with
+///     :py:attr:`joints`.
+/// :ivar body_name_to_idx: Body name to index into :py:attr:`bodies`.
+/// :ivar joint_name_to_idx: Joint name to index into
+///     :py:attr:`joints`.
 #[pyclass(name = "MjcfRobotHandles", module = "rapier")]
 pub struct MjcfRobotHandles {
     #[pyo3(get)]
@@ -1386,6 +1417,14 @@ pub struct MjcfRobotHandles {
     pub equality_joints: Vec<crate::pyo3::Py<MjcfJointHandle>>,
     #[pyo3(get)]
     pub actuators: Vec<crate::pyo3::Py<MjcfActuatorHandle>>,
+    #[pyo3(get)]
+    pub body_names: Vec<Option<String>>,
+    #[pyo3(get)]
+    pub joint_names: Vec<Option<String>>,
+    #[pyo3(get)]
+    pub body_name_to_idx: std::collections::HashMap<String, usize>,
+    #[pyo3(get)]
+    pub joint_name_to_idx: std::collections::HashMap<String, usize>,
     /// The inserted robot, without its colliders and visual meshes (only its
     /// metadata is needed by the runtime helpers).
     robot: Box<rapier3d_mjcf::MjcfRobot>,
@@ -1696,6 +1735,67 @@ pub struct MjcfRobot {
     pub inner: Option<rapier3d_mjcf::MjcfRobot>,
 }
 
+/// The MJCF naming tables, copied out of an `MjcfRobot` so they
+/// survive the insertion that consumes it.
+struct MjcfNames {
+    body_names: Vec<Option<String>>,
+    joint_names: Vec<Option<String>>,
+    body_name_to_idx: std::collections::HashMap<String, usize>,
+    joint_name_to_idx: std::collections::HashMap<String, usize>,
+}
+
+impl MjcfNames {
+    fn collect(robot: &rapier3d_mjcf::MjcfRobot) -> Self {
+        Self {
+            body_names: robot.bodies.iter().map(|b| b.name.clone()).collect(),
+            joint_names: robot.joints.iter().map(|j| j.name.clone()).collect(),
+            body_name_to_idx: robot.body_name_to_idx.clone(),
+            joint_name_to_idx: robot.joint_name_to_idx.clone(),
+        }
+    }
+}
+
+/// Convert the per-actuator handles of an insertion, mapping each
+/// driven joint handle to Python with `conv`.
+fn actuator_handles<H>(
+    py: crate::pyo3::Python<'_>,
+    actuators: Vec<rapier3d_mjcf::MjcfActuatorHandle<H>>,
+    conv: impl Fn(H) -> crate::pyo3::PyObject,
+) -> crate::pyo3::PyResult<Vec<crate::pyo3::Py<MjcfActuatorHandle>>> {
+    actuators
+        .into_iter()
+        .map(|ah| {
+            let a = ah.actuator;
+            crate::pyo3::Py::new(
+                py,
+                MjcfActuatorHandle {
+                    name: a.name,
+                    kind: format!("{:?}", a.kind),
+                    joint_name: a.joint,
+                    joint: match ah.joint {
+                        Some(h) => conv(h),
+                        None => py.None(),
+                    },
+                    gear: a.gear.to_vec(),
+                    ctrl_range: a.ctrl_range,
+                    force_range: a.force_range,
+                    kp: a.kp,
+                    kv: a.kv,
+                },
+            )
+        })
+        .collect()
+}
+
+impl MjcfRobot {
+    /// The still-unconsumed robot, or the "already consumed" error.
+    fn robot(&self) -> crate::pyo3::PyResult<&rapier3d_mjcf::MjcfRobot> {
+        self.inner
+            .as_ref()
+            .ok_or_else(|| crate::errors::MjcfError::new_err("MjcfRobot was already consumed"))
+    }
+}
+
 #[pymethods]
 impl MjcfRobot {
     /// Parse an MJCF file and return ``(MjcfRobot, MjcfModel)``.
@@ -1741,6 +1841,54 @@ impl MjcfRobot {
         let (robot, model) = rapier3d_mjcf::MjcfRobot::from_str(xml, opts, base_dir)
             .map_err(|e| crate::errors::MjcfError::new_err(format!("{e}")))?;
         Ok((MjcfRobot { inner: Some(robot) }, MjcfModel { raw: model }))
+    }
+
+    /// MJCF name of every body, in model order.
+    ///
+    /// Entry ``i`` lines up with ``MjcfRobotHandles.bodies[i]``. It is
+    /// ``None`` for bodies the loader synthesized (intermediate links
+    /// of a multi-joint ``<body>``).
+    ///
+    /// :raises MjcfError: if this robot has already been consumed.
+    #[getter]
+    fn body_names(&self) -> crate::pyo3::PyResult<Vec<Option<String>>> {
+        Ok(self
+            .robot()?
+            .bodies
+            .iter()
+            .map(|b| b.name.clone())
+            .collect())
+    }
+    /// MJCF name of every joint, in model order.
+    ///
+    /// Entry ``i`` lines up with ``MjcfRobotHandles.joints[i]``. It is
+    /// ``None`` for the fixed joints the loader synthesizes to attach
+    /// jointless bodies to their parent.
+    ///
+    /// :raises MjcfError: if this robot has already been consumed.
+    #[getter]
+    fn joint_names(&self) -> crate::pyo3::PyResult<Vec<Option<String>>> {
+        Ok(self
+            .robot()?
+            .joints
+            .iter()
+            .map(|j| j.name.clone())
+            .collect())
+    }
+    /// Map from MJCF body name to its index in :py:attr:`body_names`.
+    ///
+    /// :raises MjcfError: if this robot has already been consumed.
+    #[getter]
+    fn body_name_to_idx(&self) -> crate::pyo3::PyResult<std::collections::HashMap<String, usize>> {
+        Ok(self.robot()?.body_name_to_idx.clone())
+    }
+    /// Map from MJCF joint name to its index in
+    /// :py:attr:`joint_names`.
+    ///
+    /// :raises MjcfError: if this robot has already been consumed.
+    #[getter]
+    fn joint_name_to_idx(&self) -> crate::pyo3::PyResult<std::collections::HashMap<String, usize>> {
+        Ok(self.robot()?.joint_name_to_idx.clone())
     }
 
     /// Prepend ``transform`` to the robot's root poses.
@@ -1814,6 +1962,7 @@ impl MjcfRobot {
             .take()
             .ok_or_else(|| crate::errors::MjcfError::new_err("MjcfRobot was already consumed"))?;
         let metadata = MjcfRobotHandles::robot_metadata(&robot);
+        let names = MjcfNames::collect(&robot);
         let handles = robot.insert_using_impulse_joints(
             &mut bodies.0,
             &mut colliders.0,
@@ -1822,6 +1971,7 @@ impl MjcfRobot {
         {
             let inserted = handles.clone();
             let conv = |h| ImpulseJointHandle(h).into_py(py);
+            let actuators = actuator_handles(py, handles.actuators, &conv)?;
             let bodies: Vec<Option<MjcfBodyHandle>> = handles
                 .bodies
                 .into_iter()
@@ -1872,19 +2022,6 @@ impl MjcfRobot {
                     .expect("alloc MjcfJointHandle")
                 })
                 .collect();
-            let actuators = handles
-                .actuators
-                .into_iter()
-                .map(|ah| {
-                    crate::pyo3::Py::new(
-                        py,
-                        MjcfActuatorHandle {
-                            name: ah.actuator.name,
-                            joint: ah.joint.map(conv).into_py(py),
-                        },
-                    )
-                })
-                .collect::<crate::pyo3::PyResult<Vec<_>>>()?;
             crate::pyo3::Py::new(
                 py,
                 MjcfRobotHandles {
@@ -1894,6 +2031,10 @@ impl MjcfRobot {
                     actuators,
                     robot: metadata,
                     inserted: MjcfInsertedHandles::Impulse(inserted),
+                    body_names: names.body_names,
+                    joint_names: names.joint_names,
+                    body_name_to_idx: names.body_name_to_idx,
+                    joint_name_to_idx: names.joint_name_to_idx,
                 },
             )
         }
@@ -1929,6 +2070,7 @@ impl MjcfRobot {
             .inner
             .take()
             .ok_or_else(|| crate::errors::MjcfError::new_err("MjcfRobot was already consumed"))?;
+        let names = MjcfNames::collect(&robot);
         let opts = options.map(|o| o.0).unwrap_or_default();
         let metadata = MjcfRobotHandles::robot_metadata(&robot);
         let handles = robot.insert_using_multibody_joints(
@@ -1941,6 +2083,7 @@ impl MjcfRobot {
         {
             let inserted = handles.clone();
             let conv = |h: Option<_>| h.map(MultibodyJointHandle).into_py(py);
+            let actuators = actuator_handles(py, handles.actuators, &conv)?;
             let bodies: Vec<Option<MjcfBodyHandle>> = handles
                 .bodies
                 .into_iter()
@@ -1991,19 +2134,6 @@ impl MjcfRobot {
                     .expect("alloc MjcfJointHandle")
                 })
                 .collect();
-            let actuators = handles
-                .actuators
-                .into_iter()
-                .map(|ah| {
-                    crate::pyo3::Py::new(
-                        py,
-                        MjcfActuatorHandle {
-                            name: ah.actuator.name,
-                            joint: conv(ah.joint.flatten()),
-                        },
-                    )
-                })
-                .collect::<crate::pyo3::PyResult<Vec<_>>>()?;
             crate::pyo3::Py::new(
                 py,
                 MjcfRobotHandles {
@@ -2013,6 +2143,10 @@ impl MjcfRobot {
                     actuators,
                     robot: metadata,
                     inserted: MjcfInsertedHandles::Multibody(inserted),
+                    body_names: names.body_names,
+                    joint_names: names.joint_names,
+                    body_name_to_idx: names.body_name_to_idx,
+                    joint_name_to_idx: names.joint_name_to_idx,
                 },
             )
         }

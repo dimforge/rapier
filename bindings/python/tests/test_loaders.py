@@ -302,6 +302,87 @@ def test_mjcf_insert_using_multibody_joints() -> None:
     assert len(handles.joints) == 1
 
 
+ACTUATOR_PARAMS_MJCF = """
+<mujoco model="actuated">
+  <worldbody>
+    <body name="base" pos="0 0 1">
+      <geom type="box" size="0.1 0.1 0.1"/>
+      <body name="link" pos="0 0 -0.5">
+        <joint name="hinge" type="hinge" axis="0 1 0"/>
+        <geom type="capsule" fromto="0 0 0 0 0 -0.5" size="0.05"/>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="servo" joint="hinge" kp="30" ctrlrange="-1 1" forcerange="-9 9"/>
+  </actuator>
+</mujoco>
+"""
+
+
+def test_mjcf_names_readable_before_insertion() -> None:
+    """The MJCF naming tables are reachable while the robot is still alive."""
+    robot, _model = mjcf_loader.MjcfRobot.from_str(SIMPLE_MJCF)
+    # Entry 0 is the implicit world body, which has no MJCF name.
+    assert robot.body_names == [None, "base", "link"]
+    assert robot.joint_names == ["hinge"]
+    assert robot.body_name_to_idx["link"] == 2
+    assert robot.joint_name_to_idx == {"hinge": 0}
+
+
+def test_mjcf_names_survive_insertion() -> None:
+    """Insertion consumes the robot but the handles carry the names over."""
+    robot, _model = mjcf_loader.MjcfRobot.from_str(SIMPLE_MJCF)
+    bodies = rapier.RigidBodySet()
+    colliders = rapier.ColliderSet()
+    joints = rapier.ImpulseJointSet()
+    handles = robot.insert_using_impulse_joints(bodies, colliders, joints)
+
+    assert handles.body_names == [None, "base", "link"]
+    assert handles.joint_names == ["hinge"]
+    assert handles.joint_name_to_idx == {"hinge": 0}
+    # The name tables index into the parallel handle lists.
+    idx = handles.body_name_to_idx["link"]
+    assert handles.bodies[idx] is not None
+    with pytest.raises(mjcf_loader.MjcfError):
+        _ = robot.body_names
+
+
+def test_mjcf_actuator_handles_carry_their_parameters() -> None:
+    """`<actuator>` entries reach Python with their parameters and joint handle."""
+    robot, _model = mjcf_loader.MjcfRobot.from_str(ACTUATOR_PARAMS_MJCF)
+    bodies = rapier.RigidBodySet()
+    colliders = rapier.ColliderSet()
+    joints = rapier.ImpulseJointSet()
+    handles = robot.insert_using_impulse_joints(bodies, colliders, joints)
+
+    assert len(handles.actuators) == 1
+    a = handles.actuators[0]
+    assert a.name == "servo"
+    assert a.kind == "Position"
+    assert a.joint_name == "hinge"
+    assert a.kp == pytest.approx(30.0)
+    assert a.ctrl_range == pytest.approx([-1.0, 1.0])
+    assert a.force_range == pytest.approx([-9.0, 9.0])
+    assert isinstance(a.joint, rapier.ImpulseJointHandle)
+    assert a.joint == handles.joints[0].joint
+
+
+def test_mjcf_actuator_handles_multibody_path() -> None:
+    """Same on the multibody path, where the joint handle is Optional."""
+    robot, _model = mjcf_loader.MjcfRobot.from_str(ACTUATOR_PARAMS_MJCF)
+    bodies = rapier.RigidBodySet()
+    colliders = rapier.ColliderSet()
+    mb = rapier.MultibodyJointSet()
+    impulse = rapier.ImpulseJointSet()
+    handles = robot.insert_using_multibody_joints(bodies, colliders, mb, impulse)
+
+    a = handles.actuators[0]
+    assert a.name == "servo"
+    assert a.joint_name == "hinge"
+    assert isinstance(a.joint, rapier.MultibodyJointHandle)
+
+
 def test_mjcf_consumed_after_insert() -> None:
     """Inserting consumes the robot; a second insert raises MjcfError."""
     robot, _model = mjcf_loader.MjcfRobot.from_str(SIMPLE_MJCF)

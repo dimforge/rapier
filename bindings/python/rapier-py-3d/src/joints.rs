@@ -3265,6 +3265,29 @@ impl MultibodyLink {
     fn joint_rot(&self) -> Rotation3 {
         Rotation3(self.0.joint().joint_rot().into())
     }
+    /// Index of this link's first degree of freedom in the
+    /// articulation-wide generalized vectors.
+    ///
+    /// The link owns the :py:attr:`ndofs` entries starting at this
+    /// index in :py:meth:`Multibody.generalized_position`,
+    /// :py:meth:`Multibody.generalized_velocity`, and friends.
+    #[getter]
+    fn assembly_id(&self) -> usize {
+        self.0.assembly_id()
+    }
+    /// Number of degrees of freedom of this link's joint.
+    #[getter]
+    fn ndofs(&self) -> usize {
+        self.0.joint().ndofs()
+    }
+}
+
+/// Indices, in the 6-entry spatial layout of
+/// `MultibodyJoint::coords`, of the joint's unlocked axes, in the
+/// order the solver assigns its degrees of freedom.
+fn free_dof_axes(joint: &rapier::dynamics::MultibodyJoint) -> impl Iterator<Item = usize> {
+    let locked = joint.data.locked_axes.bits();
+    (0..rapier::math::SPATIAL_DIM).filter(move |i| locked & (1u8 << *i) == 0)
 }
 
 // =================================================================
@@ -3330,6 +3353,27 @@ impl Multibody {
             Ok(f(mb))
         })
     }
+    /// Run `f` on link `link_id`, or raise `IndexError` if there is no
+    /// such link.
+    fn with_link_mut(
+        &mut self,
+        link_id: usize,
+        f: impl FnOnce(&mut rapier::dynamics::MultibodyLink),
+    ) -> PyResult<()> {
+        self.with_mut(|mb| match mb.link_mut(link_id) {
+            Some(link) => {
+                f(link);
+                Ok(())
+            }
+            None => Err(link_index_error(link_id)),
+        })?
+    }
+}
+
+/// The `IndexError` raised when a link id does not name a link of the
+/// articulation.
+fn link_index_error(link_id: usize) -> PyErr {
+    crate::pyo3::exceptions::PyIndexError::new_err(format!("no multibody link with id {link_id}"))
 }
 
 #[pymethods]
@@ -3393,6 +3437,119 @@ impl Multibody {
                 d[i] = *v;
             }
             Ok(())
+        })?
+    }
+    /// Per-degree-of-freedom armature (reflected rotor inertia,
+    /// length :attr:`ndofs`).
+    ///
+    /// Armature is added straight to the generalized mass-matrix
+    /// diagonal, which is what makes a stiff position motor stable at
+    /// large gains.
+    fn armature(&self) -> PyResult<Vec<Real>> {
+        self.with_ref(|mb| mb.armature().iter().copied().collect())
+    }
+    /// Set the per-DOF armature values.
+    ///
+    /// :raises ValueError: If ``values`` length differs from `ndofs`.
+    fn set_armature(&mut self, values: Vec<Real>) -> PyResult<()> {
+        self.with_mut(|mb| {
+            let a = mb.armature_mut();
+            if values.len() != a.len() {
+                return Err(PyValueError::new_err(format!(
+                    "expected {} armature values (ndofs), got {}",
+                    a.len(),
+                    values.len()
+                )));
+            }
+            for (i, v) in values.iter().enumerate() {
+                a[i] = *v;
+            }
+            Ok(())
+        })?
+    }
+    /// Generalized position vector (one entry per DOF).
+    ///
+    /// Entry ``link.assembly_id + k`` is the ``k``-th unlocked
+    /// coordinate of that link's joint, so the layout matches
+    /// :py:meth:`generalized_velocity` and the vectors accepted by
+    /// :py:meth:`apply_displacements`.
+    fn generalized_position(&self) -> PyResult<Vec<Real>> {
+        self.with_ref(|mb| {
+            let mut out = vec![0.0; mb.ndofs()];
+            for link in mb.links() {
+                let joint = link.joint();
+                let coords = joint.coords();
+                for (k, axis) in free_dof_axes(joint).enumerate() {
+                    out[link.assembly_id() + k] = coords[axis];
+                }
+            }
+            out
+        })
+    }
+    /// Fully configure the motor on ``axis`` of link ``link_id``'s
+    /// joint (the reduced-coordinate counterpart of
+    /// :py:meth:`GenericJoint.set_motor`).
+    ///
+    /// :raises IndexError: If ``link_id`` is out of range.
+    fn set_link_motor(
+        &mut self,
+        link_id: usize,
+        axis: JointAxis,
+        target_pos: Real,
+        target_vel: Real,
+        stiffness: Real,
+        damping: Real,
+    ) -> PyResult<()> {
+        self.with_link_mut(link_id, |link| {
+            link.joint
+                .data
+                .set_motor(axis.to_rapier(), target_pos, target_vel, stiffness, damping);
+        })
+    }
+    /// Clamp the maximum force the motor on ``axis`` of link
+    /// ``link_id`` can apply.
+    ///
+    /// :raises IndexError: If ``link_id`` is out of range.
+    fn set_link_motor_max_force(
+        &mut self,
+        link_id: usize,
+        axis: JointAxis,
+        max_force: Real,
+    ) -> PyResult<()> {
+        self.with_link_mut(link_id, |link| {
+            link.joint
+                .data
+                .set_motor_max_force(axis.to_rapier(), max_force);
+        })
+    }
+    /// Select the motor model on ``axis`` of link ``link_id`` (see
+    /// :class:`MotorModel`).
+    ///
+    /// :raises IndexError: If ``link_id`` is out of range.
+    fn set_link_motor_model(
+        &mut self,
+        link_id: usize,
+        axis: JointAxis,
+        model: MotorModel,
+    ) -> PyResult<()> {
+        self.with_link_mut(link_id, |link| {
+            link.joint
+                .data
+                .set_motor_model(axis.to_rapier(), model.to_rapier());
+        })
+    }
+    /// Return the motor configured on ``axis`` of link ``link_id``,
+    /// if any.
+    ///
+    /// :raises IndexError: If ``link_id`` is out of range.
+    fn link_motor(&self, link_id: usize, axis: JointAxis) -> PyResult<Option<JointMotor>> {
+        self.with_ref(|mb| {
+            let link = mb.link(link_id).ok_or_else(|| link_index_error(link_id))?;
+            Ok(link
+                .joint()
+                .data
+                .motor(axis.to_rapier())
+                .map(JointMotor::from_rapier))
         })?
     }
     /// Generalized velocity vector (one entry per DOF).
