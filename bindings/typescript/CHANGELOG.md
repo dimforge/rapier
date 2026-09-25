@@ -1,68 +1,40 @@
-## Unreleased
+## 0.21.0 (24 September 2026)
 
 ### Breaking changes
 
-- `World.removeCollider`, `RigidBodySet.remove` and `ColliderSet.remove` take the world's
-  `SoftBodySet`: removing a rigid body that is a soft-body cluster proxy removes its cluster,
-  and removing a deformable collider drops its mesh from its soft body. `World` passes its own
-  set, so only direct users of the sets are affected.
-- `PhysicsPipeline.step`, `DebugRenderPipeline.render`, `SerializationPipeline.serializeAll`
-  and `RigidBodySet.remove` take the `SoftBodySet` as an extra argument, right after the
-  `ColliderSet`.
+- `PhysicsPipeline.step`, `DebugRenderPipeline.render`, `SerializationPipeline.serializeAll` and
+  `RigidBodySet.remove` take the `SoftBodySet` right after the `ColliderSet`.
+- `ColliderSet.remove` takes the `SoftBodySet` right after the `RigidBodySet`.
 - The `World` constructor takes the raw soft-body set right after the raw collider set.
-- `RigidBodyType` gained the `SoftFrame` variant: the proxies a soft body creates for itself
-  and its clusters. `RigidBody.isSoftFrame()` tells them apart.
+- `RigidBodyType.SoftFrame`: the rigid proxies of soft bodies and their clusters (`RigidBody.isSoftFrame()`).
 
 ### Added
 
-- `SoftBodyDesc.setOriented` and `SoftBody.isMeshOriented`: whether the shape of a soft body's
-  collision surface carries the `ORIENTED` flag. Left unset, a closed surface is oriented (it
-  encloses solid matter, so nothing is held inside it); `setOriented(false)` makes it a shell
-  whose inner side holds the bodies inside it. A deformable collider follows its own shape's flag.
-- Soft bodies: `World.createSoftBody(desc)` inserts a deformable body made of particles linked
-  by edges, bending constraints and cells, simulated together with the rigid bodies, contacts
-  and joints. `SoftBodyDesc` offers the generators `rope`, `cloth`, `clothTube`,
-  `clothAnisotropic`, `cuboid`, `sphere`, `trimesh` and `volumetric` in 3D, and `rope`,
-  `polyline`, `polygon`, `disk`, `grid` and `volumetric` in 2D, plus setters for pinned
-  particles, masses, the material, the cell model (`SoftBodyCellModel`), volume preservation,
-  shape matching, self contacts, the particle radius and the surface collider template.
-- `SoftBodyMaterial`: the softness of each constraint kind, the elastic parameters of the cells
-  (Young's modulus, Poisson's ratio), plasticity (`plasticYield`, `plasticCreep`,
-  `edgePlasticYield`…) and tearing thresholds (`tearStrain`, `tearForce`, `minPiece`).
-- `SoftBody`: particle positions, velocities, masses and pinning; attachments to rigid bodies
-  (`attachParticle`); forces and impulses (`addForce`, `applyImpulseAtPoint`,
-  `applyRadialImpulse`…); the edges, cells, dihedrals and boundary of the body with their
-  stresses; the material; volume preservation; the hidden `rootBody()`; clusters
-  (`clusterProxy`, `setClusterPinned`, `setClusterKinematicTarget`…) and collision meshes
-  (`meshVertices`, `meshIndices`).
-- Tearing and cutting: `World.tearSoftBody`, `World.cutSoftBody` and `SoftBody.tearEdge` /
-  `tearCell`; the pieces a tear disconnects become soft bodies of their own. Tears report a
-  `SoftBodyTearEvent`, also drained from an `EventQueue` with `drainSoftBodyTearEvents`.
-- Clusters: `World.addSoftBodyCluster` creates a rigid proxy over some particles that joints
-  (`World.createImpulseJoint`) and colliders can attach to; `World.removeSoftBodyCluster`.
-- Deformable colliders: `World.createDeformableCollider(desc, binding, proxy)` binds a
-  triangle mesh (3D) or polyline (2D) built with the `DEFORMABLE` flag to a cluster, through a
-  `SoftMeshBinding` (`direct`, `directByPosition`, `skinned`). `Polyline` and
-  `ColliderDesc.polyline` take a `PolylineFlags` argument; `Collider.isDeformable()` and
-  `Collider.softBody()` identify such colliders.
-- `IntegrationParameters.softBodiesResweepStrain`, `softBodiesMaxExtraSubsteps` and
-  `softBodiesContactStiffening` tune the soft-body solver.
-- `RigidBody.additionalPgsIterations()` / `setAdditionalPgsIterations` and
-  `RigidBodyDesc.setAdditionalPgsIterations`: extra internal PGS iterations per substep for the
-  island component of a body.
-- `RigidBody.softBody()` and `RigidBody.softCluster()` identify the soft body and cluster a
-  proxy stands for.
-- Snapshots (`World.takeSnapshot` / `restoreSnapshot`) include the soft bodies.
-- `PolylineFlags.ORIENTED` (2D): one-sided polylines whose contact normals are clamped to
-  the outward side.
-- `CompoundFlags.FIX_INTERNAL_EDGES`: the seams between the parts of a compound (or of a
-  convex decomposition) no longer catch sliding bodies. Taken by `Compound`,
-  `ColliderDesc.compound` and `ColliderDesc.convexDecomposition`.
-- The testbeds gained soft-body demos ("soft bodies" in 2D and 3D, "soft tearing" in 3D).
+- Soft bodies: `World.createSoftBody(SoftBodyDesc)`, `World.softBodies` (`SoftBodySet`), `SoftBody`,
+  `SoftBodyMaterial`, and the `rope`, `cloth`, `volumetric`… generators of `SoftBodyDesc`.
+- Two soft-body solvers, selected with `SoftBodySolver` (`Constraints`, `Fem`); the npm builds enable `fem`.
+- Soft-body plasticity, tearing and cutting: `World.tearSoftBody`, `World.cutSoftBody`, and
+  `SoftBodyTearEvent`s drained with `EventQueue.drainSoftBodyTearEvents`.
+- Soft-body clusters (`World.addSoftBodyCluster`), rigid proxies that joints and colliders attach to.
+- Deformable colliders: `World.createDeformableCollider` binds a `DEFORMABLE` trimesh (3D) or
+  polyline (2D) to a soft body through a `SoftMeshBinding`.
+- Soft-body tuning in `IntegrationParameters` (`softBodies*` fields, `softBodiesRecovery`).
+- `RigidBody.softBody()` / `softCluster()`; snapshots include the soft bodies.
+- `RigidBody(Desc).setAdditionalPgsIterations`: extra PGS iterations per substep for a body's island.
+- `PolylineFlags` (2D `ORIENTED`, `DEFORMABLE`), `CompoundFlags.FIX_INTERNAL_EDGES`, and
+  `TriMeshFlags.DEFORMABLE` / `FIX_INTERNAL_EDGES_TWO_SIDED`; `Polyline.flags`, `Compound.flags`.
+- Soft-body demos in the 2D and 3D testbeds.
 
 ### Fixed
 
-- The shape-cast docs now state the frame (world or local) of each witness point and normal.
+- `EventQueue.clear()` now also discards the pending contact-force events.
+- Docs: shape-cast witness frames, world-space `CharacterCollision` witnesses, predictive distance default.
+
+### Modified
+
+- Update to Rapier 0.36.0 and parry 0.31, see
+  [rapier's changelog](https://github.com/dimforge/rapier/blob/master/CHANGELOG.md#v0360-24-september-2026).
+- The bindings moved to the `bindings/typescript` directory of the rapier repository.
 
 ## 0.20.0 (08 August 2026)
 

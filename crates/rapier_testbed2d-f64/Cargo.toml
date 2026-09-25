@@ -63,5 +63,5 @@ env_logger.workspace = true
 [dependencies.rapier]
 package = "rapier2d-f64"
 path = "../rapier2d-f64"
-version = "0.35.2"
+version = "0.36.0"
 features = ["serde-serialize", "debug-render", "profiler"]

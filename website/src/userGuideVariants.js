@@ -4,10 +4,10 @@
 // Each variant is a folder of `docs/user_guides`, generated from the templates by `generate_user_guides.sh`
 // (except "All", which is the templates folder itself, showing every flavour with its color code).
 const variants = [
-  {id: 'rust', dir: 'rust', label: 'Rust', version: '0.35'},
-  {id: 'c', dir: 'c', label: 'C', version: '0.35'},
-  {id: 'js', dir: 'javascript', label: 'JavaScript', version: '0.17'},
-  {id: 'python', dir: 'python', label: 'Python', version: '0.35'},
+  {id: 'rust', dir: 'rust', label: 'Rust', version: '0.36'},
+  {id: 'c', dir: 'c', label: 'C', version: '0.36'},
+  {id: 'js', dir: 'javascript', label: 'JavaScript', version: '0.21'},
+  {id: 'python', dir: 'python', label: 'Python', version: '0.36'},
   {id: 'bevy', dir: 'bevy_plugin', label: 'Bevy plugin', version: '0.37'},
   {id: 'all', dir: 'templates', label: 'All'},
 ];

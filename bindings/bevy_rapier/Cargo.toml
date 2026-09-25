@@ -4,11 +4,11 @@ resolver = "2"
 
 [workspace.dependencies]
 # Build against the rapier crates of this repository so bevy_rapier always tracks the in-tree engine.
-rapier2d = { version = "0.35.3", path = "../../crates/rapier2d" }
-rapier3d = { version = "0.35.3", path = "../../crates/rapier3d" }
-rapier3d-urdf = { version = "0.35.3", path = "../../crates/rapier3d-urdf" }
-rapier3d-mjcf = { version = "0.35.3", path = "../../crates/rapier3d-mjcf" }
-rapier3d-meshloader = { version = "0.35.3", path = "../../crates/rapier3d-meshloader", default-features = false }
+rapier2d = { version = "0.36.0", path = "../../crates/rapier2d" }
+rapier3d = { version = "0.36.0", path = "../../crates/rapier3d" }
+rapier3d-urdf = { version = "0.36.0", path = "../../crates/rapier3d-urdf" }
+rapier3d-mjcf = { version = "0.36.0", path = "../../crates/rapier3d-mjcf" }
+rapier3d-meshloader = { version = "0.36.0", path = "../../crates/rapier3d-meshloader", default-features = false }
 
 [profile.dev]
 # Use slightly better optimization by default, as examples otherwise seem laggy.
