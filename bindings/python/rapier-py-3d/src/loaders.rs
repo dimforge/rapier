@@ -1971,7 +1971,7 @@ impl MjcfRobot {
         {
             let inserted = handles.clone();
             let conv = |h| ImpulseJointHandle(h).into_py(py);
-            let actuators = actuator_handles(py, handles.actuators, &conv)?;
+            let actuators = actuator_handles(py, handles.actuators, conv)?;
             let bodies: Vec<Option<MjcfBodyHandle>> = handles
                 .bodies
                 .into_iter()
@@ -2083,7 +2083,7 @@ impl MjcfRobot {
         {
             let inserted = handles.clone();
             let conv = |h: Option<_>| h.map(MultibodyJointHandle).into_py(py);
-            let actuators = actuator_handles(py, handles.actuators, &conv)?;
+            let actuators = actuator_handles(py, handles.actuators, conv)?;
             let bodies: Vec<Option<MjcfBodyHandle>> = handles
                 .bodies
                 .into_iter()
