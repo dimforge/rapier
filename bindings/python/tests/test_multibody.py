@@ -290,3 +290,113 @@ def test_multibody_inverse_kinematics_joint_can_move(ns):
         w.multibody_joints.inverse_kinematics_for_link(
             w.rigid_bodies, end_effector, target, options, joint_can_move=failing
         )
+
+
+# ---- Writing multibody state ----------------------------------------------
+
+
+def _pendulum(ns, n_links=2):
+    """A fixed-root chain of `n_links` revolute links around the local Y axis.
+
+    Returns `(world, multibody, link_handles)` after one step, so the root has
+    already collapsed from its initial 6-DOF free joint to 0 DOF.
+    """
+    w = ns.PhysicsWorld(gravity=(0, 0, 0))
+    handles = [w.rigid_bodies.insert(ns.RigidBody.fixed().build())]
+    last_joint = None
+    for i in range(n_links):
+        h = w.rigid_bodies.insert(
+            ns.RigidBody.dynamic(translation=(float(i + 1), 0, 0)).build()
+        )
+        w.colliders.insert_with_parent(
+            ns.Collider.cuboid(0.4, 0.4, 0.4).density(1.0).build(),
+            h, w.rigid_bodies,
+        )
+        last_joint = w.multibody_joints.insert(
+            handles[-1], h,
+            ns.RevoluteJoint.builder(axis=(0, 1, 0))
+                .local_anchor1((0.5, 0, 0))
+                .local_anchor2((-0.5, 0, 0))
+                .build(),
+        )
+        handles.append(h)
+    w.step()
+    mb = w.multibody_joints.multibody(last_joint)
+    assert mb is not None
+    return w, mb, handles
+
+
+def test_multibody_link_assembly_id_and_ndofs(ns):
+    """Each link reports where its DOFs sit in the generalized vectors."""
+    _w, mb, _ = _pendulum(ns, n_links=3)
+    assert mb.ndofs == 3
+    # Root is fixed: no DOFs. Then one revolute DOF per link, in order.
+    assert [mb.get_link(i).ndofs for i in range(4)] == [0, 1, 1, 1]
+    assert [mb.get_link(i).assembly_id for i in range(4)] == [0, 0, 1, 2]
+
+
+def test_multibody_generalized_position_starts_at_zero(ns):
+    """A freshly built chain sits at the origin of its joint coordinates."""
+    _w, mb, _ = _pendulum(ns, n_links=2)
+    q = mb.generalized_position()
+    assert len(q) == mb.ndofs == 2
+    assert all(abs(x) < 1e-5 for x in q)
+
+
+def test_multibody_apply_displacements_round_trips(ns):
+    """`apply_displacements` moves the joint coordinates by exactly `disp`."""
+    w, mb, _ = _pendulum(ns, n_links=2)
+    target = [0.3, -0.7]
+    q0 = mb.generalized_position()
+    mb.apply_displacements([target[i] - q0[i] for i in range(mb.ndofs)])
+    mb.forward_kinematics(w.rigid_bodies, False)
+    mb.update_rigid_bodies(w.rigid_bodies, False)
+
+    q = mb.generalized_position()
+    assert q == pytest.approx(target, abs=1e-6)
+    # The rigid bodies followed: the second link is no longer at y = 0.
+    link2 = w.rigid_bodies.get(mb.get_link(2).rigid_body)
+    assert abs(link2.translation[2]) > 1e-3
+
+
+def test_multibody_armature_round_trips(ns):
+    """`set_armature` / `armature` round-trip one value per DOF."""
+    _w, mb, _ = _pendulum(ns, n_links=2)
+    assert mb.armature() == pytest.approx([0.0, 0.0])
+    mb.set_armature([0.25, 0.5])
+    assert mb.armature() == pytest.approx([0.25, 0.5])
+    with pytest.raises(ValueError):
+        mb.set_armature([1.0, 2.0, 3.0])
+
+
+def test_multibody_link_motor_reaches_its_target(ns):
+    """A position motor on a link's joint drives that DOF to its target."""
+    w, mb, _ = _pendulum(ns, n_links=1)
+    target = 0.4
+    mb.set_link_motor(1, ns.JointAxis.ANG_X, target, 0.0, 4500.0, 450.0)
+    mb.set_link_motor_model(1, ns.JointAxis.ANG_X, ns.MotorModel.FORCE_BASED)
+    mb.set_link_motor_max_force(1, ns.JointAxis.ANG_X, 1.0e4)
+
+    motor = mb.link_motor(1, ns.JointAxis.ANG_X)
+    assert motor is not None
+    assert motor.target_pos == pytest.approx(target)
+    assert motor.stiffness == pytest.approx(4500.0)
+    assert motor.damping == pytest.approx(450.0)
+    assert motor.max_force == pytest.approx(1.0e4)
+
+    for _ in range(400):
+        w.step()
+    assert mb.generalized_position()[0] == pytest.approx(target, abs=1e-3)
+    assert abs(mb.generalized_velocity()[0]) < 1e-2
+
+
+def test_multibody_link_motor_rejects_unknown_link(ns):
+    _w, mb, _ = _pendulum(ns, n_links=1)
+    with pytest.raises(IndexError):
+        mb.set_link_motor(99, ns.JointAxis.ANG_X, 0.0, 0.0, 1.0, 1.0)
+    with pytest.raises(IndexError):
+        mb.set_link_motor_max_force(99, ns.JointAxis.ANG_X, 1.0)
+    with pytest.raises(IndexError):
+        mb.set_link_motor_model(99, ns.JointAxis.ANG_X, ns.MotorModel.FORCE_BASED)
+    with pytest.raises(IndexError):
+        mb.link_motor(99, ns.JointAxis.ANG_X)
