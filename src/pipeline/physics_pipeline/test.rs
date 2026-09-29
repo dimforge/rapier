@@ -738,3 +738,71 @@ fn contact_force_events_follow_runtime_active_events_flips() {
     }
     assert_eq!(events.0.load(Ordering::Relaxed), after_enable);
 }
+
+/// A dynamic multibody root must keep its initial rotation instead of snapping to identity
+/// when the multibody joints are first integrated.
+#[test]
+fn multibody_dynamic_root_keeps_its_initial_rotation() {
+    #[cfg(feature = "dim2")]
+    fn vector_x(x: crate::math::Real) -> Vector {
+        Vector::new(x, 0.0)
+    }
+    #[cfg(feature = "dim3")]
+    fn vector_x(x: crate::math::Real) -> Vector {
+        Vector::new(x, 0.0, 0.0)
+    }
+
+    let mut colliders = ColliderSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let mut multibody_joints = MultibodyJointSet::new();
+    let mut soft_bodies = SoftBodySet::new();
+    let mut pipeline = PhysicsPipeline::new();
+    let mut bf = BroadPhaseBvh::new();
+    let mut nf = NarrowPhase::new();
+    let mut bodies = RigidBodySet::new();
+    let mut islands = IslandManager::new();
+
+    #[cfg(feature = "dim2")]
+    let root_builder = RigidBodyBuilder::dynamic().rotation(0.7);
+    #[cfg(feature = "dim3")]
+    let root_builder = RigidBodyBuilder::dynamic().rotation(Vector::new(0.0, 0.0, 0.7));
+
+    let root = bodies.insert(root_builder);
+    let child = bodies.insert(RigidBodyBuilder::dynamic().translation(vector_x(1.0)));
+    colliders.insert_with_parent(ColliderBuilder::ball(0.1), root, &mut bodies);
+    colliders.insert_with_parent(ColliderBuilder::ball(0.1), child, &mut bodies);
+    #[cfg(feature = "dim2")]
+    let joint = RevoluteJointBuilder::new();
+    #[cfg(feature = "dim3")]
+    let joint = RevoluteJointBuilder::new(Vector::Z);
+    let joint = joint
+        .local_anchor1(vector_x(0.5))
+        .local_anchor2(vector_x(-0.5));
+    multibody_joints.insert(root, child, joint, true);
+
+    let initial = *bodies[root].rotation();
+    pipeline.step(
+        Vector::ZERO,
+        &IntegrationParameters::default(),
+        &mut islands,
+        &mut bf,
+        &mut nf,
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        &mut soft_bodies,
+        &mut CCDSolver::new(),
+        &(),
+        &(),
+    );
+
+    #[cfg(feature = "dim2")]
+    let error = (bodies[root].rotation().angle() - initial.angle()).abs();
+    #[cfg(feature = "dim3")]
+    let error = bodies[root].rotation().angle_between(initial);
+    assert!(
+        error < 1.0e-3,
+        "the root's rotation changed by {error} rad in one step"
+    );
+}

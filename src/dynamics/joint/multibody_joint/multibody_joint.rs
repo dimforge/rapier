@@ -83,6 +83,7 @@ impl MultibodyJoint {
         {
             self.coords.x = pos.translation.x;
             self.coords.y = pos.translation.y;
+            self.coords.z = pos.rotation.angle();
         }
         #[cfg(feature = "dim3")]
         {
