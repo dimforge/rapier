@@ -7,6 +7,20 @@ release cadence. The authoritative changelog is the Cargo
 `Rapier repository
 <https://github.com/dimforge/rapier/blob/master/CHANGELOG.md>`_.
 
+0.36.1 (4 October 2026)
+-----------------------
+
+**Added**
+
+- ``Multibody.generalized_position``, ``armature`` / ``set_armature``, and per-link motors in
+  reduced coordinates: ``set_link_motor``, ``set_link_motor_max_force``, ``set_link_motor_model``,
+  ``link_motor``.
+- ``MultibodyLink.assembly_id`` and ``ndofs``: where a link's entries sit in the generalized vectors.
+- MJCF names: ``body_names``, ``joint_names``, ``body_name_to_idx`` and ``joint_name_to_idx`` on
+  ``MjcfRobot`` and ``MjcfRobotHandles``.
+- MJCF actuator parameters: ``MjcfActuatorHandle.kind``, ``joint_name``, ``gear``, ``ctrl_range``,
+  ``force_range``, ``kp``, ``kv``.
+
 0.36.0 (24 September 2026)
 --------------------------
 
