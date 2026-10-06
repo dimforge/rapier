@@ -1,3 +1,12 @@
+## v0.36.1 (4 October 2026)
+
+### Added
+
+- Python: a multibody's state and motors in reduced coordinates (`Multibody.generalized_position`,
+  `armature` / `set_armature`, `set_link_motor` and friends, `MultibodyLink.assembly_id` / `ndofs`),
+  MJCF body and joint names (`MjcfRobot.body_names`, `joint_name_to_idx`...) and MJCF actuator
+  parameters (`MjcfActuatorHandle.gear`, `ctrl_range`, `kp`, `kv`...).
+
 ## v0.36.0 (24 September 2026)
 
 ### Added

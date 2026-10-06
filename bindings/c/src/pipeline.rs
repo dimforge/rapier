@@ -1000,15 +1000,15 @@ impl PhysicsHooks for WorldHooks {
                     nonnegative(value.friction),
                     nonnegative(value.restitution),
                     boolean(value.enabled),
-                ) {
-                    if n.length_squared().is_finite() && n.length_squared() > 1.0e-20 {
-                        *m.normal = n.normalize();
-                        *m.friction = fr;
-                        *m.restitution = re;
-                        *m.user_data = value.user_data;
-                        if !enabled {
-                            m.solver_contacts.clear();
-                        }
+                ) && n.length_squared().is_finite()
+                    && n.length_squared() > 1.0e-20
+                {
+                    *m.normal = n.normalize();
+                    *m.friction = fr;
+                    *m.restitution = re;
+                    *m.user_data = value.user_data;
+                    if !enabled {
+                        m.solver_contacts.clear();
                     }
                 }
             }
