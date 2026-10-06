@@ -381,10 +381,7 @@ impl RprShapeDesc {
                         .ok_or_else(|| invalid("unknown trimesh flags"))?;
                         SharedShape::trimesh_with_flags(
                             vertices,
-                            indices
-                                .chunks_exact(3)
-                                .map(|v| [v[0], v[1], v[2]])
-                                .collect(),
+                            indices.as_chunks::<3>().0.to_vec(),
                             flags,
                         )
                         .map_err(|e| invalid(e.to_string()))?
@@ -399,7 +396,7 @@ impl RprShapeDesc {
                             if indices.is_empty() {
                                 None
                             } else {
-                                Some(indices.chunks_exact(2).map(|v| [v[0], v[1]]).collect())
+                                Some(indices.as_chunks::<2>().0.to_vec())
                             },
                             flags,
                         ))

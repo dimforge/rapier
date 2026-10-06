@@ -238,10 +238,7 @@ pub(crate) unsafe fn indices_array<const N: usize>(
         values.iter().all(|&i| (i as usize) < vertices),
         "vertex index out of range",
     )?;
-    Ok(values
-        .chunks_exact(N)
-        .map(|c| c.try_into().unwrap())
-        .collect())
+    Ok(values.as_chunks::<N>().0.to_vec())
 }
 /// Create an owned compound shape; each child pose is relative to the compound. Child shapes are
 /// shared, not consumed. Release with rpr_free_shared_shape.

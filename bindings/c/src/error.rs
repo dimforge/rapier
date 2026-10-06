@@ -142,14 +142,14 @@ pub(crate) fn ffi(f: impl FnOnce() -> Result) -> RprStatus {
             let message = CString::new(message.replace('\0', "?")).unwrap();
             LAST_ERROR.with(|e| *e.borrow_mut() = message.clone());
             let handler = ERROR_HANDLER.with(Cell::get);
-            if let Some(callback) = handler.callback {
-                if outermost {
-                    // All operation-local borrows and the panic boundary have ended.
-                    // Keep the diagnostic alive even if the handler calls Rapier again.
-                    unsafe { callback(status, message.as_ptr(), handler.user_data) };
-                    LAST_ERROR.with(|e| *e.borrow_mut() = message);
-                    LAST_STATUS.with(|s| s.set(status));
-                }
+            if let Some(callback) = handler.callback
+                && outermost
+            {
+                // All operation-local borrows and the panic boundary have ended.
+                // Keep the diagnostic alive even if the handler calls Rapier again.
+                unsafe { callback(status, message.as_ptr(), handler.user_data) };
+                LAST_ERROR.with(|e| *e.borrow_mut() = message);
+                LAST_STATUS.with(|s| s.set(status));
             }
             status
         }

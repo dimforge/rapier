@@ -3,7 +3,7 @@ name = "rapier-c-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-rust-version.workspace = true
+rust-version = "1.99"
 publish = false
 
 [lib]

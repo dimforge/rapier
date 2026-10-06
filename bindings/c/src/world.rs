@@ -26,7 +26,7 @@ impl RprWorld {
     }
     pub(crate) fn read(&self) -> Result<WorldRead<'_>> {
         self.access
-            .fetch_update(Ordering::Acquire, Ordering::Relaxed, |n| {
+            .try_update(Ordering::Acquire, Ordering::Relaxed, |n| {
                 (n < WRITER - 1).then(|| n + 1)
             })
             .map_err(|_| busy())?;
