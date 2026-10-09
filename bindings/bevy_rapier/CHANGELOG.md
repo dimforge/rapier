@@ -4,6 +4,7 @@
 
 ### Modified
 
+- Update to bevy 0.20.
 - Update from rapier `0.33.0-alpha` to rapier `0.35.0-glamx0.2`.
   See [rapier's changelog](https://github.com/dimforge/rapier/blob/master/CHANGELOG.md) for details.
   - Removed the `simd-stable` and `simd-nightly` features: SIMD is now always enabled in rapier.

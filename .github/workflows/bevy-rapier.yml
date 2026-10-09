@@ -1,6 +1,6 @@
 name: Bevy plugin
 
-# `bindings/bevy_rapier` is its own Cargo workspace (it tracks Bevy's main branch), building
+# `bindings/bevy_rapier` is its own Cargo workspace, building
 # `bevy_rapier2d` and `bevy_rapier3d` against the rapier crates of this repository. It runs
 # on engine changes too, so a rapier change breaking the plugin is caught in its own PR.
 on:

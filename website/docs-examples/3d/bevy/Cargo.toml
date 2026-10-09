@@ -6,8 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# The in-development bevy_rapier tracks Bevy's main branch.
-bevy = { git = "https://github.com/bevyengine/bevy", branch = "main" }
+bevy = "0.20"
 # Use the in-tree bevy_rapier so doc snippets are checked against local changes.
 bevy_rapier3d = { path = "../../../../bindings/bevy_rapier/bevy_rapier3d", features = ["fem", "urdf", "mjcf", "meshloader"] }
 

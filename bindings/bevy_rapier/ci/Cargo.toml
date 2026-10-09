@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy", branch = "main" }
+bevy = { version = "0.20" }
 bevy_rapier3d = { version = "0.36", path = "../bevy_rapier3d" }
 bevy_rapier2d = { version = "0.36", path = "../bevy_rapier2d" }
 
