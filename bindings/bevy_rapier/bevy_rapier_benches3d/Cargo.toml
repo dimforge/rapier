@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 rapier3d = { workspace = true }
 bevy_rapier3d = { version = "0.36", path = "../bevy_rapier3d" }
-bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", default-features = false }
+bevy = { version = "0.20", default-features = false }
 
 [dev-dependencies]
 divan = "0.1"
