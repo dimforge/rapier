@@ -1,18 +1,204 @@
 # Changelog
 
-## Unreleased
+## v0.37.0 (10 October 2026)
+
+bevy_rapier now lives in the [rapier repository](https://github.com/dimforge/rapier) and is built
+against the rapier crates of that repository ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+
+### Added
+
+- Soft bodies (2D and 3D): deformable bodies made of particles, simulated together with rigid
+  bodies, contacts and joints ([#1010](https://github.com/dimforge/rapier/pull/1010),
+  [#1016](https://github.com/dimforge/rapier/pull/1016)).
+  - `SoftBody`: the soft body of an entity, built as a rope, trimesh or volume (`rope`, `trimesh`,
+    `volumetric`), as a cloth, box or sphere in 3D (`cloth`, `cuboid`, `sphere`), or as a polygon,
+    disk or grid in 2D (`polygon`, `disk`, `grid`).
+  - `SoftBodyMaterial`: the stiffness, damping, plasticity and tearing behaviour of a soft body.
+  - `SoftBodyPinnedParticles` and `SoftBodyKinematicTargets`: particles held in place, or moved
+    along user-defined targets.
+  - `SoftBodyAttachments`: two-way attachments between particles and rigid bodies.
+  - `SoftBodyExternalForce` and `SoftBodyExternalImpulse`: forces and impulses applied to particles.
+  - `SoftBodyDisabled`: leaves the soft body where it is, without colliders or constraints.
+  - `SoftBodyState`: read-only center of mass, sleep state and particle count, updated each step.
+  - `SoftBodyCluster`: a rigid proxy for a region of particles, that joints and colliders can
+    attach to. It can be pinned, moved, shape-matched or given its own material
+    (`SoftBodyClusterPinned`, `SoftBodyClusterKinematicTarget`, `SoftBodyClusterShapeMatching`,
+    `SoftBodyClusterMaterial`).
+  - `DeformableCollider`: binds a deformable polyline (2D) or trimesh (3D) collider to the particles
+    of a soft body.
+  - Tearing and cutting with `tear_soft_body` and `cut_soft_body`. Each tear sends a
+    `SoftBodyTearEvent`, and torn-off pieces become new entities.
+  - `SoftBodyMeshSync` (`to-bevy-mesh` feature): renders a soft body with a mesh kept in sync with
+    its particles.
+  - `SoftBodyElasticitySolver` (`fem` feature): selects the experimental FEM elasticity solver.
+- Controllers ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `PidController` and `PdController`: drive a rigid body toward a `PidTarget` pose and velocity,
+    on the axes selected by an `AxesMask`.
+  - `RayCastVehicleController` (3D): a car-like vehicle whose `VehicleWheel`s are simulated with
+    ray-casts. Each wheel reports its contact and suspension state in `VehicleWheelState`.
+  - Character and vehicle controllers can ignore given colliders and bodies (`exclude_colliders`,
+    `exclude_rigid_bodies`, `filter_predicate`). The `ControllerIgnored` marker hides an entity
+    from all of them.
+- 3D loaders ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `urdf` feature: `spawn_urdf_robot` spawns a URDF robot as entities.
+  - `mjcf` feature: `spawn_mjcf_model` spawns a MuJoCo model, and `MjcfPlugin` drives its actuators.
+  - `meshloader` feature: `Collider::from_mesh_file` and `load_mesh_file_colliders` build colliders
+    from STL, Collada and OBJ files.
+- Joints ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `PinSlotJoint` (2D): allows a rotation and a translation along one axis, also known as a groove
+    joint.
+  - `ImpulseJointDisabled`, and `GenericJoint::set_enabled`: keep a joint attached but stop solving it.
+  - `ImpulseJointImpulses`: the impulses a joint applied during the last step, for example to detect
+    joints under heavy load.
+  - `softness`/`set_softness` and `contacts_enabled` on every joint and builder: per-joint
+    softness, and whether the two jointed bodies collide.
+  - `GenericJoint::local_frame1/2` and `flip`, and `From<GenericJoint>` for `TypedJoint`.
+- Multibodies ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `KinematicMultibodyJoint`: a joint whose degrees of freedom only move at user-set velocities.
+  - `MultibodySelfContactsDisabled`: disables contacts between the links of a multibody.
+  - Per-DoF `MultibodyJointDamping`, `MultibodyJointArmature` (rotor inertia) and
+    `MultibodyJointSprings` (implicit passive springs).
+  - `MultibodyJointFriction`: per-DoF dry friction
+    ([#1001](https://github.com/dimforge/rapier/pull/1001)).
+  - `MultibodyJointCouplings`: links the motion of degrees of freedom across joints of a multibody.
+  - `MultibodyJointState`: read-only joint coordinates and velocities, updated each step.
+  - Context helpers for links, generalized velocities, jacobians, and forward and inverse kinematics.
+- Rigid bodies ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `AdditionalPgsIterations`: extra solver iterations per substep for a body's island
+    ([#1010](https://github.com/dimforge/rapier/pull/1010)).
+  - `AllowFastRotation`: lifts the per-substep angular velocity cap, e.g. for wheels.
+  - `GyroscopicForces` (3D): enables or disables gyroscopic forces.
+  - `Sleeping::time_until_sleep`: how long a body must stay still before falling asleep.
+  - `ReadWorldMassProperties`: opt-in world-space mass properties, updated each step.
+  - `CoefficientCombineRule::{ClampedSum, GeometricMean}` and `CoefficientCombineRule::combine`
+    ([#1007](https://github.com/dimforge/rapier/pull/1007)).
+  - `RapierRigidBodySet` queries, such as `velocity_at_point`, `is_moving`, `next_position`,
+    `kinetic_energy` and `center_of_mass`.
+- Colliders ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - Constructors `compound_with_flags`, `polyline_with_flags`, `converted_trimesh`,
+    `heightfield_with_flags` (3D), `oriented_polyline` (one-sided, 2D) and
+    `convex_polyline_unmodified` (2D).
+  - Shape queries on `Collider`, such as `aabb`, `bounding_sphere`, `mass_properties`, `contact`,
+    `distance`, `closest_points`, `cast_shape` and `cast_shape_nonlinear`.
+  - `ReadColliderMassProperties`: the volume, density and mass computed by rapier, inserted
+    automatically.
+  - `InteractionTestMode` on `CollisionGroups` and `SolverGroups`: whether both groups must
+    accept each other (`And`) or only one of them (`Or`).
+  - `ComputedColliderShape::{Voxels, Converted}`: build colliders from Bevy meshes as voxels or
+    with a `MeshConverter`.
+  - New accessors and mutators on the shape views, and `ColliderView::Custom` for custom shapes.
+- Scene queries ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `cast_shape_nonlinear`, `distance_to_shape`, `closest_points_to_shape`, `contact_with_shape`
+    and `bvh`.
+  - The new `AsShape` trait: shape arguments accept a `Collider`, a `&dyn Shape` or any rapier
+    shape.
+- Simulation ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `RapierConfiguration::simulation_mode`: `SimulationMode::CollisionOnly` runs collision
+    detection without simulating the dynamics.
+  - `RapierConfiguration::num_threads`: a thread pool per context.
+  - `BroadPhaseOptimizationStrategy`: how the broad-phase BVH is optimized over time.
+  - `set_query_dispatcher` and `set_event_handler`: a custom narrow-phase dispatcher and event
+    handler per context.
+  - `step_stats()`: timings and counts of the last steps, shown by the new
+    `RapierDiagnosticsPlugin`.
+- NaN quarantine: `PhysicsQuarantineEvent` reports bodies and colliders with non-finite values.
+  They get `RigidBodyDisabled`/`ColliderDisabled`/`SoftBodyDisabled` until fixed
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- Contacts ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `ContactForceEvent::started`: set on the step the force first crosses the threshold.
+  - `contact_graph` and `intersection_graph`, and impulse and warmstart accessors on the contact
+    views.
+  - Setters on `ContactModificationContextView`, such as `set_normal`, `set_friction` and
+    `update_as_oneway_platform`.
+- Debug render ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `DebugRenderColor` and `DebugRenderVisibility`: the color and visibility of everything
+    attached to an entity.
+  - `DebugRenderContext::{style, mode}` can be edited at runtime.
+  - Soft bodies are rendered.
+- `to-bevy-mesh`: segments, polylines, half-spaces, 2D heightfields, 2D voxels and round shapes
+  now convert to meshes ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- Cargo features `block-solver`, `profiler`, `unsync-callbacks`, `solver-bounds-checks` and `fem`
+  (forwarded to rapier), and a `debug-render` alias for 2D
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- New examples: soft bodies, multibodies, URDF/MJCF, vehicle, PID, diagnostics, and more
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)).
 
 ### Modified
 
-- Update to bevy 0.20.
-- Update from rapier `0.33.0-alpha` to rapier `0.35.0-glamx0.2`.
+- Update to bevy 0.20 ([#1034](https://github.com/dimforge/rapier/pull/1034)) and rapier 0.36.1
+  (nalgebra 0.35, glam 0.33) ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+  See [rapier's changelog](https://github.com/dimforge/rapier/blob/master/CHANGELOG.md) for details.
+- **Breaking:** `QueryFilter::predicate` takes `Fn(Entity, &RapierCollider) -> bool`, and the
+  `intersect_*` callbacks also receive the `&RapierCollider`
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- **Breaking:** these methods take a new argument
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)):
+  - `project_point_and_get_feature` takes `max_dist`.
+  - `step_simulation` takes a `SimulationMode`.
+  - `move_shape` takes a `QueryFilter` instead of a `RapierQueryPipelineMut`.
+- **Breaking:** by default, `BevyPhysicsHooks::filter_contact_pair`/`filter_intersection_pair`
+  now keep the pair. They used to drop it
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- **Breaking:** debug-render style lengths are in meters and scaled by each context's
+  `length_unit`; disable this with `DebugRenderContext::scale_lengths_by_length_unit`. The 2D
+  axis-length default of `20.0` was removed ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- **Breaking:** the rapier `user_data` of joints is overwritten with the owning entity
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- **Breaking:** new public fields or variants on `RapierConfiguration`, `CollisionGroups`,
+  `SolverGroups`, `Sleeping`, `ContactForceEvent`, `KinematicCharacterController`,
+  `PointProjection`, `RayIntersection`, `ShapeCastHit`, `CoefficientCombineRule`, `TypedJoint`,
+  `ColliderView` and `ComputedColliderShape` ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- `MultibodyJoint::new` takes `impl Into<TypedJoint>`
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- An entity without a `RapierContextEntityLink` joins the context of its closest linked ancestor
+  instead of the default context ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- Scene queries, character controllers and picking use the context's query dispatcher
+  ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- Steps with a zero timestep are skipped ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- `RigidBody` requires `ReadMassProperties` ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+
+### Fixed
+
+All these fixes come from [#1016](https://github.com/dimforge/rapier/pull/1016).
+
+- Removing a rigid-body or collider component (`Damping`, `GravityScale`, `Friction`,
+  `CollisionGroups`, …) now resets the rapier property instead of keeping its last value.
+- Changing the parent of an `ImpulseJoint` or `MultibodyJoint`, or reparenting its entity,
+  re-attaches the joint.
+- Modifying an `ImpulseJoint` wakes its bodies and keeps the warmstart impulses.
+- Setting `Sleeping::sleeping = false` wakes the whole island.
+- Events for colliders whose entity can't be resolved are dropped instead of panicking.
+- Deserialized context resources rebuild their entity maps.
+- `typed_shape_to_mesh`:
+  - Compound part poses are applied.
+  - 3D convex polyhedra and voxels are triangulated correctly.
+- Converting a collider with a custom shape into a `ColliderView` no longer panics.
+- The `enhanced-determinism` feature compiles again.
+
+### Removed
+
+- The unused `headless` feature ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+- The `debugdump2`/`debugdump3` examples ([#1016](https://github.com/dimforge/rapier/pull/1016)).
+
+## v0.36.0 (8 August 2026)
+
+### Modified
+
+- Update from rapier `0.33.0-alpha` to rapier `0.35.0-glamx0.2`
+  ([#699](https://github.com/dimforge/bevy_rapier/pull/699)).
   See [rapier's changelog](https://github.com/dimforge/rapier/blob/master/CHANGELOG.md) for details.
   - Removed the `simd-stable` and `simd-nightly` features: SIMD is now always enabled in rapier.
     The new `simd8` feature widens the solver’s SIMD from 4 to 8 lanes (f32 only, incompatible
     with `enhanced-determinism`).
+  - `AdditionalSolverIterations` now adds substeps to the whole island.
+  - Fast dynamic bodies get CCD against fixed colliders without `Ccd`. `Ccd` now enables full
+    CCD against dynamic and kinematic bodies.
   - `SolverContactView::{friction, restitution}` now read from the contact manifold data (rapier
     stores them per-manifold), and `SolverContactView::point` is reconstructed from the body-local
-    contact anchors; the public API is preserved.
+    contact anchors. The new `SolverContactView::manifold_data` field exposes that data.
+  - `IntegrationParametersWrapper` mirrors the new integration parameters
+    (`static_contact_softness`, `normalized_max_linear_velocity`, `contact_clustering`,
+    `contact_recycling`, …), and `min_island_size` was removed.
   - Custom event handlers assigned to `RapierContextSimulation` must now be `Send + Sync`.
 - Known issue: the `enhanced-determinism` feature currently fails to compile with bevy, because
   parry enables `glam/scalar-math` which removes the serde impls of `glam::BVec3A`/`BVec4A` that

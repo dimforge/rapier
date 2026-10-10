@@ -11,7 +11,7 @@ publish = false
 
 [dependencies]
 rapier3d = { workspace = true }
-bevy_rapier3d = { version = "0.36", path = "../bevy_rapier3d" }
+bevy_rapier3d = { version = "0.37", path = "../bevy_rapier3d" }
 bevy = { version = "0.20", default-features = false }
 
 [dev-dependencies]
