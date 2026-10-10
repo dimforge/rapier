@@ -6,8 +6,8 @@ publish = false
 
 [dependencies]
 bevy = { version = "0.20" }
-bevy_rapier3d = { version = "0.36", path = "../bevy_rapier3d" }
-bevy_rapier2d = { version = "0.36", path = "../bevy_rapier2d" }
+bevy_rapier3d = { version = "0.37", path = "../bevy_rapier3d" }
+bevy_rapier2d = { version = "0.37", path = "../bevy_rapier2d" }
 
 [[bin]]
 name = "ambiguity_detection"
