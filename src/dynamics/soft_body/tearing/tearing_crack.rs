@@ -9,7 +9,7 @@ use parry::utils::hashmap::HashMap;
 use super::super::SoftBody;
 use super::tearing::pair;
 use super::tearing_event::SoftBodyTearEvent;
-use super::tearing_particle_split::{Fan, MeasureKind, SplitLog};
+use super::tearing_particle_split::{CellIndex, Fan, MeasureKind, SplitLog};
 
 /// The mean load of the fan elements on the given side of the split plane.
 fn side_load(fan: &Fan, side: usize, load: impl Fn(u32) -> Real) -> Real {
@@ -61,7 +61,14 @@ impl SoftBody {
             .map(|&c| self.cells[c as usize].vertices)
             .collect();
 
-        let mut log = SplitLog::default();
+        let mut log = SplitLog {
+            cell_index: if kind == MeasureKind::Cells {
+                CellIndex::new(self)
+            } else {
+                None
+            },
+            ..SplitLog::default()
+        };
         for &[a, b] in &edges {
             let first = log.split_particles.len();
             // An edge an earlier split removed (a straddler) is already open.
@@ -167,7 +174,7 @@ impl SoftBody {
         let (fa, fb) = (family(a), family(b));
         for &x in &fa {
             for &y in &fb {
-                if self.measure_element_holds(&[x, y]) {
+                if self.measure_element_holds_indexed(&[x, y], log.cell_index.as_ref()) {
                     return Some((x, y));
                 }
             }
@@ -202,7 +209,7 @@ impl SoftBody {
         for (v, other) in [(a, b), (b, a)] {
             let origin = self.particles[v as usize].rest_position;
             let normal = self.particles[other as usize].rest_position - origin;
-            if let Some(fan) = self.plane_fan(v, origin, normal) {
+            if let Some(fan) = self.plane_fan(v, origin, normal, log.cell_index.as_ref()) {
                 let load = side_load(&fan, 1, |e| match fan.kind {
                     MeasureKind::Segments => self.edges[e as usize].stress,
                     _ => loads[e as usize],
@@ -213,7 +220,7 @@ impl SoftBody {
         options.sort_by(|x, y| y.0.total_cmp(&x.0).then(x.1.cmp(&y.1)));
         let Some((_, v, fan)) = options
             .into_iter()
-            .find(|(_, v, fan)| self.opens_without_confetti(*v, fan))
+            .find(|(_, v, fan)| self.opens_without_confetti(*v, fan, log.cell_index.as_ref()))
         else {
             return false;
         };
@@ -266,8 +273,10 @@ impl SoftBody {
         order.sort_by(|x, y| x.0.total_cmp(&y.0).then(x.1.cmp(&y.1)));
         for (_, v) in order {
             let origin = self.particles[v as usize].rest_position;
-            if let Some(fan) = self.plane_fan(v, origin, normal) {
-                if self.opens_without_confetti(v, &fan) && self.split_fan(v, &fan, log) {
+            if let Some(fan) = self.plane_fan(v, origin, normal, log.cell_index.as_ref()) {
+                if self.opens_without_confetti(v, &fan, log.cell_index.as_ref())
+                    && self.split_fan(v, &fan, log)
+                {
                     return true;
                 }
             }

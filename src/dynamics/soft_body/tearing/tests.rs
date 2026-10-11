@@ -3,7 +3,274 @@
 use crate::alloc_prelude::*;
 use crate::prelude::*;
 
-use super::tearing_particle_split::{MeasureKind, SplitLog};
+use super::tearing_particle_split::{CellIndex, MeasureKind, SplitLog};
+
+/// Incidence stays sorted and complete when a particle is copied more than once and the cells
+/// around it move to different copies. Compare the lookup and bounded BFS to the scanning path.
+#[test]
+fn cell_index_matches_scans_after_splits() {
+    #[cfg(feature = "dim2")]
+    let builder = SoftBodyBuilder::grid(Vector::ZERO, Vector::splat(1.0), 5, 4);
+    #[cfg(feature = "dim3")]
+    let builder = SoftBodyBuilder::cuboid(Vector::ZERO, Vector::splat(1.0), 3, 3, 3);
+    let (mut world, handle) = world_with(builder.particle_mass(0.5));
+    let body = world.soft_bodies.get_mut(handle).unwrap();
+    let mut scanned = body.clone();
+    let mut scanned_log = SplitLog::default();
+    let mut log = SplitLog {
+        cell_index: CellIndex::new(body),
+        ..SplitLog::default()
+    };
+
+    fn check(body: &SoftBody, index: &CellIndex) {
+        for v in 0..body.num_particles() as u32 + 1 {
+            let actual = body.fan(MeasureKind::Cells, v, Some(index));
+            let expected = body.fan(MeasureKind::Cells, v, None);
+            assert_eq!(actual.elements, expected.elements);
+            assert_eq!(actual.vertices, expected.vertices);
+            assert_eq!(actual.measures, expected.measures);
+            assert_eq!(actual.groups, expected.groups);
+            assert_eq!(actual.num_groups, expected.num_groups);
+        }
+        for (c, cell) in body.cells.iter().enumerate() {
+            for &pivot in cell.vertices.iter().chain(core::iter::once(&u32::MAX)) {
+                for limit in [
+                    0,
+                    1,
+                    body.min_piece(MeasureKind::Cells),
+                    body.cells.len() + 1,
+                ] {
+                    for seeds in [
+                        &[][..],
+                        &[c as u32][..],
+                        &[c as u32, c as u32][..],
+                        &[c as u32, ((c + 1) % body.cells.len()) as u32][..],
+                    ] {
+                        let actual = body.reachable_elements(
+                            MeasureKind::Cells,
+                            seeds,
+                            pivot,
+                            limit,
+                            Some(index),
+                        );
+                        let expected =
+                            body.reachable_elements(MeasureKind::Cells, seeds, pivot, limit, None);
+                        assert_eq!(actual, expected);
+                    }
+                }
+            }
+            for particles in [cell.vertices.as_slice(), &cell.vertices[..2], &[][..]] {
+                assert_eq!(
+                    body.measure_element_holds_indexed(particles, Some(index)),
+                    body.measure_element_holds(particles),
+                );
+            }
+        }
+        assert!(!body.measure_element_holds_indexed(&[u32::MAX], Some(index)));
+    }
+
+    check(body, log.cell_index.as_ref().unwrap());
+    let original_particles = body.num_particles();
+    for v in 0..original_particles as u32 {
+        let mut fan = body.fan(MeasureKind::Cells, v, log.cell_index.as_ref());
+        if fan.elements.len() < 2 {
+            continue;
+        }
+        // Alternating sides also exercises splits producing more than two groups.
+        for (i, side) in fan.sides.iter_mut().enumerate() {
+            *side = i % 2;
+        }
+        fan.assign_groups(v);
+        assert!(body.split_fan(v, &fan, &mut log));
+        assert!(scanned.split_fan(v, &fan, &mut scanned_log));
+        assert_eq!(log.split_particles, scanned_log.split_particles);
+        assert_eq!(log.removed_edges, scanned_log.removed_edges);
+        assert_eq!(
+            std::format!(
+                "{:?}",
+                (&body.particles, &body.cells, &body.edges, &body.boundary)
+            ),
+            std::format!(
+                "{:?}",
+                (
+                    &scanned.particles,
+                    &scanned.cells,
+                    &scanned.edges,
+                    &scanned.boundary
+                )
+            ),
+        );
+        check(body, log.cell_index.as_ref().unwrap());
+    }
+    assert!(log.split_particles.len() > 2);
+    body.remove_straddlers_across_pieces(&mut log);
+    body.finish_topology_change(&log);
+    body.validate_topology().unwrap();
+}
+
+/// The builder accepts cells with repeated vertices. Their facets are multisets, not the
+/// simplices the incidence lookup requires, so they must retain the original scanning path.
+#[test]
+fn repeated_cell_vertices_keep_the_scanning_path() {
+    #[cfg(feature = "dim2")]
+    let (positions, cells) = (vec![Vector::ZERO, Vector::X], vec![[0, 1, 1]]);
+    #[cfg(feature = "dim3")]
+    let (positions, cells) = (vec![Vector::ZERO, Vector::X, Vector::Y], vec![[0, 1, 2, 2]]);
+    let (world, handle) = world_with(
+        SoftBodyBuilder::new(positions)
+            .cells(cells)
+            .cell_model(SoftBodyCellModel::Corotational)
+            .no_surface_collider(),
+    );
+    let body = &world.soft_bodies[handle];
+    assert!(CellIndex::new(body).is_none());
+    assert_eq!(body.fan(MeasureKind::Cells, 1, None).elements, vec![0]);
+}
+
+/// A tear's scratch incidence must not become serialized state or survive into another tear.
+#[cfg(feature = "serde-serialize")]
+#[test]
+fn cell_tearing_matches_after_snapshot_restore() {
+    #[cfg(feature = "dim2")]
+    let builder = SoftBodyBuilder::grid(Vector::ZERO, Vector::splat(1.0), 5, 4);
+    #[cfg(feature = "dim3")]
+    let builder = SoftBodyBuilder::cuboid(Vector::ZERO, Vector::splat(1.0), 3, 3, 3);
+    let (mut world, handle) = world_with(builder.particle_mass(0.5));
+    let body = world.soft_bodies.get_mut(handle).unwrap();
+    let mut event = SoftBodyTearEvent::default();
+    assert!(body.tear_topology(&[], &[body.cells.len() as u32 / 2], &mut event));
+    let bytes = bincode::serialize(body).unwrap();
+    let mut restored: SoftBody = bincode::deserialize(&bytes).unwrap();
+    let cells: Vec<u32> = (0..body.cells.len() as u32).collect();
+    for _ in 0..3 {
+        let mut expected = SoftBodyTearEvent::default();
+        let mut actual = SoftBodyTearEvent::default();
+        assert_eq!(
+            body.tear_topology(&[], &cells, &mut expected),
+            restored.tear_topology(&[], &cells, &mut actual),
+        );
+        assert_eq!(std::format!("{actual:?}"), std::format!("{expected:?}"));
+        assert_eq!(
+            bincode::serialize(&restored).unwrap(),
+            bincode::serialize(body).unwrap()
+        );
+        restored.validate_topology().unwrap();
+    }
+}
+
+/// A repeatable public-API benchmark; timing assertions do not belong in the normal test suite.
+#[cfg(feature = "std")]
+#[test]
+#[ignore]
+fn cell_tearing_benchmark() {
+    use std::format;
+    use std::hash::{DefaultHasher, Hash, Hasher};
+    use std::time::Instant;
+
+    #[cfg(feature = "dim2")]
+    let sizes = [(10, 7, 1), (25, 12, 1), (45, 18, 1)];
+    #[cfg(feature = "dim3")]
+    let sizes = [(3, 3, 3), (5, 4, 4), (7, 6, 5)];
+    for (nx, ny, nz) in sizes {
+        #[cfg(feature = "dim2")]
+        let builder = SoftBodyBuilder::grid(Vector::ZERO, Vector::new(1.5, 0.6), nx, ny);
+        #[cfg(feature = "dim3")]
+        let builder = SoftBodyBuilder::cuboid(Vector::ZERO, Vector::splat(1.0), nx, ny, nz);
+        let _ = nz;
+        let builder = builder
+            .particle_mass(0.004)
+            .cell_model(SoftBodyCellModel::Corotational)
+            .surface_collider(ColliderBuilder::ball(0.05));
+        let (template, handle) = world_with(builder.clone());
+        let body = &template.soft_bodies[handle];
+        let total_cells = body.cells().len();
+        for pattern in ["none", "single", "band", "all"] {
+            let cells: Vec<u32> = body
+                .cells()
+                .iter()
+                .enumerate()
+                .filter(|(i, c)| {
+                    let x = c
+                        .vertices
+                        .iter()
+                        .map(|&v| body.particle_position(v as usize).x)
+                        .sum::<Real>()
+                        / (DIM + 1) as Real;
+                    match pattern {
+                        "none" => false,
+                        "single" => *i == total_cells / 2,
+                        "band" => x.abs() < 0.15,
+                        _ => true,
+                    }
+                })
+                .map(|(i, _)| i as u32)
+                .collect();
+            let mut samples = Vec::new();
+            let mut fingerprint = None;
+            let mut counts = (0, 0);
+            for _ in 0..7 {
+                let (mut world, handle) = world_with(builder.clone());
+                let start = Instant::now();
+                let event = world.tear_soft_body(handle, &[], &cells);
+                samples.push(start.elapsed().as_secs_f64() * 1000.0);
+                let bodies = family(&world, handle);
+                counts = (
+                    event.as_ref().map_or(0, |e| e.torn_cells.len()),
+                    bodies.len(),
+                );
+                let mut hash = DefaultHasher::new();
+                format!("{event:?}").hash(&mut hash);
+                let mut mass = 0.0;
+                let mut measure = 0.0;
+                for &piece in &bodies {
+                    let sb = &world.soft_bodies[piece];
+                    sb.validate_topology().unwrap();
+                    mass += sb.mass();
+                    measure += sb.rest_measure();
+                    format!("{:?}", (&sb.particles, &sb.cells, &sb.edges, &sb.boundary))
+                        .hash(&mut hash);
+                }
+                let conserved =
+                    |a: Real, b: Real| (a - b).abs() <= 1.0e-4 * a.abs().max(b.abs()).max(1.0);
+                assert!(
+                    conserved(mass, body.mass()),
+                    "mass: {mass} vs {}",
+                    body.mass()
+                );
+                assert!(
+                    conserved(measure, body.rest_measure()),
+                    "measure: {measure} vs {}",
+                    body.rest_measure()
+                );
+                // Exercise the rebuilt colliders and solver after the tear, outside the timing.
+                for _ in 0..3 {
+                    world.step();
+                }
+                for &piece in &bodies {
+                    let sb = &world.soft_bodies[piece];
+                    for p in sb.particles() {
+                        assert!(p.position.is_finite() && p.velocity.is_finite());
+                    }
+                    format!("{:?}", sb.particles()).hash(&mut hash);
+                }
+                let value = hash.finish();
+                if let Some(expected) = fingerprint {
+                    assert_eq!(value, expected, "non-deterministic benchmark fixture");
+                }
+                fingerprint = Some(value);
+            }
+            samples.sort_by(f64::total_cmp);
+            std::println!(
+                "TEARING dim={DIM} cells={total_cells} pattern={pattern} requested={} torn={} pieces={} median_ms={:.6} fingerprint={:016x}",
+                cells.len(),
+                counts.0,
+                counts.1,
+                samples[3],
+                fingerprint.unwrap()
+            );
+        }
+    }
+}
 
 /// Every structural edge of a rope, then every edge and cell of a grid (2D) or a box (3D), torn
 /// over and over: the bodies come apart, but no tear splits off a piece smaller than the minimum
@@ -250,7 +517,7 @@ fn split_chain_at_its_middle_particle() {
 
     let origin = sb.particles[2].rest_position;
     let normal = sb.particles[3].rest_position - origin;
-    let fan = sb.plane_fan(2, origin, normal).unwrap();
+    let fan = sb.plane_fan(2, origin, normal, None).unwrap();
     assert_eq!(fan.elements, vec![1, 2]);
     assert_eq!(fan.groups, vec![0, 1]);
     let mut log = SplitLog::default();
@@ -301,7 +568,9 @@ fn split_kite_across_its_diagonal() {
     let measure = sb.rest_measure();
 
     let origin = sb.particles[0].rest_position;
-    let fan = sb.plane_fan(0, origin, Vector::new(1.0, -1.0)).unwrap();
+    let fan = sb
+        .plane_fan(0, origin, Vector::new(1.0, -1.0), None)
+        .unwrap();
     assert_eq!(fan.elements, vec![0, 1]);
     assert_eq!(fan.sides, vec![1, 0]);
     assert_eq!(fan.groups, vec![1, 0]);
@@ -366,7 +635,7 @@ fn split_tetrahedra_across_their_shared_face() {
     let measure = sb.rest_measure();
 
     let origin = sb.particles[0].rest_position;
-    let fan = sb.plane_fan(0, origin, Vector::Z).unwrap();
+    let fan = sb.plane_fan(0, origin, Vector::Z, None).unwrap();
     assert_eq!(fan.sides, vec![1, 0]);
     assert_eq!(fan.groups, vec![1, 0]);
     let mut log = SplitLog::default();
@@ -439,8 +708,8 @@ fn split_cloth_quad_across_its_diagonal() {
 
     let origin = sb.particles[0].rest_position;
     let normal = Vector::new(1.0, 0.0, -1.0);
-    let fan = sb.plane_fan(0, origin, normal).unwrap();
-    assert!(!sb.opens_without_confetti(0, &fan));
+    let fan = sb.plane_fan(0, origin, normal, None).unwrap();
+    assert!(!sb.opens_without_confetti(0, &fan, None));
     assert_eq!(fan.sides, vec![1, 0]);
     assert_eq!(fan.groups, vec![1, 0]);
     let mut log = SplitLog::default();

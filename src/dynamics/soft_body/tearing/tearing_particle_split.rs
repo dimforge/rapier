@@ -100,6 +100,9 @@ impl Fan {
 /// What the particle splits of a tear did.
 #[derive(Clone, Debug, Default)]
 pub(super) struct SplitLog {
+    /// Sorted cell incidence, kept only while a body of cells is being torn. Cell indices stay
+    /// stable during a tear; particle copies and rewired cells update these lists in place.
+    pub cell_index: Option<CellIndex>,
     /// The particle copies, as `(copy, source)`, in creation order.
     pub split_particles: Vec<(u32, u32)>,
     /// The particle pairs of the non-measure edges removed for straddling an opened crack.
@@ -107,6 +110,39 @@ pub(super) struct SplitLog {
     /// The segments a cut inserted particles into, as `[a, b, p, q]`: the segment `(a, b)` became
     /// `(a, p)` and `(q, b)`.
     pub inserted: Vec<[u32; 4]>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct CellIndex(Vec<Vec<u32>>);
+
+impl CellIndex {
+    pub(super) fn new(body: &SoftBody) -> Option<Self> {
+        let mut cells = vec![Vec::new(); body.particles.len()];
+        for (i, cell) in body.cells.iter().enumerate() {
+            for (k, &v) in cell.vertices.iter().enumerate() {
+                // The local facet lookup assumes a simplex with distinct vertices. Preserve
+                // the scanning path for degenerate cells accepted by the builder.
+                if cell.vertices[..k].contains(&v) {
+                    return None;
+                }
+                cells[v as usize].push(i as u32);
+            }
+        }
+        Some(Self(cells))
+    }
+
+    fn at(&self, v: u32) -> &[u32] {
+        self.0.get(v as usize).map_or(&[], Vec::as_slice)
+    }
+
+    fn move_cell(&mut self, cell: u32, from: u32, to: u32) {
+        let source = &mut self.0[from as usize];
+        let position = source.binary_search(&cell).unwrap();
+        source.remove(position);
+        let target = &mut self.0[to as usize];
+        let position = target.binary_search(&cell).unwrap_err();
+        target.insert(position, cell);
+    }
 }
 
 /// Replaces every occurrence of `from` in `vertices` by `to`.
@@ -162,6 +198,30 @@ impl SoftBody {
                 }
             }
         }
+    }
+
+    /// Visits the elements at one particle in element-index order. Cuts and non-cell bodies
+    /// keep the scanning path; tears use the local incidence lists instead of scanning the body.
+    fn for_each_measure_element_at(
+        &self,
+        kind: MeasureKind,
+        v: u32,
+        cell_index: Option<&CellIndex>,
+        mut f: impl FnMut(u32, &[u32]),
+    ) {
+        if kind == MeasureKind::Cells {
+            if let Some(index) = cell_index {
+                for &i in index.at(v) {
+                    f(i, &self.cells[i as usize].vertices);
+                }
+                return;
+            }
+        }
+        self.for_each_measure_element(kind, |i, vertices| {
+            if vertices.contains(&v) {
+                f(i, vertices);
+            }
+        });
     }
 
     /// The total rest measure of this body's measure elements, by priority: the rest area (2D) or
@@ -271,15 +331,30 @@ impl SoftBody {
         found
     }
 
+    pub(super) fn measure_element_holds_indexed(
+        &self,
+        particles: &[u32],
+        cell_index: Option<&CellIndex>,
+    ) -> bool {
+        if !self.cells.is_empty() {
+            if let (Some(index), Some(&v)) = (cell_index, particles.first()) {
+                return index.at(v).iter().any(|&c| {
+                    particles
+                        .iter()
+                        .all(|p| self.cells[c as usize].vertices.contains(p))
+                });
+            }
+        }
+        self.measure_element_holds(particles)
+    }
+
     /// The fan of `v`: the measure elements of the given kind containing it, in one group.
-    pub(super) fn fan(&self, kind: MeasureKind, v: u32) -> Fan {
+    pub(super) fn fan(&self, kind: MeasureKind, v: u32, cell_index: Option<&CellIndex>) -> Fan {
         let mut elements = Vec::new();
         let mut vertices = Vec::new();
-        self.for_each_measure_element(kind, |i, element| {
-            if element.contains(&v) {
-                elements.push(i);
-                vertices.push(element.to_vec());
-            }
+        self.for_each_measure_element_at(kind, v, cell_index, |i, element| {
+            elements.push(i);
+            vertices.push(element.to_vec());
         });
         let n = elements.len();
         Fan {
@@ -304,7 +379,7 @@ impl SoftBody {
             return;
         };
         for &v in candidates {
-            let mut fan = self.fan(kind, v);
+            let mut fan = self.fan(kind, v, log.cell_index.as_ref());
             if fan.elements.len() < 2 {
                 continue;
             }
@@ -318,13 +393,19 @@ impl SoftBody {
     /// The fan of `v` split by the plane through `origin` with normal `normal`, in the rest
     /// shape: every element goes to the side of its rest centroid, and the groups are the
     /// connected components within a side. `None` when the fan lies on one side only.
-    pub(super) fn plane_fan(&self, v: u32, origin: Vector, normal: Vector) -> Option<Fan> {
+    pub(super) fn plane_fan(
+        &self,
+        v: u32,
+        origin: Vector,
+        normal: Vector,
+        cell_index: Option<&CellIndex>,
+    ) -> Option<Fan> {
         // A pinned particle is never split: the crack must open elsewhere.
         if self.particles[v as usize].inv_mass == 0.0 {
             return None;
         }
         let kind = self.measure_kind()?;
-        let mut fan = self.fan(kind, v);
+        let mut fan = self.fan(kind, v, cell_index);
         let rest = |i: u32| self.particles[i as usize].rest_position;
         for (side, vertices) in fan.sides.iter_mut().zip(&fan.vertices) {
             let offset: Vector = vertices.iter().map(|&w| rest(w) - origin).sum();
@@ -349,25 +430,31 @@ impl SoftBody {
     /// Whether the split of `v` given by `fan` leaves every group at least [`Self::min_piece`]
     /// measure elements reachable without passing through `v` (no chips). Tears consult it, cuts
     /// do not.
-    pub(super) fn opens_without_confetti(&self, v: u32, fan: &Fan) -> bool {
+    pub(super) fn opens_without_confetti(
+        &self,
+        v: u32,
+        fan: &Fan,
+        cell_index: Option<&CellIndex>,
+    ) -> bool {
         let min = self.min_piece(fan.kind);
         (0..fan.num_groups).all(|g| {
             let seeds: Vec<u32> = (0..fan.elements.len())
                 .filter(|&i| fan.groups[i] == g)
                 .map(|i| fan.elements[i])
                 .collect();
-            self.reachable_elements(fan.kind, &seeds, v, min) >= min
+            self.reachable_elements(fan.kind, &seeds, v, min, cell_index) >= min
         })
     }
 
     /// Number of measure elements of the given kind reachable from `seeds` through shared facets
     /// not containing `pivot`, counting up to `limit`.
-    fn reachable_elements(
+    pub(super) fn reachable_elements(
         &self,
         kind: MeasureKind,
         seeds: &[u32],
         pivot: u32,
         limit: usize,
+        cell_index: Option<&CellIndex>,
     ) -> usize {
         // Calls `f` with every facet of an element not containing `pivot`: its vertices but one,
         // sorted and padded with `u32::MAX`.
@@ -387,15 +474,19 @@ impl SoftBody {
                 }
             }
         }
-        // Facet -> elements map of the whole body (a tear is a rare event).
+        let cell_index = cell_index.filter(|_| kind == MeasureKind::Cells);
+        // Non-cell bodies and cuts use the facet map. For an indexed tear, a facet's neighbors
+        // are the cells incident to its first vertex that also contain all its other vertices.
         let mut by_facet: HashMap<[u32; 3], Vec<u32>> = HashMap::default();
         let mut elements: HashMap<u32, Vec<u32>> = HashMap::default();
-        self.for_each_measure_element(kind, |i, vertices| {
-            elements.insert(i, vertices.to_vec());
-            facets(vertices, pivot, |key| {
-                by_facet.entry(key).or_default().push(i)
+        if cell_index.is_none() {
+            self.for_each_measure_element(kind, |i, vertices| {
+                elements.insert(i, vertices.to_vec());
+                facets(vertices, pivot, |key| {
+                    by_facet.entry(key).or_default().push(i)
+                });
             });
-        });
+        }
         let mut seen: HashMap<u32, ()> = HashMap::default();
         let mut stack: Vec<u32> = seeds.to_vec();
         for &s in seeds {
@@ -405,13 +496,30 @@ impl SoftBody {
             if seen.len() >= limit {
                 return seen.len();
             }
-            facets(&elements[&e], pivot, |key| {
-                if let Some(neighbors) = by_facet.get(&key) {
-                    for &n in neighbors {
-                        if !seen.contains_key(&n) {
-                            seen.insert(n, ());
-                            stack.push(n);
+            let vertices = if cell_index.is_some() {
+                self.cells[e as usize].vertices.as_slice()
+            } else {
+                elements[&e].as_slice()
+            };
+            facets(vertices, pivot, |key| {
+                let mut visit = |n: u32| {
+                    if let parry::utils::hashmap::Entry::Vacant(entry) = seen.entry(n) {
+                        entry.insert(());
+                        stack.push(n);
+                    }
+                };
+                if let Some(index) = cell_index {
+                    for &n in index.at(key[0]) {
+                        if key[..DIM]
+                            .iter()
+                            .all(|w| self.cells[n as usize].vertices.contains(w))
+                        {
+                            visit(n);
                         }
+                    }
+                } else if let Some(neighbors) = by_facet.get(&key) {
+                    for &n in neighbors {
+                        visit(n);
                     }
                 }
             });
@@ -464,10 +572,16 @@ impl SoftBody {
     }
 
     /// Whether some measure element of the given kind contains both `x` and `y`.
-    fn share_measure_element(&self, kind: MeasureKind, x: u32, y: u32) -> bool {
+    fn share_measure_element(
+        &self,
+        kind: MeasureKind,
+        x: u32,
+        y: u32,
+        cell_index: Option<&CellIndex>,
+    ) -> bool {
         let mut found = false;
-        self.for_each_measure_element(kind, |_, vertices| {
-            found |= vertices.contains(&x) && vertices.contains(&y);
+        self.for_each_measure_element_at(kind, x, cell_index, |_, vertices| {
+            found |= vertices.contains(&y);
         });
         found
     }
@@ -510,6 +624,9 @@ impl SoftBody {
                 let copy = self.particles.len() as u32 - 1;
                 log.split_particles.push((copy, v));
                 copies.push(copy);
+                if let Some(index) = &mut log.cell_index {
+                    index.0.push(Vec::new());
+                }
             }
         }
 
@@ -548,6 +665,11 @@ impl SoftBody {
                 MeasureKind::Segments => &mut self.edges[e as usize].vertices,
             };
             replace(target, v, copies[g]);
+            if kind == MeasureKind::Cells {
+                if let Some(index) = &mut log.cell_index {
+                    index.move_cell(e, v, copies[g]);
+                }
+            }
         }
 
         // The other edges at `v`. One shared by fan elements of several groups (the crack ends
@@ -593,7 +715,7 @@ impl SoftBody {
                 continue;
             };
             if gx.iter().all(|g| gy.binary_search(g).is_err())
-                && !self.share_measure_element(kind, x, y)
+                && !self.share_measure_element(kind, x, y, log.cell_index.as_ref())
             {
                 straddling[ei] = true;
                 log.removed_edges.push(e.vertices);

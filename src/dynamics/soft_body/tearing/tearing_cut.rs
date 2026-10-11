@@ -122,7 +122,7 @@ impl SoftBody {
         blade: &[Vector; DIM],
         log: &mut SplitLog,
     ) -> bool {
-        let mut fan = self.fan(kind, v);
+        let mut fan = self.fan(kind, v, log.cell_index.as_ref());
         if fan.elements.len() < 2 {
             return false;
         }
