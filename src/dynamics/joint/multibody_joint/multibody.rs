@@ -1270,10 +1270,32 @@ impl Multibody {
     }
 
     #[inline]
-    pub(crate) fn integrate(&mut self, dt: Real) {
+    pub(crate) fn integrate(&mut self, dt: Real, bodies: &RigidBodySet) {
+        // The linear velocity of a dynamic root is the velocity of its center-of-mass
+        // (see `Self::update_velocities`), but its free joint stores the pose of the
+        // rigid-body origin. Rotate around the center-of-mass, like regular rigid-bodies
+        // do, otherwise a root with a non-zero local center-of-mass drifts.
+        let root_com = (self.root_is_dynamic && self.links[0].joint.data.locked_axes.is_empty())
+            .then(|| bodies.get(self.links[0].rigid_body))
+            .flatten()
+            .map(|rb| {
+                (
+                    rb.mprops.local_mprops.local_com,
+                    self.links[0].joint.joint_rot(),
+                )
+            });
+
         for rb in self.links.iter_mut() {
             rb.joint
                 .integrate(dt, &self.velocities.as_slice()[rb.assembly_id..])
+        }
+
+        if let Some((local_com, rot_before)) = root_com {
+            let joint = &mut self.links[0].joint;
+            let shift = rot_before * local_com - joint.joint_rot() * local_com;
+            for i in 0..DIM {
+                joint.coords[i] += shift[i];
+            }
         }
     }
 

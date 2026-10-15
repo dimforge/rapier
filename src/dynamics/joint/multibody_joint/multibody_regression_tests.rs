@@ -648,3 +648,78 @@ fn joint_friction_bounds_the_joint_force() {
         "an oversized friction bound must stay inert, not chatter: {extreme}"
     );
 }
+
+/// Total center-of-mass of `bodies`, weighted by their masses.
+#[cfg(feature = "dim3")]
+fn assembly_com(world: &PhysicsWorld, bodies: &[RigidBodyHandle]) -> Vector {
+    let mut weighted = Vector::ZERO;
+    let mut mass = 0.0;
+    for handle in bodies {
+        let rb = &world.bodies[*handle];
+        weighted += rb.center_of_mass() * rb.mass();
+        mass += rb.mass();
+    }
+    weighted / mass
+}
+
+/// The free joint of a dynamic multibody root stores the pose of the rigid-body origin, while
+/// its linear velocity is the velocity of the root's center-of-mass. Its rotation must therefore
+/// be integrated around the center-of-mass: otherwise, a pure torque applied to a root whose
+/// local center-of-mass isn't at its origin translates the whole assembly.
+#[test]
+#[cfg(feature = "dim3")]
+fn multibody_root_with_offset_center_of_mass_rotates_around_it() {
+    for root_com in [
+        Vector::ZERO,
+        Vector::new(0.2, 0.0, 0.0),
+        Vector::new(0.1, -0.3, 0.2),
+    ] {
+        let mut world = PhysicsWorld::new();
+        world.gravity = Vector::ZERO;
+
+        let root = world.insert_body(
+            RigidBodyBuilder::dynamic()
+                .can_sleep(false)
+                .additional_mass_properties(MassProperties::new(
+                    root_com,
+                    2.0,
+                    Vector::new(0.1, 0.2, 0.3),
+                )),
+        );
+        let link = world.insert_body(
+            RigidBodyBuilder::dynamic()
+                .translation(Vector::new(0.0, 1.0, 0.0))
+                .can_sleep(false)
+                .additional_mass_properties(MassProperties::new(
+                    Vector::ZERO,
+                    1.0,
+                    Vector::splat(0.1),
+                )),
+        );
+        world.insert_multibody_joint(
+            root,
+            link,
+            FixedJointBuilder::new().local_anchor1(Vector::new(0.0, 1.0, 0.0)),
+        );
+
+        world.step();
+        let start = assembly_com(&world, &[root, link]);
+        for _ in 0..60 {
+            let rb = world.bodies.get_mut(root).unwrap();
+            rb.reset_torques(true);
+            rb.add_torque(Vector::new(0.0, 0.0, 1.0), true);
+            world.step();
+        }
+        let angle = world.bodies[root].rotation().to_scaled_axis().length();
+        let drift = (assembly_com(&world, &[root, link]) - start).length();
+
+        assert!(
+            angle > 0.3,
+            "the torque should rotate the assembly: {angle}"
+        );
+        assert!(
+            drift < 1.0e-3,
+            "a pure torque must not translate the center-of-mass (root com {root_com}): {drift}"
+        );
+    }
+}

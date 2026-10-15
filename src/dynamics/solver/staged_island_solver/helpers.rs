@@ -138,7 +138,7 @@ impl VelocitySolver {
                 .generic_solver_vels
                 .rows(multibody.solver_id as usize, multibody.ndofs());
             multibody.velocities.copy_from(&solver_vels);
-            multibody.integrate(params.dt);
+            multibody.integrate(params.dt, bodies);
             multibody.forward_kinematics(bodies, false);
             multibody.update_rigid_bodies_internal(bodies, !is_last_substep, true, false);
 
