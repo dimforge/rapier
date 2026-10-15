@@ -4,7 +4,7 @@ use crate::data::{HasModifiedFlag, ModifiedObjects};
 use crate::dynamics::{
     IslandManager, RigidBodyHandle, RigidBodySet, SoftBindingError, SoftBodySet, SoftMeshBinding,
 };
-use crate::geometry::{Collider, ColliderChanges, ColliderHandle, ColliderParent};
+use crate::geometry::{Collider, ColliderChanges, ColliderEnabled, ColliderHandle, ColliderParent};
 use crate::math::{DIM, Pose, Vector};
 use core::ops::{Index, IndexMut};
 
@@ -355,6 +355,23 @@ impl ColliderSet {
                 }
             }
 
+            // Explicitly disabled colliders stay disabled. Otherwise, recompute
+            // the inherited state from the new parent (or standalone status).
+            if collider.flags.enabled != ColliderEnabled::Disabled {
+                let enabled = new_parent_handle
+                    .and_then(|parent| bodies.get(parent))
+                    .is_none_or(|parent| parent.is_enabled());
+                let new_enabled = if enabled {
+                    ColliderEnabled::Enabled
+                } else {
+                    ColliderEnabled::DisabledByParent
+                };
+                if collider.flags.enabled != new_enabled {
+                    collider.flags.enabled = new_enabled;
+                    collider.changes |= ColliderChanges::ENABLED_OR_DISABLED;
+                }
+            }
+
             match new_parent_handle {
                 Some(new_parent_handle) => {
                     if let Some(parent) = &mut collider.parent {
@@ -607,4 +624,58 @@ fn mesh_geometry(
         return Err(SoftBindingError::DegenerateMesh);
     }
     Ok((vertices, indices))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::prelude::*;
+
+    #[test]
+    fn reparenting_updates_inherited_enabled_state() {
+        let mut world = PhysicsWorld::new();
+        let enabled = world.insert_body(RigidBodyBuilder::dynamic());
+        let disabled = world.insert_body(RigidBodyBuilder::dynamic().enabled(false));
+        let collider = world.insert_collider(ColliderBuilder::ball(0.5), Some(disabled));
+        world.step();
+        assert!(!world.colliders[collider].is_enabled());
+
+        world
+            .colliders
+            .set_parent(collider, Some(enabled), &mut world.bodies);
+        assert!(world.colliders[collider].is_enabled());
+        world.step();
+        assert!(world.colliders[collider].is_enabled());
+
+        world
+            .colliders
+            .set_parent(collider, Some(disabled), &mut world.bodies);
+        assert!(!world.colliders[collider].is_enabled());
+        world.step();
+        assert!(!world.colliders[collider].is_enabled());
+
+        world
+            .colliders
+            .set_parent(collider, None, &mut world.bodies);
+        assert!(world.colliders[collider].is_enabled());
+        world.step();
+        assert!(world.colliders[collider].is_enabled());
+    }
+
+    #[test]
+    fn reparenting_preserves_explicit_disabled_state() {
+        let mut world = PhysicsWorld::new();
+        let enabled = world.insert_body(RigidBodyBuilder::dynamic());
+        let disabled = world.insert_body(RigidBodyBuilder::dynamic().enabled(false));
+        let collider =
+            world.insert_collider(ColliderBuilder::ball(0.5).enabled(false), Some(disabled));
+        world.step();
+        for parent in [Some(enabled), Some(disabled), None] {
+            world
+                .colliders
+                .set_parent(collider, parent, &mut world.bodies);
+            assert!(!world.colliders[collider].is_enabled());
+            world.step();
+            assert!(!world.colliders[collider].is_enabled());
+        }
+    }
 }
