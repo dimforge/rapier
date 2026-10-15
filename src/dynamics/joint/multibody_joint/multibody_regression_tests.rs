@@ -648,3 +648,65 @@ fn joint_friction_bounds_the_joint_force() {
         "an oversized friction bound must stay inert, not chatter: {extreme}"
     );
 }
+
+/// Removing a multibody joint splits the multibody, and the root of each part becomes a
+/// free-floating root again. These roots must keep the velocity their rigid-body had instead of
+/// restarting from rest, otherwise the remaining articulation stops dead while the detached
+/// link keeps moving.
+#[test]
+#[cfg(feature = "dim3")]
+fn multibody_split_keeps_the_remaining_parts_moving() {
+    for removed in 0..2 {
+        let mut world = PhysicsWorld::new();
+        world.gravity = Vector::ZERO;
+
+        let body = |world: &mut PhysicsWorld, x: Real| {
+            world.insert_body(
+                RigidBodyBuilder::dynamic()
+                    .translation(Vector::new(x, 0.0, 0.0))
+                    .can_sleep(false)
+                    .additional_mass(1.0),
+            )
+        };
+        let root = body(&mut world, 0.0);
+        let links = [body(&mut world, 1.0), body(&mut world, -1.0)];
+        let joints = [1.0, -1.0].map(|x| {
+            FixedJointBuilder::new()
+                .local_anchor1(Vector::new(x, 0.0, 0.0))
+                .build()
+        });
+        let handles = [
+            world
+                .insert_multibody_joint(root, links[0], joints[0])
+                .unwrap(),
+            world
+                .insert_multibody_joint(root, links[1], joints[1])
+                .unwrap(),
+        ];
+
+        // Accelerate the whole articulation, then let it coast.
+        for handle in [root, links[0], links[1]] {
+            world.bodies[handle].add_force(Vector::new(6.0, 0.0, 0.0), true);
+        }
+        for _ in 0..20 {
+            world.step();
+        }
+        for handle in [root, links[0], links[1]] {
+            world.bodies[handle].reset_forces(true);
+        }
+        world.step();
+        let expected = world.bodies[root].linvel();
+        assert!(expected.x > 1.0, "the articulation should move: {expected}");
+
+        world.remove_multibody_joint(handles[removed]);
+        world.step();
+
+        for handle in [root, links[0], links[1]] {
+            let linvel = world.bodies[handle].linvel();
+            assert!(
+                (linvel - expected).length() < 1.0e-4,
+                "removing joint {removed} must not change the velocities: {linvel}"
+            );
+        }
+    }
+}

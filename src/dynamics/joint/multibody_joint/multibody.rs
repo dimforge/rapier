@@ -1303,7 +1303,14 @@ impl Multibody {
                     self.links[0].assembly_id = 0;
                     self.ndofs += SPATIAL_DIM;
 
+                    // Start from the rigid-body's current velocity (which is also the root's
+                    // center-of-mass velocity) instead of zero: a multibody split by a joint
+                    // removal gets fixed roots that are turned back into free ones here, and
+                    // must keep moving.
                     self.velocities = self.velocities.clone().insert_rows(0, SPATIAL_DIM, 0.0);
+                    self.velocities
+                        .rows_mut(0, SPATIAL_DIM)
+                        .copy_from_slice(rb.vels.as_slice());
                     self.damping = self.damping.clone().insert_rows(0, SPATIAL_DIM, 0.0);
                     self.armature = self.armature.clone().insert_rows(0, SPATIAL_DIM, 0.0);
                     self.frictions = self.frictions.clone().insert_rows(0, SPATIAL_DIM, 0.0);
