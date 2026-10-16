@@ -317,6 +317,7 @@ impl ColliderSet {
     /// Changes which rigid body a collider is attached to, or detaches it completely.
     ///
     /// Use this to move a collider from one body to another, or to make it standalone.
+    /// If the requested parent does not exist, this call leaves both sets unchanged.
     ///
     /// # Parameters
     /// * `new_parent_handle` - `Some(handle)` to attach to a body, `None` to make standalone
@@ -341,6 +342,10 @@ impl ColliderSet {
         new_parent_handle: Option<RigidBodyHandle>,
         bodies: &mut RigidBodySet,
     ) {
+        if new_parent_handle.is_some_and(|parent| !bodies.contains(parent)) {
+            return;
+        }
+
         if let Some(collider) = self.get_mut(handle) {
             let curr_parent = collider.parent.map(|p| p.handle);
             if new_parent_handle == curr_parent {
@@ -607,4 +612,85 @@ fn mesh_geometry(
         return Err(SoftBindingError::DegenerateMesh);
     }
     Ok((vertices, indices))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::prelude::*;
+
+    #[test]
+    fn invalid_reparent_preserves_existing_relationship() {
+        for stale in [false, true] {
+            let mut world = PhysicsWorld::new();
+            world.gravity = Vector::ZERO;
+            let parent = world.insert_body(RigidBodyBuilder::dynamic());
+            let invalid = if stale {
+                let removed = world.insert_body(RigidBodyBuilder::dynamic());
+                world.remove_body(removed).unwrap();
+                let replacement = world.insert_body(RigidBodyBuilder::dynamic());
+                assert_ne!(removed, replacement);
+                removed
+            } else {
+                RigidBodyHandle::invalid()
+            };
+            let collider = world.insert_collider(ColliderBuilder::ball(0.5), Some(parent));
+            world.step();
+            let position = *world.colliders[collider].position();
+            let changes = world.colliders[collider].changes;
+            let mass = world.bodies[parent].mass();
+            assert!(!world.bodies.contains(invalid));
+
+            world
+                .colliders
+                .set_parent(collider, Some(invalid), &mut world.bodies);
+
+            assert_eq!(world.colliders[collider].parent(), Some(parent));
+            assert_eq!(world.bodies[parent].colliders(), &[collider]);
+            assert_eq!(world.colliders[collider].position(), &position);
+            assert_eq!(world.colliders[collider].changes, changes);
+            assert_eq!(world.bodies[parent].mass(), mass);
+            world.step();
+            assert_eq!(world.colliders[collider].parent(), Some(parent));
+            assert_eq!(world.bodies[parent].colliders(), &[collider]);
+        }
+    }
+
+    #[test]
+    fn invalid_reparent_preserves_standalone_collider() {
+        let mut world = PhysicsWorld::new();
+        let collider = world.insert_collider(ColliderBuilder::ball(0.5), None);
+        world.step();
+        let changes = world.colliders[collider].changes;
+        world.colliders.set_parent(
+            collider,
+            Some(RigidBodyHandle::invalid()),
+            &mut world.bodies,
+        );
+        assert_eq!(world.colliders[collider].parent(), None);
+        assert_eq!(world.colliders[collider].changes, changes);
+        world.step();
+        assert_eq!(world.colliders[collider].parent(), None);
+    }
+
+    #[test]
+    fn valid_reparent_and_detach_still_work() {
+        let mut world = PhysicsWorld::new();
+        let first = world.insert_body(RigidBodyBuilder::dynamic());
+        let second = world.insert_body(RigidBodyBuilder::dynamic());
+        let collider = world.insert_collider(ColliderBuilder::ball(0.5), Some(first));
+        world.step();
+        world
+            .colliders
+            .set_parent(collider, Some(second), &mut world.bodies);
+        world.step();
+        assert_eq!(world.colliders[collider].parent(), Some(second));
+        assert!(world.bodies[first].colliders().is_empty());
+        assert_eq!(world.bodies[second].colliders(), &[collider]);
+        world
+            .colliders
+            .set_parent(collider, None, &mut world.bodies);
+        world.step();
+        assert_eq!(world.colliders[collider].parent(), None);
+        assert!(world.bodies[second].colliders().is_empty());
+    }
 }
