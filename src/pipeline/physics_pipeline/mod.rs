@@ -23,6 +23,59 @@ mod test;
 #[cfg(test)]
 mod test_staged;
 
+/// A deferred optimization whose input stays available until a Rayon worker
+/// starts it. The joining thread can run the still-pending work itself instead
+/// of blocking on a task queued behind a parked worker.
+#[cfg(feature = "parallel")]
+struct DeferredBvhOptimizeJob<T> {
+    pending: std::sync::Arc<std::sync::Mutex<Option<T>>>,
+    receiver: std::sync::mpsc::Receiver<T>,
+    sender: std::sync::mpsc::Sender<T>,
+    run: fn(&mut T),
+}
+
+#[cfg(feature = "parallel")]
+impl<T: Send + 'static> DeferredBvhOptimizeJob<T> {
+    fn spawn(task: T, run: fn(&mut T)) -> Self {
+        let pending = std::sync::Arc::new(std::sync::Mutex::new(Some(task)));
+        let worker_pending = std::sync::Arc::clone(&pending);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let worker_sender = sender.clone();
+
+        rayon::spawn(move || {
+            let Some(mut task) = worker_pending.lock().unwrap().take() else {
+                return;
+            };
+            run(&mut task);
+            let _ = worker_sender.send(task);
+        });
+
+        Self {
+            pending,
+            receiver,
+            sender,
+            run,
+        }
+    }
+
+    fn join(self) -> T {
+        // If the Rayon job is still queued, take over its work here before
+        // blocking on the result channel. This avoids depending on another
+        // worker waking up to run it.
+        if let Some(mut task) = self.pending.lock().unwrap().take() {
+            (self.run)(&mut task);
+            let _ = self.sender.send(task);
+        }
+
+        // Drop the helper sender before waiting so a worker panic still
+        // disconnects the channel instead of leaving recv() blocked forever.
+        drop(self.sender);
+        self.receiver
+            .recv()
+            .expect("the deferred BVH optimization task died")
+    }
+}
+
 /// The main physics simulation engine that runs your physics world forward in time.
 ///
 /// Think of this as the "game loop" for your physics simulation. Each frame, you call
@@ -72,12 +125,12 @@ pub struct PhysicsPipeline {
     /// staged workers. On a non-parallel (or wasm) build it runs with one worker
     /// inline on the calling thread.
     staged_solver: crate::dynamics::StagedIslandSolver,
-    /// Handle on the BVH optimization pass running concurrently with the narrow
-    /// phase and solver (the `Mutex` only exists to keep the pipeline `Sync`; it is
-    /// never contended).
+    /// Handle on the BVH optimization pass scheduled alongside the narrow phase
+    /// and solver. It retains the task until a worker claims it, so the join point
+    /// can run queued work itself (the `Mutex` keeps the pipeline `Sync`).
     #[cfg(feature = "parallel")]
     deferred_bvh:
-        std::sync::Mutex<Option<std::sync::mpsc::Receiver<crate::geometry::DeferredBvhOptimize>>>,
+        std::sync::Mutex<Option<DeferredBvhOptimizeJob<crate::geometry::DeferredBvhOptimize>>>,
     /// Deferred BVH optimization that had no spare worker to run on (single-threaded
     /// pool, or `parallel` off): run inline by `join_deferred_bvh_optimize`, i.e. at
     /// the same point of the step where the concurrent one is joined.
@@ -130,13 +183,13 @@ impl PhysicsPipeline {
     /// any) and puts the optimized tree back into the broad-phase. Must be called before
     /// anything uses the broad-phase tree again.
     ///
-    /// Waits for the concurrent pass when one was spawned; otherwise runs it here. Both
+    /// Runs a still-queued pass here or waits for a worker that already claimed it. Both
     /// paths leave the same tree behind, so the build and the pool size don't change what
     /// the rest of the step sees.
     fn join_deferred_bvh_optimize(&mut self, broad_phase: &mut BroadPhaseBvh) {
         #[cfg(feature = "parallel")]
-        if let Some(rx) = self.deferred_bvh.get_mut().unwrap().take() {
-            let task = rx.recv().expect("the deferred BVH optimization task died");
+        if let Some(job) = self.deferred_bvh.get_mut().unwrap().take() {
+            let task = job.join();
             broad_phase.finish_deferred_optimize(task);
             return;
         }

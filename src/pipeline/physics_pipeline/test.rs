@@ -738,3 +738,56 @@ fn contact_force_events_follow_runtime_active_events_flips() {
     }
     assert_eq!(events.0.load(Ordering::Relaxed), after_enable);
 }
+
+#[cfg(feature = "parallel")]
+#[test]
+fn deferred_bvh_join_runs_pending_work_when_other_worker_is_blocked() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        .build()
+        .unwrap();
+    let (blocked_tx, blocked_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let (done_tx, done_rx) = mpsc::channel();
+    let worker_resume_tx = resume_tx.clone();
+
+    let worker = std::thread::spawn(move || {
+        let result = pool.install(move || {
+            // Occupy the second worker so the deferred optimization job stays
+            // queued. The joining worker must take and run that pending work.
+            rayon::spawn(move || {
+                blocked_tx.send(()).unwrap();
+                let _ = resume_rx.recv();
+            });
+            blocked_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("the second Rayon worker did not start");
+
+            let job = super::DeferredBvhOptimizeJob::spawn(41usize, |value| *value += 1);
+            let result = job.join();
+            let _ = worker_resume_tx.send(());
+            result
+        });
+        let _ = done_tx.send(result);
+    });
+
+    match done_rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(result) => {
+            assert_eq!(result, 42);
+            worker.join().expect("deferred-work test worker panicked");
+        }
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            // Release the parked worker so an incorrect blocking join can exit
+            // and the test reports a failure instead of wedging the harness.
+            let _ = resume_tx.send(());
+            let _ = done_rx.recv_timeout(Duration::from_secs(2));
+            panic!("joining deferred work blocked while the other worker was busy");
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            panic!("deferred-work test worker died before reporting a result");
+        }
+    }
+}

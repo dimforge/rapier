@@ -85,17 +85,15 @@ impl PhysicsPipeline {
             // walked must stay un-optimized until the join, in every build — but the
             // *execution* needs a spare worker. `step` itself runs inside the pool (see
             // `PhysicsPipeline::step`), so on a single-worker pool a detached task would
-            // queue behind the `recv` waiting for it: deadlock. Hand those to the join
-            // point instead, which runs them inline.
+            // queue behind the join waiting for it: deadlock. Hand those to the join
+            // point instead, which runs them inline. With multiple workers, the joining
+            // thread can also take over if the Rayon job is still queued.
             #[cfg(feature = "parallel")]
             if rayon::current_num_threads() > 1 {
-                let (tx, rx) = std::sync::mpsc::channel();
-                let mut task = task;
-                rayon::spawn(move || {
-                    task.run();
-                    let _ = tx.send(task);
-                });
-                *self.deferred_bvh.get_mut().unwrap() = Some(rx);
+                *self.deferred_bvh.get_mut().unwrap() = Some(super::DeferredBvhOptimizeJob::spawn(
+                    task,
+                    crate::geometry::DeferredBvhOptimize::run,
+                ));
             } else {
                 self.deferred_bvh_inline = Some(task);
             }
