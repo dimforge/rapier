@@ -13,6 +13,30 @@ use simba::simd::SimdValue;
 #[cfg(feature = "block-solver")]
 pub(crate) const BLOCK_SOLVER_MIN_CONDITION: crate::math::Real = 0.01;
 
+/// The friction impulse change `K⁻¹·dvel` for the two tangents, from `r = [k11, k22, 2·k12]`
+/// (the tangent effective-mass matrix `K`).
+///
+/// A tangent with no effective mass (a body that can neither move along it nor turn across
+/// it, e.g. one locked to a plane) makes `K` singular: inverting it would zero the friction
+/// along *both* tangents, so such a body slides as if on ice. Each tangent is then solved on
+/// its own instead, so the free one keeps its friction and the massless one stays a no-op.
+#[cfg(feature = "dim3")]
+#[inline]
+fn tangent_delta_impulse<N: ScalarType>(r: [N; 3], dvel_0: N, dvel_1: N) -> na::Vector2<N> {
+    let k11 = r[0];
+    let k22 = r[1];
+    let k12 = r[2] * N::splat(0.5);
+    let det = k11 * k22 - k12 * k12;
+    let inv_det = crate::utils::simd_inv(det);
+    let singular = det.simd_le(N::splat(1.0e-6) * k11 * k22);
+    na::vector![
+        (dvel_0 * crate::utils::simd_inv(k11))
+            .select(singular, (k22 * dvel_0 - k12 * dvel_1) * inv_det),
+        (dvel_1 * crate::utils::simd_inv(k22))
+            .select(singular, (k11 * dvel_1 - k12 * dvel_0) * inv_det)
+    ]
+}
+
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct ContactConstraintTangentPart<N: ScalarType> {
     pub torque_dir1: [N::AngVector; DIM - 1],
@@ -143,14 +167,7 @@ impl<N: ScalarType> ContactConstraintTangentPart<N> {
             // `K` the tangent effective-mass matrix. A 1D solve along `dvel` leaves an
             // orthogonal residual when `K` is anisotropic; iterating it rotates energy between
             // the tangents and pumps the friction-only mode of large stacks into ejection.
-            let k11 = self.r[0];
-            let k22 = self.r[1];
-            let k12 = self.r[2] * N::splat(0.5);
-            let inv_det = crate::utils::simd_inv(k11 * k22 - k12 * k12);
-            let delta_impulse = na::vector![
-                (k22 * dvel_0 - k12 * dvel_1) * inv_det,
-                (k11 * dvel_1 - k12 * dvel_0) * inv_det
-            ];
+            let delta_impulse = tangent_delta_impulse(self.r, dvel_0, dvel_1);
             let new_impulse = self.impulse - delta_impulse;
             let new_impulse = {
                 let _disable_fe_except =
@@ -676,14 +693,7 @@ where
 
         // Exact coupled 2×2 solve — see `ContactConstraintTangentPart::solve`
         // for why the directional approximation must not be used here.
-        let k11 = self.r[0];
-        let k22 = self.r[1];
-        let k12 = self.r[2] * N::splat(0.5);
-        let inv_det = crate::utils::simd_inv(k11 * k22 - k12 * k12);
-        let delta_impulse = na::vector![
-            (k22 * dvel_0 - k12 * dvel_1) * inv_det,
-            (k11 * dvel_1 - k12 * dvel_0) * inv_det
-        ];
+        let delta_impulse = tangent_delta_impulse(self.r, dvel_0, dvel_1);
         let new_impulse = self.impulse - delta_impulse;
         let new_impulse = {
             let _disable_fe_except =

@@ -1,3 +1,12 @@
+## Unreleased
+
+### Fixed
+
+- 3D friction no longer vanishes for a body locked to a plane (a locked translation with both
+  rotations across it locked, e.g. 2D bodies simulated in a 3D world): the friction solve falls
+  back to one tangent at a time when its 2×2 effective-mass matrix is singular, instead of dropping
+  friction along both tangents.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added
