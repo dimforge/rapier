@@ -447,3 +447,62 @@ fn replacing_the_pipeline_changes_nothing() {
         assert_same(step, &record(&a), &record(&b), "fresh pipeline");
     }
 }
+
+/// A pinned cloth with a heavy ball landing on it (issue #1038). The soft–rigid pair's vertex
+/// contacts warm-start the next update, so a snapshot taken during the impact must carry them:
+/// with them skipped, the restored world cold-starts the contact and diverges on its first
+/// step. 48 steps is the first step of the impact.
+#[test]
+fn soft_rigid_cloth_and_ball() {
+    let mut world = PhysicsWorld::new();
+    world.integration_parameters.dt = 1.0 / 64.0;
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.1, 0.0)),
+        ColliderBuilder::cuboid(30.0, 0.1, 30.0),
+    );
+    let n = 24;
+    let border = (0..n * n)
+        .filter(|k| *k < n || *k >= n * (n - 1) || k % n == 0 || k % n == n - 1)
+        .map(|k| k as u32)
+        .collect();
+    let mut material = SoftBodyMaterial::uniform(SpringCoefficients::new(100.0, 1.0));
+    material.bend_softness = SpringCoefficients::new(3.0, 1.0);
+    let mut cloth = SoftBodyBuilder::cloth(
+        Vector::new(-1.15, 3.0, -1.15),
+        Vector::new(0.1, 0.0, 0.0),
+        Vector::new(0.0, 0.0, 0.1),
+        n,
+        n,
+    );
+    cloth.pinned = border;
+    cloth.material = material;
+    cloth.particle_mass = 0.02;
+    cloth.masses.clear();
+    cloth.particle_radius = 0.05;
+    cloth.collider_template = Some(ColliderBuilder::ball(0.05).density(0.0).friction(0.8));
+    cloth.particle_settings.can_sleep = false;
+    world.insert_soft_body(cloth);
+    let (_, ball_collider) = world.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(0.0, 6.0, 0.0))
+            .can_sleep(false),
+        ColliderBuilder::ball(0.6).density(30.0),
+    );
+    check_roundtrip(
+        "soft-rigid cloth and ball",
+        world,
+        48,
+        4,
+        false,
+        move |world, step, _| {
+            if step == 48 {
+                assert!(
+                    world
+                        .contact_pairs_with(ball_collider)
+                        .any(|pair| pair.has_any_active_contact()),
+                    "the ball must actively contact the cloth at the snapshot boundary"
+                );
+            }
+        },
+    );
+}

@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fixed
+
+- Snapshots of soft–rigid contacts: `RigidPairContacts::soft` (the soft–rigid vertex contacts that warm-start the
+  next update) is now serialized, so a world restored from a snapshot taken during a soft–rigid contact continues
+  without cold-starting that contact in the reported cloth-and-ball case (#1038). **Snapshot format change:** snapshots written by
+  earlier versions cannot be loaded by this version and vice versa, including worlds without soft bodies (one extra
+  byte per rigid contact pair).
+
 ## v0.36.1 (4 October 2026)
 
 ### Added
