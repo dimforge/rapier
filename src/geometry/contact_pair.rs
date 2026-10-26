@@ -287,9 +287,10 @@ pub struct RigidPairContacts {
     /// world-frozen solver anchors) where the uninterrupted run would have recycled.
     pub(crate) recycle_state: Option<ContactRecycleState>,
     /// The soft contacts of a soft-rigid pair beside its manifolds (the predictive vertex
-    /// contacts and the volume patch, see `SoftRigidContacts`), rebuilt by every update; `None`
+    /// contacts and the volume patch, see `SoftRigidContacts`). Rebuilt by each update, but
+    /// previous vertex impulses are reused to warm-start the next contact update. These contacts
+    /// must be serialized for deterministic continuation after restoring a snapshot; `None`
     /// for every other pair.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) soft: Option<Box<SoftRigidContacts>>,
 }
 

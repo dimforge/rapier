@@ -206,6 +206,7 @@ pub struct SoftVolumePatch {
 /// The volume patch of a closed soft surface intruded by a rigid collider (see
 /// `SoftOverlapConstraint`): the bins (own side only), the surface vertices' depths in the patch
 /// (`NEG_INFINITY` outside, patch-constraint policies only), and the rigid side's CoM and rotation.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 pub struct SoftRigidPatch {
     pub bins: Vec<VolumeBin>,
@@ -217,6 +218,7 @@ pub struct SoftRigidPatch {
 /// A predictive contact between a surface vertex of a soft-rigid pair and the convex rigid
 /// collider: the support of the vertex itself, which an element's manifold does not give when
 /// the rigid shape wraps the element (a single closest point per element).
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct SoftRigidVertexContact {
     /// The vertex of the soft mesh.
@@ -237,6 +239,7 @@ pub(crate) struct SoftRigidVertexContact {
 }
 
 /// The soft contacts of a soft-rigid pair beside its manifolds, rebuilt by every update.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Default, Debug)]
 pub(crate) struct SoftRigidContacts {
     /// The predictive vertex contacts, sorted by vertex.

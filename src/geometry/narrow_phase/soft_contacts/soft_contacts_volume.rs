@@ -276,6 +276,7 @@ pub(super) struct VolumeSide<'a> {
 /// One volume constraint of a pair (see `SoftOverlapConstraint`): the whole patch, or a cell of
 /// the multi-volume grid (Allard et al. 2010, section 5), as particle entries (particle,
 /// gradient) per side.
+#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 pub struct VolumeBin {
     /// The own side's entries: (particle, volume gradient).
