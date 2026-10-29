@@ -213,8 +213,15 @@ impl ColliderSet {
         core::mem::take(&mut self.modified_colliders)
     }
 
-    pub(crate) fn set_modified(&mut self, modified: ModifiedColliders) {
-        self.modified_colliders = modified;
+    pub(crate) fn set_modified(&mut self, mut modified: ModifiedColliders) {
+        // Keep the colliders flagged mid-step (quarantine, soft-body sync): only reuse the
+        // returned buffer when nothing was pushed in the meantime.
+        if self.modified_colliders.is_empty() {
+            self.modified_colliders = modified;
+        } else {
+            // Still-flagged entries of `modified` cannot also be in our list (`push_once`).
+            self.modified_colliders.append(&mut modified);
+        }
     }
 
     /// Fetch the set of colliders removed since the last call to `take_removed`

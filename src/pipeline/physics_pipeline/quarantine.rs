@@ -449,6 +449,29 @@ mod test {
         assert!(rb.position().is_finite());
     }
 
+    /// The quarantine disables the collider mid-step; that user-like change must still be
+    /// processed by the next step instead of leaving the collider flagged but unlisted.
+    #[test]
+    fn quarantined_collider_change_is_processed_next_step() {
+        use crate::geometry::ColliderChanges;
+
+        // Finite pose and shape, but a world AABB that overflows: only the end-of-step
+        // check catches it.
+        let mut world = world_with_ground();
+        let (_, poisoned) = world.insert(
+            RigidBodyBuilder::dynamic().translation(Vector::Y * (Real::MAX * 0.75)),
+            ColliderBuilder::ball(Real::MAX * 0.5),
+        );
+        world.step();
+        assert_eq!(world.quarantine().colliders(), &[poisoned]);
+        world.step();
+        assert!(
+            !world.colliders[poisoned]
+                .changes
+                .contains(ColliderChanges::IN_MODIFIED_SET)
+        );
+    }
+
     #[test]
     fn quarantined_body_can_be_resurrected() {
         let mut world = world_with_ground();
