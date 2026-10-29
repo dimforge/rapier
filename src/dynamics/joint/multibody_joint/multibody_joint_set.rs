@@ -59,8 +59,25 @@ pub struct MultibodyJointSet {
     // NOTE: this is mostly for the island extraction. So perhaps we won’t need
     //       that any more in the future when we improve our island builder.
     pub(crate) connectivity_graph: InteractionGraph<RigidBodyHandle, ()>,
+    /// Serialized in sorted order (hash-set iteration order is insertion-history
+    /// dependent, and two snapshots of identical state must hold identical bytes).
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(
+            serialize_with = "serialize_sorted_wake_up",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec"
+        )
+    )]
     pub(crate) to_wake_up: HashSet<RigidBodyHandle>,
     /// A set of rigid-body pairs to join in the island manager during the next timestep.
+    /// Serialized in sorted order, like `to_wake_up`.
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(
+            serialize_with = "serialize_sorted_join",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec"
+        )
+    )]
     pub(crate) to_join: HashSet<(RigidBodyHandle, RigidBodyHandle)>,
     /// Multibodies whose structure changed (created, merged, split, removed):
     /// the persistent islands update each one's internal connectivity chain
@@ -477,3 +494,23 @@ impl core::ops::Index<MultibodyIndex> for MultibodyJointSet {
 //         &self.multibodies[index.0]
 //     }
 // }
+
+#[cfg(feature = "serde-serialize")]
+fn serialize_sorted_wake_up<S: serde::Serializer>(
+    set: &HashSet<RigidBodyHandle>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    crate::utils::serde::serialize_sorted_to_vec(set, |h| h.into_raw_parts(), s)
+}
+
+#[cfg(feature = "serde-serialize")]
+fn serialize_sorted_join<S: serde::Serializer>(
+    set: &HashSet<(RigidBodyHandle, RigidBodyHandle)>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    crate::utils::serde::serialize_sorted_to_vec(
+        set,
+        |(a, b)| (a.into_raw_parts(), b.into_raw_parts()),
+        s,
+    )
+}

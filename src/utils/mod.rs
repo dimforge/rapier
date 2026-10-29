@@ -365,6 +365,37 @@ pub mod serde {
         serde::Serialize::serialize(&container, s)
     }
 
+    /// Serializes a set to a `Vec<K>` ordered by `key`, whatever order the container
+    /// iterates in, so two snapshots of identical state hold identical bytes.
+    pub fn serialize_sorted_to_vec<
+        'a,
+        S: serde::Serializer,
+        T: IntoIterator<Item = &'a K>,
+        K: Serialize + 'a,
+        O: Ord,
+    >(
+        target: T,
+        key: impl Fn(&K) -> O,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        let mut container: Vec<_> = target.into_iter().collect();
+        container.sort_unstable_by_key(|a| key(a));
+        serde::Serialize::serialize(&container, s)
+    }
+
+    /// Deserializes a set from a `Vec<K>`.
+    pub fn deserialize_from_vec<
+        'de,
+        D: serde::Deserializer<'de>,
+        T: FromIterator<K>,
+        K: Deserialize<'de>,
+    >(
+        d: D,
+    ) -> Result<T, D::Error> {
+        let container: Vec<K> = serde::Deserialize::deserialize(d)?;
+        Ok(container.into_iter().collect())
+    }
+
     /// Deserializes from a `Vec<(K, V)>`.
     ///
     /// Useful for [`std::collections::HashMap`] with a non-string key,

@@ -48,8 +48,25 @@ pub struct ImpulseJointSet {
     joint_ids: Arena<TemporaryInteractionIndex>,
     joint_graph: InteractionGraph<RigidBodyHandle, ImpulseJoint>,
     /// A set of rigid-body handles to wake-up during the next timestep.
+    /// Serialized in sorted order (hash-set iteration order is insertion-history
+    /// dependent, and two snapshots of identical state must hold identical bytes).
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(
+            serialize_with = "serialize_sorted_wake_up",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec"
+        )
+    )]
     pub(crate) to_wake_up: HashSet<RigidBodyHandle>,
     /// A set of rigid-body pairs to join in the island manager during the next timestep.
+    /// Serialized in sorted order, like `to_wake_up`.
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(
+            serialize_with = "serialize_sorted_join",
+            deserialize_with = "crate::utils::serde::deserialize_from_vec"
+        )
+    )]
     pub(crate) to_join: HashSet<(RigidBodyHandle, RigidBodyHandle)>,
     /// Persistent-island connectivity events (joint created/removed/rewired),
     /// drained at the start of the next timestep, in order.
@@ -725,4 +742,24 @@ impl ImpulseJointSet {
 
         deleted
     }
+}
+
+#[cfg(feature = "serde-serialize")]
+fn serialize_sorted_wake_up<S: serde::Serializer>(
+    set: &HashSet<RigidBodyHandle>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    crate::utils::serde::serialize_sorted_to_vec(set, |h| h.into_raw_parts(), s)
+}
+
+#[cfg(feature = "serde-serialize")]
+fn serialize_sorted_join<S: serde::Serializer>(
+    set: &HashSet<(RigidBodyHandle, RigidBodyHandle)>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    crate::utils::serde::serialize_sorted_to_vec(
+        set,
+        |(a, b)| (a.into_raw_parts(), b.into_raw_parts()),
+        s,
+    )
 }
