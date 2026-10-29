@@ -124,21 +124,41 @@ after each phase; the per-part breakdowns live in `snapshot-size-ledger-*.txt` n
 this file. Step time is avg ms/step on this machine, single-threaded, and must stay at
 parity through phase 6.
 
-| scene | baseline B | ph1 | ph2 | ms/step (base) |
-|-------|-----------:|----:|----:|--------------:|
-| pile_awake (193 bodies) | 816,106 | 816,106 | 813,830 | 0.152 |
-| pile_sleepy (197) | 820,595 | 820,595 | 818,311 | 0.009 |
-| mixed (122, joints+mb+ccd) | 481,390 | 468,330 | 467,006 | 0.102 |
-| instanced_shapes (100+trimesh tiles) | 3,301,765 | 3,301,765 | 1,855,580 | 0.088 |
-| pyramid20 (2,871) | 11,572,748 | 11,572,748 | 11,538,336 | 1.796 |
-| pyramid30 (9,456) | 39,296,184 | 39,296,184 | 39,182,752 | 11.496 |
+| scene | baseline B | ph1 | ph2 | ph3 | ph4 | ph5 (tier 1 done) |
+|-------|-----------:|----:|----:|----:|----:|----:|
+| pile_awake (193 bodies) | 816,106 | 816,106 | 813,830 | 804,620 | 804,620 | 773,468 |
+| pile_sleepy (197) | 820,595 | 820,595 | 818,311 | 809,066 | 809,066 | 777,771 |
+| mixed (122, joints+mb+ccd) | 481,390 | 468,330 | 467,006 | 459,903 | 459,246 | 441,435 |
+| instanced_shapes (100+trimesh) | 3,301,765 | 3,301,765 | 1,855,580 | 1,816,404 | 1,772,810 | 1,498,316 |
+| pyramid20 (2,871) | 11,572,748 | 11,572,748 | 11,538,336 | 9,870,367 | 9,870,367 | 8,472,206 |
+| pyramid30 (9,456) | 39,296,184 | 39,296,184 | 39,182,752 | 33,473,863 | 33,473,863 | 28,698,945 |
 
-Phase notes: ph1 (multibody skip) cut `multibody_joints` 20,780 → 7,720 in `mixed`. Ph2
-(content-keyed shape interning) cut `colliders` 1,548,693 → 102,508 in
-`instanced_shapes`; box-only scenes save only ~12 B/cuboid as expected. Interning is by
-serialized content (identity-memoized), not `Arc` identity, so grouping stays canonical
-across restores and across peers; the `shared_shapes` roundtrip test pins the
-pathological case (an app-held `Arc` used on both sides of the snapshot boundary).
+Tier-1 net: −27% on box piles/pyramids, −55% on the shape-instanced scene. The wasm32
+portability golden confirms −8.4% on its mixed scene (481,608 → 441,499 B; 2D 88,572 →
+82,696), re-minted and verified under wasmtime on 2026-09-02.
+
+Perf: interleaved 3× A/B of the harness (baseline commit vs tier-1 head) shows parity
+on every scene once thermally warm (pyramid30 10.43 vs 10.41 ms; pyramid20 1.745 vs
+1.756; pile/mixed/instanced within ±2% noise). Full 2D+3D suites green, plus the
+roundtrip suite under `parallel` and `enhanced-determinism`.
+
+Phase notes:
+- ph1 (multibody skip) cut `multibody_joints` 20,780 → 7,720 in `mixed`.
+- ph2 (shape interning) cut `colliders` 1,548,693 → 102,508 in `instanced_shapes`;
+  box-only scenes save only ~12 B/cuboid as expected. Interning is by serialized
+  content (identity-memoized), not `Arc` identity, so grouping stays canonical across
+  restores and peers; the `shared_shapes` roundtrip test pins the pathological case.
+- ph3/ph4 (solver-contact replay, plain + clusters) store one byte per solver contact.
+  The replay poses come from an extended `ContactRecycleState` (both translations +
+  skins, +32 B/pair); hook-modified pairs, offset colliders (non-identity
+  `pos_wrt_parent`), and recycling-off worlds keep the verbatim encoding
+  (`stored_solver_contacts` test).
+- ph5 (compact points) drops the frozen lever arms (replayed) and stores
+  `warmstart_tangent_world` per point only when it does not bit-match the recompute
+  from the manifold normal's tangent basis (virgin never-solved points and stale-basis
+  corners). Two live-side canonicalization passes were needed so dead per-point fields
+  cannot leak divergent bytes through later verbatim-encoded snapshots.
+- ph6 sorted the joint sets' `to_wake_up`/`to_join` serialization.
 
 Baseline observations: narrow phase is 73–77% of the box scenes (pyramid30: 30.2 MB of
 39.3 MB); `colliders` is 47% of instanced_shapes (1.55 MB for 17 distinct shapes);
