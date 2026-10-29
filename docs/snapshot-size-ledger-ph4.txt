@@ -1,0 +1,78 @@
+
+=== pile_awake: 193 bodies, 193 colliders ===
+  total:       804620 bytes (serialize 0.7 ms)
+                 gravity:           12
+  integration_parameters:           92
+                 islands:        24567
+             broad_phase:        77803
+            narrow_phase:       587996
+                  bodies:        78761
+               colliders:        35191
+          impulse_joints:           97
+        multibody_joints:          101
+  step: 0.158 ms avg over 100 steps (after 100 warmup)
+
+=== pile_sleepy: 197 bodies, 197 colliders ===
+  total:       809066 bytes (serialize 0.6 ms)
+                 gravity:           12
+  integration_parameters:           92
+                 islands:        25344
+             broad_phase:        78471
+            narrow_phase:       588725
+                  bodies:        80345
+               colliders:        35879
+          impulse_joints:           97
+        multibody_joints:          101
+  step: 0.010 ms avg over 100 steps (after 100 warmup)
+
+=== mixed: 122 bodies, 121 colliders ===
+  total:       459903 bytes (serialize 0.3 ms)
+                 gravity:           12
+  integration_parameters:           92
+                 islands:        14588
+             broad_phase:        43323
+            narrow_phase:       320143
+                  bodies:        49477
+               colliders:        21807
+          impulse_joints:         2741
+        multibody_joints:         7720
+  step: 0.102 ms avg over 60 steps (after 60 warmup)
+
+=== instanced_shapes: 100 bodies, 116 colliders ===
+  total:      1772810 bytes (serialize 1.5 ms)
+                 gravity:           12
+  integration_parameters:           92
+                 islands:         9725
+             broad_phase:        20566
+            narrow_phase:      1598928
+                  bodies:        40781
+               colliders:       102508
+          impulse_joints:           97
+        multibody_joints:          101
+  step: 0.090 ms avg over 100 steps (after 100 warmup)
+
+=== pyramid20: 2871 bodies, 2871 colliders ===
+  total:      9870367 bytes (serialize 5.0 ms)
+                 gravity:           12
+  integration_parameters:           92
+                 islands:       348675
+             broad_phase:       638473
+            narrow_phase:      7184097
+                  bodies:      1173809
+               colliders:       525011
+          impulse_joints:           97
+        multibody_joints:          101
+  step: 1.746 ms avg over 100 steps (after 100 warmup)
+
+=== pyramid30: 9456 bodies, 9456 colliders ===
+  total:     33473863 bytes (serialize 18.2 ms)
+                 gravity:           12
+  integration_parameters:           92
+                 islands:      1182696
+             broad_phase:      2146486
+            narrow_phase:     24497265
+                  bodies:      3892061
+               colliders:      1755053
+          impulse_joints:           97
+        multibody_joints:          101
+  step: 10.665 ms avg over 100 steps (after 100 warmup)

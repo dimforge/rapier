@@ -52,8 +52,8 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
     let pos1_t = Pose::from_parts(rs.translation1, rs.rot1);
     let pos2_t = Pose::from_parts(rs.translation2, rs.rot2);
 
-    // When clustering applied, the clusters carried the solver data verbatim and the
-    // plain manifolds hold no solver contacts; only their normals need replaying.
+    // When clustering applied, the clusters carried the solver contacts and the plain
+    // manifolds hold none; only the plain manifolds' normals need replaying then.
     let clustered = !rigid.solver_clusters.is_empty();
     let skins = (rs.skin1, rs.skin2);
 
@@ -66,6 +66,15 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
                 manifold, co1, co2, bodies, &world_pos1, &world_pos2, &pos1_t, &pos2_t, skins,
             );
         }
+    }
+
+    // Cluster manifolds hold no subshape poses (their local normals and points are
+    // already collider-local), so their world poses are the collider poses.
+    for cluster in &mut rigid.solver_clusters {
+        cluster.data.normal = pos1_t.rotation * cluster.local_n1;
+        replay_manifold_contacts(
+            cluster, co1, co2, bodies, &pos1_t, &pos2_t, &pos1_t, &pos2_t, skins,
+        );
     }
 }
 

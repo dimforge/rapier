@@ -1070,8 +1070,7 @@ mod pair_serde {
     #[derive(Serialize)]
     enum SolverSer<'a> {
         /// Verbatim solver data: hook-modified pairs, non-replayable body anchors,
-        /// missing recycle state, solver clusters, or an id too large for the
-        /// compact form.
+        /// missing recycle state, or an id too large for the compact form.
         Stored {
             normal: &'a Vector,
             contacts: &'a SolverContacts,
@@ -1339,12 +1338,16 @@ mod pair_serde {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
             let contacts = match &self.contacts {
                 PairContacts::Rigid(rigid) => {
+                    // Cluster point indices can exceed the compact form's 7 bits (up to 255
+                    // points per cluster), in which case the whole pair falls back to the
+                    // verbatim encoding.
                     let replay = rigid.recycle_state.is_some()
                         && !self.event_status.contains(PairEventStatus::SOLVER_HOOKED)
                         && self
                             .event_status
                             .contains(PairEventStatus::SOLVER_REPLAY_ANCHORS)
-                        && rigid.manifolds.iter().all(ids_fit);
+                        && rigid.manifolds.iter().all(ids_fit)
+                        && rigid.solver_clusters.iter().all(ids_fit);
                     ContactsSer::Rigid(RigidSer {
                         manifolds: rigid
                             .manifolds
@@ -1354,7 +1357,7 @@ mod pair_serde {
                         solver_clusters: rigid
                             .solver_clusters
                             .iter()
-                            .map(|m| manifold_ser(m, false))
+                            .map(|m| manifold_ser(m, replay))
                             .collect(),
                         solver_color: rigid.solver_color,
                         solver_color_bodies: rigid.solver_color_bodies,
