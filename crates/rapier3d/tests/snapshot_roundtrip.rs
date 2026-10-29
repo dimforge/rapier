@@ -544,6 +544,46 @@ fn structural_changes() {
     );
 }
 
+/// Per-tick binary deltas: each tick's snapshot is encoded against the previous
+/// tick's, applied back, and must reconstruct the exact bytes; a world restored from a
+/// delta-reconstructed snapshot must then continue byte-identically. On the sleeping
+/// pile the recurring delta must be a small fraction of the full snapshot.
+#[test]
+fn delta_snapshots() {
+    use rapier3d::pipeline::{apply_snapshot_delta, snapshot_delta};
+
+    let mut world = pile(true);
+    for _ in 0..100 {
+        world.step();
+    }
+
+    let mut prev = save(&world);
+    let full_len = prev.len();
+    let mut max_delta = 0usize;
+    let mut reconstructed = prev.clone();
+    for _ in 0..30 {
+        world.step();
+        let curr = save(&world);
+        let delta = snapshot_delta(&prev, &curr);
+        max_delta = max_delta.max(delta.len());
+        reconstructed = apply_snapshot_delta(&reconstructed, &delta).expect("delta apply");
+        assert_eq!(reconstructed, curr, "delta reconstruction diverged");
+        prev = curr;
+    }
+    assert!(
+        max_delta * 4 < full_len,
+        "sleeping-pile per-tick delta is {max_delta} bytes for a {full_len}-byte snapshot"
+    );
+
+    // A world restored from the reconstructed bytes continues exactly.
+    let mut restored = restore(&reconstructed);
+    for step in 0..30 {
+        world.step();
+        restored.step();
+        assert_same(step, &record(&world), &record(&restored), "delta restore");
+    }
+}
+
 /// Replacing the pipeline mid-run, with no snapshot involved: [`PhysicsPipeline`] is
 /// documented as holding workspace only, and a restored world always starts from a fresh
 /// one. The joint chain is the point — the solver's joint coloring is cached across steps

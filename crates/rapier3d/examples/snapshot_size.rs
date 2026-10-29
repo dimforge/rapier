@@ -273,6 +273,13 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
     let ser_ms = t0.elapsed().as_secs_f64() * 1000.0;
     let parts = part_sizes(&world);
 
+    // Per-tick delta: one more step, encoded against the snapshot above.
+    world.step();
+    let next = bincode::serialize(&world).unwrap();
+    let t0 = Instant::now();
+    let delta = rapier3d::pipeline::snapshot_delta(&bytes, &next);
+    let delta_ms = t0.elapsed().as_secs_f64() * 1000.0;
+
     println!(
         "\n=== {name}: {} bodies, {} colliders ===",
         world.bodies.len(),
@@ -282,6 +289,11 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
     for (part, size) in PART_NAMES.iter().zip(parts.iter()) {
         println!("  {part:>22}: {size:>12}");
     }
+    println!(
+        "  tick delta: {:>10} bytes ({:.1}% of full, encode {delta_ms:.1} ms)",
+        delta.len(),
+        delta.len() as f64 * 100.0 / next.len() as f64
+    );
     println!("  step: {ms_per_step:.3} ms avg over {timed} steps (after {warmup} warmup)");
 }
 

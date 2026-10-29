@@ -18,6 +18,8 @@ pub use physics_hooks::{
 pub use physics_pipeline::{PhysicsPipeline, Quarantine};
 #[cfg(feature = "alloc")]
 pub use physics_world::PhysicsWorld;
+#[cfg(feature = "serde-serialize")]
+pub use snapshot_delta::{SnapshotDeltaError, apply_snapshot_delta, snapshot_delta};
 #[cfg(feature = "alloc")]
 pub use query_pipeline::{QueryFilter, QueryFilterFlags, QueryPipeline, QueryPipelineMut};
 
@@ -36,6 +38,8 @@ mod physics_hooks;
 mod physics_pipeline;
 #[cfg(feature = "alloc")]
 mod physics_world;
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta;
 #[cfg(feature = "alloc")]
 mod query_pipeline;
 #[cfg(feature = "alloc")]
