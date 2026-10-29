@@ -1,3 +1,37 @@
+## Unreleased
+
+### Added
+
+- `pipeline::snapshot_delta` / `apply_snapshot_delta`: binary deltas between two
+  snapshots (any serialization format), for per-tick snapshotting. Unchanged state
+  (sleeping islands, static geometry, shapes) costs nothing on the wire: a settled
+  scene's per-tick delta is a few bytes.
+- `NarrowPhase::rebuild_solver_contacts`: recomputes the solver-facing contact data
+  that snapshots now store in compact form. The first step after a deserialization
+  runs it automatically; call it only to inspect solver contacts before that step.
+
+### Changed
+
+- Snapshots are much smaller (roughly −30% on contact-heavy scenes, more with shared
+  shapes), with the same byte-identical restore guarantees:
+  - collider shapes are interned by content, so N colliders over one shape serialize
+    it once (restoring also rebuilds the `Arc` sharing);
+  - solver contacts, contact lever arms, manifold normals, and the friction
+    warm-start basis are replayed after a restore instead of being stored (pairs
+    using `modify_solver_contacts` hooks, colliders attached away from their body's
+    origin, soft-body surfaces, and worlds with contact recycling disabled keep the
+    verbatim encoding);
+  - the multibody mass matrices, jacobians and workspaces are rebuilt after a
+    restore instead of being stored;
+  - the broad-phase BVH is stored as its leaves and rebuilt on restore. As a side
+    effect, spatial-query iteration order after a restore may differ from the
+    uninterrupted run (the pair set and simulation results do not).
+- The serialization format changed: snapshots taken with previous versions cannot be
+  restored by this one.
+- Spawned broad-phase pairs are handed to the narrow phase in canonical collider-pair
+  order instead of tree-traversal order, which slightly changes contact ordering
+  (and therefore exact trajectories) compared to the previous version.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added

@@ -96,26 +96,41 @@ twins): the last unsorted hash containers in the snapshot. Normally empty, but t
 snapshots of identical state must not differ.
 
 ### Phase 7 (tier 2a): canonical rekeying, then stop shipping the contact graph
-Rekey every order-sensitive pass (pair transitions, event emission, island
-link/unlink, colouring seed order, solver-bucket order) from contact-graph edge ids to
-sorted collider-handle pairs. Once layout is semantically inert, serialize the contact
-graph as a sorted pair list + payloads and rebuild threading, adjacency,
-`graph_indices`, and the solver buckets canonically on restore; the persistent-island
-edge-id mirrors rebuild with it. Perf gate: end-to-end A/B on the harness scenes before
-and after; any regression on the sorted passes' hot path blocks the phase.
+NOT DONE — deliberately deferred. Rekeying the order-sensitive passes from edge ids to
+handle pairs is not enough: the solver's constraint iteration order equals the
+solver-bucket content order, which is maintained incrementally in event order and is
+therefore itself history/layout-dependent. Making it canonical means either keeping
+buckets sorted online (per-event insertion cost on the hottest maintenance path) or
+changing the solve order semantics — both behavior- and perf-sensitive enough to be
+their own project with its own A/B campaign. The estimated payoff is ~10% of the
+remaining snapshot (graph threading, adjacency, `graph_indices`, hints, buckets,
+island edge-id mirrors ≈ 60–70 B of ~600 B per touching pair), against tier 1's
+already-banked 30–55%. Revisit only with a dedicated design pass.
 
 ### Phase 8 (tier 2b): broad-phase leaf-state-only serialization
-Establish that pair appearance depends only on per-leaf fattened AABBs (not tree
-topology or optimizer timing), then serialize just the fattened AABBs, the pair map,
-and the few scalar regime fields, rebuilding the tree canonically on restore. Perf
-gate: broad-phase timings on the harness scenes plus a large-world spot check.
+DONE. The `DeletePair` batch was already canonically sorted; sorting the `AddPair`
+batch the same way removed the last semantic leak of tree topology (edge-id
+assignment order). The serialized broad phase is now the sorted leaves (index,
+fattened AABB, resolved change flag), the sorted pair map, and the scalar regime
+fields; the BVH is rebuilt canonically (`Bvh::from_iter`) on restore and the pair
+adjacency is rebuilt from the pair map. Two pieces of genuine leaf state surfaced
+during verification: the resolved change flags (they persist across steps in
+full-refit regimes and gate both traversal and stale-pair detection), and the
+*pending* change flags left by the pipeline's end-of-step `set_aabb` calls — the
+latter are invisible through parry's public API but `pending_set_aabb` records
+exactly those leaves, and a fresh post-build `insert` recreates pending state with
+verbatim bounds. Spatial-query iteration order after a restore may differ from the
+uninterrupted run (different, equally valid tree); it was never part of the
+determinism contract.
 
 ### Phase 9 (tier 3): delta snapshots
-A snapshot layer for per-tick use: one full baseline plus per-tick deltas carrying only
-awake-island state and the structural-change journal, applied onto a baseline world.
-Sleeping state is frozen by construction, so the recurring cost is proportional to the
-awake set. Design details decided when reached; the roundtrip contract extends to
-"baseline + deltas replayed = uninterrupted run".
+DONE as a byte-level layer: `pipeline::snapshot_delta` / `apply_snapshot_delta` encode
+one snapshot against another with rsync-style block matching (locality-first, hash
+fallback), so unchanged bytes — sleeping islands, static state, interned shapes — cost
+nothing on the wire regardless of serialization format. See the ledger's tick-delta
+column. A semantic delta with CPU proportional to the awake set would need the
+phase-7 canonical addressing first (slot renumbering leaks into sleeping state), which
+is why it stayed byte-level.
 
 ## Ledger
 
@@ -124,23 +139,35 @@ after each phase; the per-part breakdowns live in `snapshot-size-ledger-*.txt` n
 this file. Step time is avg ms/step on this machine, single-threaded, and must stay at
 parity through phase 6.
 
-| scene | baseline B | ph1 | ph2 | ph3 | ph4 | ph5 (tier 1 done) |
-|-------|-----------:|----:|----:|----:|----:|----:|
-| pile_awake (193 bodies) | 816,106 | 816,106 | 813,830 | 804,620 | 804,620 | 773,468 |
-| pile_sleepy (197) | 820,595 | 820,595 | 818,311 | 809,066 | 809,066 | 777,771 |
-| mixed (122, joints+mb+ccd) | 481,390 | 468,330 | 467,006 | 459,903 | 459,246 | 441,435 |
-| instanced_shapes (100+trimesh) | 3,301,765 | 3,301,765 | 1,855,580 | 1,816,404 | 1,772,810 | 1,498,316 |
-| pyramid20 (2,871) | 11,572,748 | 11,572,748 | 11,538,336 | 9,870,367 | 9,870,367 | 8,472,206 |
-| pyramid30 (9,456) | 39,296,184 | 39,296,184 | 39,182,752 | 33,473,863 | 33,473,863 | 28,698,945 |
+| scene | baseline B | ph2 | ph5 (tier 1) | ph8 | tick delta (ph9) |
+|-------|-----------:|----:|----:|----:|----:|
+| pile_awake (193 bodies) | 816,106 | 813,830 | 773,468 | 734,492 | 82,539 |
+| pile_sleepy (197) | 820,595 | 818,311 | 777,771 | 738,475 | 4,831 |
+| mixed (122, joints+mb+ccd) | 481,390 | 467,006 | 441,435 | 419,623 | 8,090 |
+| instanced_shapes (100+trimesh) | 3,301,765 | 1,855,580 | 1,498,316 | 1,473,040 | 16 |
+| pyramid20 (2,871) | 11,572,748 | 11,538,336 | 8,472,206 | 8,123,406 | 17 |
+| pyramid30 (9,456) | 39,296,184 | 39,182,752 | 28,698,945 | 27,530,649 | 19 |
 
-Tier-1 net: −27% on box piles/pyramids, −55% on the shape-instanced scene. The wasm32
-portability golden confirms −8.4% on its mixed scene (481,608 → 441,499 B; 2D 88,572 →
-82,696), re-minted and verified under wasmtime on 2026-09-02.
+Net through phase 8: −30% on box piles/pyramids, −55% on the shape-instanced scene
+(intermediate per-phase totals live in the `snapshot-size-ledger-*.txt` files). The
+wasm32 portability goldens track it (3D 481,608 → 419,695 B; 2D 88,572 → 77,496),
+re-minted and verified under wasmtime on 2026-09-02, along with the
+`parallel_path_parity` checksum (sequential and parallel builds agree on the new
+value; the old golden also passed on this aarch64 machine, so the constant is
+target-independent).
 
-Perf: interleaved 3× A/B of the harness (baseline commit vs tier-1 head) shows parity
-on every scene once thermally warm (pyramid30 10.43 vs 10.41 ms; pyramid20 1.745 vs
-1.756; pile/mixed/instanced within ±2% noise). Full 2D+3D suites green, plus the
-roundtrip suite under `parallel` and `enhanced-determinism`.
+The tick-delta column is the phase-9 layer: one step encoded against the previous
+snapshot. Settled scenes cost ~17 B/tick; the sleeping pile 0.7% of full; a fully
+awake pile 11%. Encoding still pays a full serialize plus a linear diff (34 ms on the
+27.5 MB pyramid30), so it is bandwidth-proportional, not CPU-proportional.
+
+Perf: interleaved A/B of the harness across phase binaries on pyramid30 (12 runs)
+reads base 10.21 ms, ph3 10.36, ph6/final ~10.4 — a possible ~1–1.5% step cost from
+the phase-3 per-full-update bookkeeping (larger recycle state, replay bits, dead-field
+canonicalization), at the edge of the ±1.5% run-to-run noise; pyramid20 measures
+*faster* than baseline (1.68 vs 1.70 ms) and pile/mixed/instanced are at parity. Worth
+a finer pass if it matters. Full 2D+3D suites green, plus the roundtrip suite under
+`parallel` and `enhanced-determinism`.
 
 Phase notes:
 - ph1 (multibody skip) cut `multibody_joints` 20,780 → 7,720 in `mixed`.
