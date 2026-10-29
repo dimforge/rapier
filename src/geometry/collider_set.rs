@@ -256,12 +256,10 @@ impl ColliderSet {
     /// Iterates over all colliders with mutable access.
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (ColliderHandle, &mut Collider)> {
-        self.modified_colliders.clear();
         let modified_colliders = &mut self.modified_colliders;
         self.colliders.iter_mut().map(move |(h, co)| {
-            // NOTE: we push unchecked here since we are just re-populating the
-            //       `modified_colliders` set that we just cleared before iteration.
-            modified_colliders.push_unchecked(ColliderHandle(h), co);
+            // Lazily: a partially consumed iterator must not drop already-listed colliders.
+            modified_colliders.push_once(ColliderHandle(h), co);
             (ColliderHandle(h), co)
         })
     }

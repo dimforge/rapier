@@ -405,12 +405,10 @@ impl RigidBodySet {
     /// ```
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (RigidBodyHandle, &mut RigidBody)> {
-        self.modified_bodies.clear();
         let modified_bodies = &mut self.modified_bodies;
         self.bodies.iter_mut().map(move |(h, b)| {
-            // NOTE: using `push_unchecked` because we just cleared `modified_bodies`
-            //       before iterating.
-            modified_bodies.push_unchecked(RigidBodyHandle(h), b);
+            // Lazily: a partially consumed iterator must not drop already-listed bodies.
+            modified_bodies.push_once(RigidBodyHandle(h), b);
             (RigidBodyHandle(h), b)
         })
     }
