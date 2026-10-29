@@ -30,6 +30,10 @@ impl NarrowPhase {
         bodies: &mut RigidBodySet,
         events: &dyn EventHandler,
     ) {
+        // The physics pipeline drains these flags every step; the collision pipeline never
+        // reconciles force events, so drop stale ones instead of letting them pile up.
+        self.force_event_flagged.clear();
+
         // TODO: avoid these hash-maps.
         // They are necessary to handle the swap-remove done internally
         // by the contact/intersection graphs when a node is removed.

@@ -332,3 +332,37 @@ pub fn collider_removal_releases_solver_colors() {
     }
     assert_eq!(np.body_solver_color_masks, expected);
 }
+
+/// The collision pipeline never reconciles contact-force events, so the per-step force-event
+/// flags of user-modified colliders must not accumulate.
+#[test]
+pub fn collision_pipeline_does_not_accumulate_force_event_flags() {
+    use crate::dynamics::{IslandManager, RigidBodySet};
+    use crate::geometry::ColliderSet;
+    use crate::pipeline::CollisionPipeline;
+
+    let mut pipeline = CollisionPipeline::new();
+    let mut islands = IslandManager::new();
+    let mut broad_phase = DefaultBroadPhase::new();
+    let mut narrow_phase = NarrowPhase::new();
+    let mut bodies = RigidBodySet::new();
+    let mut colliders = ColliderSet::new();
+    colliders.insert(ColliderBuilder::cuboid(1.0, 1.0, 1.0));
+    let body = bodies.insert(RigidBodyBuilder::dynamic());
+    let moving = colliders.insert_with_parent(ColliderBuilder::ball(0.5), body, &mut bodies);
+
+    for i in 0..100 {
+        colliders[moving].set_translation(Vector::new(0.0, 0.5 + i as crate::math::Real * 1.0e-3, 0.0));
+        pipeline.step(
+            0.0,
+            &mut islands,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut bodies,
+            &mut colliders,
+            &(),
+            &(),
+        );
+    }
+    assert!(narrow_phase.force_event_flagged.len() <= 1);
+}
