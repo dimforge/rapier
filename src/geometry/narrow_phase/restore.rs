@@ -8,6 +8,7 @@
 //! whose replay would not be bit-exact (hook-modified, offset colliders, no recycle
 //! state) were serialized verbatim and are left untouched.
 
+use crate::alloc_prelude::*;
 use crate::dynamics::RigidBodySet;
 use crate::geometry::contact_pair::NEW_CONTACT_BIT;
 use crate::geometry::{Collider, ColliderSet, ContactManifold, ContactPair};
@@ -36,10 +37,11 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
     };
     // Only pairs that were compact-encoded are replayed; the encoder serialized every
     // other pair verbatim precisely because a replay would not reproduce its values.
-    if !rigid.pending_replay {
+    // The marker holds, per manifold, the points whose tangent world vector must be
+    // recomputed (the others were stored verbatim).
+    let Some(recompute_tangent) = rigid.pending_replay.take() else {
         return;
-    }
-    rigid.pending_replay = false;
+    };
     let (Some(co1), Some(co2)) = (colliders.get(handle1), colliders.get(handle2)) else {
         return;
     };
@@ -56,7 +58,8 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
     let clustered = !rigid.solver_clusters.is_empty();
     let skins = (rs.skin1, rs.skin2);
 
-    for manifold in &mut rigid.manifolds {
+    let num_manifolds = rigid.manifolds.len();
+    for (mi, manifold) in rigid.manifolds.iter_mut().enumerate() {
         let world_pos1 = manifold.subshape_pos1().prepend_to(&pos1_t);
         manifold.data.normal = world_pos1.rotation * manifold.local_n1;
         if !clustered {
@@ -65,31 +68,37 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
                 manifold, co1, co2, bodies, &world_pos1, &world_pos2, &pos1_t, &pos2_t, skins,
             );
         }
-        replay_points_tangent_world(manifold);
+        replay_points_tangent_world(manifold, recompute_tangent.get(mi));
     }
 
     // Cluster manifolds hold no subshape poses (their local normals and points are
     // already collider-local), so their world poses are the collider poses.
-    for cluster in &mut rigid.solver_clusters {
+    for (ci, cluster) in rigid.solver_clusters.iter_mut().enumerate() {
         cluster.data.normal = pos1_t.rotation * cluster.local_n1;
         replay_manifold_contacts(
             cluster, co1, co2, bodies, &pos1_t, &pos2_t, &pos1_t, &pos2_t, skins,
         );
-        replay_points_tangent_world(cluster);
+        replay_points_tangent_world(cluster, recompute_tangent.get(num_manifolds + ci));
     }
 }
 
-/// Recomputes each point's `warmstart_tangent_world` from the replayed manifold normal
-/// (bit-verified against this recomputation at serialization).
-fn replay_points_tangent_world(manifold: &mut ContactManifold) {
+/// Recomputes the marked points' `warmstart_tangent_world` from the replayed manifold
+/// normal (the encoder stored the vector verbatim for every other point).
+fn replay_points_tangent_world(manifold: &mut ContactManifold, marked: Option<&Vec<u32>>) {
     #[cfg(feature = "dim2")]
-    let _ = manifold;
+    let _ = (manifold, marked);
     #[cfg(feature = "dim3")]
     {
+        let Some(marked) = marked else { return };
+        if marked.is_empty() {
+            return;
+        }
         let (t1, t2) = crate::geometry::contact_pair::replay_tangent_basis(&manifold.data.normal);
-        for pt in &mut manifold.points {
-            pt.data.warmstart_tangent_world =
-                crate::geometry::contact_pair::replay_tangent_world(&t1, &t2, &pt.data);
+        for &i in marked {
+            if let Some(pt) = manifold.points.get_mut(i as usize) {
+                pt.data.warmstart_tangent_world =
+                    crate::geometry::contact_pair::replay_tangent_world(&t1, &t2, &pt.data);
+            }
         }
     }
 }
