@@ -125,6 +125,10 @@ bytemuck = { workspace = true, optional = true }
 nalgebra = { workspace = true }
 glamx = { workspace = true, features = ["nalgebra"] }
 
+[[example]]
+name = "snapshot_size"
+required-features = ["serde-serialize"]
+
 [dev-dependencies]
 bincode.workspace = true
 serde_json.workspace = true
