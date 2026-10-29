@@ -219,13 +219,25 @@ mod bp_serde {
             // bounds: build the tree without those leaves, insert them after.
             let pending: std::collections::HashSet<u32> =
                 repr.pending_set_aabb.iter().map(|h| h.0.into_raw_parts().0).collect();
-            let mut tree = Bvh::from_iter(
-                BvhBuildStrategy::Binned,
-                repr.leaves
-                    .iter()
-                    .filter(|(index, ..)| !pending.contains(index))
-                    .map(|(index, aabb, _)| (*index as usize, *aabb)),
-            );
+            let built: Vec<(usize, Aabb)> = repr
+                .leaves
+                .iter()
+                .filter(|(index, ..)| !pending.contains(index))
+                .map(|(index, aabb, _)| (*index as usize, *aabb))
+                .collect();
+            let mut tree = if built.len() > 2 {
+                Bvh::from_iter(BvhBuildStrategy::Binned, built)
+            } else {
+                // Parry's bulk build assumes leaf ids 0 and 1 for one or two leaves: insert
+                // them instead (pending), then resolve them to changed like a bulk build.
+                let mut tree = Bvh::new();
+                for (index, aabb) in &built {
+                    tree.insert(*aabb, *index as u32);
+                }
+                let ids: Vec<u32> = built.iter().map(|(index, _)| *index as u32).collect();
+                tree.refit_partial(&[], &ids);
+                tree
+            };
             // A fresh build marks every leaf changed; resolve the flag away for the
             // leaves that were not flagged in the serialized state (`refit_partial`'s
             // previously-changed pass clears a non-pending flag).
