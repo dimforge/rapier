@@ -124,14 +124,21 @@ after each phase; the per-part breakdowns live in `snapshot-size-ledger-*.txt` n
 this file. Step time is avg ms/step on this machine, single-threaded, and must stay at
 parity through phase 6.
 
-| scene | baseline B | ms/step |
-|-------|-----------:|--------:|
-| pile_awake (193 bodies) | 816,106 | 0.152 |
-| pile_sleepy (197) | 820,595 | 0.009 |
-| mixed (122, joints+mb+ccd) | 481,390 | 0.102 |
-| instanced_shapes (100+trimesh tiles) | 3,301,765 | 0.088 |
-| pyramid20 (2,871) | 11,572,748 | 1.796 |
-| pyramid30 (9,456) | 39,296,184 | 11.496 |
+| scene | baseline B | ph1 | ph2 | ms/step (base) |
+|-------|-----------:|----:|----:|--------------:|
+| pile_awake (193 bodies) | 816,106 | 816,106 | 813,830 | 0.152 |
+| pile_sleepy (197) | 820,595 | 820,595 | 818,311 | 0.009 |
+| mixed (122, joints+mb+ccd) | 481,390 | 468,330 | 467,006 | 0.102 |
+| instanced_shapes (100+trimesh tiles) | 3,301,765 | 3,301,765 | 1,855,580 | 0.088 |
+| pyramid20 (2,871) | 11,572,748 | 11,572,748 | 11,538,336 | 1.796 |
+| pyramid30 (9,456) | 39,296,184 | 39,296,184 | 39,182,752 | 11.496 |
+
+Phase notes: ph1 (multibody skip) cut `multibody_joints` 20,780 → 7,720 in `mixed`. Ph2
+(content-keyed shape interning) cut `colliders` 1,548,693 → 102,508 in
+`instanced_shapes`; box-only scenes save only ~12 B/cuboid as expected. Interning is by
+serialized content (identity-memoized), not `Arc` identity, so grouping stays canonical
+across restores and across peers; the `shared_shapes` roundtrip test pins the
+pathological case (an app-held `Arc` used on both sides of the snapshot boundary).
 
 Baseline observations: narrow phase is 73–77% of the box scenes (pyramid30: 30.2 MB of
 39.3 MB); `colliders` is 47% of instanced_shapes (1.55 MB for 17 distinct shapes);

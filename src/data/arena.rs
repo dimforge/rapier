@@ -35,9 +35,33 @@ pub struct Arena<T> {
 #[cfg(feature = "alloc")]
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
-enum Entry<T> {
+pub(crate) enum Entry<T> {
     Free { next_free: Option<u32> },
     Occupied { generation: u32, value: T },
+}
+
+/// Access to the arena's raw storage, for custom serialization schemes that need to
+/// transform the items while preserving the exact slot layout and free list (both are
+/// part of the determinism contract; see the module doc).
+#[cfg(all(feature = "alloc", feature = "serde-serialize"))]
+impl<T> Arena<T> {
+    pub(crate) fn raw_entries(&self) -> (&[Entry<T>], u32, Option<u32>, usize) {
+        (&self.items, self.generation, self.free_list_head, self.len)
+    }
+
+    pub(crate) fn from_raw_entries(
+        items: Vec<Entry<T>>,
+        generation: u32,
+        free_list_head: Option<u32>,
+        len: usize,
+    ) -> Self {
+        Self {
+            items,
+            generation,
+            free_list_head,
+            len,
+        }
+    }
 }
 
 /// An index (and generation) into an `Arena`.

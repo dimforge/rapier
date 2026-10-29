@@ -3,6 +3,8 @@
 #[cfg(not(target_arch = "spirv"))]
 mod angular_inertia_ops;
 mod component_mul;
+#[cfg(feature = "serde-serialize")]
+pub(crate) mod content_hash;
 mod copysign;
 mod cross_product;
 mod cross_product_matrix;

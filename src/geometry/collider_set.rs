@@ -49,9 +49,134 @@ impl HasModifiedFlag for Collider {
 /// );
 /// ```
 pub struct ColliderSet {
+    #[cfg_attr(feature = "serde-serialize", serde(with = "interned_colliders"))]
     pub(crate) colliders: Arena<Collider>,
     pub(crate) modified_colliders: ModifiedColliders,
     pub(crate) removed_colliders: Vec<ColliderHandle>,
+}
+
+/// Serialization of the collider arena with shape interning: each distinct shape is
+/// written once into a table, and colliders reference it by index.
+///
+/// Distinctness is decided by serialized *content* (see `utils::content_hash`), not by
+/// `Arc` identity: identity is process-local, so grouping by it would make a restored
+/// world's snapshot differ from the uninterrupted run's as soon as the application
+/// spawns post-restore colliders from its own shape cache. Content grouping is
+/// canonical, and identity only serves as a memoization key so each distinct `Arc` is
+/// hashed once per snapshot. Restoring gives every collider of one table entry the same
+/// `Arc`, so N colliders over one trimesh cost one serialized trimesh instead of N.
+#[cfg(feature = "serde-serialize")]
+mod interned_colliders {
+    use super::Collider;
+    use crate::data::arena::{Arena, Entry};
+    use crate::geometry::ColliderShape;
+    use crate::geometry::collider::InternedCollider;
+    use crate::utils::content_hash::{ContentKey, content_key};
+    use alloc::sync::Arc;
+    use alloc::vec::Vec;
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::collections::HashMap;
+
+    #[derive(Serialize, Deserialize)]
+    enum EntryRepr {
+        Free { next_free: Option<u32> },
+        Occupied { generation: u32, value: InternedCollider },
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct ArenaRepr {
+        shapes: Vec<ColliderShape>,
+        items: Vec<EntryRepr>,
+        generation: u32,
+        free_list_head: Option<u32>,
+        len: u64,
+    }
+
+    pub(super) fn serialize<S: Serializer>(
+        arena: &Arena<Collider>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        let (entries, generation, free_list_head, len) = arena.raw_entries();
+        let mut shapes = Vec::new();
+        // Grouping is by content key; the identity map only memoizes the (relatively
+        // costly) content hashing per distinct `Arc`. A shape whose content cannot be
+        // hashed (a custom shape refusing serialization) falls back to one table entry
+        // per `Arc`, keyed on a unique per-pointer id.
+        let mut by_identity: HashMap<*const u8, u32> = HashMap::new();
+        let mut by_content: HashMap<ContentKey, u32> = HashMap::new();
+        let items = entries
+            .iter()
+            .map(|entry| match entry {
+                Entry::Free { next_free } => EntryRepr::Free {
+                    next_free: *next_free,
+                },
+                Entry::Occupied { generation, value } => {
+                    let ptr = Arc::as_ptr(&value.shape.0).cast::<u8>();
+                    let id = match by_identity.get(&ptr) {
+                        Some(id) => *id,
+                        None => {
+                            let id = match content_key(&value.shape).map(|k| by_content.entry(k)) {
+                                Some(std::collections::hash_map::Entry::Occupied(e)) => *e.get(),
+                                Some(std::collections::hash_map::Entry::Vacant(e)) => {
+                                    shapes.push(value.shape.clone());
+                                    *e.insert(shapes.len() as u32 - 1)
+                                }
+                                None => {
+                                    shapes.push(value.shape.clone());
+                                    shapes.len() as u32 - 1
+                                }
+                            };
+                            by_identity.insert(ptr, id);
+                            id
+                        }
+                    };
+                    EntryRepr::Occupied {
+                        generation: *generation,
+                        value: InternedCollider::from_collider(value, id),
+                    }
+                }
+            })
+            .collect();
+        ArenaRepr {
+            shapes,
+            items,
+            generation,
+            free_list_head,
+            len: len as u64,
+        }
+        .serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Arena<Collider>, D::Error> {
+        let repr = ArenaRepr::deserialize(deserializer)?;
+        let shapes = repr.shapes;
+        let items = repr
+            .items
+            .into_iter()
+            .map(|entry| match entry {
+                EntryRepr::Free { next_free } => Ok(Entry::Free { next_free }),
+                EntryRepr::Occupied { generation, value } => {
+                    let shape = shapes
+                        .get(value.shape_id() as usize)
+                        .ok_or_else(|| D::Error::custom("collider shape table index out of bounds"))?
+                        .clone();
+                    Ok(Entry::Occupied {
+                        generation,
+                        value: value.into_collider(shape),
+                    })
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Arena::from_raw_entries(
+            items,
+            repr.generation,
+            repr.free_list_head,
+            repr.len as usize,
+        ))
+    }
 }
 
 impl ColliderSet {

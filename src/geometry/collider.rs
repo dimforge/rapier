@@ -66,6 +66,98 @@ pub struct Collider {
     pub user_data: u128,
 }
 
+/// Serialization mirror of [`Collider`] with the shape replaced by an index into the
+/// deduplicated shape table of `ColliderSet`'s serialization (see `interned_colliders`
+/// in `collider_set.rs`).
+///
+/// Both conversions destructure `Collider` exhaustively, so adding a field to
+/// `Collider` fails to compile here until the mirror is updated.
+#[cfg(feature = "serde-serialize")]
+#[derive(Serialize, Deserialize)]
+pub(crate) struct InternedCollider {
+    coll_type: ColliderType,
+    shape: u32,
+    mprops: ColliderMassProps,
+    changes: ColliderChanges,
+    parent: Option<ColliderParent>,
+    pos: ColliderPosition,
+    material: ColliderMaterial,
+    flags: ColliderFlags,
+    contact_skin: Real,
+    contact_force_event_threshold: Real,
+    deformable_mesh_ref: Option<crate::dynamics::SoftMeshRef>,
+    user_data: u128,
+}
+
+#[cfg(feature = "serde-serialize")]
+impl InternedCollider {
+    pub(crate) fn from_collider(collider: &Collider, shape_id: u32) -> Self {
+        let Collider {
+            coll_type,
+            shape: _,
+            mprops,
+            changes,
+            parent,
+            pos,
+            material,
+            flags,
+            contact_skin,
+            contact_force_event_threshold,
+            deformable_mesh_ref,
+            user_data,
+        } = collider;
+        Self {
+            coll_type: *coll_type,
+            shape: shape_id,
+            mprops: mprops.clone(),
+            changes: *changes,
+            parent: *parent,
+            pos: *pos,
+            material: *material,
+            flags: *flags,
+            contact_skin: *contact_skin,
+            contact_force_event_threshold: *contact_force_event_threshold,
+            deformable_mesh_ref: *deformable_mesh_ref,
+            user_data: *user_data,
+        }
+    }
+
+    pub(crate) fn shape_id(&self) -> u32 {
+        self.shape
+    }
+
+    pub(crate) fn into_collider(self, shape: ColliderShape) -> Collider {
+        let Self {
+            coll_type,
+            shape: _,
+            mprops,
+            changes,
+            parent,
+            pos,
+            material,
+            flags,
+            contact_skin,
+            contact_force_event_threshold,
+            deformable_mesh_ref,
+            user_data,
+        } = self;
+        Collider {
+            coll_type,
+            shape,
+            mprops,
+            changes,
+            parent,
+            pos,
+            material,
+            flags,
+            contact_skin,
+            contact_force_event_threshold,
+            deformable_mesh_ref,
+            user_data,
+        }
+    }
+}
+
 impl Collider {
     pub(crate) fn reset_internal_references(&mut self) {
         self.changes = ColliderChanges::all();

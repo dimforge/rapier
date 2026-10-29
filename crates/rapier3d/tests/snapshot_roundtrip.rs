@@ -304,6 +304,96 @@ fn pyramid_stress_scene_full() {
     check_roundtrip("pyramid50", world, 100, 20, false, no_edits);
 }
 
+/// Shape sharing: many colliders referencing the same `SharedShape` `Arc` (a trimesh and
+/// an instanced convex hull). The collider serialization interns shapes by `Arc`
+/// identity, and a restore must rebuild the same sharing structure or the next snapshot
+/// re-serializes with a different table.
+#[test]
+fn shared_shapes() {
+    let mut world = PhysicsWorld::new();
+
+    let n = 8usize;
+    let mut vtx = Vec::new();
+    let mut idx = Vec::new();
+    for i in 0..=n {
+        for j in 0..=n {
+            let x = i as Real / n as Real * 4.0 - 2.0;
+            let z = j as Real / n as Real * 4.0 - 2.0;
+            let y = 0.08 * ((i * 7 + j * 3) % 5) as Real;
+            vtx.push(Vector::new(x, y, z));
+        }
+    }
+    for i in 0..n {
+        for j in 0..n {
+            let a = (i * (n + 1) + j) as u32;
+            let b = a + 1;
+            let c = a + (n + 1) as u32;
+            idx.push([a, b, c]);
+            idx.push([b, c + 1, c]);
+        }
+    }
+    let tile = ColliderBuilder::trimesh(vtx, idx).unwrap().build();
+    for tx in 0..2 {
+        for tz in 0..2 {
+            let mut c = tile.clone();
+            c.set_translation(Vector::new(
+                tx as Real * 4.0 - 4.0,
+                0.0,
+                tz as Real * 4.0 - 4.0,
+            ));
+            world.insert_collider(c, None);
+        }
+    }
+
+    let pts: Vec<_> = (0..12)
+        .map(|i| {
+            let a = i as Real * 0.524;
+            Vector::new(a.cos() * 0.3, ((i % 4) as Real - 1.5) * 0.2, a.sin() * 0.3)
+        })
+        .collect();
+    let hull = ColliderBuilder::convex_hull(&pts).unwrap().build();
+    for i in 0..5 {
+        for k in 0..5 {
+            let rb = world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(
+                i as Real * 0.8 - 2.0,
+                1.0 + ((i + k) % 3) as Real * 0.7,
+                k as Real * 0.8 - 2.0,
+            )));
+            world.insert_collider(hull.clone(), Some(rb));
+        }
+    }
+
+    // Structural churn so the shape table meets slot recycling: spawned balls share one
+    // more `Arc`'d shape through `spawned`-driven insert/remove cycles.
+    let ball = ColliderBuilder::ball(0.3).build();
+    check_roundtrip(
+        "shared shapes",
+        world,
+        60,
+        60,
+        false,
+        move |world, step, spawned| {
+            if step % 11 == 0 {
+                let rb = world.insert_body(
+                    RigidBodyBuilder::dynamic()
+                        .translation(Vector::new(
+                            (step % 3) as Real - 1.0,
+                            4.0,
+                            (step % 5) as Real - 2.0,
+                        ))
+                        .can_sleep(false),
+                );
+                world.insert_collider(ball.clone(), Some(rb));
+                spawned.push(rb);
+            }
+            if step % 13 == 0 && !spawned.is_empty() {
+                let rb = spawned.remove(0);
+                world.remove_body(rb);
+            }
+        },
+    );
+}
+
 /// Fast CCD-enabled bodies. The CCD solver holds a cache that snapshots do not include, so
 /// this checks that a restore does not depend on it.
 #[test]
