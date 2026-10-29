@@ -69,15 +69,13 @@ pub struct ImpulseJointSet {
     )]
     pub(crate) to_join: HashSet<(RigidBodyHandle, RigidBodyHandle)>,
     /// Persistent-island connectivity events (joint created/removed/rewired),
-    /// drained at the start of the next timestep, in order.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    /// drained at the start of the next timestep, in order. Serialized: a snapshot taken
+    /// between a joint edit and the next step must carry it.
     pub(crate) island_events: Vec<crate::dynamics::ImpulseJointIslandEvent>,
     /// Joints accessed mutably since the last timestep: their enabled status may have changed,
     /// so their island links are refreshed by [`Self::flush_modified_joints`].
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     modified_joints: Vec<ImpulseJointHandle>,
     /// Set by [`Self::iter_mut`]: every joint counts as modified.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     all_joints_modified: bool,
     /// Bumped by every mutation that can affect the solver's joint constraint assembly (joint
     /// insertion/removal, mutable joint access, user-changes to a rigid-body with attached joints).

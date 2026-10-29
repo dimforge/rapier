@@ -568,3 +568,35 @@ fn replacing_the_pipeline_changes_nothing() {
         assert_same(step, &record(&a), &record(&b), "fresh pipeline");
     }
 }
+
+/// A snapshot taken between a joint insertion and the next step: the joint's pending
+/// persistent-island link events are part of the state.
+#[test]
+fn snapshot_between_joint_insert_and_step() {
+    for multibody in [false, true] {
+        let mut world = pile(true);
+        for _ in 0..80 {
+            world.step();
+        }
+        let dynamic: Vec<_> = world
+            .bodies
+            .iter()
+            .filter(|(_, b)| b.is_dynamic())
+            .map(|(h, _)| h)
+            .collect();
+        let (b0, b1) = (dynamic[3], dynamic[40]);
+        let joint = SphericalJointBuilder::new().build().data;
+        if multibody {
+            world.insert_multibody_joint(b0, b1, joint);
+        } else {
+            world.insert_impulse_joint(b0, b1, joint);
+        }
+        let snapshot = save(&world);
+        let mut restored = restore(&snapshot);
+        for step in 0..60 {
+            world.step();
+            restored.step();
+            assert_same(step, &record(&world), &record(&restored), "joint insert then snapshot");
+        }
+    }
+}

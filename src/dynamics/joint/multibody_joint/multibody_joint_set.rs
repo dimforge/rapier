@@ -83,7 +83,6 @@ pub struct MultibodyJointSet {
     /// the persistent islands update each one's internal connectivity chain
     /// at the start of the next timestep, in order. Ids of *removed*
     /// multibodies are pushed too (the update then only unlinks).
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) island_chain_events: Vec<MultibodyIndex>,
     /// Epoch bumped whenever a rigid-body's multibody membership can change
     /// (multibody joint insertion/removal). Lets the narrow-phase's persistent

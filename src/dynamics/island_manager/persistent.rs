@@ -183,9 +183,8 @@ pub(crate) struct PersistentIslands {
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     sleep_scan_touched: Vec<u32>,
     pub(super) sleep_scan_stamp: u32,
-    /// Whether the structures were initialized from the current world state
-    /// (they are not serialized; the first update after construction or
-    /// deserialization rebuilds them from scratch).
+    /// Whether the structures were initialized from the current world state (the first
+    /// update after construction builds them from scratch). Serialized with the structures.
     pub(crate) bootstrapped: bool,
 }
 
