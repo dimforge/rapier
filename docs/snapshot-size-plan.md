@@ -124,13 +124,10 @@ uninterrupted run (different, equally valid tree); it was never part of the
 determinism contract.
 
 ### Phase 9 (tier 3): delta snapshots
-DONE as a byte-level layer: `pipeline::snapshot_delta` / `apply_snapshot_delta` encode
-one snapshot against another with rsync-style block matching (locality-first, hash
-fallback), so unchanged bytes — sleeping islands, static state, interned shapes — cost
-nothing on the wire regardless of serialization format. See the ledger's tick-delta
-column. A semantic delta with CPU proportional to the awake set would need the
-phase-7 canonical addressing first (slot renumbering leaks into sleeping state), which
-is why it stayed byte-level.
+Superseded. A byte-level rsync-style layer was built first, then removed: it always paid a
+full serialize plus a linear scan (0.8 s per tick on an awake pyramid30). Its replacement,
+per-component deltas driven by change stamps, is planned in
+`semantic-snapshot-delta-plan.md`.
 
 ## Ledger
 

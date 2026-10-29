@@ -2,10 +2,6 @@
 
 ### Added
 
-- `pipeline::snapshot_delta` / `apply_snapshot_delta`: binary deltas between two
-  snapshots (any serialization format), for per-tick snapshotting. Unchanged state
-  (sleeping islands, static geometry, shapes) costs nothing on the wire: a settled
-  scene's per-tick delta is a few bytes.
 - `NarrowPhase::rebuild_solver_contacts`: recomputes the solver-facing contact data
   that snapshots now store in compact form. The first step after a deserialization
   runs it automatically; call it only to inspect solver contacts before that step.
