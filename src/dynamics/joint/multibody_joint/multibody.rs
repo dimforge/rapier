@@ -91,10 +91,14 @@ pub struct MultibodyDofCoupling {
 }
 
 /// An articulated body simulated using the reduced-coordinates approach.
+///
+/// Serialization only stores the state fields (links, generalized velocities and
+/// per-dof parameters): the jacobians, mass matrices and workspaces below are
+/// rebuilt by the first `forward_kinematics`/`update_mass_matrix` after a restore,
+/// which the pipeline runs for every multibody before any of them is read.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Multibody {
-    // TODO: serialization: skip the workspace fields.
     pub(crate) links: MultibodyLinkVec,
     pub(crate) velocities: DVector,
     pub(crate) damping: DVector,
@@ -104,18 +108,24 @@ pub struct Multibody {
     pub(crate) frictions: DVector,
     pub(crate) accelerations: DVector,
 
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     body_jacobians: Vec<Jacobian<Real>>,
     // NOTE: the mass matrices are dimensioned based on the non-kinematic degrees of
     //       freedoms only. The `Self::augmented_mass_permutation` sequence can be used to
     //       move dofs from/to a format that matches the augmented mass.
     // TODO: use sparse matrices?
+    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "empty_matrix"))]
     augmented_mass: DMatrix<Real>,
+    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "empty_lu"))]
     inv_augmented_mass: LU<Real, Dyn, Dyn>,
     // The indexing sequence for moving all kinematics degrees of
     // freedoms to the end of the generalized coordinates vector.
+    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "IndexSequence::new"))]
     augmented_mass_indices: IndexSequence,
 
+    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "empty_matrix"))]
     acc_augmented_mass: DMatrix<Real>,
+    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "empty_lu"))]
     acc_inv_augmented_mass: LU<Real, Dyn, Dyn>,
 
     ndofs: usize,
@@ -130,10 +140,32 @@ pub struct Multibody {
     /*
      * Workspaces.
      */
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(skip, default = "MultibodyWorkspace::new")
+    )]
     workspace: MultibodyWorkspace,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     coriolis_v: Vec<OMatrix<Real, Dim, Dyn>>,
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     coriolis_w: Vec<OMatrix<Real, AngDim, Dyn>>,
+    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "empty_jacobian"))]
     i_coriolis_dt: Jacobian<Real>,
+}
+
+#[cfg(feature = "serde-serialize")]
+fn empty_matrix() -> DMatrix<Real> {
+    DMatrix::zeros(0, 0)
+}
+
+#[cfg(feature = "serde-serialize")]
+fn empty_lu() -> LU<Real, Dyn, Dyn> {
+    LU::new(DMatrix::zeros(0, 0))
+}
+
+#[cfg(feature = "serde-serialize")]
+fn empty_jacobian() -> Jacobian<Real> {
+    Jacobian::zeros(0)
 }
 impl Default for Multibody {
     fn default() -> Self {
@@ -530,6 +562,11 @@ impl Multibody {
             return; // Nothing to do.
         }
 
+        // The workspace is not serialized; re-size it after a restore.
+        if self.workspace.accs.len() != self.links.len() {
+            self.workspace.resize(self.links.len(), self.ndofs);
+        }
+
         self.accelerations.fill(0.0);
 
         // If there is significant movement, the semi-implicit coriolis term
@@ -766,6 +803,13 @@ impl Multibody {
     }
 
     fn update_body_jacobians(&mut self) {
+        // The jacobians are not serialized; re-populate the vector after a restore
+        // (the per-link guard below then sizes each entry).
+        if self.body_jacobians.len() != self.links.len() {
+            self.body_jacobians
+                .resize_with(self.links.len(), || Jacobian::zeros(0));
+        }
+
         for i in 0..self.links.len() {
             let link = &self.links[i];
 
