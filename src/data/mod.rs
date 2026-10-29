@@ -7,10 +7,16 @@ pub use self::arena::Index;
 pub use self::coarena::Coarena;
 #[cfg(feature = "alloc")]
 pub use self::modified_objects::{HasModifiedFlag, ModifiedObjects};
+#[cfg(feature = "serde-serialize")]
+pub use self::delta::{ChangeTick, Delta, DeltaError, SnapshotDelta};
 
 pub mod arena;
 #[cfg(feature = "alloc")]
-mod coarena;
+pub(crate) mod change_stamps;
+#[cfg(feature = "serde-serialize")]
+pub mod delta;
+#[cfg(feature = "alloc")]
+pub(crate) mod coarena;
 #[cfg(feature = "alloc")]
 pub(crate) mod graph;
 #[cfg(feature = "alloc")]

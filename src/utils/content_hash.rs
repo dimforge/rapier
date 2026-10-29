@@ -17,7 +17,7 @@ use serde::ser::{
 /// stream. Collisions between distinct shapes would silently merge them in the interned
 /// table, so 64 bits is not enough; at 128 bits an accidental collision is negligible
 /// (the input is not adversarial: applications hash their own shapes).
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct ContentKey(u64, u64);
 
 /// Hashes `value`'s serialized content. Returns `None` only if the value's `Serialize`

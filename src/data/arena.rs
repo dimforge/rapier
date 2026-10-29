@@ -14,6 +14,8 @@ use core::iter::{self, Extend, FromIterator, FusedIterator};
 #[cfg(feature = "alloc")]
 use core::mem;
 #[cfg(feature = "alloc")]
+use crate::data::change_stamps::ChangeStamps;
+#[cfg(feature = "alloc")]
 use core::ops;
 #[cfg(feature = "alloc")]
 use core::slice;
@@ -30,6 +32,9 @@ pub struct Arena<T> {
     generation: u32,
     free_list_head: Option<u32>,
     len: usize,
+    /// Per-slot change stamps for snapshot deltas (inert unless tracking is enabled).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) stamps: ChangeStamps,
 }
 
 #[cfg(feature = "alloc")]
@@ -60,6 +65,7 @@ impl<T> Arena<T> {
             generation,
             free_list_head,
             len,
+            stamps: ChangeStamps::new(),
         }
     }
 }
@@ -118,6 +124,97 @@ impl Index {
 const DEFAULT_CAPACITY: usize = 4;
 
 #[cfg(feature = "alloc")]
+/// The slots of an [`Arena`] written since a baseline, with its allocator state.
+#[cfg(feature = "serde-serialize")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct ArenaDelta<T> {
+    generation: u32,
+    free_list_head: Option<u32>,
+    len: u64,
+    items: crate::data::delta::VecDelta<Entry<T>>,
+}
+
+#[cfg(feature = "serde-serialize")]
+impl<T> ArenaDelta<T> {
+    /// The occupied slots this delta writes.
+    pub(crate) fn occupied(&self) -> impl Iterator<Item = (u32, &T)> {
+        self.items.slots.iter().filter_map(|(i, e)| match e {
+            Entry::Occupied { value, .. } => Some((*i, value)),
+            Entry::Free { .. } => None,
+        })
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
+impl<T> Arena<T> {
+    /// The slots written after `since` (all of them for `None`), transformed by `f`.
+    pub(crate) fn collect_delta_with<U>(
+        &self,
+        since: Option<u32>,
+        mut f: impl FnMut(&T) -> U,
+    ) -> ArenaDelta<U> {
+        ArenaDelta {
+            generation: self.generation,
+            free_list_head: self.free_list_head,
+            len: self.len as u64,
+            items: crate::data::delta::VecDelta::collect_with(
+                &self.items,
+                &self.stamps,
+                since,
+                |e| match e {
+                    Entry::Free { next_free } => Entry::Free {
+                        next_free: *next_free,
+                    },
+                    Entry::Occupied { generation, value } => Entry::Occupied {
+                        generation: *generation,
+                        value: f(value),
+                    },
+                },
+            ),
+        }
+    }
+
+    /// Patches `delta` into this arena, transforming the slots with `f`.
+    pub(crate) fn apply_delta_with<U>(
+        &mut self,
+        delta: ArenaDelta<U>,
+        mut f: impl FnMut(U) -> Result<T, crate::data::DeltaError>,
+    ) -> Result<(), crate::data::DeltaError> {
+        delta.items.apply_with(
+            &mut self.items,
+            &mut self.stamps,
+            || Entry::Free { next_free: None },
+            |e| {
+                Ok(match e {
+                    Entry::Free { next_free } => Entry::Free { next_free },
+                    Entry::Occupied { generation, value } => Entry::Occupied {
+                        generation,
+                        value: f(value)?,
+                    },
+                })
+            },
+        )?;
+        self.generation = delta.generation;
+        self.free_list_head = delta.free_list_head;
+        self.len = delta.len as usize;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
+impl<T: Clone> Arena<T> {
+    pub(crate) fn collect_delta(&self, since: Option<u32>) -> ArenaDelta<T> {
+        self.collect_delta_with(since, T::clone)
+    }
+
+    pub(crate) fn apply_delta(
+        &mut self,
+        delta: ArenaDelta<T>,
+    ) -> Result<(), crate::data::DeltaError> {
+        self.apply_delta_with(delta, Ok)
+    }
+}
+
 impl<T> Default for Arena<T> {
     fn default() -> Arena<T> {
         Arena::new()
@@ -164,6 +261,7 @@ impl<T> Arena<T> {
             generation: 0,
             free_list_head: None,
             len: 0,
+            stamps: ChangeStamps::new(),
         };
         arena.reserve(n);
         arena
@@ -198,6 +296,8 @@ impl<T> Arena<T> {
         }));
         self.free_list_head = Some(0);
         self.len = 0;
+        self.stamps.truncate(0);
+        self.stamps.mark_range(0..self.items.len());
     }
 
     /// Attempts to insert `value` into the arena using existing capacity.
@@ -234,6 +334,7 @@ impl<T> Arena<T> {
                     generation: self.generation,
                     value,
                 };
+                self.stamps.mark(index.index as usize);
                 Ok(index)
             }
         }
@@ -274,6 +375,7 @@ impl<T> Arena<T> {
                     generation: self.generation,
                     value: create(index),
                 };
+                self.stamps.mark(index.index as usize);
                 Ok(index)
             }
         }
@@ -390,6 +492,7 @@ impl<T> Arena<T> {
                 self.generation += 1;
                 self.free_list_head = Some(i.index);
                 self.len -= 1;
+                self.stamps.mark(i.index as usize);
 
                 match entry {
                     Entry::Occupied {
@@ -421,6 +524,7 @@ impl<T> Arena<T> {
     /// assert!(crew_members.next().is_none());
     /// ```
     pub fn retain(&mut self, mut predicate: impl FnMut(Index, &mut T) -> bool) {
+        self.stamps.mark_range(0..self.items.len());
         for i in 0..self.capacity() as u32 {
             let remove = match &mut self.items[i as usize] {
                 Entry::Occupied { generation, value } => {
@@ -506,10 +610,28 @@ impl<T> Arena<T> {
     pub fn get_mut(&mut self, i: Index) -> Option<&mut T> {
         match self.items.get_mut(i.index as usize) {
             Some(Entry::Occupied { generation, value }) if *generation == i.generation => {
+                self.stamps.mark(i.index as usize);
                 Some(value)
             }
             _ => None,
         }
+    }
+
+    /// Like [`Self::get_mut`], without stamping the slot: the caller stamps it (with
+    /// [`Self::mark_changed`]) only if it actually writes.
+    pub(crate) fn get_mut_unstamped(&mut self, i: Index) -> Option<&mut T> {
+        match self.items.get_mut(i.index as usize) {
+            Some(Entry::Occupied { generation, value }) if *generation == i.generation => {
+                Some(value)
+            }
+            _ => None,
+        }
+    }
+
+    /// Stamps the slot of `i` as written at the current tick.
+    #[inline]
+    pub(crate) fn mark_changed(&mut self, i: Index) {
+        self.stamps.mark(i.index as usize);
     }
 
     /// Get a pair of exclusive references to the elements at index `i1` and `i2` if it is in the
@@ -558,6 +680,8 @@ impl<T> Arena<T> {
             return (self.get_mut(i1), None);
         }
 
+        self.stamps.mark(i1.index as usize);
+        self.stamps.mark(i2.index as usize);
         let (raw_item1, raw_item2) = {
             let (xs, ys) = self
                 .items
@@ -684,6 +808,7 @@ impl<T> Arena<T> {
             }
         }));
         self.free_list_head = Some(start as u32);
+        self.stamps.mark_range(start..end);
     }
 
     /// Iterate over shared references to the elements in this arena.
@@ -732,10 +857,29 @@ impl<T> Arena<T> {
     /// }
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        self.stamps.mark_range(0..self.items.len());
         IterMut {
             len: self.len,
             inner: self.items.iter_mut().enumerate(),
         }
+    }
+
+    /// Like [`Self::iter_mut`], without stamping the slots: the caller stamps the ones it
+    /// actually writes.
+    pub(crate) fn iter_mut_unstamped(&mut self) -> (IterMut<'_, T>, &mut ChangeStamps) {
+        (
+            IterMut {
+                len: self.len,
+                inner: self.items.iter_mut().enumerate(),
+            },
+            &mut self.stamps,
+        )
+    }
+
+    /// The tick slot `i` was last stamped at (zero if never).
+    #[inline]
+    pub(crate) fn stamp_of(&self, i: Index) -> u32 {
+        self.stamps.stamp(i.index as usize)
     }
 
     /// Iterate over elements of the arena and remove them.
@@ -763,6 +907,7 @@ impl<T> Arena<T> {
     /// assert!(arena.get(idx_2).is_none());
     /// ```
     pub fn drain(&mut self) -> Drain<'_, T> {
+        self.stamps.truncate(0);
         Drain {
             inner: self.items.drain(..).enumerate(),
         }
@@ -802,6 +947,7 @@ impl<T> Arena<T> {
     ///
     /// You should use the `get_mut` method instead most of the time.
     pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut T, Index)> {
+        self.stamps.mark(i as usize);
         match self.items.get_mut(i as usize) {
             Some(Entry::Occupied { generation, value }) => Some((
                 value,

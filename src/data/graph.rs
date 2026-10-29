@@ -5,6 +5,7 @@
 //! A stripped-down version of petgraph's UnGraph.
 use crate::alloc_prelude::*;
 
+use crate::data::change_stamps::ChangeStamps;
 use core::cmp::max;
 use core::ops::{Index, IndexMut};
 
@@ -136,6 +137,12 @@ impl<E> Edge<E> {
 pub struct Graph<N, E> {
     pub(crate) nodes: Vec<Node<N>>,
     pub(crate) edges: Vec<Edge<E>>,
+    /// Per-node change stamps for snapshot deltas (inert unless tracking is enabled).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) node_stamps: ChangeStamps,
+    /// Per-edge change stamps (weight and links alike).
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) edge_stamps: ChangeStamps,
 }
 
 enum Pair<T> {
@@ -165,7 +172,21 @@ impl<N, E> Graph<N, E> {
         Graph {
             nodes: Vec::with_capacity(nodes),
             edges: Vec::with_capacity(edges),
+            node_stamps: ChangeStamps::new(),
+            edge_stamps: ChangeStamps::new(),
         }
+    }
+
+    /// Sets the tick written by the change stamps (zero disables them).
+    pub(crate) fn set_stamp_tick(&mut self, now: u32) {
+        self.node_stamps.set_now(now);
+        self.edge_stamps.set_now(now);
+    }
+
+    /// Stamps edge `e` as written: for callers mutating `self.edges` directly.
+    #[inline]
+    pub(crate) fn mark_edge(&mut self, e: usize) {
+        self.edge_stamps.mark(e);
     }
 
     /// Add a node (also called vertex) with associated data `weight` to the graph.
@@ -184,6 +205,7 @@ impl<N, E> Graph<N, E> {
         assert!(self.nodes.len() != crate::INVALID_USIZE);
         let node_idx = NodeIndex::new(self.nodes.len() as u32);
         self.nodes.push(node);
+        self.node_stamps.mark(node_idx.index());
         node_idx
     }
 
@@ -205,6 +227,7 @@ impl<N, E> Graph<N, E> {
     ///
     /// Also available with indexing syntax: `&mut graph[a]`.
     pub fn edge_weight_mut(&mut self, a: EdgeIndex) -> Option<&mut E> {
+        self.edge_stamps.mark(a.index());
         self.edges.get_mut(a.index()).map(|e| &mut e.weight)
     }
 
@@ -230,6 +253,9 @@ impl<N, E> Graph<N, E> {
             next: [EdgeIndex::end(); 2],
             prev: [EdgeIndex::end(); 2],
         };
+        self.node_stamps.mark(a.index());
+        self.node_stamps.mark(b.index());
+        self.edge_stamps.mark(edge_idx.index());
         match index_twice(&mut self.nodes, a.index(), b.index()) {
             Pair::None => panic!("Graph::add_edge: node indices out of bounds"),
             Pair::One(an) => {
@@ -249,6 +275,7 @@ impl<N, E> Graph<N, E> {
             let nxt = edge.next[k];
             if nxt != EdgeIndex::end() {
                 self.edges[nxt.index()].prev[k] = edge_idx;
+                self.edge_stamps.mark(nxt.index());
             }
         }
         self.edges.push(edge);
@@ -306,6 +333,8 @@ impl<N, E> Graph<N, E> {
         // NodeIndex, so we only have to walk its edges and update them.
 
         let node = self.nodes.swap_remove(a.index());
+        self.node_stamps
+            .swap_remove(a.index(), self.nodes.len() + 1);
 
         // Find the edge lists of the node that had to relocate.
         // It may be that no node had to relocate, then we are done already.
@@ -321,10 +350,13 @@ impl<N, E> Graph<N, E> {
         // Adjust the starts of the out edges, and ends of the in edges.
         for &d in &DIRECTIONS {
             let k = d as usize;
-            let mut edges = edges_walker_mut(&mut self.edges, swap_edges[k], d);
-            while let Some(curedge) = edges.next_edge() {
+            let mut e = swap_edges[k];
+            while e != EdgeIndex::end() {
+                let curedge = &mut self.edges[e.index()];
                 debug_assert!(curedge.node[k] == old_index);
                 curedge.node[k] = new_index;
+                self.edge_stamps.mark(e.index());
+                e = curedge.next[k];
             }
         }
         Some(node.weight)
@@ -347,6 +379,7 @@ impl<N, E> Graph<N, E> {
                 if let Some(node) = self.nodes.get_mut(edge_node[k].index()) {
                     debug_assert!(node.next[k] == e);
                     node.next[k] = next;
+                    self.node_stamps.mark(edge_node[k].index());
                 } else {
                     debug_assert!(
                         false,
@@ -357,10 +390,12 @@ impl<N, E> Graph<N, E> {
             } else {
                 debug_assert!(self.edges[prev.index()].next[k] == e);
                 self.edges[prev.index()].next[k] = next;
+                self.edge_stamps.mark(prev.index());
             }
             if next != EdgeIndex::end() {
                 debug_assert!(self.edges[next.index()].prev[k] == e);
                 self.edges[next.index()].prev[k] = prev;
+                self.edge_stamps.mark(next.index());
             }
         }
     }
@@ -381,12 +416,15 @@ impl<N, E> Graph<N, E> {
             if prev == EdgeIndex::end() {
                 if let Some(node) = self.nodes.get_mut(edge_node[k].index()) {
                     node.next[k] = new_e;
+                    self.node_stamps.mark(edge_node[k].index());
                 }
             } else {
                 self.edges[prev.index()].next[k] = new_e;
+                self.edge_stamps.mark(prev.index());
             }
             if next != EdgeIndex::end() {
                 self.edges[next.index()].prev[k] = new_e;
+                self.edge_stamps.mark(next.index());
             }
         }
     }
@@ -424,6 +462,8 @@ impl<N, E> Graph<N, E> {
         // and the edge swapped into place are affected and need updating
         // indices.
         let edge = self.edges.swap_remove(e.index());
+        self.edge_stamps
+            .swap_remove(e.index(), self.edges.len() + 1);
         if e.index() < self.edges.len() {
             // An edge was swapped into the removed slot: rewrite the links
             // pointing at its old index (the last slot) to `e`.
@@ -725,6 +765,7 @@ impl<N, E> Index<NodeIndex> for Graph<N, E> {
 /// **Panics** if the node doesn't exist.
 impl<N, E> IndexMut<NodeIndex> for Graph<N, E> {
     fn index_mut(&mut self, index: NodeIndex) -> &mut N {
+        self.node_stamps.mark(index.index());
         &mut self.nodes[index.index()].weight
     }
 }
@@ -744,6 +785,7 @@ impl<N, E> Index<EdgeIndex> for Graph<N, E> {
 /// **Panics** if the edge doesn't exist.
 impl<N, E> IndexMut<EdgeIndex> for Graph<N, E> {
     fn index_mut(&mut self, index: EdgeIndex) -> &mut E {
+        self.edge_stamps.mark(index.index());
         &mut self.edges[index.index()].weight
     }
 }
@@ -784,3 +826,60 @@ where
         self.index == rhs.index && self.weight == rhs.weight
     }
 }
+
+/// The nodes and edges of a [`Graph`] written since a baseline.
+#[cfg(feature = "serde-serialize")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct GraphDelta<N, E> {
+    nodes: crate::data::delta::VecDelta<Node<N>>,
+    edges: crate::data::delta::VecDelta<Edge<E>>,
+}
+
+#[cfg(feature = "serde-serialize")]
+impl<N: Clone, E: Clone> Graph<N, E> {
+    pub(crate) fn collect_delta(&self, since: Option<u32>) -> GraphDelta<N, E> {
+        GraphDelta {
+            nodes: crate::data::delta::VecDelta::collect(&self.nodes, &self.node_stamps, since),
+            edges: crate::data::delta::VecDelta::collect(&self.edges, &self.edge_stamps, since),
+        }
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
+impl<N, E> Graph<N, E> {
+    /// The edges a delta writes, with their slot index.
+    pub(crate) fn delta_edges(delta: &GraphDelta<N, E>) -> impl Iterator<Item = (u32, &E)> {
+        delta.edges.slots.iter().map(|(i, e)| (*i, &e.weight))
+    }
+
+    /// Patches `delta` into this graph. `placeholder` fills appended slots before they are
+    /// overwritten (every appended slot is part of the delta).
+    pub(crate) fn apply_delta(
+        &mut self,
+        delta: GraphDelta<N, E>,
+        mut node_placeholder: impl FnMut() -> N,
+        mut edge_placeholder: impl FnMut() -> E,
+    ) -> Result<(), crate::data::DeltaError> {
+        delta.nodes.apply_with(
+            &mut self.nodes,
+            &mut self.node_stamps,
+            || Node {
+                weight: node_placeholder(),
+                next: [EdgeIndex::end(); 2],
+            },
+            Ok,
+        )?;
+        delta.edges.apply_with(
+            &mut self.edges,
+            &mut self.edge_stamps,
+            || Edge {
+                weight: edge_placeholder(),
+                next: [EdgeIndex::end(); 2],
+                prev: [EdgeIndex::end(); 2],
+                node: [NodeIndex::end(); 2],
+            },
+            Ok,
+        )
+    }
+}
+
