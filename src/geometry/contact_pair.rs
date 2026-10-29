@@ -299,6 +299,12 @@ pub struct RigidPairContacts {
     /// for every other pair.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) soft: Option<Box<SoftRigidContacts>>,
+    /// Set by deserialization when this pair used the compact encoding, telling the
+    /// post-restore pass to replay its solver data. Pairs serialized verbatim must
+    /// not be replayed: the encoder chose verbatim exactly because a replay would
+    /// not reproduce their values.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) pending_replay: bool,
 }
 
 impl RigidPairContacts {
@@ -312,6 +318,7 @@ impl RigidPairContacts {
             workspace: None,
             recycle_state: None,
             soft: None,
+            pending_replay: false,
         }
     }
 
@@ -342,6 +349,7 @@ impl RigidPairContacts {
         self.workspace = None;
         self.recycle_state = None;
         self.soft = None;
+        self.pending_replay = false;
     }
 
     /// Is there any active contact among this side's solver manifolds?
@@ -1031,6 +1039,26 @@ impl ContactManifoldData {
     }
 }
 
+/// The deterministic tangent basis the solver derives from a manifold normal (see
+/// `compute_tangent_contact_directions`), used to replay `warmstart_tangent_world`
+/// after a restore and to verify replayability at serialization.
+#[cfg(feature = "dim3")]
+pub(crate) fn replay_tangent_basis(normal: &Vector) -> (Vector, Vector) {
+    use crate::utils::CrossProduct;
+    use crate::utils::OrthonormalBasis;
+    let force_dir1 = -*normal;
+    let tangent1 = force_dir1.orthonormal_vector();
+    let tangent2 = force_dir1.gcross(tangent1);
+    (tangent1, tangent2)
+}
+
+/// Mirrors the solver writeback's `warmstart_tangent_world` expression exactly.
+#[cfg(feature = "dim3")]
+pub(crate) fn replay_tangent_world(t1: &Vector, t2: &Vector, data: &ContactData) -> Vector {
+    let imp = data.warmstart_tangent_impulse;
+    crate::utils::canonicalize_zero(*t1 * imp.x + *t2 * imp.y)
+}
+
 /// Custom serialization of [`ContactPair`]: identical to the old derive except for each
 /// manifold's `normal` + `solver_contacts`, which shrink to one byte per solver contact
 /// when they can be replayed from the recycle state's frozen poses after a restore (see
@@ -1065,6 +1093,94 @@ mod pair_serde {
             } else {
                 0
             }
+    }
+
+    /// The serialized subset of [`ContactData`]: the frozen lever arms are replayed by
+    /// the same pass as the solver contacts, and the world-space friction warm-start is
+    /// recomputed from `warmstart_tangent_impulse` and the manifold normal's tangent
+    /// basis (bit-verified at serialization; see [`points_replayable`]).
+    #[derive(Serialize, Deserialize)]
+    struct CompactContactData {
+        impulse: Real,
+        tangent_impulse: TangentImpulse<Real>,
+        warmstart_impulse: Real,
+        warmstart_tangent_impulse: TangentImpulse<Real>,
+        #[cfg(feature = "dim3")]
+        warmstart_twist_impulse: Real,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct CompactPoint {
+        local_p1: Vector,
+        local_p2: Vector,
+        dist: Real,
+        fid1: parry::shape::PackedFeatureId,
+        fid2: parry::shape::PackedFeatureId,
+        data: CompactContactData,
+    }
+
+    fn compact_point(pt: &Contact) -> CompactPoint {
+        CompactPoint {
+            local_p1: pt.local_p1,
+            local_p2: pt.local_p2,
+            dist: pt.dist,
+            fid1: pt.fid1,
+            fid2: pt.fid2,
+            data: CompactContactData {
+                impulse: pt.data.impulse,
+                tangent_impulse: pt.data.tangent_impulse,
+                warmstart_impulse: pt.data.warmstart_impulse,
+                warmstart_tangent_impulse: pt.data.warmstart_tangent_impulse,
+                #[cfg(feature = "dim3")]
+                warmstart_twist_impulse: pt.data.warmstart_twist_impulse,
+            },
+        }
+    }
+
+    fn expand_point(pt: CompactPoint) -> Contact {
+        Contact {
+            local_p1: pt.local_p1,
+            local_p2: pt.local_p2,
+            dist: pt.dist,
+            fid1: pt.fid1,
+            fid2: pt.fid2,
+            data: ContactData {
+                impulse: pt.data.impulse,
+                tangent_impulse: pt.data.tangent_impulse,
+                warmstart_impulse: pt.data.warmstart_impulse,
+                warmstart_tangent_impulse: pt.data.warmstart_tangent_impulse,
+                #[cfg(feature = "dim3")]
+                warmstart_twist_impulse: pt.data.warmstart_twist_impulse,
+                #[cfg(feature = "dim3")]
+                warmstart_tangent_world: Vector::ZERO,
+                solver_dp1: Vector::ZERO,
+                solver_dp2: Vector::ZERO,
+            },
+        }
+    }
+
+    /// Bit-verifies that every point's `warmstart_tangent_world` equals what the
+    /// post-restore replay will recompute from the manifold normal's tangent basis.
+    /// The check fails only in stale-basis corners (e.g. a solver-groups toggle kept a
+    /// touching pair from being re-solved after its normal changed), which then fall
+    /// back to the verbatim encoding.
+    fn points_replayable(manifold: &ContactManifold) -> bool {
+        #[cfg(feature = "dim2")]
+        {
+            let _ = manifold;
+            true
+        }
+        #[cfg(feature = "dim3")]
+        {
+            let (t1, t2) = replay_tangent_basis(&manifold.data.normal);
+            manifold.points.iter().all(|pt| {
+                let recomputed = replay_tangent_world(&t1, &t2, &pt.data);
+                let (a, b) = (recomputed, pt.data.warmstart_tangent_world);
+                a.x.to_bits() == b.x.to_bits()
+                    && a.y.to_bits() == b.y.to_bits()
+                    && a.z.to_bits() == b.z.to_bits()
+            })
+        }
     }
 
     #[derive(Serialize)]
@@ -1122,8 +1238,20 @@ mod pair_serde {
     }
 
     #[derive(Serialize)]
+    enum PointsSer<'a> {
+        Stored(&'a PointVec),
+        Compact(Vec<CompactPoint>),
+    }
+
+    #[derive(Deserialize)]
+    enum PointsDe {
+        Stored(PointVec),
+        Compact(Vec<CompactPoint>),
+    }
+
+    #[derive(Serialize)]
     struct ManifoldSer<'a> {
-        points: &'a PointVec,
+        points: PointsSer<'a>,
         local_n1: &'a Vector,
         local_n2: &'a Vector,
         subshape1: u32,
@@ -1138,7 +1266,7 @@ mod pair_serde {
 
     #[derive(Deserialize)]
     struct ManifoldDe {
-        points: PointVec,
+        points: PointsDe,
         local_n1: Vector,
         local_n2: Vector,
         subshape1: u32,
@@ -1246,7 +1374,11 @@ mod pair_serde {
             }
         };
         ManifoldSer {
-            points,
+            points: if replay {
+                PointsSer::Compact(points.iter().map(compact_point).collect())
+            } else {
+                PointsSer::Stored(points)
+            },
             local_n1,
             local_n2,
             subshape1: *subshape1,
@@ -1307,8 +1439,23 @@ mod pair_serde {
                 (Vector::ZERO, contacts)
             }
         };
+        let points = match repr.points {
+            PointsDe::Stored(points) => points,
+            PointsDe::Compact(compact) => {
+                let mut points = PointVec::new();
+                for pt in compact {
+                    #[cfg(feature = "dim2")]
+                    points
+                        .try_push(expand_point(pt))
+                        .map_err(|_| E::custom("too many manifold points"))?;
+                    #[cfg(feature = "dim3")]
+                    points.push(expand_point(pt));
+                }
+                points
+            }
+        };
         let mut manifold = ContactManifold {
-            points: repr.points,
+            points,
             local_n1: repr.local_n1,
             local_n2: repr.local_n2,
             subshape1: repr.subshape1,
@@ -1341,13 +1488,18 @@ mod pair_serde {
                     // Cluster point indices can exceed the compact form's 7 bits (up to 255
                     // points per cluster), in which case the whole pair falls back to the
                     // verbatim encoding.
+                    // The solver-facing manifolds (clusters when clustering applies) must also
+                    // pass the tangent-world bit-verification; when clustering applies, the
+                    // plain manifolds' warm-start data is dead for the solver and needs no
+                    // verification.
                     let replay = rigid.recycle_state.is_some()
                         && !self.event_status.contains(PairEventStatus::SOLVER_HOOKED)
                         && self
                             .event_status
                             .contains(PairEventStatus::SOLVER_REPLAY_ANCHORS)
                         && rigid.manifolds.iter().all(ids_fit)
-                        && rigid.solver_clusters.iter().all(ids_fit);
+                        && rigid.solver_clusters.iter().all(ids_fit)
+                        && rigid.solver_manifolds().iter().all(points_replayable);
                     ContactsSer::Rigid(RigidSer {
                         manifolds: rigid
                             .manifolds
@@ -1383,7 +1535,13 @@ mod pair_serde {
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
             let repr = PairDe::deserialize(deserializer)?;
             let contacts = match repr.contacts {
-                ContactsDe::Rigid(rigid) => PairContacts::Rigid(RigidPairContacts {
+                ContactsDe::Rigid(rigid) => {
+                    let pending_replay = rigid
+                        .manifolds
+                        .iter()
+                        .chain(rigid.solver_clusters.iter())
+                        .any(|m| matches!(m.points, PointsDe::Compact(_)));
+                    PairContacts::Rigid(RigidPairContacts {
                     manifolds: rigid
                         .manifolds
                         .into_iter()
@@ -1400,7 +1558,9 @@ mod pair_serde {
                     workspace: rigid.workspace,
                     recycle_state: rigid.recycle_state,
                     soft: None,
-                }),
+                    pending_replay,
+                    })
+                }
                 ContactsDe::Soft { touching } => PairContacts::Soft {
                     touching,
                     candidates: Default::default(),
