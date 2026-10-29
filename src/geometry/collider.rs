@@ -62,6 +62,10 @@ pub struct Collider {
     /// Reference to the soft body associated to this collider's shape if it is deformable; the soft
     /// body keeps its mesh (automatic skinning, tearing) and syncs it into the shape each frame.
     pub(crate) deformable_mesh_ref: Option<crate::dynamics::SoftMeshRef>,
+    /// Bumped by every in-place mutation of the shape (which keeps its `Arc`), so caches keyed
+    /// by the shape's identity can tell it changed. Not part of the collider's state.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    pub(crate) shape_revision: u32,
     /// User-defined data associated to this collider.
     pub user_data: u128,
 }
@@ -73,7 +77,7 @@ pub struct Collider {
 /// Both conversions destructure `Collider` exhaustively, so adding a field to
 /// `Collider` fails to compile here until the mirror is updated.
 #[cfg(feature = "serde-serialize")]
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct InternedCollider {
     coll_type: ColliderType,
     shape: u32,
@@ -104,6 +108,7 @@ impl InternedCollider {
             contact_skin,
             contact_force_event_threshold,
             deformable_mesh_ref,
+            shape_revision: _,
             user_data,
         } = collider;
         Self {
@@ -153,6 +158,7 @@ impl InternedCollider {
             contact_skin,
             contact_force_event_threshold,
             deformable_mesh_ref,
+            shape_revision: 0,
             user_data,
         }
     }
@@ -187,6 +193,7 @@ impl Collider {
     /// Deforms the shape of a soft-body surface collider in place through `f` without
     /// invalidating the narrow-phase pair workspaces (its topology and identity are unchanged).
     pub(crate) fn deform_shape(&mut self, f: impl FnOnce(&mut dyn Shape)) {
+        self.shape_revision = self.shape_revision.wrapping_add(1);
         f(self.shape.make_mut());
         self.changes.insert(ColliderChanges::DEFORMED);
     }
@@ -273,6 +280,7 @@ impl Collider {
             user_data,
             contact_skin,
             deformable_mesh_ref: _soft_mesh, // The soft-body markers belong to the collider's identity.
+            shape_revision: _,
         } = other;
 
         if self.parent.is_none() {
@@ -666,6 +674,7 @@ impl Collider {
     /// shape that you can modify.
     pub fn shape_mut(&mut self) -> &mut dyn Shape {
         self.changes.insert(ColliderChanges::SHAPE);
+        self.shape_revision = self.shape_revision.wrapping_add(1);
         self.shape.make_mut()
     }
 
@@ -1607,6 +1616,7 @@ impl ColliderBuilder {
             contact_force_event_threshold: self.contact_force_event_threshold,
             contact_skin: self.contact_skin,
             deformable_mesh_ref: None,
+            shape_revision: 0,
             user_data: self.user_data,
         }
     }

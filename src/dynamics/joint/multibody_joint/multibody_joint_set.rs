@@ -89,6 +89,9 @@ pub struct MultibodyJointSet {
     /// solver contact graph detect that its two-body vs. generic (multibody)
     /// manifold classification may be stale and must be rebuilt.
     pub(crate) topology_epoch: u32,
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    change_tracker: crate::data::delta::ChangeTracker,
 }
 
 impl MultibodyJointSet {
@@ -102,6 +105,8 @@ impl MultibodyJointSet {
             to_join: HashSet::default(),
             island_chain_events: Vec::new(),
             topology_epoch: 0,
+            #[cfg(feature = "serde-serialize")]
+            change_tracker: Default::default(),
         }
     }
 
@@ -513,3 +518,78 @@ fn serialize_sorted_join<S: serde::Serializer>(
         s,
     )
 }
+
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta {
+    use super::*;
+    use crate::data::arena::ArenaDelta;
+    use crate::data::coarena::CoarenaDelta;
+    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::graph::GraphDelta;
+
+    /// The content of a [`MultibodyJointSet`] delta.
+    #[doc(hidden)]
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct MultibodyJointSetDelta {
+        multibodies: ArenaDelta<Multibody>,
+        rb2mb: CoarenaDelta<MultibodyLinkId>,
+        connectivity_graph: GraphDelta<RigidBodyHandle, ()>,
+        to_wake_up: Vec<RigidBodyHandle>,
+        to_join: Vec<(RigidBodyHandle, RigidBodyHandle)>,
+        island_chain_events: Vec<MultibodyIndex>,
+        topology_epoch: u32,
+    }
+
+    impl MultibodyJointSet {
+        fn change_tracker(&mut self) -> &mut ChangeTracker {
+            &mut self.change_tracker
+        }
+
+        fn change_tracker_ref(&self) -> &ChangeTracker {
+            &self.change_tracker
+        }
+
+        fn set_stamp_tick(&mut self, now: u32) {
+            self.multibodies.stamps.set_now(now);
+            self.rb2mb.stamps.set_now(now);
+            self.connectivity_graph.graph.set_stamp_tick(now);
+        }
+
+        fn collect_delta(&mut self, since: Option<u32>) -> MultibodyJointSetDelta {
+            let mut to_wake_up: Vec<_> = self.to_wake_up.iter().copied().collect();
+            to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
+            let mut to_join: Vec<_> = self.to_join.iter().copied().collect();
+            to_join.sort_unstable_by_key(|(a, b)| (a.into_raw_parts(), b.into_raw_parts()));
+            MultibodyJointSetDelta {
+                multibodies: self.multibodies.collect_delta(since),
+                rb2mb: self.rb2mb.collect_delta(since),
+                connectivity_graph: self.connectivity_graph.graph.collect_delta(since),
+                to_wake_up,
+                to_join,
+                island_chain_events: self.island_chain_events.clone(),
+                topology_epoch: self.topology_epoch,
+            }
+        }
+
+        fn apply_delta_payload(
+            &mut self,
+            delta: MultibodyJointSetDelta,
+        ) -> Result<(), DeltaError> {
+            self.multibodies.apply_delta(delta.multibodies)?;
+            self.rb2mb.apply_delta(delta.rb2mb)?;
+            self.connectivity_graph.graph.apply_delta(
+                delta.connectivity_graph,
+                RigidBodyHandle::invalid,
+                || (),
+            )?;
+            self.to_wake_up = delta.to_wake_up.into_iter().collect();
+            self.to_join = delta.to_join.into_iter().collect();
+            self.island_chain_events = delta.island_chain_events;
+            self.topology_epoch = delta.topology_epoch;
+            Ok(())
+        }
+    }
+
+    impl_snapshot_delta!(MultibodyJointSet, MultibodyJointSetDelta);
+}
+

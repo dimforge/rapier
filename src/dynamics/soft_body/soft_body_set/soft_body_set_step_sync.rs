@@ -26,9 +26,17 @@ impl SoftBodySet {
         quarantined: &mut Vec<SoftBodyHandle>,
     ) {
         // The colliders' shapes say which surfaces are oriented (the user may have changed them).
-        for (_, sb) in self.bodies.iter_mut() {
+        // Re-reading an unchanged orientation is not a write as far as snapshot deltas go.
+        let (soft_bodies, stamps) = self.bodies.iter_mut_unstamped();
+        for (handle, sb) in soft_bodies {
+            let mut changed = false;
             for mesh in sb.meshes_mut() {
+                let before = mesh.is_oriented();
                 mesh.read_orientation(colliders);
+                changed |= mesh.is_oriented() != before;
+            }
+            if changed {
+                stamps.mark(handle.into_raw_parts().0 as usize);
             }
         }
         let mut relink = false;
@@ -221,11 +229,22 @@ impl SoftBodySet {
         // the writes to the shared sets are applied in body order. Disabled bodies are left
         // alone, like sleeping ones.
         let mut handles = Vec::with_capacity(self.bodies.len());
-        let mut soft_bodies: Vec<(&mut SoftBody, bool)> = self
-            .bodies
-            .iter_mut()
+        // Inactive bodies keep their serialized state unless they just fell asleep or a pending
+        // flag flips: only those (and the active ones) are stamped for snapshot deltas.
+        let flags = |sb: &SoftBody| {
+            (
+                sb.sleeping,
+                sb.contact_approach_step_open,
+                sb.plastic_flowing,
+                sb.rest_fit_pending,
+            )
+        };
+        let mut flags_before = Vec::with_capacity(self.bodies.len());
+        let (soft_bodies, stamps) = self.bodies.iter_mut_unstamped();
+        let mut soft_bodies: Vec<(&mut SoftBody, bool)> = soft_bodies
             .map(|(h, sb)| {
                 handles.push(SoftBodyHandle(h));
+                flags_before.push(flags(sb));
                 let inactive = bodies
                     .get(sb.root_body)
                     .is_none_or(|rb| rb.is_sleeping() || !rb.is_enabled());
@@ -246,6 +265,12 @@ impl SoftBodySet {
         }
         #[cfg(not(feature = "parallel"))]
         outcomes.extend(soft_bodies.iter_mut().map(sync));
+
+        for (((sb, inactive), before), handle) in soft_bodies.iter().zip(&flags_before).zip(&handles) {
+            if !*inactive || flags(sb) != *before || !sb.is_finite() {
+                stamps.mark(handle.0.into_raw_parts().0 as usize);
+            }
+        }
 
         for (((sb, _), outcome), handle) in soft_bodies.iter_mut().zip(outcomes).zip(handles) {
             let Some(margin) = outcome.margin else {
@@ -473,13 +498,15 @@ impl SoftBodySet {
         #[cfg(feature = "parallel")]
         {
             use rayon::prelude::*;
-            let mut bodies: Vec<&mut SoftBody> = self.bodies.iter_mut().map(|(_, sb)| sb).collect();
+            // The caches are not serialized: no change stamps.
+            let mut bodies: Vec<&mut SoftBody> =
+                self.bodies.iter_mut_unstamped().0.map(|(_, sb)| sb).collect();
             bodies
                 .par_iter_mut()
                 .for_each(|sb| sb.refresh_vertex_caches());
         }
         #[cfg(not(feature = "parallel"))]
-        for (_, sb) in self.bodies.iter_mut() {
+        for (_, sb) in self.bodies.iter_mut_unstamped().0 {
             sb.refresh_vertex_caches();
         }
     }

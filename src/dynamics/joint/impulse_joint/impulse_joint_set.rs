@@ -87,6 +87,9 @@ pub struct ImpulseJointSet {
     /// identical, so the caller's previous output is reused untouched.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     selection_epochs: Option<(u32, u32)>,
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    change_tracker: crate::data::delta::ChangeTracker,
 }
 
 impl ImpulseJointSet {
@@ -103,6 +106,8 @@ impl ImpulseJointSet {
             all_joints_modified: false,
             assembly_epoch: 0,
             selection_epochs: None,
+            #[cfg(feature = "serde-serialize")]
+            change_tracker: Default::default(),
         }
     }
 
@@ -365,6 +370,16 @@ impl ImpulseJointSet {
         // Keep the allocation.
         handles.clear();
         self.modified_joints = handles;
+    }
+
+    /// Stamps the given joints (edge indices) as written, for snapshot deltas: the solver
+    /// writes the selected joints through [`Self::joints_mut`].
+    pub(crate) fn mark_joints_changed(&mut self, joints: &[JointIndex]) {
+        if self.joint_graph.graph.edge_stamps.is_enabled() {
+            for j in joints {
+                self.joint_graph.graph.mark_edge(*j);
+            }
+        }
     }
 
     pub(crate) fn joints_mut(&mut self) -> &mut [JointGraphEdge] {
@@ -761,3 +776,91 @@ fn serialize_sorted_join<S: serde::Serializer>(
         s,
     )
 }
+
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta {
+    use super::*;
+    use crate::data::arena::ArenaDelta;
+    use crate::data::coarena::CoarenaDelta;
+    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::graph::GraphDelta;
+    use crate::dynamics::ImpulseJointIslandEvent;
+
+    /// The content of an [`ImpulseJointSet`] delta.
+    #[doc(hidden)]
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct ImpulseJointSetDelta {
+        rb_graph_ids: CoarenaDelta<RigidBodyGraphIndex>,
+        joint_ids: ArenaDelta<TemporaryInteractionIndex>,
+        joint_graph: GraphDelta<RigidBodyHandle, ImpulseJoint>,
+        to_wake_up: Vec<RigidBodyHandle>,
+        to_join: Vec<(RigidBodyHandle, RigidBodyHandle)>,
+        island_events: Vec<ImpulseJointIslandEvent>,
+        modified_joints: Vec<ImpulseJointHandle>,
+        all_joints_modified: bool,
+    }
+
+    impl ImpulseJointSet {
+        fn change_tracker(&mut self) -> &mut ChangeTracker {
+            &mut self.change_tracker
+        }
+
+        fn change_tracker_ref(&self) -> &ChangeTracker {
+            &self.change_tracker
+        }
+
+        fn set_stamp_tick(&mut self, now: u32) {
+            self.rb_graph_ids.stamps.set_now(now);
+            self.joint_ids.stamps.set_now(now);
+            self.joint_graph.graph.set_stamp_tick(now);
+        }
+
+        fn collect_delta(&mut self, since: Option<u32>) -> ImpulseJointSetDelta {
+            let mut to_wake_up: Vec<_> = self.to_wake_up.iter().copied().collect();
+            to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
+            let mut to_join: Vec<_> = self.to_join.iter().copied().collect();
+            to_join.sort_unstable_by_key(|(a, b)| (a.into_raw_parts(), b.into_raw_parts()));
+            ImpulseJointSetDelta {
+                rb_graph_ids: self.rb_graph_ids.collect_delta(since),
+                joint_ids: self.joint_ids.collect_delta(since),
+                joint_graph: self.joint_graph.graph.collect_delta(since),
+                to_wake_up,
+                to_join,
+                island_events: self.island_events.clone(),
+                modified_joints: self.modified_joints.clone(),
+                all_joints_modified: self.all_joints_modified,
+            }
+        }
+
+        fn apply_delta_payload(&mut self, delta: ImpulseJointSetDelta) -> Result<(), DeltaError> {
+            self.rb_graph_ids.apply_delta(delta.rb_graph_ids)?;
+            self.joint_ids.apply_delta(delta.joint_ids)?;
+            self.joint_graph.graph.apply_delta(
+                delta.joint_graph,
+                RigidBodyHandle::invalid,
+                || {
+                    ImpulseJoint {
+                        body1: RigidBodyHandle::invalid(),
+                        body2: RigidBodyHandle::invalid(),
+                        data: GenericJoint::default(),
+                        impulses: Default::default(),
+                        handle: ImpulseJointHandle::invalid(),
+                        solver_body_ids: [u32::MAX; 2],
+                        solver_color: 0,
+                    }
+                },
+            )?;
+            self.to_wake_up = delta.to_wake_up.into_iter().collect();
+            self.to_join = delta.to_join.into_iter().collect();
+            self.island_events = delta.island_events;
+            self.modified_joints = delta.modified_joints;
+            self.all_joints_modified = delta.all_joints_modified;
+            // The joints changed under the solver's caches.
+            self.bump_assembly_epoch();
+            Ok(())
+        }
+    }
+
+    impl_snapshot_delta!(ImpulseJointSet, ImpulseJointSetDelta);
+}
+

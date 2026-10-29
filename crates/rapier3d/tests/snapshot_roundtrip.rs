@@ -308,8 +308,8 @@ fn pyramid_stress_scene_full() {
 /// an instanced convex hull). The collider serialization interns shapes by `Arc`
 /// identity, and a restore must rebuild the same sharing structure or the next snapshot
 /// re-serializes with a different table.
-#[test]
-fn shared_shapes() {
+/// A trimesh tiled four times and a convex hull on 25 bodies, all sharing their `Arc`s.
+fn shared_shapes_world() -> PhysicsWorld {
     let mut world = PhysicsWorld::new();
 
     let n = 8usize;
@@ -363,6 +363,12 @@ fn shared_shapes() {
         }
     }
 
+    world
+}
+
+#[test]
+fn shared_shapes() {
+    let world = shared_shapes_world();
     // Structural churn so the shape table meets slot recycling: spawned balls share one
     // more `Arc`'d shape through `spawned`-driven insert/remove cycles.
     let ball = ColliderBuilder::ball(0.3).build();
@@ -599,4 +605,322 @@ fn snapshot_between_joint_insert_and_step() {
             assert_same(step, &record(&world), &record(&restored), "joint insert then snapshot");
         }
     }
+}
+
+/*
+ * Snapshot deltas: every component is replicated into receivers through serialized deltas,
+ * which must leave each receiver byte-identical to the sender after every sync.
+ */
+
+use rapier3d::data::{ChangeTick, Delta, SnapshotDelta};
+
+/// Applies one serialized delta of a component to a receiver and checks the receiver's bytes.
+fn sync_component<C: SnapshotDelta + serde::Serialize>(
+    what: &str,
+    component: &str,
+    step: usize,
+    sender: &mut C,
+    receiver: &mut C,
+    acked: &mut Option<ChangeTick<C>>,
+) -> usize {
+    let (delta, tick) = sender.delta_since(*acked).expect("delta_since");
+    let bytes = bincode::serialize(&delta).unwrap();
+    let delta: Delta<C> = bincode::deserialize(&bytes).unwrap();
+    let applied = receiver.apply_delta(delta).expect("apply_delta");
+    assert_eq!(applied, tick);
+    *acked = Some(tick);
+    let want = bincode::serialize(sender).unwrap();
+    let got = bincode::serialize(receiver).unwrap();
+    assert!(
+        want == got,
+        "{what}: `{component}` differs from the sender after a delta sync at step {step} \
+         ({} vs {} bytes, delta {} bytes)",
+        want.len(),
+        got.len(),
+        bytes.len()
+    );
+    bytes.len()
+}
+
+/// The components replicated by the delta tests.
+macro_rules! tracked_components {
+    ($m: ident) => {
+        $m!(bodies, RigidBodySet);
+        $m!(colliders, ColliderSet);
+        $m!(impulse_joints, ImpulseJointSet);
+        $m!(multibody_joints, MultibodyJointSet);
+        $m!(soft_bodies, SoftBodySet);
+    };
+}
+
+#[derive(Default)]
+struct Acks {
+    bodies: Option<ChangeTick<RigidBodySet>>,
+    colliders: Option<ChangeTick<ColliderSet>>,
+    impulse_joints: Option<ChangeTick<ImpulseJointSet>>,
+    multibody_joints: Option<ChangeTick<MultibodyJointSet>>,
+    soft_bodies: Option<ChangeTick<SoftBodySet>>,
+}
+
+struct Receiver {
+    world: PhysicsWorld,
+    acks: Acks,
+    every: usize,
+}
+
+impl Receiver {
+    fn sync(&mut self, what: &str, step: usize, sender: &mut PhysicsWorld) -> usize {
+        let mut bytes = 0;
+        macro_rules! sync {
+            ($field: ident, $ty: ty) => {
+                bytes += sync_component(
+                    what,
+                    stringify!($field),
+                    step,
+                    &mut sender.$field,
+                    &mut self.world.$field,
+                    &mut self.acks.$field,
+                );
+            };
+        }
+        tracked_components!(sync);
+        bytes
+    }
+}
+
+/// Steps `world` while replicating it into three receivers through deltas: one restored
+/// from a full snapshot and synced every tick, one bootstrapped from full deltas, and one
+/// syncing every five ticks against its own acknowledged baseline. Returns the largest
+/// per-tick delta of the first receiver.
+fn check_delta_replication(
+    what: &str,
+    mut world: PhysicsWorld,
+    before: usize,
+    after: usize,
+    mut edit: impl FnMut(&mut PhysicsWorld, usize, &mut Vec<RigidBodyHandle>),
+) -> usize {
+    let mut spawned = Vec::new();
+    for step in 0..before {
+        edit(&mut world, step, &mut spawned);
+        world.step();
+    }
+
+    macro_rules! enable {
+        ($field: ident, $ty: ty) => {
+            world.$field.enable_change_tracking();
+        };
+    }
+    tracked_components!(enable);
+
+    // Receiver 0 starts from a full snapshot taken at the same instant as its baseline ticks.
+    let mut restored = Receiver {
+        world: restore(&save(&world)),
+        acks: Acks::default(),
+        every: 1,
+    };
+    macro_rules! baseline {
+        ($field: ident, $ty: ty) => {
+            restored.acks.$field = Some(world.$field.delta_since(None).unwrap().1);
+        };
+    }
+    tracked_components!(baseline);
+    let mut receivers = vec![
+        restored,
+        Receiver {
+            world: PhysicsWorld::new(),
+            acks: Acks::default(),
+            every: 1,
+        },
+        Receiver {
+            world: restore(&save(&world)),
+            acks: Acks::default(),
+            every: 5,
+        },
+    ];
+
+    let mut max_delta = 0;
+    for step in 0..after {
+        edit(&mut world, before + step, &mut spawned);
+        world.step();
+        for (i, receiver) in receivers.iter_mut().enumerate() {
+            if step % receiver.every == 0 {
+                let bytes = receiver.sync(what, before + step, &mut world);
+                if i == 0 {
+                    max_delta = max_delta.max(bytes);
+                }
+            }
+        }
+    }
+    max_delta
+}
+
+#[test]
+fn delta_awake_pile() {
+    check_delta_replication("delta awake pile", pile(false), 30, 60, no_edits);
+}
+
+#[test]
+fn delta_sleeping_pile() {
+    check_delta_replication("delta sleeping pile", pile(true), 200, 60, no_edits);
+}
+
+#[test]
+fn delta_shared_shapes_and_churn() {
+    check_delta_replication("delta structural churn", pile(true), 20, 120, |world, step, spawned| {
+        if step % 7 == 0 {
+            let rb = world.insert_body(
+                RigidBodyBuilder::dynamic()
+                    .translation(Vector::new((step % 5) as Real - 2.0, 6.0, 0.0)),
+            );
+            world.insert_collider(ColliderBuilder::ball(0.3), Some(rb));
+            spawned.push(rb);
+        }
+        if step % 11 == 0 && spawned.len() > 2 {
+            let rb = spawned.remove(0);
+            world.remove_body(rb);
+        }
+    });
+}
+
+/// Heavy shapes by content key: instanced hulls spawned and removed, shapes replaced, and a
+/// trimesh deformed in place (same `Arc`, new content).
+#[test]
+fn delta_heavy_shapes() {
+    let pts: Vec<_> = (0..10)
+        .map(|i| {
+            let a = i as Real * 0.7;
+            Vector::new(a.cos() * 0.25, ((i % 3) as Real - 1.0) * 0.2, a.sin() * 0.25)
+        })
+        .collect();
+    let hull = ColliderBuilder::convex_hull(&pts).unwrap().build();
+    let other_hull = ColliderBuilder::convex_hull(&pts[..7]).unwrap().build();
+    check_delta_replication(
+        "delta heavy shapes",
+        shared_shapes_world(),
+        10,
+        120,
+        move |world, step, spawned| {
+            if step % 9 == 0 {
+                let rb = world.insert_body(
+                    RigidBodyBuilder::dynamic()
+                        .translation(Vector::new((step % 4) as Real - 1.5, 5.0, 0.0)),
+                );
+                world.insert_collider(hull.clone(), Some(rb));
+                spawned.push(rb);
+            }
+            if step % 13 == 0 && spawned.len() > 1 {
+                let rb = spawned.remove(0);
+                world.remove_body(rb);
+            }
+            if step % 17 == 5 {
+                // Replace a hull by another (new content), then by the original again.
+                if let Some(&rb) = spawned.last() {
+                    let co = world.bodies[rb].colliders()[0];
+                    let shape = if step % 2 == 0 { &other_hull } else { &hull };
+                    world.colliders[co].set_shape(shape.shared_shape().clone());
+                }
+            }
+            if step % 19 == 3 {
+                // Deform a trimesh tile in place.
+                let tile = world
+                    .colliders
+                    .iter()
+                    .find(|(_, co)| co.shape().as_trimesh().is_some())
+                    .map(|(h, _)| h)
+                    .unwrap();
+                world.colliders[tile]
+                    .shape_mut()
+                    .as_trimesh_mut()
+                    .unwrap()
+                    .update_vertices(|vtx| vtx[0].y += 0.01);
+            }
+        },
+    );
+}
+
+/// A chain of multibody links lying on the ground (it settles and sleeps), plus impulse
+/// joints and a sensor.
+fn joints_world() -> PhysicsWorld {
+    let mut world = pile(true);
+    with_joints_and_sensor(&mut world);
+    let mut last = world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(6.0, 0.06, 0.0)));
+    world.insert_collider(ColliderBuilder::cuboid(0.2, 0.05, 0.05), Some(last));
+    for i in 1..6 {
+        let rb = world.insert_body(
+            RigidBodyBuilder::dynamic().translation(Vector::new(6.0 + i as Real * 0.4, 0.06, 0.0)),
+        );
+        world.insert_collider(ColliderBuilder::cuboid(0.2, 0.05, 0.05), Some(rb));
+        let joint = RevoluteJointBuilder::new(Vector::Z)
+            .local_anchor1(Vector::new(0.2, 0.0, 0.0))
+            .local_anchor2(Vector::new(-0.2, 0.0, 0.0))
+            .build()
+            .data;
+        world.insert_multibody_joint(last, rb, joint);
+        last = rb;
+    }
+    world
+}
+
+#[test]
+fn delta_joints() {
+    check_delta_replication("delta joints", joints_world(), 10, 150, |world, step, spawned| {
+        // Joint churn: link and unlink pairs of pile bodies, impulse and multibody alike.
+        let dynamic: Vec<_> = world
+            .bodies
+            .iter()
+            .filter(|(_, b)| b.is_dynamic())
+            .map(|(h, _)| h)
+            .collect();
+        if step % 23 == 4 {
+            let (a, b) = (dynamic[step % 30], dynamic[(step % 30) + 40]);
+            world.insert_impulse_joint(a, b, SphericalJointBuilder::new().build().data);
+        }
+        if step % 31 == 7 {
+            let (a, b) = (dynamic[(step % 20) + 2], dynamic[(step % 20) + 60]);
+            if let Some(h) = world.insert_multibody_joint(a, b, SphericalJointBuilder::new().build().data) {
+                let _ = h;
+                spawned.push(a);
+            }
+        }
+        if step % 37 == 11 {
+            let first = world.impulse_joints.iter().next().map(|(h, _)| h);
+            if let Some(h) = first {
+                world.remove_impulse_joint(h);
+            }
+        }
+    });
+}
+
+/// Soft bodies (a tetrahedral cube and a pinned rope) in contact with rigid ones, settling
+/// to sleep.
+fn soft_world() -> PhysicsWorld {
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5, 0.0)),
+        ColliderBuilder::cuboid(20.0, 0.5, 20.0),
+    );
+    let cube = SoftBodyBuilder::cuboid(Vector::new(0.0, 0.6, 0.0), Vector::splat(0.6), 4, 4, 4)
+        .particle_mass(0.2);
+    world.insert_soft_body(cube);
+    let rope = SoftBodyBuilder::rope(Vector::new(2.0, 2.0, 0.0), Vector::new(4.0, 2.0, 0.0), 10)
+        .pinned_particles([0]);
+    world.insert_soft_body(rope);
+    world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 2.0, 0.0)),
+        ColliderBuilder::cuboid(0.2, 0.2, 0.2),
+    );
+    world
+}
+
+#[test]
+fn delta_soft_bodies() {
+    check_delta_replication("delta soft bodies", soft_world(), 5, 240, no_edits);
+}
+
+
+/// Early in the soft scene most broad-phase leaves are pending (soft colliders resynced at
+/// the end of each step), leaving one or two plain leaves for the tree rebuild.
+#[test]
+fn soft_bodies_early_snapshot() {
+    check_roundtrip("soft bodies early", soft_world(), 5, 60, false, no_edits);
 }

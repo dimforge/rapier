@@ -37,6 +37,9 @@ pub struct SoftBodySet {
     /// was deserialized).
     #[cfg_attr(feature = "serde-serialize", serde(skip, default = "default_true"))]
     pub(super) attached_to_stale: bool,
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    change_tracker: crate::data::delta::ChangeTracker,
 }
 
 #[cfg(feature = "serde-serialize")]
@@ -105,3 +108,49 @@ impl core::ops::IndexMut<SoftBodyHandle> for SoftBodySet {
         &mut self.bodies[index.0]
     }
 }
+
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta {
+    use super::*;
+    use crate::data::arena::ArenaDelta;
+    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+
+    /// The content of a [`SoftBodySet`] delta.
+    #[doc(hidden)]
+    #[derive(Clone, Serialize, Deserialize)]
+    pub struct SoftBodySetDelta {
+        bodies: ArenaDelta<SoftBody>,
+        island_events: Vec<SoftBodyIslandEvent>,
+    }
+
+    impl SoftBodySet {
+        fn change_tracker(&mut self) -> &mut ChangeTracker {
+            &mut self.change_tracker
+        }
+
+        fn change_tracker_ref(&self) -> &ChangeTracker {
+            &self.change_tracker
+        }
+
+        fn set_stamp_tick(&mut self, now: u32) {
+            self.bodies.stamps.set_now(now);
+        }
+
+        fn collect_delta(&mut self, since: Option<u32>) -> SoftBodySetDelta {
+            SoftBodySetDelta {
+                bodies: self.bodies.collect_delta(since),
+                island_events: self.island_events.clone(),
+            }
+        }
+
+        fn apply_delta_payload(&mut self, delta: SoftBodySetDelta) -> Result<(), DeltaError> {
+            self.bodies.apply_delta(delta.bodies)?;
+            self.island_events = delta.island_events;
+            self.attached_to_stale = true;
+            Ok(())
+        }
+    }
+
+    impl_snapshot_delta!(SoftBodySet, SoftBodySetDelta);
+}
+

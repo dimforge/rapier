@@ -53,6 +53,9 @@ pub struct ColliderSet {
     pub(crate) colliders: Arena<Collider>,
     pub(crate) modified_colliders: ModifiedColliders,
     pub(crate) removed_colliders: Vec<ColliderHandle>,
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    delta_state: snapshot_delta::ColliderDeltaState,
 }
 
 /// Serialization of the collider arena with shape interning: each distinct shape is
@@ -186,6 +189,8 @@ impl ColliderSet {
             colliders: Arena::new(),
             modified_colliders: Default::default(),
             removed_colliders: Vec::new(),
+            #[cfg(feature = "serde-serialize")]
+            delta_state: Default::default(),
         }
     }
 
@@ -197,6 +202,8 @@ impl ColliderSet {
             colliders: Arena::with_capacity(capacity),
             modified_colliders: ModifiedColliders::with_capacity(capacity),
             removed_colliders: Vec::new(),
+            #[cfg(feature = "serde-serialize")]
+            delta_state: Default::default(),
         }
     }
 
@@ -738,3 +745,270 @@ fn mesh_geometry(
     }
     Ok((vertices, indices))
 }
+
+/// Snapshot deltas of the collider set. Shapes heavier than a few primitives (meshes, hulls,
+/// heightfields, compounds...) are referenced by content key and only sent when the receiver
+/// cannot hold them yet, so colliders on moving bodies don't resend their geometry every tick.
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta {
+    use super::*;
+    use crate::data::arena::ArenaDelta;
+    use crate::data::change_stamps::stamp_is_newer;
+    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::geometry::ColliderShape;
+    use crate::geometry::collider::InternedCollider;
+    use crate::utils::content_hash::{ContentKey, content_key};
+    use alloc::sync::Arc;
+    use parry::shape::ShapeType;
+    use std::collections::HashMap;
+
+    /// Whether a shape is worth referencing by content key instead of being sent inline.
+    fn is_heavy(co: &Collider) -> bool {
+        // Deformable surfaces change every frame, and holding extra references to them would
+        // make every in-place deformation copy the mesh.
+        co.deformable_mesh_ref.is_none()
+            && !matches!(
+                co.shape.shape_type(),
+                ShapeType::Ball
+                    | ShapeType::Cuboid
+                    | ShapeType::Capsule
+                    | ShapeType::Segment
+                    | ShapeType::Triangle
+                    | ShapeType::HalfSpace
+                    | ShapeType::RoundCuboid
+                    | ShapeType::RoundTriangle
+            )
+            && !is_light_3d(co.shape.shape_type())
+    }
+
+    #[cfg(feature = "dim3")]
+    fn is_light_3d(ty: ShapeType) -> bool {
+        matches!(
+            ty,
+            ShapeType::Cylinder | ShapeType::Cone | ShapeType::RoundCylinder | ShapeType::RoundCone
+        )
+    }
+
+    #[cfg(feature = "dim2")]
+    fn is_light_3d(_: ShapeType) -> bool {
+        false
+    }
+
+    /// The content key of a heavy shape, memoized per arena slot. Holding the shape keeps its
+    /// allocation alive, so a pointer match cannot be a reused address.
+    #[derive(Clone, Debug)]
+    struct SlotKey {
+        shape: ColliderShape,
+        revision: u32,
+        key: ContentKey,
+    }
+
+    /// Per-set delta bookkeeping (never serialized).
+    #[derive(Clone, Debug, Default)]
+    pub(super) struct ColliderDeltaState {
+        tracker: ChangeTracker,
+        /// Sender side: the tick up to which `slot_keys`/`holders` reflect the stamped slots.
+        synced: Option<u32>,
+        slot_keys: Vec<Option<SlotKey>>,
+        /// The slots currently holding each heavy shape content.
+        holders: HashMap<ContentKey, Vec<u32>>,
+        /// Receiver side: shapes the receiver holds or received, by content.
+        received: Option<HashMap<ContentKey, ColliderShape>>,
+    }
+
+    impl ColliderDeltaState {
+        /// Brings the sender-side shape index up to date with the slots stamped since the last
+        /// sync (every slot on the first one).
+        fn sync(&mut self, colliders: &Arena<Collider>) {
+            let (entries, ..) = colliders.raw_entries();
+            let stamps = &colliders.stamps;
+            if self.slot_keys.len() < entries.len() {
+                self.slot_keys.resize(entries.len(), None);
+            }
+            for i in 0..entries.len() {
+                if let Some(synced) = self.synced {
+                    if !stamp_is_newer(stamps.stamp(i), synced) {
+                        continue;
+                    }
+                }
+                let current = match &entries[i] {
+                    crate::data::arena::Entry::Occupied { value, .. } if is_heavy(value) => {
+                        Some(value)
+                    }
+                    _ => None,
+                };
+                let unchanged = match (&self.slot_keys[i], current) {
+                    (Some(memo), Some(co)) => {
+                        Arc::ptr_eq(&memo.shape.0, &co.shape.0) && memo.revision == co.shape_revision
+                    }
+                    (None, None) => true,
+                    _ => false,
+                };
+                if unchanged {
+                    continue;
+                }
+                if let Some(old) = self.slot_keys[i].take() {
+                    if let Some(list) = self.holders.get_mut(&old.key) {
+                        list.retain(|s| *s != i as u32);
+                        if list.is_empty() {
+                            self.holders.remove(&old.key);
+                        }
+                    }
+                }
+                if let Some(co) = current {
+                    if let Some(key) = content_key(&co.shape) {
+                        self.holders.entry(key).or_default().push(i as u32);
+                        self.slot_keys[i] = Some(SlotKey {
+                            shape: co.shape.clone(),
+                            revision: co.shape_revision,
+                            key,
+                        });
+                    }
+                }
+            }
+            self.slot_keys.truncate(entries.len());
+            self.synced = Some(stamps.stamp_now());
+        }
+
+        /// Whether a receiver at `since` already holds a shape of content `key`: some slot
+        /// holding it was not written since then.
+        fn receiver_holds(&self, key: &ContentKey, colliders: &Arena<Collider>, since: u32) -> bool {
+            self.holders.get(key).is_some_and(|slots| {
+                slots
+                    .iter()
+                    .any(|s| !stamp_is_newer(colliders.stamps.stamp(*s as usize), since))
+            })
+        }
+
+        /// The receiver-side registry, built from this set's own colliders on first use.
+        fn received(&mut self, colliders: &Arena<Collider>) -> &mut HashMap<ContentKey, ColliderShape> {
+            self.received.get_or_insert_with(|| {
+                let mut map = HashMap::new();
+                for (_, co) in colliders.iter() {
+                    if is_heavy(co) {
+                        if let Some(key) = content_key(&co.shape) {
+                            map.entry(key).or_insert_with(|| co.shape.clone());
+                        }
+                    }
+                }
+                map
+            })
+        }
+    }
+
+    /// A shape of a delta's table.
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    enum DeltaShape {
+        /// A light (or unhashable) shape, sent as is.
+        Inline(ColliderShape),
+        /// A heavy shape by content key, with its bytes when the receiver may not hold it.
+        Keyed {
+            key: ContentKey,
+            shape: Option<ColliderShape>,
+        },
+    }
+
+    /// The content of a [`ColliderSet`] delta.
+    #[doc(hidden)]
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct ColliderSetDelta {
+        shapes: Vec<DeltaShape>,
+        colliders: ArenaDelta<InternedCollider>,
+        modified_colliders: ModifiedColliders,
+        removed_colliders: Vec<ColliderHandle>,
+    }
+
+    impl ColliderSet {
+        fn change_tracker(&mut self) -> &mut ChangeTracker {
+            &mut self.delta_state.tracker
+        }
+
+        fn change_tracker_ref(&self) -> &ChangeTracker {
+            &self.delta_state.tracker
+        }
+
+        fn set_stamp_tick(&mut self, now: u32) {
+            self.colliders.stamps.set_now(now);
+            if now == 0 {
+                let tracker = core::mem::take(&mut self.delta_state.tracker);
+                self.delta_state = ColliderDeltaState {
+                    tracker,
+                    received: self.delta_state.received.take(),
+                    ..Default::default()
+                };
+            }
+        }
+
+        fn collect_delta(&mut self, since: Option<u32>) -> ColliderSetDelta {
+            self.delta_state.sync(&self.colliders);
+            let state = &self.delta_state;
+            let colliders = &self.colliders;
+            let mut shapes = Vec::new();
+            let mut keyed: HashMap<ContentKey, u32> = HashMap::new();
+            let mut inline: HashMap<*const (), u32> = HashMap::new();
+            let delta = colliders.collect_delta_with(since, |co| {
+                let key = is_heavy(co).then(|| content_key(&co.shape)).flatten();
+                let id = match key {
+                    Some(key) => *keyed.entry(key).or_insert_with(|| {
+                        let held = since.is_some_and(|since| state.receiver_holds(&key, colliders, since));
+                        shapes.push(DeltaShape::Keyed {
+                            key,
+                            shape: (!held).then(|| co.shape.clone()),
+                        });
+                        shapes.len() as u32 - 1
+                    }),
+                    None => *inline
+                        .entry(Arc::as_ptr(&co.shape.0) as *const ())
+                        .or_insert_with(|| {
+                            shapes.push(DeltaShape::Inline(co.shape.clone()));
+                            shapes.len() as u32 - 1
+                        }),
+                };
+                InternedCollider::from_collider(co, id)
+            });
+            ColliderSetDelta {
+                shapes,
+                colliders: delta,
+                modified_colliders: self.modified_colliders.clone(),
+                removed_colliders: self.removed_colliders.clone(),
+            }
+        }
+
+        fn apply_delta_payload(&mut self, delta: ColliderSetDelta) -> Result<(), DeltaError> {
+            // Resolve the table first: keyed shapes without bytes come from the shapes this
+            // set held before the patch.
+            let received = self.delta_state.received(&self.colliders);
+            let mut table = Vec::with_capacity(delta.shapes.len());
+            for shape in delta.shapes {
+                table.push(match shape {
+                    DeltaShape::Inline(shape) => shape,
+                    DeltaShape::Keyed {
+                        key,
+                        shape: Some(shape),
+                    } => received.entry(key).or_insert(shape).clone(),
+                    DeltaShape::Keyed { key, shape: None } => received
+                        .get(&key)
+                        .ok_or(DeltaError::MissingShape)?
+                        .clone(),
+                });
+            }
+
+            self.colliders.apply_delta_with(delta.colliders, |co| {
+                let shape = table.get(co.shape_id() as usize).ok_or(DeltaError::Malformed)?;
+                Ok(co.into_collider(shape.clone()))
+            })?;
+            self.modified_colliders = delta.modified_colliders;
+            self.removed_colliders = delta.removed_colliders;
+
+            // Forget the received shapes nothing holds anymore.
+            let received = self.delta_state.received(&self.colliders);
+            if received.len() > 2 * self.colliders.len() + 64 {
+                received.retain(|_, shape| Arc::strong_count(&shape.0) > 1);
+            }
+            Ok(())
+        }
+    }
+
+    impl_snapshot_delta!(ColliderSet, ColliderSetDelta);
+}
+

@@ -325,6 +325,8 @@ impl PhysicsPipeline {
         self.counters.reset();
         self.counters.step_started();
         self.quarantine.clear();
+        // Bodies falling asleep this step are awake now, and get written before they sleep.
+        Self::stamp_active_set(islands, bodies, colliders);
 
         // Apply some of delayed wake-ups.
         self.counters.stages.user_changes.start();
@@ -435,11 +437,15 @@ impl PhysicsPipeline {
 
         // TODO: do this only on user-change.
         // TODO: do we want some kind of automatic inverse kinematics?
-        for multibody in &mut multibody_joints.multibodies {
-            multibody.1.forward_kinematics(bodies, true);
-            multibody
-                .1
-                .update_rigid_bodies_internal(bodies, true, false, false);
+        if bodies.bodies.stamps.is_enabled() || multibody_joints.multibodies.stamps.is_enabled() {
+            Self::forward_kinematics_stamping_changes(bodies, multibody_joints);
+        } else {
+            for multibody in &mut multibody_joints.multibodies {
+                multibody.1.forward_kinematics(bodies, true);
+                multibody
+                    .1
+                    .update_rigid_bodies_internal(bodies, true, false, false);
+            }
         }
 
         // The soft meshes' vertex caches, read by the soft contact passes.
@@ -478,6 +484,7 @@ impl PhysicsPipeline {
                 multibody_joints,
             );
             colliders.set_modified(modified_colliders);
+            Self::stamp_active_set(islands, bodies, colliders);
             self.counters.step_completed();
             return;
         }
@@ -710,6 +717,71 @@ impl PhysicsPipeline {
         self.counters.cd.final_broad_phase_time.pause();
         self.counters.stages.collision_detection_time.pause();
 
+        Self::stamp_active_set(islands, bodies, colliders);
         self.counters.step_completed();
+    }
+
+    /// The per-step forward kinematics of every multibody, stamping for snapshot deltas only
+    /// the multibodies (and link bodies) it can change: awake or user-edited ones. On the others
+    /// it recomputes the stored values bit for bit, so stamping them would bloat every delta.
+    fn forward_kinematics_stamping_changes(
+        bodies: &mut RigidBodySet,
+        multibody_joints: &mut MultibodyJointSet,
+    ) {
+        use crate::dynamics::RigidBodyChanges;
+
+        let (multibodies, mb_stamps) = multibody_joints.multibodies.iter_mut_unstamped();
+        let mb_now = mb_stamps.stamp_now();
+        let mut saved_stamps = Vec::new();
+        for (index, multibody) in multibodies {
+            let slot = index.into_raw_parts().0 as usize;
+            let edited = mb_now != 0 && mb_stamps.stamp(slot) == mb_now;
+            let changed = edited
+                || multibody.links().any(|link| {
+                    bodies.get(link.rigid_body).is_some_and(|rb| {
+                        !rb.is_sleeping() || rb.changes.contains(RigidBodyChanges::IN_MODIFIED_SET)
+                    })
+                });
+            saved_stamps.clear();
+            if !changed {
+                saved_stamps.extend(
+                    multibody
+                        .links()
+                        .map(|link| (link.rigid_body, bodies.bodies.stamp_of(link.rigid_body.0))),
+                );
+            }
+            multibody.forward_kinematics(bodies, true);
+            multibody.update_rigid_bodies_internal(bodies, true, false, false);
+            if changed {
+                mb_stamps.mark(slot);
+            } else {
+                for (handle, stamp) in &saved_stamps {
+                    bodies
+                        .bodies
+                        .stamps
+                        .set_stamp(handle.0.into_raw_parts().0 as usize, *stamp);
+                }
+            }
+        }
+    }
+
+    /// Stamps the awake bodies and their colliders for snapshot deltas: the solver and the
+    /// integration write them through raw pointers, bypassing the per-slot stamping.
+    fn stamp_active_set(
+        islands: &IslandManager,
+        bodies: &mut RigidBodySet,
+        colliders: &mut ColliderSet,
+    ) {
+        if !bodies.bodies.stamps.is_enabled() && !colliders.colliders.stamps.is_enabled() {
+            return;
+        }
+        for handle in islands.active_bodies() {
+            bodies.bodies.mark_changed(handle.0);
+            if let Some(rb) = bodies.get(handle) {
+                for co in rb.colliders() {
+                    colliders.colliders.mark_changed(co.0);
+                }
+            }
+        }
     }
 }

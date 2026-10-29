@@ -76,6 +76,9 @@ pub struct RigidBodySet {
     pub(crate) modified_bodies: ModifiedRigidBodies,
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) default_fixed: RigidBody,
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    change_tracker: crate::data::delta::ChangeTracker,
 }
 
 impl RigidBodySet {
@@ -88,6 +91,8 @@ impl RigidBodySet {
             bodies: Arena::new(),
             modified_bodies: ModifiedObjects::default(),
             default_fixed: RigidBodyBuilder::fixed().build(),
+            #[cfg(feature = "serde-serialize")]
+            change_tracker: Default::default(),
         }
     }
 
@@ -107,6 +112,8 @@ impl RigidBodySet {
             bodies: Arena::with_capacity(capacity),
             modified_bodies: ModifiedRigidBodies::with_capacity(capacity),
             default_fixed: RigidBodyBuilder::fixed().build(),
+            #[cfg(feature = "serde-serialize")]
+            change_tracker: Default::default(),
         }
     }
 
@@ -459,4 +466,48 @@ impl IndexMut<RigidBodyHandle> for RigidBodySet {
         self.modified_bodies.push_once(handle, rb);
         rb
     }
+}
+
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta {
+    use super::*;
+    use crate::data::arena::ArenaDelta;
+    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+
+    /// The content of a [`RigidBodySet`] delta.
+    #[doc(hidden)]
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct RigidBodySetDelta {
+        bodies: ArenaDelta<RigidBody>,
+        modified_bodies: ModifiedRigidBodies,
+    }
+
+    impl RigidBodySet {
+        fn change_tracker(&mut self) -> &mut ChangeTracker {
+            &mut self.change_tracker
+        }
+
+        fn change_tracker_ref(&self) -> &ChangeTracker {
+            &self.change_tracker
+        }
+
+        fn set_stamp_tick(&mut self, now: u32) {
+            self.bodies.stamps.set_now(now);
+        }
+
+        fn collect_delta(&self, since: Option<u32>) -> RigidBodySetDelta {
+            RigidBodySetDelta {
+                bodies: self.bodies.collect_delta(since),
+                modified_bodies: self.modified_bodies.clone(),
+            }
+        }
+
+        fn apply_delta_payload(&mut self, delta: RigidBodySetDelta) -> Result<(), DeltaError> {
+            self.bodies.apply_delta(delta.bodies)?;
+            self.modified_bodies = delta.modified_bodies;
+            Ok(())
+        }
+    }
+
+    impl_snapshot_delta!(RigidBodySet, RigidBodySetDelta);
 }
