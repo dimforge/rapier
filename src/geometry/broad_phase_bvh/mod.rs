@@ -19,18 +19,9 @@ mod update;
 /// You typically don't interact with this directly - it's managed by [`PhysicsPipeline`](crate::pipeline::PhysicsPipeline).
 /// However, you can use it to create a [`QueryPipeline`](crate::pipeline::QueryPipeline) for spatial queries.
 #[derive(Default, Clone)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct BroadPhaseBvh {
     pub(crate) tree: Bvh,
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     workspace: BvhWorkspace,
-    #[cfg_attr(
-        feature = "serde-serialize",
-        serde(
-            serialize_with = "serialize_pairs",
-            deserialize_with = "crate::utils::serde::deserialize_from_vec_tuple"
-        )
-    )]
     pairs: HashMap<(ColliderHandle, ColliderHandle), u32>,
     /// For each collider, the other colliders it currently forms a pair with. Lets
     /// stale-pair detection examine only pairs adjacent to changed colliders instead of
@@ -38,22 +29,18 @@ pub struct BroadPhaseBvh {
     pair_adjacency: Coarena<Vec<ColliderHandle>>,
     /// Workspace buffer holding the colliders whose AABB was updated in the tree
     /// during the last `update` call.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     updated_colliders: Vec<ColliderHandle>,
     /// Workspace buffer holding the leaf pairs reported by the tree traversal. Only the
     /// sequential traversal needs it (it reports through a closure); the parallel one
     /// returns its own vector.
     #[cfg(not(feature = "parallel"))]
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     candidates_workspace: Vec<(u32, u32)>,
     /// Workspace: per-collider "was updated this step" bit (collider arena index), so the
     /// stale-pair scan can visit a pair from one side only when both sides moved.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     updated_mask: Vec<bool>,
     /// Workspace buffer holding the stale pairs detected during `update`.
     ///
     /// The boolean indicates if a `DeletePair` event must be emitted for the pair.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     stale_pairs: Vec<(ColliderHandle, ColliderHandle, bool)>,
     /// Leaves updated at the previous `update` call — (a superset of) the leaves whose
     /// change flag the previous refit set; partial refitting needs it to clear those flags.
@@ -61,7 +48,6 @@ pub struct BroadPhaseBvh {
     /// Note that this needs to be serialized for determinism after snapshot restore.
     prev_updated_leaves: Vec<u32>,
     /// Leaves updated in the tree during the current `update` call.
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     curr_updated_leaves: Vec<u32>,
     /// Colliders whose tree leaf was updated through [`Self::set_aabb`] since the last
     /// `update` call (e.g. by the physics pipeline at the end of the previous step).
@@ -76,15 +62,12 @@ pub struct BroadPhaseBvh {
     /// in-place updates + the periodic optimizer. One step of hysteresis: `set_aabb` runs between updates.
     reinsert_leaf_updates: bool,
     /// Workspace buffer for the precomputed leaf updates of [`Self::update`].
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     update_workspace: Vec<(ColliderHandle, Aabb, Real)>,
     /// Workspace of the parallel leaf-update batches (the tree API takes raw
     /// leaf indices).
     #[cfg(feature = "parallel")]
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     update_batch_workspace: Vec<(Aabb, u32, Real)>,
     #[cfg(feature = "parallel")]
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     update_batch_statuses: Vec<BvhLeafUpdateStatus>,
     frame_index: u32,
     optimization_strategy: BvhOptimizationStrategy,
@@ -93,12 +76,10 @@ pub struct BroadPhaseBvh {
     /// length unit (default: `false`). Large shapes then keep their leaf and candidate
     /// pairs valid across bigger displacements — fewer tree updates and pair re-checks,
     /// at the cost of slightly fatter AABBs (more candidate pairs for the narrow-phase).
-    #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub adaptive_change_detection_margin: bool,
     /// True when the last `update` deferred its (quality-only) BVH optimization pass
     /// so the physics pipeline can run it concurrently with the narrow phase and
     /// solver; consumed by [`Self::take_deferred_optimize`].
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
     deferred_optimize_pending: bool,
 }
 
@@ -153,18 +134,141 @@ impl DeferredBvhOptimize {
     }
 }
 
-/// Serializes the pair map by collider index, so the bytes describe the pair *set* rather
-/// than the map's insertion history (see `serialize_sorted_to_vec_tuple`).
+/// Custom serialization of the broad phase: the tree is stored as its sorted leaves
+/// (collider index, fattened AABB) and rebuilt on restore, and the pair adjacency is
+/// rebuilt from the sorted pair map.
+///
+/// The tree's topology, slot free lists, and optimizer cursor are a rebuildable cache:
+/// pair *discovery* depends only on the per-leaf fattened AABBs (traversal reports the
+/// geometric overlap set of changed leaves), and every order the tree's internals used
+/// to leak into the simulation is canonically sorted at the source (the `AddPair`
+/// batch, the `DeletePair` batch, and this serialization). Restoring builds a
+/// different but equally valid tree; only spatial-query iteration order (never part of
+/// the determinism contract) can differ from the uninterrupted run.
 #[cfg(feature = "serde-serialize")]
-fn serialize_pairs<S: serde::Serializer>(
-    pairs: &HashMap<(ColliderHandle, ColliderHandle), u32>,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    crate::utils::serde::serialize_sorted_to_vec_tuple(
-        pairs,
-        |(a, b)| (a.into_raw_parts(), b.into_raw_parts()),
-        s,
-    )
+mod bp_serde {
+    use super::*;
+    use parry::partitioning::BvhBuildStrategy;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize)]
+    struct ReprSer<'a> {
+        leaves: Vec<(u32, Aabb, bool)>,
+        pairs: Vec<(&'a (ColliderHandle, ColliderHandle), &'a u32)>,
+        prev_updated_leaves: &'a Vec<u32>,
+        pending_set_aabb: &'a Vec<ColliderHandle>,
+        changes_since_optimize: u32,
+        reinsert_leaf_updates: bool,
+        frame_index: u32,
+        optimization_strategy: BvhOptimizationStrategy,
+        adaptive_change_detection_margin: bool,
+    }
+
+    #[derive(Deserialize)]
+    struct ReprDe {
+        leaves: Vec<(u32, Aabb, bool)>,
+        pairs: Vec<((ColliderHandle, ColliderHandle), u32)>,
+        prev_updated_leaves: Vec<u32>,
+        pending_set_aabb: Vec<ColliderHandle>,
+        changes_since_optimize: u32,
+        reinsert_leaf_updates: bool,
+        frame_index: u32,
+        optimization_strategy: BvhOptimizationStrategy,
+        adaptive_change_detection_margin: bool,
+    }
+
+    impl Serialize for BroadPhaseBvh {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            // Per leaf: index, exact fattened AABB, and the resolved change flag (it
+            // gates the next traversal and stale-pair scan, so it is state).
+            let mut leaves: Vec<(u32, Aabb, bool)> = self
+                .tree
+                .leaves(|_| true)
+                .filter_map(|key| {
+                    let node = self.tree.leaf_node(key)?;
+                    Some((key, node.aabb(), node.is_changed()))
+                })
+                .collect();
+            leaves.sort_unstable_by_key(|(index, ..)| *index);
+
+            let mut pairs: Vec<_> = self.pairs.iter().collect();
+            pairs.sort_unstable_by_key(|((a, b), _)| (a.into_raw_parts(), b.into_raw_parts()));
+
+            ReprSer {
+                leaves,
+                pairs,
+                prev_updated_leaves: &self.prev_updated_leaves,
+                pending_set_aabb: &self.pending_set_aabb,
+                changes_since_optimize: self.changes_since_optimize,
+                reinsert_leaf_updates: self.reinsert_leaf_updates,
+                frame_index: self.frame_index,
+                optimization_strategy: self.optimization_strategy,
+                adaptive_change_detection_margin: self.adaptive_change_detection_margin,
+            }
+            .serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for BroadPhaseBvh {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            let repr = ReprDe::deserialize(deserializer)?;
+            // Leaves touched by an end-of-step `set_aabb` carry a pending change flag
+            // (`pending_set_aabb` records exactly the escaped updates), which the next
+            // refit resolves to changed. Pending is not reproducible through an
+            // existing leaf, but a fresh insert creates its leaf pending with verbatim
+            // bounds: build the tree without those leaves, insert them after.
+            let pending: std::collections::HashSet<u32> =
+                repr.pending_set_aabb.iter().map(|h| h.0.into_raw_parts().0).collect();
+            let mut tree = Bvh::from_iter(
+                BvhBuildStrategy::Binned,
+                repr.leaves
+                    .iter()
+                    .filter(|(index, ..)| !pending.contains(index))
+                    .map(|(index, aabb, _)| (*index as usize, *aabb)),
+            );
+            // A fresh build marks every leaf changed; resolve the flag away for the
+            // leaves that were not flagged in the serialized state (`refit_partial`'s
+            // previously-changed pass clears a non-pending flag).
+            let unflagged: Vec<u32> = repr
+                .leaves
+                .iter()
+                .filter(|(index, _, changed)| !changed && !pending.contains(index))
+                .map(|(index, ..)| *index)
+                .collect();
+            tree.refit_partial(&unflagged, &[]);
+            for (index, aabb, _) in repr
+                .leaves
+                .iter()
+                .filter(|(index, ..)| pending.contains(index))
+            {
+                tree.insert(*aabb, *index);
+            }
+
+            let mut pair_adjacency = Coarena::new();
+            for ((h1, h2), _) in &repr.pairs {
+                pair_adjacency
+                    .ensure_element_exist(h1.0, Vec::new())
+                    .push(*h2);
+                pair_adjacency
+                    .ensure_element_exist(h2.0, Vec::new())
+                    .push(*h1);
+            }
+
+            Ok(BroadPhaseBvh {
+                tree,
+                pairs: repr.pairs.into_iter().collect(),
+                pair_adjacency,
+                prev_updated_leaves: repr.prev_updated_leaves,
+                pending_set_aabb: repr.pending_set_aabb,
+                changes_since_optimize: repr.changes_since_optimize,
+                reinsert_leaf_updates: repr.reinsert_leaf_updates,
+                frame_index: repr.frame_index,
+                optimization_strategy: repr.optimization_strategy,
+                adaptive_change_detection_margin: repr.adaptive_change_detection_margin,
+                ..Default::default()
+            })
+        }
+    }
 }
 
 impl BroadPhaseBvh {
@@ -331,3 +435,4 @@ mod test {
         }
     }
 }
+

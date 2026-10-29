@@ -414,6 +414,13 @@ impl BroadPhaseBvh {
             let new_pairs: Vec<(ColliderHandle, ColliderHandle)> =
                 candidates.iter().filter_map(filter_new).collect();
 
+            // Canonical order: the traversal order reflects the tree's internal
+            // topology, which is a rebuildable cache (snapshots store only the leaves);
+            // it must not leak into the `AddPair` sequence, which decides
+            // contact-graph edge-id assignment.
+            let mut new_pairs = new_pairs;
+            new_pairs.sort_unstable_by_key(|(h1, h2)| (h1.into_raw_parts(), h2.into_raw_parts()));
+
             for (handle1, handle2) in new_pairs {
                 let prev = self.pairs.insert((handle1, handle2), self.frame_index);
                 debug_assert!(prev.is_none());
