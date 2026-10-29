@@ -290,3 +290,45 @@ pub fn collider_set_parent_no_self_intersection() {
         "There should be a contact manifold."
     );
 }
+
+/// Removing a collider releases the solver colours of its contact pairs: every body's colour
+/// mask stays the union of the colours of its live pairs.
+#[test]
+pub fn collider_removal_releases_solver_colors() {
+    use crate::geometry::contact_pair::SOLVER_COLOR_OVERFLOW;
+    use crate::pipeline::PhysicsWorld;
+
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5, 0.0)),
+        ColliderBuilder::cuboid(10.0, 0.5, 10.0),
+    );
+    let mut colliders = Vec::new();
+    for k in 0..4 {
+        let (_, co) = world.insert(
+            RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 0.5 + k as crate::math::Real, 0.0)),
+            ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+        );
+        colliders.push(co);
+    }
+    for _ in 0..30 {
+        world.step();
+    }
+
+    world.remove_collider(colliders[2]);
+    world.step();
+
+    let np = &world.narrow_phase;
+    let mut expected = std::vec![0u128; np.body_solver_color_masks.len()];
+    for pair in np.contact_graph.interactions() {
+        let Some(rigid) = pair.rigid() else { continue };
+        if rigid.solver_color < SOLVER_COLOR_OVERFLOW {
+            for id in rigid.solver_color_bodies {
+                if id != u32::MAX {
+                    expected[id as usize] |= 1u128 << rigid.solver_color;
+                }
+            }
+        }
+    }
+    assert_eq!(np.body_solver_color_masks, expected);
+}

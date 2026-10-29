@@ -159,6 +159,12 @@ impl NarrowPhase {
             }
         }
 
+        // The removed pairs must give their solver colours back to the surviving bodies.
+        let masks = &mut self.body_solver_color_masks;
+        for (_, _, _, pair) in self.contact_graph.interactions_with_mut(contact_graph_id) {
+            super::clear_pair_solver_color(masks, pair);
+        }
+
         // Node removal swap-removes contact-graph edges, shifting the edge indices the
         // solver graph's `ContactRef`s and the force-event list are keyed by (neither is
         // mirrored through node removal), so both must be rebuilt from scratch next step.
