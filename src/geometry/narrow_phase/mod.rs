@@ -4,6 +4,7 @@
 
 mod contacts;
 mod intersections;
+mod restore;
 mod pair_management;
 mod pair_update;
 mod queries;
@@ -408,6 +409,17 @@ pub struct NarrowPhase {
     /// step) skip the buffer reallocation of freshly constructed pairs.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     retired_pairs: Vec<ContactPair>,
+    /// Whether the pairs' replayable solver contacts still hold deserialized stubs
+    /// (see `restore`). Not serialized: defaults to `true` on deserialization so the
+    /// next update (or an explicit [`Self::rebuild_solver_contacts`]) replays them;
+    /// a live narrow phase keeps it `false`.
+    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "default_true"))]
+    pending_solver_replay: bool,
+}
+
+#[cfg(feature = "serde-serialize")]
+fn default_true() -> bool {
+    true
 }
 
 pub(crate) type ContactManifoldIndex = usize;
@@ -451,6 +463,7 @@ impl NarrowPhase {
             force_list_valid: false,
             solver_color_todo: Vec::new(),
             soft_self: Default::default(),
+            pending_solver_replay: false,
         }
     }
 

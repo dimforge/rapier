@@ -43,6 +43,12 @@ impl NarrowPhase {
         // meshes (`None`: no soft contact detection, as in the collision pipeline).
         soft_bodies: Option<(&SoftBodySet, &IntegrationParameters)>,
     ) {
+        // A freshly deserialized narrow phase holds compact solver-contact stubs;
+        // replay them before anything reads solver contacts.
+        if self.pending_solver_replay {
+            self.rebuild_solver_contacts(bodies, colliders);
+        }
+
         self.update_awake_body_mask(islands);
         let awake_body_mask = core::mem::take(&mut self.awake_body_mask);
         let soft_ctx = soft_bodies.map(|(soft_bodies, params)| SoftDetectionCtx {

@@ -394,6 +394,37 @@ fn shared_shapes() {
     );
 }
 
+/// The stored-solver-contacts fallback paths of the snapshot format: with contact
+/// recycling disabled, pairs carry no recycle state, and colliders attached away from
+/// their body's origin have non-replayable anchors — both serialize their solver
+/// contacts verbatim instead of the compact replayed form.
+#[test]
+fn stored_solver_contacts() {
+    let mut world = pile(true);
+    world.integration_parameters.contact_recycling = false;
+    check_roundtrip("no recycling", world, 100, 100, false, no_edits);
+
+    let mut world = pile(true);
+    for i in 0..6 {
+        let rb = world.insert_body(
+            RigidBodyBuilder::dynamic()
+                .translation(Vector::new(-4.0 + i as Real * 1.4, 4.0, 6.0))
+                .can_sleep(false),
+        );
+        // Two colliders offset from the body origin: identity `pos_wrt_parent` does
+        // not hold, so their pairs use the verbatim fallback.
+        world.insert_collider(
+            ColliderBuilder::cuboid(0.4, 0.3, 0.4).translation(Vector::new(0.45, 0.0, 0.0)),
+            Some(rb),
+        );
+        world.insert_collider(
+            ColliderBuilder::ball(0.3).translation(Vector::new(-0.45, 0.1, 0.0)),
+            Some(rb),
+        );
+    }
+    check_roundtrip("offset colliders", world, 100, 100, false, no_edits);
+}
+
 /// Fast CCD-enabled bodies. The CCD solver holds a cache that snapshots do not include, so
 /// this checks that a restore does not depend on it.
 #[test]

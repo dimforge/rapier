@@ -729,12 +729,35 @@ pub(super) fn process_pair(
             };
             rigid.recycle_state = Some(crate::geometry::ContactRecycleState {
                 pos12,
+                translation1: co1.pos.translation,
+                translation2: co2.pos.translation,
                 rot1: co1.pos.rotation,
                 rot2: co2.pos.rotation,
+                skin1: co1.contact_skin(),
+                skin2: co2.contact_skin(),
                 max_extent,
                 max_drift,
             });
         }
+
+        // Record whether this full update's solver contacts can be replayed after a
+        // snapshot restore (see `ContactPair`'s serialization): not hook-modified, no soft
+        // surface, and body poses derivable bit-exactly from the stored collider poses.
+        let anchors_replayable = |co: &crate::geometry::Collider| {
+            co.deformable_mesh_ref.is_none()
+                && match &co.parent {
+                    Some(p) => p.pos_wrt_parent == crate::math::Pose::IDENTITY,
+                    None => true,
+                }
+        };
+        pair.event_status.set(
+            crate::geometry::contact_pair::PairEventStatus::SOLVER_HOOKED,
+            active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS),
+        );
+        pair.event_status.set(
+            crate::geometry::contact_pair::PairEventStatus::SOLVER_REPLAY_ANCHORS,
+            anchors_replayable(co1) && anchors_replayable(co2),
+        );
     }
 
     /*

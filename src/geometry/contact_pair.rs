@@ -47,6 +47,15 @@ bitflags::bitflags! {
         /// resets when the force drops back below the threshold or the pair stops
         /// touching.
         const INITIAL_FORCE_THRESHOLD_EVENT_EMITTED = 0b10;
+        /// The last full narrow-phase update of this pair ran the
+        /// `modify_solver_contacts` hook: its solver contacts cannot be replayed
+        /// after a snapshot restore and must be serialized verbatim.
+        const SOLVER_HOOKED = 0b100;
+        /// At the last full update, both colliders sat at their body's origin
+        /// (identity `pos_wrt_parent`, or no body): the body poses at that update
+        /// derive bit-exactly from the collider poses stored in the recycle state,
+        /// so the solver contacts can be replayed after a snapshot restore.
+        const SOLVER_REPLAY_ANCHORS = 0b1000;
     }
 }
 
@@ -177,7 +186,6 @@ fn default_solver_color_bodies() -> [u32; 2] {
     [u32::MAX; 2]
 }
 
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 /// All contact information between two colliding colliders.
 ///
@@ -351,6 +359,18 @@ impl RigidPairContacts {
 pub(crate) struct ContactRecycleState {
     /// Pose of the second collider relative to the first at the last full update.
     pub pos12: Pose,
+    /// World translation of the first collider at the last full update. Together with
+    /// the rotations below (and `translation2`) this pins both colliders' exact world
+    /// poses at that update, which the post-restore solver-contact replay needs
+    /// (deriving one from the other through `pos12` would round).
+    pub translation1: Vector,
+    /// World translation of the second collider at the last full update.
+    pub translation2: Vector,
+    /// The colliders' contact skins at the last full update (a skin change sets no
+    /// change flag, so the current values may differ while the pair recycles).
+    pub skin1: Real,
+    /// See [`Self::skin1`].
+    pub skin2: Real,
     /// World rotation of the first collider at the last full update. The frozen world-space anchors
     /// ([`ContactData::solver_dp1`]) mean recycling must also bound each body's *absolute* rotation:
     /// rotating rigidly together keeps the relative pose but invalidates world-frozen arms (bound: `cos Δθ > 0.98`, ~11.5°).
@@ -1008,6 +1028,388 @@ impl ContactManifoldData {
     #[inline]
     pub fn num_active_contacts(&self) -> usize {
         self.solver_contacts.len()
+    }
+}
+
+/// Custom serialization of [`ContactPair`]: identical to the old derive except for each
+/// manifold's `normal` + `solver_contacts`, which shrink to one byte per solver contact
+/// when they can be replayed from the recycle state's frozen poses after a restore (see
+/// `narrow_phase::restore`). Replay applies when the pair's last full update did not run
+/// the `modify_solver_contacts` hook and both body poses at that update derive
+/// bit-exactly from the stored collider poses (the `PairEventStatus` solver bits).
+#[cfg(feature = "serde-serialize")]
+mod pair_serde {
+    use super::*;
+    use crate::dynamics::solver::solver_contact_graph::GraphPos;
+    use crate::geometry::{Contact, ContactRecycleState};
+    #[cfg(feature = "dim2")]
+    use serde::de::Error as _;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[cfg(feature = "dim2")]
+    type PointVec = arrayvec::ArrayVec<Contact, 2>;
+    #[cfg(feature = "dim3")]
+    type PointVec = Vec<Contact>;
+
+    /// The is-new flag of a compact solver-contact id (bit 31 of the full id).
+    const ID_NEW_BIT: u8 = 1 << 7;
+
+    fn compact_id(id: ContactId) -> u8 {
+        (id & !NEW_CONTACT_BIT) as u8 | (((id & NEW_CONTACT_BIT) != 0) as u8) << 7
+    }
+
+    fn expand_id(id: u8) -> ContactId {
+        (id & !ID_NEW_BIT) as ContactId
+            | if id & ID_NEW_BIT != 0 {
+                NEW_CONTACT_BIT
+            } else {
+                0
+            }
+    }
+
+    #[derive(Serialize)]
+    enum SolverSer<'a> {
+        /// Verbatim solver data: hook-modified pairs, non-replayable body anchors,
+        /// missing recycle state, solver clusters, or an id too large for the
+        /// compact form.
+        Stored {
+            normal: &'a Vector,
+            contacts: &'a SolverContacts,
+        },
+        /// One byte per solver contact (point id + is-new); everything else is
+        /// replayed on restore.
+        Replay { ids: Vec<u8> },
+    }
+
+    #[derive(Deserialize)]
+    enum SolverDe {
+        Stored {
+            normal: Vector,
+            contacts: SolverContacts,
+        },
+        Replay {
+            ids: Vec<u8>,
+        },
+    }
+
+    #[derive(Serialize)]
+    struct ManifoldDataSer<'a> {
+        rigid_body1: Option<RigidBodyHandle>,
+        rigid_body2: Option<RigidBodyHandle>,
+        solver_flags: SolverFlags,
+        solver_color: u8,
+        solver_body_ids: [u32; 2],
+        graph_pos: GraphPos,
+        solver: SolverSer<'a>,
+        relative_dominance: i16,
+        user_data: u32,
+        friction: Real,
+        restitution: Real,
+    }
+
+    #[derive(Deserialize)]
+    struct ManifoldDataDe {
+        rigid_body1: Option<RigidBodyHandle>,
+        rigid_body2: Option<RigidBodyHandle>,
+        solver_flags: SolverFlags,
+        solver_color: u8,
+        solver_body_ids: [u32; 2],
+        graph_pos: GraphPos,
+        solver: SolverDe,
+        relative_dominance: i16,
+        user_data: u32,
+        friction: Real,
+        restitution: Real,
+    }
+
+    #[derive(Serialize)]
+    struct ManifoldSer<'a> {
+        points: &'a PointVec,
+        local_n1: &'a Vector,
+        local_n2: &'a Vector,
+        subshape1: u32,
+        subshape2: u32,
+        // The `SubshapePoses` box flattened through the public accessors (the type
+        // itself is not nameable from here); restoring through the setters is
+        // behaviorally identical and re-serializes to the same bytes.
+        subshape_pos1: Option<Pose>,
+        subshape_pos2: Option<Pose>,
+        data: ManifoldDataSer<'a>,
+    }
+
+    #[derive(Deserialize)]
+    struct ManifoldDe {
+        points: PointVec,
+        local_n1: Vector,
+        local_n2: Vector,
+        subshape1: u32,
+        subshape2: u32,
+        subshape_pos1: Option<Pose>,
+        subshape_pos2: Option<Pose>,
+        data: ManifoldDataDe,
+    }
+
+    #[derive(Serialize)]
+    struct PairSer<'a> {
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+        event_status: PairEventStatus,
+        contacts: ContactsSer<'a>,
+    }
+
+    /// Mirrors [`PairContacts`]; the soft candidates are rebuilt by the next update.
+    #[derive(Serialize)]
+    enum ContactsSer<'a> {
+        Rigid(RigidSer<'a>),
+        Soft { touching: bool },
+    }
+
+    #[derive(Serialize)]
+    struct RigidSer<'a> {
+        manifolds: Vec<ManifoldSer<'a>>,
+        solver_clusters: Vec<ManifoldSer<'a>>,
+        solver_color: u8,
+        solver_color_bodies: [u32; 2],
+        workspace: &'a Option<ContactManifoldsWorkspace>,
+        recycle_state: &'a Option<ContactRecycleState>,
+    }
+
+    #[derive(Deserialize)]
+    struct PairDe {
+        collider1: ColliderHandle,
+        collider2: ColliderHandle,
+        event_status: PairEventStatus,
+        contacts: ContactsDe,
+    }
+
+    #[derive(Deserialize)]
+    #[allow(clippy::large_enum_variant)] // Transient decode form, consumed right away.
+    enum ContactsDe {
+        Rigid(RigidDe),
+        Soft { touching: bool },
+    }
+
+    #[derive(Deserialize)]
+    struct RigidDe {
+        manifolds: Vec<ManifoldDe>,
+        solver_clusters: Vec<ManifoldDe>,
+        solver_color: u8,
+        solver_color_bodies: [u32; 2],
+        workspace: Option<ContactManifoldsWorkspace>,
+        recycle_state: Option<ContactRecycleState>,
+    }
+
+    fn ids_fit(manifold: &ContactManifold) -> bool {
+        manifold
+            .data
+            .solver_contacts
+            .iter()
+            .all(|c| (c.contact_id[0] & !NEW_CONTACT_BIT) < ID_NEW_BIT as ContactId)
+    }
+
+    fn manifold_ser(manifold: &ContactManifold, replay: bool) -> ManifoldSer<'_> {
+        // Exhaustive on both structs: a new field in parry's manifold or in
+        // `ContactManifoldData` fails to compile here until the repr carries it.
+        let parry::query::ContactManifold {
+            points,
+            local_n1,
+            local_n2,
+            subshape1,
+            subshape2,
+            subshape_poses: _,
+            data,
+        } = manifold;
+        let ContactManifoldData {
+            rigid_body1,
+            rigid_body2,
+            solver_flags,
+            solver_color,
+            solver_body_ids,
+            graph_pos,
+            normal,
+            solver_contacts,
+            relative_dominance,
+            user_data,
+            friction,
+            restitution,
+        } = data;
+        let solver = if replay {
+            SolverSer::Replay {
+                ids: solver_contacts
+                    .iter()
+                    .map(|c| compact_id(c.contact_id[0]))
+                    .collect(),
+            }
+        } else {
+            SolverSer::Stored {
+                normal,
+                contacts: solver_contacts,
+            }
+        };
+        ManifoldSer {
+            points,
+            local_n1,
+            local_n2,
+            subshape1: *subshape1,
+            subshape2: *subshape2,
+            subshape_pos1: manifold.subshape_pos1().copied(),
+            subshape_pos2: manifold.subshape_pos2().copied(),
+            data: ManifoldDataSer {
+                rigid_body1: *rigid_body1,
+                rigid_body2: *rigid_body2,
+                solver_flags: *solver_flags,
+                solver_color: *solver_color,
+                solver_body_ids: *solver_body_ids,
+                graph_pos: *graph_pos,
+                solver,
+                relative_dominance: *relative_dominance,
+                user_data: *user_data,
+                friction: *friction,
+                restitution: *restitution,
+            },
+        }
+    }
+
+    fn manifold_de<E: serde::de::Error>(repr: ManifoldDe) -> Result<ContactManifold, E> {
+        let ManifoldDataDe {
+            rigid_body1,
+            rigid_body2,
+            solver_flags,
+            solver_color,
+            solver_body_ids,
+            graph_pos,
+            solver,
+            relative_dominance,
+            user_data,
+            friction,
+            restitution,
+        } = repr.data;
+        let (normal, solver_contacts) = match solver {
+            SolverDe::Stored { normal, contacts } => (normal, contacts),
+            SolverDe::Replay { ids } => {
+                let mut contacts = SolverContacts::new();
+                for id in ids {
+                    let stub = SolverContact {
+                        contact_id: [expand_id(id)],
+                        anchor1: Vector::ZERO,
+                        anchor2: Vector::ZERO,
+                        dist: 0.0,
+                        tangent_velocity: Default::default(),
+                        #[cfg(feature = "dim3")]
+                        padding: Default::default(),
+                    };
+                    #[cfg(feature = "dim2")]
+                    contacts
+                        .try_push(stub)
+                        .map_err(|_| E::custom("too many solver contacts"))?;
+                    #[cfg(feature = "dim3")]
+                    contacts.push(stub);
+                }
+                (Vector::ZERO, contacts)
+            }
+        };
+        let mut manifold = ContactManifold {
+            points: repr.points,
+            local_n1: repr.local_n1,
+            local_n2: repr.local_n2,
+            subshape1: repr.subshape1,
+            subshape2: repr.subshape2,
+            subshape_poses: None,
+            data: ContactManifoldData {
+                rigid_body1,
+                rigid_body2,
+                solver_flags,
+                solver_color,
+                solver_body_ids,
+                graph_pos,
+                normal,
+                solver_contacts,
+                relative_dominance,
+                user_data,
+                friction,
+                restitution,
+            },
+        };
+        manifold.set_subshape_pos1(repr.subshape_pos1);
+        manifold.set_subshape_pos2(repr.subshape_pos2);
+        Ok(manifold)
+    }
+
+    impl Serialize for ContactPair {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let contacts = match &self.contacts {
+                PairContacts::Rigid(rigid) => {
+                    let replay = rigid.recycle_state.is_some()
+                        && !self.event_status.contains(PairEventStatus::SOLVER_HOOKED)
+                        && self
+                            .event_status
+                            .contains(PairEventStatus::SOLVER_REPLAY_ANCHORS)
+                        && rigid.manifolds.iter().all(ids_fit);
+                    ContactsSer::Rigid(RigidSer {
+                        manifolds: rigid
+                            .manifolds
+                            .iter()
+                            .map(|m| manifold_ser(m, replay))
+                            .collect(),
+                        solver_clusters: rigid
+                            .solver_clusters
+                            .iter()
+                            .map(|m| manifold_ser(m, false))
+                            .collect(),
+                        solver_color: rigid.solver_color,
+                        solver_color_bodies: rigid.solver_color_bodies,
+                        workspace: &rigid.workspace,
+                        recycle_state: &rigid.recycle_state,
+                    })
+                }
+                PairContacts::Soft { touching, .. } => ContactsSer::Soft {
+                    touching: *touching,
+                },
+            };
+            PairSer {
+                collider1: self.collider1,
+                collider2: self.collider2,
+                event_status: self.event_status,
+                contacts,
+            }
+            .serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for ContactPair {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            let repr = PairDe::deserialize(deserializer)?;
+            let contacts = match repr.contacts {
+                ContactsDe::Rigid(rigid) => PairContacts::Rigid(RigidPairContacts {
+                    manifolds: rigid
+                        .manifolds
+                        .into_iter()
+                        .map(manifold_de)
+                        .collect::<Result<_, _>>()?,
+                    solver_clusters: rigid
+                        .solver_clusters
+                        .into_iter()
+                        .map(manifold_de)
+                        .collect::<Result<_, _>>()?,
+                    solver_clusters_prev: Vec::new(),
+                    solver_color: rigid.solver_color,
+                    solver_color_bodies: rigid.solver_color_bodies,
+                    workspace: rigid.workspace,
+                    recycle_state: rigid.recycle_state,
+                    soft: None,
+                }),
+                ContactsDe::Soft { touching } => PairContacts::Soft {
+                    touching,
+                    candidates: Default::default(),
+                },
+            };
+            Ok(ContactPair {
+                collider1: repr.collider1,
+                collider2: repr.collider2,
+                event_status: repr.event_status,
+                contacts,
+            })
+        }
     }
 }
 
