@@ -11,6 +11,17 @@
 //! serialized, and keeps simulating identically. [`PhysicsWorld`](crate::pipeline::PhysicsWorld)
 //! bundles the deltas of its components.
 //!
+//! A delta's size follows what changed since the baseline: about the awake bodies, their
+//! colliders and contacts, plus a few hundred bytes of per-component headers. Heavy shapes are
+//! referenced by content and only sent when the receiver cannot hold them yet.
+//!
+//! # Limitations
+//!
+//! - Without the `enhanced-determinism` feature, parry serializes the contact workspaces of
+//!   composite shapes (compounds, soft-body surfaces, voxels) in hash-map order, so a receiver
+//!   may serialize them in another order than the sender (with identical content).
+//! - Applying a broad-phase delta rebuilds the receiver's tree, like a deserialization.
+//!
 //! ```
 //! # #[cfg(feature = "serde-serialize")] {
 //! # use rapier3d::prelude::*;

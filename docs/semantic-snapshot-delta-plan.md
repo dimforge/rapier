@@ -355,3 +355,73 @@ The roundtrip-scene builders are reused.
   apply; later phases make each one incremental.
 - **Format churn.** Every serialized-format change re-mints both `snapshot_portability`
   goldens (wasm32-wasip1) and `parallel_path_parity`. Phase 3.1 is one such change.
+
+## Status (2026-10-28): implemented
+
+All phases landed on `snapshot-size`. Deviations from the plan above:
+
+- **Phase 0 outcome.** Five reported issues were real and are fixed, each with a regression
+  test: pending island events lost by snapshots, `iter_mut` stuck flags, the quarantine's
+  overwritten modified set, collider removal leaking solver colors, and unbounded
+  `force_event_flagged` under `CollisionPipeline`. Multibody forward kinematics on sleeping
+  multibodies is byte-stable, so not a bug.
+- **No coarse phase.** Every component went straight to slot granularity, each verified by
+  the oracle as it landed.
+- **Stamping strategies.** Three are used, per container:
+  - stamps at the write sites, built into `Arena`, `Coarena`, `Graph`, `StampedVec` and
+    `StampedVecMap` (every mutable accessor stamps);
+  - superset stamping where writes go through raw pointers: the awake set and its
+    colliders at the start and end of a step, every narrow-phase update candidate, every
+    solver-graph member after the solve;
+  - shadow comparison (`ShadowStamps`) for the narrow phase's small per-edge and per-body
+    arrays and solver buckets, which are written from many places, some in parallel.
+- **Derived fields stay serialized.** Instead of dropping `graph_pos`/`solver_body_ids`/
+  manifold colors from the format, the solver-graph maintenance compares old and new values
+  inline and stamps only the pairs it changed.
+- **Value-neutral passes run unstamped.** The per-step multibody forward kinematics and the
+  soft-body sync loops stamp only what they actually change.
+- **Shapes.** Collider deltas reference heavy shapes by content key; the sender only includes
+  bytes when no collider unchanged since the baseline holds that content, the receiver
+  resolves keys from a registry of shapes it holds. `Collider::shape_revision` (not
+  serialized) lets the key memo see in-place shape mutations.
+- **Ticks.** One read-advanced clock per component (`ChangeTick<C>`, typed by the component,
+  with a tracker id); `PhysicsWorld` bundles them in `WorldChangeTick`.
+
+Fixes to the snapshot-size work found by the oracle:
+
+- Parry's bulk BVH build assumes leaf ids 0 and 1 for one or two leaves: the broad phase
+  inserts such small trees leaf by leaf on restore.
+- Re-saving a restored world before stepping it changed the bytes of pairs awaiting their
+  solver-contact replay: their compact encoding is now reproduced from the pending set.
+- Solver contacts of multibody links were replayed from collider poses that the per-step
+  forward kinematics had already moved away from the body poses: replay now requires the
+  body pose to equal the collider pose bit for bit.
+
+### Measured (3D harness, f32, this machine)
+
+| scene | full snapshot | per-tick delta (avg) | encode | apply |
+|---|---:|---:|---:|---:|
+| instanced_shapes (settled) | 1,481,031 | 1,047 | 0.002 ms | 0.31 ms |
+| pile_sleepy (4 permanent movers) | 750,226 | 20,287 | 0.02 ms | 0.05 ms |
+| mixed | 426,374 | 19,450 | 0.01 ms | 0.03 ms |
+| pile_awake (everything awake) | 746,111 | 672,033 | 0.45 ms | 0.67 ms |
+| pyramid30 (everything awake) | 28,185,467 | 25,515,967 | 24.8 ms | 32.0 ms |
+
+Settled scenes cost about 1 KB per tick, mostly fixed per-component headers. A fully awake
+scene changes nearly everything every tick, and its delta is about 90% of a full snapshot.
+Step cost with tracking disabled: parity with the pre-delta commit (−0.3%, 8 interleaved
+pyramid30 rounds). With tracking enabled: about +1%.
+
+### Known limitations
+
+- **Composite contact workspaces in default builds.** Parry serializes them (compound,
+  trimesh soft surfaces, voxels) in hash-map order, which depends on the map's growth
+  history. A receiver rebuilds the maps of the pairs it patches, so its bytes can differ from
+  the sender's while the content is identical. With `enhanced-determinism` (insertion-ordered
+  maps) bytes match. The fix belongs in parry: serialize these maps sorted by key.
+- **Receiver-side broad-phase cost.** Applying a broad-phase delta rebuilds the receiver's
+  tree from its leaves (O(n log n)), like a deserialization. Incremental tree patching would
+  make it proportional to the change.
+- **Encode cost of awake scenes.** Encoding clones the changed slots, about a full
+  serialization when everything is awake.
+- **Bindings.** The TypeScript, Python and C bindings don't expose deltas yet.
