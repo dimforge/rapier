@@ -7,6 +7,16 @@ release cadence. The authoritative changelog is the Cargo
 `Rapier repository
 <https://github.com/dimforge/rapier/blob/master/CHANGELOG.md>`_.
 
+Unreleased
+----------
+
+**Added**
+
+- Snapshot deltas: ``PhysicsWorld.enable_change_tracking``, ``disable_change_tracking``,
+  ``delta_since`` and ``apply_delta`` replicate a world by sending only what changed since a
+  state the receiver acknowledged. Failures raise the new ``DeltaError`` (a
+  ``SerializationError``).
+
 0.36.1 (4 October 2026)
 -----------------------
 

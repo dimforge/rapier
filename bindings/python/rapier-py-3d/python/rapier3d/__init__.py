@@ -22,6 +22,7 @@ from ._rapier3d import (  # noqa: F401
     UrdfError,
     MjcfError,
     SerializationError,
+    DeltaError,
     QueryFailure,
     MeshLoaderError,
     # ---- dynamics ----
@@ -238,6 +239,7 @@ __all__ = [
     "UrdfError",
     "MjcfError",
     "SerializationError",
+    "DeltaError",
     "QueryFailure",
     "MeshLoaderError",
     "RigidBody",

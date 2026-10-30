@@ -46,6 +46,12 @@ create_exception!(
 );
 create_exception!(
     rapier,
+    DeltaError,
+    SerializationError,
+    "Raised when a snapshot delta cannot be produced or applied; its `kind` attribute names the cause."
+);
+create_exception!(
+    rapier,
     QueryFailure,
     RapierError,
     "Raised when a spatial query (raycast, point projection, ...) cannot complete."
@@ -73,6 +79,7 @@ pub fn register_errors(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> 
         "SerializationError",
         py.get_type_bound::<SerializationError>(),
     )?;
+    m.add("DeltaError", py.get_type_bound::<DeltaError>())?;
     m.add("QueryFailure", py.get_type_bound::<QueryFailure>())?;
     m.add("MeshLoaderError", py.get_type_bound::<MeshLoaderError>())?;
     Ok(())

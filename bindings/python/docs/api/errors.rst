@@ -24,6 +24,8 @@ Core errors
    :show-inheritance:
 .. autoexception:: SerializationError
    :show-inheritance:
+.. autoexception:: DeltaError
+   :show-inheritance:
 
 Loader errors
 -------------
