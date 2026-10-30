@@ -669,6 +669,17 @@ impl ColliderSet {
         &mut self.colliders[handle.0]
     }
 
+    /// Like [`Self::index_mut_internal`] without stamping the slot for snapshot deltas.
+    ///
+    /// For the parallel loops writing disjoint slots through a shared pointer; their writes
+    /// are stamped by the pipeline's active-set stamping instead.
+    #[cfg(feature = "parallel")]
+    pub(crate) fn index_mut_unstamped(&mut self, handle: ColliderHandle) -> &mut Collider {
+        self.colliders
+            .get_mut_unstamped(handle.0)
+            .expect("No element at index")
+    }
+
     pub(crate) fn get_mut_internal(&mut self, handle: ColliderHandle) -> Option<&mut Collider> {
         self.colliders.get_mut(handle.0)
     }

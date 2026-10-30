@@ -187,7 +187,9 @@ impl PhysicsPipeline {
                     let mut quarantined_colliders = Vec::new();
 
                     for handle in chunk {
-                        let rb = bodies.index_mut_internal(*handle);
+                        // Unstamped: stamping may grow shared storage, and the active-set
+                        // stamping covers these writes.
+                        let rb = bodies.index_mut_unstamped(*handle);
                         // Non-finite pose containment; see the serial branch.
                         if !rb.pos.next_position.is_finite() {
                             quarantined_bodies.push((*handle, rb.pos.position));
@@ -198,7 +200,7 @@ impl PhysicsPipeline {
                         // Cluster proxies' colliders: see the serial branch.
                         if !rb.is_soft_frame() {
                             for co_handle in rb.colliders.0.iter() {
-                                let co = colliders.index_mut_internal(*co_handle);
+                                let co = colliders.index_mut_unstamped(*co_handle);
                                 let new_pos =
                                     rb.pos.position * co.parent.as_ref().unwrap().pos_wrt_parent;
                                 co.pos = crate::geometry::ColliderPosition(new_pos);

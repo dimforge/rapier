@@ -962,7 +962,8 @@ pub(super) unsafe fn run_worker(ctx: &SharedCtx, worker_id: usize) {
                 }
 
                 let bodies = unsafe { &mut *ctx.bodies };
-                let rb = bodies.index_mut_internal(handle);
+                // Unstamped: workers run concurrently, and the active-set stamping covers this.
+                let rb = bodies.index_mut_unstamped(handle);
                 let vs = unsafe { &*ctx.velocity_solver };
                 let solver_vels = &vs.solver_bodies.vels[rb.ids.active_set_id as usize];
                 let solver_poses = &vs.solver_bodies.poses[rb.ids.active_set_id as usize];

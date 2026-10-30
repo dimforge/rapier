@@ -277,7 +277,8 @@ impl PhysicsPipeline {
                     let mut chunk_bid = None;
                     let mut observations = Vec::new();
                     for handle in chunk {
-                        let rb = bodies.index_mut_internal(*handle);
+                        // Unstamped: see the position update's parallel loop.
+                        let rb = bodies.index_mut_unstamped(*handle);
                         IslandManager::update_body_energy(rb, soft_bodies, dt, length_unit);
                         let effective_mass = rb.mprops.effective_mass();
                         rb.forces

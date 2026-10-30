@@ -606,6 +606,20 @@ impl<T> Arena<T> {
         }
     }
 
+    /// Like [`Self::get_mut`] without stamping, for writes the caller stamps separately.
+    ///
+    /// Required where several threads write disjoint slots through a shared pointer, since
+    /// stamping may grow the stamp storage.
+    #[inline]
+    pub(crate) fn get_mut_unstamped(&mut self, i: Index) -> Option<&mut T> {
+        match self.items.get_mut(i.index as usize) {
+            Some(Entry::Occupied { generation, value }) if *generation == i.generation => {
+                Some(value)
+            }
+            _ => None,
+        }
+    }
+
     /// Stamps the slot of `i` as written at the current tick.
     #[inline]
     pub(crate) fn mark_changed(&mut self, i: Index) {
