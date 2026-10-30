@@ -178,6 +178,7 @@ impl<N, E> Graph<N, E> {
     }
 
     /// Sets the tick written by the change stamps (zero disables them).
+    #[cfg_attr(not(feature = "serde-serialize"), allow(dead_code))]
     pub(crate) fn set_stamp_tick(&mut self, now: u32) {
         self.node_stamps.set_now(now);
         self.edge_stamps.set_now(now);
@@ -631,38 +632,6 @@ impl<N, E> Graph<N, E> {
     }
 }
 
-struct EdgesWalkerMut<'a, E: 'a> {
-    edges: &'a mut [Edge<E>],
-    next: EdgeIndex,
-    dir: Direction,
-}
-
-fn edges_walker_mut<E>(
-    edges: &mut [Edge<E>],
-    next: EdgeIndex,
-    dir: Direction,
-) -> EdgesWalkerMut<'_, E> {
-    EdgesWalkerMut { edges, next, dir }
-}
-
-impl<E> EdgesWalkerMut<'_, E> {
-    fn next_edge(&mut self) -> Option<&mut Edge<E>> {
-        self.next().map(|t| t.1)
-    }
-
-    fn next(&mut self) -> Option<(EdgeIndex, &mut Edge<E>)> {
-        let this_index = self.next;
-        let k = self.dir as usize;
-        match self.edges.get_mut(self.next.index()) {
-            None => None,
-            Some(edge) => {
-                self.next = edge.next[k];
-                Some((this_index, edge))
-            }
-        }
-    }
-}
-
 /// Iterator over the edges of from or to a node
 pub struct Edges<'a, E: 'a> {
     /// starting node to skip over
@@ -856,11 +825,6 @@ impl<N: Clone, E: Clone> Graph<N, E> {
 
 #[cfg(feature = "serde-serialize")]
 impl<N, E> Graph<N, E> {
-    /// The edges a delta writes, with their slot index.
-    pub(crate) fn delta_edges(delta: &GraphDelta<N, E>) -> impl Iterator<Item = (u32, &E)> {
-        delta.edges.slots.iter().map(|(i, e)| (*i, &e.weight))
-    }
-
     /// Patches `delta` into this graph. `placeholder` fills appended slots before they are
     /// overwritten (every appended slot is part of the delta).
     pub(crate) fn apply_delta(

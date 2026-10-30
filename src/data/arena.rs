@@ -123,7 +123,6 @@ impl Index {
 #[cfg(feature = "alloc")]
 const DEFAULT_CAPACITY: usize = 4;
 
-#[cfg(feature = "alloc")]
 /// The slots of an [`Arena`] written since a baseline, with its allocator state.
 #[cfg(feature = "serde-serialize")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -132,17 +131,6 @@ pub(crate) struct ArenaDelta<T> {
     free_list_head: Option<u32>,
     len: u64,
     items: crate::data::delta::VecDelta<Entry<T>>,
-}
-
-#[cfg(feature = "serde-serialize")]
-impl<T> ArenaDelta<T> {
-    /// The occupied slots this delta writes.
-    pub(crate) fn occupied(&self) -> impl Iterator<Item = (u32, &T)> {
-        self.items.slots.iter().filter_map(|(i, e)| match e {
-            Entry::Occupied { value, .. } => Some((*i, value)),
-            Entry::Free { .. } => None,
-        })
-    }
 }
 
 #[cfg(feature = "serde-serialize")]
@@ -215,6 +203,7 @@ impl<T: Clone> Arena<T> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<T> Default for Arena<T> {
     fn default() -> Arena<T> {
         Arena::new()
@@ -611,17 +600,6 @@ impl<T> Arena<T> {
         match self.items.get_mut(i.index as usize) {
             Some(Entry::Occupied { generation, value }) if *generation == i.generation => {
                 self.stamps.mark(i.index as usize);
-                Some(value)
-            }
-            _ => None,
-        }
-    }
-
-    /// Like [`Self::get_mut`], without stamping the slot: the caller stamps it (with
-    /// [`Self::mark_changed`]) only if it actually writes.
-    pub(crate) fn get_mut_unstamped(&mut self, i: Index) -> Option<&mut T> {
-        match self.items.get_mut(i.index as usize) {
-            Some(Entry::Occupied { generation, value }) if *generation == i.generation => {
                 Some(value)
             }
             _ => None,

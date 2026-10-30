@@ -2,6 +2,7 @@
 
 use crate::alloc_prelude::*;
 
+#[cfg_attr(not(feature = "serde-serialize"), allow(dead_code))]
 /// Whether a slot stamped at `stamp` was written after the tick `since` (wrapping-aware; a
 /// zero stamp means "never written since tracking started").
 #[inline]
@@ -21,6 +22,7 @@ pub(crate) struct ChangeStamps {
     stamps: Vec<u32>,
 }
 
+#[cfg_attr(not(feature = "serde-serialize"), allow(dead_code))]
 impl ChangeStamps {
     pub(crate) const fn new() -> Self {
         Self {

@@ -211,6 +211,7 @@ impl SolverContactGraph {
         &self.buckets
     }
 
+    #[cfg(feature = "serde-serialize")]
     pub(crate) fn raw_buckets_mut(&mut self) -> &mut Vec<Vec<ContactRef>> {
         &mut self.buckets
     }

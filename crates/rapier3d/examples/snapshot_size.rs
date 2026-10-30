@@ -290,6 +290,7 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
     let mut acked = Some(world.delta_since(None).unwrap().1);
     let ticks = 20;
     let (mut size, mut max_size, mut encode, mut apply, mut step) = (0, 0, 0.0, 0.0, 0.0);
+    let mut breakdown = String::new();
     for _ in 0..ticks {
         let t0 = Instant::now();
         world.step();
@@ -304,6 +305,18 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
             .unwrap();
         apply += t0.elapsed().as_secs_f64() * 1000.0;
         acked = Some(tick);
+        let delta: rapier3d::pipeline::WorldDelta = bincode::deserialize(&delta_bytes).unwrap();
+        breakdown = format!(
+            "islands {} bp {} np {} bodies {} colliders {} joints {} mb {} soft {}",
+            bincode::serialized_size(&delta.islands).unwrap(),
+            bincode::serialized_size(&delta.broad_phase).unwrap(),
+            bincode::serialized_size(&delta.narrow_phase).unwrap(),
+            bincode::serialized_size(&delta.bodies).unwrap(),
+            bincode::serialized_size(&delta.colliders).unwrap(),
+            bincode::serialized_size(&delta.impulse_joints).unwrap(),
+            bincode::serialized_size(&delta.multibody_joints).unwrap(),
+            bincode::serialized_size(&delta.soft_bodies).unwrap(),
+        );
         size += delta_bytes.len();
         max_size = max_size.max(delta_bytes.len());
     }
@@ -316,6 +329,7 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
         apply / n,
         step / n,
     );
+    println!("  last delta by component: {breakdown}");
 }
 
 fn main() {

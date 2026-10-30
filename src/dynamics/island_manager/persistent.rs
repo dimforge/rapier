@@ -134,6 +134,7 @@ impl core::ops::Deref for JointLinkLocs {
     }
 }
 
+#[cfg_attr(not(feature = "serde-serialize"), allow(dead_code))]
 impl JointLinkLocs {
     pub(crate) fn insert(&mut self, key: JointLinkKey, loc: (u32, u32)) -> Option<(u32, u32)> {
         self.stamp.mark(0);

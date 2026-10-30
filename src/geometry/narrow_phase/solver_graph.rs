@@ -133,69 +133,18 @@ impl NarrowPhase {
         colliders: &ColliderSet,
         multibody_joints: &MultibodyJointSet,
     ) {
-        if !self.contact_graph.graph.edge_stamps.is_enabled() {
-            self.maintain_solver_contact_graph_untracked(islands, bodies, colliders, multibody_joints);
-            return;
-        }
         // The maintenance rewrites the members' derived manifold data (bucket position, solver
-        // ids, color), most often with identical values: stamp only the pairs it changed. A
-        // manifold it writes is a solver-graph member before or after.
-        let before = self.solver_member_data();
-        self.maintain_solver_contact_graph_untracked(islands, bodies, colliders, multibody_joints);
-        let after = self.solver_member_data();
-        let (mut i, mut j) = (0, 0);
-        while i < before.len() || j < after.len() {
-            let (a, b) = (before.get(i), after.get(j));
-            match (a, b) {
-                (Some(a), Some(b)) if (a.0, a.1) == (b.0, b.1) => {
-                    if a != b {
-                        self.contact_graph.graph.mark_edge(a.0 as usize);
-                    }
-                    i += 1;
-                    j += 1;
-                }
-                (Some(a), Some(b)) if (a.0, a.1) < (b.0, b.1) => {
-                    self.contact_graph.graph.mark_edge(a.0 as usize);
-                    i += 1;
-                }
-                (Some(_), Some(b)) | (None, Some(b)) => {
-                    self.contact_graph.graph.mark_edge(b.0 as usize);
-                    j += 1;
-                }
-                (Some(a), None) => {
-                    self.contact_graph.graph.mark_edge(a.0 as usize);
-                    i += 1;
-                }
-                (None, None) => unreachable!(),
-            }
-        }
-    }
-
-    /// The derived manifold data of every solver-graph member, by `(edge, manifold)`.
-    #[allow(clippy::type_complexity)]
-    fn solver_member_data(&self) -> Vec<(u32, u32, GraphPos, [u32; 2], u8)> {
-        let edges = &self.contact_graph.graph.edges;
-        let mut members: Vec<_> = self
-            .solver_contact_graph
-            .raw_buckets()
-            .iter()
-            .flatten()
-            .filter(|c| !c.is_padding())
-            .filter_map(|c| {
-                let pair = &edges.get(c.edge as usize)?.weight;
-                let data = &pair.solver_manifolds().get(c.manifold as usize)?.data;
-                Some((
-                    c.edge,
-                    c.manifold,
-                    data.graph_pos,
-                    data.solver_body_ids,
-                    data.solver_color,
-                ))
-            })
-            .collect();
-        members.sort_unstable_by_key(|m| (m.0, m.1));
-        members.dedup_by_key(|m| (m.0, m.1));
-        members
+        // ids, color), most often with identical values: only the pairs it changed are stamped.
+        let mut changed = Vec::new();
+        let track = self.contact_graph.graph.edge_stamps.is_enabled();
+        self.maintain_solver_contact_graph_untracked(
+            islands,
+            bodies,
+            colliders,
+            multibody_joints,
+            track.then_some(&mut changed),
+        );
+        self.contact_graph.graph.mark_edges(&changed);
     }
 
     /// Stamps the solver-graph members as written: the solver writes their impulses back.
@@ -210,12 +159,14 @@ impl NarrowPhase {
         }
     }
 
+    /// `changed`: if given, receives the edges whose derived manifold data was changed.
     fn maintain_solver_contact_graph_untracked(
         &mut self,
         islands: &IslandManager,
         bodies: &RigidBodySet,
         colliders: &ColliderSet,
         multibody_joints: &MultibodyJointSet,
+        mut changed: Option<&mut Vec<u32>>,
     ) {
         let epoch = islands.active_set_epoch;
         let mb_epoch = multibody_joints.topology_epoch;
@@ -306,10 +257,12 @@ impl NarrowPhase {
 
                 // Pass 2: scatter the refs at their exact offsets and stamp the manifolds
                 // (graph_pos, solver-body ids, color); layout identical to the serial walk's.
-                bases
+                let track = changed.is_some();
+                let changed_chunks: Vec<Vec<u32>> = bases
                     .into_par_iter()
                     .enumerate()
-                    .for_each(|(c, mut cursors)| {
+                    .map(|(c, mut cursors)| {
+                        let mut chunk_changed = Vec::new();
                         for edge in (c * CHUNK)..((c + 1) * CHUNK).min(num_edges) {
                             let hint = hints.get(edge).copied().unwrap_or(0);
                             // SAFETY: each edge (and thus each manifold and each
@@ -330,6 +283,11 @@ impl NarrowPhase {
                                     |ordinal, desired| {
                                         let mdata: *mut ContactManifoldData =
                                             &mut (*sm_ptr.add(ordinal as usize)).data;
+                                        let old = (
+                                            (*mdata).graph_pos,
+                                            (*mdata).solver_body_ids,
+                                            (*mdata).solver_color,
+                                        );
                                         match desired {
                                             Some((bucket, solver_body_ids, color)) => {
                                                 let local = cursors[bucket as usize];
@@ -347,11 +305,27 @@ impl NarrowPhase {
                                                 (*mdata).graph_pos = GraphPos::NONE;
                                             }
                                         }
+                                        let new = (
+                                            (*mdata).graph_pos,
+                                            (*mdata).solver_body_ids,
+                                            (*mdata).solver_color,
+                                        );
+                                        if track
+                                            && old != new
+                                            && chunk_changed.last() != Some(&(edge as u32))
+                                        {
+                                            chunk_changed.push(edge as u32);
+                                        }
                                     },
                                 );
                             }
                         }
-                    });
+                        chunk_changed
+                    })
+                    .collect();
+                if let Some(changed) = changed.as_deref_mut() {
+                    changed.extend(changed_chunks.into_iter().flatten());
+                }
             }
 
             #[cfg(not(feature = "parallel"))]
@@ -371,6 +345,7 @@ impl NarrowPhase {
                             true,
                             has_multibodies,
                             multibody_joints,
+                            changed.as_deref_mut(),
                         )
                     };
                 }
@@ -397,6 +372,7 @@ impl NarrowPhase {
                         false,
                         has_multibodies,
                         multibody_joints,
+                        changed.as_deref_mut(),
                     )
                 };
             }
@@ -669,8 +645,18 @@ impl NarrowPhase {
         full: bool,
         has_multibodies: bool,
         multibody_joints: &MultibodyJointSet,
+        mut changed: Option<&mut Vec<u32>>,
     ) {
         use crate::geometry::contact_pair::{SOLVER_COLOR_OVERFLOW, SOLVER_COLOR_UNCOLORED};
+
+        // Reports the pairs whose derived manifold data this call changes (once each).
+        let mut report = |edge: u32| {
+            if let Some(changed) = changed.as_deref_mut() {
+                if changed.last() != Some(&edge) {
+                    changed.push(edge);
+                }
+            }
+        };
 
         // First gate of the solver selection. Honoring the hint (not the live
         // body/manifold state) keeps the graph exactly in step with the selection across
@@ -731,6 +717,13 @@ impl NarrowPhase {
                 edge,
                 manifold: ordinal as u32,
             };
+            let old = unsafe {
+                (
+                    (*mdata).graph_pos,
+                    (*mdata).solver_body_ids,
+                    (*mdata).solver_color,
+                )
+            };
             match desired {
                 Some((color, solver_body_ids, is_generic)) => {
                     unsafe {
@@ -744,7 +737,11 @@ impl NarrowPhase {
                     };
                     if full || !current.is_some() || current.bucket() != target_bucket {
                         if !full && current.is_some() {
-                            let _ = unsafe { Self::remove_and_fixup(graph, edges_ptr, current) };
+                            if let Some(moved) =
+                                unsafe { Self::remove_and_fixup(graph, edges_ptr, current) }
+                            {
+                                report(moved);
+                            }
                         }
                         let pos = if is_generic {
                             graph.insert_generic(contact)
@@ -759,10 +756,24 @@ impl NarrowPhase {
                     if full {
                         unsafe { (*mdata).graph_pos = GraphPos::NONE };
                     } else if current.is_some() {
-                        let _ = unsafe { Self::remove_and_fixup(graph, edges_ptr, current) };
+                        if let Some(moved) =
+                            unsafe { Self::remove_and_fixup(graph, edges_ptr, current) }
+                        {
+                            report(moved);
+                        }
                         unsafe { (*mdata).graph_pos = GraphPos::NONE };
                     }
                 }
+            }
+            let new = unsafe {
+                (
+                    (*mdata).graph_pos,
+                    (*mdata).solver_body_ids,
+                    (*mdata).solver_color,
+                )
+            };
+            if old != new {
+                report(edge);
             }
         }
     }

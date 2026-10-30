@@ -221,11 +221,6 @@ pub(crate) struct ChangeTracker {
 }
 
 impl ChangeTracker {
-    /// The tick writes are currently stamped with (zero when disabled).
-    pub(crate) fn now(&self) -> u32 {
-        self.clock.map_or(0, |(_, now)| now)
-    }
-
     pub(crate) fn is_enabled(&self) -> bool {
         self.clock.is_some()
     }

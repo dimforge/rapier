@@ -1072,8 +1072,6 @@ mod pair_serde {
     use super::*;
     use crate::dynamics::solver::solver_contact_graph::GraphPos;
     use crate::geometry::{Contact, ContactRecycleState};
-    #[cfg(feature = "dim2")]
-    use serde::de::Error as _;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     #[cfg(feature = "dim2")]
