@@ -283,6 +283,39 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
         println!("  {part:>22}: {size:>12}");
     }
     println!("  step: {ms_per_step:.3} ms avg over {timed} steps (after {warmup} warmup)");
+
+    // Per-tick semantic deltas into a receiver restored from the snapshot above.
+    let mut receiver: PhysicsWorld = bincode::deserialize(&bytes).unwrap();
+    world.enable_change_tracking();
+    let mut acked = Some(world.delta_since(None).unwrap().1);
+    let ticks = 20;
+    let (mut size, mut max_size, mut encode, mut apply, mut step) = (0, 0, 0.0, 0.0, 0.0);
+    for _ in 0..ticks {
+        let t0 = Instant::now();
+        world.step();
+        step += t0.elapsed().as_secs_f64() * 1000.0;
+        let t0 = Instant::now();
+        let (delta, tick) = world.delta_since(acked.as_ref()).unwrap();
+        let delta_bytes = bincode::serialize(&delta).unwrap();
+        encode += t0.elapsed().as_secs_f64() * 1000.0;
+        let t0 = Instant::now();
+        receiver
+            .apply_delta(bincode::deserialize(&delta_bytes).unwrap())
+            .unwrap();
+        apply += t0.elapsed().as_secs_f64() * 1000.0;
+        acked = Some(tick);
+        size += delta_bytes.len();
+        max_size = max_size.max(delta_bytes.len());
+    }
+    let n = ticks as f64;
+    println!(
+        "  tick delta: {:>10} bytes avg, {max_size} max ({:.2}% of full); encode {:.3} ms, apply {:.3} ms; tracked step {:.3} ms",
+        size / ticks,
+        (size as f64 / n) * 100.0 / bytes.len() as f64,
+        encode / n,
+        apply / n,
+        step / n,
+    );
 }
 
 fn main() {

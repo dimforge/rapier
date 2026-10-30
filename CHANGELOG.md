@@ -2,6 +2,21 @@
 
 ### Added
 
+- Snapshot deltas: serialize only what changed since an earlier state, for per-tick
+  replication (server-authoritative netcode, late joiners, relays). With change tracking
+  enabled, every component stamps the storage slots it writes; a delta carries only the
+  slots written after a baseline tick, so its cost follows what changed (roughly the awake
+  bodies and their contacts), not the size of the world. A receiver applying every delta from
+  its baseline serializes byte-identically to the sender and keeps simulating identically.
+  - `PhysicsWorld::{enable_change_tracking, delta_since, apply_delta}`, with `WorldDelta`
+    and `WorldChangeTick` (one tick per component, serializable for acknowledgements).
+  - The `SnapshotDelta` trait (`delta_since`, `apply_delta`, `ChangeTick`, `Delta`,
+    `DeltaError`), implemented by `RigidBodySet`, `ColliderSet`, `ImpulseJointSet`,
+    `MultibodyJointSet`, `IslandManager`, `BroadPhaseBvh`, `NarrowPhase` and `SoftBodySet`
+    for users replicating the components without `PhysicsWorld`.
+  - Deltas are serde types: serialize them with any format. Heavy shapes (meshes, hulls,
+    heightfields, compounds) are referenced by content and only sent when the receiver
+    cannot hold them yet.
 - `NarrowPhase::rebuild_solver_contacts`: recomputes the solver-facing contact data
   that snapshots now store in compact form. The first step after a deserialization
   runs it automatically; call it only to inspect solver contacts before that step.
@@ -27,6 +42,19 @@
 - Spawned broad-phase pairs are handed to the narrow phase in canonical collider-pair
   order instead of tree-traversal order, which slightly changes contact ordering
   (and therefore exact trajectories) compared to the previous version.
+
+### Fixed
+
+- A snapshot taken between a joint insertion (or edit) and the next step no longer loses the
+  joint's pending island links.
+- Stopping a `RigidBodySet::iter_mut` / `ColliderSet::iter_mut` iteration early no longer
+  loses the modifications made before it.
+- Removing a collider releases the solver colors of its contact pairs (stale colors made
+  color overflow, and less parallelism, more likely).
+- The collision pipeline no longer accumulates contact-force-event flags of modified
+  colliders without bound.
+- A collider quarantined at the end of a step (non-finite AABB) has its disabling processed
+  by the next step.
 
 ## v0.36.1 (4 October 2026)
 

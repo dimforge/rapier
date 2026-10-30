@@ -608,11 +608,13 @@ fn snapshot_between_joint_insert_and_step() {
 }
 
 /*
- * Snapshot deltas: every component is replicated into receivers through serialized deltas,
- * which must leave each receiver byte-identical to the sender after every sync.
+ * Snapshot deltas: worlds and individual components are replicated into receivers through
+ * serialized deltas, which must leave each receiver byte-identical to the sender after every
+ * sync, and simulating identically afterwards.
  */
 
 use rapier3d::data::{ChangeTick, Delta, SnapshotDelta};
+use rapier3d::pipeline::{WorldChangeTick, WorldDelta};
 
 /// Applies one serialized delta of a component to a receiver and checks the receiver's bytes.
 fn sync_component<C: SnapshotDelta + serde::Serialize>(
@@ -622,7 +624,7 @@ fn sync_component<C: SnapshotDelta + serde::Serialize>(
     sender: &mut C,
     receiver: &mut C,
     acked: &mut Option<ChangeTick<C>>,
-) -> usize {
+) {
     let (delta, tick) = sender.delta_since(*acked).expect("delta_since");
     let bytes = bincode::serialize(&delta).unwrap();
     let delta: Delta<C> = bincode::deserialize(&bytes).unwrap();
@@ -639,65 +641,63 @@ fn sync_component<C: SnapshotDelta + serde::Serialize>(
         got.len(),
         bytes.len()
     );
-    bytes.len()
 }
 
-/// The components replicated by the delta tests.
-macro_rules! tracked_components {
+/// The serialized components of a world.
+macro_rules! components {
     ($m: ident) => {
+        $m!(islands, IslandManager);
+        $m!(broad_phase, BroadPhaseBvh);
+        $m!(narrow_phase, NarrowPhase);
         $m!(bodies, RigidBodySet);
         $m!(colliders, ColliderSet);
         $m!(impulse_joints, ImpulseJointSet);
         $m!(multibody_joints, MultibodyJointSet);
         $m!(soft_bodies, SoftBodySet);
-        $m!(islands, IslandManager);
-        $m!(broad_phase, BroadPhaseBvh);
-        $m!(narrow_phase, NarrowPhase);
     };
 }
 
+/// Per-component baselines of the receiver replicating components one by one.
 #[derive(Default)]
-struct Acks {
+struct ComponentAcks {
+    islands: Option<ChangeTick<IslandManager>>,
+    broad_phase: Option<ChangeTick<BroadPhaseBvh>>,
+    narrow_phase: Option<ChangeTick<NarrowPhase>>,
     bodies: Option<ChangeTick<RigidBodySet>>,
     colliders: Option<ChangeTick<ColliderSet>>,
     impulse_joints: Option<ChangeTick<ImpulseJointSet>>,
     multibody_joints: Option<ChangeTick<MultibodyJointSet>>,
     soft_bodies: Option<ChangeTick<SoftBodySet>>,
-    islands: Option<ChangeTick<IslandManager>>,
-    broad_phase: Option<ChangeTick<BroadPhaseBvh>>,
-    narrow_phase: Option<ChangeTick<NarrowPhase>>,
 }
 
-struct Receiver {
+/// A world replicated through world deltas, applied every `every` ticks.
+struct WorldReceiver {
     world: PhysicsWorld,
-    acks: Acks,
+    acked: Option<WorldChangeTick>,
     every: usize,
 }
 
-impl Receiver {
+impl WorldReceiver {
+    /// Returns the size of the serialized delta.
     fn sync(&mut self, what: &str, step: usize, sender: &mut PhysicsWorld) -> usize {
-        let mut bytes = 0;
-        macro_rules! sync {
-            ($field: ident, $ty: ty) => {
-                bytes += sync_component(
-                    what,
-                    stringify!($field),
-                    step,
-                    &mut sender.$field,
-                    &mut self.world.$field,
-                    &mut self.acks.$field,
-                );
-            };
-        }
-        tracked_components!(sync);
-        bytes
+        let (delta, tick) = sender.delta_since(self.acked.as_ref()).expect("delta_since");
+        let bytes = bincode::serialize(&delta).unwrap();
+        let delta: WorldDelta = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(self.world.apply_delta(delta).expect("apply_delta"), tick);
+        self.acked = Some(tick);
+        assert_same(step, &record(sender), &record(&self.world), what);
+        bytes.len()
     }
 }
 
-/// Steps `world` while replicating it into three receivers through deltas: one restored
-/// from a full snapshot and synced every tick, one bootstrapped from full deltas, and one
-/// syncing every five ticks against its own acknowledged baseline. Returns the largest
-/// per-tick delta of the first receiver.
+/// Steps `world` while replicating it through deltas into:
+/// - a world restored from a full snapshot, synced every tick;
+/// - an empty world bootstrapped by a full delta, synced every tick;
+/// - a restored world syncing every five ticks against its own acknowledged baseline;
+/// - individually deserialized components, synced one by one through component deltas.
+///
+/// Then the first two step on alongside the sender and must stay byte-identical. Returns the
+/// largest serialized per-tick world delta.
 fn check_delta_replication(
     what: &str,
     mut world: PhysicsWorld,
@@ -710,39 +710,36 @@ fn check_delta_replication(
         edit(&mut world, step, &mut spawned);
         world.step();
     }
+    world.enable_change_tracking();
 
-    macro_rules! enable {
-        ($field: ident, $ty: ty) => {
-            world.$field.enable_change_tracking();
-        };
-    }
-    tracked_components!(enable);
-
-    // Receiver 0 starts from a full snapshot taken at the same instant as its baseline ticks.
-    let mut restored = Receiver {
-        world: restore(&save(&world)),
-        acks: Acks::default(),
-        every: 1,
-    };
-    macro_rules! baseline {
-        ($field: ident, $ty: ty) => {
-            restored.acks.$field = Some(world.$field.delta_since(None).unwrap().1);
-        };
-    }
-    tracked_components!(baseline);
+    // Restored receivers start from a full snapshot taken at the same instant as their baseline.
+    let snapshot = save(&world);
+    let baseline = world.delta_since(None).unwrap().1;
     let mut receivers = vec![
-        restored,
-        Receiver {
-            world: PhysicsWorld::new(),
-            acks: Acks::default(),
+        WorldReceiver {
+            world: restore(&snapshot),
+            acked: Some(baseline),
             every: 1,
         },
-        Receiver {
-            world: restore(&save(&world)),
-            acks: Acks::default(),
+        WorldReceiver {
+            world: PhysicsWorld::new(),
+            acked: None,
+            every: 1,
+        },
+        WorldReceiver {
+            world: restore(&snapshot),
+            acked: Some(baseline),
             every: 5,
         },
     ];
+    let mut components = restore(&snapshot);
+    let mut acks = ComponentAcks::default();
+    macro_rules! component_baseline {
+        ($field: ident, $ty: ty) => {
+            acks.$field = Some(world.$field.delta_since(None).unwrap().1);
+        };
+    }
+    components!(component_baseline);
 
     let mut max_delta = 0;
     for step in 0..after {
@@ -755,6 +752,35 @@ fn check_delta_replication(
                     max_delta = max_delta.max(bytes);
                 }
             }
+        }
+        macro_rules! sync {
+            ($field: ident, $ty: ty) => {
+                sync_component(
+                    what,
+                    stringify!($field),
+                    before + step,
+                    &mut world.$field,
+                    &mut components.$field,
+                    &mut acks.$field,
+                );
+            };
+        }
+        components!(sync);
+    }
+
+    // Replicas continue the simulation exactly.
+    let mut replicas: Vec<_> = receivers
+        .drain(..2)
+        .map(|r| (r.world, spawned.clone()))
+        .collect();
+    for step in 0..30 {
+        edit(&mut world, before + after + step, &mut spawned);
+        world.step();
+        let want = record(&world);
+        for (replica, replica_spawned) in &mut replicas {
+            edit(replica, before + after + step, replica_spawned);
+            replica.step();
+            assert_same(step, &want, &record(replica), what);
         }
     }
     max_delta
@@ -955,3 +981,36 @@ fn restore_then_save_is_identical() {
     }
 }
 
+
+/// Impulse joints added at runtime next to a multibody: the multibody links' poses are
+/// rewritten by forward kinematics before their colliders follow, so the solver contacts of
+/// their pairs must not be replayed from the collider poses.
+#[test]
+fn multibody_with_joint_churn() {
+    check_roundtrip("multibody with joint churn", joints_world(), 160, 30, false, |world, step, spawned| {
+        // Joint churn: link and unlink pairs of pile bodies, impulse and multibody alike.
+        let dynamic: Vec<_> = world
+            .bodies
+            .iter()
+            .filter(|(_, b)| b.is_dynamic())
+            .map(|(h, _)| h)
+            .collect();
+        if step % 23 == 4 {
+            let (a, b) = (dynamic[step % 30], dynamic[(step % 30) + 40]);
+            world.insert_impulse_joint(a, b, SphericalJointBuilder::new().build().data);
+        }
+        if step % 31 == 7 {
+            let (a, b) = (dynamic[(step % 20) + 2], dynamic[(step % 20) + 60]);
+            if let Some(h) = world.insert_multibody_joint(a, b, SphericalJointBuilder::new().build().data) {
+                let _ = h;
+                spawned.push(a);
+            }
+        }
+        if step % 37 == 11 {
+            let first = world.impulse_joints.iter().next().map(|(h, _)| h);
+            if let Some(h) = first {
+                world.remove_impulse_joint(h);
+            }
+        }
+    });
+}
