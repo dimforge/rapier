@@ -1,5 +1,6 @@
 use crate::alloc_prelude::*;
 use crate::data::Coarena;
+use crate::data::change_stamps::ChangeStamps;
 use crate::dynamics::IntegrationParameters;
 use crate::geometry::{Aabb, ColliderHandle};
 use crate::math::Real;
@@ -81,6 +82,12 @@ pub struct BroadPhaseBvh {
     /// so the physics pipeline can run it concurrently with the narrow phase and
     /// solver; consumed by [`Self::take_deferred_optimize`].
     deferred_optimize_pending: bool,
+    /// Per-leaf (collider index) change stamps for snapshot deltas.
+    leaf_stamps: ChangeStamps,
+    /// Per-collider stamps of the pairs it takes part in.
+    pair_stamps: ChangeStamps,
+    #[cfg(feature = "serde-serialize")]
+    change_tracker: crate::data::delta::ChangeTracker,
 }
 
 // TODO: would be interesting to try out:
@@ -146,7 +153,7 @@ impl DeferredBvhOptimize {
 /// different but equally valid tree; only spatial-query iteration order (never part of
 /// the determinism contract) can differ from the uninterrupted run.
 #[cfg(feature = "serde-serialize")]
-mod bp_serde {
+mod snapshot_serde {
     use super::*;
     use parry::partitioning::BvhBuildStrategy;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -209,6 +216,49 @@ mod bp_serde {
         }
     }
 
+    /// Builds the tree holding `leaves` (index, fattened AABB, resolved change flag), with the
+    /// leaves of `pending_set_aabb` carrying a pending change flag.
+    pub(super) fn build_tree(leaves: &[(u32, Aabb, bool)], pending_set_aabb: &[ColliderHandle]) -> Bvh {
+        // Leaves touched by an end-of-step `set_aabb` carry a pending change flag
+        // (`pending_set_aabb` records exactly the escaped updates), which the next
+        // refit resolves to changed. Pending is not reproducible through an
+        // existing leaf, but a fresh insert creates its leaf pending with verbatim
+        // bounds: build the tree without those leaves, insert them after.
+        let pending: std::collections::HashSet<u32> =
+            pending_set_aabb.iter().map(|h| h.0.into_raw_parts().0).collect();
+        let built: Vec<(usize, Aabb)> = leaves
+            .iter()
+            .filter(|(index, ..)| !pending.contains(index))
+            .map(|(index, aabb, _)| (*index as usize, *aabb))
+            .collect();
+        let mut tree = if built.len() > 2 {
+            Bvh::from_iter(BvhBuildStrategy::Binned, built)
+        } else {
+            // Parry's bulk build assumes leaf ids 0 and 1 for one or two leaves: insert
+            // them instead (pending), then resolve them to changed like a bulk build.
+            let mut tree = Bvh::new();
+            for (index, aabb) in &built {
+                tree.insert(*aabb, *index as u32);
+            }
+            let ids: Vec<u32> = built.iter().map(|(index, _)| *index as u32).collect();
+            tree.refit_partial(&[], &ids);
+            tree
+        };
+        // A fresh build marks every leaf changed; resolve the flag away for the
+        // leaves that were not flagged in the serialized state (`refit_partial`'s
+        // previously-changed pass clears a non-pending flag).
+        let unflagged: Vec<u32> = leaves
+            .iter()
+            .filter(|(index, _, changed)| !changed && !pending.contains(index))
+            .map(|(index, ..)| *index)
+            .collect();
+        tree.refit_partial(&unflagged, &[]);
+        for (index, aabb, _) in leaves.iter().filter(|(index, ..)| pending.contains(index)) {
+            tree.insert(*aabb, *index);
+        }
+        tree
+    }
+
     impl<'de> Deserialize<'de> for BroadPhaseBvh {
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
             let repr = ReprDe::deserialize(deserializer)?;
@@ -217,44 +267,7 @@ mod bp_serde {
             // refit resolves to changed. Pending is not reproducible through an
             // existing leaf, but a fresh insert creates its leaf pending with verbatim
             // bounds: build the tree without those leaves, insert them after.
-            let pending: std::collections::HashSet<u32> =
-                repr.pending_set_aabb.iter().map(|h| h.0.into_raw_parts().0).collect();
-            let built: Vec<(usize, Aabb)> = repr
-                .leaves
-                .iter()
-                .filter(|(index, ..)| !pending.contains(index))
-                .map(|(index, aabb, _)| (*index as usize, *aabb))
-                .collect();
-            let mut tree = if built.len() > 2 {
-                Bvh::from_iter(BvhBuildStrategy::Binned, built)
-            } else {
-                // Parry's bulk build assumes leaf ids 0 and 1 for one or two leaves: insert
-                // them instead (pending), then resolve them to changed like a bulk build.
-                let mut tree = Bvh::new();
-                for (index, aabb) in &built {
-                    tree.insert(*aabb, *index as u32);
-                }
-                let ids: Vec<u32> = built.iter().map(|(index, _)| *index as u32).collect();
-                tree.refit_partial(&[], &ids);
-                tree
-            };
-            // A fresh build marks every leaf changed; resolve the flag away for the
-            // leaves that were not flagged in the serialized state (`refit_partial`'s
-            // previously-changed pass clears a non-pending flag).
-            let unflagged: Vec<u32> = repr
-                .leaves
-                .iter()
-                .filter(|(index, _, changed)| !changed && !pending.contains(index))
-                .map(|(index, ..)| *index)
-                .collect();
-            tree.refit_partial(&unflagged, &[]);
-            for (index, aabb, _) in repr
-                .leaves
-                .iter()
-                .filter(|(index, ..)| pending.contains(index))
-            {
-                tree.insert(*aabb, *index);
-            }
+            let tree = build_tree(&repr.leaves, &repr.pending_set_aabb);
 
             let mut pair_adjacency = Coarena::new();
             for ((h1, h2), _) in &repr.pairs {
@@ -281,6 +294,200 @@ mod bp_serde {
             })
         }
     }
+}
+
+/// Snapshot deltas of the broad phase: the stamped leaves (by collider index), the whole pair
+/// list of every collider whose pairs changed, and the small per-update state.
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta {
+    use super::*;
+    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use serde::{Deserialize, Serialize};
+
+    /// The content of a [`BroadPhaseBvh`] delta.
+    #[doc(hidden)]
+    #[derive(Clone, Serialize, Deserialize)]
+    pub struct BroadPhaseBvhDelta {
+        /// Whether this delta replaces every leaf and pair (no baseline).
+        full: bool,
+        /// Per stamped leaf: its fattened AABB and resolved change flag, `None` if absent.
+        leaves: Vec<(u32, Option<(Aabb, bool)>)>,
+        /// Per collider (index) whose pairs changed: every pair it takes part in.
+        pairs: Vec<(u32, Vec<((ColliderHandle, ColliderHandle), u32)>)>,
+        prev_updated_leaves: Vec<u32>,
+        pending_set_aabb: Vec<ColliderHandle>,
+        changes_since_optimize: u32,
+        reinsert_leaf_updates: bool,
+        frame_index: u32,
+        optimization_strategy: BvhOptimizationStrategy,
+        adaptive_change_detection_margin: bool,
+    }
+
+    impl BroadPhaseBvh {
+        fn change_tracker(&mut self) -> &mut ChangeTracker {
+            &mut self.change_tracker
+        }
+
+        fn change_tracker_ref(&self) -> &ChangeTracker {
+            &self.change_tracker
+        }
+
+        fn set_stamp_tick(&mut self, now: u32) {
+            self.leaf_stamps.set_now(now);
+            self.pair_stamps.set_now(now);
+        }
+
+        /// The pairs collider `index` takes part in.
+        fn pairs_of(&self, index: u32) -> Vec<((ColliderHandle, ColliderHandle), u32)> {
+            let Some(generation) = self.pair_adjacency.get_gen(index).filter(|g| *g != u32::MAX)
+            else {
+                return Vec::new();
+            };
+            let handle = ColliderHandle::from_raw_parts(index, generation);
+            let Some(others) = self.pair_adjacency.get_unknown_gen(index) else {
+                return Vec::new();
+            };
+            others
+                .iter()
+                .filter_map(|other| {
+                    [(handle, *other), (*other, handle)]
+                        .into_iter()
+                        .find_map(|key| self.pairs.get(&key).map(|v| (key, *v)))
+                })
+                .collect()
+        }
+
+        fn collect_delta(&mut self, since: Option<u32>) -> BroadPhaseBvhDelta {
+            let leaf = |index: u32| {
+                self.tree
+                    .leaf_node(index)
+                    .map(|node| (node.aabb(), node.is_changed()))
+            };
+            let (leaves, pairs) = match since {
+                None => {
+                    let mut leaves: Vec<_> = self
+                        .tree
+                        .leaves(|_| true)
+                        .map(|index| (index, leaf(index)))
+                        .collect();
+                    leaves.sort_unstable_by_key(|(index, _)| *index);
+                    let mut pairs: Vec<_> = self.pairs.iter().map(|(k, v)| (*k, *v)).collect();
+                    pairs.sort_unstable_by_key(|((a, b), _)| (a.into_raw_parts(), b.into_raw_parts()));
+                    (leaves, vec![(u32::MAX, pairs)])
+                }
+                Some(since) => (
+                    self.leaf_stamps
+                        .changed_since(since)
+                        .map(|index| (index as u32, leaf(index as u32)))
+                        .collect(),
+                    self.pair_stamps
+                        .changed_since(since)
+                        .map(|index| (index as u32, self.pairs_of(index as u32)))
+                        .collect(),
+                ),
+            };
+            BroadPhaseBvhDelta {
+                full: since.is_none(),
+                leaves,
+                pairs,
+                prev_updated_leaves: self.prev_updated_leaves.clone(),
+                pending_set_aabb: self.pending_set_aabb.clone(),
+                changes_since_optimize: self.changes_since_optimize,
+                reinsert_leaf_updates: self.reinsert_leaf_updates,
+                frame_index: self.frame_index,
+                optimization_strategy: self.optimization_strategy,
+                adaptive_change_detection_margin: self.adaptive_change_detection_margin,
+            }
+        }
+
+        /// Drops every pair collider `index` takes part in.
+        fn remove_pairs_of(&mut self, index: u32) {
+            let generation = self.pair_adjacency.get_gen(index).filter(|g| *g != u32::MAX);
+            let others = self
+                .pair_adjacency
+                .get_mut_unknown_gen(index)
+                .map(core::mem::take)
+                .unwrap_or_default();
+            if let Some(generation) = generation {
+                let handle = ColliderHandle::from_raw_parts(index, generation);
+                for other in others {
+                    let _ = crate::utils::hashmap_remove(&mut self.pairs, &(handle, other));
+                    let _ = crate::utils::hashmap_remove(&mut self.pairs, &(other, handle));
+                    if let Some(list) = self.pair_adjacency.get_mut(other.0) {
+                        if let Some(pos) = list.iter().position(|h| *h == handle) {
+                            list.swap_remove(pos);
+                        }
+                    }
+                }
+                let _ = self.pair_adjacency.remove(handle.0, Vec::new());
+            }
+            self.pair_stamps.mark(index as usize);
+        }
+
+        fn apply_delta_payload(&mut self, delta: BroadPhaseBvhDelta) -> Result<(), DeltaError> {
+            // Leaves: patch the current set, then rebuild the tree like a deserialization.
+            let mut leaves: Vec<(u32, Aabb, bool)> = if delta.full {
+                Vec::new()
+            } else {
+                self.tree
+                    .leaves(|_| true)
+                    .filter_map(|index| {
+                        let node = self.tree.leaf_node(index)?;
+                        Some((index, node.aabb(), node.is_changed()))
+                    })
+                    .collect()
+            };
+            leaves.sort_unstable_by_key(|(index, ..)| *index);
+            for (index, leaf) in delta.leaves {
+                let pos = leaves.binary_search_by_key(&index, |(i, ..)| *i);
+                match (pos, leaf) {
+                    (Ok(pos), Some((aabb, changed))) => leaves[pos] = (index, aabb, changed),
+                    (Err(pos), Some((aabb, changed))) => leaves.insert(pos, (index, aabb, changed)),
+                    (Ok(pos), None) => {
+                        let _ = leaves.remove(pos);
+                    }
+                    (Err(_), None) => {}
+                }
+                self.leaf_stamps.mark(index as usize);
+            }
+            self.tree = snapshot_serde::build_tree(&leaves, &delta.pending_set_aabb);
+
+            // Pairs: each listed collider's pairs replace its current ones.
+            if delta.full {
+                self.pairs.clear();
+                self.pair_adjacency = Coarena::new();
+            }
+            for (index, pairs) in delta.pairs {
+                if index != u32::MAX {
+                    self.remove_pairs_of(index);
+                }
+                for ((h1, h2), value) in pairs {
+                    if self.pairs.insert((h1, h2), value).is_none() {
+                        self.pair_adjacency
+                            .ensure_element_exist(h1.0, Vec::new())
+                            .push(h2);
+                        self.pair_adjacency
+                            .ensure_element_exist(h2.0, Vec::new())
+                            .push(h1);
+                    }
+                    self.pair_stamps.mark(h1.into_raw_parts().0 as usize);
+                    self.pair_stamps.mark(h2.into_raw_parts().0 as usize);
+                }
+            }
+
+            self.prev_updated_leaves = delta.prev_updated_leaves;
+            self.pending_set_aabb = delta.pending_set_aabb;
+            self.changes_since_optimize = delta.changes_since_optimize;
+            self.reinsert_leaf_updates = delta.reinsert_leaf_updates;
+            self.frame_index = delta.frame_index;
+            self.optimization_strategy = delta.optimization_strategy;
+            self.adaptive_change_detection_margin = delta.adaptive_change_detection_margin;
+            self.deferred_optimize_pending = false;
+            Ok(())
+        }
+    }
+
+    impl_snapshot_delta!(BroadPhaseBvh, BroadPhaseBvhDelta);
 }
 
 impl BroadPhaseBvh {
@@ -373,6 +580,7 @@ impl BroadPhaseBvh {
                 if !self.reinsert_leaf_updates && status == BvhLeafUpdateStatus::UpdatedInPlace {
                     self.changes_since_optimize = self.changes_since_optimize.saturating_add(1);
                 }
+                self.leaf_stamps.mark(leaf_index as usize);
                 self.pending_set_aabb.push(handle);
             }
         }

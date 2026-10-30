@@ -54,6 +54,7 @@ impl BroadPhaseBvh {
         // `modified_colliders` shares the same index.
         for handle in removed_colliders {
             self.tree.remove(handle.into_raw_parts().0);
+            self.leaf_stamps.mark(handle.into_raw_parts().0 as usize);
         }
 
         let first_pass = self.tree.is_empty();
@@ -299,6 +300,13 @@ impl BroadPhaseBvh {
                 .refit_partial(&self.prev_updated_leaves, &self.curr_updated_leaves);
         }
         core::mem::swap(&mut self.prev_updated_leaves, &mut self.curr_updated_leaves);
+        // The refit resolved the flags of both frames' updated leaves (and moved the
+        // current ones): their serialized state changed.
+        if self.leaf_stamps.is_enabled() {
+            for leaf in self.prev_updated_leaves.iter().chain(&self.curr_updated_leaves) {
+                self.leaf_stamps.mark(*leaf as usize);
+            }
+        }
 
         self.deferred_optimize_pending |= defer_optimize;
 
@@ -424,6 +432,8 @@ impl BroadPhaseBvh {
             for (handle1, handle2) in new_pairs {
                 let prev = self.pairs.insert((handle1, handle2), self.frame_index);
                 debug_assert!(prev.is_none());
+                self.pair_stamps.mark(handle1.into_raw_parts().0 as usize);
+                self.pair_stamps.mark(handle2.into_raw_parts().0 as usize);
                 self.pair_adjacency
                     .ensure_element_exist(handle1.0, Vec::new())
                     .push(handle2);
@@ -462,7 +472,9 @@ impl BroadPhaseBvh {
         // colliders on its own).
         for handle in removed_colliders {
             if let Some(mut others) = self.pair_adjacency.remove(handle.0, Vec::new()) {
+                self.pair_stamps.mark(handle.into_raw_parts().0 as usize);
                 for other in others.drain(..) {
+                    self.pair_stamps.mark(other.into_raw_parts().0 as usize);
                     self.stale_pairs.push((*handle, other, false));
                 }
             }
@@ -596,6 +608,8 @@ impl BroadPhaseBvh {
             // The `remove` check also deduplicates: the same pair can be pushed twice
             // if both its colliders changed this frame.
             if crate::utils::hashmap_remove(&mut self.pairs, &(h0, h1)).is_some() {
+                self.pair_stamps.mark(h0.into_raw_parts().0 as usize);
+                self.pair_stamps.mark(h1.into_raw_parts().0 as usize);
                 for (ha, hb) in [(h0, h1), (h1, h0)] {
                     if let Some(others) = self.pair_adjacency.get_mut(ha.0) {
                         if let Some(pos) = others.iter().position(|h| *h == hb) {
