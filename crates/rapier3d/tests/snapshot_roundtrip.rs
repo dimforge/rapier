@@ -928,3 +928,23 @@ fn delta_soft_bodies() {
 fn soft_bodies_early_snapshot() {
     check_roundtrip("soft bodies early", soft_world(), 5, 60, false, no_edits);
 }
+
+/// Re-saving a restored world before stepping it yields the bytes it was restored from:
+/// pairs awaiting their post-restore solver-contact replay keep their compact encoding.
+#[test]
+fn restore_then_save_is_identical() {
+    for (name, mut world, steps) in [
+        ("awake pile", pile(false), 40),
+        ("sleeping pile", pile(true), 150),
+        ("shared shapes", shared_shapes_world(), 60),
+        ("joints", joints_world(), 60),
+        ("soft bodies", soft_world(), 30),
+    ] {
+        for _ in 0..steps {
+            world.step();
+        }
+        let bytes = save(&world);
+        let restored = restore(&bytes);
+        assert!(save(&restored) == bytes, "{name}: re-saving a restored world changed its bytes");
+    }
+}

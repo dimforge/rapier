@@ -1127,11 +1127,16 @@ mod pair_serde {
         data: CompactContactData,
     }
 
-    fn compact_point(pt: &Contact, manifold_normal: &Vector) -> CompactPoint {
+    /// `recompute`: for a pair still awaiting its post-restore replay, whether this point's
+    /// tangent world vector awaits recomputation (it was encoded without one), which
+    /// reproduces the encoding it was restored from.
+    fn compact_point(pt: &Contact, manifold_normal: &Vector, recompute: Option<bool>) -> CompactPoint {
         // The tangent world vector is dropped when it bit-matches the recomputation
         // the post-restore replay will perform; kept verbatim otherwise.
         #[cfg(feature = "dim3")]
-        let tangent_world = {
+        let tangent_world = if let Some(recompute) = recompute {
+            (!recompute).then_some(pt.data.warmstart_tangent_world)
+        } else {
             let (t1, t2) = replay_tangent_basis(manifold_normal);
             let r = replay_tangent_world(&t1, &t2, &pt.data);
             let w = pt.data.warmstart_tangent_world;
@@ -1145,7 +1150,7 @@ mod pair_serde {
             }
         };
         #[cfg(feature = "dim2")]
-        let _ = manifold_normal;
+        let _ = (manifold_normal, recompute);
         CompactPoint {
             local_p1: pt.local_p1,
             local_p2: pt.local_p2,
@@ -1350,7 +1355,12 @@ mod pair_serde {
             .all(|c| (c.contact_id[0] & !NEW_CONTACT_BIT) < ID_NEW_BIT as ContactId)
     }
 
-    fn manifold_ser(manifold: &ContactManifold, replay: bool) -> ManifoldSer<'_> {
+    /// `pending`: the points awaiting tangent recomputation, for a pair not replayed yet.
+    fn manifold_ser<'a>(
+        manifold: &'a ContactManifold,
+        replay: bool,
+        pending: Option<&[u32]>,
+    ) -> ManifoldSer<'a> {
         // Exhaustive on both structs: a new field in parry's manifold or in
         // `ContactManifoldData` fails to compile here until the repr carries it.
         let parry::query::ContactManifold {
@@ -1391,7 +1401,16 @@ mod pair_serde {
         };
         ManifoldSer {
             points: if replay {
-                PointsSer::Compact(points.iter().map(|pt| compact_point(pt, normal)).collect())
+                PointsSer::Compact(
+                    points
+                        .iter()
+                        .enumerate()
+                        .map(|(i, pt)| {
+                            let recompute = pending.map(|p| p.contains(&(i as u32)));
+                            compact_point(pt, normal, recompute)
+                        })
+                        .collect(),
+                )
             } else {
                 PointsSer::Stored(points)
             },
@@ -1518,16 +1537,23 @@ mod pair_serde {
                             .contains(PairEventStatus::SOLVER_REPLAY_ANCHORS)
                         && rigid.manifolds.iter().all(ids_fit)
                         && rigid.solver_clusters.iter().all(ids_fit);
+                    // Restored but not replayed yet: reproduce the encoding it came from.
+                    let pending = rigid.pending_replay.as_deref().filter(|_| replay);
                     ContactsSer::Rigid(RigidSer {
                         manifolds: rigid
                             .manifolds
                             .iter()
-                            .map(|m| manifold_ser(m, replay))
+                            .enumerate()
+                            .map(|(i, m)| manifold_ser(m, replay, pending.map(|p| &p[i][..])))
                             .collect(),
                         solver_clusters: rigid
                             .solver_clusters
                             .iter()
-                            .map(|m| manifold_ser(m, replay))
+                            .enumerate()
+                            .map(|(i, m)| {
+                                let i = i + rigid.manifolds.len();
+                                manifold_ser(m, replay, pending.map(|p| &p[i][..]))
+                            })
                             .collect(),
                         solver_color: rigid.solver_color,
                         solver_color_bodies: rigid.solver_color_bodies,
