@@ -806,11 +806,10 @@ mod snapshot_delta {
         false
     }
 
-    /// The content key of a heavy shape, memoized per arena slot. Holding the shape keeps its
-    /// allocation alive, so a pointer match cannot be a reused address.
-    #[derive(Clone, Debug)]
+    /// The content key of a heavy shape, memoized per arena slot by the collider's
+    /// process-unique `shape_revision` (holding the shape would make `shape_mut` copy it).
+    #[derive(Copy, Clone, Debug)]
     struct SlotKey {
-        shape: ColliderShape,
         revision: u32,
         key: ContentKey,
     }
@@ -838,6 +837,9 @@ mod snapshot_delta {
             if self.slot_keys.len() < entries.len() {
                 self.slot_keys.resize(entries.len(), None);
             }
+            // Colliders sharing a shape are hashed once per sync (the pointers stay valid
+            // since the colliders hold the shapes during the call).
+            let mut keys_by_ptr: HashMap<*const (), Option<ContentKey>> = HashMap::new();
             for i in 0..entries.len() {
                 if let Some(synced) = self.synced {
                     if !stamp_is_newer(stamps.stamp(i), synced) {
@@ -851,9 +853,7 @@ mod snapshot_delta {
                     _ => None,
                 };
                 let unchanged = match (&self.slot_keys[i], current) {
-                    (Some(memo), Some(co)) => {
-                        Arc::ptr_eq(&memo.shape.0, &co.shape.0) && memo.revision == co.shape_revision
-                    }
+                    (Some(memo), Some(co)) => memo.revision == co.shape_revision,
                     (None, None) => true,
                     _ => false,
                 };
@@ -862,15 +862,17 @@ mod snapshot_delta {
                 }
                 let now = stamps.stamp_now();
                 if let Some(co) = current {
-                    if let Some(key) = content_key(&co.shape) {
-                        // Count the new holder before releasing the old one, so content moving
-                        // between slots (or staying in this one) stays continuously held.
+                    let key = *keys_by_ptr
+                        .entry(Arc::as_ptr(&co.shape.0) as *const ())
+                        .or_insert_with(|| content_key(&co.shape));
+                    if let Some(key) = key {
+                        // Count the new holder before releasing the old one, so content staying
+                        // in this slot stays continuously held.
                         self.held.entry(key).or_insert((now, 0)).1 += 1;
                         if let Some(old) = self.slot_keys[i].take() {
                             self.release(&old.key);
                         }
                         self.slot_keys[i] = Some(SlotKey {
-                            shape: co.shape.clone(),
                             revision: co.shape_revision,
                             key,
                         });
@@ -973,8 +975,9 @@ mod snapshot_delta {
             let mut shapes = Vec::new();
             let mut keyed: HashMap<ContentKey, u32> = HashMap::new();
             let mut inline: HashMap<*const (), u32> = HashMap::new();
-            let delta = colliders.collect_delta_with(since, |co| {
-                let key = is_heavy(co).then(|| content_key(&co.shape)).flatten();
+            let delta = colliders.collect_delta_with(since, |i, co| {
+                // Up to date after the sync above.
+                let key = state.slot_keys[i].map(|memo| memo.key);
                 let id = match key {
                     Some(key) => *keyed.entry(key).or_insert_with(|| {
                         let held = since.is_some_and(|since| state.receiver_holds(&key, since));
@@ -1027,9 +1030,9 @@ mod snapshot_delta {
             self.modified_colliders = delta.modified_colliders;
             self.removed_colliders = delta.removed_colliders;
 
-            // Forget the received shapes nothing holds anymore.
-            let received = self.delta_state.received(&self.colliders);
-            if received.len() > 2 * self.colliders.len() + 64 {
+            // Forget the received shapes no collider holds anymore: the sender never omits the
+            // bytes of content the receiver's colliders didn't hold at its baseline.
+            if let Some(received) = &mut self.delta_state.received {
                 received.retain(|_, shape| Arc::strong_count(&shape.0) > 1);
             }
             Ok(())

@@ -135,11 +135,12 @@ pub(crate) struct ArenaDelta<T> {
 
 #[cfg(feature = "serde-serialize")]
 impl<T> Arena<T> {
-    /// The slots written after `since` (all of them for `None`), transformed by `f`.
+    /// The slots written after `since` (all of them for `None`), transformed by `f` (which
+    /// also receives the slot index).
     pub(crate) fn collect_delta_with<U>(
         &self,
         since: Option<u32>,
-        mut f: impl FnMut(&T) -> U,
+        mut f: impl FnMut(usize, &T) -> U,
     ) -> ArenaDelta<U> {
         ArenaDelta {
             generation: self.generation,
@@ -149,13 +150,13 @@ impl<T> Arena<T> {
                 &self.items,
                 &self.stamps,
                 since,
-                |e| match e {
+                |i, e| match e {
                     Entry::Free { next_free } => Entry::Free {
                         next_free: *next_free,
                     },
                     Entry::Occupied { generation, value } => Entry::Occupied {
                         generation: *generation,
-                        value: f(value),
+                        value: f(i, value),
                     },
                 },
             ),
@@ -192,7 +193,7 @@ impl<T> Arena<T> {
 #[cfg(feature = "serde-serialize")]
 impl<T: Clone> Arena<T> {
     pub(crate) fn collect_delta(&self, since: Option<u32>) -> ArenaDelta<T> {
-        self.collect_delta_with(since, T::clone)
+        self.collect_delta_with(since, |_, value| value.clone())
     }
 
     pub(crate) fn apply_delta(

@@ -360,18 +360,18 @@ impl<T> VecDelta<T> {
         items: &[U],
         stamps: &ChangeStamps,
         since: Option<u32>,
-        mut f: impl FnMut(&U) -> T,
+        mut f: impl FnMut(usize, &U) -> T,
     ) -> Self {
         let slots = match since {
             None => items
                 .iter()
                 .enumerate()
-                .map(|(i, item)| (i as u32, f(item)))
+                .map(|(i, item)| (i as u32, f(i, item)))
                 .collect(),
             Some(since) => stamps
                 .changed_since(since)
                 .take_while(|i| *i < items.len())
-                .map(|i| (i as u32, f(&items[i])))
+                .map(|i| (i as u32, f(i, &items[i])))
                 .collect(),
         };
         Self {
@@ -418,7 +418,7 @@ impl<T> VecDelta<T> {
 
 impl<T: Clone> VecDelta<T> {
     pub(crate) fn collect(items: &[T], stamps: &ChangeStamps, since: Option<u32>) -> Self {
-        Self::collect_with(items, stamps, since, T::clone)
+        Self::collect_with(items, stamps, since, |_, item| item.clone())
     }
 
     pub(crate) fn apply(

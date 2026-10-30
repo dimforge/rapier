@@ -1113,3 +1113,28 @@ fn delta_moving_heavy_shape_is_not_resent() {
         );
     }
 }
+
+/// Change tracking must not hold heavy shapes, which would make every `shape_mut` copy them.
+#[test]
+fn tracking_does_not_copy_edited_heavy_shapes() {
+    let vtx = vec![
+        Vector::new(0.0, 0.0, 0.0),
+        Vector::new(1.0, 0.0, 0.0),
+        Vector::new(0.0, 0.0, 1.0),
+        Vector::new(1.0, 0.0, 1.0),
+    ];
+    let mesh = ColliderBuilder::trimesh(vtx, vec![[0, 1, 2], [1, 3, 2]]).unwrap();
+    let mut world = PhysicsWorld::new();
+    let co = world.insert_collider(mesh, None);
+    world.enable_change_tracking();
+    world.colliders.delta_since(None).unwrap();
+
+    let before = std::sync::Arc::as_ptr(&world.colliders[co].shared_shape().0) as *const ();
+    world.colliders[co]
+        .shape_mut()
+        .as_trimesh_mut()
+        .unwrap()
+        .update_vertices(|vtx| vtx[0].y += 0.01);
+    let after = std::sync::Arc::as_ptr(&world.colliders[co].shared_shape().0) as *const ();
+    assert_eq!(before, after, "shape_mut copied the shape");
+}
