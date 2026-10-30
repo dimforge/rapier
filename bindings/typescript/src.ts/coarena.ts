@@ -38,6 +38,8 @@ export class Coarena<T> {
     }
 
     public get(handle: number): T | null {
+        // An absent handle would convert to index 0.
+        if (handle === undefined || handle === null) return null;
         let i = this.index(handle);
         if (i < this.data.length) {
             return this.data[i];

@@ -184,18 +184,20 @@ export class Collider {
     /** @internal */
     public finalizeDeserialization(bodies: RigidBodySet) {
         if (this.handle != null) {
-            this._parent = bodies.get(
-                this.colliderSet.raw.coParent(this.handle),
-            );
+            this._parent = this.lookUpParent(bodies);
         }
     }
 
     /** @internal */
     public refreshParentAndShape(bodies: RigidBodySet) {
-        const parentHandle = this.colliderSet.raw.coParent(this.handle);
-        this._parent =
-            parentHandle === undefined ? null : bodies.get(parentHandle);
+        this._parent = this.lookUpParent(bodies);
         this._shape = null;
+    }
+
+    private lookUpParent(bodies: RigidBodySet): RigidBody | null {
+        // A parentless collider has an undefined parent handle, which must not be looked up.
+        const parentHandle = this.colliderSet.raw.coParent(this.handle);
+        return parentHandle === undefined ? null : bodies.get(parentHandle);
     }
 
     private ensureShapeIsCached() {

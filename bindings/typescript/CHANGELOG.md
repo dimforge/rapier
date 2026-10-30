@@ -8,6 +8,11 @@
   receiver with the whole state. A receiver that applied every delta has the same `takeSnapshot()` bytes
   as the sender and keeps simulating identically.
 
+### Fixed
+
+- After `World.restoreSnapshot`, colliders without a parent no longer report the rigid body at index 0
+  as their `parent()`.
+
 ## 0.21.0 (24 September 2026)
 
 ### Breaking changes
