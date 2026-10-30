@@ -434,3 +434,270 @@ fn replacing_the_pipeline_changes_nothing() {
         assert_same(step, &record(&a), &record(&b), "fresh pipeline");
     }
 }
+
+/*
+ * Snapshot deltas: worlds and individual components are replicated into receivers through
+ * serialized deltas, which must leave each receiver byte-identical to the sender after every
+ * sync, and simulating identically afterwards.
+ */
+
+use rapier2d::data::{ChangeTick, Delta, SnapshotDelta};
+use rapier2d::pipeline::{WorldChangeTick, WorldDelta};
+
+/// Applies one serialized delta of a component to a receiver and checks the receiver's bytes.
+fn sync_component<C: SnapshotDelta + serde::Serialize>(
+    what: &str,
+    component: &str,
+    step: usize,
+    sender: &mut C,
+    receiver: &mut C,
+    acked: &mut Option<ChangeTick<C>>,
+) {
+    let (delta, tick) = sender.delta_since(*acked).expect("delta_since");
+    let bytes = bincode::serialize(&delta).unwrap();
+    let delta: Delta<C> = bincode::deserialize(&bytes).unwrap();
+    let applied = receiver.apply_delta(delta).expect("apply_delta");
+    assert_eq!(applied, tick);
+    *acked = Some(tick);
+    let want = bincode::serialize(sender).unwrap();
+    let got = bincode::serialize(receiver).unwrap();
+    assert!(
+        want == got,
+        "{what}: `{component}` differs from the sender after a delta sync at step {step} \
+         ({} vs {} bytes, delta {} bytes)",
+        want.len(),
+        got.len(),
+        bytes.len()
+    );
+}
+
+/// The serialized components of a world.
+macro_rules! components {
+    ($m: ident) => {
+        $m!(islands, IslandManager);
+        $m!(broad_phase, BroadPhaseBvh);
+        $m!(narrow_phase, NarrowPhase);
+        $m!(bodies, RigidBodySet);
+        $m!(colliders, ColliderSet);
+        $m!(impulse_joints, ImpulseJointSet);
+        $m!(multibody_joints, MultibodyJointSet);
+        $m!(soft_bodies, SoftBodySet);
+    };
+}
+
+/// Per-component baselines of the receiver replicating components one by one.
+#[derive(Default)]
+struct ComponentAcks {
+    islands: Option<ChangeTick<IslandManager>>,
+    broad_phase: Option<ChangeTick<BroadPhaseBvh>>,
+    narrow_phase: Option<ChangeTick<NarrowPhase>>,
+    bodies: Option<ChangeTick<RigidBodySet>>,
+    colliders: Option<ChangeTick<ColliderSet>>,
+    impulse_joints: Option<ChangeTick<ImpulseJointSet>>,
+    multibody_joints: Option<ChangeTick<MultibodyJointSet>>,
+    soft_bodies: Option<ChangeTick<SoftBodySet>>,
+}
+
+/// A world replicated through world deltas, applied every `every` ticks.
+struct WorldReceiver {
+    world: PhysicsWorld,
+    acked: Option<WorldChangeTick>,
+    every: usize,
+}
+
+impl WorldReceiver {
+    /// Returns the size of the serialized delta.
+    fn sync(&mut self, what: &str, step: usize, sender: &mut PhysicsWorld) -> usize {
+        let (delta, tick) = sender.delta_since(self.acked.as_ref()).expect("delta_since");
+        let bytes = bincode::serialize(&delta).unwrap();
+        let delta: WorldDelta = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(self.world.apply_delta(delta).expect("apply_delta"), tick);
+        self.acked = Some(tick);
+        assert_same(step, &record(sender), &record(&self.world), what);
+        bytes.len()
+    }
+}
+
+/// Steps `world` while replicating it through deltas into:
+/// - a world restored from a full snapshot, synced every tick;
+/// - an empty world bootstrapped by a full delta, synced every tick;
+/// - a restored world syncing every five ticks against its own acknowledged baseline;
+/// - individually deserialized components, synced one by one through component deltas.
+///
+/// Then the first two step on alongside the sender and must stay byte-identical. Returns the
+/// largest serialized per-tick world delta.
+fn check_delta_replication(
+    what: &str,
+    mut world: PhysicsWorld,
+    before: usize,
+    after: usize,
+    mut edit: impl FnMut(&mut PhysicsWorld, usize, &mut Vec<RigidBodyHandle>),
+) -> usize {
+    let mut spawned = Vec::new();
+    for step in 0..before {
+        edit(&mut world, step, &mut spawned);
+        world.step();
+    }
+    world.enable_change_tracking();
+
+    // Restored receivers start from a full snapshot taken at the same instant as their baseline.
+    let snapshot = save(&world);
+    let baseline = world.delta_since(None).unwrap().1;
+    let mut receivers = vec![
+        WorldReceiver {
+            world: restore(&snapshot),
+            acked: Some(baseline),
+            every: 1,
+        },
+        WorldReceiver {
+            world: PhysicsWorld::new(),
+            acked: None,
+            every: 1,
+        },
+        WorldReceiver {
+            world: restore(&snapshot),
+            acked: Some(baseline),
+            every: 5,
+        },
+    ];
+    let mut components = restore(&snapshot);
+    let mut acks = ComponentAcks::default();
+    macro_rules! component_baseline {
+        ($field: ident, $ty: ty) => {
+            acks.$field = Some(world.$field.delta_since(None).unwrap().1);
+        };
+    }
+    components!(component_baseline);
+
+    let mut max_delta = 0;
+    for step in 0..after {
+        edit(&mut world, before + step, &mut spawned);
+        world.step();
+        for (i, receiver) in receivers.iter_mut().enumerate() {
+            if step % receiver.every == 0 {
+                let bytes = receiver.sync(what, before + step, &mut world);
+                if i == 0 {
+                    max_delta = max_delta.max(bytes);
+                }
+            }
+        }
+        macro_rules! sync {
+            ($field: ident, $ty: ty) => {
+                sync_component(
+                    what,
+                    stringify!($field),
+                    before + step,
+                    &mut world.$field,
+                    &mut components.$field,
+                    &mut acks.$field,
+                );
+            };
+        }
+        components!(sync);
+    }
+
+    // Replicas continue the simulation exactly.
+    let mut replicas: Vec<_> = receivers
+        .drain(..2)
+        .map(|r| (r.world, spawned.clone()))
+        .collect();
+    for step in 0..30 {
+        edit(&mut world, before + after + step, &mut spawned);
+        world.step();
+        let want = record(&world);
+        for (replica, replica_spawned) in &mut replicas {
+            edit(replica, before + after + step, replica_spawned);
+            replica.step();
+            assert_same(step, &want, &record(replica), what);
+        }
+    }
+    max_delta
+}
+
+#[test]
+fn delta_awake_pile() {
+    check_delta_replication("delta awake pile", pile(false), 30, 60, no_edits);
+}
+
+#[test]
+fn delta_sleeping_pile() {
+    check_delta_replication("delta sleeping pile", pile(true), 200, 60, no_edits);
+}
+
+#[test]
+fn delta_structural_churn() {
+    check_delta_replication("delta structural churn", pile(true), 20, 120, |world, step, spawned| {
+        if step % 7 == 0 {
+            let rb = world.insert_body(
+                RigidBodyBuilder::dynamic().translation(Vector::new((step % 5) as Real - 2.0, 6.0)),
+            );
+            world.insert_collider(ColliderBuilder::ball(0.3), Some(rb));
+            spawned.push(rb);
+        }
+        if step % 11 == 0 && spawned.len() > 2 {
+            let rb = spawned.remove(0);
+            world.remove_body(rb);
+        }
+    });
+}
+
+#[test]
+fn delta_joints() {
+    let mut world = pile(true);
+    with_joints_and_sensor(&mut world);
+    let mut last = world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(6.0, 0.06)));
+    world.insert_collider(ColliderBuilder::cuboid(0.2, 0.05), Some(last));
+    for i in 1..6 {
+        let rb = world.insert_body(
+            RigidBodyBuilder::dynamic().translation(Vector::new(6.0 + i as Real * 0.4, 0.06)),
+        );
+        world.insert_collider(ColliderBuilder::cuboid(0.2, 0.05), Some(rb));
+        let joint = RevoluteJointBuilder::new()
+            .local_anchor1(Vector::new(0.2, 0.0))
+            .local_anchor2(Vector::new(-0.2, 0.0))
+            .build()
+            .data;
+        world.insert_multibody_joint(last, rb, joint);
+        last = rb;
+    }
+    check_delta_replication("delta joints", world, 10, 150, |world, step, _| {
+        let dynamic: Vec<_> = world
+            .bodies
+            .iter()
+            .filter(|(_, b)| b.is_dynamic())
+            .map(|(h, _)| h)
+            .collect();
+        if step % 23 == 4 {
+            let (a, b) = (dynamic[step % 10], dynamic[(step % 10) + 12]);
+            world.insert_impulse_joint(a, b, RevoluteJointBuilder::new().build().data);
+        }
+        if step % 37 == 11 {
+            let first = world.impulse_joints.iter().next().map(|(h, _)| h);
+            if let Some(h) = first {
+                world.remove_impulse_joint(h);
+            }
+        }
+    });
+}
+
+/// Byte equality needs `enhanced-determinism` here: parry serializes the soft surfaces'
+/// composite contact workspaces in hash-map order, which depends on the map's growth history,
+/// and a receiver rebuilds the maps of every pair it patches (the content is identical).
+#[cfg(feature = "enhanced-determinism")]
+#[test]
+fn delta_soft_bodies() {
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5)),
+        ColliderBuilder::cuboid(20.0, 0.5),
+    );
+    world.insert_soft_body(SoftBodyBuilder::disk(Vector::new(0.0, 1.5), 1.0, 16));
+    world.insert_soft_body(
+        SoftBodyBuilder::rope(Vector::new(2.0, 2.0), Vector::new(4.0, 2.0), 10).pinned_particles([0]),
+    );
+    world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 4.0)),
+        ColliderBuilder::cuboid(0.2, 0.2),
+    );
+    check_delta_replication("delta soft bodies", world, 5, 240, no_edits);
+}
