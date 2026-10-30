@@ -215,6 +215,7 @@ impl NarrowPhase {
             }
         }
 
+        self.intersection_graph.graph.mark_edges(&update_candidates);
         self.update_candidates = update_candidates;
         self.awake_body_mask = awake_body_mask;
     }

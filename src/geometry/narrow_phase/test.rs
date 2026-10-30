@@ -366,3 +366,4 @@ pub fn collision_pipeline_does_not_accumulate_force_event_flags() {
     }
     assert!(narrow_phase.force_event_flagged.len() <= 1);
 }
+

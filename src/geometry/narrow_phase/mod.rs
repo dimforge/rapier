@@ -5,6 +5,8 @@
 mod contacts;
 mod intersections;
 mod restore;
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta;
 mod pair_management;
 mod pair_update;
 mod queries;
@@ -417,6 +419,9 @@ pub struct NarrowPhase {
     /// a live narrow phase keeps it `false`.
     #[cfg_attr(feature = "serde-serialize", serde(skip, default = "default_true"))]
     pending_solver_replay: bool,
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    delta_state: snapshot_delta::NarrowPhaseDeltaState,
 }
 
 #[cfg(feature = "serde-serialize")]
@@ -466,6 +471,8 @@ impl NarrowPhase {
             solver_color_todo: Vec::new(),
             soft_self: Default::default(),
             pending_solver_replay: false,
+            #[cfg(feature = "serde-serialize")]
+            delta_state: Default::default(),
         }
     }
 

@@ -315,6 +315,8 @@ impl NarrowPhase {
             self.update_soft_self_contacts(&ctx, bodies);
         }
 
+        // Every candidate pair may have been written (updated, transitioned, colored).
+        self.contact_graph.graph.mark_edges(&update_candidates);
         self.update_candidates = update_candidates;
         self.awake_body_mask = awake_body_mask;
         #[cfg(not(feature = "parallel"))]

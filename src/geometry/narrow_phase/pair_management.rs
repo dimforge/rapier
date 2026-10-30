@@ -284,6 +284,7 @@ impl NarrowPhase {
                         }
 
                         for edge_id in edges_to_recolor {
+                            self.contact_graph.graph.mark_edge(edge_id);
                             let pair = &mut self.contact_graph.graph.edges[edge_id].weight;
                             clear_pair_solver_color(&mut self.body_solver_color_masks, pair);
 
@@ -447,6 +448,8 @@ impl NarrowPhase {
                     let edges_ptr = self.contact_graph.graph.edges.as_mut_ptr();
                     let mut removed_index = usize::MAX;
                     let mut consistent = true;
+                    // Pairs whose bucket position the removal rewrote (pre-removal indices).
+                    let mut fixed_up = Vec::new();
                     let contact_pair = self.contact_graph.remove_edge_with(
                         gid1.contact_graph_index,
                         gid2.contact_graph_index,
@@ -481,7 +484,9 @@ impl NarrowPhase {
                                             &mut (*sm_ptr.add(ordinal)).data;
                                         let pos = (*mdata).graph_pos;
                                         if pos.is_some() {
-                                            Self::remove_and_fixup(graph, edges_ptr, pos);
+                                            fixed_up.extend(Self::remove_and_fixup(
+                                                graph, edges_ptr, pos,
+                                            ));
                                             (*mdata).graph_pos = GraphPos::NONE;
                                         }
                                     }
@@ -508,6 +513,14 @@ impl NarrowPhase {
                             }
                         },
                     );
+
+                    // The last edge took the removed slot (stamped by the graph); others kept theirs.
+                    let num_left = self.contact_graph.graph.edges.len() as u32;
+                    for edge in fixed_up {
+                        if edge < num_left {
+                            self.contact_graph.graph.mark_edge(edge as usize);
+                        }
+                    }
 
                     if !consistent {
                         // Deserialized/degenerate bookkeeping: rebuild from scratch.

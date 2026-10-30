@@ -424,3 +424,56 @@ impl<T: Clone> VecDelta<T> {
         self.apply_with(items, stamps, placeholder, Ok)
     }
 }
+
+/// Change stamps of a plain vector, derived by comparing it with a copy of its content at the
+/// previous delta: for small slots written from many places (or through raw pointers in
+/// parallel), where stamping every write would be fragile.
+#[derive(Clone, Debug)]
+pub(crate) struct ShadowStamps<T> {
+    shadow: Vec<T>,
+    pub(crate) stamps: ChangeStamps,
+}
+
+impl<T> Default for ShadowStamps<T> {
+    fn default() -> Self {
+        Self {
+            shadow: Vec::new(),
+            stamps: ChangeStamps::new(),
+        }
+    }
+}
+
+impl<T: Clone + PartialEq> ShadowStamps<T> {
+    /// Stamps the slots of `current` that differ from the shadow, then updates the shadow.
+    fn sync(&mut self, current: &[T]) {
+        let common = self.shadow.len().min(current.len());
+        for i in 0..common {
+            if self.shadow[i] != current[i] {
+                self.stamps.mark(i);
+                self.shadow[i] = current[i].clone();
+            }
+        }
+        self.shadow.truncate(current.len());
+        self.stamps.truncate(current.len());
+        if current.len() > common {
+            self.stamps.mark_range(common..current.len());
+            self.shadow.extend_from_slice(&current[common..]);
+        }
+    }
+
+    /// The slots of `current` changed since `since`.
+    pub(crate) fn collect(&mut self, current: &[T], since: Option<u32>) -> VecDelta<T> {
+        self.sync(current);
+        VecDelta::collect(current, &self.stamps, since)
+    }
+
+    /// Patches `delta` into `items`, stamping the patched slots.
+    pub(crate) fn apply(
+        &mut self,
+        delta: VecDelta<T>,
+        items: &mut Vec<T>,
+        placeholder: impl FnMut() -> T,
+    ) -> Result<(), DeltaError> {
+        delta.apply(items, &mut self.stamps, placeholder)
+    }
+}

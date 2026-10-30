@@ -183,6 +183,15 @@ impl<N, E> Graph<N, E> {
         self.edge_stamps.set_now(now);
     }
 
+    /// Stamps the given edges as written: for callers mutating `self.edges` directly.
+    pub(crate) fn mark_edges(&mut self, edges: &[u32]) {
+        if self.edge_stamps.is_enabled() {
+            for e in edges {
+                self.edge_stamps.mark(*e as usize);
+            }
+        }
+    }
+
     /// Stamps edge `e` as written: for callers mutating `self.edges` directly.
     #[inline]
     pub(crate) fn mark_edge(&mut self, e: usize) {

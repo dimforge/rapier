@@ -652,6 +652,7 @@ macro_rules! tracked_components {
         $m!(soft_bodies, SoftBodySet);
         $m!(islands, IslandManager);
         $m!(broad_phase, BroadPhaseBvh);
+        $m!(narrow_phase, NarrowPhase);
     };
 }
 
@@ -664,6 +665,7 @@ struct Acks {
     soft_bodies: Option<ChangeTick<SoftBodySet>>,
     islands: Option<ChangeTick<IslandManager>>,
     broad_phase: Option<ChangeTick<BroadPhaseBvh>>,
+    narrow_phase: Option<ChangeTick<NarrowPhase>>,
 }
 
 struct Receiver {
@@ -916,6 +918,10 @@ fn soft_world() -> PhysicsWorld {
     world
 }
 
+/// Byte equality needs `enhanced-determinism` here: parry serializes the soft surfaces'
+/// composite contact workspaces in hash-map order, which depends on the map's growth history,
+/// and a receiver rebuilds the maps of every pair it patches (the content is identical).
+#[cfg(feature = "enhanced-determinism")]
 #[test]
 fn delta_soft_bodies() {
     check_delta_replication("delta soft bodies", soft_world(), 5, 240, no_edits);
@@ -948,3 +954,4 @@ fn restore_then_save_is_identical() {
         assert!(save(&restored) == bytes, "{name}: re-saving a restored world changed its bytes");
     }
 }
+

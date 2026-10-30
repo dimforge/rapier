@@ -133,6 +133,90 @@ impl NarrowPhase {
         colliders: &ColliderSet,
         multibody_joints: &MultibodyJointSet,
     ) {
+        if !self.contact_graph.graph.edge_stamps.is_enabled() {
+            self.maintain_solver_contact_graph_untracked(islands, bodies, colliders, multibody_joints);
+            return;
+        }
+        // The maintenance rewrites the members' derived manifold data (bucket position, solver
+        // ids, color), most often with identical values: stamp only the pairs it changed. A
+        // manifold it writes is a solver-graph member before or after.
+        let before = self.solver_member_data();
+        self.maintain_solver_contact_graph_untracked(islands, bodies, colliders, multibody_joints);
+        let after = self.solver_member_data();
+        let (mut i, mut j) = (0, 0);
+        while i < before.len() || j < after.len() {
+            let (a, b) = (before.get(i), after.get(j));
+            match (a, b) {
+                (Some(a), Some(b)) if (a.0, a.1) == (b.0, b.1) => {
+                    if a != b {
+                        self.contact_graph.graph.mark_edge(a.0 as usize);
+                    }
+                    i += 1;
+                    j += 1;
+                }
+                (Some(a), Some(b)) if (a.0, a.1) < (b.0, b.1) => {
+                    self.contact_graph.graph.mark_edge(a.0 as usize);
+                    i += 1;
+                }
+                (Some(_), Some(b)) | (None, Some(b)) => {
+                    self.contact_graph.graph.mark_edge(b.0 as usize);
+                    j += 1;
+                }
+                (Some(a), None) => {
+                    self.contact_graph.graph.mark_edge(a.0 as usize);
+                    i += 1;
+                }
+                (None, None) => unreachable!(),
+            }
+        }
+    }
+
+    /// The derived manifold data of every solver-graph member, by `(edge, manifold)`.
+    #[allow(clippy::type_complexity)]
+    fn solver_member_data(&self) -> Vec<(u32, u32, GraphPos, [u32; 2], u8)> {
+        let edges = &self.contact_graph.graph.edges;
+        let mut members: Vec<_> = self
+            .solver_contact_graph
+            .raw_buckets()
+            .iter()
+            .flatten()
+            .filter(|c| !c.is_padding())
+            .filter_map(|c| {
+                let pair = &edges.get(c.edge as usize)?.weight;
+                let data = &pair.solver_manifolds().get(c.manifold as usize)?.data;
+                Some((
+                    c.edge,
+                    c.manifold,
+                    data.graph_pos,
+                    data.solver_body_ids,
+                    data.solver_color,
+                ))
+            })
+            .collect();
+        members.sort_unstable_by_key(|m| (m.0, m.1));
+        members.dedup_by_key(|m| (m.0, m.1));
+        members
+    }
+
+    /// Stamps the solver-graph members as written: the solver writes their impulses back.
+    pub(crate) fn mark_solver_contacts_written(&mut self) {
+        if self.contact_graph.graph.edge_stamps.is_enabled() {
+            let graph = &mut self.contact_graph.graph;
+            for c in self.solver_contact_graph.raw_buckets().iter().flatten() {
+                if !c.is_padding() {
+                    graph.edge_stamps.mark(c.edge as usize);
+                }
+            }
+        }
+    }
+
+    fn maintain_solver_contact_graph_untracked(
+        &mut self,
+        islands: &IslandManager,
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        multibody_joints: &MultibodyJointSet,
+    ) {
         let epoch = islands.active_set_epoch;
         let mb_epoch = multibody_joints.topology_epoch;
         let full_rebuild = !self.solver_graph_valid
@@ -469,6 +553,7 @@ impl NarrowPhase {
         let inv_dt = crate::utils::inv(dt);
         for i in 0..self.force_event_pairs.len() {
             let edge = self.force_event_pairs[i] as usize;
+            self.contact_graph.graph.mark_edge(edge);
             let pair = &mut self.contact_graph.graph.edges[edge].weight;
             let threshold = |h| {
                 colliders
@@ -659,7 +744,7 @@ impl NarrowPhase {
                     };
                     if full || !current.is_some() || current.bucket() != target_bucket {
                         if !full && current.is_some() {
-                            unsafe { Self::remove_and_fixup(graph, edges_ptr, current) };
+                            let _ = unsafe { Self::remove_and_fixup(graph, edges_ptr, current) };
                         }
                         let pos = if is_generic {
                             graph.insert_generic(contact)
@@ -674,7 +759,7 @@ impl NarrowPhase {
                     if full {
                         unsafe { (*mdata).graph_pos = GraphPos::NONE };
                     } else if current.is_some() {
-                        unsafe { Self::remove_and_fixup(graph, edges_ptr, current) };
+                        let _ = unsafe { Self::remove_and_fixup(graph, edges_ptr, current) };
                         unsafe { (*mdata).graph_pos = GraphPos::NONE };
                     }
                 }
@@ -689,13 +774,13 @@ impl NarrowPhase {
         graph: &mut SolverContactGraph,
         edges_ptr: *mut crate::data::graph::Edge<ContactPair>,
         pos: GraphPos,
-    ) {
-        if let Some(moved) = graph.remove(pos) {
-            let pair = unsafe { &mut (*edges_ptr.add(moved.edge as usize)).weight };
-            pair.solver_manifolds_mut()[moved.manifold as usize]
-                .data
-                .graph_pos = pos;
-        }
+    ) -> Option<u32> {
+        let moved = graph.remove(pos)?;
+        let pair = unsafe { &mut (*edges_ptr.add(moved.edge as usize)).weight };
+        pair.solver_manifolds_mut()[moved.manifold as usize]
+            .data
+            .graph_pos = pos;
+        Some(moved.edge)
     }
 
     /// Debug-only: proves the (possibly cached) body qualification table equals
