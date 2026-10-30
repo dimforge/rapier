@@ -811,8 +811,9 @@ mod snapshot_delta {
         /// Sender side: the tick up to which `slot_keys`/`holders` reflect the stamped slots.
         synced: Option<u32>,
         slot_keys: Vec<Option<SlotKey>>,
-        /// The slots currently holding each heavy shape content.
-        holders: HashMap<ContentKey, Vec<u32>>,
+        /// Per heavy shape content: the tick since which some collider continuously held it,
+        /// and how many colliders hold it now.
+        held: HashMap<ContentKey, (u32, u32)>,
         /// Receiver side: shapes the receiver holds or received, by content.
         received: Option<HashMap<ContentKey, ColliderShape>>,
     }
@@ -848,37 +849,51 @@ mod snapshot_delta {
                 if unchanged {
                     continue;
                 }
-                if let Some(old) = self.slot_keys[i].take() {
-                    if let Some(list) = self.holders.get_mut(&old.key) {
-                        list.retain(|s| *s != i as u32);
-                        if list.is_empty() {
-                            self.holders.remove(&old.key);
-                        }
-                    }
-                }
+                let now = stamps.stamp_now();
                 if let Some(co) = current {
                     if let Some(key) = content_key(&co.shape) {
-                        self.holders.entry(key).or_default().push(i as u32);
+                        // Count the new holder before releasing the old one, so content moving
+                        // between slots (or staying in this one) stays continuously held.
+                        self.held.entry(key).or_insert((now, 0)).1 += 1;
+                        if let Some(old) = self.slot_keys[i].take() {
+                            self.release(&old.key);
+                        }
                         self.slot_keys[i] = Some(SlotKey {
                             shape: co.shape.clone(),
                             revision: co.shape_revision,
                             key,
                         });
+                        continue;
                     }
                 }
+                if let Some(old) = self.slot_keys[i].take() {
+                    self.release(&old.key);
+                }
             }
-            self.slot_keys.truncate(entries.len());
+            let truncated = entries.len().min(self.slot_keys.len());
+            let dropped: Vec<_> = self.slot_keys.drain(truncated..).flatten().collect();
+            for old in dropped {
+                self.release(&old.key);
+            }
             self.synced = Some(stamps.stamp_now());
         }
 
-        /// Whether a receiver at `since` already holds a shape of content `key`: some slot
-        /// holding it was not written since then.
-        fn receiver_holds(&self, key: &ContentKey, colliders: &Arena<Collider>, since: u32) -> bool {
-            self.holders.get(key).is_some_and(|slots| {
-                slots
-                    .iter()
-                    .any(|s| !stamp_is_newer(colliders.stamps.stamp(*s as usize), since))
-            })
+        fn release(&mut self, key: &ContentKey) {
+            if let Some(held) = self.held.get_mut(key) {
+                held.1 -= 1;
+                if held.1 == 0 {
+                    self.held.remove(key);
+                }
+            }
+        }
+
+        /// Whether a receiver at `since` already holds a shape of content `key`: the content
+        /// has been continuously held here since a tick it already had. Deltas are taken at
+        /// syncs, so a receiver's baseline is one of the ticks this bookkeeping observed.
+        fn receiver_holds(&self, key: &ContentKey, since: u32) -> bool {
+            self.held
+                .get(key)
+                .is_some_and(|(held_since, _)| !stamp_is_newer(*held_since, since))
         }
 
         /// The receiver-side registry, built from this set's own colliders on first use.
@@ -951,7 +966,7 @@ mod snapshot_delta {
                 let key = is_heavy(co).then(|| content_key(&co.shape)).flatten();
                 let id = match key {
                     Some(key) => *keyed.entry(key).or_insert_with(|| {
-                        let held = since.is_some_and(|since| state.receiver_holds(&key, colliders, since));
+                        let held = since.is_some_and(|since| state.receiver_holds(&key, since));
                         shapes.push(DeltaShape::Keyed {
                             key,
                             shape: (!held).then(|| co.shape.clone()),

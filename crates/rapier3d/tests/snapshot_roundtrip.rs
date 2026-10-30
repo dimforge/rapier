@@ -1014,3 +1014,57 @@ fn multibody_with_joint_churn() {
         }
     });
 }
+
+/// A collider moving with its body resends its record, not its (unchanged) heavy shape, even
+/// when no other collider holds that shape.
+#[test]
+fn delta_moving_heavy_shape_is_not_resent() {
+    let n = 24usize;
+    let mut vtx = Vec::new();
+    let mut idx = Vec::new();
+    for i in 0..=n {
+        for j in 0..=n {
+            let y = 0.05 * ((i * 7 + j * 3) % 5) as Real;
+            vtx.push(Vector::new(i as Real * 0.1, y, j as Real * 0.1));
+        }
+    }
+    for i in 0..n {
+        for j in 0..n {
+            let a = (i * (n + 1) + j) as u32;
+            idx.push([a, a + 1, a + (n + 1) as u32]);
+            idx.push([a + 1, a + (n + 2) as u32, a + (n + 1) as u32]);
+        }
+    }
+    let mesh = ColliderBuilder::trimesh(vtx, idx).unwrap().build();
+    let mesh_bytes = bincode::serialize(mesh.shared_shape()).unwrap().len();
+
+    let mut world = PhysicsWorld::new();
+    let rb = world.insert_body(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(0.0, 50.0, 0.0))
+            .additional_mass(1.0),
+    );
+    world.insert_collider(mesh, Some(rb));
+    world.enable_change_tracking();
+    let mut receiver = restore(&save(&world));
+    let mut acked = Some(world.colliders.delta_since(None).unwrap().1);
+    for step in 0..20 {
+        world.step();
+        let (delta, tick) = world.colliders.delta_since(acked).unwrap();
+        let bytes = bincode::serialize(&delta).unwrap();
+        assert!(
+            bytes.len() * 10 < mesh_bytes,
+            "step {step}: a {}-byte collider delta for a moving {mesh_bytes}-byte mesh",
+            bytes.len()
+        );
+        receiver
+            .colliders
+            .apply_delta(bincode::deserialize(&bytes).unwrap())
+            .unwrap();
+        acked = Some(tick);
+        assert!(
+            bincode::serialize(&world.colliders).unwrap()
+                == bincode::serialize(&receiver.colliders).unwrap()
+        );
+    }
+}
