@@ -99,7 +99,7 @@ impl NarrowPhase {
         self.intersection_graph.graph.apply_delta(
             delta.intersection_graph,
             ColliderHandle::invalid,
-            || IntersectionPair::new(),
+            IntersectionPair::new,
         )?;
         self.graph_indices.apply_delta(delta.graph_indices)?;
         let state = &mut self.delta_state;

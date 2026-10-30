@@ -304,6 +304,9 @@ mod snapshot_delta {
     use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
     use serde::{Deserialize, Serialize};
 
+    /// The pairs a collider takes part in, with their insertion frames.
+    type ColliderPairs = Vec<((ColliderHandle, ColliderHandle), u32)>;
+
     /// The content of a [`BroadPhaseBvh`] delta.
     #[doc(hidden)]
     #[derive(Clone, Serialize, Deserialize)]
@@ -313,7 +316,7 @@ mod snapshot_delta {
         /// Per stamped leaf: its fattened AABB and resolved change flag, `None` if absent.
         leaves: Vec<(u32, Option<(Aabb, bool)>)>,
         /// Per collider (index) whose pairs changed: every pair it takes part in.
-        pairs: Vec<(u32, Vec<((ColliderHandle, ColliderHandle), u32)>)>,
+        pairs: Vec<(u32, ColliderPairs)>,
         prev_updated_leaves: Vec<u32>,
         pending_set_aabb: Vec<ColliderHandle>,
         changes_since_optimize: u32,
@@ -338,7 +341,7 @@ mod snapshot_delta {
         }
 
         /// The pairs collider `index` takes part in.
-        fn pairs_of(&self, index: u32) -> Vec<((ColliderHandle, ColliderHandle), u32)> {
+        fn pairs_of(&self, index: u32) -> ColliderPairs {
             let Some(generation) = self.pair_adjacency.get_gen(index).filter(|g| *g != u32::MAX)
             else {
                 return Vec::new();

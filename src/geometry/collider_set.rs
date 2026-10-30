@@ -82,6 +82,7 @@ mod interned_colliders {
     use std::collections::HashMap;
 
     #[derive(Serialize, Deserialize)]
+    #[allow(clippy::large_enum_variant)] // Transient serialization form, never stored.
     enum EntryRepr {
         Free { next_free: Option<u32> },
         Occupied { generation: u32, value: InternedCollider },
