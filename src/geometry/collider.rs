@@ -234,7 +234,10 @@ impl Collider {
 
     /// Sets the collision types enabled for this collider.
     pub fn set_active_collision_types(&mut self, active_collision_types: ActiveCollisionTypes) {
-        self.flags.active_collision_types = active_collision_types;
+        if self.flags.active_collision_types != active_collision_types {
+            self.changes.insert(ColliderChanges::GROUPS);
+            self.flags.active_collision_types = active_collision_types;
+        }
     }
 
     /// The contact skin of this collider.
