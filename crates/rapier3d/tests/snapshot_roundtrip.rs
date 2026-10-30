@@ -650,6 +650,7 @@ macro_rules! tracked_components {
         $m!(impulse_joints, ImpulseJointSet);
         $m!(multibody_joints, MultibodyJointSet);
         $m!(soft_bodies, SoftBodySet);
+        $m!(islands, IslandManager);
     };
 }
 
@@ -660,6 +661,7 @@ struct Acks {
     impulse_joints: Option<ChangeTick<ImpulseJointSet>>,
     multibody_joints: Option<ChangeTick<MultibodyJointSet>>,
     soft_bodies: Option<ChangeTick<SoftBodySet>>,
+    islands: Option<ChangeTick<IslandManager>>,
 }
 
 struct Receiver {

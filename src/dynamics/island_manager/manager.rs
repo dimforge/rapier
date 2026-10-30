@@ -7,7 +7,7 @@ use crate::dynamics::{
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::utils::DotProduct;
-use parry::utils::VecMap;
+use crate::data::stamped_vec_map::StampedVecMap;
 
 /// System that manages which bodies are active (awake) vs sleeping to optimize performance.
 ///
@@ -32,7 +32,7 @@ pub struct IslandManager {
     /// the solver's persistent constraint cache can cheaply detect that its cached
     /// solver-body indices went stale.
     pub(crate) active_set_epoch: u32,
-    pub(crate) islands: VecMap<Island>,
+    pub(crate) islands: StampedVecMap<Island>,
     /// The single awake island's id, if any island is awake (all awake bodies live
     /// in one island; every other `Island` container is a sleeping chunk).
     pub(crate) awake_island: Option<usize>,
@@ -48,6 +48,9 @@ pub struct IslandManager {
     /// The persistent islands: connected components of the touching-contact/joint
     /// graph, maintained incrementally.
     pub(crate) persistent: super::PersistentIslands,
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    change_tracker: crate::data::delta::ChangeTracker,
 }
 
 impl IslandManager {
@@ -481,3 +484,58 @@ impl IslandManager {
         }
     }
 }
+
+#[cfg(feature = "serde-serialize")]
+mod snapshot_delta {
+    use super::*;
+    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::stamped_vec_map::VecMapDelta;
+    use crate::dynamics::island_manager::persistent::snapshot_delta::PersistentIslandsDelta;
+
+    /// The content of an [`IslandManager`] delta.
+    #[doc(hidden)]
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct IslandManagerDelta {
+        active_set_epoch: u32,
+        islands: VecMapDelta<Island>,
+        awake_island: Option<usize>,
+        free_islands: Vec<usize>,
+        persistent: PersistentIslandsDelta,
+    }
+
+    impl IslandManager {
+        fn change_tracker(&mut self) -> &mut ChangeTracker {
+            &mut self.change_tracker
+        }
+
+        fn change_tracker_ref(&self) -> &ChangeTracker {
+            &self.change_tracker
+        }
+
+        fn set_stamp_tick(&mut self, now: u32) {
+            self.islands.stamps.set_now(now);
+            self.persistent.set_stamp_tick(now);
+        }
+
+        fn collect_delta(&mut self, since: Option<u32>) -> IslandManagerDelta {
+            IslandManagerDelta {
+                active_set_epoch: self.active_set_epoch,
+                islands: self.islands.collect_delta(since),
+                awake_island: self.awake_island,
+                free_islands: self.free_islands.clone(),
+                persistent: self.persistent.collect_delta(since),
+            }
+        }
+
+        fn apply_delta_payload(&mut self, delta: IslandManagerDelta) -> Result<(), DeltaError> {
+            self.active_set_epoch = delta.active_set_epoch;
+            self.islands.apply_delta(delta.islands)?;
+            self.awake_island = delta.awake_island;
+            self.free_islands = delta.free_islands;
+            self.persistent.apply_delta(delta.persistent)
+        }
+    }
+
+    impl_snapshot_delta!(IslandManager, IslandManagerDelta);
+}
+

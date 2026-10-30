@@ -268,7 +268,7 @@ impl PersistentIslands {
             }
 
             if target == INVALID_ISLAND {
-                crate::utils::hashmap_remove(&mut self.joint_link_locs, &link.key);
+                self.joint_link_locs.remove(&link.key);
             } else {
                 let island = &mut self.islands[target as usize];
                 self.joint_link_locs

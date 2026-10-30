@@ -7,7 +7,8 @@ use crate::alloc_prelude::*;
 use crate::dynamics::{
     MultibodyIndex, MultibodyJointSet, RigidBodyHandle, RigidBodySet, SoftBodyHandle, SoftBodySet,
 };
-use parry::utils::VecMap;
+use crate::data::stamped_vec::StampedVec;
+use crate::data::stamped_vec_map::StampedVecMap;
 use parry::utils::hashmap::HashMap;
 
 use crate::dynamics::joint::ImpulseJointHandle;
@@ -118,11 +119,65 @@ pub(super) struct Removal {
 /// Serializes the joint-link map by key, so the bytes describe its content rather than the
 /// map's insertion history (a hash map's iteration order is history- and target-dependent,
 /// which would make two snapshots of the same state differ).
+/// `joint_link_locs`: the location of each joint link, with one change stamp for the whole map
+/// (sent whole in snapshot deltas when written).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct JointLinkLocs {
+    map: HashMap<JointLinkKey, (u32, u32)>,
+    pub(crate) stamp: crate::data::change_stamps::ChangeStamps,
+}
+
+impl core::ops::Deref for JointLinkLocs {
+    type Target = HashMap<JointLinkKey, (u32, u32)>;
+    fn deref(&self) -> &Self::Target {
+        &self.map
+    }
+}
+
+impl JointLinkLocs {
+    pub(crate) fn insert(&mut self, key: JointLinkKey, loc: (u32, u32)) -> Option<(u32, u32)> {
+        self.stamp.mark(0);
+        self.map.insert(key, loc)
+    }
+
+    pub(crate) fn remove(&mut self, key: &JointLinkKey) -> Option<(u32, u32)> {
+        self.stamp.mark(0);
+        crate::utils::hashmap_remove(&mut self.map, key)
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.stamp.mark(0);
+        self.map.clear();
+    }
+
+    pub(crate) fn as_map(&self) -> &HashMap<JointLinkKey, (u32, u32)> {
+        &self.map
+    }
+
+    pub(crate) fn replace(&mut self, map: HashMap<JointLinkKey, (u32, u32)>) {
+        self.stamp.mark(0);
+        self.map = map;
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
+fn deserialize_joint_link_locs<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<JointLinkLocs, D::Error> {
+    let map: HashMap<JointLinkKey, (u32, u32)> =
+        crate::utils::serde::deserialize_from_vec_tuple(d)?;
+    Ok(JointLinkLocs {
+        map,
+        stamp: Default::default(),
+    })
+}
+
 #[cfg(feature = "serde-serialize")]
 fn serialize_joint_link_locs<S: serde::Serializer>(
-    locs: &HashMap<JointLinkKey, (u32, u32)>,
+    locs: &JointLinkLocs,
     s: S,
 ) -> Result<S::Ok, S::Error> {
+    let locs = locs.as_map();
     crate::utils::serde::serialize_sorted_to_vec_tuple(
         locs,
         |k| match k {
@@ -150,20 +205,20 @@ fn serialize_joint_link_locs<S: serde::Serializer>(
 #[derive(Clone, Default)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub(crate) struct PersistentIslands {
-    pub(crate) islands: VecMap<PersistentIsland>,
+    pub(crate) islands: StampedVecMap<PersistentIsland>,
     free_islands: Vec<u32>,
     /// `contact_link_locs[edge_id]` = (island id, index in `contact_links`); `INVALID_LOC` when
     /// the edge isn't linked (not touching). Mirrors the contact graph's edges vec: grown on
     /// link, swap-removed through [`Self::contact_edge_removed`].
-    pub(super) contact_link_locs: Vec<(u32, u32)>,
+    pub(super) contact_link_locs: StampedVec<(u32, u32)>,
     #[cfg_attr(
         feature = "serde-serialize",
         serde(
             serialize_with = "serialize_joint_link_locs",
-            deserialize_with = "crate::utils::serde::deserialize_from_vec_tuple"
+            deserialize_with = "deserialize_joint_link_locs"
         )
     )]
-    pub(super) joint_link_locs: HashMap<JointLinkKey, (u32, u32)>,
+    pub(super) joint_link_locs: JointLinkLocs,
     /// The edges unlinked since the last [`Self::resolve_removals`].
     pub(super) removal_journal: Vec<Removal>,
     /// Workspace for the local split search.
@@ -294,7 +349,7 @@ impl PersistentIslands {
                 self.contact_link_locs[link.edge_id as usize] = INVALID_LOC;
             }
             for link in core::mem::take(&mut self.islands[island_id as usize].joint_links) {
-                crate::utils::hashmap_remove(&mut self.joint_link_locs, &link.key);
+                self.joint_link_locs.remove(&link.key);
             }
             self.free_island(island_id);
         }
@@ -423,7 +478,7 @@ impl PersistentIslands {
 
     /// Unlinks a joint edge. No-op if it wasn't linked.
     pub fn unlink_joint(&mut self, key: JointLinkKey) {
-        let Some(loc) = crate::utils::hashmap_remove(&mut self.joint_link_locs, &key) else {
+        let Some(loc) = self.joint_link_locs.remove(&key) else {
             return;
         };
         let island = &mut self.islands[loc.0 as usize];
@@ -730,7 +785,7 @@ impl PersistentIslands {
         multibody_joints: &MultibodyJointSet,
         soft_bodies: &SoftBodySet,
     ) -> Vec<RigidBodyHandle> {
-        self.islands = VecMap::default();
+        self.islands.clear();
         self.free_islands.clear();
         self.contact_link_locs.clear();
         self.joint_link_locs.clear();
@@ -875,3 +930,69 @@ impl PersistentIslands {
         }
     }
 }
+
+#[cfg(feature = "serde-serialize")]
+pub(crate) mod snapshot_delta {
+    use super::*;
+    use crate::data::change_stamps::stamp_is_newer;
+    use crate::data::delta::{DeltaError, VecDelta};
+    use crate::data::stamped_vec_map::VecMapDelta;
+
+    /// The persistent islands' part of an island-manager delta.
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub(crate) struct PersistentIslandsDelta {
+        islands: VecMapDelta<PersistentIsland>,
+        free_islands: Vec<u32>,
+        contact_link_locs: VecDelta<(u32, u32)>,
+        /// The whole map, when it was written since the baseline.
+        joint_link_locs: Option<Vec<(JointLinkKey, (u32, u32))>>,
+        removal_journal: Vec<Removal>,
+        split_island: Option<u32>,
+        sleep_scan_stamp: u32,
+        bootstrapped: bool,
+    }
+
+    impl PersistentIslands {
+        pub(crate) fn set_stamp_tick(&mut self, now: u32) {
+            self.islands.stamps.set_now(now);
+            self.contact_link_locs.stamps.set_now(now);
+            self.joint_link_locs.stamp.set_now(now);
+        }
+
+        pub(crate) fn collect_delta(&self, since: Option<u32>) -> PersistentIslandsDelta {
+            let joint_links_changed =
+                since.is_none_or(|since| stamp_is_newer(self.joint_link_locs.stamp.stamp(0), since));
+            PersistentIslandsDelta {
+                islands: self.islands.collect_delta(since),
+                free_islands: self.free_islands.clone(),
+                contact_link_locs: self.contact_link_locs.collect_delta(since),
+                joint_link_locs: joint_links_changed.then(|| {
+                    self.joint_link_locs
+                        .iter()
+                        .map(|(k, v)| (*k, *v))
+                        .collect()
+                }),
+                removal_journal: self.removal_journal.clone(),
+                split_island: self.split_island,
+                sleep_scan_stamp: self.sleep_scan_stamp,
+                bootstrapped: self.bootstrapped,
+            }
+        }
+
+        pub(crate) fn apply_delta(&mut self, delta: PersistentIslandsDelta) -> Result<(), DeltaError> {
+            self.islands.apply_delta(delta.islands)?;
+            self.free_islands = delta.free_islands;
+            self.contact_link_locs
+                .apply_delta(delta.contact_link_locs, || INVALID_LOC)?;
+            if let Some(locs) = delta.joint_link_locs {
+                self.joint_link_locs.replace(locs.into_iter().collect());
+            }
+            self.removal_journal = delta.removal_journal;
+            self.split_island = delta.split_island;
+            self.sleep_scan_stamp = delta.sleep_scan_stamp;
+            self.bootstrapped = delta.bootstrapped;
+            Ok(())
+        }
+    }
+}
+

@@ -16,6 +16,10 @@ pub(crate) mod change_stamps;
 #[cfg(feature = "serde-serialize")]
 pub mod delta;
 #[cfg(feature = "alloc")]
+pub(crate) mod stamped_vec;
+#[cfg(feature = "alloc")]
+pub(crate) mod stamped_vec_map;
+#[cfg(feature = "alloc")]
 pub(crate) mod coarena;
 #[cfg(feature = "alloc")]
 pub(crate) mod graph;
