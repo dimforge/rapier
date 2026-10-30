@@ -577,6 +577,51 @@ fn replacing_the_pipeline_changes_nothing() {
 
 /// A snapshot taken between a joint insertion and the next step: the joint's pending
 /// persistent-island link events are part of the state.
+/// A box and a stack of four resting on a ground, so their contact pairs recycle.
+fn resting_boxes() -> (PhysicsWorld, RigidBodyHandle) {
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5, 0.0)),
+        ColliderBuilder::cuboid(5.0, 0.5, 5.0),
+    );
+    let (body, _) = world.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(0.0, 0.5, 0.0))
+            .can_sleep(false),
+        ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+    );
+    for i in 0..4 {
+        world.insert(
+            RigidBodyBuilder::dynamic()
+                .translation(Vector::new(2.0, 0.5 + i as Real, 0.0))
+                .can_sleep(false),
+            ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+        );
+    }
+    (world, body)
+}
+
+#[test]
+fn center_of_mass_change_while_recycling() {
+    let (world, body) = resting_boxes();
+    check_roundtrip("center of mass change", world, 62, 30, false, |w, step, _| {
+        if step == 60 {
+            let props = MassProperties::new(Vector::new(0.05, 0.0, 0.0), 1.0, Vector::splat(0.2));
+            w.bodies[body].set_additional_mass_properties(props, true);
+        }
+    });
+}
+
+#[test]
+fn contact_recycling_disabled_at_runtime() {
+    let (world, _) = resting_boxes();
+    check_roundtrip("recycling disabled", world, 80, 30, false, |w, step, _| {
+        if step == 60 {
+            w.integration_parameters.contact_recycling = false;
+        }
+    });
+}
+
 #[test]
 fn snapshot_between_joint_insert_and_step() {
     for multibody in [false, true] {

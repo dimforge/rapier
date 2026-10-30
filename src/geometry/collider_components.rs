@@ -35,6 +35,12 @@ bitflags::bitflags! {
         /// following its particles): BF & NF updates, no NF pair workspace invalidation, never
         /// recycled.
         const DEFORMED = 1 << 9;
+        /// Flag indicating that the center of mass of this collider's parent moved in the
+        /// parent's local frame: NF update, never recycled (the solver anchors are relative
+        /// to the center of mass).
+        ///
+        /// This flag is automatically set by the `PhysicsPipeline`.
+        const PARENT_CENTER_OF_MASS = 1 << 10;
     }
 }
 

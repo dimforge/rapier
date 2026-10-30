@@ -4,6 +4,7 @@
 
 mod contacts;
 mod intersections;
+#[cfg(feature = "serde-serialize")]
 mod restore;
 #[cfg(feature = "serde-serialize")]
 mod snapshot_delta;
@@ -417,7 +418,8 @@ pub struct NarrowPhase {
     /// (see `restore`). Not serialized: defaults to `true` on deserialization so the
     /// next update (or an explicit [`Self::rebuild_solver_contacts`]) replays them;
     /// a live narrow phase keeps it `false`.
-    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "default_true"))]
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip, default = "default_true")]
     pending_solver_replay: bool,
     #[cfg(feature = "serde-serialize")]
     #[serde(skip)]
@@ -470,6 +472,7 @@ impl NarrowPhase {
             force_list_valid: false,
             solver_color_todo: Vec::new(),
             soft_self: Default::default(),
+            #[cfg(feature = "serde-serialize")]
             pending_solver_replay: false,
             #[cfg(feature = "serde-serialize")]
             delta_state: Default::default(),

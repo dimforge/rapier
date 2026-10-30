@@ -39,9 +39,10 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
     // other pair verbatim precisely because a replay would not reproduce its values.
     // The marker holds, per manifold, the points whose tangent world vector must be
     // recomputed (the others were stored verbatim).
-    let Some(recompute_tangent) = rigid.pending_replay.take() else {
+    let Some(pending) = rigid.pending_replay.take() else {
         return;
     };
+    let recompute_tangent = &pending.recompute_tangent;
     let (Some(co1), Some(co2)) = (colliders.get(handle1), colliders.get(handle2)) else {
         return;
     };
@@ -50,13 +51,13 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
     };
 
     // The exact world poses of both colliders at the pair's last full update.
-    let pos1_t = Pose::from_parts(rs.translation1, rs.rot1);
-    let pos2_t = Pose::from_parts(rs.translation2, rs.rot2);
+    let pos1_t = Pose::from_parts(rs.replay.translation1, rs.rot1);
+    let pos2_t = Pose::from_parts(rs.replay.translation2, rs.rot2);
 
     // When clustering applied, the clusters carried the solver contacts and the plain
     // manifolds hold none; only the plain manifolds' normals need replaying then.
     let clustered = !rigid.solver_clusters.is_empty();
-    let skins = (rs.skin1, rs.skin2);
+    let skins = (rs.replay.skin1, rs.replay.skin2);
 
     let num_manifolds = rigid.manifolds.len();
     for (mi, manifold) in rigid.manifolds.iter_mut().enumerate() {
@@ -122,7 +123,7 @@ fn replay_manifold_contacts(
     let rel_dom = manifold.data.relative_dominance;
 
     // Body poses at the last full update equal the collider poses (identity
-    // `pos_wrt_parent`, guaranteed by `SOLVER_REPLAY_ANCHORS`).
+    // `pos_wrt_parent`, guaranteed by `ContactRecycleState::replayable`).
     let com_pose = |co: &Collider, pose_t: &Pose| {
         co.parent
             .as_ref()

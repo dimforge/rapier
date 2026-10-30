@@ -445,8 +445,8 @@ pub mod serde {
     }
 }
 
-#[cfg(feature = "alloc")]
 /// Whether two poses are equal bit for bit (unlike `==`, distinguishes `0.0` from `-0.0`).
+#[cfg(feature = "serde-serialize")]
 pub(crate) fn pose_bits_eq(a: &crate::math::Pose, b: &crate::math::Pose) -> bool {
     let bits = |p: &crate::math::Pose| {
         let (t, q) = (p.translation, p.rotation);
@@ -461,4 +461,3 @@ pub(crate) fn pose_bits_eq(a: &crate::math::Pose, b: &crate::math::Pose) -> bool
     };
     bits(a) == bits(b)
 }
-

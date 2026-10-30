@@ -751,40 +751,18 @@ pub(super) fn process_pair(
             };
             rigid.recycle_state = Some(crate::geometry::ContactRecycleState {
                 pos12,
-                translation1: co1.pos.translation,
-                translation2: co2.pos.translation,
                 rot1: co1.pos.rotation,
                 rot2: co2.pos.rotation,
-                skin1: co1.contact_skin(),
-                skin2: co2.contact_skin(),
                 max_extent,
                 max_drift,
+                #[cfg(feature = "serde-serialize")]
+                replay: replay_state(co1, co2, rb1, rb2, active_hooks),
             });
+        } else {
+            // Recycling was turned off: a stale state would claim the replay reproduces
+            // these contacts.
+            rigid.recycle_state = None;
         }
-
-        // Record whether this full update's solver contacts can be replayed after a
-        // snapshot restore (see `ContactPair`'s serialization): not hook-modified, no soft
-        // surface, and body poses equal bit for bit to the stored collider poses (a multibody
-        // link's pose is rewritten by forward kinematics before its colliders follow).
-        let anchors_replayable =
-            |co: &crate::geometry::Collider, rb: Option<&crate::dynamics::RigidBody>| {
-                co.deformable_mesh_ref.is_none()
-                    && match (&co.parent, rb) {
-                        (Some(p), Some(rb)) => {
-                            p.pos_wrt_parent == crate::math::Pose::IDENTITY
-                                && crate::utils::pose_bits_eq(&rb.pos.position, &co.pos)
-                        }
-                        _ => true,
-                    }
-            };
-        pair.event_status.set(
-            crate::geometry::contact_pair::PairEventStatus::SOLVER_HOOKED,
-            active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS),
-        );
-        pair.event_status.set(
-            crate::geometry::contact_pair::PairEventStatus::SOLVER_REPLAY_ANCHORS,
-            anchors_replayable(co1, rb1) && anchors_replayable(co2, rb2),
-        );
     }
 
     /*
@@ -852,4 +830,37 @@ pub(super) fn process_pair(
         return OUTCOME_FULL_CLEAN;
     }
     outcome
+}
+
+/// The configuration a full update ran at, for the post-restore solver-contact replay.
+#[cfg(feature = "serde-serialize")]
+fn replay_state(
+    co1: &crate::geometry::Collider,
+    co2: &crate::geometry::Collider,
+    rb1: Option<&crate::dynamics::RigidBody>,
+    rb2: Option<&crate::dynamics::RigidBody>,
+    active_hooks: ActiveHooks,
+) -> crate::geometry::contact_pair::ContactReplayState {
+    // Replay re-derives the body poses from the collider poses, so each collider must sit at
+    // its body's origin (forward kinematics moves a multibody link before its colliders).
+    let anchors_replayable =
+        |co: &crate::geometry::Collider, rb: Option<&crate::dynamics::RigidBody>| {
+            co.deformable_mesh_ref.is_none()
+                && match (&co.parent, rb) {
+                    (Some(p), Some(rb)) => {
+                        p.pos_wrt_parent == crate::math::Pose::IDENTITY
+                            && crate::utils::pose_bits_eq(&rb.pos.position, &co.pos)
+                    }
+                    _ => true,
+                }
+        };
+    crate::geometry::contact_pair::ContactReplayState {
+        translation1: co1.pos.translation,
+        translation2: co2.pos.translation,
+        skin1: co1.contact_skin(),
+        skin2: co2.contact_skin(),
+        replayable: !active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS)
+            && anchors_replayable(co1, rb1)
+            && anchors_replayable(co2, rb2),
+    }
 }

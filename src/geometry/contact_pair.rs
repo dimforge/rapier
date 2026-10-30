@@ -47,15 +47,6 @@ bitflags::bitflags! {
         /// resets when the force drops back below the threshold or the pair stops
         /// touching.
         const INITIAL_FORCE_THRESHOLD_EVENT_EMITTED = 0b10;
-        /// The last full narrow-phase update of this pair ran the
-        /// `modify_solver_contacts` hook: its solver contacts cannot be replayed
-        /// after a snapshot restore and must be serialized verbatim.
-        const SOLVER_HOOKED = 0b100;
-        /// At the last full update, both colliders sat at their body's origin
-        /// (identity `pos_wrt_parent`, or no body): the body poses at that update
-        /// derive bit-exactly from the collider poses stored in the recycle state,
-        /// so the solver contacts can be replayed after a snapshot restore.
-        const SOLVER_REPLAY_ANCHORS = 0b1000;
     }
 }
 
@@ -300,13 +291,19 @@ pub struct RigidPairContacts {
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     pub(crate) soft: Option<Box<SoftRigidContacts>>,
     /// Set by deserialization when this pair used the compact encoding, telling the
-    /// post-restore pass to replay its solver data. Pairs serialized verbatim must
-    /// not be replayed: the encoder chose verbatim exactly because a replay would
-    /// not reproduce their values. Holds, per manifold (plain manifolds then
-    /// clusters), the point indices whose `warmstart_tangent_world` must be
-    /// recomputed (the others were stored verbatim).
-    #[cfg_attr(feature = "serde-serialize", serde(skip))]
-    pub(crate) pending_replay: Option<alloc::boxed::Box<[Vec<u32>]>>,
+    /// post-restore pass to replay its solver data (verbatim pairs are never replayed).
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    pub(crate) pending_replay: Option<Box<PendingReplay>>,
+}
+
+/// The replay a compact-encoded pair still awaits after a deserialization.
+#[cfg(feature = "serde-serialize")]
+#[derive(Clone, Debug)]
+pub(crate) struct PendingReplay {
+    /// Per manifold (plain manifolds then clusters), the points whose
+    /// `warmstart_tangent_world` must be recomputed; the others were stored verbatim.
+    pub(crate) recompute_tangent: Vec<Vec<u32>>,
 }
 
 impl RigidPairContacts {
@@ -320,6 +317,7 @@ impl RigidPairContacts {
             workspace: None,
             recycle_state: None,
             soft: None,
+            #[cfg(feature = "serde-serialize")]
             pending_replay: None,
         }
     }
@@ -351,7 +349,10 @@ impl RigidPairContacts {
         self.workspace = None;
         self.recycle_state = None;
         self.soft = None;
-        self.pending_replay = None;
+        #[cfg(feature = "serde-serialize")]
+        {
+            self.pending_replay = None;
+        }
     }
 
     /// Is there any active contact among this side's solver manifolds?
@@ -369,18 +370,6 @@ impl RigidPairContacts {
 pub(crate) struct ContactRecycleState {
     /// Pose of the second collider relative to the first at the last full update.
     pub pos12: Pose,
-    /// World translation of the first collider at the last full update. Together with
-    /// the rotations below (and `translation2`) this pins both colliders' exact world
-    /// poses at that update, which the post-restore solver-contact replay needs
-    /// (deriving one from the other through `pos12` would round).
-    pub translation1: Vector,
-    /// World translation of the second collider at the last full update.
-    pub translation2: Vector,
-    /// The colliders' contact skins at the last full update (a skin change sets no
-    /// change flag, so the current values may differ while the pair recycles).
-    pub skin1: Real,
-    /// See [`Self::skin1`].
-    pub skin2: Real,
     /// World rotation of the first collider at the last full update. The frozen world-space anchors
     /// ([`ContactData::solver_dp1`]) mean recycling must also bound each body's *absolute* rotation:
     /// rotating rigidly together keeps the relative pose but invalidates world-frozen arms (bound: `cos Δθ > 0.98`, ~11.5°).
@@ -394,6 +383,29 @@ pub(crate) struct ContactRecycleState {
     /// precomputed at the last full update (it depends on whether the pair had
     /// active contacts, which recycling doesn't change).
     pub max_drift: Real,
+    /// The state only the post-restore solver-contact replay reads.
+    #[cfg(feature = "serde-serialize")]
+    pub replay: ContactReplayState,
+}
+
+/// The configuration of a pair's last full update that the post-restore solver-contact
+/// replay re-runs it at.
+#[cfg(feature = "serde-serialize")]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct ContactReplayState {
+    /// World translation of the first collider at the last full update. With the recycle
+    /// state's rotations, it pins the exact world poses (deriving them through `pos12` rounds).
+    pub translation1: Vector,
+    /// World translation of the second collider at the last full update.
+    pub translation2: Vector,
+    /// The colliders' contact skins at the last full update (a skin change sets no
+    /// change flag, so the current values may differ while the pair recycles).
+    pub skin1: Real,
+    /// See [`Self::skin1`].
+    pub skin2: Real,
+    /// Whether that update's solver contacts can be replayed bit-exactly after a snapshot
+    /// restore: no `modify_solver_contacts` hook, and body poses derived from collider poses.
+    pub replayable: bool,
 }
 
 /// `cos Δθ` between two world rotations (in 3D, computed from the quaternion dot
@@ -1528,15 +1540,15 @@ mod pair_serde {
                     // Cluster point indices can exceed the compact form's 7 bits (up to 255
                     // points per cluster), in which case the whole pair falls back to the
                     // verbatim encoding.
-                    let replay = rigid.recycle_state.is_some()
-                        && !self.event_status.contains(PairEventStatus::SOLVER_HOOKED)
-                        && self
-                            .event_status
-                            .contains(PairEventStatus::SOLVER_REPLAY_ANCHORS)
+                    let replay = rigid.recycle_state.is_some_and(|rs| rs.replay.replayable)
                         && rigid.manifolds.iter().all(ids_fit)
                         && rigid.solver_clusters.iter().all(ids_fit);
                     // Restored but not replayed yet: reproduce the encoding it came from.
-                    let pending = rigid.pending_replay.as_deref().filter(|_| replay);
+                    let pending = rigid
+                        .pending_replay
+                        .as_deref()
+                        .filter(|_| replay)
+                        .map(|p| &p.recompute_tangent);
                     ContactsSer::Rigid(RigidSer {
                         manifolds: rigid
                             .manifolds
@@ -1597,7 +1609,8 @@ mod pair_serde {
                         };
                     let manifolds = convert(rigid.manifolds)?;
                     let solver_clusters = convert(rigid.solver_clusters)?;
-                    let pending_replay = compact.then(|| recompute_tangent.into_boxed_slice());
+                    let pending_replay =
+                        compact.then(|| Box::new(PendingReplay { recompute_tangent }));
                     PairContacts::Rigid(RigidPairContacts {
                         manifolds,
                         solver_clusters,

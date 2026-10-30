@@ -176,12 +176,21 @@ pub(crate) fn handle_user_changes_to_rigid_bodies(
             if changes
                 .intersects(RigidBodyChanges::LOCAL_MASS_PROPERTIES | RigidBodyChanges::COLLIDERS)
             {
+                let old_com = rb.mprops.local_mprops.local_com;
                 rb.mprops.recompute_mass_properties_from_colliders(
                     colliders,
                     &rb.colliders,
                     rb.body_type,
                     &rb.pos.position,
                 );
+                // Recycled contacts keep anchors relative to the old center of mass.
+                if rb.mprops.local_mprops.local_com != old_com {
+                    for handle in rb.colliders.0.iter() {
+                        let co = colliders.index_mut_internal(*handle);
+                        modified_colliders.push_once(*handle, co);
+                        co.changes |= ColliderChanges::PARENT_CENTER_OF_MASS;
+                    }
+                }
             }
 
             rb.activation = activation;
