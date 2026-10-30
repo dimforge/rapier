@@ -5,12 +5,14 @@ use crate::dynamics::{
 use crate::geometry::{RawBroadPhase, RawColliderSet, RawNarrowPhase};
 use crate::math::RawVector;
 use js_sys::Uint8Array;
+use rapier::data::{DeltaError, SnapshotDelta};
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
     SoftBodySet,
 };
 use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
 use rapier::math::Vector;
+use rapier::pipeline::{WorldChangeTick, WorldDelta};
 use wasm_bindgen::prelude::*;
 
 #[derive(Serialize)]
@@ -99,6 +101,32 @@ impl RawDeserializedWorld {
     }
 }
 
+/// A world delta and the tick a receiver is at once it applied it, both bincode-serialized.
+#[wasm_bindgen]
+pub struct RawWorldDelta {
+    delta: Vec<u8>,
+    tick: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl RawWorldDelta {
+    /// The bincode bytes of the `WorldDelta`.
+    #[wasm_bindgen(getter)]
+    pub fn delta(&self) -> Uint8Array {
+        Uint8Array::from(&self.delta[..])
+    }
+
+    /// The bincode bytes of the `WorldChangeTick` to acknowledge once the delta is applied.
+    #[wasm_bindgen(getter)]
+    pub fn tick(&self) -> Uint8Array {
+        Uint8Array::from(&self.tick[..])
+    }
+}
+
+fn delta_error(err: DeltaError) -> JsError {
+    JsError::new(&format!("snapshot delta: {err}"))
+}
+
 #[wasm_bindgen]
 pub struct RawSerializationPipeline;
 
@@ -153,5 +181,176 @@ impl RawSerializationPipeline {
             multibody_joints: Some(RawMultibodyJointSet(d.multibody_joints)),
             soft_bodies: Some(RawSoftBodySet(d.soft_bodies)),
         })
+    }
+    /// Starts stamping the writes of every component with change ticks, for `deltaSince`.
+    /// Restarting it invalidates every tick issued before.
+    pub fn enableChangeTracking(
+        &self,
+        islands: &mut RawIslandManager,
+        broadPhase: &mut RawBroadPhase,
+        narrowPhase: &mut RawNarrowPhase,
+        bodies: &mut RawRigidBodySet,
+        colliders: &mut RawColliderSet,
+        soft_bodies: &mut RawSoftBodySet,
+        impulse_joints: &mut RawImpulseJointSet,
+        multibody_joints: &mut RawMultibodyJointSet,
+    ) {
+        islands.0.enable_change_tracking();
+        broadPhase.0.enable_change_tracking();
+        narrowPhase.0.enable_change_tracking();
+        bodies.0.enable_change_tracking();
+        colliders.0.enable_change_tracking();
+        soft_bodies.0.enable_change_tracking();
+        impulse_joints.0.enable_change_tracking();
+        multibody_joints.0.enable_change_tracking();
+    }
+
+    /// Stops stamping writes on every component, and drops the stamps.
+    pub fn disableChangeTracking(
+        &self,
+        islands: &mut RawIslandManager,
+        broadPhase: &mut RawBroadPhase,
+        narrowPhase: &mut RawNarrowPhase,
+        bodies: &mut RawRigidBodySet,
+        colliders: &mut RawColliderSet,
+        soft_bodies: &mut RawSoftBodySet,
+        impulse_joints: &mut RawImpulseJointSet,
+        multibody_joints: &mut RawMultibodyJointSet,
+    ) {
+        islands.0.disable_change_tracking();
+        broadPhase.0.disable_change_tracking();
+        narrowPhase.0.disable_change_tracking();
+        bodies.0.disable_change_tracking();
+        colliders.0.disable_change_tracking();
+        soft_bodies.0.disable_change_tracking();
+        impulse_joints.0.disable_change_tracking();
+        multibody_joints.0.disable_change_tracking();
+    }
+
+    /// The changes since the serialized `WorldChangeTick` `since` (`undefined`: the whole
+    /// state), as a bincode-serialized `WorldDelta`, with the tick it brings receivers to.
+    ///
+    /// Throws if change tracking is disabled, or if `since` is malformed or was not issued
+    /// by the current change trackers.
+    pub fn deltaSince(
+        &self,
+        gravity: &RawVector,
+        integrationParameters: &RawIntegrationParameters,
+        islands: &mut RawIslandManager,
+        broadPhase: &mut RawBroadPhase,
+        narrowPhase: &mut RawNarrowPhase,
+        bodies: &mut RawRigidBodySet,
+        colliders: &mut RawColliderSet,
+        soft_bodies: &mut RawSoftBodySet,
+        impulse_joints: &mut RawImpulseJointSet,
+        multibody_joints: &mut RawMultibodyJointSet,
+        since: Option<Uint8Array>,
+    ) -> Result<RawWorldDelta, JsError> {
+        let since: Option<WorldChangeTick> = since
+            .map(|bytes| bincode::deserialize(&bytes.to_vec()[..]))
+            .transpose()
+            .map_err(|e| JsError::new(&format!("malformed snapshot delta tick: {e}")))?;
+        let (islands, _) = islands
+            .0
+            .delta_since(since.map(|t| t.islands))
+            .map_err(delta_error)?;
+        let (broad_phase, _) = broadPhase
+            .0
+            .delta_since(since.map(|t| t.broad_phase))
+            .map_err(delta_error)?;
+        let (narrow_phase, _) = narrowPhase
+            .0
+            .delta_since(since.map(|t| t.narrow_phase))
+            .map_err(delta_error)?;
+        let (bodies, _) = bodies
+            .0
+            .delta_since(since.map(|t| t.bodies))
+            .map_err(delta_error)?;
+        let (colliders, _) = colliders
+            .0
+            .delta_since(since.map(|t| t.colliders))
+            .map_err(delta_error)?;
+        let (impulse_joints, _) = impulse_joints
+            .0
+            .delta_since(since.map(|t| t.impulse_joints))
+            .map_err(delta_error)?;
+        let (multibody_joints, _) = multibody_joints
+            .0
+            .delta_since(since.map(|t| t.multibody_joints))
+            .map_err(delta_error)?;
+        let (soft_bodies, _) = soft_bodies
+            .0
+            .delta_since(since.map(|t| t.soft_bodies))
+            .map_err(delta_error)?;
+        let delta = WorldDelta {
+            gravity: gravity.0,
+            integration_parameters: integrationParameters.0,
+            islands,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+        };
+        let tick = delta.target_tick();
+        let delta = bincode::serialize(&delta).map_err(|e| JsError::new(&e.to_string()))?;
+        let tick = bincode::serialize(&tick).map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(RawWorldDelta { delta, tick })
+    }
+
+    /// Patches a bincode-serialized `WorldDelta` into the components, gravity and integration
+    /// parameters, and returns the serialized `WorldChangeTick` to acknowledge to the sender.
+    ///
+    /// Throws if the bytes are malformed or the delta's baseline is not the current state; the
+    /// components applied before the failing one then keep their new state.
+    pub fn applyDelta(
+        &self,
+        data: Uint8Array,
+        gravity: &mut RawVector,
+        integrationParameters: &mut RawIntegrationParameters,
+        islands: &mut RawIslandManager,
+        broadPhase: &mut RawBroadPhase,
+        narrowPhase: &mut RawNarrowPhase,
+        bodies: &mut RawRigidBodySet,
+        colliders: &mut RawColliderSet,
+        soft_bodies: &mut RawSoftBodySet,
+        impulse_joints: &mut RawImpulseJointSet,
+        multibody_joints: &mut RawMultibodyJointSet,
+    ) -> Result<Uint8Array, JsError> {
+        let delta: WorldDelta = bincode::deserialize(&data.to_vec()[..])
+            .map_err(|e| JsError::new(&format!("malformed snapshot delta: {e}")))?;
+        let tick = delta.target_tick();
+        gravity.0 = delta.gravity;
+        integrationParameters.0 = delta.integration_parameters;
+        islands.0.apply_delta(delta.islands).map_err(delta_error)?;
+        broadPhase
+            .0
+            .apply_delta(delta.broad_phase)
+            .map_err(delta_error)?;
+        narrowPhase
+            .0
+            .apply_delta(delta.narrow_phase)
+            .map_err(delta_error)?;
+        bodies.0.apply_delta(delta.bodies).map_err(delta_error)?;
+        colliders
+            .0
+            .apply_delta(delta.colliders)
+            .map_err(delta_error)?;
+        impulse_joints
+            .0
+            .apply_delta(delta.impulse_joints)
+            .map_err(delta_error)?;
+        multibody_joints
+            .0
+            .apply_delta(delta.multibody_joints)
+            .map_err(delta_error)?;
+        soft_bodies
+            .0
+            .apply_delta(delta.soft_bodies)
+            .map_err(delta_error)?;
+        let tick = bincode::serialize(&tick).map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(Uint8Array::from(&tick[..]))
     }
 }

@@ -260,6 +260,14 @@ export class ColliderSet {
     }
 
     /**
+     * Re-reads the parent of every collider wrapper and drops their cached shapes, after an
+     * applied snapshot delta modified the colliders.
+     */
+    public refreshParentsAndShapes(bodies: RigidBodySet) {
+        this.map.forEach((collider) => collider.refreshParentAndShape(bodies));
+    }
+
+    /**
      * Drops the wrappers of the colliders the engine removed on its own (the colliders of
      * removed soft bodies and clusters).
      */

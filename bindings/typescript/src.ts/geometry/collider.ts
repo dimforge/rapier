@@ -190,6 +190,14 @@ export class Collider {
         }
     }
 
+    /** @internal */
+    public refreshParentAndShape(bodies: RigidBodySet) {
+        const parentHandle = this.colliderSet.raw.coParent(this.handle);
+        this._parent =
+            parentHandle === undefined ? null : bodies.get(parentHandle);
+        this._shape = null;
+    }
+
     private ensureShapeIsCached() {
         if (!this._shape)
             this._shape = Shape.fromRaw(this.colliderSet.raw, this.handle);

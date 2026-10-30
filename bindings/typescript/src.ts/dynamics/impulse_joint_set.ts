@@ -119,6 +119,21 @@ export class ImpulseJointSet {
     }
 
     /**
+     * Wraps the joints that have no JavaScript wrapper yet (the joints an applied snapshot
+     * delta added).
+     */
+    public mapNewJoints(bodies: RigidBodySet) {
+        this.raw.forEachJointHandle((handle: ImpulseJointHandle) => {
+            if (!this.map.get(handle)) {
+                this.map.set(
+                    handle,
+                    ImpulseJoint.newTyped(this.raw, bodies, handle),
+                );
+            }
+        });
+    }
+
+    /**
      * Drops the wrappers of the joints the engine removed on its own (the joints of removed
      * soft bodies and clusters).
      */

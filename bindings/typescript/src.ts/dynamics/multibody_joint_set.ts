@@ -99,6 +99,18 @@ export class MultibodyJointSet {
     }
 
     /**
+     * Wraps the joints that have no JavaScript wrapper yet (the joints an applied snapshot
+     * delta added).
+     */
+    public mapNewJoints() {
+        this.raw.forEachJointHandle((handle: MultibodyJointHandle) => {
+            if (!this.map.get(handle)) {
+                this.map.set(handle, MultibodyJoint.newTyped(this.raw, handle));
+            }
+        });
+    }
+
+    /**
      * Drops the wrappers of the joints the engine removed on its own (the joints of removed
      * soft bodies and clusters).
      */

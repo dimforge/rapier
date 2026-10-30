@@ -247,6 +247,141 @@ export class World {
     }
 
     /**
+     * Starts recording which parts of this world change, so `takeDelta` can serialize only
+     * what changed since a state a receiver acknowledged.
+     *
+     * Restarting it (after `disableChangeTracking`) invalidates every tick issued before:
+     * receivers must then be bootstrapped again with a full delta.
+     */
+    public enableChangeTracking() {
+        this.serializationPipeline.enableChangeTracking(
+            this.islands,
+            this.broadPhase,
+            this.narrowPhase,
+            this.bodies,
+            this.colliders,
+            this.softBodies,
+            this.impulseJoints,
+            this.multibodyJoints,
+        );
+    }
+
+    /**
+     * Stops recording changes (see `enableChangeTracking`), and frees the change records.
+     */
+    public disableChangeTracking() {
+        this.serializationPipeline.disableChangeTracking(
+            this.islands,
+            this.broadPhase,
+            this.narrowPhase,
+            this.bodies,
+            this.colliders,
+            this.softBodies,
+            this.impulseJoints,
+            this.multibodyJoints,
+        );
+    }
+
+    /**
+     * Takes a snapshot delta of this world: the changes made since the state identified by
+     * `since`, a tick a receiver acknowledged. Requires `enableChangeTracking`.
+     *
+     * The workflow, e.g. for network replication:
+     * 1. The sender calls `enableChangeTracking()`, then bootstraps each receiver with
+     *    `takeDelta()` (no baseline: the whole state) applied to any world (an empty
+     *    `new World(...)` works).
+     *    Alternatively, a receiver restored with `World.restoreSnapshot(world.takeSnapshot())`
+     *    can use the tick of a `takeDelta()` taken right after that snapshot as its baseline.
+     * 2. Each receiver applies the deltas it gets with `applyDelta`, and sends the returned
+     *    tick back to acknowledge that state.
+     * 3. The sender produces the next delta for a receiver against the last tick that
+     *    receiver acknowledged, so a delta that was lost or is still in flight is just
+     *    included again in the next one.
+     *
+     * A receiver that applied every delta since its baseline has the same `takeSnapshot()`
+     * bytes as the sender, and keeps simulating identically.
+     *
+     * Throws if change tracking is disabled, or if `since` was not issued by this world's
+     * current change trackers (e.g. tracking was restarted): send a full delta instead.
+     *
+     * @param since - The last tick acknowledged by the receiver (returned by its
+     *                `applyDelta`, or by the sender's `takeDelta`). Omit it for the whole state.
+     * @returns The serialized delta to send, and the tick the receiver is at once it applied it.
+     *          Both are opaque byte arrays.
+     */
+    public takeDelta(since?: Uint8Array): {
+        delta: Uint8Array;
+        tick: Uint8Array;
+    } {
+        return this.serializationPipeline.deltaSince(
+            this.gravity,
+            this.integrationParameters,
+            this.islands,
+            this.broadPhase,
+            this.narrowPhase,
+            this.bodies,
+            this.colliders,
+            this.softBodies,
+            this.impulseJoints,
+            this.multibodyJoints,
+            since,
+        );
+    }
+
+    /**
+     * Applies a snapshot delta produced by the `takeDelta` of another world, and returns the
+     * tick to send back to that world to acknowledge this state.
+     *
+     * This world must hold the state the delta was produced against (the state of the
+     * acknowledged tick), or be in any state if the delta was taken without baseline. The
+     * gravity and the integration parameters are updated too, and the rigid-bodies,
+     * colliders, joints and soft bodies the delta added or removed are (un)mapped.
+     *
+     * Throws if `delta` is malformed or was produced against another state. The world may
+     * then be partially patched: restore it from a full delta or a snapshot.
+     */
+    public applyDelta(delta: Uint8Array): Uint8Array {
+        let res: {gravity: Vector; tick: Uint8Array};
+        try {
+            res = this.serializationPipeline.applyDelta(
+                delta,
+                this.integrationParameters,
+                this.islands,
+                this.broadPhase,
+                this.narrowPhase,
+                this.bodies,
+                this.colliders,
+                this.softBodies,
+                this.impulseJoints,
+                this.multibodyJoints,
+            );
+        } finally {
+            this.syncWrappersAfterDelta();
+        }
+        this.gravity = res.gravity;
+        return res.tick;
+    }
+
+    /**
+     * Updates the JavaScript wrappers of the bodies, colliders, joints and soft bodies after
+     * an applied delta added, removed or modified some of them.
+     */
+    private syncWrappersAfterDelta() {
+        // Unmap first: a removed object's index may have been reused by an added one.
+        this.bodies.unmapRemovedBodies();
+        this.colliders.unmapRemovedColliders();
+        this.impulseJoints.unmapRemovedJoints();
+        this.multibodyJoints.unmapRemovedJoints();
+        this.softBodies.unmapRemovedSoftBodies();
+        this.bodies.mapNewBodies(this.colliders);
+        this.colliders.mapNewColliders(this.bodies);
+        this.impulseJoints.mapNewJoints(this.bodies);
+        this.multibodyJoints.mapNewJoints();
+        this.softBodies.mapNewSoftBodies(this.bodies, this.colliders);
+        this.colliders.refreshParentsAndShapes(this.bodies);
+    }
+
+    /**
      * Computes all the lines (and their colors) needed to render the scene.
      *
      * @param filterFlags - Flags for excluding whole subsets of colliders from rendering.

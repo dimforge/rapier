@@ -1,3 +1,13 @@
+## Unreleased
+
+### Added
+
+- Snapshot deltas: `World.enableChangeTracking()`, `World.takeDelta(since?)` and `World.applyDelta(delta)`
+  serialize and apply only what changed since a state a receiver acknowledged (with the tick returned
+  by `applyDelta`), e.g. for network replication. `World.takeDelta()` without a baseline bootstraps a
+  receiver with the whole state. A receiver that applied every delta has the same `takeSnapshot()` bytes
+  as the sender and keeps simulating identically.
+
 ## 0.21.0 (24 September 2026)
 
 ### Breaking changes

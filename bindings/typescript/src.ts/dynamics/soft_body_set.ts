@@ -261,6 +261,18 @@ export class SoftBodySet {
     }
 
     /**
+     * Drops the wrappers of the soft bodies that no longer exist (the soft bodies an applied
+     * snapshot delta removed).
+     */
+    public unmapRemovedSoftBodies() {
+        for (let body of this.map.getAll()) {
+            if (!this.raw.contains(body.handle)) {
+                this.map.delete(body.handle);
+            }
+        }
+    }
+
+    /**
      * Wraps the soft bodies the engine created (the pieces a tear split off) that have no
      * JavaScript wrapper yet; the pieces of a tear event are only reachable after this.
      */
