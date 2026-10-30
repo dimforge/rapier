@@ -764,21 +764,26 @@ pub(super) fn process_pair(
 
         // Record whether this full update's solver contacts can be replayed after a
         // snapshot restore (see `ContactPair`'s serialization): not hook-modified, no soft
-        // surface, and body poses derivable bit-exactly from the stored collider poses.
-        let anchors_replayable = |co: &crate::geometry::Collider| {
-            co.deformable_mesh_ref.is_none()
-                && match &co.parent {
-                    Some(p) => p.pos_wrt_parent == crate::math::Pose::IDENTITY,
-                    None => true,
-                }
-        };
+        // surface, and body poses equal bit for bit to the stored collider poses (a multibody
+        // link's pose is rewritten by forward kinematics before its colliders follow).
+        let anchors_replayable =
+            |co: &crate::geometry::Collider, rb: Option<&crate::dynamics::RigidBody>| {
+                co.deformable_mesh_ref.is_none()
+                    && match (&co.parent, rb) {
+                        (Some(p), Some(rb)) => {
+                            p.pos_wrt_parent == crate::math::Pose::IDENTITY
+                                && crate::utils::pose_bits_eq(&rb.pos.position, &co.pos)
+                        }
+                        _ => true,
+                    }
+            };
         pair.event_status.set(
             crate::geometry::contact_pair::PairEventStatus::SOLVER_HOOKED,
             active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS),
         );
         pair.event_status.set(
             crate::geometry::contact_pair::PairEventStatus::SOLVER_REPLAY_ANCHORS,
-            anchors_replayable(co1) && anchors_replayable(co2),
+            anchors_replayable(co1, rb1) && anchors_replayable(co2, rb2),
         );
     }
 

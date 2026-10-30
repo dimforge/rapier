@@ -444,3 +444,20 @@ pub mod serde {
         }
     }
 }
+
+/// Whether two poses are equal bit for bit (unlike `==`, distinguishes `0.0` from `-0.0`).
+pub(crate) fn pose_bits_eq(a: &crate::math::Pose, b: &crate::math::Pose) -> bool {
+    let bits = |p: &crate::math::Pose| {
+        let (t, q) = (p.translation, p.rotation);
+        #[cfg(feature = "dim3")]
+        let r = [q.x, q.y, q.z, q.w];
+        #[cfg(feature = "dim2")]
+        let r = [q.re, q.im];
+        (
+            t.to_array().map(|x| x.to_bits()),
+            r.map(|x| x.to_bits()),
+        )
+    };
+    bits(a) == bits(b)
+}
+
