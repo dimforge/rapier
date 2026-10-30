@@ -1,5 +1,6 @@
 #include "rapier.hpp"
 #include <cassert>
+#include <cstring>
 #include <type_traits>
 
 int main() {
@@ -35,6 +36,22 @@ int main() {
         rapier::Snapshot snapshot(RAPIER_FN(SerializeWorld)(moved.get()));
         rapier::SoftBodyTearEvent tear;
         assert(shape && mesh && events && character && pid && snapshot);
+        // Bootstrap a replica with a full delta; it acknowledges the delta's tick.
+        rapier::check(RAPIER_FN(EnableChangeTracking)(moved.get()));
+        rapier::WorldDelta full(RAPIER_FN(SerializeWorldDelta)(moved.get(), nullptr, 0));
+        rapier::check(RAPIER_FN(LastStatus)());
+        auto replica = rapier::make_world();
+        auto fullDelta = RAPIER_FN(Bytes_Data)(full.delta.get());
+        rapier::Snapshot acked(
+            RAPIER_FN(ApplyWorldDelta)(replica.get(), fullDelta.data, fullDelta.count));
+        rapier::check(RAPIER_FN(LastStatus)());
+        auto ackedTick = RAPIER_FN(Bytes_Data)(acked.get());
+        auto fullTick = RAPIER_FN(Bytes_Data)(full.tick.get());
+        assert(ackedTick.count == fullTick.count &&
+               std::memcmp(ackedTick.data, fullTick.data, fullTick.count) == 0);
+        rapier::WorldDelta failed(RAPIER_FN(SerializeWorldDelta)(nullptr, nullptr, 0));
+        assert(!failed.delta && !failed.tick &&
+               RAPIER_FN(LastStatus)() == RAPIER_CONST(NULL_POINTER));
         auto transferred = std::move(mesh);
         assert(transferred && !mesh);
 #if defined(RAPIER_DIM3)

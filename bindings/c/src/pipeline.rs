@@ -1315,22 +1315,91 @@ pub unsafe extern "C" fn rpr_free_bytes(bytes: *mut RprBytes) -> RprStatus {
 // Wire format: magic, then little-endian u32 ABI, dimension, and scalar size.
 // The distinct magic prevents interpreting the old six-byte header as this format.
 const SNAPSHOT_HEADER_LEN: usize = 16;
+// Snapshots, deltas, and ticks use distinct magics, so one is never read as another.
+const SNAPSHOT_MAGIC: &[u8; 4] = b"RPRS";
+const DELTA_MAGIC: &[u8; 4] = b"RPRD";
+const TICK_MAGIC: &[u8; 4] = b"RPRT";
+const MAX_SNAPSHOT_BYTES: usize = 256 * 1024 * 1024;
 
-fn snapshot_header(abi_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
+fn wire_header(magic: &[u8; 4], abi_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
     let build = rpr_build_info();
     let mut header = [0; SNAPSHOT_HEADER_LEN];
-    header[..4].copy_from_slice(b"RPRS");
+    header[..4].copy_from_slice(magic);
     header[4..8].copy_from_slice(&abi_version.to_le_bytes());
     header[8..12].copy_from_slice(&build.dimension.to_le_bytes());
     header[12..16].copy_from_slice(&build.real_size.to_le_bytes());
     header
 }
 
+fn snapshot_header(abi_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
+    wire_header(SNAPSHOT_MAGIC, abi_version)
+}
+
 fn snapshot_options() -> impl Options {
     bincode::DefaultOptions::new()
         .with_fixint_encoding()
-        .with_limit(256 * 1024 * 1024)
+        .with_limit(MAX_SNAPSHOT_BYTES as u64)
         .reject_trailing_bytes()
+}
+
+/// Serializes `value` behind the `magic` header of this build.
+fn encode_wire(magic: &[u8; 4], value: &impl serde::Serialize) -> Result<Vec<u8>> {
+    let mut bytes = wire_header(magic, RPR_ABI_VERSION).to_vec();
+    bytes.extend(
+        snapshot_options()
+            .serialize(value)
+            .map_err(|e| invalid(e.to_string()))?,
+    );
+    Ok(bytes)
+}
+
+/// Checks the size and `magic` header of `count` bytes at `data`, then deserializes them.
+unsafe fn decode_wire<T: serde::de::DeserializeOwned>(
+    magic: &[u8; 4],
+    what: &str,
+    data: *const u8,
+    count: usize,
+) -> Result<T> {
+    ensure(
+        count <= MAX_SNAPSHOT_BYTES,
+        &format!("{what} exceeds 256 MiB"),
+    )?;
+    let bytes = unsafe { input(data, count)? };
+    ensure(
+        bytes.starts_with(&wire_header(magic, RPR_ABI_VERSION)),
+        &format!("incompatible {what}"),
+    )?;
+    snapshot_options()
+        .deserialize(&bytes[SNAPSHOT_HEADER_LEN..])
+        .map_err(|e| invalid(format!("{what}: {e}")))
+}
+
+fn owned_bytes(bytes: Vec<u8>) -> *mut RprBytes {
+    Box::into_raw(Box::new(RprBytes(bytes)))
+}
+
+/// UNSUPPORTED without change tracking; any other delta failure is an invalid argument.
+fn delta_error(error: rapier::data::DeltaError) -> (RprStatus, String) {
+    use rapier::data::DeltaError;
+    let message = match error {
+        DeltaError::TrackingDisabled => {
+            return (
+                RPR_UNSUPPORTED,
+                "change tracking is not enabled on this world".into(),
+            );
+        }
+        DeltaError::UnknownBaseline => {
+            "the baseline tick was not issued by this world's change tracking; produce a full \
+             delta (NULL baseline) instead"
+        }
+        DeltaError::BaselineMismatch => {
+            "the delta's baseline does not match this world's state; resynchronize it with a \
+             full delta or a snapshot"
+        }
+        DeltaError::Malformed => "malformed snapshot delta",
+        DeltaError::MissingShape => "the delta references a shape this world does not hold",
+    };
+    invalid(message)
 }
 /// Return owned snapshot bytes; release them with rpr_free_bytes. See @ref snapshots for
 /// restoration and handle lifetimes.
@@ -1364,7 +1433,7 @@ pub unsafe extern "C" fn rpr_deserialize_world(data: *const u8, count: usize) ->
     ffi_value(|out: *mut *mut RprWorld| {
         ffi(|| unsafe {
             out_ptr(out)?;
-            ensure(count <= 256 * 1024 * 1024, "snapshot exceeds 256 MiB")?;
+            ensure(count <= MAX_SNAPSHOT_BYTES, "snapshot exceeds 256 MiB")?;
             let bytes = input(data, count)?;
             ensure(
                 bytes.starts_with(&snapshot_header(RPR_ABI_VERSION)),
@@ -1377,6 +1446,95 @@ pub unsafe extern "C" fn rpr_deserialize_world(data: *const u8, count: usize) ->
                 out,
                 Box::into_raw(Box::new(RprWorld::new(RprPhysicsWorld(world)))),
             )
+        })
+    })
+}
+
+/// Start recording which parts of the world change, for rpr_serialize_world_delta. Restarting
+/// it invalidates every tick issued before; see @ref snapshots.
+/// @ingroup worlds
+#[rapier_export]
+pub unsafe extern "C" fn rpr_enable_change_tracking(world: *mut RprWorld) -> RprStatus {
+    ffi(|| unsafe {
+        let access = get(world)?.write()?;
+        (*access.raw()).0.enable_change_tracking();
+        Ok(())
+    })
+}
+
+/// Stop recording changes and drop the recorded state, invalidating every issued tick.
+/// @ingroup worlds
+#[rapier_export]
+pub unsafe extern "C" fn rpr_disable_change_tracking(world: *mut RprWorld) -> RprStatus {
+    ffi(|| unsafe {
+        let access = get(world)?.write()?;
+        (*access.raw()).0.disable_change_tracking();
+        Ok(())
+    })
+}
+
+/// Return owned bytes of the changes since the `since` tick bytes (NULL with since_count 0: the
+/// full state), and of the tick a receiver reaches once it applied them. Release both with
+/// rpr_free_bytes; both are NULL on failure. See @ref snapshots for the error codes.
+/// @ingroup worlds
+#[rapier_export]
+pub unsafe extern "C" fn rpr_serialize_world_delta(
+    world: *mut RprWorld,
+    since: *const u8,
+    since_count: usize,
+) -> RprWorldDelta {
+    ffi_value(|out: *mut RprWorldDelta| {
+        ffi(|| unsafe {
+            out_ptr(out)?;
+            let access = get(world)?.write()?;
+            let since: Option<WorldChangeTick> = if since.is_null() {
+                ensure(
+                    since_count == 0,
+                    "a NULL baseline tick must have zero length",
+                )?;
+                None
+            } else {
+                Some(decode_wire(
+                    TICK_MAGIC,
+                    "snapshot tick",
+                    since,
+                    since_count,
+                )?)
+            };
+            let (delta, tick) = (*access.raw())
+                .0
+                .delta_since(since.as_ref())
+                .map_err(delta_error)?;
+            let delta = encode_wire(DELTA_MAGIC, &delta)?;
+            let tick = encode_wire(TICK_MAGIC, &tick)?;
+            output(
+                out,
+                RprWorldDelta {
+                    delta: owned_bytes(delta),
+                    tick: owned_bytes(tick),
+                },
+            )
+        })
+    })
+}
+
+/// Apply only trusted delta bytes from the identical Rapier build, and return owned bytes of the
+/// tick to acknowledge to the sender (release with rpr_free_bytes). See @ref snapshots for the
+/// baseline this world must hold and for recovery after a failure.
+/// @ingroup worlds
+#[rapier_export]
+pub unsafe extern "C" fn rpr_apply_world_delta(
+    world: *mut RprWorld,
+    data: *const u8,
+    count: usize,
+) -> *mut RprBytes {
+    ffi_value(|out: *mut *mut RprBytes| {
+        ffi(|| unsafe {
+            out_ptr(out)?;
+            let access = get(world)?.write()?;
+            let delta: WorldDelta = decode_wire(DELTA_MAGIC, "snapshot delta", data, count)?;
+            let tick = (*access.raw()).0.apply_delta(delta).map_err(delta_error)?;
+            output(out, owned_bytes(encode_wire(TICK_MAGIC, &tick)?))
         })
     })
 }
@@ -2389,6 +2547,31 @@ mod snapshot_header_tests {
         }
         assert_eq!(&snapshot_header(0x0102_0304)[4..8], &[4, 3, 2, 1]);
         assert_ne!(snapshot_header(1), snapshot_header(257));
+    }
+
+    #[test]
+    fn deltas_and_ticks_have_their_own_versioned_headers() {
+        let snapshot = snapshot_header(RPR_ABI_VERSION);
+        let delta = wire_header(DELTA_MAGIC, RPR_ABI_VERSION);
+        let tick = wire_header(TICK_MAGIC, RPR_ABI_VERSION);
+        assert_eq!((&delta[..4], &tick[..4]), (&b"RPRD"[..], &b"RPRT"[..]));
+        assert_eq!(delta[4..], snapshot[4..]);
+        assert_eq!(tick[4..], snapshot[4..]);
+        assert_ne!(delta, wire_header(DELTA_MAGIC, RPR_ABI_VERSION + 256));
+        unsafe {
+            let world = rpr_new_world();
+            assert_eq!(rpr_enable_change_tracking(world), RPR_OK);
+            let result = rpr_serialize_world_delta(world, std::ptr::null(), 0);
+            assert_eq!(rpr_last_status(), RPR_OK);
+            assert!((*result.delta).0.starts_with(&delta));
+            assert!((*result.tick).0.starts_with(&tick));
+            let applied = rpr_apply_world_delta(world, (*result.delta).0.as_ptr(), 0);
+            assert!(applied.is_null());
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+            assert_eq!(rpr_free_bytes(result.delta), RPR_OK);
+            assert_eq!(rpr_free_bytes(result.tick), RPR_OK);
+            assert_eq!(rpr_free_world(world), RPR_OK);
+        }
     }
 
     #[test]

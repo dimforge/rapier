@@ -124,6 +124,32 @@ snapshots produced by the identical Rapier build. Snapshots are not a durable in
 Old handles still point to the original world. Discard them and enumerate handles
 from the restored world. Configure any thread pool and external callback/user
 state again; application-owned state is not reconstructed automatically.
+
+@section snapshot_deltas Snapshot deltas
+Deltas replicate a world by sending only what changed since a state the receiver
+acknowledged. The sender calls EnableChangeTracking once, then SerializeWorldDelta with
+the tick bytes the receiver last acknowledged, or NULL (with a zero count) for a full
+delta. The returned WorldDelta holds owned delta bytes and the tick bytes the receiver
+reaches once it applied them; release both with FreeBytes. The receiver passes the delta
+bytes to ApplyWorldDelta, which patches its world in place and returns owned tick bytes
+to send back as its acknowledgement.
+
+Bootstrap a receiver with a full delta applied to any world, such as a new empty one, or
+with DeserializeWorld on a snapshot taken right before the SerializeWorldDelta call whose
+tick becomes its baseline. Each receiver may lag behind: the sender can produce a delta
+against any tick that receiver acknowledged. A receiver that applied every delta from its
+baseline serializes byte-identically to the sender and keeps simulating identically.
+Handles keep referring to the patched world; entities a delta removed report INVALID_HANDLE.
+Snapshots do not include change tracking, and restarting it invalidates every issued tick.
+
+Deltas and ticks carry a versioned header like snapshots, with the same 256 MiB limit and
+the same trust requirement: only apply bytes produced by the identical Rapier build.
+SerializeWorldDelta reports UNSUPPORTED while change tracking is disabled, and
+INVALID_ARGUMENT for tick bytes from another build, world, or tracking session: produce a
+full delta instead. ApplyWorldDelta reports INVALID_ARGUMENT for incompatible or truncated
+bytes without changing the world. It also reports INVALID_ARGUMENT for a delta built against
+another baseline, which may leave the world partially patched: resynchronize it with a full
+delta or a snapshot. LastError names the cause.
 */
 
 /** @defgroup errors ABI and errors
@@ -131,7 +157,7 @@ Build identity, layout checks, status codes, and thread-local diagnostics.
 See @ref api_errors for the return-value convention.
 */
 /** @defgroup worlds Worlds and stepping
-Create a world, configure integration, step, and serialize it.
+Create a world, configure integration, step, and serialize it or its changes.
 Setters change the named setting for subsequent operations.
 */
 /** @defgroup math Math and array types

@@ -86,7 +86,8 @@ Open `build/c-docs/html/index.html`. This requires Doxygen 1.9.4+, Python 3, and
 C compiler. It generates all four dimension/precision variants without building
 the library or downloading testbed dependencies. Normal builds do not need Doxygen.
 
-The reference covers API usage, ownership, errors, callbacks, and snapshots.
+The reference covers API usage, ownership, errors, callbacks, snapshots, and snapshot
+deltas.
 The CI workflow also provides a `rapier-c-api-docs` HTML artifact.
 
 - [C example](examples/falling_ball.c)

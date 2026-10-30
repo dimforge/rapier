@@ -103,3 +103,6 @@ pub use queries_extras::*;
 
 #[cfg(test)]
 mod owner_handle_tests;
+
+#[cfg(test)]
+mod snapshot_delta_tests;

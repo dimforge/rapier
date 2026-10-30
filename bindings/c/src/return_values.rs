@@ -72,6 +72,17 @@ pub struct RprByteView {
     pub count: usize,
 }
 
+/// Owned delta and tick bytes produced by SerializeWorldDelta. Release each with FreeBytes.
+/// @ingroup worlds
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct RprWorldDelta {
+    /// Owned delta bytes for ApplyWorldDelta on a receiver; NULL on failure.
+    pub delta: *mut RprBytes,
+    /// Owned bytes of the tick a receiver reaches once it applied the delta; NULL on failure.
+    pub tick: *mut RprBytes,
+}
+
 /// Optional voxel lookup result; check found before reading voxel data.
 /// @ingroup queries
 #[repr(C)]

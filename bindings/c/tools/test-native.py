@@ -121,6 +121,7 @@ with tempfile.TemporaryDirectory(prefix="rapier-c-tests-") as directory:
                                                 (ROOT / "bindings/c/tests/initializers.cpp", CXX, "c++17"),
                                                 (ROOT / "bindings/c/tests/array_views.c", CC, "c11"),
                                                 (ROOT / "bindings/c/tests/array_views.cpp", CXX, "c++17"),
+                                                (ROOT / "bindings/c/tests/snapshot_deltas.c", CC, "c11"),
                                                 (symbol_source, CC, "c11")]:
                 output = temp / f"{source.stem}-{library}-{linkage}"
                 subprocess.run([*compiler, f"-std={standard}", *flags, str(source),

@@ -37,6 +37,16 @@ using Shape = Owner<RAPIER_TYPE(SharedShape), RAPIER_FN(FreeSharedShape)>;
 using EventCollector = Owner<RAPIER_TYPE(EventCollector), RAPIER_FN(FreeEventCollector)>;
 /** Own a native Snapshot using its matching Free function. */
 using Snapshot = Owner<RAPIER_TYPE(Bytes), RAPIER_FN(FreeBytes)>;
+/** Own both byte buffers of a SerializeWorldDelta result; both are empty after a failure. */
+struct WorldDelta {
+    /** Owned delta bytes for ApplyWorldDelta. */
+    Snapshot delta;
+    /** Owned bytes of the tick a receiver reaches once it applied the delta. */
+    Snapshot tick;
+    /** Take ownership of both buffers of a native result. */
+    explicit WorldDelta(RAPIER_TYPE(WorldDelta) value) noexcept
+        : delta(value.delta), tick(value.tick) {}
+};
 
 /** Own a native SoftBodyTearEvent using its matching Free function. */
 using SoftBodyTearEvent = Owner<RAPIER_TYPE(SoftBodyTearEvent), RAPIER_FN(FreeSoftBodyTearEvent)>;
