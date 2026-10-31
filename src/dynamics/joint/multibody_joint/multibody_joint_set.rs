@@ -570,6 +570,17 @@ mod snapshot_delta {
         }
 
         fn collect_delta(&mut self, since: Option<u32>) -> MultibodyJointSetDelta {
+            // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
+            let MultibodyJointSet {
+                multibodies: _,
+                rb2mb: _,
+                connectivity_graph: _,
+                to_wake_up: _,
+                to_join: _,
+                island_chain_events: _,
+                topology_epoch: _,
+                change_tracker: _,
+            } = self;
             let mut to_wake_up: Vec<_> = self.to_wake_up.iter().copied().collect();
             to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
             let mut to_join: Vec<_> = self.to_join.iter().copied().collect();

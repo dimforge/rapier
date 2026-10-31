@@ -158,23 +158,10 @@ mod snapshot_serde {
     use parry::partitioning::BvhBuildStrategy;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    #[derive(Serialize)]
-    struct ReprSer<'a> {
-        leaves: Vec<(u32, Aabb, bool)>,
-        pairs: Vec<(&'a (ColliderHandle, ColliderHandle), &'a u32)>,
-        prev_updated_leaves: &'a Vec<u32>,
-        pending_set_aabb: &'a Vec<ColliderHandle>,
-        changes_since_optimize: u32,
-        reinsert_leaf_updates: bool,
-        frame_index: u32,
-        optimization_strategy: BvhOptimizationStrategy,
-        adaptive_change_detection_margin: bool,
-    }
-
-    #[derive(Deserialize)]
-    struct ReprDe {
-        leaves: Vec<(u32, Aabb, bool)>,
-        pairs: Vec<((ColliderHandle, ColliderHandle), u32)>,
+    /// The broad-phase fields snapshots and deltas carry verbatim (the tree and the pairs are
+    /// stored separately).
+    #[derive(Clone, Serialize, Deserialize)]
+    pub(super) struct BvhState {
         prev_updated_leaves: Vec<u32>,
         pending_set_aabb: Vec<ColliderHandle>,
         changes_since_optimize: u32,
@@ -182,6 +169,91 @@ mod snapshot_serde {
         frame_index: u32,
         optimization_strategy: BvhOptimizationStrategy,
         adaptive_change_detection_margin: bool,
+    }
+
+    impl BvhState {
+        pub(super) fn pending_set_aabb(&self) -> &[ColliderHandle] {
+            &self.pending_set_aabb
+        }
+    }
+
+    impl BroadPhaseBvh {
+        /// The verbatim state. Destructures `self` exhaustively, so a field added later must be
+        /// classified here.
+        pub(super) fn verbatim_state(&self) -> BvhState {
+            let BroadPhaseBvh {
+                // Stored as sorted leaves and pairs.
+                tree: _,
+                pairs: _,
+                prev_updated_leaves,
+                pending_set_aabb,
+                changes_since_optimize,
+                reinsert_leaf_updates,
+                frame_index,
+                optimization_strategy,
+                adaptive_change_detection_margin,
+                // Derived from the pairs, quality-only, delta bookkeeping, or workspaces.
+                pair_adjacency: _,
+                deferred_optimize_pending: _,
+                leaf_stamps: _,
+                pair_stamps: _,
+                change_tracker: _,
+                workspace: _,
+                updated_colliders: _,
+                #[cfg(not(feature = "parallel"))]
+                    candidates_workspace: _,
+                updated_mask: _,
+                stale_pairs: _,
+                curr_updated_leaves: _,
+                update_workspace: _,
+                #[cfg(feature = "parallel")]
+                    update_batch_workspace: _,
+                #[cfg(feature = "parallel")]
+                    update_batch_statuses: _,
+            } = self;
+            BvhState {
+                prev_updated_leaves: prev_updated_leaves.clone(),
+                pending_set_aabb: pending_set_aabb.clone(),
+                changes_since_optimize: *changes_since_optimize,
+                reinsert_leaf_updates: *reinsert_leaf_updates,
+                frame_index: *frame_index,
+                optimization_strategy: *optimization_strategy,
+                adaptive_change_detection_margin: *adaptive_change_detection_margin,
+            }
+        }
+
+        pub(super) fn set_verbatim_state(&mut self, state: BvhState) {
+            let BvhState {
+                prev_updated_leaves,
+                pending_set_aabb,
+                changes_since_optimize,
+                reinsert_leaf_updates,
+                frame_index,
+                optimization_strategy,
+                adaptive_change_detection_margin,
+            } = state;
+            self.prev_updated_leaves = prev_updated_leaves;
+            self.pending_set_aabb = pending_set_aabb;
+            self.changes_since_optimize = changes_since_optimize;
+            self.reinsert_leaf_updates = reinsert_leaf_updates;
+            self.frame_index = frame_index;
+            self.optimization_strategy = optimization_strategy;
+            self.adaptive_change_detection_margin = adaptive_change_detection_margin;
+        }
+    }
+
+    #[derive(Serialize)]
+    struct ReprSer<'a> {
+        leaves: Vec<(u32, Aabb, bool)>,
+        pairs: Vec<(&'a (ColliderHandle, ColliderHandle), &'a u32)>,
+        state: BvhState,
+    }
+
+    #[derive(Deserialize)]
+    struct ReprDe {
+        leaves: Vec<(u32, Aabb, bool)>,
+        pairs: Vec<((ColliderHandle, ColliderHandle), u32)>,
+        state: BvhState,
     }
 
     impl Serialize for BroadPhaseBvh {
@@ -204,13 +276,7 @@ mod snapshot_serde {
             ReprSer {
                 leaves,
                 pairs,
-                prev_updated_leaves: &self.prev_updated_leaves,
-                pending_set_aabb: &self.pending_set_aabb,
-                changes_since_optimize: self.changes_since_optimize,
-                reinsert_leaf_updates: self.reinsert_leaf_updates,
-                frame_index: self.frame_index,
-                optimization_strategy: self.optimization_strategy,
-                adaptive_change_detection_margin: self.adaptive_change_detection_margin,
+                state: self.verbatim_state(),
             }
             .serialize(serializer)
         }
@@ -262,12 +328,7 @@ mod snapshot_serde {
     impl<'de> Deserialize<'de> for BroadPhaseBvh {
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
             let repr = ReprDe::deserialize(deserializer)?;
-            // Leaves touched by an end-of-step `set_aabb` carry a pending change flag
-            // (`pending_set_aabb` records exactly the escaped updates), which the next
-            // refit resolves to changed. Pending is not reproducible through an
-            // existing leaf, but a fresh insert creates its leaf pending with verbatim
-            // bounds: build the tree without those leaves, insert them after.
-            let tree = build_tree(&repr.leaves, &repr.pending_set_aabb);
+            let tree = build_tree(&repr.leaves, &repr.state.pending_set_aabb);
 
             let mut pair_adjacency = Coarena::new();
             for ((h1, h2), _) in &repr.pairs {
@@ -279,19 +340,14 @@ mod snapshot_serde {
                     .push(*h1);
             }
 
-            Ok(BroadPhaseBvh {
+            let mut bvh = BroadPhaseBvh {
                 tree,
                 pairs: repr.pairs.into_iter().collect(),
                 pair_adjacency,
-                prev_updated_leaves: repr.prev_updated_leaves,
-                pending_set_aabb: repr.pending_set_aabb,
-                changes_since_optimize: repr.changes_since_optimize,
-                reinsert_leaf_updates: repr.reinsert_leaf_updates,
-                frame_index: repr.frame_index,
-                optimization_strategy: repr.optimization_strategy,
-                adaptive_change_detection_margin: repr.adaptive_change_detection_margin,
                 ..Default::default()
-            })
+            };
+            bvh.set_verbatim_state(repr.state);
+            Ok(bvh)
         }
     }
 }
@@ -317,13 +373,7 @@ mod snapshot_delta {
         leaves: Vec<(u32, Option<(Aabb, bool)>)>,
         /// Per collider (index) whose pairs changed: every pair it takes part in.
         pairs: Vec<(u32, ColliderPairs)>,
-        prev_updated_leaves: Vec<u32>,
-        pending_set_aabb: Vec<ColliderHandle>,
-        changes_since_optimize: u32,
-        reinsert_leaf_updates: bool,
-        frame_index: u32,
-        optimization_strategy: BvhOptimizationStrategy,
-        adaptive_change_detection_margin: bool,
+        state: snapshot_serde::BvhState,
     }
 
     impl BroadPhaseBvh {
@@ -422,44 +472,43 @@ mod snapshot_delta {
                 full: since.is_none(),
                 leaves,
                 pairs,
-                prev_updated_leaves: self.prev_updated_leaves.clone(),
-                pending_set_aabb: self.pending_set_aabb.clone(),
-                changes_since_optimize: self.changes_since_optimize,
-                reinsert_leaf_updates: self.reinsert_leaf_updates,
-                frame_index: self.frame_index,
-                optimization_strategy: self.optimization_strategy,
-                adaptive_change_detection_margin: self.adaptive_change_detection_margin,
+                state: self.verbatim_state(),
             }
         }
 
-
         fn apply_delta_payload(&mut self, delta: BroadPhaseBvhDelta) -> Result<(), DeltaError> {
-            // Leaves: patch the current set, then rebuild the tree like a deserialization.
-            let mut leaves: Vec<(u32, Aabb, bool)> = if delta.full {
-                Vec::new()
-            } else {
-                self.tree
-                    .leaves(|_| true)
-                    .filter_map(|index| {
-                        let node = self.tree.leaf_node(index)?;
-                        Some((index, node.aabb(), node.is_changed()))
-                    })
-                    .collect()
-            };
-            leaves.sort_unstable_by_key(|(index, ..)| *index);
-            for (index, leaf) in delta.leaves {
-                let pos = leaves.binary_search_by_key(&index, |(i, ..)| *i);
-                match (pos, leaf) {
-                    (Ok(pos), Some((aabb, changed))) => leaves[pos] = (index, aabb, changed),
-                    (Err(pos), Some((aabb, changed))) => leaves.insert(pos, (index, aabb, changed)),
-                    (Ok(pos), None) => {
-                        let _ = leaves.remove(pos);
+            // Leaves: patch the current set, then rebuild the tree like a deserialization (the
+            // current tree is just as valid when no leaf changed).
+            let rebuild = delta.full
+                || !delta.leaves.is_empty()
+                || delta.state.pending_set_aabb() != &self.pending_set_aabb[..];
+            if rebuild {
+                let mut leaves: Vec<(u32, Aabb, bool)> = if delta.full {
+                    Vec::new()
+                } else {
+                    self.tree
+                        .leaves(|_| true)
+                        .filter_map(|index| {
+                            let node = self.tree.leaf_node(index)?;
+                            Some((index, node.aabb(), node.is_changed()))
+                        })
+                        .collect()
+                };
+                leaves.sort_unstable_by_key(|(index, ..)| *index);
+                for (index, leaf) in delta.leaves {
+                    let pos = leaves.binary_search_by_key(&index, |(i, ..)| *i);
+                    match (pos, leaf) {
+                        (Ok(pos), Some((aabb, changed))) => leaves[pos] = (index, aabb, changed),
+                        (Err(pos), Some((aabb, changed))) => leaves.insert(pos, (index, aabb, changed)),
+                        (Ok(pos), None) => {
+                            let _ = leaves.remove(pos);
+                        }
+                        (Err(_), None) => {}
                     }
-                    (Err(_), None) => {}
+                    self.leaf_stamps.mark(index as usize);
                 }
-                self.leaf_stamps.mark(index as usize);
+                self.tree = snapshot_serde::build_tree(&leaves, delta.state.pending_set_aabb());
             }
-            self.tree = snapshot_serde::build_tree(&leaves, &delta.pending_set_aabb);
 
             // Pairs: each listed collider's pairs replace its current ones.
             if delta.full {
@@ -484,13 +533,7 @@ mod snapshot_delta {
                 }
             }
 
-            self.prev_updated_leaves = delta.prev_updated_leaves;
-            self.pending_set_aabb = delta.pending_set_aabb;
-            self.changes_since_optimize = delta.changes_since_optimize;
-            self.reinsert_leaf_updates = delta.reinsert_leaf_updates;
-            self.frame_index = delta.frame_index;
-            self.optimization_strategy = delta.optimization_strategy;
-            self.adaptive_change_detection_margin = delta.adaptive_change_detection_margin;
+            self.set_verbatim_state(delta.state);
             self.deferred_optimize_pending = false;
             Ok(())
         }

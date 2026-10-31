@@ -976,6 +976,13 @@ mod snapshot_delta {
         }
 
         fn collect_delta(&mut self, since: Option<u32>) -> ColliderSetDelta {
+            // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
+            let ColliderSet {
+                colliders: _,
+                modified_colliders: _,
+                removed_colliders: _,
+                delta_state: _,
+            } = self;
             self.delta_state.sync(&self.colliders);
             let state = &self.delta_state;
             let colliders = &self.colliders;

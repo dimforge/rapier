@@ -508,6 +508,13 @@ mod snapshot_delta {
         }
 
         fn collect_delta(&mut self, since: Option<u32>) -> RigidBodySetDelta {
+            // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
+            let RigidBodySet {
+                bodies: _,
+                modified_bodies: _,
+                default_fixed: _,
+                change_tracker: _,
+            } = self;
             RigidBodySetDelta {
                 bodies: self.bodies.collect_delta(since),
                 modified_bodies: self.modified_bodies.clone(),

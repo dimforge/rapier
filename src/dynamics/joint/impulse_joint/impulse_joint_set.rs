@@ -818,6 +818,20 @@ mod snapshot_delta {
         }
 
         fn collect_delta(&mut self, since: Option<u32>) -> ImpulseJointSetDelta {
+            // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
+            let ImpulseJointSet {
+                rb_graph_ids: _,
+                joint_ids: _,
+                joint_graph: _,
+                to_wake_up: _,
+                to_join: _,
+                island_events: _,
+                modified_joints: _,
+                all_joints_modified: _,
+                assembly_epoch: _,
+                selection_epochs: _,
+                change_tracker: _,
+            } = self;
             let mut to_wake_up: Vec<_> = self.to_wake_up.iter().copied().collect();
             to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
             let mut to_join: Vec<_> = self.to_join.iter().copied().collect();

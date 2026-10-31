@@ -961,6 +961,21 @@ pub(crate) mod snapshot_delta {
         }
 
         pub(crate) fn collect_delta(&self, since: Option<u32>) -> PersistentIslandsDelta {
+            // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
+            let PersistentIslands {
+                islands: _,
+                free_islands: _,
+                contact_link_locs: _,
+                joint_link_locs: _,
+                removal_journal: _,
+                split_island: _,
+                sleep_scan_stamp: _,
+                bootstrapped: _,
+                local_split: _,
+                split_workspace: _,
+                sleep_scan: _,
+                sleep_scan_touched: _,
+            } = self;
             let joint_links_changed =
                 since.is_none_or(|since| stamp_is_newer(self.joint_link_locs.stamp.stamp(0), since));
             PersistentIslandsDelta {

@@ -139,6 +139,14 @@ mod snapshot_delta {
         }
 
         fn collect_delta(&mut self, since: Option<u32>) -> SoftBodySetDelta {
+            // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
+            let SoftBodySet {
+                bodies: _,
+                island_events: _,
+                attached_to: _,
+                attached_to_stale: _,
+                change_tracker: _,
+            } = self;
             SoftBodySetDelta {
                 bodies: self.bodies.collect_delta(since),
                 island_events: self.island_events.clone(),

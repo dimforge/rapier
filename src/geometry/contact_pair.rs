@@ -1535,50 +1535,68 @@ mod pair_serde {
 
     impl Serialize for ContactPair {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            let contacts = match &self.contacts {
-                PairContacts::Rigid(rigid) => {
+            // Exhaustive destructuring: a field added later must be classified here.
+            let ContactPair {
+                collider1,
+                collider2,
+                event_status,
+                contacts,
+            } = self;
+            let contacts = match contacts {
+                PairContacts::Rigid(RigidPairContacts {
+                    manifolds,
+                    solver_clusters,
+                    solver_color,
+                    solver_color_bodies,
+                    workspace,
+                    recycle_state,
+                    // Rebuilt by every update, or replay bookkeeping.
+                    solver_clusters_prev: _,
+                    soft: _,
+                    pending_replay,
+                }) => {
                     // Cluster point indices can exceed the compact form's 7 bits (up to 255
                     // points per cluster), in which case the whole pair falls back to the
                     // verbatim encoding.
-                    let replay = rigid.recycle_state.is_some_and(|rs| rs.replay.replayable)
-                        && rigid.manifolds.iter().all(ids_fit)
-                        && rigid.solver_clusters.iter().all(ids_fit);
+                    let replay = recycle_state.is_some_and(|rs| rs.replay.replayable)
+                        && manifolds.iter().all(ids_fit)
+                        && solver_clusters.iter().all(ids_fit);
                     // Restored but not replayed yet: reproduce the encoding it came from.
-                    let pending = rigid
-                        .pending_replay
+                    let pending = pending_replay
                         .as_deref()
                         .filter(|_| replay)
                         .map(|p| &p.recompute_tangent);
                     ContactsSer::Rigid(RigidSer {
-                        manifolds: rigid
-                            .manifolds
+                        manifolds: manifolds
                             .iter()
                             .enumerate()
                             .map(|(i, m)| manifold_ser(m, replay, pending.map(|p| &p[i][..])))
                             .collect(),
-                        solver_clusters: rigid
-                            .solver_clusters
+                        solver_clusters: solver_clusters
                             .iter()
                             .enumerate()
                             .map(|(i, m)| {
-                                let i = i + rigid.manifolds.len();
+                                let i = i + manifolds.len();
                                 manifold_ser(m, replay, pending.map(|p| &p[i][..]))
                             })
                             .collect(),
-                        solver_color: rigid.solver_color,
-                        solver_color_bodies: rigid.solver_color_bodies,
-                        workspace: &rigid.workspace,
-                        recycle_state: &rigid.recycle_state,
+                        solver_color: *solver_color,
+                        solver_color_bodies: *solver_color_bodies,
+                        workspace,
+                        recycle_state,
                     })
                 }
-                PairContacts::Soft { touching, .. } => ContactsSer::Soft {
+                PairContacts::Soft {
+                    touching,
+                    candidates: _,
+                } => ContactsSer::Soft {
                     touching: *touching,
                 },
             };
             PairSer {
-                collider1: self.collider1,
-                collider2: self.collider2,
-                event_status: self.event_status,
+                collider1: *collider1,
+                collider2: *collider2,
+                event_status: *event_status,
                 contacts,
             }
             .serialize(serializer)

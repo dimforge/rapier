@@ -520,6 +520,17 @@ mod snapshot_delta {
         }
 
         fn collect_delta(&mut self, since: Option<u32>) -> IslandManagerDelta {
+            // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
+            let IslandManager {
+                active_set_epoch: _,
+                islands: _,
+                awake_island: _,
+                free_islands: _,
+                persistent: _,
+                solve_groups: _,
+                substep_groups_workspace: _,
+                change_tracker: _,
+            } = self;
             IslandManagerDelta {
                 active_set_epoch: self.active_set_epoch,
                 islands: self.islands.collect_delta(since),
