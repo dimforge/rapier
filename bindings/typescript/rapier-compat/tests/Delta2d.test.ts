@@ -1,9 +1,11 @@
 import {
     init,
+    Ball,
     ColliderDesc,
     JointData,
     RigidBody,
     RigidBodyDesc,
+    SoftBodyDesc,
     Vector2,
     World,
 } from "../builds/2d-deterministic/pkg";
@@ -42,10 +44,23 @@ function expectSameState(sender: World, receiver: World) {
     expect(receiver.bodies.len()).toBe(sender.bodies.len());
     expect(receiver.colliders.len()).toBe(sender.colliders.len());
     expect(receiver.impulseJoints.len()).toBe(sender.impulseJoints.len());
+    expect(receiver.multibodyJoints.len()).toBe(sender.multibodyJoints.len());
+    expect(receiver.softBodies.len()).toBe(sender.softBodies.len());
     // The gravity is stored as f32 by the engine.
     expect(receiver.gravity.x).toBe(Math.fround(sender.gravity.x));
     expect(receiver.gravity.y).toBe(Math.fround(sender.gravity.y));
     expect(receiver.timestep).toBe(sender.timestep);
+}
+
+/** The `kind` of the error `f` throws. */
+function errorKind(f: () => unknown): string {
+    try {
+        f();
+    } catch (e) {
+        expect(e).toBeInstanceOf(Error);
+        return e.kind;
+    }
+    throw new Error("expected an error");
 }
 
 describe("2d/snapshot deltas", () => {
@@ -57,9 +72,14 @@ describe("2d/snapshot deltas", () => {
         sender.enableChangeTracking();
 
         // Receiver bootstrapped by restoring a snapshot taken with its baseline tick.
+        let lagAck = sender.changeTick();
         const snapshot = sender.takeSnapshot();
-        let lagAck = sender.takeDelta().tick;
         const lagging = World.restoreSnapshot(snapshot);
+        // A restored world has no baseline until it is declared.
+        expect(
+            errorKind(() => lagging.applyDelta(sender.takeDelta(lagAck).delta)),
+        ).toBe("baseline_mismatch");
+        lagging.setDeltaBaseline(lagAck);
 
         // Receiver bootstrapped by a full delta into an empty world.
         const full = sender.takeDelta();
@@ -157,31 +177,145 @@ describe("2d/snapshot deltas", () => {
         lagging.free();
     });
 
-    test("delta errors throw", () => {
+    test("wrappers follow multibody joints, soft bodies and shapes", () => {
+        const {world: sender, bodies} = buildWorld();
+        sender.enableChangeTracking();
+        const receiver = new World(new Vector2(0, 0));
+        let full = sender.takeDelta();
+        let ack = receiver.applyDelta(full.delta);
+        const sync = () => {
+            const delta = sender.takeDelta(ack);
+            ack = receiver.applyDelta(delta.delta);
+            expectSameState(sender, receiver);
+        };
+
+        // A multibody joint inserted on the sender.
+        const m1 = sender.createRigidBody(
+            RigidBodyDesc.dynamic().setTranslation(6, 6),
+        );
+        const m2 = sender.createRigidBody(
+            RigidBodyDesc.dynamic().setTranslation(6, 7),
+        );
+        sender.createCollider(ColliderDesc.ball(0.3), m1);
+        sender.createCollider(ColliderDesc.ball(0.3), m2);
+        const multibodyJoint = sender.createMultibodyJoint(
+            JointData.revolute(new Vector2(0, 0.5), new Vector2(0, -0.5)),
+            m1,
+            m2,
+            true,
+        );
+        sender.step();
+        sync();
+        const replicatedJoint = receiver.getMultibodyJoint(
+            multibodyJoint.handle,
+        );
+        expect(replicatedJoint).not.toBeNull();
+        expect(replicatedJoint.handle).toBe(multibodyJoint.handle);
+        expect(replicatedJoint.isValid()).toBe(true);
+
+        // A soft body added, then removed.
+        const softBody = sender.createSoftBody(
+            SoftBodyDesc.rope(new Vector2(-6, 4), new Vector2(-3, 4), 8),
+        );
+        sender.step();
+        sync();
+        const replicatedSoftBody = receiver.getSoftBody(softBody.handle);
+        expect(replicatedSoftBody).not.toBeNull();
+        expect(replicatedSoftBody.handle).toBe(softBody.handle);
+        sender.removeSoftBody(softBody);
+        sender.step();
+        sync();
+        expect(receiver.getSoftBody(softBody.handle)).toBeNull();
+        expect(receiver.softBodies.len()).toBe(0);
+
+        // A shape changed on the sender: the receiver's cached shape is dropped.
+        const collider = bodies[1].collider(0);
+        const before = receiver.getCollider(collider.handle).shape as Ball;
+        expect(before.radius).toBe(0.5);
+        collider.setShape(new Ball(0.25));
+        sender.step();
+        sync();
+        const after = receiver.getCollider(collider.handle).shape as Ball;
+        expect(after.radius).toBe(0.25);
+
+        sender.free();
+        receiver.free();
+    });
+
+    test("delta errors throw with a kind", () => {
         const {world: sender} = buildWorld();
-        expect(() => sender.takeDelta()).toThrow(/not enabled/);
+        expect(errorKind(() => sender.takeDelta())).toBe("tracking_disabled");
+        expect(errorKind(() => sender.changeTick())).toBe("tracking_disabled");
 
         sender.enableChangeTracking();
         const first = sender.takeDelta();
         sender.step();
         const second = sender.takeDelta(first.tick);
-        expect(() => sender.takeDelta(new Uint8Array([1, 2]))).toThrow(
-            /malformed/,
+        expect(errorKind(() => sender.takeDelta(new Uint8Array([1, 2])))).toBe(
+            "malformed",
         );
+        // Trailing bytes after a valid tick are rejected.
+        const padded = new Uint8Array(first.tick.length + 1);
+        padded.set(first.tick);
+        expect(errorKind(() => sender.takeDelta(padded))).toBe("malformed");
 
         // A delta applied to a receiver that does not hold its baseline.
         const receiver = new World(new Vector2(0, 0));
         receiver.applyDelta(first.delta);
         receiver.applyDelta(second.delta);
-        expect(() => receiver.applyDelta(second.delta)).toThrow(/baseline/);
-        expect(() => receiver.applyDelta(new Uint8Array([1, 2, 3]))).toThrow(
-            /malformed/,
+        expect(errorKind(() => receiver.applyDelta(second.delta))).toBe(
+            "baseline_mismatch",
         );
+        expect(
+            errorKind(() => receiver.applyDelta(new Uint8Array([1, 2, 3]))),
+        ).toBe("malformed");
+        expect(
+            errorKind(() => receiver.setDeltaBaseline(new Uint8Array([1]))),
+        ).toBe("malformed");
+
+        // A rejected delta still updates the gravity and the integration parameters.
+        sender.gravity = new Vector2(0.5, -5);
+        sender.timestep = 1 / 30;
+        const mismatched = sender.takeDelta(first.tick);
+        expect(errorKind(() => receiver.applyDelta(mismatched.delta))).toBe(
+            "baseline_mismatch",
+        );
+        expect(receiver.gravity).toEqual(new Vector2(0.5, -5));
+        expect(receiver.timestep).toBe(sender.timestep);
 
         // Restarting the tracking invalidates the ticks issued before.
         sender.disableChangeTracking();
         sender.enableChangeTracking();
-        expect(() => sender.takeDelta(second.tick)).toThrow(/baseline/);
+        expect(errorKind(() => sender.takeDelta(second.tick))).toBe(
+            "unknown_baseline",
+        );
+
+        sender.free();
+        receiver.free();
+    });
+
+    test("a stepped receiver needs a full delta", () => {
+        const {world: sender} = buildWorld();
+        sender.enableChangeTracking();
+        const receiver = new World(new Vector2(0, 0));
+        const ack = receiver.applyDelta(sender.takeDelta().delta);
+        expectSameState(sender, receiver);
+
+        sender.step();
+        receiver.step();
+        expect(
+            errorKind(() => receiver.applyDelta(sender.takeDelta(ack).delta)),
+        ).toBe("baseline_mismatch");
+
+        const full = sender.takeDelta();
+        const newAck = receiver.applyDelta(full.delta);
+        expect(sameBytes(newAck, full.tick)).toBe(true);
+        expectSameState(sender, receiver);
+
+        sender.step();
+        const delta = sender.takeDelta(newAck);
+        receiver.applyDelta(delta.delta);
+        expectSameState(sender, receiver);
 
         sender.free();
         receiver.free();

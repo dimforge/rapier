@@ -4,14 +4,22 @@
 
 - Snapshot deltas: `World.enableChangeTracking()`, `World.takeDelta(since?)` and `World.applyDelta(delta)`
   serialize and apply only what changed since a state a receiver acknowledged (with the tick returned
-  by `applyDelta`), e.g. for network replication. `World.takeDelta()` without a baseline bootstraps a
-  receiver with the whole state. A receiver that applied every delta has the same `takeSnapshot()` bytes
-  as the sender and keeps simulating identically.
+  by `applyDelta`), e.g. for network replication. `World.disableChangeTracking()` stops recording changes.
+  `World.takeDelta()` without a baseline bootstraps a receiver with the whole state. A receiver that
+  applied every delta keeps simulating identically, and has the same `takeSnapshot()` bytes as the
+  sender (only with the deterministic builds when composite shapes are in contact).
+- `World.changeTick()` names the current state without building a delta, and `World.setDeltaBaseline(tick)`
+  declares it on a receiver restored from a snapshot taken right after, so it accepts deltas from that tick.
+  An incremental delta is only accepted by a receiver holding its baseline (not stepped since).
+- Delta errors are `Error`s with a `kind` property: `"tracking_disabled"`, `"unknown_baseline"`,
+  `"baseline_mismatch"`, `"malformed"` or `"missing_shape"`.
 
 ### Fixed
 
 - After `World.restoreSnapshot`, colliders without a parent no longer report the rigid body at index 0
   as their `parent()`.
+- Worlds restored with `World.restoreSnapshot` expose their contact normals and multibody jacobians before
+  their first step.
 
 ## 0.21.0 (24 September 2026)
 

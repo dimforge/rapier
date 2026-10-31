@@ -77,10 +77,12 @@ export class SerializationPipeline {
     }
 
     /**
-     * Starts stamping the writes of every component with change ticks, for `deltaSince`.
+     * Starts stamping the writes of every component with change ticks, for `takeDelta`.
      * Restarting it invalidates every tick issued before.
      */
     public enableChangeTracking(
+        gravity: Vector,
+        integrationParameters: IntegrationParameters,
         islands: IslandManager,
         broadPhase: BroadPhase,
         narrowPhase: NarrowPhase,
@@ -90,15 +92,23 @@ export class SerializationPipeline {
         impulseJoints: ImpulseJointSet,
         multibodyJoints: MultibodyJointSet,
     ) {
-        this.raw.enableChangeTracking(
-            islands.raw,
-            broadPhase.raw,
-            narrowPhase.raw,
-            bodies.raw,
-            colliders.raw,
-            softBodies.raw,
-            impulseJoints.raw,
-            multibodyJoints.raw,
+        // The engine's default tracker ids repeat across page loads on wasm, so seed them here.
+        const seed = randomSeed();
+        this.withRawGravity(gravity, (rawGra) =>
+            this.raw.enableChangeTracking(
+                rawGra,
+                integrationParameters.raw,
+                islands.raw,
+                broadPhase.raw,
+                narrowPhase.raw,
+                bodies.raw,
+                colliders.raw,
+                softBodies.raw,
+                impulseJoints.raw,
+                multibodyJoints.raw,
+                seed[0],
+                seed[1],
+            ),
         );
     }
 
@@ -106,6 +116,8 @@ export class SerializationPipeline {
      * Stops stamping writes on every component, and drops the stamps.
      */
     public disableChangeTracking(
+        gravity: Vector,
+        integrationParameters: IntegrationParameters,
         islands: IslandManager,
         broadPhase: BroadPhase,
         narrowPhase: NarrowPhase,
@@ -115,15 +127,88 @@ export class SerializationPipeline {
         impulseJoints: ImpulseJointSet,
         multibodyJoints: MultibodyJointSet,
     ) {
-        this.raw.disableChangeTracking(
-            islands.raw,
-            broadPhase.raw,
-            narrowPhase.raw,
-            bodies.raw,
-            colliders.raw,
-            softBodies.raw,
-            impulseJoints.raw,
-            multibodyJoints.raw,
+        this.withRawGravity(gravity, (rawGra) =>
+            this.raw.disableChangeTracking(
+                rawGra,
+                integrationParameters.raw,
+                islands.raw,
+                broadPhase.raw,
+                narrowPhase.raw,
+                bodies.raw,
+                colliders.raw,
+                softBodies.raw,
+                impulseJoints.raw,
+                multibodyJoints.raw,
+            ),
+        );
+    }
+
+    /**
+     * The serialized tick naming the current physics state (see `World.changeTick`).
+     *
+     * Throws an `Error` with `kind` `"tracking_disabled"` if change tracking is disabled.
+     */
+    public changeTick(
+        gravity: Vector,
+        integrationParameters: IntegrationParameters,
+        islands: IslandManager,
+        broadPhase: BroadPhase,
+        narrowPhase: NarrowPhase,
+        bodies: RigidBodySet,
+        colliders: ColliderSet,
+        softBodies: SoftBodySet,
+        impulseJoints: ImpulseJointSet,
+        multibodyJoints: MultibodyJointSet,
+    ): Uint8Array {
+        return this.withRawGravity(gravity, (rawGra) =>
+            this.raw.changeTick(
+                rawGra,
+                integrationParameters.raw,
+                islands.raw,
+                broadPhase.raw,
+                narrowPhase.raw,
+                bodies.raw,
+                colliders.raw,
+                softBodies.raw,
+                impulseJoints.raw,
+                multibodyJoints.raw,
+            ),
+        );
+    }
+
+    /**
+     * Declares that the components hold the sender's state at `tick` (see
+     * `World.setDeltaBaseline`).
+     *
+     * Throws an `Error` with `kind` `"malformed"` if `tick` is not a serialized tick.
+     */
+    public setDeltaBaseline(
+        gravity: Vector,
+        integrationParameters: IntegrationParameters,
+        islands: IslandManager,
+        broadPhase: BroadPhase,
+        narrowPhase: NarrowPhase,
+        bodies: RigidBodySet,
+        colliders: ColliderSet,
+        softBodies: SoftBodySet,
+        impulseJoints: ImpulseJointSet,
+        multibodyJoints: MultibodyJointSet,
+        tick: Uint8Array,
+    ) {
+        this.withRawGravity(gravity, (rawGra) =>
+            this.raw.setDeltaBaseline(
+                rawGra,
+                integrationParameters.raw,
+                islands.raw,
+                broadPhase.raw,
+                narrowPhase.raw,
+                bodies.raw,
+                colliders.raw,
+                softBodies.raw,
+                impulseJoints.raw,
+                multibodyJoints.raw,
+                tick,
+            ),
         );
     }
 
@@ -131,13 +216,13 @@ export class SerializationPipeline {
      * Serializes the changes made to the physics state since the tick `since` (or the whole
      * state if `since` is not given). Requires change tracking.
      *
-     * Throws if change tracking is disabled, or if `since` was not issued by the current change
-     * trackers.
+     * Throws an `Error` with a `kind` property, see `World.takeDelta`.
      *
-     * @param since - A tick returned by an earlier `deltaSince` or by `applyDelta`.
+     * @param since - A tick returned by an earlier `takeDelta`, by `changeTick`, or by
+     *                `applyDelta`.
      * @returns The serialized delta, and the tick a receiver is at once it applied it.
      */
-    public deltaSince(
+    public takeDelta(
         gravity: Vector,
         integrationParameters: IntegrationParameters,
         islands: IslandManager,
@@ -150,10 +235,8 @@ export class SerializationPipeline {
         multibodyJoints: MultibodyJointSet,
         since?: Uint8Array,
     ): {delta: Uint8Array; tick: Uint8Array} {
-        let rawGra = VectorOps.intoRaw(gravity);
-        let rawDelta: RawWorldDelta;
-        try {
-            rawDelta = this.raw.deltaSince(
+        const rawDelta: RawWorldDelta = this.withRawGravity(gravity, (rawGra) =>
+            this.raw.takeDelta(
                 rawGra,
                 integrationParameters.raw,
                 islands.raw,
@@ -165,27 +248,27 @@ export class SerializationPipeline {
                 impulseJoints.raw,
                 multibodyJoints.raw,
                 since,
-            );
-        } finally {
-            rawGra.free();
-        }
-
+            ),
+        );
         const res = {delta: rawDelta.delta, tick: rawDelta.tick};
         rawDelta.free();
         return res;
     }
 
     /**
-     * Patches a delta serialized by `deltaSince` into the given components and integration
-     * parameters.
+     * Patches a delta serialized by `takeDelta` into the given components and integration
+     * parameters, starting from the given gravity.
      *
-     * Throws if `delta` is malformed or was produced against another state than the current
-     * one; the components patched before the error keep their new state.
+     * Throws an `Error` with a `kind` property, see `World.applyDelta`. Once the delta decoded,
+     * the gravity, integration parameters and the components patched before the error keep
+     * their new state.
      *
-     * @returns The gravity carried by the delta, and the tick to acknowledge to the sender.
+     * @param onGravity - Called with the resulting gravity, also when the delta fails to apply.
+     * @returns The tick to acknowledge to the sender.
      */
     public applyDelta(
         delta: Uint8Array,
+        gravity: Vector,
         integrationParameters: IntegrationParameters,
         islands: IslandManager,
         broadPhase: BroadPhase,
@@ -195,11 +278,11 @@ export class SerializationPipeline {
         softBodies: SoftBodySet,
         impulseJoints: ImpulseJointSet,
         multibodyJoints: MultibodyJointSet,
-    ): {gravity: Vector; tick: Uint8Array} {
-        let rawGra = RawVector.zero();
-        let tick: Uint8Array;
+        onGravity: (gravity: Vector) => void,
+    ): Uint8Array {
+        let rawGra = VectorOps.intoRaw(gravity);
         try {
-            tick = this.raw.applyDelta(
+            return this.raw.applyDelta(
                 delta,
                 rawGra,
                 integrationParameters.raw,
@@ -212,11 +295,18 @@ export class SerializationPipeline {
                 impulseJoints.raw,
                 multibodyJoints.raw,
             );
-        } catch (e) {
-            rawGra.free();
-            throw e;
+        } finally {
+            onGravity(VectorOps.fromRaw(rawGra));
         }
-        return {gravity: VectorOps.fromRaw(rawGra), tick};
+    }
+
+    private withRawGravity<T>(gravity: Vector, f: (rawGra: RawVector) => T): T {
+        let rawGra = VectorOps.intoRaw(gravity);
+        try {
+            return f(rawGra);
+        } finally {
+            rawGra.free();
+        }
     }
 
     /**
@@ -227,4 +317,17 @@ export class SerializationPipeline {
     public deserializeAll(data: Uint8Array): World {
         return World.fromRaw(this.raw.deserializeAll(data));
     }
+}
+
+/** Two random 32-bit words, from `crypto.getRandomValues` when available. */
+function randomSeed(): Uint32Array {
+    const seed = new Uint32Array(2);
+    const crypto = (globalThis as any).crypto;
+    if (crypto && typeof crypto.getRandomValues === "function") {
+        crypto.getRandomValues(seed);
+    } else {
+        seed[0] = Math.floor(Math.random() * 0x100000000);
+        seed[1] = Math.floor(Math.random() * 0x100000000);
+    }
+    return seed;
 }

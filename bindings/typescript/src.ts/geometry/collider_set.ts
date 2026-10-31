@@ -249,11 +249,7 @@ export class ColliderSet {
     public mapNewColliders(bodies: RigidBodySet) {
         this.raw.forEachColliderHandle((handle: ColliderHandle) => {
             if (!this.map.get(handle)) {
-                let parentHandle = this.raw.coParent(handle);
-                let parent =
-                    parentHandle === undefined
-                        ? null
-                        : bodies.get(parentHandle);
+                let parent = bodies.get(this.raw.coParent(handle));
                 this.map.set(handle, new Collider(this, handle, parent));
             }
         });

@@ -239,7 +239,9 @@ export class World {
     /**
      * Creates a new physics world from a snapshot.
      *
-     * This new physics world will be an identical copy of the snapshoted physics world.
+     * This new physics world will be an identical copy of the snapshoted physics world. To
+     * apply snapshot deltas to it, call `setDeltaBaseline` with the sender's `changeTick()`
+     * taken right before the snapshot.
      */
     public static restoreSnapshot(data: Uint8Array): World {
         let deser = new SerializationPipeline();
@@ -255,30 +257,47 @@ export class World {
      */
     public enableChangeTracking() {
         this.serializationPipeline.enableChangeTracking(
-            this.islands,
-            this.broadPhase,
-            this.narrowPhase,
-            this.bodies,
-            this.colliders,
-            this.softBodies,
-            this.impulseJoints,
-            this.multibodyJoints,
+            ...this.deltaComponents(),
         );
     }
 
     /**
      * Stops recording changes (see `enableChangeTracking`), and frees the change records.
+     * Ticks issued before are invalidated.
      */
     public disableChangeTracking() {
         this.serializationPipeline.disableChangeTracking(
-            this.islands,
-            this.broadPhase,
-            this.narrowPhase,
-            this.bodies,
-            this.colliders,
-            this.softBodies,
-            this.impulseJoints,
-            this.multibodyJoints,
+            ...this.deltaComponents(),
+        );
+    }
+
+    /**
+     * A tick naming the current state of this world, without building a delta. Requires
+     * `enableChangeTracking`.
+     *
+     * Send it along with a `takeSnapshot()` taken right after: the receiver restores the
+     * snapshot with `World.restoreSnapshot`, then calls `setDeltaBaseline(tick)`, and can
+     * apply the deltas `takeDelta(tick)` produces.
+     *
+     * Throws an `Error` with `kind` `"tracking_disabled"` if change tracking is disabled.
+     *
+     * @returns The serialized tick, an opaque byte array.
+     */
+    public changeTick(): Uint8Array {
+        return this.serializationPipeline.changeTick(...this.deltaComponents());
+    }
+
+    /**
+     * Declares that this world holds the sender's state at `tick`, a tick returned by the
+     * sender's `changeTick()` right before the snapshot this world was restored from. Deltas
+     * produced against `tick` can then be applied with `applyDelta`.
+     *
+     * Throws an `Error` with `kind` `"malformed"` if `tick` is not a serialized tick.
+     */
+    public setDeltaBaseline(tick: Uint8Array) {
+        this.serializationPipeline.setDeltaBaseline(
+            ...this.deltaComponents(),
+            tick,
         );
     }
 
@@ -290,22 +309,30 @@ export class World {
      * 1. The sender calls `enableChangeTracking()`, then bootstraps each receiver with
      *    `takeDelta()` (no baseline: the whole state) applied to any world (an empty
      *    `new World(...)` works).
-     *    Alternatively, a receiver restored with `World.restoreSnapshot(world.takeSnapshot())`
-     *    can use the tick of a `takeDelta()` taken right after that snapshot as its baseline.
+     *    Alternatively, the sender calls `changeTick()` then `takeSnapshot()`, and the receiver
+     *    restores the snapshot and calls `setDeltaBaseline` with that tick.
      * 2. Each receiver applies the deltas it gets with `applyDelta`, and sends the returned
      *    tick back to acknowledge that state.
      * 3. The sender produces the next delta for a receiver against the last tick that
      *    receiver acknowledged, so a delta that was lost or is still in flight is just
      *    included again in the next one.
      *
-     * A receiver that applied every delta since its baseline has the same `takeSnapshot()`
-     * bytes as the sender, and keeps simulating identically.
+     * A receiver only accepts an incremental delta whose baseline is its current state (the
+     * target of the last delta it applied, or its `setDeltaBaseline`): stepping the receiver
+     * clears its baseline, and a full delta is then needed.
      *
-     * Throws if change tracking is disabled, or if `since` was not issued by this world's
-     * current change trackers (e.g. tracking was restarted): send a full delta instead.
+     * A receiver that applied every delta since its baseline keeps simulating identically, and
+     * has the same `takeSnapshot()` bytes as the sender (only with the deterministic builds
+     * when composite shapes, like compounds or soft bodies, are in contact).
+     *
+     * Throws an `Error` whose `kind` property is `"tracking_disabled"` (change tracking is
+     * disabled), `"unknown_baseline"` (`since` was not issued by this world's current change
+     * trackers, e.g. tracking was restarted: send a full delta instead) or `"malformed"`
+     * (`since` is not a serialized tick).
      *
      * @param since - The last tick acknowledged by the receiver (returned by its
-     *                `applyDelta`, or by the sender's `takeDelta`). Omit it for the whole state.
+     *                `applyDelta`, or by the sender's `takeDelta` or `changeTick`). Omit it for
+     *                the whole state.
      * @returns The serialized delta to send, and the tick the receiver is at once it applied it.
      *          Both are opaque byte arrays.
      */
@@ -313,7 +340,55 @@ export class World {
         delta: Uint8Array;
         tick: Uint8Array;
     } {
-        return this.serializationPipeline.deltaSince(
+        return this.serializationPipeline.takeDelta(
+            ...this.deltaComponents(),
+            since,
+        );
+    }
+
+    /**
+     * Applies a snapshot delta produced by the `takeDelta` of another world, and returns the
+     * tick to send back to that world to acknowledge this state.
+     *
+     * This world must hold the state the delta was produced against: the target of the last
+     * delta it applied, or the tick given to `setDeltaBaseline`, without being stepped since.
+     * A full delta (taken without baseline) is accepted in any state and replaces the whole
+     * world. The gravity and the integration parameters are updated too, and the
+     * rigid-bodies, colliders, joints and soft bodies the delta added or removed are
+     * (un)mapped.
+     *
+     * Throws an `Error` whose `kind` property is `"baseline_mismatch"` (the delta was produced
+     * against another state), `"malformed"` (the bytes are not a valid delta) or
+     * `"missing_shape"` (a collider references a shape this world does not hold). Once the
+     * delta decoded, the world may be partially patched: apply a full delta to recover.
+     */
+    public applyDelta(delta: Uint8Array): Uint8Array {
+        try {
+            return this.serializationPipeline.applyDelta(
+                delta,
+                ...this.deltaComponents(),
+                (gravity) => {
+                    this.gravity = gravity;
+                },
+            );
+        } finally {
+            this.syncWrappersAfterDelta();
+        }
+    }
+
+    private deltaComponents(): [
+        Vector,
+        IntegrationParameters,
+        IslandManager,
+        BroadPhase,
+        NarrowPhase,
+        RigidBodySet,
+        ColliderSet,
+        SoftBodySet,
+        ImpulseJointSet,
+        MultibodyJointSet,
+    ] {
+        return [
             this.gravity,
             this.integrationParameters,
             this.islands,
@@ -324,47 +399,15 @@ export class World {
             this.softBodies,
             this.impulseJoints,
             this.multibodyJoints,
-            since,
-        );
-    }
-
-    /**
-     * Applies a snapshot delta produced by the `takeDelta` of another world, and returns the
-     * tick to send back to that world to acknowledge this state.
-     *
-     * This world must hold the state the delta was produced against (the state of the
-     * acknowledged tick), or be in any state if the delta was taken without baseline. The
-     * gravity and the integration parameters are updated too, and the rigid-bodies,
-     * colliders, joints and soft bodies the delta added or removed are (un)mapped.
-     *
-     * Throws if `delta` is malformed or was produced against another state. The world may
-     * then be partially patched: restore it from a full delta or a snapshot.
-     */
-    public applyDelta(delta: Uint8Array): Uint8Array {
-        let res: {gravity: Vector; tick: Uint8Array};
-        try {
-            res = this.serializationPipeline.applyDelta(
-                delta,
-                this.integrationParameters,
-                this.islands,
-                this.broadPhase,
-                this.narrowPhase,
-                this.bodies,
-                this.colliders,
-                this.softBodies,
-                this.impulseJoints,
-                this.multibodyJoints,
-            );
-        } finally {
-            this.syncWrappersAfterDelta();
-        }
-        this.gravity = res.gravity;
-        return res.tick;
+        ];
     }
 
     /**
      * Updates the JavaScript wrappers of the bodies, colliders, joints and soft bodies after
      * an applied delta added, removed or modified some of them.
+     *
+     * This visits every wrapper and every engine object, so it costs O(world size) per
+     * applied delta, however small the delta.
      */
     private syncWrappersAfterDelta() {
         // Unmap first: a removed object's index may have been reused by an added one.

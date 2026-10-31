@@ -195,9 +195,8 @@ export class Collider {
     }
 
     private lookUpParent(bodies: RigidBodySet): RigidBody | null {
-        // A parentless collider has an undefined parent handle, which must not be looked up.
-        const parentHandle = this.colliderSet.raw.coParent(this.handle);
-        return parentHandle === undefined ? null : bodies.get(parentHandle);
+        // `bodies.get` returns null for the undefined handle of a parentless collider.
+        return bodies.get(this.colliderSet.raw.coParent(this.handle));
     }
 
     private ensureShapeIsCached() {
