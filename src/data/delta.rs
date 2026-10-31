@@ -80,9 +80,6 @@ impl<C> ChangeTick<C> {
         }
     }
 
-    pub(crate) fn raw(self) -> RawTick {
-        self.raw
-    }
 }
 
 impl<C> Copy for ChangeTick<C> {}
@@ -179,17 +176,184 @@ impl<C: SnapshotDelta> Delta<C> {
     }
 }
 
+/// Crate-internal items that public signatures name (declared `pub` in a private module, so
+/// they cannot be reached from outside the crate).
+mod internal {
+    use super::*;
+
+    pub trait Sealed {}
+
+    /// The per-component hooks behind [`SnapshotDelta`].
+    pub trait DeltaComponent: Default {
+        type Payload: Serialize + DeserializeOwned + Clone;
+
+        fn change_tracker(&self) -> &ChangeTracker;
+
+        fn change_tracker_mut(&mut self) -> &mut ChangeTracker;
+
+        /// Propagates the stamp tick to every [`ChangeStamps`] the component owns (zero disables).
+        fn set_stamp_tick(&mut self, now: u32);
+
+        /// The slots written after `since` (all of them for `None`).
+        fn collect_delta(&mut self, since: Option<u32>) -> Self::Payload;
+
+        fn apply_delta_payload(&mut self, payload: Self::Payload) -> Result<(), DeltaError>;
+
+        /// Brings up to date the bookkeeping that deltas from an issued tick rely on.
+        fn sync_before_tick(&mut self) {}
+
+        /// Resets to the state a deserialization gives, before a full delta is applied (the change
+        /// tracker is restored afterwards).
+        fn reset_for_full_delta(&mut self) {
+            *self = Self::default();
+        }
+    }
+
+    /// A fresh identity for a change clock, so ticks of a restarted clock (another process, or
+    /// tracking re-enabled) are rejected instead of misread.
+    fn new_tracker_id(seed: Option<u64>) -> u32 {
+        use core::hash::{BuildHasher, Hasher};
+        use core::sync::atomic::{AtomicU32, Ordering};
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+        let count = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let id = match seed {
+            // SplitMix64 finalizer of the seed and counter.
+            Some(seed) => {
+                let mut z = seed ^ (count as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+                z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+                z ^ (z >> 31)
+            }
+            None => {
+                let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+                hasher.write_u32(count);
+                hasher.finish()
+            }
+        };
+        ((id >> 32) as u32 ^ id as u32).max(1)
+    }
+
+    /// A component's change clock, plus the sender tick its state was last patched to.
+    ///
+    /// Ticks wrap after 2^32 deltas; slots not rewritten for 2^31 ticks are then resent once.
+    #[derive(Debug, Default)]
+    pub struct ChangeTracker {
+        /// `(tracker id, current tick)`; `None` while tracking is disabled.
+        clock: Option<(u32, u32)>,
+        /// The sender tick this component's state matches: the last delta applied, or the baseline
+        /// set explicitly. Cleared when the component is stepped.
+        applied: Option<RawTick>,
+    }
+
+    impl Clone for ChangeTracker {
+        /// A clone gets its own clock identity: two copies issuing the same ticks for diverging
+        /// states would accept each other's baselines.
+        fn clone(&self) -> Self {
+            let mut clone = Self {
+                clock: self.clock,
+                applied: self.applied,
+            };
+            clone.restart();
+            clone
+        }
+    }
+
+    impl ChangeTracker {
+        pub(crate) fn is_enabled(&self) -> bool {
+            self.clock.is_some()
+        }
+
+        /// Starts a fresh clock and returns its first tick.
+        pub(crate) fn enable(&mut self, seed: Option<u64>) -> u32 {
+            self.clock = Some((new_tracker_id(seed), 1));
+            1
+        }
+
+        pub(crate) fn disable(&mut self) {
+            self.clock = None;
+        }
+
+        /// Gives a running clock a fresh identity, keeping its tick. Returns the stamp tick (zero
+        /// while disabled).
+        pub(crate) fn restart(&mut self) -> u32 {
+            match &mut self.clock {
+                Some((tracker, now)) => {
+                    *tracker = new_tracker_id(None);
+                    *now
+                }
+                None => 0,
+            }
+        }
+
+        /// Validates `since`, returns `(since tick, issued tick, next stamp tick)` and advances
+        /// the clock past the issued tick.
+        pub(crate) fn advance(
+            &mut self,
+            since: Option<RawTick>,
+        ) -> Result<(Option<u32>, RawTick, u32), DeltaError> {
+            let (tracker, now) = self.clock.ok_or(DeltaError::TrackingDisabled)?;
+            let since = match since {
+                None => None,
+                Some(since) => {
+                    if since.tracker != tracker || stamp_is_newer(since.tick, now) {
+                        return Err(DeltaError::UnknownBaseline);
+                    }
+                    Some(since.tick)
+                }
+            };
+            let issued = RawTick { tracker, tick: now };
+            let next = now.wrapping_add(1).max(1);
+            self.clock = Some((tracker, next));
+            Ok((since, issued, next))
+        }
+
+        /// Checks that a delta with baseline `from` (`None`: full) can be applied.
+        pub(crate) fn check_apply(&self, from: Option<RawTick>) -> Result<(), DeltaError> {
+            match from {
+                Some(from) if self.applied != Some(from) => Err(DeltaError::BaselineMismatch),
+                _ => Ok(()),
+            }
+        }
+
+        pub(crate) fn set_applied(&mut self, to: RawTick) {
+            self.applied = Some(to);
+        }
+
+        /// Forgets the sender baseline, once the state diverged from it (the component was stepped).
+        pub(crate) fn clear_applied(&mut self) {
+            self.applied = None;
+        }
+    }
+}
+
+pub(crate) use internal::{ChangeTracker, DeltaComponent};
+
+/// Forgets the sender state `component` mirrored, once it diverged from it (it was stepped).
+pub(crate) fn clear_delta_baseline(component: &mut impl DeltaComponent) {
+    component.change_tracker_mut().clear_applied();
+}
+
 /// A physics component that can serialize the changes made since an earlier state.
 ///
-/// See the [module documentation](self) for the workflow.
-pub trait SnapshotDelta: Sized {
+/// Implemented by rapier's components only. See the [module documentation](self) for the
+/// workflow.
+pub trait SnapshotDelta: internal::Sealed + Sized {
     /// The component-specific content of a [`Delta`].
     #[doc(hidden)]
     type Payload: Serialize + DeserializeOwned + Clone;
 
-    /// Starts stamping writes with change ticks. Restarting it invalidates every tick
-    /// issued before.
+    /// Starts stamping writes with change ticks, under a fresh clock identity. Restarting it
+    /// invalidates every tick issued before.
+    ///
+    /// The identity comes from the standard library's random hasher keys, which repeat across
+    /// runs on targets without OS randomness (`wasm32-unknown-unknown`): use
+    /// [`Self::enable_change_tracking_with_seed`] there.
     fn enable_change_tracking(&mut self);
+
+    /// Like [`Self::enable_change_tracking`], deriving the clock identity from `seed` (pass a
+    /// random value that differs between runs).
+    fn enable_change_tracking_with_seed(&mut self, seed: u64);
 
     /// Stops stamping writes and drops the stamps.
     fn disable_change_tracking(&mut self);
@@ -204,147 +368,92 @@ pub trait SnapshotDelta: Sized {
         since: Option<ChangeTick<Self>>,
     ) -> Result<(Delta<Self>, ChangeTick<Self>), DeltaError>;
 
-    /// Patches a delta into this component, which must hold the delta's baseline state (or be
-    /// in any state for a full delta). Returns the tick to acknowledge to the sender.
+    /// Issues a tick naming the current state without building a delta, e.g. to send a full
+    /// snapshot instead: the receiver restores it, then calls [`Self::set_delta_baseline`].
+    fn change_tick(&mut self) -> Result<ChangeTick<Self>, DeltaError>;
+
+    /// Declares that this component holds the sender's state at `tick`, so deltas from that
+    /// tick can be applied (e.g. after restoring a snapshot taken right after
+    /// [`Self::change_tick`]).
+    fn set_delta_baseline(&mut self, tick: ChangeTick<Self>);
+
+    /// Patches a delta into this component. An incremental delta requires the delta's
+    /// baseline state: the target of the last delta applied (or [`Self::set_delta_baseline`]),
+    /// not stepped since. A full delta first resets the component, as a deserialization would.
+    /// Returns the tick to acknowledge to the sender.
+    ///
+    /// On error, the component may be left partially patched: apply a full delta to recover.
     fn apply_delta(&mut self, delta: Delta<Self>) -> Result<ChangeTick<Self>, DeltaError>;
 }
 
-/// A fresh, process-unique-ish identity for a change clock, so ticks of a restarted clock
-/// (another process, or tracking re-enabled) are rejected instead of misread.
-fn new_tracker_id() -> u32 {
-    use core::hash::{BuildHasher, Hasher};
-    use core::sync::atomic::{AtomicU32, Ordering};
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
+impl<T: DeltaComponent> internal::Sealed for T {}
 
-    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
-    hasher.write_u32(COUNTER.fetch_add(1, Ordering::Relaxed));
-    let id = hasher.finish();
-    ((id >> 32) as u32 ^ id as u32).max(1)
-}
+impl<T: DeltaComponent> SnapshotDelta for T {
+    type Payload = T::Payload;
 
-/// A component's change clock, plus the sender tick its state was last patched to.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct ChangeTracker {
-    /// `(tracker id, current tick)`; `None` while tracking is disabled.
-    clock: Option<(u32, u32)>,
-    /// The tick of the last delta applied to this component.
-    applied: Option<RawTick>,
-}
-
-impl ChangeTracker {
-    pub(crate) fn is_enabled(&self) -> bool {
-        self.clock.is_some()
+    fn enable_change_tracking(&mut self) {
+        let now = self.change_tracker_mut().enable(None);
+        self.set_stamp_tick(now);
     }
 
-    /// Starts a fresh clock and returns its first tick.
-    pub(crate) fn enable(&mut self) -> u32 {
-        self.clock = Some((new_tracker_id(), 1));
-        1
+    fn enable_change_tracking_with_seed(&mut self, seed: u64) {
+        let now = self.change_tracker_mut().enable(Some(seed));
+        self.set_stamp_tick(now);
     }
 
-    pub(crate) fn disable(&mut self) {
-        self.clock = None;
+    fn disable_change_tracking(&mut self) {
+        self.change_tracker_mut().disable();
+        self.set_stamp_tick(0);
     }
 
-    /// Validates `since`, returns `(since tick, issued tick, next stamp tick)` and advances
-    /// the clock past the issued tick.
-    pub(crate) fn advance(
+    fn is_change_tracking_enabled(&self) -> bool {
+        self.change_tracker().is_enabled()
+    }
+
+    fn delta_since(
         &mut self,
-        since: Option<RawTick>,
-    ) -> Result<(Option<u32>, RawTick, u32), DeltaError> {
-        let (tracker, now) = self.clock.ok_or(DeltaError::TrackingDisabled)?;
-        let since = match since {
-            None => None,
-            Some(since) => {
-                if since.tracker != tracker || stamp_is_newer(since.tick, now) {
-                    return Err(DeltaError::UnknownBaseline);
-                }
-                Some(since.tick)
-            }
-        };
-        let issued = RawTick { tracker, tick: now };
-        let next = now.wrapping_add(1).max(1);
-        self.clock = Some((tracker, next));
-        Ok((since, issued, next))
+        since: Option<ChangeTick<Self>>,
+    ) -> Result<(Delta<Self>, ChangeTick<Self>), DeltaError> {
+        let (since_tick, issued, next) = self.change_tracker_mut().advance(since.map(|t| t.raw))?;
+        let payload = self.collect_delta(since_tick);
+        self.set_stamp_tick(next);
+        Ok((
+            Delta {
+                from: since.map(|t| t.raw),
+                to: issued,
+                payload,
+            },
+            ChangeTick::from_raw(issued),
+        ))
     }
 
-    /// Checks that a delta can be applied, and records its target tick once it is.
-    pub(crate) fn check_apply(&self, from: Option<RawTick>) -> Result<(), DeltaError> {
-        match (from, self.applied) {
-            (Some(from), Some(applied)) if from != applied => Err(DeltaError::BaselineMismatch),
-            _ => Ok(()),
+    fn change_tick(&mut self) -> Result<ChangeTick<Self>, DeltaError> {
+        let (_, issued, next) = self.change_tracker_mut().advance(None)?;
+        self.sync_before_tick();
+        self.set_stamp_tick(next);
+        Ok(ChangeTick::from_raw(issued))
+    }
+
+    fn set_delta_baseline(&mut self, tick: ChangeTick<Self>) {
+        self.change_tracker_mut().set_applied(tick.raw);
+    }
+
+    fn apply_delta(&mut self, delta: Delta<Self>) -> Result<ChangeTick<Self>, DeltaError> {
+        self.change_tracker().check_apply(delta.from)?;
+        if delta.from.is_none() {
+            let mut tracker = core::mem::take(self.change_tracker_mut());
+            self.reset_for_full_delta();
+            // Downstream receivers' baselines predate the reset: reject them.
+            let now = tracker.restart();
+            *self.change_tracker_mut() = tracker;
+            self.set_stamp_tick(now);
         }
-    }
-
-    pub(crate) fn set_applied(&mut self, to: RawTick) {
-        self.applied = Some(to);
+        self.apply_delta_payload(delta.payload)?;
+        self.change_tracker_mut().set_applied(delta.to);
+        Ok(ChangeTick::from_raw(delta.to))
     }
 }
 
-/// Implements [`SnapshotDelta`] for a component providing:
-/// - `fn change_tracker(&mut self) -> &mut ChangeTracker` and
-///   `fn change_tracker_ref(&self) -> &ChangeTracker`;
-/// - `fn set_stamp_tick(&mut self, now: u32)`, propagating the stamp tick to every
-///   [`ChangeStamps`] it owns (zero disables);
-/// - `fn collect_delta(&mut self, since: Option<u32>) -> Payload`;
-/// - `fn apply_delta_payload(&mut self, payload: Payload) -> Result<(), DeltaError>`.
-macro_rules! impl_snapshot_delta {
-    ($component: ty, $payload: ty) => {
-        impl $crate::data::delta::SnapshotDelta for $component {
-            type Payload = $payload;
-
-            fn enable_change_tracking(&mut self) {
-                let now = self.change_tracker().enable();
-                self.set_stamp_tick(now);
-            }
-
-            fn disable_change_tracking(&mut self) {
-                self.change_tracker().disable();
-                self.set_stamp_tick(0);
-            }
-
-            fn is_change_tracking_enabled(&self) -> bool {
-                self.change_tracker_ref().is_enabled()
-            }
-
-            fn delta_since(
-                &mut self,
-                since: Option<$crate::data::delta::ChangeTick<Self>>,
-            ) -> Result<
-                (
-                    $crate::data::delta::Delta<Self>,
-                    $crate::data::delta::ChangeTick<Self>,
-                ),
-                $crate::data::delta::DeltaError,
-            > {
-                let (since_tick, issued, next) =
-                    self.change_tracker().advance(since.map(|t| t.raw()))?;
-                let payload = self.collect_delta(since_tick);
-                self.set_stamp_tick(next);
-                Ok((
-                    $crate::data::delta::Delta {
-                        from: since.map(|t| t.raw()),
-                        to: issued,
-                        payload,
-                    },
-                    $crate::data::delta::ChangeTick::from_raw(issued),
-                ))
-            }
-
-            fn apply_delta(
-                &mut self,
-                delta: $crate::data::delta::Delta<Self>,
-            ) -> Result<$crate::data::delta::ChangeTick<Self>, $crate::data::delta::DeltaError>
-            {
-                self.change_tracker_ref().check_apply(delta.from)?;
-                self.apply_delta_payload(delta.payload)?;
-                self.change_tracker().set_applied(delta.to);
-                Ok($crate::data::delta::ChangeTick::from_raw(delta.to))
-            }
-        }
-    };
-}
-pub(crate) use impl_snapshot_delta;
 
 /// The stamped slots of an index-addressed vector: its new length, and the content of every
 /// slot written after the baseline (every slot for a full delta).

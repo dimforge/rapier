@@ -488,7 +488,7 @@ impl IslandManager {
 #[cfg(feature = "serde-serialize")]
 mod snapshot_delta {
     use super::*;
-    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
     use crate::data::stamped_vec_map::VecMapDelta;
     use crate::dynamics::island_manager::persistent::snapshot_delta::PersistentIslandsDelta;
 
@@ -503,12 +503,14 @@ mod snapshot_delta {
         persistent: PersistentIslandsDelta,
     }
 
-    impl IslandManager {
-        fn change_tracker(&mut self) -> &mut ChangeTracker {
+    impl DeltaComponent for IslandManager {
+        type Payload = IslandManagerDelta;
+
+        fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
             &mut self.change_tracker
         }
 
-        fn change_tracker_ref(&self) -> &ChangeTracker {
+        fn change_tracker(&self) -> &ChangeTracker {
             &self.change_tracker
         }
 
@@ -535,7 +537,5 @@ mod snapshot_delta {
             self.persistent.apply_delta(delta.persistent)
         }
     }
-
-    impl_snapshot_delta!(IslandManager, IslandManagerDelta);
 }
 

@@ -782,7 +782,7 @@ mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
     use crate::data::coarena::CoarenaDelta;
-    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
     use crate::data::graph::GraphDelta;
     use crate::dynamics::ImpulseJointIslandEvent;
 
@@ -800,12 +800,14 @@ mod snapshot_delta {
         all_joints_modified: bool,
     }
 
-    impl ImpulseJointSet {
-        fn change_tracker(&mut self) -> &mut ChangeTracker {
+    impl DeltaComponent for ImpulseJointSet {
+        type Payload = ImpulseJointSetDelta;
+
+        fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
             &mut self.change_tracker
         }
 
-        fn change_tracker_ref(&self) -> &ChangeTracker {
+        fn change_tracker(&self) -> &ChangeTracker {
             &self.change_tracker
         }
 
@@ -860,7 +862,5 @@ mod snapshot_delta {
             Ok(())
         }
     }
-
-    impl_snapshot_delta!(ImpulseJointSet, ImpulseJointSetDelta);
 }
 

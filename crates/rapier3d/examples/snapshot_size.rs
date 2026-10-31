@@ -284,10 +284,12 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
     }
     println!("  step: {ms_per_step:.3} ms avg over {timed} steps (after {warmup} warmup)");
 
-    // Per-tick semantic deltas into a receiver restored from the snapshot above.
-    let mut receiver: PhysicsWorld = bincode::deserialize(&bytes).unwrap();
+    // Per-tick semantic deltas into a receiver restored from a snapshot at the baseline.
     world.enable_change_tracking();
-    let mut acked = Some(world.delta_since(None).unwrap().1);
+    let mut acked = Some(world.change_tick().unwrap());
+    let mut receiver: PhysicsWorld =
+        bincode::deserialize(&bincode::serialize(&world).unwrap()).unwrap();
+    receiver.set_delta_baseline(acked.unwrap());
     let ticks = 20;
     let (mut size, mut max_size, mut encode, mut apply, mut step) = (0, 0, 0.0, 0.0, 0.0);
     let mut breakdown = String::new();
@@ -296,7 +298,7 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
         world.step();
         step += t0.elapsed().as_secs_f64() * 1000.0;
         let t0 = Instant::now();
-        let (delta, tick) = world.delta_since(acked.as_ref()).unwrap();
+        let (delta, tick) = world.delta_since(acked).unwrap();
         let delta_bytes = bincode::serialize(&delta).unwrap();
         encode += t0.elapsed().as_secs_f64() * 1000.0;
         let t0 = Instant::now();

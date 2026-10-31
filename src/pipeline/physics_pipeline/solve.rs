@@ -404,8 +404,7 @@ impl PhysicsPipeline {
                 colliders,
                 unsafe { contact_color_masks.as_slice() },
             );
-            impulse_joints.mark_joints_changed(&self.joint_constraint_indices);
-            narrow_phase.mark_solver_contacts_written();
+            Self::stamp_solver_writes(impulse_joints, &self.joint_constraint_indices, narrow_phase);
             // The soft-body surface contacts live outside the solver contact graph: write their
             // impulses back to the manifolds (contact-force events, warm start) here.
             self.staged_solver

@@ -301,7 +301,7 @@ mod snapshot_serde {
 #[cfg(feature = "serde-serialize")]
 mod snapshot_delta {
     use super::*;
-    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
     use serde::{Deserialize, Serialize};
 
     /// The pairs a collider takes part in, with their insertion frames.
@@ -327,19 +327,6 @@ mod snapshot_delta {
     }
 
     impl BroadPhaseBvh {
-        fn change_tracker(&mut self) -> &mut ChangeTracker {
-            &mut self.change_tracker
-        }
-
-        fn change_tracker_ref(&self) -> &ChangeTracker {
-            &self.change_tracker
-        }
-
-        fn set_stamp_tick(&mut self, now: u32) {
-            self.leaf_stamps.set_now(now);
-            self.pair_stamps.set_now(now);
-        }
-
         /// The pairs collider `index` takes part in.
         fn pairs_of(&self, index: u32) -> ColliderPairs {
             let Some(generation) = self.pair_adjacency.get_gen(index).filter(|g| *g != u32::MAX)
@@ -359,6 +346,48 @@ mod snapshot_delta {
                 })
                 .collect()
         }
+
+        /// Drops every pair collider `index` takes part in.
+        fn remove_pairs_of(&mut self, index: u32) {
+            let generation = self.pair_adjacency.get_gen(index).filter(|g| *g != u32::MAX);
+            let others = self
+                .pair_adjacency
+                .get_mut_unknown_gen(index)
+                .map(core::mem::take)
+                .unwrap_or_default();
+            if let Some(generation) = generation {
+                let handle = ColliderHandle::from_raw_parts(index, generation);
+                for other in others {
+                    let _ = crate::utils::hashmap_remove(&mut self.pairs, &(handle, other));
+                    let _ = crate::utils::hashmap_remove(&mut self.pairs, &(other, handle));
+                    if let Some(list) = self.pair_adjacency.get_mut(other.0) {
+                        if let Some(pos) = list.iter().position(|h| *h == handle) {
+                            list.swap_remove(pos);
+                        }
+                    }
+                }
+                let _ = self.pair_adjacency.remove(handle.0, Vec::new());
+            }
+            self.pair_stamps.mark(index as usize);
+        }
+    }
+
+    impl DeltaComponent for BroadPhaseBvh {
+        type Payload = BroadPhaseBvhDelta;
+
+        fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
+            &mut self.change_tracker
+        }
+
+        fn change_tracker(&self) -> &ChangeTracker {
+            &self.change_tracker
+        }
+
+        fn set_stamp_tick(&mut self, now: u32) {
+            self.leaf_stamps.set_now(now);
+            self.pair_stamps.set_now(now);
+        }
+
 
         fn collect_delta(&mut self, since: Option<u32>) -> BroadPhaseBvhDelta {
             let leaf = |index: u32| {
@@ -403,29 +432,6 @@ mod snapshot_delta {
             }
         }
 
-        /// Drops every pair collider `index` takes part in.
-        fn remove_pairs_of(&mut self, index: u32) {
-            let generation = self.pair_adjacency.get_gen(index).filter(|g| *g != u32::MAX);
-            let others = self
-                .pair_adjacency
-                .get_mut_unknown_gen(index)
-                .map(core::mem::take)
-                .unwrap_or_default();
-            if let Some(generation) = generation {
-                let handle = ColliderHandle::from_raw_parts(index, generation);
-                for other in others {
-                    let _ = crate::utils::hashmap_remove(&mut self.pairs, &(handle, other));
-                    let _ = crate::utils::hashmap_remove(&mut self.pairs, &(other, handle));
-                    if let Some(list) = self.pair_adjacency.get_mut(other.0) {
-                        if let Some(pos) = list.iter().position(|h| *h == handle) {
-                            list.swap_remove(pos);
-                        }
-                    }
-                }
-                let _ = self.pair_adjacency.remove(handle.0, Vec::new());
-            }
-            self.pair_stamps.mark(index as usize);
-        }
 
         fn apply_delta_payload(&mut self, delta: BroadPhaseBvhDelta) -> Result<(), DeltaError> {
             // Leaves: patch the current set, then rebuild the tree like a deserialization.
@@ -489,8 +495,6 @@ mod snapshot_delta {
             Ok(())
         }
     }
-
-    impl_snapshot_delta!(BroadPhaseBvh, BroadPhaseBvhDelta);
 }
 
 impl BroadPhaseBvh {

@@ -113,7 +113,7 @@ impl core::ops::IndexMut<SoftBodyHandle> for SoftBodySet {
 mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
-    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
 
     /// The content of a [`SoftBodySet`] delta.
     #[doc(hidden)]
@@ -123,12 +123,14 @@ mod snapshot_delta {
         island_events: Vec<SoftBodyIslandEvent>,
     }
 
-    impl SoftBodySet {
-        fn change_tracker(&mut self) -> &mut ChangeTracker {
+    impl DeltaComponent for SoftBodySet {
+        type Payload = SoftBodySetDelta;
+
+        fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
             &mut self.change_tracker
         }
 
-        fn change_tracker_ref(&self) -> &ChangeTracker {
+        fn change_tracker(&self) -> &ChangeTracker {
             &self.change_tracker
         }
 
@@ -150,7 +152,5 @@ mod snapshot_delta {
             Ok(())
         }
     }
-
-    impl_snapshot_delta!(SoftBodySet, SoftBodySetDelta);
 }
 

@@ -19,7 +19,7 @@ pub use physics_pipeline::{PhysicsPipeline, Quarantine};
 #[cfg(feature = "alloc")]
 pub use physics_world::PhysicsWorld;
 #[cfg(feature = "serde-serialize")]
-pub use physics_world_delta::{WorldChangeTick, WorldDelta};
+pub use physics_world_delta::{WorldChangeTick, WorldComponentsMut, WorldDelta};
 #[cfg(feature = "alloc")]
 pub use query_pipeline::{QueryFilter, QueryFilterFlags, QueryPipeline, QueryPipelineMut};
 

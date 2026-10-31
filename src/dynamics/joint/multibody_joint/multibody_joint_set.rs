@@ -524,7 +524,7 @@ mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
     use crate::data::coarena::CoarenaDelta;
-    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
     use crate::data::graph::GraphDelta;
 
     /// The content of a [`MultibodyJointSet`] delta.
@@ -540,12 +540,14 @@ mod snapshot_delta {
         topology_epoch: u32,
     }
 
-    impl MultibodyJointSet {
-        fn change_tracker(&mut self) -> &mut ChangeTracker {
+    impl DeltaComponent for MultibodyJointSet {
+        type Payload = MultibodyJointSetDelta;
+
+        fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
             &mut self.change_tracker
         }
 
-        fn change_tracker_ref(&self) -> &ChangeTracker {
+        fn change_tracker(&self) -> &ChangeTracker {
             &self.change_tracker
         }
 
@@ -589,7 +591,5 @@ mod snapshot_delta {
             Ok(())
         }
     }
-
-    impl_snapshot_delta!(MultibodyJointSet, MultibodyJointSetDelta);
 }
 

@@ -766,7 +766,7 @@ mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
     use crate::data::change_stamps::stamp_is_newer;
-    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
     use crate::geometry::ColliderShape;
     use crate::geometry::collider::InternedCollider;
     use crate::utils::content_hash::{ContentKey, content_key};
@@ -947,12 +947,14 @@ mod snapshot_delta {
         removed_colliders: Vec<ColliderHandle>,
     }
 
-    impl ColliderSet {
-        fn change_tracker(&mut self) -> &mut ChangeTracker {
+    impl DeltaComponent for ColliderSet {
+        type Payload = ColliderSetDelta;
+
+        fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
             &mut self.delta_state.tracker
         }
 
-        fn change_tracker_ref(&self) -> &ChangeTracker {
+        fn change_tracker(&self) -> &ChangeTracker {
             &self.delta_state.tracker
         }
 
@@ -966,6 +968,11 @@ mod snapshot_delta {
                     ..Default::default()
                 };
             }
+        }
+
+        fn sync_before_tick(&mut self) {
+            // Every issued tick must be a sync point: `receiver_holds` relies on it.
+            self.delta_state.sync(&self.colliders);
         }
 
         fn collect_delta(&mut self, since: Option<u32>) -> ColliderSetDelta {
@@ -1038,7 +1045,5 @@ mod snapshot_delta {
             Ok(())
         }
     }
-
-    impl_snapshot_delta!(ColliderSet, ColliderSetDelta);
 }
 

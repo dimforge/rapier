@@ -6,7 +6,7 @@
 
 use super::*;
 use crate::data::coarena::CoarenaDelta;
-use crate::data::delta::{ChangeTracker, DeltaError, ShadowStamps, VecDelta, impl_snapshot_delta};
+use crate::data::delta::{ChangeTracker, DeltaError, ShadowStamps, VecDelta, DeltaComponent};
 use crate::data::graph::GraphDelta;
 use crate::dynamics::solver::solver_contact_graph::ContactRef;
 
@@ -38,13 +38,22 @@ pub struct NarrowPhaseDelta {
     force_list_valid: bool,
 }
 
-impl NarrowPhase {
-    fn change_tracker(&mut self) -> &mut ChangeTracker {
+impl DeltaComponent for NarrowPhase {
+    type Payload = NarrowPhaseDelta;
+
+    fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
         &mut self.delta_state.tracker
     }
 
-    fn change_tracker_ref(&self) -> &ChangeTracker {
+    fn change_tracker(&self) -> &ChangeTracker {
         &self.delta_state.tracker
+    }
+
+    fn reset_for_full_delta(&mut self) {
+        // The query dispatcher is configuration, not state: keep the receiver's own.
+        let query_dispatcher = self.query_dispatcher.clone();
+        *self = Self::default();
+        self.query_dispatcher = query_dispatcher;
     }
 
     fn set_stamp_tick(&mut self, now: u32) {
@@ -134,5 +143,3 @@ impl NarrowPhase {
         Ok(())
     }
 }
-
-impl_snapshot_delta!(NarrowPhase, NarrowPhaseDelta);

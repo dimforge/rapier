@@ -170,6 +170,17 @@ impl CollisionPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
+        // The step diverges the components from the sender state they mirrored.
+        #[cfg(feature = "serde-serialize")]
+        {
+            use crate::data::delta::clear_delta_baseline;
+            clear_delta_baseline(islands);
+            clear_delta_baseline(broad_phase);
+            clear_delta_baseline(narrow_phase);
+            clear_delta_baseline(bodies);
+            clear_delta_baseline(colliders);
+        }
+
         let mut modified_bodies = bodies.take_modified();
         let mut modified_colliders = colliders.take_modified();
         let mut removed_colliders = colliders.take_removed();

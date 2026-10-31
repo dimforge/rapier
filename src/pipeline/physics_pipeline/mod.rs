@@ -14,6 +14,7 @@ use crate::geometry::{
 use crate::math::Vector;
 use crate::pipeline::{EventHandler, PhysicsHooks};
 
+mod change_tracking;
 mod quarantine;
 pub use quarantine::Quarantine;
 mod solve;

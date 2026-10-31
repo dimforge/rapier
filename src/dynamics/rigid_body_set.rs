@@ -482,7 +482,7 @@ impl IndexMut<RigidBodyHandle> for RigidBodySet {
 mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
-    use crate::data::delta::{ChangeTracker, DeltaError, impl_snapshot_delta};
+    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
 
     /// The content of a [`RigidBodySet`] delta.
     #[doc(hidden)]
@@ -492,12 +492,14 @@ mod snapshot_delta {
         modified_bodies: ModifiedRigidBodies,
     }
 
-    impl RigidBodySet {
-        fn change_tracker(&mut self) -> &mut ChangeTracker {
+    impl DeltaComponent for RigidBodySet {
+        type Payload = RigidBodySetDelta;
+
+        fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
             &mut self.change_tracker
         }
 
-        fn change_tracker_ref(&self) -> &ChangeTracker {
+        fn change_tracker(&self) -> &ChangeTracker {
             &self.change_tracker
         }
 
@@ -505,7 +507,7 @@ mod snapshot_delta {
             self.bodies.stamps.set_now(now);
         }
 
-        fn collect_delta(&self, since: Option<u32>) -> RigidBodySetDelta {
+        fn collect_delta(&mut self, since: Option<u32>) -> RigidBodySetDelta {
             RigidBodySetDelta {
                 bodies: self.bodies.collect_delta(since),
                 modified_bodies: self.modified_bodies.clone(),
@@ -518,6 +520,4 @@ mod snapshot_delta {
             Ok(())
         }
     }
-
-    impl_snapshot_delta!(RigidBodySet, RigidBodySetDelta);
 }
