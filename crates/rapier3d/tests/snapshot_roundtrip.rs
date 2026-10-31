@@ -622,6 +622,21 @@ fn center_of_mass_change_while_recycling() {
     );
 }
 
+/// The same, with the center of mass moved right away by
+/// `recompute_mass_properties_from_colliders` instead of by the next step.
+#[test]
+fn center_of_mass_recomputed_by_the_user_while_recycling() {
+    let (world, body) = resting_boxes();
+    check_roundtrip("recomputed center of mass", world, 62, 30, false, |w, step, _| {
+        if step == 60 {
+            let props = MassProperties::new(Vector::new(0.05, 0.0, 0.0), 1.0, Vector::splat(0.2));
+            let rb = &mut w.bodies[body];
+            rb.set_additional_mass_properties(props, true);
+            rb.recompute_mass_properties_from_colliders(&w.colliders);
+        }
+    });
+}
+
 #[test]
 fn contact_recycling_disabled_at_runtime() {
     let (world, _) = resting_boxes();

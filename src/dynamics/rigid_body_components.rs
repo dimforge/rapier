@@ -117,6 +117,11 @@ bitflags::bitflags! {
         const LOCAL_MASS_PROPERTIES = 1 << 6;
         /// Flag indicating that the rigid-body was enabled or disabled.
         const ENABLED_OR_DISABLED = 1 << 7;
+        /// Flag indicating that the center of mass moved in the rigid-body's local frame outside
+        /// of the pipeline (see [`RigidBody::recompute_mass_properties_from_colliders`]).
+        ///
+        /// [`RigidBody::recompute_mass_properties_from_colliders`]: crate::dynamics::RigidBody::recompute_mass_properties_from_colliders
+        const CENTER_OF_MASS = 1 << 8;
     }
 }
 

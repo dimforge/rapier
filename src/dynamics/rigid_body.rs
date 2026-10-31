@@ -658,12 +658,17 @@ impl RigidBody {
     /// Normally automatic, but call this if you modify collider shapes/masses at runtime.
     /// Only needed after directly modifying colliders without going through the builder.
     pub fn recompute_mass_properties_from_colliders(&mut self, colliders: &ColliderSet) {
+        let old_com = self.mprops.local_mprops.local_com;
         self.mprops.recompute_mass_properties_from_colliders(
             colliders,
             &self.colliders,
             self.body_type,
             &self.pos.position,
         );
+        // The next step must not recycle contacts anchored to the old center of mass.
+        if self.mprops.local_mprops.local_com != old_com {
+            self.changes.insert(RigidBodyChanges::CENTER_OF_MASS);
+        }
     }
 
     /// Adds extra mass on top of collider-computed mass.
