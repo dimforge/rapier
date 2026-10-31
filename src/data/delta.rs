@@ -7,21 +7,31 @@
 //! gathers only the slots written after a baseline tick, and
 //! [`SnapshotDelta::apply_delta`] patches them into a receiver holding that baseline.
 //!
-//! A receiver that applied every delta from a baseline is byte-identical to the sender once
-//! serialized, and keeps simulating identically. [`PhysicsWorld`](crate::pipeline::PhysicsWorld)
-//! bundles the deltas of its components.
+//! A receiver that applied every delta from a baseline keeps simulating identically, and is
+//! byte-identical to the sender once serialized (see the limitations).
+//! [`PhysicsWorld`](crate::pipeline::PhysicsWorld) bundles the deltas of its components.
 //!
 //! A delta's size follows what changed since the baseline: about the awake bodies, their
 //! colliders and contacts, plus a few hundred bytes of per-component headers. Heavy shapes are
 //! referenced by content and only sent when the receiver cannot hold them yet.
+//!
+//! # Baselines
+//!
+//! An incremental delta applies only to its baseline state: the target of the last delta the
+//! receiver applied, or a tick declared with [`SnapshotDelta::set_delta_baseline`] (after
+//! restoring a snapshot the sender took right after [`SnapshotDelta::change_tick`]). Stepping
+//! the receiver, or cloning the sender, invalidates baselines; a full delta always applies.
 //!
 //! # Limitations
 //!
 //! - Without the `enhanced-determinism` feature, parry serializes the contact workspaces of
 //!   composite shapes (compounds, soft-body surfaces, voxels) in hash-map order, so a receiver
 //!   may serialize them in another order than the sender (with identical content).
-//! - Applying a broad-phase delta rebuilds the receiver's tree, like a deserialization.
-//!
+//! - Applying a broad-phase delta that changes leaves rebuilds the receiver's tree, like a
+//!   deserialization (O(n log n)).
+//! - Encoding clones the changed slots: about a full serialization when everything is awake.
+//! - Ticks wrap after 2^32 deltas; slots not rewritten for 2^31 ticks are then resent once.
+
 //! ```
 //! # #[cfg(feature = "serde-serialize")] {
 //! # use rapier3d::prelude::*;
@@ -521,8 +531,8 @@ impl<T> VecDelta<T> {
         }
     }
 
-    /// Patches this delta into `items`, transforming each slot with `f`. Slots appended past the
-    /// current length must all be provided. Patched slots are stamped.
+    /// Patches this delta into `items` through `f`, stamping the patched slots (slots appended
+    /// past the current length must all be provided).
     pub(crate) fn apply_with<U>(
         self,
         items: &mut Vec<U>,

@@ -141,17 +141,11 @@ impl DeferredBvhOptimize {
     }
 }
 
-/// Custom serialization of the broad phase: the tree is stored as its sorted leaves
-/// (collider index, fattened AABB) and rebuilt on restore, and the pair adjacency is
-/// rebuilt from the sorted pair map.
+/// Custom serialization of the broad phase: the tree is stored as its sorted leaves and
+/// rebuilt on restore, and the pair adjacency is rebuilt from the sorted pair map.
 ///
-/// The tree's topology, slot free lists, and optimizer cursor are a rebuildable cache:
-/// pair *discovery* depends only on the per-leaf fattened AABBs (traversal reports the
-/// geometric overlap set of changed leaves), and every order the tree's internals used
-/// to leak into the simulation is canonically sorted at the source (the `AddPair`
-/// batch, the `DeletePair` batch, and this serialization). Restoring builds a
-/// different but equally valid tree; only spatial-query iteration order (never part of
-/// the determinism contract) can differ from the uninterrupted run.
+/// Pair discovery only depends on the leaves' fattened AABBs, and the pair batches are sorted
+/// at the source, so the rebuilt tree only changes spatial-query iteration order.
 #[cfg(feature = "serde-serialize")]
 mod snapshot_serde {
     use super::*;
@@ -300,8 +294,8 @@ mod snapshot_serde {
         let mut tree = if built.len() > 2 {
             Bvh::from_iter(BvhBuildStrategy::Binned, built)
         } else {
-            // Parry's bulk build assumes leaf ids 0 and 1 for one or two leaves: insert
-            // them instead (pending), then resolve them to changed like a bulk build.
+            // TODO(parry): `Bvh::from_iter` (parry 0.31.1) hard-codes leaf ids 0 and 1 for one or
+            // two leaves instead of their ids; insert them, then resolve them to changed.
             let mut tree = Bvh::new();
             for (index, aabb) in &built {
                 tree.insert(*aabb, *index as u32);

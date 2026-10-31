@@ -1,12 +1,8 @@
 //! Post-restore replay of solver contacts.
 //!
-//! Snapshots serialize a replayable pair's solver contacts as one byte each (see
-//! `contact_pair::pair_serde`); deserialization leaves stubs holding only the contact
-//! id. This pass recomputes the anchors, distances, frozen lever arms, and manifold
-//! normals exactly as the pair's last full narrow-phase update did, by re-running the
-//! same expressions at the collider poses stored in the pair's recycle state. Pairs
-//! whose replay would not be bit-exact (hook-modified, offset colliders, no recycle
-//! state) were serialized verbatim and are left untouched.
+//! Snapshots store a replayable pair's solver contacts as one byte each (see
+//! `contact_pair::pair_serde`). This pass recomputes them, with the frozen lever arms and the
+//! manifold normals, by re-running the pair's last full update at its recorded collider poses.
 
 use crate::alloc_prelude::*;
 use crate::dynamics::RigidBodySet;

@@ -1,8 +1,7 @@
 //! Snapshot deltas of the narrow phase.
 //!
-//! Pairs (contact and intersection graph edges) are stamped where they are written. The small
-//! per-edge and per-body side arrays are written from many places, some in parallel through
-//! raw pointers: their changes are found by comparison with a copy (see [`ShadowStamps`]).
+//! Pairs are stamped where they are written. The small side arrays, written from many places
+//! (some in parallel), are diffed against a copy instead (see [`ShadowStamps`]).
 
 use super::*;
 use crate::data::coarena::CoarenaDelta;

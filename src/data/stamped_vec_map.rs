@@ -98,7 +98,7 @@ impl<V> StampedVecMap<V> {
 #[cfg(feature = "serde-serialize")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct VecMapDelta<V> {
-    n: u64,
+    n: u32,
     v: crate::data::delta::VecDelta<Option<V>>,
 }
 
@@ -106,7 +106,7 @@ pub(crate) struct VecMapDelta<V> {
 impl<V: Clone> StampedVecMap<V> {
     pub(crate) fn collect_delta(&self, since: Option<u32>) -> VecMapDelta<V> {
         VecMapDelta {
-            n: self.n as u64,
+            n: self.n as u32,
             v: crate::data::delta::VecDelta::collect(&self.v, &self.stamps, since),
         }
     }

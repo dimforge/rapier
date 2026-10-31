@@ -58,16 +58,11 @@ pub struct ColliderSet {
     delta_state: snapshot_delta::ColliderDeltaState,
 }
 
-/// Serialization of the collider arena with shape interning: each distinct shape is
-/// written once into a table, and colliders reference it by index.
+/// Serialization of the collider arena with shape interning: each distinct shape is written
+/// once into a table, and colliders reference it by index (restoring shares one `Arc` per entry).
 ///
-/// Distinctness is decided by serialized *content* (see `utils::content_hash`), not by
-/// `Arc` identity: identity is process-local, so grouping by it would make a restored
-/// world's snapshot differ from the uninterrupted run's as soon as the application
-/// spawns post-restore colliders from its own shape cache. Content grouping is
-/// canonical, and identity only serves as a memoization key so each distinct `Arc` is
-/// hashed once per snapshot. Restoring gives every collider of one table entry the same
-/// `Arc`, so N colliders over one trimesh cost one serialized trimesh instead of N.
+/// Shapes are grouped by serialized content (see `utils::content_hash`), not by `Arc` identity,
+/// which is process-local and would make a restored world's snapshots differ.
 #[cfg(feature = "serde-serialize")]
 mod interned_colliders {
     use super::Collider;
@@ -818,7 +813,7 @@ mod snapshot_delta {
     #[derive(Clone, Debug, Default)]
     pub(super) struct ColliderDeltaState {
         tracker: ChangeTracker,
-        /// Sender side: the tick up to which `slot_keys`/`holders` reflect the stamped slots.
+        /// Sender side: the tick up to which `slot_keys`/`held` reflect the stamped slots.
         synced: Option<u32>,
         slot_keys: Vec<Option<SlotKey>>,
         /// Per heavy shape content: the tick since which some collider continuously held it,
@@ -900,9 +895,8 @@ mod snapshot_delta {
             }
         }
 
-        /// Whether a receiver at `since` already holds a shape of content `key`: the content
-        /// has been continuously held here since a tick it already had. Deltas are taken at
-        /// syncs, so a receiver's baseline is one of the ticks this bookkeeping observed.
+        /// Whether a receiver at `since` already holds a shape of content `key`: some collider
+        /// held it continuously since that tick (every issued tick is a sync point).
         fn receiver_holds(&self, key: &ContentKey, since: u32) -> bool {
             self.held
                 .get(key)

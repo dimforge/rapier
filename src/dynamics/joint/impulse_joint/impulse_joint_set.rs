@@ -854,17 +854,7 @@ mod snapshot_delta {
             self.joint_graph.graph.apply_delta(
                 delta.joint_graph,
                 RigidBodyHandle::invalid,
-                || {
-                    ImpulseJoint {
-                        body1: RigidBodyHandle::invalid(),
-                        body2: RigidBodyHandle::invalid(),
-                        data: GenericJoint::default(),
-                        impulses: Default::default(),
-                        handle: ImpulseJointHandle::invalid(),
-                        solver_body_ids: [u32::MAX; 2],
-                        solver_color: 0,
-                    }
-                },
+                ImpulseJoint::placeholder,
             )?;
             self.to_wake_up = delta.to_wake_up.into_iter().collect();
             self.to_join = delta.to_join.into_iter().collect();

@@ -49,6 +49,20 @@ fn default_solver_body_ids() -> [u32; 2] {
 }
 
 impl ImpulseJoint {
+    /// A joint attached to nothing, filling a storage slot until it is overwritten.
+    #[cfg(feature = "serde-serialize")]
+    pub(crate) fn placeholder() -> Self {
+        Self {
+            body1: RigidBodyHandle::invalid(),
+            body2: RigidBodyHandle::invalid(),
+            data: GenericJoint::default(),
+            impulses: Default::default(),
+            handle: ImpulseJointHandle::invalid(),
+            solver_body_ids: [u32::MAX; 2],
+            solver_color: 0,
+        }
+    }
+
     /// Handle to the first body attached to this joint.
     #[inline]
     pub fn body1(&self) -> RigidBodyHandle {

@@ -206,6 +206,10 @@ impl SolverContactGraph {
     // Sizes the staged solver's worker-count clamp; the single-threaded path
     // doesn't need totals.
     #[cfg_attr(not(feature = "parallel"), allow(dead_code))]
+    pub(crate) fn len(&self) -> usize {
+        self.buckets.iter().map(|b| b.len()).sum()
+    }
+
     /// Every bucket (colors, then the generic list), in storage order.
     pub(crate) fn raw_buckets(&self) -> &[Vec<ContactRef>] {
         &self.buckets
@@ -214,10 +218,6 @@ impl SolverContactGraph {
     #[cfg(feature = "serde-serialize")]
     pub(crate) fn raw_buckets_mut(&mut self) -> &mut Vec<Vec<ContactRef>> {
         &mut self.buckets
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.buckets.iter().map(|b| b.len()).sum()
     }
 
     /// Iterates every non-empty two-body color bucket as `(color, &[ContactRef])`, skipping the

@@ -1,10 +1,8 @@
 //! A serde serializer that hashes a value's serialized content instead of writing it.
 //!
-//! Used by the collider shape interning (see `collider_set.rs`) to group shapes by content,
-//! and by snapshot deltas to name heavy shapes a receiver already holds. The key is a
-//! deterministic function of the serde data stream, so it does not need to be stable across
-//! versions, but it must not depend on the platform: all lengths are hashed as `u64` and all
-//! scalars as their little-endian bytes.
+//! Used by the collider shape interning and by snapshot deltas to name shapes by content. The
+//! key may change across versions but not across platforms: lengths are hashed as `u64` and
+//! scalars as little-endian bytes.
 
 use core::fmt::Display;
 use serde::ser::{

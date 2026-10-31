@@ -129,7 +129,7 @@ const DEFAULT_CAPACITY: usize = 4;
 pub(crate) struct ArenaDelta<T> {
     generation: u32,
     free_list_head: Option<u32>,
-    len: u64,
+    len: u32,
     items: crate::data::delta::VecDelta<Entry<T>>,
 }
 
@@ -145,7 +145,7 @@ impl<T> Arena<T> {
         ArenaDelta {
             generation: self.generation,
             free_list_head: self.free_list_head,
-            len: self.len as u64,
+            len: self.len as u32,
             items: crate::data::delta::VecDelta::collect_with(
                 &self.items,
                 &self.stamps,
