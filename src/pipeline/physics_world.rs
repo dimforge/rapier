@@ -60,7 +60,7 @@ use crate::pipeline::{DebugRenderBackend, DebugRenderPipeline};
 ///
 /// println!("Ball position: {:?}", world.bodies[ball].translation());
 /// ```
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde-serialize", derive(Serialize))]
 pub struct PhysicsWorld {
     /// Gravity applied to all dynamic bodies each step.
     pub gravity: Vector,
@@ -112,6 +112,58 @@ impl Default for PhysicsWorld {
             soft_bodies: SoftBodySet::new(),
             ccd_solver: CCDSolver::new(),
         }
+    }
+}
+
+/// Deserializes the snapshot fields, then rebuilds the derived data they leave empty, so a
+/// restored world can be read before its first step.
+#[cfg(feature = "serde-serialize")]
+impl<'de> serde::Deserialize<'de> for PhysicsWorld {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // The serialized fields of `PhysicsWorld`, in order.
+        #[derive(serde::Deserialize)]
+        #[serde(rename = "PhysicsWorld")]
+        struct Repr {
+            gravity: Vector,
+            integration_parameters: IntegrationParameters,
+            islands: IslandManager,
+            broad_phase: BroadPhaseBvh,
+            narrow_phase: NarrowPhase,
+            bodies: RigidBodySet,
+            colliders: ColliderSet,
+            impulse_joints: ImpulseJointSet,
+            multibody_joints: MultibodyJointSet,
+            soft_bodies: SoftBodySet,
+        }
+        let Repr {
+            gravity,
+            integration_parameters,
+            islands,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+        } = Repr::deserialize(deserializer)?;
+        let mut world = PhysicsWorld {
+            gravity,
+            integration_parameters,
+            physics_pipeline: PhysicsPipeline::new(),
+            collision_pipeline: CollisionPipeline::new(),
+            islands,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+            ccd_solver: CCDSolver::new(),
+        };
+        world.components_mut().rebuild_derived_state();
+        Ok(world)
     }
 }
 

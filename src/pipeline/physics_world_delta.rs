@@ -147,6 +147,16 @@ impl WorldComponentsMut<'_> {
         for_each_component!(disable);
     }
 
+    /// Rebuilds the derived data a deserialization or a delta leaves empty until the next step
+    /// (replayable solver contacts and manifold normals, multibody jacobians and mass
+    /// matrices), so it can be read right away. Nothing serialized changes.
+    pub fn rebuild_derived_state(&mut self) {
+        self.narrow_phase
+            .rebuild_solver_contacts(self.bodies, self.colliders);
+        self.multibody_joints
+            .rebuild_derived_data(self.bodies, self.integration_parameters.dt);
+    }
+
     /// See [`PhysicsWorld::is_change_tracking_enabled`].
     pub fn is_change_tracking_enabled(&self) -> bool {
         self.bodies.is_change_tracking_enabled()
@@ -227,6 +237,7 @@ impl WorldComponentsMut<'_> {
         self.impulse_joints.apply_delta(impulse_joints)?;
         self.multibody_joints.apply_delta(multibody_joints)?;
         self.soft_bodies.apply_delta(soft_bodies)?;
+        self.rebuild_derived_state();
         Ok(tick)
     }
 }

@@ -1049,3 +1049,36 @@ fn stepped_receiver_recovers_with_a_full_delta() {
         assert_same(step, &record(&world), &record(&receiver), "after the full delta");
     }
 }
+
+/// A restored world can be read before its first step: the compact solver contacts are
+/// replayed (manifold normals included) and the multibodies' derived matrices rebuilt.
+#[test]
+fn restored_world_is_readable_before_stepping() {
+    let mut world = pile(false);
+    let fixed = world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(6.0, 4.0, 0.0)));
+    let link = world.insert_body(RigidBodyBuilder::dynamic().can_sleep(false));
+    world.insert_collider(ColliderBuilder::cuboid(0.05, 0.2, 0.05), Some(link));
+    let joint = SphericalJointBuilder::new()
+        .local_anchor2(Vector::new(0.0, -0.2, 0.0))
+        .build()
+        .data;
+    let mb = world.insert_multibody_joint(fixed, link, joint).unwrap();
+    for _ in 0..30 {
+        world.step();
+    }
+
+    let restored = restore(&save(&world));
+    let normals = |w: &PhysicsWorld| -> Vec<Vector> {
+        w.narrow_phase
+            .contact_pairs()
+            .flat_map(|pair| pair.manifolds().iter().map(|m| m.data.normal))
+            .collect()
+    };
+    let want = normals(&world);
+    assert!(want.iter().any(|n| *n != Vector::ZERO));
+    assert_eq!(normals(&restored), want);
+
+    let (multibody, link_id) = restored.multibody_joints.get(mb).unwrap();
+    assert_eq!(multibody.body_jacobian(link_id).ncols(), multibody.ndofs());
+    assert_eq!(multibody.inv_augmented_mass().l().nrows(), multibody.ndofs());
+}

@@ -19,10 +19,13 @@ impl super::NarrowPhase {
     /// Recomputes the solver-facing contact data (solver contacts, manifold normals,
     /// frozen lever arms) that snapshots store in compact form.
     ///
-    /// The first narrow-phase update after a deserialization runs this automatically;
-    /// call it explicitly only to read solver contacts from a freshly restored world
-    /// before its first step.
+    /// Restoring a `PhysicsWorld` (or applying a world delta) runs it, as does the first
+    /// narrow-phase update after a deserialization; otherwise call it to read the contacts of a
+    /// freshly restored narrow phase before its first step. It does nothing if not needed.
     pub fn rebuild_solver_contacts(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
+        if !self.pending_solver_replay {
+            return;
+        }
         self.pending_solver_replay = false;
         for edge in self.contact_graph.graph.edges.iter_mut() {
             replay_pair(&mut edge.weight, bodies, colliders);

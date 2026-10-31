@@ -92,10 +92,10 @@ pub struct MultibodyDofCoupling {
 
 /// An articulated body simulated using the reduced-coordinates approach.
 ///
-/// Serialization only stores the state fields (links, generalized velocities and
-/// per-dof parameters): the jacobians, mass matrices and workspaces below are
-/// rebuilt by the first `forward_kinematics`/`update_mass_matrix` after a restore,
-/// which the pipeline runs for every multibody before any of them is read.
+/// Serialization only stores the state fields (links, generalized velocities and per-dof
+/// parameters). Restoring a `PhysicsWorld` rebuilds the jacobians and mass matrices; a
+/// `MultibodyJointSet` restored alone leaves them empty until its first step (see
+/// [`MultibodyJointSet::rebuild_derived_data`](crate::dynamics::MultibodyJointSet::rebuild_derived_data)).
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 pub struct Multibody {
@@ -858,6 +858,13 @@ impl Multibody {
                 link_j_v.gemm(1.0, &shift_tr, &link_j_w, 1.0);
             }
         }
+    }
+
+    /// Recomputes the body jacobians and mass matrices from the links, writing nothing else.
+    #[cfg(feature = "serde-serialize")]
+    pub(crate) fn rebuild_derived_data(&mut self, dt: Real, bodies: &RigidBodySet) {
+        self.update_body_jacobians();
+        self.update_mass_matrix(dt, bodies);
     }
 
     pub(crate) fn update_mass_matrix(&mut self, dt: Real, bodies: &RigidBodySet) {
