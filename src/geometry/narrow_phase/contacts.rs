@@ -46,7 +46,7 @@ impl NarrowPhase {
         // A freshly deserialized narrow phase holds compact solver-contact stubs;
         // replay them before anything reads solver contacts.
         #[cfg(feature = "serde-serialize")]
-        if self.pending_solver_replay {
+        if !self.pending_solver_replay.is_none() {
             self.rebuild_solver_contacts(bodies, colliders);
         }
 

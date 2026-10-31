@@ -139,6 +139,7 @@ impl DeltaComponent for NarrowPhase {
     }
 
     fn apply_delta_payload(&mut self, delta: NarrowPhaseDelta) -> Result<(), DeltaError> {
+        let patched: Vec<u32> = delta.contact_graph.edge_indices().collect();
         self.contact_graph.graph.apply_delta(
             delta.contact_graph,
             ColliderHandle::invalid,
@@ -179,7 +180,7 @@ impl DeltaComponent for NarrowPhase {
 
         // Like after a deserialization: the patched pairs replay their solver contacts at the
         // next update, and the per-step caches are rebuilt.
-        self.pending_solver_replay = true;
+        self.pending_solver_replay.extend(patched.into_iter());
         self.body_qualify_info.clear();
         self.retired_pairs.clear();
         self.soft_self.clear();

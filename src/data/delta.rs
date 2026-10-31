@@ -338,6 +338,14 @@ mod internal {
 
 pub(crate) use internal::{ChangeTracker, DeltaComponent};
 
+/// Checks that `delta` can be applied to `component`, without applying it.
+pub(crate) fn check_delta_baseline<C: DeltaComponent>(
+    component: &C,
+    delta: &Delta<C>,
+) -> Result<(), DeltaError> {
+    component.change_tracker().check_apply(delta.from)
+}
+
 /// Forgets the sender state `component` mirrored, once it diverged from it (it was stepped).
 pub(crate) fn clear_delta_baseline(component: &mut impl DeltaComponent) {
     component.change_tracker_mut().clear_applied();
@@ -502,6 +510,34 @@ impl UnstampedWriteCheck {
     }
 }
 
+/// The storage slots whose derived data a deserialization or a delta left stale, so it is
+/// rebuilt only where needed.
+#[derive(Clone, Debug, Default)]
+pub(crate) enum StaleSlots {
+    /// Nothing to rebuild.
+    #[default]
+    None,
+    /// Every slot (after a deserialization).
+    All,
+    /// These slots (after deltas).
+    Some(Vec<u32>),
+}
+
+impl StaleSlots {
+    pub(crate) fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    /// Adds `slots` to the stale set.
+    pub(crate) fn extend(&mut self, slots: impl Iterator<Item = u32>) {
+        match self {
+            Self::All => {}
+            Self::None => *self = Self::Some(slots.collect()),
+            Self::Some(list) => list.extend(slots),
+        }
+    }
+}
+
 /// The stamped slots of an index-addressed vector: its new length, and the content of every
 /// slot written after the baseline (every slot for a full delta).
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -511,6 +547,11 @@ pub(crate) struct VecDelta<T> {
 }
 
 impl<T> VecDelta<T> {
+    /// The indices of the slots this delta writes.
+    pub(crate) fn slot_indices(&self) -> impl Iterator<Item = u32> + '_ {
+        self.slots.iter().map(|(i, _)| *i)
+    }
+
     /// Gathers the slots of `items` written after `since`, transformed by `f`.
     pub(crate) fn collect_with<U>(
         items: &[U],

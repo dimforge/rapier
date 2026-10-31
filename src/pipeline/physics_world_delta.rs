@@ -227,6 +227,16 @@ impl WorldComponentsMut<'_> {
             multibody_joints,
             soft_bodies,
         } = delta;
+        // A stale or duplicate delta changes nothing.
+        use crate::data::delta::check_delta_baseline as check;
+        check(&*self.islands, &islands)?;
+        check(&*self.broad_phase, &broad_phase)?;
+        check(&*self.narrow_phase, &narrow_phase)?;
+        check(&*self.bodies, &bodies)?;
+        check(&*self.colliders, &colliders)?;
+        check(&*self.impulse_joints, &impulse_joints)?;
+        check(&*self.multibody_joints, &multibody_joints)?;
+        check(&*self.soft_bodies, &soft_bodies)?;
         *self.gravity = gravity;
         *self.integration_parameters = integration_parameters;
         self.islands.apply_delta(islands)?;

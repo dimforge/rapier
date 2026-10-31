@@ -19,12 +19,22 @@ impl super::NarrowPhase {
     /// narrow-phase update after a deserialization; otherwise call it to read the contacts of a
     /// freshly restored narrow phase before its first step. It does nothing if not needed.
     pub fn rebuild_solver_contacts(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
-        if !self.pending_solver_replay {
-            return;
-        }
-        self.pending_solver_replay = false;
-        for edge in self.contact_graph.graph.edges.iter_mut() {
-            replay_pair(&mut edge.weight, bodies, colliders);
+        use crate::data::delta::StaleSlots;
+        let edges = &mut self.contact_graph.graph.edges;
+        match core::mem::take(&mut self.pending_solver_replay) {
+            StaleSlots::None => {}
+            StaleSlots::All => {
+                for edge in edges.iter_mut() {
+                    replay_pair(&mut edge.weight, bodies, colliders);
+                }
+            }
+            StaleSlots::Some(patched) => {
+                for i in patched {
+                    if let Some(edge) = edges.get_mut(i as usize) {
+                        replay_pair(&mut edge.weight, bodies, colliders);
+                    }
+                }
+            }
         }
     }
 }

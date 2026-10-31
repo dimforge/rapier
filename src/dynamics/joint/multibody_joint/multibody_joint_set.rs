@@ -89,9 +89,19 @@ pub struct MultibodyJointSet {
     /// solver contact graph detect that its two-body vs. generic (multibody)
     /// manifold classification may be stale and must be rebuilt.
     pub(crate) topology_epoch: u32,
+    /// The multibodies whose jacobians and mass matrices a deserialization or a delta left
+    /// empty (see [`Self::rebuild_derived_data`]).
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip, default = "all_stale")]
+    stale_derived: crate::data::delta::StaleSlots,
     #[cfg(feature = "serde-serialize")]
     #[serde(skip)]
     change_tracker: crate::data::delta::ChangeTracker,
+}
+
+#[cfg(feature = "serde-serialize")]
+fn all_stale() -> crate::data::delta::StaleSlots {
+    crate::data::delta::StaleSlots::All
 }
 
 impl MultibodyJointSet {
@@ -105,6 +115,8 @@ impl MultibodyJointSet {
             to_join: HashSet::default(),
             island_chain_events: Vec::new(),
             topology_epoch: 0,
+            #[cfg(feature = "serde-serialize")]
+            stale_derived: Default::default(),
             #[cfg(feature = "serde-serialize")]
             change_tracker: Default::default(),
         }
@@ -535,10 +547,23 @@ mod snapshot_delta {
             bodies: &crate::dynamics::RigidBodySet,
             dt: crate::math::Real,
         ) {
+            use crate::data::delta::StaleSlots;
             // Only non-serialized fields change: nothing to stamp.
-            let (multibodies, _) = self.multibodies.iter_mut_unstamped();
-            for (_, multibody) in multibodies {
-                multibody.rebuild_derived_data(dt, bodies);
+            match core::mem::take(&mut self.stale_derived) {
+                StaleSlots::None => {}
+                StaleSlots::All => {
+                    let (multibodies, _) = self.multibodies.iter_mut_unstamped();
+                    for (_, multibody) in multibodies {
+                        multibody.rebuild_derived_data(dt, bodies);
+                    }
+                }
+                StaleSlots::Some(patched) => {
+                    for i in patched {
+                        if let Some(mb) = self.multibodies.get_unknown_gen_mut_unstamped(i) {
+                            mb.rebuild_derived_data(dt, bodies);
+                        }
+                    }
+                }
             }
         }
     }
@@ -583,6 +608,7 @@ mod snapshot_delta {
                 to_join: _,
                 island_chain_events: _,
                 topology_epoch: _,
+                stale_derived: _,
                 change_tracker: _,
             } = self;
             let mut to_wake_up: Vec<_> = self.to_wake_up.iter().copied().collect();
@@ -601,6 +627,7 @@ mod snapshot_delta {
         }
 
         fn apply_delta_payload(&mut self, delta: MultibodyJointSetDelta) -> Result<(), DeltaError> {
+            self.stale_derived.extend(delta.multibodies.slot_indices());
             self.multibodies.apply_delta(delta.multibodies)?;
             self.rb2mb.apply_delta(delta.rb2mb)?;
             self.connectivity_graph.graph.apply_delta(

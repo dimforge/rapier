@@ -815,6 +815,14 @@ pub(crate) struct GraphDelta<N, E> {
 }
 
 #[cfg(feature = "serde-serialize")]
+impl<N, E> GraphDelta<N, E> {
+    /// The indices of the edges this delta writes.
+    pub(crate) fn edge_indices(&self) -> impl Iterator<Item = u32> + '_ {
+        self.edges.slot_indices()
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
 impl<N: Clone, E: Clone> Graph<N, E> {
     pub(crate) fn collect_delta(&self, since: Option<u32>) -> GraphDelta<N, E> {
         GraphDelta {

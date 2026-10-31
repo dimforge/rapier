@@ -134,6 +134,14 @@ pub(crate) struct ArenaDelta<T> {
 }
 
 #[cfg(feature = "serde-serialize")]
+impl<T> ArenaDelta<T> {
+    /// The indices of the slots this delta writes.
+    pub(crate) fn slot_indices(&self) -> impl Iterator<Item = u32> + '_ {
+        self.items.slot_indices()
+    }
+}
+
+#[cfg(feature = "serde-serialize")]
 impl<T> Arena<T> {
     /// The slots written after `since` (all of them for `None`), transformed by `f` (which
     /// also receives the slot index).
@@ -617,6 +625,15 @@ impl<T> Arena<T> {
             Some(Entry::Occupied { generation, value }) if *generation == i.generation => {
                 Some(value)
             }
+            _ => None,
+        }
+    }
+
+    /// Like [`Self::get_unknown_gen_mut`] without stamping, for writes of non-serialized data.
+    #[cfg(feature = "serde-serialize")]
+    pub(crate) fn get_unknown_gen_mut_unstamped(&mut self, i: u32) -> Option<&mut T> {
+        match self.items.get_mut(i as usize) {
+            Some(Entry::Occupied { value, .. }) => Some(value),
             _ => None,
         }
     }

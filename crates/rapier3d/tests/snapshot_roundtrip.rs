@@ -1238,3 +1238,54 @@ fn locally_built_receiver_keeps_shared_content() {
     receiver.apply_delta(delta_roundtrip(delta)).unwrap();
     assert!(bincode::serialize(&sender).unwrap() == bincode::serialize(&receiver).unwrap());
 }
+
+/// A stale delta is rejected before it changes anything, gravity included.
+#[test]
+fn stale_world_delta_changes_nothing() {
+    use rapier3d::data::DeltaError;
+
+    let mut world = pile(true);
+    world.step();
+    world.enable_change_tracking();
+    let baseline = world.change_tick().unwrap();
+    let mut receiver = restore(&save(&world));
+    receiver.set_delta_baseline(baseline);
+    world.step();
+    let (delta, _) = world.delta_since(Some(baseline)).unwrap();
+    receiver.apply_delta(delta).unwrap();
+
+    let gravity = receiver.gravity;
+    world.gravity = Vector::new(0.0, -1.0, 0.0);
+    let (stale, _) = world.delta_since(Some(baseline)).unwrap();
+    assert_eq!(
+        receiver.apply_delta(stale).unwrap_err(),
+        DeltaError::BaselineMismatch
+    );
+    assert_eq!(receiver.gravity, gravity);
+}
+
+/// Applying a delta rebuilds the derived data of the multibodies it patches.
+#[test]
+fn applied_delta_rebuilds_patched_multibodies() {
+    let mut world = PhysicsWorld::new();
+    let fixed = world.insert_body(RigidBodyBuilder::fixed());
+    let link = world.insert_body(RigidBodyBuilder::dynamic().can_sleep(false));
+    world.insert_collider(ColliderBuilder::cuboid(0.05, 0.2, 0.05), Some(link));
+    let joint = SphericalJointBuilder::new()
+        .local_anchor2(Vector::new(0.0, -0.2, 0.0))
+        .build()
+        .data;
+    let mb = world.insert_multibody_joint(fixed, link, joint).unwrap();
+    world.enable_change_tracking();
+    let mut receiver = PhysicsWorld::new();
+    let (full, mut acked) = world.delta_since(None).unwrap();
+    receiver.apply_delta(full).unwrap();
+    for _ in 0..3 {
+        world.step();
+        let (delta, tick) = world.delta_since(Some(acked)).unwrap();
+        receiver.apply_delta(delta).unwrap();
+        acked = tick;
+        let (multibody, link_id) = receiver.multibody_joints.get(mb).unwrap();
+        assert_eq!(multibody.body_jacobian(link_id).ncols(), multibody.ndofs());
+    }
+}

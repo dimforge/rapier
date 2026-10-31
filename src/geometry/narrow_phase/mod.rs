@@ -414,21 +414,19 @@ pub struct NarrowPhase {
     /// step) skip the buffer reallocation of freshly constructed pairs.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     retired_pairs: Vec<ContactPair>,
-    /// Whether the pairs' replayable solver contacts still hold deserialized stubs
-    /// (see `restore`). Not serialized: defaults to `true` on deserialization so the
-    /// next update (or an explicit [`Self::rebuild_solver_contacts`]) replays them;
-    /// a live narrow phase keeps it `false`.
+    /// The contact pairs whose replayable solver contacts may still hold deserialized stubs
+    /// (see `restore`): every pair after a deserialization, the patched ones after deltas.
     #[cfg(feature = "serde-serialize")]
-    #[serde(skip, default = "default_true")]
-    pending_solver_replay: bool,
+    #[serde(skip, default = "all_stale")]
+    pending_solver_replay: crate::data::delta::StaleSlots,
     #[cfg(feature = "serde-serialize")]
     #[serde(skip)]
     delta_state: snapshot_delta::NarrowPhaseDeltaState,
 }
 
 #[cfg(feature = "serde-serialize")]
-fn default_true() -> bool {
-    true
+fn all_stale() -> crate::data::delta::StaleSlots {
+    crate::data::delta::StaleSlots::All
 }
 
 pub(crate) type ContactManifoldIndex = usize;
@@ -473,7 +471,7 @@ impl NarrowPhase {
             solver_color_todo: Vec::new(),
             soft_self: Default::default(),
             #[cfg(feature = "serde-serialize")]
-            pending_solver_replay: false,
+            pending_solver_replay: crate::data::delta::StaleSlots::None,
             #[cfg(feature = "serde-serialize")]
             delta_state: Default::default(),
         }
