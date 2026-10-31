@@ -1715,11 +1715,23 @@ fn delta_err(py: Python<'_>, e: rapier::data::DeltaError) -> PyErr {
 /// Largest delta or tick blob accepted, as in the C bindings.
 const MAX_DELTA_BYTES: usize = 256 * 1024 * 1024;
 
+/// Encodes a delta or tick blob with the same options and size limit as `delta_from_py`.
 fn delta_to_py<'py, T: serde::Serialize>(
     py: Python<'py>,
     value: &T,
 ) -> PyResult<Bound<'py, PyBytes>> {
-    let payload = crate::bincode::serialize(value).map_err(crate::serde_io::bincode_err)?;
+    use crate::bincode::Options;
+    // The receiver's limit covers the header too.
+    let payload = crate::bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .with_limit((MAX_DELTA_BYTES - crate::serde_io::HEADER_SIZE) as u64)
+        .serialize(value)
+        .map_err(|e| match *e {
+            crate::bincode::ErrorKind::SizeLimit => crate::errors::SerializationError::new_err(
+                "encoded delta exceeds the 256 MiB limit accepted by apply_delta",
+            ),
+            _ => crate::serde_io::bincode_err(e),
+        })?;
     Ok(crate::serde_io::bytes_to_py(
         py,
         &crate::serde_io::wrap_bincode(payload),
@@ -1914,3 +1926,4 @@ impl PhysicsWorld {
             .clear();
         delta_to_py(py, &tick)
     }
+}

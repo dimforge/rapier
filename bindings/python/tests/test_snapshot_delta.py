@@ -235,7 +235,7 @@ def test_stepped_receiver_rejects_the_next_delta_then_recovers_with_a_full_delta
     assert receiver.snapshot() == sender.snapshot()
 
 
-def test_change_tick_snapshot_and_set_delta_baseline():
+def test_restored_receiver_needs_a_declared_baseline():
     sender = _build_world()
     with pytest.raises(r.DeltaError) as e:
         sender.change_tick()
@@ -246,23 +246,20 @@ def test_change_tick_snapshot_and_set_delta_baseline():
         sender.step()
     tick = sender.change_tick()
     assert isinstance(tick, bytes)
-    receiver = r.PhysicsWorld.restore(sender.snapshot())
-
-    # Without the declared baseline, the restored receiver rejects incremental deltas.
+    snapshot = sender.snapshot()
     sender.step()
     delta, _ = sender.delta_since(tick)
+
+    # The same delta is rejected by a restored receiver until its baseline is declared.
+    receiver = r.PhysicsWorld.restore(snapshot)
     with pytest.raises(r.DeltaError) as e:
         receiver.apply_delta(delta)
     assert e.value.kind == "baseline_mismatch"
 
-    tick = sender.change_tick()
-    receiver = r.PhysicsWorld.restore(sender.snapshot())
+    receiver = r.PhysicsWorld.restore(snapshot)
     receiver.set_delta_baseline(tick)
-    acked = tick
-    for _ in range(10):
-        sender.step()
-        acked = _sync(sender, receiver, acked)
-        assert receiver.snapshot() == sender.snapshot()
+    receiver.apply_delta(delta)
+    assert receiver.snapshot() == sender.snapshot()
 
 
 def _contact_summary(w):
