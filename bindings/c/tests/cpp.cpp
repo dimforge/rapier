@@ -42,13 +42,21 @@ int main() {
         rapier::check(RAPIER_FN(LastStatus)());
         auto replica = rapier::make_world();
         auto fullDelta = RAPIER_FN(Bytes_Data)(full.delta.get());
-        rapier::Snapshot acked(
+        rapier::Bytes acked(
             RAPIER_FN(ApplyWorldDelta)(replica.get(), fullDelta.data, fullDelta.count));
         rapier::check(RAPIER_FN(LastStatus)());
         auto ackedTick = RAPIER_FN(Bytes_Data)(acked.get());
         auto fullTick = RAPIER_FN(Bytes_Data)(full.tick.get());
         assert(ackedTick.count == fullTick.count &&
                std::memcmp(ackedTick.data, fullTick.data, fullTick.count) == 0);
+        // A replica restored from a snapshot declares the tick issued right before it.
+        rapier::Bytes tick = rapier::change_tick(moved.get());
+        rapier::Snapshot tracked(RAPIER_FN(SerializeWorld)(moved.get()));
+        auto trackedBytes = RAPIER_FN(Bytes_Data)(tracked.get());
+        rapier::World restored(
+            RAPIER_FN(DeserializeWorld)(trackedBytes.data, trackedBytes.count));
+        rapier::check(RAPIER_FN(LastStatus)());
+        rapier::set_delta_baseline(restored.get(), tick);
         rapier::WorldDelta failed(RAPIER_FN(SerializeWorldDelta)(nullptr, nullptr, 0));
         assert(!failed.delta && !failed.tick &&
                RAPIER_FN(LastStatus)() == RAPIER_CONST(NULL_POINTER));

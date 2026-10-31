@@ -1331,6 +1331,7 @@ fn wire_header(magic: &[u8; 4], abi_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
     header
 }
 
+#[cfg(test)]
 fn snapshot_header(abi_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
     wire_header(SNAPSHOT_MAGIC, abi_version)
 }
@@ -1378,6 +1379,15 @@ fn owned_bytes(bytes: Vec<u8>) -> *mut RprBytes {
     Box::into_raw(Box::new(RprBytes(bytes)))
 }
 
+/// Decodes baseline tick bytes; NULL with a zero count is no baseline.
+unsafe fn decode_tick(data: *const u8, count: usize) -> Result<Option<WorldChangeTick>> {
+    if data.is_null() {
+        ensure(count == 0, "a NULL baseline tick must have zero length")?;
+        return Ok(None);
+    }
+    unsafe { decode_wire(TICK_MAGIC, "snapshot tick", data, count).map(Some) }
+}
+
 /// UNSUPPORTED without change tracking; any other delta failure is an invalid argument.
 fn delta_error(error: rapier::data::DeltaError) -> (RprStatus, String) {
     use rapier::data::DeltaError;
@@ -1393,8 +1403,8 @@ fn delta_error(error: rapier::data::DeltaError) -> (RprStatus, String) {
              delta (NULL baseline) instead"
         }
         DeltaError::BaselineMismatch => {
-            "the delta's baseline does not match this world's state; resynchronize it with a \
-             full delta or a snapshot"
+            "this world does not hold the delta's baseline (it was stepped, or never declared \
+             that baseline); resynchronize it with a full delta"
         }
         DeltaError::Malformed => "malformed snapshot delta",
         DeltaError::MissingShape => "the delta references a shape this world does not hold",
@@ -1414,13 +1424,8 @@ pub unsafe extern "C" fn rpr_serialize_world(world: *const RprWorld) -> *mut Rpr
             let world: *const RprPhysicsWorld = raw;
 
             out_ptr(out)?;
-            let mut bytes = snapshot_header(RPR_ABI_VERSION).to_vec();
-            bytes.extend(
-                snapshot_options()
-                    .serialize(&get(world)?.0)
-                    .map_err(|e| invalid(e.to_string()))?,
-            );
-            output(out, Box::into_raw(Box::new(RprBytes(bytes))))
+            let bytes = encode_wire(SNAPSHOT_MAGIC, &get(world)?.0)?;
+            output(out, owned_bytes(bytes))
         })
     })
 }
@@ -1433,15 +1438,8 @@ pub unsafe extern "C" fn rpr_deserialize_world(data: *const u8, count: usize) ->
     ffi_value(|out: *mut *mut RprWorld| {
         ffi(|| unsafe {
             out_ptr(out)?;
-            ensure(count <= MAX_SNAPSHOT_BYTES, "snapshot exceeds 256 MiB")?;
-            let bytes = input(data, count)?;
-            ensure(
-                bytes.starts_with(&snapshot_header(RPR_ABI_VERSION)),
-                "incompatible snapshot",
-            )?;
-            let world = snapshot_options()
-                .deserialize(&bytes[SNAPSHOT_HEADER_LEN..])
-                .map_err(|e| invalid(e.to_string()))?;
+            // Deserializing a PhysicsWorld also rebuilds its derived state.
+            let world = decode_wire(SNAPSHOT_MAGIC, "snapshot", data, count)?;
             output(
                 out,
                 Box::into_raw(Box::new(RprWorld::new(RprPhysicsWorld(world)))),
@@ -1451,7 +1449,7 @@ pub unsafe extern "C" fn rpr_deserialize_world(data: *const u8, count: usize) ->
 }
 
 /// Start recording which parts of the world change, for rpr_serialize_world_delta. Restarting
-/// it invalidates every tick issued before; see @ref snapshots.
+/// it invalidates every tick issued before; see @ref snapshot_deltas.
 /// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_enable_change_tracking(world: *mut RprWorld) -> RprStatus {
@@ -1462,7 +1460,8 @@ pub unsafe extern "C" fn rpr_enable_change_tracking(world: *mut RprWorld) -> Rpr
     })
 }
 
-/// Stop recording changes and drop the recorded state, invalidating every issued tick.
+/// Stop recording changes and drop the recorded state, invalidating every issued tick; see
+/// @ref snapshot_deltas.
 /// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_disable_change_tracking(world: *mut RprWorld) -> RprStatus {
@@ -1473,9 +1472,43 @@ pub unsafe extern "C" fn rpr_disable_change_tracking(world: *mut RprWorld) -> Rp
     })
 }
 
+/// Return owned bytes of a tick naming the world's current state, without building a delta
+/// (release with rpr_free_bytes; NULL on failure). Call it right before rpr_serialize_world to
+/// bootstrap a receiver from that snapshot; see @ref snapshot_deltas.
+/// @ingroup worlds
+#[rapier_export]
+pub unsafe extern "C" fn rpr_change_tick(world: *mut RprWorld) -> *mut RprBytes {
+    ffi_value(|out: *mut *mut RprBytes| {
+        ffi(|| unsafe {
+            out_ptr(out)?;
+            let access = get(world)?.write()?;
+            let tick = (*access.raw()).0.change_tick().map_err(delta_error)?;
+            output(out, owned_bytes(encode_wire(TICK_MAGIC, &tick)?))
+        })
+    })
+}
+
+/// Declare that this world holds the sender's state at the `tick` bytes (from
+/// rpr_change_tick), so incremental deltas from that tick can be applied to it. See
+/// @ref snapshot_deltas.
+/// @ingroup worlds
+#[rapier_export]
+pub unsafe extern "C" fn rpr_set_delta_baseline(
+    world: *mut RprWorld,
+    tick: *const u8,
+    tick_count: usize,
+) -> RprStatus {
+    ffi(|| unsafe {
+        let access = get(world)?.write()?;
+        let tick = decode_wire(TICK_MAGIC, "snapshot tick", tick, tick_count)?;
+        (*access.raw()).0.set_delta_baseline(tick);
+        Ok(())
+    })
+}
+
 /// Return owned bytes of the changes since the `since` tick bytes (NULL with since_count 0: the
 /// full state), and of the tick a receiver reaches once it applied them. Release both with
-/// rpr_free_bytes; both are NULL on failure. See @ref snapshots for the error codes.
+/// rpr_free_bytes; both are NULL on failure. See @ref snapshot_deltas for the error codes.
 /// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_serialize_world_delta(
@@ -1487,24 +1520,8 @@ pub unsafe extern "C" fn rpr_serialize_world_delta(
         ffi(|| unsafe {
             out_ptr(out)?;
             let access = get(world)?.write()?;
-            let since: Option<WorldChangeTick> = if since.is_null() {
-                ensure(
-                    since_count == 0,
-                    "a NULL baseline tick must have zero length",
-                )?;
-                None
-            } else {
-                Some(decode_wire(
-                    TICK_MAGIC,
-                    "snapshot tick",
-                    since,
-                    since_count,
-                )?)
-            };
-            let (delta, tick) = (*access.raw())
-                .0
-                .delta_since(since.as_ref())
-                .map_err(delta_error)?;
+            let since = decode_tick(since, since_count)?;
+            let (delta, tick) = (*access.raw()).0.delta_since(since).map_err(delta_error)?;
             let delta = encode_wire(DELTA_MAGIC, &delta)?;
             let tick = encode_wire(TICK_MAGIC, &tick)?;
             output(
@@ -1519,8 +1536,8 @@ pub unsafe extern "C" fn rpr_serialize_world_delta(
 }
 
 /// Apply only trusted delta bytes from the identical Rapier build, and return owned bytes of the
-/// tick to acknowledge to the sender (release with rpr_free_bytes). See @ref snapshots for the
-/// baseline this world must hold and for recovery after a failure.
+/// tick to acknowledge to the sender (release with rpr_free_bytes). See @ref snapshot_deltas for
+/// the baseline this world must hold and for recovery after a failure.
 /// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_apply_world_delta(
@@ -2565,6 +2582,9 @@ mod snapshot_header_tests {
             assert_eq!(rpr_last_status(), RPR_OK);
             assert!((*result.delta).0.starts_with(&delta));
             assert!((*result.tick).0.starts_with(&tick));
+            let change_tick = rpr_change_tick(world);
+            assert!((*change_tick).0.starts_with(&tick));
+            assert_eq!(rpr_free_bytes(change_tick), RPR_OK);
             let applied = rpr_apply_world_delta(world, (*result.delta).0.as_ptr(), 0);
             assert!(applied.is_null());
             assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);

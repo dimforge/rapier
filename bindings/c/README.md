@@ -87,7 +87,9 @@ C compiler. It generates all four dimension/precision variants without building
 the library or downloading testbed dependencies. Normal builds do not need Doxygen.
 
 The reference covers API usage, ownership, errors, callbacks, snapshots, and snapshot
-deltas.
+deltas. Delta receivers only accept deltas against the state they hold: bootstrap one
+with a full delta, or restore a snapshot and declare the sender's `ChangeTick` from
+right before it with `SetDeltaBaseline`.
 The CI workflow also provides a `rapier-c-api-docs` HTML artifact.
 
 - [C example](examples/falling_ball.c)

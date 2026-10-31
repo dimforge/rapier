@@ -50,6 +50,33 @@ unsafe fn reject_delta(world: *mut RprWorld, data: *const u8, count: usize, stat
     }
 }
 
+unsafe fn change_tick(world: *mut RprWorld) -> Vec<u8> {
+    unsafe {
+        let tick = rpr_change_tick(world);
+        assert_status(RPR_OK);
+        take(tick)
+    }
+}
+
+unsafe fn set_baseline(world: *mut RprWorld, tick: &[u8]) {
+    unsafe {
+        assert_eq!(
+            rpr_set_delta_baseline(world, tick.as_ptr(), tick.len()),
+            RPR_OK,
+            "{}",
+            last_error()
+        );
+    }
+}
+
+unsafe fn restore(snapshot: &[u8]) -> *mut RprWorld {
+    unsafe {
+        let world = rpr_deserialize_world(snapshot.as_ptr(), snapshot.len());
+        assert_status(RPR_OK);
+        world
+    }
+}
+
 unsafe fn apply(world: *mut RprWorld, delta: &[u8]) -> Vec<u8> {
     unsafe {
         let tick = rpr_apply_world_delta(world, delta.as_ptr(), delta.len());
@@ -129,18 +156,17 @@ fn world_deltas_replicate_a_stepping_world() {
     unsafe {
         let sender = pile();
         assert_eq!(rpr_enable_change_tracking(sender), RPR_OK);
-        // Restored receivers start from a snapshot taken at the instant of their baseline.
-        let restore = |bytes: &[u8]| {
-            let world = rpr_deserialize_world(bytes.as_ptr(), bytes.len());
-            assert_status(RPR_OK);
+        // Restored receivers declare the tick issued right before their snapshot.
+        let baseline = change_tick(sender);
+        let snapshot0 = snapshot(sender);
+        let restored = || {
+            let world = restore(&snapshot0);
+            set_baseline(world, &baseline);
             world
         };
-        let snapshot0 = snapshot(sender);
-        let (full, baseline) = delta(sender, None);
-        assert!(full.starts_with(b"RPRD") && baseline.starts_with(b"RPRT"));
         let mut receivers = [
             Receiver {
-                world: restore(&snapshot0),
+                world: restored(),
                 acked: Some(baseline.clone()),
                 every: 1,
             },
@@ -151,8 +177,8 @@ fn world_deltas_replicate_a_stepping_world() {
             },
             // Lags behind, each delta against its own older acknowledged tick.
             Receiver {
-                world: restore(&snapshot0),
-                acked: Some(baseline),
+                world: restored(),
+                acked: Some(baseline.clone()),
                 every: 4,
             },
         ];
@@ -198,8 +224,10 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
 
         // Without change tracking.
         reject_delta(sender, null, 0, RPR_UNSUPPORTED);
+        assert!(rpr_change_tick(sender).is_null());
+        assert_status(RPR_UNSUPPORTED);
         assert_eq!(rpr_enable_change_tracking(sender), RPR_OK);
-        let (_, old_tick) = delta(sender, None);
+        let old_tick = change_tick(sender);
         assert_eq!(rpr_disable_change_tracking(sender), RPR_OK);
         reject_delta(sender, old_tick.as_ptr(), old_tick.len(), RPR_UNSUPPORTED);
         // A restarted clock rejects the ticks issued before.
@@ -216,7 +244,7 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
         // Ticks of another world.
         let other = rpr_new_world();
         assert_eq!(rpr_enable_change_tracking(other), RPR_OK);
-        let (_, other_tick) = delta(other, None);
+        let other_tick = change_tick(other);
         reject_delta(
             sender,
             other_tick.as_ptr(),
@@ -257,6 +285,33 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
             RPR_INVALID_ARGUMENT,
         );
         reject_delta(std::ptr::null_mut(), null, 0, RPR_NULL_POINTER);
+        assert!(rpr_change_tick(std::ptr::null_mut()).is_null());
+        assert_status(RPR_NULL_POINTER);
+
+        // Malformed baseline declarations.
+        let declare = |world, data: *const u8, count| {
+            let status = rpr_set_delta_baseline(world, data, count);
+            assert_eq!(status, rpr_last_status());
+            status
+        };
+        assert_eq!(declare(sender, null, 0), RPR_INVALID_ARGUMENT);
+        assert_eq!(declare(sender, null, 1), RPR_NULL_POINTER);
+        assert_eq!(
+            declare(sender, full.as_ptr(), full.len()),
+            RPR_INVALID_ARGUMENT
+        );
+        assert_eq!(
+            declare(sender, tick0.as_ptr(), tick0.len() - 1),
+            RPR_INVALID_ARGUMENT
+        );
+        assert_eq!(
+            declare(sender, tick0.as_ptr(), 256 * 1024 * 1024 + 1),
+            RPR_INVALID_ARGUMENT
+        );
+        assert_eq!(
+            declare(std::ptr::null_mut(), tick0.as_ptr(), tick0.len()),
+            RPR_NULL_POINTER
+        );
 
         // Malformed delta bytes leave the receiver untouched.
         let receiver = rpr_new_world();
@@ -294,7 +349,28 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
         assert_eq!(apply(receiver, &full), tick);
         assert!(snapshot(receiver) == snapshot(sender));
 
-        for world in [sender, other, receiver] {
+        // Stepping a receiver clears its baseline, even if it stays identical to the sender.
+        step(sender);
+        step(receiver);
+        let (next, _) = delta(sender, Some(&tick));
+        reject_apply(receiver, &next, RPR_INVALID_ARGUMENT);
+        assert!(last_error().contains("baseline"));
+        let (full, tick) = delta(sender, None);
+        assert_eq!(apply(receiver, &full), tick);
+
+        // A restored receiver needs its declared baseline, and a fresh one a full delta first.
+        let before = change_tick(sender);
+        let restored = restore(&snapshot(sender));
+        let fresh = rpr_new_world();
+        step(sender);
+        let (next, next_tick) = delta(sender, Some(&before));
+        reject_apply(restored, &next, RPR_INVALID_ARGUMENT);
+        reject_apply(fresh, &next, RPR_INVALID_ARGUMENT);
+        set_baseline(restored, &before);
+        assert_eq!(apply(restored, &next), next_tick);
+        assert!(snapshot(restored) == snapshot(sender));
+
+        for world in [sender, other, receiver, restored, fresh] {
             assert_eq!(rpr_free_world(world), RPR_OK);
         }
     }

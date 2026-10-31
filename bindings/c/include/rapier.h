@@ -6063,21 +6063,41 @@ RAPIER_API struct R2World *RAPIER_CALL r2DeserializeWorld(const uint8_t *data, s
 
 /**
  * Start recording which parts of the world change, for r2SerializeWorldDelta. Restarting
- * it invalidates every tick issued before; see @ref snapshots.
+ * it invalidates every tick issued before; see @ref snapshot_deltas.
  * @ingroup worlds
  */
 RAPIER_API R2Status RAPIER_CALL r2EnableChangeTracking(struct R2World *world);
 
 /**
- * Stop recording changes and drop the recorded state, invalidating every issued tick.
+ * Stop recording changes and drop the recorded state, invalidating every issued tick; see
+ * @ref snapshot_deltas.
  * @ingroup worlds
  */
 RAPIER_API R2Status RAPIER_CALL r2DisableChangeTracking(struct R2World *world);
 
 /**
+ * Return owned bytes of a tick naming the world's current state, without building a delta
+ * (release with r2FreeBytes; NULL on failure). Call it right before r2SerializeWorld to
+ * bootstrap a receiver from that snapshot; see @ref snapshot_deltas.
+ * @ingroup worlds
+ */
+RAPIER_API struct R2Bytes *RAPIER_CALL r2ChangeTick(struct R2World *world);
+
+/**
+ * Declare that this world holds the sender's state at the `tick` bytes (from
+ * r2ChangeTick), so incremental deltas from that tick can be applied to it. See
+ * @ref snapshot_deltas.
+ * @ingroup worlds
+ */
+RAPIER_API
+R2Status RAPIER_CALL r2SetDeltaBaseline(struct R2World *world,
+                                 const uint8_t *tick,
+                                 size_t tick_count);
+
+/**
  * Return owned bytes of the changes since the `since` tick bytes (NULL with since_count 0: the
  * full state), and of the tick a receiver reaches once it applied them. Release both with
- * r2FreeBytes; both are NULL on failure. See @ref snapshots for the error codes.
+ * r2FreeBytes; both are NULL on failure. See @ref snapshot_deltas for the error codes.
  * @ingroup worlds
  */
 RAPIER_API
@@ -6087,8 +6107,8 @@ struct R2WorldDelta RAPIER_CALL r2SerializeWorldDelta(struct R2World *world,
 
 /**
  * Apply only trusted delta bytes from the identical Rapier build, and return owned bytes of the
- * tick to acknowledge to the sender (release with r2FreeBytes). See @ref snapshots for the
- * baseline this world must hold and for recovery after a failure.
+ * tick to acknowledge to the sender (release with r2FreeBytes). See @ref snapshot_deltas for
+ * the baseline this world must hold and for recovery after a failure.
  * @ingroup worlds
  */
 RAPIER_API
@@ -17015,21 +17035,41 @@ RAPIER_API struct R3World *RAPIER_CALL r3DeserializeWorld(const uint8_t *data, s
 
 /**
  * Start recording which parts of the world change, for r3SerializeWorldDelta. Restarting
- * it invalidates every tick issued before; see @ref snapshots.
+ * it invalidates every tick issued before; see @ref snapshot_deltas.
  * @ingroup worlds
  */
 RAPIER_API R3Status RAPIER_CALL r3EnableChangeTracking(struct R3World *world);
 
 /**
- * Stop recording changes and drop the recorded state, invalidating every issued tick.
+ * Stop recording changes and drop the recorded state, invalidating every issued tick; see
+ * @ref snapshot_deltas.
  * @ingroup worlds
  */
 RAPIER_API R3Status RAPIER_CALL r3DisableChangeTracking(struct R3World *world);
 
 /**
+ * Return owned bytes of a tick naming the world's current state, without building a delta
+ * (release with r3FreeBytes; NULL on failure). Call it right before r3SerializeWorld to
+ * bootstrap a receiver from that snapshot; see @ref snapshot_deltas.
+ * @ingroup worlds
+ */
+RAPIER_API struct R3Bytes *RAPIER_CALL r3ChangeTick(struct R3World *world);
+
+/**
+ * Declare that this world holds the sender's state at the `tick` bytes (from
+ * r3ChangeTick), so incremental deltas from that tick can be applied to it. See
+ * @ref snapshot_deltas.
+ * @ingroup worlds
+ */
+RAPIER_API
+R3Status RAPIER_CALL r3SetDeltaBaseline(struct R3World *world,
+                                 const uint8_t *tick,
+                                 size_t tick_count);
+
+/**
  * Return owned bytes of the changes since the `since` tick bytes (NULL with since_count 0: the
  * full state), and of the tick a receiver reaches once it applied them. Release both with
- * r3FreeBytes; both are NULL on failure. See @ref snapshots for the error codes.
+ * r3FreeBytes; both are NULL on failure. See @ref snapshot_deltas for the error codes.
  * @ingroup worlds
  */
 RAPIER_API
@@ -17039,8 +17079,8 @@ struct R3WorldDelta RAPIER_CALL r3SerializeWorldDelta(struct R3World *world,
 
 /**
  * Apply only trusted delta bytes from the identical Rapier build, and return owned bytes of the
- * tick to acknowledge to the sender (release with r3FreeBytes). See @ref snapshots for the
- * baseline this world must hold and for recovery after a failure.
+ * tick to acknowledge to the sender (release with r3FreeBytes). See @ref snapshot_deltas for
+ * the baseline this world must hold and for recovery after a failure.
  * @ingroup worlds
  */
 RAPIER_API

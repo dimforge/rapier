@@ -134,22 +134,36 @@ reaches once it applied them; release both with FreeBytes. The receiver passes t
 bytes to ApplyWorldDelta, which patches its world in place and returns owned tick bytes
 to send back as its acknowledgement.
 
+Baselines are strict: ApplyWorldDelta only accepts an incremental delta built against the
+state the receiver holds, which is the tick of the last delta it applied or the tick
+declared with SetDeltaBaseline. Step and DetectCollisions clear a receiver's baseline,
+and a new world has none, so both need a full delta first. A full delta resets
+the receiver before patching it, so it applies to any world.
+
 Bootstrap a receiver with a full delta applied to any world, such as a new empty one, or
-with DeserializeWorld on a snapshot taken right before the SerializeWorldDelta call whose
-tick becomes its baseline. Each receiver may lag behind: the sender can produce a delta
-against any tick that receiver acknowledged. A receiver that applied every delta from its
-baseline serializes byte-identically to the sender and keeps simulating identically.
+from a snapshot: the sender calls ChangeTick right before SerializeWorld and sends both,
+and the receiver calls DeserializeWorld then SetDeltaBaseline with that tick. ChangeTick
+returns owned tick bytes (release with FreeBytes) without building a delta. Each receiver
+may lag behind: the sender can produce a delta against any tick that receiver acknowledged.
+A receiver that applied every delta from its baseline keeps simulating identically to the
+sender. It also serializes byte-identically,
+except when composite shapes are in contact in a build without `enhanced-determinism` (the
+default), where contact workspaces may be serialized in another order.
 Handles keep referring to the patched world; entities a delta removed report INVALID_HANDLE.
 Snapshots do not include change tracking, and restarting it invalidates every issued tick.
 
 Deltas and ticks carry a versioned header like snapshots, with the same 256 MiB limit and
 the same trust requirement: only apply bytes produced by the identical Rapier build.
-SerializeWorldDelta reports UNSUPPORTED while change tracking is disabled, and
-INVALID_ARGUMENT for tick bytes from another build, world, or tracking session: produce a
-full delta instead. ApplyWorldDelta reports INVALID_ARGUMENT for incompatible or truncated
-bytes without changing the world. It also reports INVALID_ARGUMENT for a delta built against
-another baseline, which may leave the world partially patched: resynchronize it with a full
-delta or a snapshot. LastError names the cause.
+SerializeWorldDelta and ChangeTick report UNSUPPORTED while change tracking is disabled.
+SerializeWorldDelta reports INVALID_ARGUMENT for tick bytes from another build, world, or
+tracking session: produce a full delta instead. SetDeltaBaseline reports INVALID_ARGUMENT
+for incompatible or truncated tick bytes. ApplyWorldDelta reports INVALID_ARGUMENT for
+incompatible or truncated bytes without changing the world. It also reports
+INVALID_ARGUMENT for a delta built against another baseline, for a delta whose content is
+inconsistent (malformed), and for a delta referencing a shape the receiver does not hold.
+These errors are detected while patching, so they may leave the world partially patched:
+resynchronize it with a full delta, or a snapshot and SetDeltaBaseline. LastError names
+the cause.
 */
 
 /** @defgroup errors ABI and errors

@@ -35,14 +35,16 @@ using World = Owner<RAPIER_TYPE(World), RAPIER_FN(FreeWorld)>;
 using Shape = Owner<RAPIER_TYPE(SharedShape), RAPIER_FN(FreeSharedShape)>;
 /** Own a native EventCollector using its matching Free function. */
 using EventCollector = Owner<RAPIER_TYPE(EventCollector), RAPIER_FN(FreeEventCollector)>;
-/** Own a native Snapshot using its matching Free function. */
-using Snapshot = Owner<RAPIER_TYPE(Bytes), RAPIER_FN(FreeBytes)>;
+/** Own native Bytes (a snapshot, delta, or tick) using FreeBytes. */
+using Bytes = Owner<RAPIER_TYPE(Bytes), RAPIER_FN(FreeBytes)>;
+/** Own the Bytes of a SerializeWorld snapshot. */
+using Snapshot = Bytes;
 /** Own both byte buffers of a SerializeWorldDelta result; both are empty after a failure. */
 struct WorldDelta {
     /** Owned delta bytes for ApplyWorldDelta. */
-    Snapshot delta;
+    Bytes delta;
     /** Owned bytes of the tick a receiver reaches once it applied the delta. */
-    Snapshot tick;
+    Bytes tick;
     /** Take ownership of both buffers of a native result. */
     explicit WorldDelta(RAPIER_TYPE(WorldDelta) value) noexcept
         : delta(value.delta), tick(value.tick) {}
@@ -119,6 +121,25 @@ inline World make_world() {
     RAPIER_TYPE(World) *value = RAPIER_FN(NewWorld)();
     check(RAPIER_FN(LastStatus)());
     return World(value);
+}
+
+/** Return owned bytes of the world's current change tick (see ChangeTick); throw on failure. */
+inline Bytes change_tick(RAPIER_TYPE(World) *world) {
+    Bytes tick(RAPIER_FN(ChangeTick)(world));
+    check(RAPIER_FN(LastStatus)());
+    return tick;
+}
+
+/** Declare the world's delta baseline from received tick bytes; throw on failure. */
+inline void set_delta_baseline(RAPIER_TYPE(World) *world, const uint8_t *tick, size_t count) {
+    check(RAPIER_FN(SetDeltaBaseline)(world, tick, count));
+}
+
+/** Declare the world's delta baseline from owned tick bytes; throw on failure. */
+inline void set_delta_baseline(RAPIER_TYPE(World) *world, const Bytes &tick) {
+    RAPIER_TYPE(ByteView) view = RAPIER_FN(Bytes_Data)(tick.get());
+    check(RAPIER_FN(LastStatus)());
+    set_delta_baseline(world, view.data, view.count);
 }
 } // namespace rapier
 #endif
