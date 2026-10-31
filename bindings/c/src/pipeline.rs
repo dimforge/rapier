@@ -1312,28 +1312,30 @@ pub unsafe extern "C" fn rpr_free_bytes(bytes: *mut RprBytes) -> RprStatus {
         Ok(())
     })
 }
-// Wire format: magic, then little-endian u32 ABI, dimension, and scalar size.
+// Wire format: magic, then little-endian u32 format version, dimension, and scalar size.
 // The distinct magic prevents interpreting the old six-byte header as this format.
 const SNAPSHOT_HEADER_LEN: usize = 16;
+// Bump whenever the serialized layout changes; v0.36 wrote 1 (then the ABI version) here.
+const SNAPSHOT_FORMAT_VERSION: u32 = 2;
 // Snapshots, deltas, and ticks use distinct magics, so one is never read as another.
 const SNAPSHOT_MAGIC: &[u8; 4] = b"RPRS";
 const DELTA_MAGIC: &[u8; 4] = b"RPRD";
 const TICK_MAGIC: &[u8; 4] = b"RPRT";
 const MAX_SNAPSHOT_BYTES: usize = 256 * 1024 * 1024;
 
-fn wire_header(magic: &[u8; 4], abi_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
+fn wire_header(magic: &[u8; 4], format_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
     let build = rpr_build_info();
     let mut header = [0; SNAPSHOT_HEADER_LEN];
     header[..4].copy_from_slice(magic);
-    header[4..8].copy_from_slice(&abi_version.to_le_bytes());
+    header[4..8].copy_from_slice(&format_version.to_le_bytes());
     header[8..12].copy_from_slice(&build.dimension.to_le_bytes());
     header[12..16].copy_from_slice(&build.real_size.to_le_bytes());
     header
 }
 
 #[cfg(test)]
-fn snapshot_header(abi_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
-    wire_header(SNAPSHOT_MAGIC, abi_version)
+fn snapshot_header(format_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
+    wire_header(SNAPSHOT_MAGIC, format_version)
 }
 
 fn snapshot_options() -> impl Options {
@@ -1345,7 +1347,7 @@ fn snapshot_options() -> impl Options {
 
 /// Serializes `value` behind the `magic` header of this build.
 fn encode_wire(magic: &[u8; 4], value: &impl serde::Serialize) -> Result<Vec<u8>> {
-    let mut bytes = wire_header(magic, RPR_ABI_VERSION).to_vec();
+    let mut bytes = wire_header(magic, SNAPSHOT_FORMAT_VERSION).to_vec();
     bytes.extend(
         snapshot_options()
             .serialize(value)
@@ -1367,7 +1369,7 @@ unsafe fn decode_wire<T: serde::de::DeserializeOwned>(
     )?;
     let bytes = unsafe { input(data, count)? };
     ensure(
-        bytes.starts_with(&wire_header(magic, RPR_ABI_VERSION)),
+        bytes.starts_with(&wire_header(magic, SNAPSHOT_FORMAT_VERSION)),
         &format!("incompatible {what}"),
     )?;
     snapshot_options()
@@ -1381,35 +1383,38 @@ fn owned_bytes(bytes: Vec<u8>) -> *mut RprBytes {
 
 /// Decodes baseline tick bytes; NULL with a zero count is no baseline.
 unsafe fn decode_tick(data: *const u8, count: usize) -> Result<Option<WorldChangeTick>> {
-    if data.is_null() {
-        ensure(count == 0, "a NULL baseline tick must have zero length")?;
+    if data.is_null() && count == 0 {
         return Ok(None);
     }
     unsafe { decode_wire(TICK_MAGIC, "snapshot tick", data, count).map(Some) }
 }
 
-/// UNSUPPORTED without change tracking; any other delta failure is an invalid argument.
+/// UNSUPPORTED without change tracking, BASELINE_MISMATCH for either baseline error, and
+/// INVALID_ARGUMENT for inconsistent deltas.
 fn delta_error(error: rapier::data::DeltaError) -> (RprStatus, String) {
     use rapier::data::DeltaError;
-    let message = match error {
-        DeltaError::TrackingDisabled => {
-            return (
-                RPR_UNSUPPORTED,
-                "change tracking is not enabled on this world".into(),
-            );
-        }
-        DeltaError::UnknownBaseline => {
+    let (status, message) = match error {
+        DeltaError::TrackingDisabled => (
+            RPR_UNSUPPORTED,
+            "change tracking is not enabled on this world",
+        ),
+        DeltaError::UnknownBaseline => (
+            RPR_BASELINE_MISMATCH,
             "the baseline tick was not issued by this world's change tracking; produce a full \
-             delta (NULL baseline) instead"
-        }
-        DeltaError::BaselineMismatch => {
+             delta (NULL baseline) instead",
+        ),
+        DeltaError::BaselineMismatch => (
+            RPR_BASELINE_MISMATCH,
             "this world does not hold the delta's baseline (it was stepped, or never declared \
-             that baseline); resynchronize it with a full delta"
-        }
-        DeltaError::Malformed => "malformed snapshot delta",
-        DeltaError::MissingShape => "the delta references a shape this world does not hold",
+             that baseline); resynchronize it with a full delta",
+        ),
+        DeltaError::Malformed => (RPR_INVALID_ARGUMENT, "malformed snapshot delta"),
+        DeltaError::MissingShape => (
+            RPR_INVALID_ARGUMENT,
+            "the delta references a shape this world does not hold",
+        ),
     };
-    invalid(message)
+    (status, message.into())
 }
 /// Return owned snapshot bytes; release them with rpr_free_bytes. See @ref snapshots for
 /// restoration and handle lifetimes.
@@ -2545,7 +2550,7 @@ mod snapshot_header_tests {
     use super::*;
 
     #[test]
-    fn snapshot_header_preserves_full_abi_version() {
+    fn snapshot_header_preserves_full_format_version() {
         for version in [1, 255, 256, 257, 0x0102_0304, u32::MAX] {
             let header = snapshot_header(version);
             assert_eq!(&header[..4], b"RPRS");
@@ -2568,13 +2573,16 @@ mod snapshot_header_tests {
 
     #[test]
     fn deltas_and_ticks_have_their_own_versioned_headers() {
-        let snapshot = snapshot_header(RPR_ABI_VERSION);
-        let delta = wire_header(DELTA_MAGIC, RPR_ABI_VERSION);
-        let tick = wire_header(TICK_MAGIC, RPR_ABI_VERSION);
+        let snapshot = snapshot_header(SNAPSHOT_FORMAT_VERSION);
+        let delta = wire_header(DELTA_MAGIC, SNAPSHOT_FORMAT_VERSION);
+        let tick = wire_header(TICK_MAGIC, SNAPSHOT_FORMAT_VERSION);
         assert_eq!((&delta[..4], &tick[..4]), (&b"RPRD"[..], &b"RPRT"[..]));
         assert_eq!(delta[4..], snapshot[4..]);
         assert_eq!(tick[4..], snapshot[4..]);
-        assert_ne!(delta, wire_header(DELTA_MAGIC, RPR_ABI_VERSION + 256));
+        assert_ne!(
+            delta,
+            wire_header(DELTA_MAGIC, SNAPSHOT_FORMAT_VERSION + 256)
+        );
         unsafe {
             let world = rpr_new_world();
             assert_eq!(rpr_enable_change_tracking(world), RPR_OK);
@@ -2595,21 +2603,59 @@ mod snapshot_header_tests {
     }
 
     #[test]
+    fn v0_36_wire_headers_are_rejected() {
+        // v0.36 wrote the ABI version, 1, where the format version now is.
+        assert_ne!(SNAPSHOT_FORMAT_VERSION, 1);
+        let downgrade = |bytes: &[u8], magic| {
+            let mut old = wire_header(magic, 1).to_vec();
+            old.extend_from_slice(&bytes[SNAPSHOT_HEADER_LEN..]);
+            old
+        };
+        unsafe {
+            let world = rpr_new_world();
+            assert_eq!(rpr_enable_change_tracking(world), RPR_OK);
+            let snapshot = rpr_serialize_world(world);
+            let old = downgrade(&(*snapshot).0, SNAPSHOT_MAGIC);
+            assert!(rpr_deserialize_world(old.as_ptr(), old.len()).is_null());
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+
+            let result = rpr_serialize_world_delta(world, std::ptr::null(), 0);
+            assert_eq!(rpr_last_status(), RPR_OK);
+            let old_delta = downgrade(&(*result.delta).0, DELTA_MAGIC);
+            assert!(rpr_apply_world_delta(world, old_delta.as_ptr(), old_delta.len()).is_null());
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+            let old_tick = downgrade(&(*result.tick).0, TICK_MAGIC);
+            let since = rpr_serialize_world_delta(world, old_tick.as_ptr(), old_tick.len());
+            assert!(since.delta.is_null() && since.tick.is_null());
+            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
+            assert_eq!(
+                rpr_set_delta_baseline(world, old_tick.as_ptr(), old_tick.len()),
+                RPR_INVALID_ARGUMENT
+            );
+
+            for bytes in [snapshot, result.delta, result.tick] {
+                assert_eq!(rpr_free_bytes(bytes), RPR_OK);
+            }
+            assert_eq!(rpr_free_world(world), RPR_OK);
+        }
+    }
+
+    #[test]
     fn snapshots_reject_incompatible_and_truncated_headers() {
         unsafe {
             let world = rpr_new_world();
             let snapshot = rpr_serialize_world(world);
             assert_eq!(rpr_last_status(), RPR_OK);
             let data = &(*snapshot).0;
-            let header = snapshot_header(RPR_ABI_VERSION);
+            let header = snapshot_header(SNAPSHOT_FORMAT_VERSION);
             assert!(data.starts_with(&header));
 
             let restored = rpr_deserialize_world(data.as_ptr(), data.len());
             assert_eq!(rpr_last_status(), RPR_OK);
             assert_eq!(rpr_free_world(restored), RPR_OK);
 
-            // Every header byte is checked, including the high ABI bytes that
-            // previously disappeared in the u8 cast (e.g. ABI 1 versus 257).
+            // Every header byte is checked, including the high version bytes that
+            // previously disappeared in the u8 cast (e.g. version 1 versus 257).
             for index in 0..SNAPSHOT_HEADER_LEN {
                 let mut invalid = data.clone();
                 invalid[index] ^= 1;

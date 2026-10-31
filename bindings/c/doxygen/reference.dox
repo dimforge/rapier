@@ -120,6 +120,9 @@ Release the owner with FreeBytes after copying or consuming it.
 DeserializeWorld creates a new owned world. DeserializeRigidState is a separate
 importer for legacy Rust testbed rigid-state snapshots. Only load trusted
 snapshots produced by the identical Rapier build. Snapshots are not a durable interchange format.
+Snapshot bytes start with a 16-byte header: a magic, a format version, the dimension,
+and the scalar size. DeserializeWorld reports INVALID_ARGUMENT when it does not match
+this build; the format version changed after v0.36, so v0.36 snapshots are rejected.
 
 Old handles still point to the original world. Discard them and enumerate handles
 from the restored world. Configure any thread pool and external callback/user
@@ -154,16 +157,22 @@ Snapshots do not include change tracking, and restarting it invalidates every is
 
 Deltas and ticks carry a versioned header like snapshots, with the same 256 MiB limit and
 the same trust requirement: only apply bytes produced by the identical Rapier build.
+A NULL pointer with a nonzero count reports NULL_POINTER, and bytes with an incompatible
+header or truncated bytes report INVALID_ARGUMENT.
 SerializeWorldDelta and ChangeTick report UNSUPPORTED while change tracking is disabled.
-SerializeWorldDelta reports INVALID_ARGUMENT for tick bytes from another build, world, or
-tracking session: produce a full delta instead. SetDeltaBaseline reports INVALID_ARGUMENT
-for incompatible or truncated tick bytes. ApplyWorldDelta reports INVALID_ARGUMENT for
-incompatible or truncated bytes without changing the world. It also reports
-INVALID_ARGUMENT for a delta built against another baseline, for a delta whose content is
-inconsistent (malformed), and for a delta referencing a shape the receiver does not hold.
-These errors are detected while patching, so they may leave the world partially patched:
-resynchronize it with a full delta, or a snapshot and SetDeltaBaseline. LastError names
-the cause.
+
+BASELINE_MISMATCH means the bytes are well formed but name the wrong baseline: the
+receiver needs resynchronizing, the bytes are not corrupt. SerializeWorldDelta reports it
+for tick bytes from another world or tracking session: produce a full delta instead.
+ApplyWorldDelta reports it for a delta built against a baseline the receiver does not
+hold (it was stepped, or never declared that baseline), without changing the world.
+
+ApplyWorldDelta reports INVALID_ARGUMENT for incompatible or truncated bytes without
+changing the world. It also reports INVALID_ARGUMENT for a delta whose content is
+inconsistent (malformed) and for a delta referencing a shape the receiver does not hold.
+These two are detected while patching, so they may leave the world partially patched:
+resynchronize it with a full delta, or a snapshot and SetDeltaBaseline. LastError names the
+cause.
 */
 
 /** @defgroup errors ABI and errors
@@ -223,8 +232,10 @@ world's inserted entities. Visual pointers borrow the loaded MJCF robot.
 */
 /** @defgroup cpp C++ ownership helpers
 `rapier.hpp` supplies unique_ptr-based Owner aliases and small value factories.
-Keep owners alive while using their handles. `check` throws on non-OK status;
-callers with exceptions disabled should use the C API and status checks directly.
+Keep owners alive while using their handles. `check` throws `rapier::Error` (a
+std::runtime_error whose `status()` is the failing code) on non-OK status, as do the
+snapshot-delta helpers such as `serialize_world_delta` and `apply_world_delta`.
+Callers with exceptions disabled should use the C API and status checks directly.
 Deleters cannot report failures: destroy owners only when no operation is active.
 */
 /** @example falling_ball.c

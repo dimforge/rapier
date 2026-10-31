@@ -89,7 +89,10 @@ the library or downloading testbed dependencies. Normal builds do not need Doxyg
 The reference covers API usage, ownership, errors, callbacks, snapshots, and snapshot
 deltas. Delta receivers only accept deltas against the state they hold: bootstrap one
 with a full delta, or restore a snapshot and declare the sender's `ChangeTick` from
-right before it with `SetDeltaBaseline`.
+right before it with `SetDeltaBaseline`. A delta or tick naming a baseline the world does
+not hold reports `BASELINE_MISMATCH` (resynchronize with a full delta), while corrupt bytes
+report `INVALID_ARGUMENT`. The snapshot format version changed after v0.36, so its
+snapshots are rejected with `INVALID_ARGUMENT`.
 The CI workflow also provides a `rapier-c-api-docs` HTML artifact.
 
 - [C example](examples/falling_ball.c)

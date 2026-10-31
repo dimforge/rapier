@@ -1282,6 +1282,7 @@ mod pair_serde {
     }
 
     #[derive(Deserialize)]
+    #[allow(clippy::large_enum_variant)] // A short-lived deserialization temporary.
     enum PointsDe {
         Stored(PointVec),
         Compact(Vec<CompactPoint>),

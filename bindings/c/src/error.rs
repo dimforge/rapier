@@ -35,6 +35,10 @@ pub const RPR_NOT_FOUND: RprStatus = 7;
 /// @ingroup errors
 /// Conflicting or reentrant access to simulation state. No mutation was performed.
 pub const RPR_WORLD_BUSY: RprStatus = 8;
+/// @ingroup errors
+/// A snapshot delta or tick names a baseline the world did not issue or does not hold.
+/// Resynchronize with a full delta, or a snapshot and SetDeltaBaseline.
+pub const RPR_BASELINE_MISMATCH: RprStatus = 9;
 pub(crate) type Result<T = ()> = std::result::Result<T, (RprStatus, String)>;
 thread_local! { static LAST_STATUS: Cell<RprStatus> = const { Cell::new(RPR_OK) }; }
 thread_local! { static LAST_ERROR: RefCell<CString> = RefCell::new(CString::default()); }

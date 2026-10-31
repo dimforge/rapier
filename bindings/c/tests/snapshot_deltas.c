@@ -118,10 +118,22 @@ int main(void) {
     Buffer restored_tick = take(RAPIER_FN(ChangeTick)(sender));
     assert(memcmp(restored_tick.data, "RPRT", 4) == 0);
     Buffer snapshot = take(RAPIER_FN(SerializeWorld)(sender));
+    /* Bytes 4..8 hold the little-endian format version; v0.36 wrote 1 there. */
+    Buffer old = copy(snapshot.data, snapshot.count);
+    memset(old.data + 4, 0, 4);
+    old.data[4] = 1;
+    assert(!RAPIER_FN(DeserializeWorld)(old.data, old.count));
+    EXPECT(RAPIER_FN(LastStatus)(), RAPIER_CONST(INVALID_ARGUMENT));
+    free(old.data);
     RAPIER_TYPE(World) *restored = RAPIER_FN(DeserializeWorld)(snapshot.data, snapshot.count);
     OK(RAPIER_FN(LastStatus)());
     free(snapshot.data);
     EXPECT(RAPIER_FN(SetDeltaBaseline)(restored, NULL, 0), RAPIER_CONST(INVALID_ARGUMENT));
+    /* A NULL pointer with a length is a NULL_POINTER error for every tick input. */
+    EXPECT(RAPIER_FN(SetDeltaBaseline)(restored, NULL, 1), RAPIER_CONST(NULL_POINTER));
+    RAPIER_TYPE(WorldDelta) null_since = RAPIER_FN(SerializeWorldDelta)(sender, NULL, 1);
+    EXPECT(RAPIER_FN(LastStatus)(), RAPIER_CONST(NULL_POINTER));
+    assert(!null_since.delta && !null_since.tick);
     OK(RAPIER_FN(SetDeltaBaseline)(restored, restored_tick.data, restored_tick.count));
 
     /* A fresh receiver starts from a full delta. */
@@ -146,8 +158,7 @@ int main(void) {
     OK(RAPIER_FN(Step)(fresh, NULL, NULL));
     delta(sender, &fresh_tick, &d, &t);
     assert(!RAPIER_FN(ApplyWorldDelta)(fresh, d.data, d.count));
-    EXPECT(RAPIER_FN(LastStatus)(), RAPIER_CONST(INVALID_ARGUMENT));
-    assert(strstr(RAPIER_FN(LastError)(), "baseline"));
+    EXPECT(RAPIER_FN(LastStatus)(), RAPIER_CONST(BASELINE_MISMATCH));
     free(d.data);
     free(t.data);
     delta(sender, NULL, &d, &t);

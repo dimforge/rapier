@@ -4674,6 +4674,13 @@ typedef struct R2DebugRenderStyle {
  */
 #define R2_WORLD_BUSY 8
 
+/**
+ * @ingroup errors
+ * A snapshot delta or tick names a baseline the world did not issue or does not hold.
+ * Resynchronize with a full delta, or a snapshot and SetDeltaBaseline.
+ */
+#define R2_BASELINE_MISMATCH 9
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -15645,6 +15652,13 @@ typedef struct R3DebugRenderStyle {
  * Conflicting or reentrant access to simulation state. No mutation was performed.
  */
 #define R3_WORLD_BUSY 8
+
+/**
+ * @ingroup errors
+ * A snapshot delta or tick names a baseline the world did not issue or does not hold.
+ * Resynchronize with a full delta, or a snapshot and SetDeltaBaseline.
+ */
+#define R3_BASELINE_MISMATCH 9
 
 #ifdef __cplusplus
 extern "C" {

@@ -11,10 +11,25 @@
 
 /** Optional C++ ownership helpers. @ingroup cpp */
 namespace rapier {
-/** Throw std::runtime_error with LastError when status is not OK. */
+/** A std::runtime_error carrying LastError and the failing status code. */
+class Error : public std::runtime_error {
+  public:
+    /** Capture the status and its LastError diagnostic. */
+    Error(RAPIER_TYPE(Status) status, const char *message)
+        : std::runtime_error(message), status_(status) {}
+    /** The failing status, e.g. BASELINE_MISMATCH. */
+    RAPIER_TYPE(Status) status() const noexcept {
+        return status_;
+    }
+
+  private:
+    RAPIER_TYPE(Status) status_;
+};
+
+/** Throw rapier::Error with LastError when status is not OK. */
 inline void check(RAPIER_TYPE(Status) status) {
     if (status != RAPIER_CONST(OK)) {
-        throw std::runtime_error(std::string(RAPIER_FN(LastError)()));
+        throw Error(status, RAPIER_FN(LastError)());
     }
 }
 
@@ -135,11 +150,49 @@ inline void set_delta_baseline(RAPIER_TYPE(World) *world, const uint8_t *tick, s
     check(RAPIER_FN(SetDeltaBaseline)(world, tick, count));
 }
 
+/** Borrow the byte array of owned bytes until they are released; throw on failure. */
+inline RAPIER_TYPE(ByteView) bytes_view(const Bytes &bytes) {
+    RAPIER_TYPE(ByteView) view = RAPIER_FN(Bytes_Data)(bytes.get());
+    check(RAPIER_FN(LastStatus)());
+    return view;
+}
+
 /** Declare the world's delta baseline from owned tick bytes; throw on failure. */
 inline void set_delta_baseline(RAPIER_TYPE(World) *world, const Bytes &tick) {
-    RAPIER_TYPE(ByteView) view = RAPIER_FN(Bytes_Data)(tick.get());
-    check(RAPIER_FN(LastStatus)());
+    RAPIER_TYPE(ByteView) view = bytes_view(tick);
     set_delta_baseline(world, view.data, view.count);
+}
+
+/** Return the changes since received tick bytes (NULL and 0: a full delta); throw on failure. */
+inline WorldDelta serialize_world_delta(RAPIER_TYPE(World) *world, const uint8_t *since,
+                                        size_t count) {
+    WorldDelta delta(RAPIER_FN(SerializeWorldDelta)(world, since, count));
+    check(RAPIER_FN(LastStatus)());
+    return delta;
+}
+
+/** Return a full delta of the world; throw on failure. */
+inline WorldDelta serialize_world_delta(RAPIER_TYPE(World) *world) {
+    return serialize_world_delta(world, nullptr, 0);
+}
+
+/** Return the changes since owned tick bytes; throw on failure. */
+inline WorldDelta serialize_world_delta(RAPIER_TYPE(World) *world, const Bytes &since) {
+    RAPIER_TYPE(ByteView) view = bytes_view(since);
+    return serialize_world_delta(world, view.data, view.count);
+}
+
+/** Apply received delta bytes and return the tick bytes to acknowledge; throw on failure. */
+inline Bytes apply_world_delta(RAPIER_TYPE(World) *world, const uint8_t *data, size_t count) {
+    Bytes tick(RAPIER_FN(ApplyWorldDelta)(world, data, count));
+    check(RAPIER_FN(LastStatus)());
+    return tick;
+}
+
+/** Apply owned delta bytes and return the tick bytes to acknowledge; throw on failure. */
+inline Bytes apply_world_delta(RAPIER_TYPE(World) *world, const Bytes &delta) {
+    RAPIER_TYPE(ByteView) view = bytes_view(delta);
+    return apply_world_delta(world, view.data, view.count);
 }
 } // namespace rapier
 #endif

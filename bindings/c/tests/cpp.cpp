@@ -38,17 +38,30 @@ int main() {
         assert(shape && mesh && events && character && pid && snapshot);
         // Bootstrap a replica with a full delta; it acknowledges the delta's tick.
         rapier::check(RAPIER_FN(EnableChangeTracking)(moved.get()));
-        rapier::WorldDelta full(RAPIER_FN(SerializeWorldDelta)(moved.get(), nullptr, 0));
-        rapier::check(RAPIER_FN(LastStatus)());
+        rapier::WorldDelta full = rapier::serialize_world_delta(moved.get());
         auto replica = rapier::make_world();
-        auto fullDelta = RAPIER_FN(Bytes_Data)(full.delta.get());
-        rapier::Bytes acked(
-            RAPIER_FN(ApplyWorldDelta)(replica.get(), fullDelta.data, fullDelta.count));
-        rapier::check(RAPIER_FN(LastStatus)());
-        auto ackedTick = RAPIER_FN(Bytes_Data)(acked.get());
-        auto fullTick = RAPIER_FN(Bytes_Data)(full.tick.get());
+        rapier::Bytes acked = rapier::apply_world_delta(replica.get(), full.delta);
+        auto ackedTick = rapier::bytes_view(acked);
+        auto fullTick = rapier::bytes_view(full.tick);
         assert(ackedTick.count == fullTick.count &&
                std::memcmp(ackedTick.data, fullTick.data, fullTick.count) == 0);
+        // Incremental deltas start from the acknowledged tick, until the replica steps.
+        rapier::check(RAPIER_FN(Step)(moved.get(), nullptr, nullptr));
+        rapier::WorldDelta next = rapier::serialize_world_delta(moved.get(), acked);
+        acked = rapier::apply_world_delta(replica.get(), next.delta);
+        rapier::check(RAPIER_FN(Step)(moved.get(), nullptr, nullptr));
+        rapier::check(RAPIER_FN(Step)(replica.get(), nullptr, nullptr));
+        next = rapier::serialize_world_delta(moved.get(), acked);
+        RAPIER_TYPE(Status) mismatch = RAPIER_CONST(OK);
+        try {
+            rapier::apply_world_delta(replica.get(), next.delta);
+        } catch (const rapier::Error &error) {
+            mismatch = error.status();
+        }
+        assert(mismatch == RAPIER_CONST(BASELINE_MISMATCH));
+        // A full delta resynchronizes it.
+        full = rapier::serialize_world_delta(moved.get());
+        acked = rapier::apply_world_delta(replica.get(), full.delta);
         // A replica restored from a snapshot declares the tick issued right before it.
         rapier::Bytes tick = rapier::change_tick(moved.get());
         rapier::Snapshot tracked(RAPIER_FN(SerializeWorld)(moved.get()));
@@ -57,9 +70,13 @@ int main() {
             RAPIER_FN(DeserializeWorld)(trackedBytes.data, trackedBytes.count));
         rapier::check(RAPIER_FN(LastStatus)());
         rapier::set_delta_baseline(restored.get(), tick);
-        rapier::WorldDelta failed(RAPIER_FN(SerializeWorldDelta)(nullptr, nullptr, 0));
-        assert(!failed.delta && !failed.tick &&
-               RAPIER_FN(LastStatus)() == RAPIER_CONST(NULL_POINTER));
+        RAPIER_TYPE(Status) failed = RAPIER_CONST(OK);
+        try {
+            rapier::serialize_world_delta(nullptr);
+        } catch (const rapier::Error &error) {
+            failed = error.status();
+        }
+        assert(failed == RAPIER_CONST(NULL_POINTER));
         auto transferred = std::move(mesh);
         assert(transferred && !mesh);
 #if defined(RAPIER_DIM3)

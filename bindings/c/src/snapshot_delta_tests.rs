@@ -236,9 +236,8 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
             sender,
             old_tick.as_ptr(),
             old_tick.len(),
-            RPR_INVALID_ARGUMENT,
+            RPR_BASELINE_MISMATCH,
         );
-        assert!(last_error().contains("baseline"));
         let (full, tick0) = delta(sender, None);
 
         // Ticks of another world.
@@ -249,13 +248,12 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
             sender,
             other_tick.as_ptr(),
             other_tick.len(),
-            RPR_INVALID_ARGUMENT,
+            RPR_BASELINE_MISMATCH,
         );
-        assert!(last_error().contains("baseline"));
 
-        // Malformed tick bytes: a NULL tick with a length, header damage, truncation, trailing
-        // bytes, or delta bytes in place of a tick.
-        reject_delta(sender, null, 1, RPR_INVALID_ARGUMENT);
+        // Malformed tick bytes: a NULL tick with a length (NULL_POINTER, as for every input),
+        // header damage, truncation, trailing bytes, or delta bytes in place of a tick.
+        reject_delta(sender, null, 1, RPR_NULL_POINTER);
         for index in 0..16 {
             let mut damaged = tick0.clone();
             damaged[index] ^= 1;
@@ -341,8 +339,7 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
         assert_eq!(apply(receiver, &delta1), tick1);
         step(sender);
         let (stale, _) = delta(sender, Some(&tick0));
-        reject_apply(receiver, &stale, RPR_INVALID_ARGUMENT);
-        assert!(last_error().contains("baseline"));
+        reject_apply(receiver, &stale, RPR_BASELINE_MISMATCH);
 
         // A full delta resynchronizes it.
         let (full, tick) = delta(sender, None);
@@ -353,8 +350,7 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
         step(sender);
         step(receiver);
         let (next, _) = delta(sender, Some(&tick));
-        reject_apply(receiver, &next, RPR_INVALID_ARGUMENT);
-        assert!(last_error().contains("baseline"));
+        reject_apply(receiver, &next, RPR_BASELINE_MISMATCH);
         let (full, tick) = delta(sender, None);
         assert_eq!(apply(receiver, &full), tick);
 
@@ -364,8 +360,8 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
         let fresh = rpr_new_world();
         step(sender);
         let (next, next_tick) = delta(sender, Some(&before));
-        reject_apply(restored, &next, RPR_INVALID_ARGUMENT);
-        reject_apply(fresh, &next, RPR_INVALID_ARGUMENT);
+        reject_apply(restored, &next, RPR_BASELINE_MISMATCH);
+        reject_apply(fresh, &next, RPR_BASELINE_MISMATCH);
         set_baseline(restored, &before);
         assert_eq!(apply(restored, &next), next_tick);
         assert!(snapshot(restored) == snapshot(sender));
