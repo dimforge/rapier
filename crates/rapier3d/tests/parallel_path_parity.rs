@@ -26,7 +26,9 @@ use rapier3d::prelude::*;
 
 /// Golden hash of [`run`]. Identical in every build; re-mint (with a note saying why)
 /// only when a change is *meant* to alter the simulation.
-const GOLDEN: u64 = 0x36e6_34bb_2a85_696e;
+///
+/// Last re-minted for the compact snapshot format and the canonical order of broad-phase pairs.
+const GOLDEN: u64 = 0x326e_2142_6081_b85a;
 
 /// FNV-1a.
 struct Fnv(u64);
