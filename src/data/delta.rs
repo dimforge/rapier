@@ -401,11 +401,14 @@ impl<T: DeltaComponent> SnapshotDelta for T {
     type Payload = T::Payload;
 
     fn enable_change_tracking(&mut self) {
+        // Drop the bookkeeping of a previous clock first.
+        self.set_stamp_tick(0);
         let now = self.change_tracker_mut().enable(None);
         self.set_stamp_tick(now);
     }
 
     fn enable_change_tracking_with_seed(&mut self, seed: u64) {
+        self.set_stamp_tick(0);
         let now = self.change_tracker_mut().enable(Some(seed));
         self.set_stamp_tick(now);
     }

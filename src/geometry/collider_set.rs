@@ -911,16 +911,21 @@ mod snapshot_delta {
         }
 
         /// The receiver-side registry, built from this set's own colliders on first use.
+        ///
+        /// Colliders holding equal content through distinct `Arc`s are pointed at the registry's
+        /// one, so pruning by reference count keeps every content some collider holds.
         fn received(
             &mut self,
-            colliders: &Arena<Collider>,
+            colliders: &mut Arena<Collider>,
         ) -> &mut HashMap<ContentKey, ColliderShape> {
             self.received.get_or_insert_with(|| {
-                let mut map = HashMap::new();
-                for (_, co) in colliders.iter() {
+                let mut map: HashMap<ContentKey, ColliderShape> = HashMap::new();
+                // Unstamped: the shapes' content does not change.
+                let (colliders, _) = colliders.iter_mut_unstamped();
+                for (_, co) in colliders {
                     if is_heavy(co) {
                         if let Some(key) = content_key(&co.shape) {
-                            map.entry(key).or_insert_with(|| co.shape.clone());
+                            co.shape = map.entry(key).or_insert_with(|| co.shape.clone()).clone();
                         }
                     }
                 }
@@ -1025,7 +1030,7 @@ mod snapshot_delta {
         fn apply_delta_payload(&mut self, delta: ColliderSetDelta) -> Result<(), DeltaError> {
             // Resolve the table first: keyed shapes without bytes come from the shapes this
             // set held before the patch.
-            let received = self.delta_state.received(&self.colliders);
+            let received = self.delta_state.received(&mut self.colliders);
             let mut table = Vec::with_capacity(delta.shapes.len());
             for shape in delta.shapes {
                 table.push(match shape {

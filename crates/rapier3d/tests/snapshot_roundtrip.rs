@@ -1160,3 +1160,66 @@ fn late_joiner_after_earlier_deltas() {
         }
     }
 }
+
+/// A small trimesh of side `s`, a heavy shape for the collider-delta tests.
+fn quad_mesh(s: Real) -> SharedShape {
+    let vtx = vec![
+        Vector::new(0.0, 0.0, 0.0),
+        Vector::new(s, 0.0, 0.0),
+        Vector::new(0.0, 0.0, s),
+        Vector::new(s, 0.0, s),
+    ];
+    SharedShape::trimesh(vtx, vec![[0, 1, 2], [1, 3, 2]]).unwrap()
+}
+
+fn delta_roundtrip<C: SnapshotDelta>(delta: Delta<C>) -> Delta<C> {
+    bincode::deserialize(&bincode::serialize(&delta).unwrap()).unwrap()
+}
+
+/// Re-enabling tracking while it is on restarts its bookkeeping: a shape replaced afterwards
+/// still reaches the receiver.
+#[test]
+fn reenabled_tracking_sends_new_shapes() {
+    let mut sender = ColliderSet::new();
+    sender.enable_change_tracking();
+    let co = sender.insert(ColliderBuilder::new(quad_mesh(1.0)));
+    for _ in 0..5 {
+        let _ = sender.delta_since(None).unwrap();
+    }
+    sender.enable_change_tracking();
+    sender.get_mut(co).unwrap().set_shape(quad_mesh(2.0));
+    let (full, tick) = sender.delta_since(None).unwrap();
+    let mut receiver = ColliderSet::new();
+    receiver.apply_delta(delta_roundtrip(full)).unwrap();
+    sender.insert(ColliderBuilder::new(quad_mesh(1.0)));
+    let (delta, _) = sender.delta_since(Some(tick)).unwrap();
+    receiver.apply_delta(delta_roundtrip(delta)).unwrap();
+    assert!(bincode::serialize(&sender).unwrap() == bincode::serialize(&receiver).unwrap());
+}
+
+/// A receiver built locally whose colliders hold equal content through distinct `Arc`s keeps
+/// that content while any of them holds it.
+#[test]
+fn locally_built_receiver_keeps_shared_content() {
+    let build = || {
+        let mut set = ColliderSet::new();
+        let a = set.insert(ColliderBuilder::new(quad_mesh(1.0)));
+        set.insert(ColliderBuilder::new(quad_mesh(1.0)));
+        (set, a)
+    };
+    let (mut sender, a) = build();
+    let (mut receiver, _) = build();
+    sender.enable_change_tracking();
+    let tick = sender.change_tick().unwrap();
+    receiver.set_delta_baseline(tick);
+
+    let (mut islands, mut bodies, mut soft) =
+        (IslandManager::new(), RigidBodySet::new(), SoftBodySet::new());
+    sender.remove(a, &mut islands, &mut bodies, &mut soft, false);
+    let (delta, tick) = sender.delta_since(Some(tick)).unwrap();
+    receiver.apply_delta(delta_roundtrip(delta)).unwrap();
+    sender.insert(ColliderBuilder::new(quad_mesh(1.0)));
+    let (delta, _) = sender.delta_since(Some(tick)).unwrap();
+    receiver.apply_delta(delta_roundtrip(delta)).unwrap();
+    assert!(bincode::serialize(&sender).unwrap() == bincode::serialize(&receiver).unwrap());
+}
