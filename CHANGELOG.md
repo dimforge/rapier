@@ -7,19 +7,28 @@
   enabled, every component stamps the storage slots it writes; a delta carries only the
   slots written after a baseline tick, so its cost follows what changed (roughly the awake
   bodies and their contacts), not the size of the world. A receiver applying every delta from
-  its baseline serializes byte-identically to the sender and keeps simulating identically.
-  - `PhysicsWorld::{enable_change_tracking, delta_since, apply_delta}`, with `WorldDelta`
-    and `WorldChangeTick` (one tick per component, serializable for acknowledgements).
-  - The `SnapshotDelta` trait (`delta_since`, `apply_delta`, `ChangeTick`, `Delta`,
-    `DeltaError`), implemented by `RigidBodySet`, `ColliderSet`, `ImpulseJointSet`,
-    `MultibodyJointSet`, `IslandManager`, `BroadPhaseBvh`, `NarrowPhase` and `SoftBodySet`
-    for users replicating the components without `PhysicsWorld`.
+  its baseline keeps simulating identically, and serializes byte-identically to the sender
+  (with `enhanced-determinism` when composite shapes are in contact).
+  - `PhysicsWorld::{enable_change_tracking, enable_change_tracking_with_seed,
+    disable_change_tracking, change_tick, set_delta_baseline, delta_since, apply_delta}`,
+    with `WorldDelta` and `WorldChangeTick` (one tick per component, serializable for
+    acknowledgements), and `WorldComponentsMut` for components stored outside a
+    `PhysicsWorld`.
+  - The `SnapshotDelta` trait, with its `ChangeTick`, `Delta` and `DeltaError` types,
+    implemented by `RigidBodySet`, `ColliderSet`, `ImpulseJointSet`, `MultibodyJointSet`,
+    `IslandManager`, `BroadPhaseBvh`, `NarrowPhase` and `SoftBodySet` for users replicating
+    the components without `PhysicsWorld`.
+  - An incremental delta applies only to its baseline state: the target of the last delta
+    applied, or a tick declared with `set_delta_baseline` (after restoring a snapshot taken
+    right after `change_tick`). Stepping a receiver clears its baseline; a full delta
+    recovers it.
   - Deltas are serde types: serialize them with any format. Heavy shapes (meshes, hulls,
     heightfields, compounds) are referenced by content and only sent when the receiver
     cannot hold them yet.
-- `NarrowPhase::rebuild_solver_contacts`: recomputes the solver-facing contact data
-  that snapshots now store in compact form. The first step after a deserialization
-  runs it automatically; call it only to inspect solver contacts before that step.
+  - The C, Python and TypeScript bindings expose world deltas.
+- `NarrowPhase::rebuild_solver_contacts` and `MultibodyJointSet::rebuild_derived_data`:
+  rebuild the derived data snapshots no longer store. Restoring a `PhysicsWorld` runs both, so
+  it can be read before its first step; call them only for components restored on their own.
 
 ### Changed
 
@@ -55,6 +64,10 @@
   colliders without bound.
 - A collider quarantined at the end of a step (non-finite AABB) has its disabling processed
   by the next step.
+- Contact pairs no longer keep recycling solver anchors computed for an old center of mass
+  after a body's center of mass moves (additional mass properties, collider density): the
+  body's colliders get the new `ColliderChanges::PARENT_CENTER_OF_MASS` flag and their pairs
+  a full update.
 
 ## v0.36.1 (4 October 2026)
 

@@ -1,9 +1,7 @@
-//! Snapshot size and step-timing harness for the snapshot-size reduction work
-//! (see `docs/snapshot-size-plan.md`).
+//! Snapshot size and step-timing harness.
 //!
-//! Steps a few representative scenes, then prints the serialized size of each
-//! `PhysicsWorld` part plus the average step time, so every phase of the plan can
-//! record its effect in the ledger:
+//! Steps a few representative scenes, then prints the serialized size of each `PhysicsWorld`
+//! part, the average step time, and the size and cost of per-tick snapshot deltas:
 //!
 //! ```text
 //! cargo run -p rapier3d --release --features serde-serialize --example snapshot_size
@@ -231,7 +229,7 @@ fn instanced_shapes() -> PhysicsWorld {
     world
 }
 
-const PART_NAMES: [&str; 9] = [
+const PART_NAMES: [&str; 10] = [
     "gravity",
     "integration_parameters",
     "islands",
@@ -241,9 +239,10 @@ const PART_NAMES: [&str; 9] = [
     "colliders",
     "impulse_joints",
     "multibody_joints",
+    "soft_bodies",
 ];
 
-fn part_sizes(world: &PhysicsWorld) -> [u64; 9] {
+fn part_sizes(world: &PhysicsWorld) -> [u64; 10] {
     [
         bincode::serialized_size(&world.gravity).unwrap(),
         bincode::serialized_size(&world.integration_parameters).unwrap(),
@@ -254,6 +253,7 @@ fn part_sizes(world: &PhysicsWorld) -> [u64; 9] {
         bincode::serialized_size(&world.colliders).unwrap(),
         bincode::serialized_size(&world.impulse_joints).unwrap(),
         bincode::serialized_size(&world.multibody_joints).unwrap(),
+        bincode::serialized_size(&world.soft_bodies).unwrap(),
     ]
 }
 
@@ -293,7 +293,7 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
     let ticks = 20;
     let (mut size, mut max_size, mut encode, mut apply, mut step) = (0, 0, 0.0, 0.0, 0.0);
     let mut breakdown = String::new();
-    for _ in 0..ticks {
+    for tick_index in 0..ticks {
         let t0 = Instant::now();
         world.step();
         step += t0.elapsed().as_secs_f64() * 1000.0;
@@ -301,24 +301,25 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
         let (delta, tick) = world.delta_since(acked).unwrap();
         let delta_bytes = bincode::serialize(&delta).unwrap();
         encode += t0.elapsed().as_secs_f64() * 1000.0;
+        if tick_index + 1 == ticks {
+            breakdown = format!(
+                "islands {} bp {} np {} bodies {} colliders {} joints {} mb {} soft {}",
+                bincode::serialized_size(&delta.islands).unwrap(),
+                bincode::serialized_size(&delta.broad_phase).unwrap(),
+                bincode::serialized_size(&delta.narrow_phase).unwrap(),
+                bincode::serialized_size(&delta.bodies).unwrap(),
+                bincode::serialized_size(&delta.colliders).unwrap(),
+                bincode::serialized_size(&delta.impulse_joints).unwrap(),
+                bincode::serialized_size(&delta.multibody_joints).unwrap(),
+                bincode::serialized_size(&delta.soft_bodies).unwrap(),
+            );
+        }
         let t0 = Instant::now();
         receiver
             .apply_delta(bincode::deserialize(&delta_bytes).unwrap())
             .unwrap();
         apply += t0.elapsed().as_secs_f64() * 1000.0;
         acked = Some(tick);
-        let delta: rapier3d::pipeline::WorldDelta = bincode::deserialize(&delta_bytes).unwrap();
-        breakdown = format!(
-            "islands {} bp {} np {} bodies {} colliders {} joints {} mb {} soft {}",
-            bincode::serialized_size(&delta.islands).unwrap(),
-            bincode::serialized_size(&delta.broad_phase).unwrap(),
-            bincode::serialized_size(&delta.narrow_phase).unwrap(),
-            bincode::serialized_size(&delta.bodies).unwrap(),
-            bincode::serialized_size(&delta.colliders).unwrap(),
-            bincode::serialized_size(&delta.impulse_joints).unwrap(),
-            bincode::serialized_size(&delta.multibody_joints).unwrap(),
-            bincode::serialized_size(&delta.soft_bodies).unwrap(),
-        );
         size += delta_bytes.len();
         max_size = max_size.max(delta_bytes.len());
     }

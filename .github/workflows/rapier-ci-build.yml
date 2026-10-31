@@ -154,6 +154,11 @@ jobs:
         run: cargo test -p rapier3d --release --features serde-serialize --test snapshot_roundtrip
       - name: Test snapshot round-trip (2D)
         run: cargo test -p rapier2d --release --features serde-serialize --test snapshot_roundtrip
+      # The soft-body delta tests need insertion-ordered maps for byte-identical receivers.
+      - name: Test snapshot round-trip with enhanced determinism (3D)
+        run: cargo test -p rapier3d --release --features serde-serialize,enhanced-determinism --test snapshot_roundtrip
+      - name: Test snapshot round-trip with enhanced determinism (2D)
+        run: cargo test -p rapier2d --release --features serde-serialize,enhanced-determinism --test snapshot_roundtrip
       - name: Test single-worker deferred BVH
         run: cargo test -p rapier3d --release --features parallel --test single_worker_deferred_bvh
       # `unsync-callbacks` drops the `Sync` bound off the hooks/event traits; the test's
