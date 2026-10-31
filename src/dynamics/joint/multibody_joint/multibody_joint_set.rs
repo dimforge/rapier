@@ -141,7 +141,25 @@ impl MultibodyJointSet {
         kinematic: bool,
         wake_up: bool,
     ) -> Option<MultibodyJointHandle> {
-        let link1 = self.rb2mb.get(body1.0).copied().unwrap_or_else(|| {
+        // Validate before creating any root multibody or graph node, so a rejected
+        // insertion leaves the set unchanged.
+        if body1 == body2 {
+            return None;
+        }
+        let existing1 = self.rb2mb.get(body1.0).copied();
+        let existing2 = self.rb2mb.get(body2.0).copied();
+        if let Some(existing2) = existing2 {
+            // `body2` already has a parent link.
+            if existing2.id != 0 {
+                return None;
+            }
+            // Both bodies already belong to the same multibody: this would close a loop.
+            if existing1.is_some_and(|existing1| existing1.multibody == existing2.multibody) {
+                return None;
+            }
+        }
+
+        let link1 = existing1.unwrap_or_else(|| {
             let mb_handle = self.multibodies.insert(Multibody::with_root(body1, true));
             MultibodyLinkId {
                 graph_id: self.connectivity_graph.graph.add_node(body1),
@@ -150,7 +168,7 @@ impl MultibodyJointSet {
             }
         });
 
-        let link2 = self.rb2mb.get(body2.0).copied().unwrap_or_else(|| {
+        let link2 = existing2.unwrap_or_else(|| {
             let mb_handle = self.multibodies.insert(Multibody::with_root(body2, true));
             MultibodyLinkId {
                 graph_id: self.connectivity_graph.graph.add_node(body2),
@@ -158,11 +176,6 @@ impl MultibodyJointSet {
                 id: 0,
             }
         });
-
-        if link1.multibody == link2.multibody || link2.id != 0 {
-            // This would introduce an invalid configuration.
-            return None;
-        }
 
         self.connectivity_graph
             .graph
