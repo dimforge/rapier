@@ -48,6 +48,20 @@ impl DeltaComponent for NarrowPhase {
         &self.delta_state.tracker
     }
 
+    fn sync_before_tick(&mut self) {
+        // Every issued tick must be a sync point of the diffed arrays: a later revert to the
+        // shadowed value would otherwise go unseen.
+        let state = &mut self.delta_state;
+        state
+            .body_solver_color_masks
+            .sync(&self.body_solver_color_masks);
+        state.pair_solver_hints.sync(&self.pair_solver_hints);
+        state.force_event_pos.sync(&self.force_event_pos);
+        state
+            .solver_buckets
+            .sync(self.solver_contact_graph.raw_buckets());
+    }
+
     fn reset_for_full_delta(&mut self) {
         // The query dispatcher is configuration, not state: keep the receiver's own.
         let query_dispatcher = self.query_dispatcher.clone();

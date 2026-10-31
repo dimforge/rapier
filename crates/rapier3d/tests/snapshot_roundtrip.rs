@@ -1106,3 +1106,57 @@ fn restored_world_is_readable_before_stepping() {
         multibody.ndofs()
     );
 }
+
+/// A receiver bootstrapped from `change_tick` + snapshot after the sender already sent deltas
+/// (a second client joining late): every issued tick must be a sync point.
+#[test]
+fn late_joiner_after_earlier_deltas() {
+    // A tumbling pile with force events, so the narrow phase's side arrays keep changing.
+    let tumbling_pile = || {
+        let mut world = PhysicsWorld::new();
+        world.insert(
+            RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5, 0.0)),
+            ColliderBuilder::cuboid(20.0, 0.5, 20.0),
+        );
+        for i in 0..4 {
+            for j in 0..3 {
+                for k in 0..4 {
+                    world.insert(
+                        RigidBodyBuilder::dynamic()
+                            .translation(Vector::new(
+                                i as Real * 1.05 - 2.0,
+                                j as Real * 1.3 + 0.8,
+                                k as Real * 1.05 - 2.0,
+                            ))
+                            .rotation(Vector::new(0.1 * i as Real, 0.2 * j as Real, 0.05)),
+                        ColliderBuilder::cuboid(0.5, 0.5, 0.5).contact_force_event_threshold(1.0),
+                    );
+                }
+            }
+        }
+        world
+    };
+    for offset in 1..8 {
+        let mut world = tumbling_pile();
+        world.enable_change_tracking();
+        for _ in 0..20 {
+            world.step();
+        }
+        // Another receiver's delta.
+        let _ = world.delta_since(None).unwrap();
+        for _ in 0..offset {
+            world.step();
+        }
+
+        let mut acked = world.change_tick().unwrap();
+        let mut late = restore(&save(&world));
+        late.set_delta_baseline(acked);
+        for step in 0..3 {
+            world.step();
+            let (delta, tick) = world.delta_since(Some(acked)).unwrap();
+            late.apply_delta(delta).unwrap();
+            acked = tick;
+            assert_same(step, &record(&world), &record(&late), "late joiner");
+        }
+    }
+}

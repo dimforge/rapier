@@ -606,7 +606,7 @@ impl<T> Default for ShadowStamps<T> {
 
 impl<T: Clone + PartialEq> ShadowStamps<T> {
     /// Stamps the slots of `current` that differ from the shadow, then updates the shadow.
-    fn sync(&mut self, current: &[T]) {
+    pub(crate) fn sync(&mut self, current: &[T]) {
         let common = self.shadow.len().min(current.len());
         for i in 0..common {
             if self.shadow[i] != current[i] {
