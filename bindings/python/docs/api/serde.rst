@@ -28,9 +28,12 @@ Snapshot deltas
 
 To replicate a stepping world (e.g. from a server to its clients), send
 the full state once, then only what changed since the state each receiver
-acknowledged. A receiver that applied every delta from its baseline has
-the same :meth:`~rapier3d.PhysicsWorld.snapshot` bytes as the sender and
-keeps simulating identically.
+acknowledged. A receiver that applied every delta from its baseline
+keeps simulating identically to the sender, and has the same
+:meth:`~rapier3d.PhysicsWorld.snapshot` bytes, except when composite
+shapes (compounds, triangle-mesh soft-body surfaces, voxels) are in
+contact and the bindings were not built with ``enhanced-determinism``
+(the ``determinism`` cargo feature, e.g. ``maturin build -F determinism``).
 
 .. code-block:: python
 
@@ -48,8 +51,23 @@ keeps simulating identically.
 
 Deltas and ticks are opaque ``bytes``, so they can travel over the
 network. A receiver can also start from a world restored from a
-:meth:`~rapier3d.PhysicsWorld.snapshot`: take ``delta_since(None)[1]``
-at the same instant as the snapshot as its first acknowledged tick.
+:meth:`~rapier3d.PhysicsWorld.snapshot`: the sender calls
+:meth:`~rapier3d.PhysicsWorld.change_tick` right before taking the
+snapshot, and the receiver passes that tick to
+:meth:`~rapier3d.PhysicsWorld.set_delta_baseline` once restored:
+
+.. code-block:: python
+
+   tick = server.change_tick()
+   client = PhysicsWorld.restore(server.snapshot())
+   client.set_delta_baseline(tick)
+   acked = tick
+
+Baselines are strict: an incremental delta only applies to a receiver
+holding its baseline, i.e. the target of the last delta it applied, or
+the tick declared with ``set_delta_baseline``. A fresh receiver needs a
+full delta first, and stepping a receiver clears its baseline (send it a
+full delta to resynchronize it).
 
 A delta can be produced against any tick a receiver acknowledged, not
 only the last one: a receiver that missed some deltas catches up with a
@@ -63,7 +81,7 @@ handlers, physics hooks and the other non-serialized settings listed for
 
 .. autoclass:: PhysicsWorld
    :no-index:
-   :members: enable_change_tracking, disable_change_tracking, delta_since, apply_delta
+   :members: enable_change_tracking, disable_change_tracking, change_tick, set_delta_baseline, delta_since, apply_delta
 
 Errors
 ------
@@ -76,15 +94,17 @@ Errors
 
 :meth:`~rapier3d.PhysicsWorld.delta_since` and
 :meth:`~rapier3d.PhysicsWorld.apply_delta` raise
-:class:`~rapier3d.SerializationError` on malformed or truncated blobs, and
+:class:`~rapier3d.SerializationError` on malformed or truncated blobs (and
+on blobs over 256 MiB or with trailing bytes), and
 its subclass :class:`~rapier3d.DeltaError` when the delta cannot be
 produced or applied. Its ``kind`` attribute names the cause:
 
 - ``"tracking_disabled"``: ``delta_since`` was called without change tracking.
 - ``"unknown_baseline"``: the tick was not issued by this world since change
   tracking was last enabled; send a full state (``delta_since(None)``).
-- ``"baseline_mismatch"``: the delta was produced against another baseline
-  than the last delta the receiver applied.
+- ``"baseline_mismatch"``: the receiver does not hold the delta's baseline
+  (it never applied a full delta, was stepped, or applied another delta
+  since).
 - ``"malformed"`` / ``"missing_shape"``: the delta is inconsistent with the
   receiver.
 

@@ -54,9 +54,10 @@ def test_delta_replication_matches_sender_bytes():
     for _ in range(10):
         world.step()
 
-    # (a) restored from a snapshot taken at the same instant as its baseline tick.
+    # (a) restored from a snapshot taken right after its baseline tick.
+    restored_acked = world.change_tick()
     restored = r.PhysicsWorld.restore(world.snapshot())
-    restored_acked = world.delta_since(None)[1]
+    restored.set_delta_baseline(restored_acked)
     # (b) an empty world bootstrapped by a full delta.
     full, tick = world.delta_since(None)
     empty = r.PhysicsWorld()
@@ -64,8 +65,9 @@ def test_delta_replication_matches_sender_bytes():
     assert empty_acked == tick
     assert empty.snapshot() == world.snapshot()
     # (c) a lagging receiver, synced every 5 steps against its own acknowledged tick.
+    lagging_acked = world.change_tick()
     lagging = r.PhysicsWorld.restore(world.snapshot())
-    lagging_acked = world.delta_since(None)[1]
+    lagging.set_delta_baseline(lagging_acked)
 
     spawned = []
     for step in range(60):
@@ -176,15 +178,117 @@ def test_malformed_delta_and_tick_blobs_raise():
     delta, tick = sender.delta_since(None)
     receiver = r.PhysicsWorld()
 
-    for garbage in (b"", b"not a delta", b"RPYS" + (99).to_bytes(4, "little"), delta[:-7]):
+    for garbage in (
+        b"",
+        b"not a delta",
+        b"RPYS" + (99).to_bytes(4, "little"),
+        delta[:-7],
+        delta + b"\x00",
+    ):
         with pytest.raises(r.SerializationError):
             receiver.apply_delta(garbage)
-    for garbage in (b"garbage", tick[:-1]):
+    for garbage in (b"garbage", tick[:-1], tick + b"\x00"):
         with pytest.raises(r.SerializationError):
             sender.delta_since(garbage)
+        with pytest.raises(r.SerializationError):
+            receiver.set_delta_baseline(garbage)
     with pytest.raises(TypeError):
         receiver.apply_delta("not bytes")
 
     # The receiver is still usable.
     receiver.apply_delta(delta)
     assert receiver.snapshot() == sender.snapshot()
+
+
+def test_fresh_receiver_rejects_an_incremental_delta():
+    sender = _build_world()
+    sender.enable_change_tracking()
+    tick = sender.change_tick()
+    sender.step()
+    delta, _ = sender.delta_since(tick)
+
+    receiver = r.PhysicsWorld()
+    with pytest.raises(r.DeltaError) as e:
+        receiver.apply_delta(delta)
+    assert e.value.kind == "baseline_mismatch"
+
+
+def test_stepped_receiver_rejects_the_next_delta_then_recovers_with_a_full_delta():
+    sender = _build_world()
+    sender.enable_change_tracking()
+    receiver = r.PhysicsWorld()
+    acked = receiver.apply_delta(sender.delta_since(None)[0])
+
+    sender.step()
+    receiver.step()
+    delta, _ = sender.delta_since(acked)
+    with pytest.raises(r.DeltaError) as e:
+        receiver.apply_delta(delta)
+    assert e.value.kind == "baseline_mismatch"
+
+    full, tick = sender.delta_since(None)
+    acked = receiver.apply_delta(full)
+    assert acked == tick
+    assert receiver.snapshot() == sender.snapshot()
+    sender.step()
+    acked = _sync(sender, receiver, acked)
+    assert receiver.snapshot() == sender.snapshot()
+
+
+def test_change_tick_snapshot_and_set_delta_baseline():
+    sender = _build_world()
+    with pytest.raises(r.DeltaError) as e:
+        sender.change_tick()
+    assert e.value.kind == "tracking_disabled"
+
+    sender.enable_change_tracking()
+    for _ in range(5):
+        sender.step()
+    tick = sender.change_tick()
+    assert isinstance(tick, bytes)
+    receiver = r.PhysicsWorld.restore(sender.snapshot())
+
+    # Without the declared baseline, the restored receiver rejects incremental deltas.
+    sender.step()
+    delta, _ = sender.delta_since(tick)
+    with pytest.raises(r.DeltaError) as e:
+        receiver.apply_delta(delta)
+    assert e.value.kind == "baseline_mismatch"
+
+    tick = sender.change_tick()
+    receiver = r.PhysicsWorld.restore(sender.snapshot())
+    receiver.set_delta_baseline(tick)
+    acked = tick
+    for _ in range(10):
+        sender.step()
+        acked = _sync(sender, receiver, acked)
+        assert receiver.snapshot() == sender.snapshot()
+
+
+def _contact_summary(w):
+    out = []
+    for pair in w.narrow_phase.contact_pairs():
+        for m in pair.manifolds:
+            out.append(
+                (
+                    (pair.collider1.index, pair.collider1.generation),
+                    (pair.collider2.index, pair.collider2.generation),
+                    tuple(m.data.normal),
+                    len(m.data.solver_contacts),
+                )
+            )
+    return sorted(out)
+
+
+def test_restored_world_has_contacts_before_stepping():
+    world = _build_world()
+    for _ in range(30):
+        world.step()
+    expected = _contact_summary(world)
+    assert any(n > 0 for *_, n in expected)
+
+    for restored in (
+        r.PhysicsWorld.restore(world.snapshot()),
+        r.PhysicsWorld.restore_json(world.snapshot_json()),
+    ):
+        assert _contact_summary(restored) == expected

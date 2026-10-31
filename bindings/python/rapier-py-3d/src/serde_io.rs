@@ -2,7 +2,7 @@
 //!
 //! The on-disk format always begins with an 8-byte header:
 //!   - 4 bytes magic = `b"RPYS"`
-//!   - 4 bytes little-endian `u32` version (currently 1)
+//!   - 4 bytes little-endian `u32` version (currently 2)
 //!
 //! Anything that follows is the bincode-serialized payload (or for the JSON
 //! debug mode, a JSON object with a `"_rpys"` magic+version field, see below).
@@ -20,7 +20,7 @@ use pyo3::types::PyBytes;
 /// Magic header marking a rapier-py blob ("Rapier PYthon Snapshot").
 pub const MAGIC: &[u8; 4] = b"RPYS";
 /// Current on-disk format version. Bumped on incompatible payload changes.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 /// Total size of the binary header (magic + u32 version).
 pub const HEADER_SIZE: usize = 8;
 
@@ -90,7 +90,7 @@ pub fn bytes_to_py<'py>(py: Python<'py>, blob: &[u8]) -> Bound<'py, PyBytes> {
 /// fields so the file is self-describing for human readers.
 pub const JSON_MAGIC: &str = "RPYS";
 
-/// Build the JSON envelope `{"_magic": "RPYS", "_version": 1, "payload": <inner>}`.
+/// Build the JSON envelope `{"_magic": "RPYS", "_version": VERSION, "payload": <inner>}`.
 pub fn wrap_json(payload: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
         "_magic": JSON_MAGIC,

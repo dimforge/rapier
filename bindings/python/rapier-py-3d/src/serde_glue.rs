@@ -1530,6 +1530,26 @@ type _PhysicsWorldOwned = (
     rapier::dynamics::SoftBodySet,
 );
 
+/// Rebuilds the derived state deserialization leaves empty, so a restored world is readable
+/// before its first step.
+fn rebuild_derived_state(parts: &mut crate::pipeline::PhysicsWorldParts) {
+    let g = parts.gravity;
+    let mut gravity = rapier::math::Vector::new(g.x, g.y, g.z);
+    rapier::pipeline::WorldComponentsMut {
+        gravity: &mut gravity,
+        integration_parameters: &mut parts.integration_parameters,
+        islands: &mut parts.islands,
+        broad_phase: &mut parts.broad_phase,
+        narrow_phase: &mut parts.narrow_phase,
+        bodies: &mut parts.bodies,
+        colliders: &mut parts.colliders,
+        impulse_joints: &mut parts.impulse_joints,
+        multibody_joints: &mut parts.multibody_joints,
+        soft_bodies: &mut parts.soft_bodies,
+    }
+    .rebuild_derived_state();
+}
+
 #[pymethods]
 impl PhysicsWorld {
     /// Take a snapshot of the world's physical state.
@@ -1593,6 +1613,8 @@ impl PhysicsWorld {
             gravity: g,
             soft_bodies: sbs,
         };
+        let mut parts = parts;
+        rebuild_derived_state(&mut parts);
         Py::new(py, PhysicsWorld::from_parts(py, parts, false)?)
     }
 
@@ -1651,6 +1673,8 @@ impl PhysicsWorld {
             gravity: g,
             soft_bodies: sbs,
         };
+        let mut parts = parts;
+        rebuild_derived_state(&mut parts);
         Py::new(py, PhysicsWorld::from_parts(py, parts, false)?)
     }
 
@@ -1669,8 +1693,7 @@ impl PhysicsWorld {
 // PhysicsWorld: snapshot deltas.
 //
 // Deltas and ticks travel as `RPYS`-headed bincode blobs of rapier's
-// `WorldDelta` / `WorldChangeTick`, assembled from the per-component deltas
-// like rapier's own `PhysicsWorld::delta_since`.
+// `WorldDelta` / `WorldChangeTick`, produced through `WorldComponentsMut`.
 // ============================================================
 
 /// Converts a rapier delta error into a Python `DeltaError` with a `kind` attribute.
@@ -1689,6 +1712,9 @@ fn delta_err(py: Python<'_>, e: rapier::data::DeltaError) -> PyErr {
     err
 }
 
+/// Largest delta or tick blob accepted, as in the C bindings.
+const MAX_DELTA_BYTES: usize = 256 * 1024 * 1024;
+
 fn delta_to_py<'py, T: serde::Serialize>(
     py: Python<'py>,
     value: &T,
@@ -1700,45 +1726,72 @@ fn delta_to_py<'py, T: serde::Serialize>(
     ))
 }
 
+/// Decodes a delta or tick blob, rejecting oversized blobs and trailing bytes.
 fn delta_from_py<T: serde::de::DeserializeOwned>(blob: &Bound<'_, PyBytes>) -> PyResult<T> {
-    let body = crate::serde_io::unwrap_bincode(blob.as_bytes())?;
-    crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)
+    use crate::bincode::Options;
+    let bytes = blob.as_bytes();
+    if bytes.len() > MAX_DELTA_BYTES {
+        return Err(crate::errors::SerializationError::new_err(
+            "delta blob exceeds 256 MiB",
+        ));
+    }
+    let body = crate::serde_io::unwrap_bincode(bytes)?;
+    crate::bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .with_limit(MAX_DELTA_BYTES as u64)
+        .reject_trailing_bytes()
+        .deserialize(body)
+        .map_err(crate::serde_io::bincode_err)
+}
+
+impl PhysicsWorld {
+    fn gravity_vector(&self) -> rapier::math::Vector {
+        let g = self.gravity.0;
+        rapier::math::Vector::new(g.x, g.y, g.z)
+    }
+
+    /// Runs `f` on every component deltas cover, with `gravity` standing in for the world's.
+    fn with_components<R>(
+        &self,
+        py: Python<'_>,
+        gravity: &mut rapier::math::Vector,
+        f: impl FnOnce(&mut rapier::pipeline::WorldComponentsMut<'_>) -> R,
+    ) -> PyResult<R> {
+        let mut ip = crate::errors::try_borrow_mut(self.integration_parameters.bind(py))?;
+        let mut islands = crate::errors::try_borrow_mut(self.islands.bind(py))?;
+        let mut bp = crate::errors::try_borrow_mut(self.broad_phase.bind(py))?;
+        let mut np = crate::errors::try_borrow_mut(self.narrow_phase.bind(py))?;
+        let mut bodies = crate::errors::try_borrow_mut(self.bodies.bind(py))?;
+        let mut colliders = crate::errors::try_borrow_mut(self.colliders.bind(py))?;
+        let mut ij = crate::errors::try_borrow_mut(self.impulse_joints.bind(py))?;
+        let mut mj = crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?;
+        let mut sb = crate::errors::try_borrow_mut(self.soft_bodies.bind(py))?;
+        let mut components = rapier::pipeline::WorldComponentsMut {
+            gravity,
+            integration_parameters: &mut ip.0,
+            islands: &mut islands.0,
+            broad_phase: &mut bp.0,
+            narrow_phase: &mut np.0,
+            bodies: &mut bodies.0,
+            colliders: &mut colliders.0,
+            impulse_joints: &mut ij.0,
+            multibody_joints: &mut mj.0,
+            soft_bodies: &mut sb.0,
+        };
+        Ok(f(&mut components))
+    }
 }
 
 #[pymethods]
 impl PhysicsWorld {
     /// Start recording which parts of the world change, for :meth:`delta_since`.
     ///
-    /// Call it on the sender before taking the baseline (a :meth:`snapshot`, or
-    /// ``delta_since(None)``). Calling it again restarts the record: every tick
-    /// issued before is then rejected by :meth:`delta_since`.
+    /// Call it on the sender before issuing the first tick (with :meth:`change_tick` or
+    /// ``delta_since(None)``). Calling it again restarts the record: every tick issued
+    /// before is then rejected by :meth:`delta_since`.
     fn enable_change_tracking(&self, py: Python<'_>) -> PyResult<()> {
-        use rapier::data::SnapshotDelta;
-        crate::errors::try_borrow_mut(self.islands.bind(py))?
-            .0
-            .enable_change_tracking();
-        crate::errors::try_borrow_mut(self.broad_phase.bind(py))?
-            .0
-            .enable_change_tracking();
-        crate::errors::try_borrow_mut(self.narrow_phase.bind(py))?
-            .0
-            .enable_change_tracking();
-        crate::errors::try_borrow_mut(self.bodies.bind(py))?
-            .0
-            .enable_change_tracking();
-        crate::errors::try_borrow_mut(self.colliders.bind(py))?
-            .0
-            .enable_change_tracking();
-        crate::errors::try_borrow_mut(self.impulse_joints.bind(py))?
-            .0
-            .enable_change_tracking();
-        crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?
-            .0
-            .enable_change_tracking();
-        crate::errors::try_borrow_mut(self.soft_bodies.bind(py))?
-            .0
-            .enable_change_tracking();
-        Ok(())
+        let mut g = self.gravity_vector();
+        self.with_components(py, &mut g, |c| c.enable_change_tracking())
     }
 
     /// Stop recording changes, and drop the record.
@@ -1746,41 +1799,48 @@ impl PhysicsWorld {
     /// :meth:`delta_since` raises :class:`DeltaError` until
     /// :meth:`enable_change_tracking` is called again.
     fn disable_change_tracking(&self, py: Python<'_>) -> PyResult<()> {
-        use rapier::data::SnapshotDelta;
-        crate::errors::try_borrow_mut(self.islands.bind(py))?
-            .0
-            .disable_change_tracking();
-        crate::errors::try_borrow_mut(self.broad_phase.bind(py))?
-            .0
-            .disable_change_tracking();
-        crate::errors::try_borrow_mut(self.narrow_phase.bind(py))?
-            .0
-            .disable_change_tracking();
-        crate::errors::try_borrow_mut(self.bodies.bind(py))?
-            .0
-            .disable_change_tracking();
-        crate::errors::try_borrow_mut(self.colliders.bind(py))?
-            .0
-            .disable_change_tracking();
-        crate::errors::try_borrow_mut(self.impulse_joints.bind(py))?
-            .0
-            .disable_change_tracking();
-        crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?
-            .0
-            .disable_change_tracking();
-        crate::errors::try_borrow_mut(self.soft_bodies.bind(py))?
-            .0
-            .disable_change_tracking();
-        Ok(())
+        let mut g = self.gravity_vector();
+        self.with_components(py, &mut g, |c| c.disable_change_tracking())
+    }
+
+    /// A tick naming the world's current state, without building a delta.
+    ///
+    /// Call it right before taking a :meth:`snapshot` sent to a receiver: the receiver
+    /// restores the snapshot, then passes the tick to :meth:`set_delta_baseline`, and
+    /// the sender passes it to its next :meth:`delta_since`. Requires
+    /// :meth:`enable_change_tracking`.
+    ///
+    /// :returns: The tick, as opaque bytes.
+    /// :raises DeltaError: if change tracking is disabled (``kind ==
+    ///     "tracking_disabled"``).
+    fn change_tick<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let mut g = self.gravity_vector();
+        let tick = self
+            .with_components(py, &mut g, |c| c.change_tick())?
+            .map_err(|e| delta_err(py, e))?;
+        delta_to_py(py, &tick)
+    }
+
+    /// Declare that this world holds the sender's state at ``tick``, so deltas produced
+    /// from that tick can be applied.
+    ///
+    /// Call it on a world restored from a :meth:`snapshot` taken right after the sender's
+    /// :meth:`change_tick`. Stepping this world clears the baseline again.
+    ///
+    /// :param tick: Bytes returned by the sender's :meth:`change_tick`.
+    /// :raises SerializationError: if ``tick`` is not a valid tick blob.
+    fn set_delta_baseline(&self, py: Python<'_>, tick: &Bound<'_, PyBytes>) -> PyResult<()> {
+        let tick: rapier::pipeline::WorldChangeTick = delta_from_py(tick)?;
+        let mut g = self.gravity_vector();
+        self.with_components(py, &mut g, |c| c.set_delta_baseline(tick))
     }
 
     /// The changes made to the world since a tick a receiver acknowledged.
     ///
     /// Requires :meth:`enable_change_tracking`. The returned delta, applied with
     /// :meth:`apply_delta` to a receiver holding the state of ``since``, leaves it
-    /// byte-identical to this world (same :meth:`snapshot`), and both keep simulating
-    /// identically. Its size follows what changed: roughly the awake bodies, their
-    /// colliders and contacts.
+    /// simulating identically to this world. Its size follows what changed: roughly the
+    /// awake bodies, their colliders and contacts.
     ///
     /// Typical replication loop::
     ///
@@ -1796,8 +1856,8 @@ impl PhysicsWorld {
     /// ``since`` can be any tick a receiver acknowledged, not only the last one, so a
     /// receiver that missed deltas catches up with one delta from its own tick.
     ///
-    /// :param since: A tick returned by this method or by :meth:`apply_delta`, or
-    ///     ``None`` for the whole state (bootstraps an empty receiver).
+    /// :param since: A tick returned by this method, :meth:`change_tick` or
+    ///     :meth:`apply_delta`, or ``None`` for the whole state (bootstraps a receiver).
     /// :returns: ``(delta, tick)``: the delta bytes, and the tick (bytes) the receiver
     ///     is at once it applied the delta. Both are opaque and can be sent over the
     ///     network.
@@ -1812,133 +1872,45 @@ impl PhysicsWorld {
         py: Python<'py>,
         since: Option<&Bound<'py, PyBytes>>,
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-        use rapier::data::SnapshotDelta;
         let since: Option<rapier::pipeline::WorldChangeTick> =
             since.map(delta_from_py).transpose()?;
-        let mut islands = crate::errors::try_borrow_mut(self.islands.bind(py))?;
-        let mut bp = crate::errors::try_borrow_mut(self.broad_phase.bind(py))?;
-        let mut np = crate::errors::try_borrow_mut(self.narrow_phase.bind(py))?;
-        let mut bodies = crate::errors::try_borrow_mut(self.bodies.bind(py))?;
-        let mut colliders = crate::errors::try_borrow_mut(self.colliders.bind(py))?;
-        let mut ij = crate::errors::try_borrow_mut(self.impulse_joints.bind(py))?;
-        let mut mj = crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?;
-        let mut sb = crate::errors::try_borrow_mut(self.soft_bodies.bind(py))?;
-        let ip = crate::errors::try_borrow(self.integration_parameters.bind(py))?;
-        let err = |e| delta_err(py, e);
-        let g = self.gravity.0;
-        let delta = rapier::pipeline::WorldDelta {
-            gravity: rapier::math::Vector::new(g.x, g.y, g.z),
-            integration_parameters: ip.0,
-            islands: islands
-                .0
-                .delta_since(since.map(|t| t.islands))
-                .map_err(err)?
-                .0,
-            broad_phase: bp
-                .0
-                .delta_since(since.map(|t| t.broad_phase))
-                .map_err(err)?
-                .0,
-            narrow_phase: np
-                .0
-                .delta_since(since.map(|t| t.narrow_phase))
-                .map_err(err)?
-                .0,
-            bodies: bodies
-                .0
-                .delta_since(since.map(|t| t.bodies))
-                .map_err(err)?
-                .0,
-            colliders: colliders
-                .0
-                .delta_since(since.map(|t| t.colliders))
-                .map_err(err)?
-                .0,
-            impulse_joints: ij
-                .0
-                .delta_since(since.map(|t| t.impulse_joints))
-                .map_err(err)?
-                .0,
-            multibody_joints: mj
-                .0
-                .delta_since(since.map(|t| t.multibody_joints))
-                .map_err(err)?
-                .0,
-            soft_bodies: sb
-                .0
-                .delta_since(since.map(|t| t.soft_bodies))
-                .map_err(err)?
-                .0,
-        };
-        Ok((
-            delta_to_py(py, &delta)?,
-            delta_to_py(py, &delta.target_tick())?,
-        ))
+        let mut g = self.gravity_vector();
+        let (delta, tick) = self
+            .with_components(py, &mut g, |c| c.delta_since(since))?
+            .map_err(|e| delta_err(py, e))?;
+        Ok((delta_to_py(py, &delta)?, delta_to_py(py, &tick)?))
     }
 
     /// Patch a delta produced by :meth:`delta_since` into this world.
     ///
-    /// This world must hold the delta's baseline state: the state of the tick passed
-    /// to :meth:`delta_since` (a world restored from a :meth:`snapshot` taken at that
-    /// instant, or one that applied the delta returning that tick). A full delta
-    /// (``since=None``) can be applied to a world in any state, e.g. a fresh
-    /// ``PhysicsWorld()``. Change tracking is not needed on the receiver.
+    /// An incremental delta requires this world to hold the delta's baseline: the target
+    /// of the last delta it applied, or the tick declared with :meth:`set_delta_baseline`,
+    /// and not stepped since. A full delta (``since=None``) can be applied to a world in
+    /// any state, e.g. a fresh ``PhysicsWorld()``: it resets the world first. Change
+    /// tracking is not needed on the receiver.
     ///
     /// :param delta: Bytes returned by :meth:`delta_since`.
     /// :returns: The tick (bytes) to acknowledge to the sender, which passes it to its
     ///     next :meth:`delta_since`.
-    /// :raises DeltaError: if the delta was produced against a baseline other than the
-    ///     last delta this world applied (``kind == "baseline_mismatch"``), or is
-    ///     inconsistent with this world (``"malformed"``, ``"missing_shape"``). The
-    ///     world may then be partially patched: recover by applying a full delta.
+    /// :raises DeltaError: if this world does not hold the delta's baseline (``kind ==
+    ///     "baseline_mismatch"``), or the delta is inconsistent with this world
+    ///     (``"malformed"``, ``"missing_shape"``). The world may then be partially
+    ///     patched: recover by applying a full delta.
     /// :raises SerializationError: if ``delta`` is not a valid delta blob.
     fn apply_delta<'py>(
         &mut self,
         py: Python<'py>,
         delta: &Bound<'py, PyBytes>,
     ) -> PyResult<Bound<'py, PyBytes>> {
-        use rapier::data::SnapshotDelta;
         let delta: rapier::pipeline::WorldDelta = delta_from_py(delta)?;
-        let tick = delta.target_tick();
-        let err = |e| delta_err(py, e);
-        // Same order as rapier's `PhysicsWorld::apply_delta`.
-        crate::errors::try_borrow_mut(self.integration_parameters.bind(py))?.0 =
-            delta.integration_parameters;
-        let g = delta.gravity;
+        let mut g = self.gravity_vector();
+        let result = self.with_components(py, &mut g, |c| c.apply_delta(delta))?;
+        // The gravity is patched first, so it is kept even when a component fails.
         self.gravity = Vec3(crate::na::Vector3::new(g.x, g.y, g.z));
-        crate::errors::try_borrow_mut(self.islands.bind(py))?
-            .0
-            .apply_delta(delta.islands)
-            .map_err(err)?;
-        crate::errors::try_borrow_mut(self.broad_phase.bind(py))?
-            .0
-            .apply_delta(delta.broad_phase)
-            .map_err(err)?;
-        crate::errors::try_borrow_mut(self.narrow_phase.bind(py))?
-            .0
-            .apply_delta(delta.narrow_phase)
-            .map_err(err)?;
-        crate::errors::try_borrow_mut(self.bodies.bind(py))?
-            .0
-            .apply_delta(delta.bodies)
-            .map_err(err)?;
-        crate::errors::try_borrow_mut(self.colliders.bind(py))?
-            .0
-            .apply_delta(delta.colliders)
-            .map_err(err)?;
-        crate::errors::try_borrow_mut(self.impulse_joints.bind(py))?
-            .0
-            .apply_delta(delta.impulse_joints)
-            .map_err(err)?;
-        let mut mj = crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?;
-        mj.0.apply_delta(delta.multibody_joints).map_err(err)?;
+        let tick = result.map_err(|e| delta_err(py, e))?;
         // Wake-ups queued by local joint edits are not part of the replicated state.
-        mj.1.clear();
-        drop(mj);
-        crate::errors::try_borrow_mut(self.soft_bodies.bind(py))?
-            .0
-            .apply_delta(delta.soft_bodies)
-            .map_err(err)?;
+        crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?
+            .1
+            .clear();
         delta_to_py(py, &tick)
     }
-}

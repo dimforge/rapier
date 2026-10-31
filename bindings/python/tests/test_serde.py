@@ -48,8 +48,8 @@ def test_snapshot_has_magic_header(ns):
     blob = w.snapshot()
     assert isinstance(blob, (bytes, bytearray))
     assert blob[:4] == b"RPYS"
-    # version is u32 LE = 1
-    assert blob[4:8] == b"\x01\x00\x00\x00"
+    # version is u32 LE = 2
+    assert blob[4:8] == b"\x02\x00\x00\x00"
 
 
 def test_bad_magic_raises(ns):
@@ -63,6 +63,15 @@ def test_bad_version_raises(ns):
     bad = b"RPYS" + (99).to_bytes(4, "little") + b"deadbeef"
     with pytest.raises(ns.SerializationError):
         ns.PhysicsWorld.restore(bad)
+
+
+def test_version_1_snapshot_is_rejected(ns):
+    # Snapshots of the previous format (version 1) fail cleanly instead of being misread.
+    w, _ = _build_small_world(ns)
+    blob = w.snapshot()
+    old = blob[:4] + (1).to_bytes(4, "little") + blob[8:]
+    with pytest.raises(ns.SerializationError, match="version 1"):
+        ns.PhysicsWorld.restore(old)
 
 
 def test_truncated_blob_raises(ns):
@@ -245,7 +254,7 @@ def test_snapshot_json_round_trip(ns):
     import json
     env = json.loads(s)
     assert env["_magic"] == "RPYS"
-    assert env["_version"] == 1
+    assert env["_version"] == 2
     w2 = ns.PhysicsWorld.restore_json(s)
     for a, b in zip(_body_positions(w, handles), _body_positions(w2, handles)):
         for ai, bi in zip(a, b):
