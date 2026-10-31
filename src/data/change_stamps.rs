@@ -1,10 +1,11 @@
 //! Per-slot change stamps: the bookkeeping behind snapshot deltas.
 
+#[cfg(feature = "serde-serialize")]
 use crate::alloc_prelude::*;
 
-#[cfg_attr(not(feature = "serde-serialize"), allow(dead_code))]
 /// Whether a slot stamped at `stamp` was written after the tick `since` (wrapping-aware; a
 /// zero stamp means "never written since tracking started").
+#[cfg(feature = "serde-serialize")]
 #[inline]
 pub(crate) fn stamp_is_newer(stamp: u32, since: u32) -> bool {
     stamp != 0 && (stamp.wrapping_sub(since) as i32) > 0
@@ -14,6 +15,7 @@ pub(crate) fn stamp_is_newer(stamp: u32, since: u32) -> bool {
 ///
 /// Inert (one predictable branch per [`Self::mark`]) until change tracking is enabled on the
 /// owning component, which sets a nonzero current tick.
+#[cfg(feature = "serde-serialize")]
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ChangeStamps {
     /// The tick written by [`Self::mark`]; zero while tracking is disabled.
@@ -22,7 +24,49 @@ pub(crate) struct ChangeStamps {
     stamps: Vec<u32>,
 }
 
-#[cfg_attr(not(feature = "serde-serialize"), allow(dead_code))]
+/// Without serde there are no snapshot deltas: the stamps are a zero-sized no-op.
+#[cfg(not(feature = "serde-serialize"))]
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ChangeStamps;
+
+#[cfg(not(feature = "serde-serialize"))]
+impl ChangeStamps {
+    pub(crate) const fn new() -> Self {
+        Self
+    }
+
+    #[inline(always)]
+    pub(crate) fn stamp_now(&self) -> u32 {
+        0
+    }
+
+    #[inline(always)]
+    pub(crate) fn is_enabled(&self) -> bool {
+        false
+    }
+
+    #[inline(always)]
+    pub(crate) fn mark(&mut self, _: usize) {}
+
+    #[inline(always)]
+    pub(crate) fn mark_range(&mut self, _: core::ops::Range<usize>) {}
+
+    #[inline(always)]
+    pub(crate) fn swap_remove(&mut self, _: usize, _: usize) {}
+
+    #[inline(always)]
+    pub(crate) fn truncate(&mut self, _: usize) {}
+
+    #[inline(always)]
+    pub(crate) fn stamp(&self, _: usize) -> u32 {
+        0
+    }
+
+    #[inline(always)]
+    pub(crate) fn set_stamp(&mut self, _: usize, _: u32) {}
+}
+
+#[cfg(feature = "serde-serialize")]
 impl ChangeStamps {
     pub(crate) const fn new() -> Self {
         Self {

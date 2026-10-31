@@ -140,7 +140,7 @@ impl IslandManager {
         // one driven by the `CollisionPipeline` which never registers bodies.
         #[cfg(debug_assertions)]
         for handle in [handle1, handle2].into_iter().flatten() {
-            if let Some(rb) = bodies.get(handle).filter(|_| !self.islands.is_empty()) {
+            if let Some(rb) = bodies.get(handle).filter(|_| self.islands.len() != 0) {
                 debug_assert!(
                     rb.is_fixed() || !rb.is_enabled() || rb.ids.active_island_id != u32::MAX
                 );

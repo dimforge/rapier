@@ -1,11 +1,10 @@
 //! A serde serializer that hashes a value's serialized content instead of writing it.
 //!
-//! Used by the collider shape interning (see `collider_set.rs`) to group shapes by
-//! content: the resulting key is a deterministic function of the serde data stream, so
-//! two worlds holding equal shapes group them identically whatever the `Arc` identities
-//! are. The key never leaves the process (grouping only), so it does not need to be
-//! stable across versions, but it must not depend on the platform: all lengths are
-//! hashed as `u64` and all scalars as their little-endian bytes.
+//! Used by the collider shape interning (see `collider_set.rs`) to group shapes by content,
+//! and by snapshot deltas to name heavy shapes a receiver already holds. The key is a
+//! deterministic function of the serde data stream, so it does not need to be stable across
+//! versions, but it must not depend on the platform: all lengths are hashed as `u64` and all
+//! scalars as their little-endian bytes.
 
 use core::fmt::Display;
 use serde::ser::{
@@ -27,29 +26,54 @@ pub(crate) fn content_key<T: Serialize + ?Sized>(value: &T) -> Option<ContentKey
     let mut hasher = ContentHasher {
         h1: 0xcbf2_9ce4_8422_2325,
         h2: 0x9e37_79b9_7f4a_7c15,
+        word: 0,
+        len: 0,
     };
     value.serialize(&mut hasher).ok()?;
-    Some(ContentKey(hasher.h1, hasher.h2))
+    Some(hasher.finish())
 }
 
 struct ContentHasher {
-    // FNV-1a.
+    // FNV-1a over 64-bit words.
     h1: u64,
     // Multiply-add mix with a golden-ratio constant, independent enough of FNV for
     // accidental-collision purposes.
     h2: u64,
+    /// The bytes of the word being filled, little-endian.
+    word: u64,
+    /// The number of bytes written so far.
+    len: u64,
 }
 
 impl ContentHasher {
     #[inline]
     fn write(&mut self, bytes: &[u8]) {
         for &b in bytes {
-            self.h1 = (self.h1 ^ b as u64).wrapping_mul(0x100_0000_01b3);
-            self.h2 = self
-                .h2
-                .wrapping_mul(0x9e37_79b9_7f4a_7c15)
-                .wrapping_add(b as u64 ^ (self.h2 >> 47));
+            self.word |= (b as u64) << (8 * (self.len % 8));
+            self.len += 1;
+            if self.len % 8 == 0 {
+                self.mix(self.word);
+                self.word = 0;
+            }
         }
+    }
+
+    #[inline]
+    fn mix(&mut self, w: u64) {
+        self.h1 = (self.h1 ^ w).wrapping_mul(0x100_0000_01b3);
+        self.h2 = self
+            .h2
+            .wrapping_mul(0x9e37_79b9_7f4a_7c15)
+            .wrapping_add(w ^ (self.h2 >> 47));
+    }
+
+    /// Mixes the partial last word and the length, so streams differing only by trailing zero
+    /// bytes hash apart.
+    fn finish(mut self) -> ContentKey {
+        let (word, len) = (self.word, self.len);
+        self.mix(word);
+        self.mix(len);
+        ContentKey(self.h1, self.h2)
     }
 
     /// A one-byte tag distinguishing the serde call that produced the following bytes,
@@ -386,5 +410,36 @@ impl SerializeStructVariant for &mut ContentHasher {
     }
     fn end(self) -> Result<(), ContentHashError> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::content_key;
+    use crate::alloc_prelude::*;
+
+    #[test]
+    fn equal_content_hashes_equal() {
+        let a = vec![1.0f32, 2.0, 3.0];
+        assert_eq!(content_key(&a), content_key(&a.clone()));
+    }
+
+    #[test]
+    fn different_content_hashes_apart() {
+        assert_ne!(content_key(&vec![1.0f32, 2.0]), content_key(&vec![2.0f32, 1.0]));
+        assert_ne!(content_key(&vec![0u8]), content_key(&vec![0u8, 0]));
+        // The serde call is hashed too: these have the same bytes.
+        assert_ne!(content_key(&Some(0u8)), content_key(&1u8));
+        assert_ne!(content_key(&1u32), content_key(&1i32));
+    }
+
+    #[test]
+    fn keys_do_not_depend_on_the_platform() {
+        // Lengths are hashed as `u64` and scalars little-endian: this key holds on every target.
+        let key = content_key(&(vec![7u16; 3], 0.5f32, usize::MAX >> 1 > 0)).unwrap();
+        assert_eq!(
+            key,
+            super::ContentKey(11827449033226041678, 5958386826564172422)
+        );
     }
 }

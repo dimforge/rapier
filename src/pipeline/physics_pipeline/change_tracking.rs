@@ -69,6 +69,11 @@ impl PhysicsPipeline {
     ) {
         use crate::dynamics::RigidBodyChanges;
 
+        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        let checks = (
+            crate::data::delta::UnstampedWriteCheck::new(&bodies.bodies),
+            crate::data::delta::UnstampedWriteCheck::new(&multibody_joints.multibodies),
+        );
         let (multibodies, mb_stamps) = multibody_joints.multibodies.iter_mut_unstamped();
         let mb_now = mb_stamps.stamp_now();
         let mut saved_stamps = Vec::new();
@@ -101,6 +106,11 @@ impl PhysicsPipeline {
                         .set_stamp(handle.0.into_raw_parts().0 as usize, *stamp);
                 }
             }
+        }
+            #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        {
+            checks.0.check(&bodies.bodies, "multibody forward kinematics");
+            checks.1.check(&multibody_joints.multibodies, "multibody forward kinematics");
         }
     }
 

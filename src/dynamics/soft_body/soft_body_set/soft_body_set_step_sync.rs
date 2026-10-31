@@ -27,6 +27,8 @@ impl SoftBodySet {
     ) {
         // The colliders' shapes say which surfaces are oriented (the user may have changed them).
         // Re-reading an unchanged orientation is not a write as far as snapshot deltas go.
+        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        let check = crate::data::delta::UnstampedWriteCheck::new(&self.bodies);
         let (soft_bodies, stamps) = self.bodies.iter_mut_unstamped();
         for (handle, sb) in soft_bodies {
             let mut changed = false;
@@ -39,6 +41,8 @@ impl SoftBodySet {
                 stamps.mark(handle.into_raw_parts().0 as usize);
             }
         }
+        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        check.check(&self.bodies, "soft-body orientation refresh");
         let mut relink = false;
         let handles: Vec<SoftBodyHandle> = self
             .bodies
@@ -240,6 +244,8 @@ impl SoftBodySet {
             )
         };
         let mut flags_before = Vec::with_capacity(self.bodies.len());
+        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        let check = crate::data::delta::UnstampedWriteCheck::new(&self.bodies);
         let (soft_bodies, stamps) = self.bodies.iter_mut_unstamped();
         let mut soft_bodies: Vec<(&mut SoftBody, bool)> = soft_bodies
             .map(|(h, sb)| {
@@ -331,6 +337,8 @@ impl SoftBodySet {
                 }
             }
         }
+        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        check.check(&self.bodies, "soft-body particle sync");
     }
 
     /// Applies the tear marks left by the solver (elements loaded past their tear threshold) and
@@ -495,6 +503,8 @@ impl SoftBodySet {
     /// Refreshes every mesh's vertex cache from the particles, before a narrow-phase update
     /// (see `SoftCollisionMesh::cached_vertex`); in parallel under the `parallel` feature.
     pub(crate) fn refresh_vertex_caches(&mut self) {
+        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        let check = crate::data::delta::UnstampedWriteCheck::new(&self.bodies);
         #[cfg(feature = "parallel")]
         {
             use rayon::prelude::*;
@@ -509,6 +519,8 @@ impl SoftBodySet {
         for (_, sb) in self.bodies.iter_mut_unstamped().0 {
             sb.refresh_vertex_caches();
         }
+        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        check.check(&self.bodies, "soft-body vertex cache refresh");
     }
 
     /// Wakes up the given soft body (effective at the start of the next step).

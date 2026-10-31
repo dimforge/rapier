@@ -40,14 +40,9 @@ impl<V> IndexMut<usize> for StampedVecMap<V> {
     }
 }
 
-#[allow(dead_code)] // Not every map uses every operation.
 impl<V> StampedVecMap<V> {
     pub(crate) fn len(&self) -> usize {
         self.n
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.n == 0
     }
 
     pub(crate) fn clear(&mut self) {
@@ -58,10 +53,6 @@ impl<V> StampedVecMap<V> {
 
     pub(crate) fn get(&self, key: usize) -> Option<&V> {
         self.v.get(key)?.as_ref()
-    }
-
-    pub(crate) fn contains_key(&self, key: usize) -> bool {
-        self.get(key).is_some()
     }
 
     pub(crate) fn get_mut(&mut self, key: usize) -> Option<&mut V> {
@@ -101,9 +92,6 @@ impl<V> StampedVecMap<V> {
             .filter_map(|(i, v)| v.as_ref().map(|v| (i, v)))
     }
 
-    pub(crate) fn values(&self) -> impl Iterator<Item = &V> {
-        self.v.iter().filter_map(Option::as_ref)
-    }
 }
 
 /// The slots of a [`StampedVecMap`] written since a baseline.

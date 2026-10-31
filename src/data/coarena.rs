@@ -48,8 +48,9 @@ impl<T> Coarena<T> {
     /// It is strongly encouraged to use `Coarena::get_mut` instead of this method because this method
     /// can suffer from the ABA problem.
     pub fn get_mut_unknown_gen(&mut self, index: u32) -> Option<&mut T> {
+        let (_, t) = self.data.get_mut(index as usize)?;
         self.stamps.mark(index as usize);
-        self.data.get_mut(index as usize).map(|(_, t)| t)
+        Some(t)
     }
 
     #[allow(dead_code)]
@@ -85,10 +86,12 @@ impl<T> Coarena<T> {
     /// Gets a mutable reference to a specific element from the coarena, if it exists.
     pub fn get_mut(&mut self, index: Index) -> Option<&mut T> {
         let (i, g) = index.into_raw_parts();
+        let (gg, t) = self.data.get_mut(i as usize)?;
+        if g != *gg {
+            return None;
+        }
         self.stamps.mark(i as usize);
-        self.data
-            .get_mut(i as usize)
-            .and_then(|(gg, t)| if g == *gg { Some(t) } else { None })
+        Some(t)
     }
 
     /// Inserts an element into this coarena.

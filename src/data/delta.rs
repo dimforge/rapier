@@ -455,6 +455,38 @@ impl<T: DeltaComponent> SnapshotDelta for T {
 }
 
 
+/// Debug check of the passes writing arena slots without stamping them: with
+/// `RAPIER_DBG_VALIDATE` set, it hashes every slot before the pass, and [`Self::check`] panics
+/// if a slot left unstamped changed.
+#[cfg(debug_assertions)]
+pub(crate) struct UnstampedWriteCheck(Option<Vec<Option<crate::utils::content_hash::ContentKey>>>);
+
+#[cfg(debug_assertions)]
+impl UnstampedWriteCheck {
+    pub(crate) fn new<T: Serialize>(arena: &crate::data::Arena<T>) -> Self {
+        let enabled =
+            arena.stamps.is_enabled() && std::env::var_os("RAPIER_DBG_VALIDATE").is_some();
+        Self(enabled.then(|| {
+            let (entries, ..) = arena.raw_entries();
+            entries.iter().map(crate::utils::content_hash::content_key).collect()
+        }))
+    }
+
+    pub(crate) fn check<T: Serialize>(self, arena: &crate::data::Arena<T>, pass: &str) {
+        let Some(before) = self.0 else {
+            return;
+        };
+        let now = arena.stamps.stamp_now();
+        let (entries, ..) = arena.raw_entries();
+        for (i, (entry, before)) in entries.iter().zip(&before).enumerate() {
+            assert!(
+                arena.stamps.stamp(i) == now || crate::utils::content_hash::content_key(entry) == *before,
+                "{pass}: slot {i} changed without being stamped for snapshot deltas"
+            );
+        }
+    }
+}
+
 /// The stamped slots of an index-addressed vector: its new length, and the content of every
 /// slot written after the baseline (every slot for a full delta).
 #[derive(Clone, Debug, Serialize, Deserialize)]

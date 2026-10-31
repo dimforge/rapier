@@ -116,11 +116,8 @@ pub(super) struct Removal {
     pub body2: RigidBodyHandle,
 }
 
-/// Serializes the joint-link map by key, so the bytes describe its content rather than the
-/// map's insertion history (a hash map's iteration order is history- and target-dependent,
-/// which would make two snapshots of the same state differ).
-/// `joint_link_locs`: the location of each joint link, with one change stamp for the whole map
-/// (sent whole in snapshot deltas when written).
+/// The location of each joint link, with one change stamp for the whole map (sent whole in
+/// snapshot deltas when written).
 #[derive(Clone, Debug, Default)]
 pub(crate) struct JointLinkLocs {
     map: HashMap<JointLinkKey, (u32, u32)>,
@@ -134,7 +131,6 @@ impl core::ops::Deref for JointLinkLocs {
     }
 }
 
-#[cfg_attr(not(feature = "serde-serialize"), allow(dead_code))]
 impl JointLinkLocs {
     pub(crate) fn insert(&mut self, key: JointLinkKey, loc: (u32, u32)) -> Option<(u32, u32)> {
         self.stamp.mark(0);
@@ -151,10 +147,7 @@ impl JointLinkLocs {
         self.map.clear();
     }
 
-    pub(crate) fn as_map(&self) -> &HashMap<JointLinkKey, (u32, u32)> {
-        &self.map
-    }
-
+    #[cfg(feature = "serde-serialize")]
     pub(crate) fn replace(&mut self, map: HashMap<JointLinkKey, (u32, u32)>) {
         self.stamp.mark(0);
         self.map = map;
@@ -173,14 +166,15 @@ fn deserialize_joint_link_locs<'de, D: serde::Deserializer<'de>>(
     })
 }
 
+/// Serializes the joint-link map by key, so the bytes describe its content rather than the
+/// map's insertion history (which would make two snapshots of the same state differ).
 #[cfg(feature = "serde-serialize")]
 fn serialize_joint_link_locs<S: serde::Serializer>(
     locs: &JointLinkLocs,
     s: S,
 ) -> Result<S::Ok, S::Error> {
-    let locs = locs.as_map();
     crate::utils::serde::serialize_sorted_to_vec_tuple(
-        locs,
+        &locs.map,
         |k| match k {
             // Impulse joints and multibody chains never collide: they are tagged apart.
             JointLinkKey::Impulse(h) => (

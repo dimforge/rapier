@@ -242,6 +242,9 @@ pub enum PairContacts {
 }
 
 /// The contact manifolds of a [`ContactPair`], with the solver's bookkeeping about them.
+///
+/// Serialized on its own, it is stored verbatim; within a [`ContactPair`], replayable solver
+/// contacts are stored compactly.
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct RigidPairContacts {

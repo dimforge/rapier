@@ -778,34 +778,34 @@ fn joints_world() -> PhysicsWorld {
     world
 }
 
+/// Joint churn on [`joints_world`]: links and unlinks pairs of pile bodies, impulse and
+/// multibody alike.
+fn joint_churn(world: &mut PhysicsWorld, step: usize, _: &mut Vec<RigidBodyHandle>) {
+    let dynamic: Vec<_> = world
+        .bodies
+        .iter()
+        .filter(|(_, b)| b.is_dynamic())
+        .map(|(h, _)| h)
+        .collect();
+    if step % 23 == 4 {
+        let (a, b) = (dynamic[step % 30], dynamic[(step % 30) + 40]);
+        world.insert_impulse_joint(a, b, SphericalJointBuilder::new().build().data);
+    }
+    if step % 31 == 7 {
+        let (a, b) = (dynamic[(step % 20) + 2], dynamic[(step % 20) + 60]);
+        world.insert_multibody_joint(a, b, SphericalJointBuilder::new().build().data);
+    }
+    if step % 37 == 11 {
+        let first = world.impulse_joints.iter().next().map(|(h, _)| h);
+        if let Some(h) = first {
+            world.remove_impulse_joint(h);
+        }
+    }
+}
+
 #[test]
 fn delta_joints() {
-    check_delta_replication("delta joints", joints_world(), 10, 150, |world, step, spawned| {
-        // Joint churn: link and unlink pairs of pile bodies, impulse and multibody alike.
-        let dynamic: Vec<_> = world
-            .bodies
-            .iter()
-            .filter(|(_, b)| b.is_dynamic())
-            .map(|(h, _)| h)
-            .collect();
-        if step % 23 == 4 {
-            let (a, b) = (dynamic[step % 30], dynamic[(step % 30) + 40]);
-            world.insert_impulse_joint(a, b, SphericalJointBuilder::new().build().data);
-        }
-        if step % 31 == 7 {
-            let (a, b) = (dynamic[(step % 20) + 2], dynamic[(step % 20) + 60]);
-            if let Some(h) = world.insert_multibody_joint(a, b, SphericalJointBuilder::new().build().data) {
-                let _ = h;
-                spawned.push(a);
-            }
-        }
-        if step % 37 == 11 {
-            let first = world.impulse_joints.iter().next().map(|(h, _)| h);
-            if let Some(h) = first {
-                world.remove_impulse_joint(h);
-            }
-        }
-    });
+    check_delta_replication("delta joints", joints_world(), 10, 150, joint_churn);
 }
 
 /// Soft bodies (a tetrahedral cube and a pinned rope) in contact with rigid ones, settling
@@ -872,32 +872,7 @@ fn restore_then_save_is_identical() {
 /// their pairs must not be replayed from the collider poses.
 #[test]
 fn multibody_with_joint_churn() {
-    check_roundtrip("multibody with joint churn", joints_world(), 160, 30, false, |world, step, spawned| {
-        // Joint churn: link and unlink pairs of pile bodies, impulse and multibody alike.
-        let dynamic: Vec<_> = world
-            .bodies
-            .iter()
-            .filter(|(_, b)| b.is_dynamic())
-            .map(|(h, _)| h)
-            .collect();
-        if step % 23 == 4 {
-            let (a, b) = (dynamic[step % 30], dynamic[(step % 30) + 40]);
-            world.insert_impulse_joint(a, b, SphericalJointBuilder::new().build().data);
-        }
-        if step % 31 == 7 {
-            let (a, b) = (dynamic[(step % 20) + 2], dynamic[(step % 20) + 60]);
-            if let Some(h) = world.insert_multibody_joint(a, b, SphericalJointBuilder::new().build().data) {
-                let _ = h;
-                spawned.push(a);
-            }
-        }
-        if step % 37 == 11 {
-            let first = world.impulse_joints.iter().next().map(|(h, _)| h);
-            if let Some(h) = first {
-                world.remove_impulse_joint(h);
-            }
-        }
-    });
+    check_roundtrip("multibody with joint churn", joints_world(), 160, 30, false, joint_churn);
 }
 
 /// A collider moving with its body resends its record, not its (unchanged) heavy shape, even

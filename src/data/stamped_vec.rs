@@ -53,27 +53,9 @@ impl<T> IndexMut<usize> for StampedVec<T> {
     }
 }
 
-#[allow(dead_code)] // Not every container uses every operation.
 impl<T> StampedVec<T> {
     pub(crate) fn len(&self) -> usize {
         self.items.len()
-    }
-
-    pub(crate) fn get_mut(&mut self, i: usize) -> Option<&mut T> {
-        let item = self.items.get_mut(i)?;
-        self.stamps.mark(i);
-        Some(item)
-    }
-
-    pub(crate) fn push(&mut self, value: T) {
-        self.stamps.mark(self.items.len());
-        self.items.push(value);
-    }
-
-    pub(crate) fn pop(&mut self) -> Option<T> {
-        let value = self.items.pop();
-        self.stamps.truncate(self.items.len());
-        value
     }
 
     pub(crate) fn swap_remove(&mut self, i: usize) -> T {
@@ -100,36 +82,6 @@ impl<T> StampedVec<T> {
         self.items.resize(len, value);
         self.stamps.truncate(len);
         self.stamps.mark_range(old..len);
-    }
-
-    pub(crate) fn resize_with(&mut self, len: usize, f: impl FnMut() -> T) {
-        let old = self.items.len();
-        self.items.resize_with(len, f);
-        self.stamps.truncate(len);
-        self.stamps.mark_range(old..len);
-    }
-
-    /// Mutable access to every slot, all stamped.
-    pub(crate) fn as_mut_slice(&mut self) -> &mut [T] {
-        self.stamps.mark_range(0..self.items.len());
-        &mut self.items
-    }
-
-    /// Mutable access to every slot without stamping: the caller stamps the slots it
-    /// actually writes through the returned stamps.
-    pub(crate) fn as_mut_slice_unstamped(&mut self) -> (&mut [T], &mut ChangeStamps) {
-        (&mut self.items, &mut self.stamps)
-    }
-
-    /// Replaces the whole content, stamping every slot.
-    pub(crate) fn replace(&mut self, items: Vec<T>) {
-        self.items = items;
-        self.stamps.truncate(0);
-        self.stamps.mark_range(0..self.items.len());
-    }
-
-    pub(crate) fn as_vec(&self) -> &Vec<T> {
-        &self.items
     }
 }
 

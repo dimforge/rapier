@@ -940,15 +940,17 @@ impl<T> Arena<T> {
     ///
     /// You should use the `get_mut` method instead most of the time.
     pub fn get_unknown_gen_mut(&mut self, i: u32) -> Option<(&mut T, Index)> {
-        self.stamps.mark(i as usize);
         match self.items.get_mut(i as usize) {
-            Some(Entry::Occupied { generation, value }) => Some((
-                value,
-                Index {
-                    generation: *generation,
-                    index: i,
-                },
-            )),
+            Some(Entry::Occupied { generation, value }) => {
+                self.stamps.mark(i as usize);
+                Some((
+                    value,
+                    Index {
+                        generation: *generation,
+                        index: i,
+                    },
+                ))
+            }
             _ => None,
         }
     }

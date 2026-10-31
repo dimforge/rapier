@@ -178,7 +178,7 @@ impl<N, E> Graph<N, E> {
     }
 
     /// Sets the tick written by the change stamps (zero disables them).
-    #[cfg_attr(not(feature = "serde-serialize"), allow(dead_code))]
+    #[cfg(feature = "serde-serialize")]
     pub(crate) fn set_stamp_tick(&mut self, now: u32) {
         self.node_stamps.set_now(now);
         self.edge_stamps.set_now(now);
@@ -237,8 +237,9 @@ impl<N, E> Graph<N, E> {
     ///
     /// Also available with indexing syntax: `&mut graph[a]`.
     pub fn edge_weight_mut(&mut self, a: EdgeIndex) -> Option<&mut E> {
+        let edge = self.edges.get_mut(a.index())?;
         self.edge_stamps.mark(a.index());
-        self.edges.get_mut(a.index()).map(|e| &mut e.weight)
+        Some(&mut edge.weight)
     }
 
     /// Add an edge from `a` to `b` to the graph, with its associated
