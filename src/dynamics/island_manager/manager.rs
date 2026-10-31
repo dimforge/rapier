@@ -1,5 +1,6 @@
 use super::Island;
 use crate::alloc_prelude::*;
+use crate::data::stamped_vec_map::StampedVecMap;
 use crate::dynamics::{
     ImpulseJointSet, MultibodyJointSet, RigidBody, RigidBodyChanges, RigidBodyHandle, RigidBodyIds,
     RigidBodySet, RigidBodyType, SoftBodyHandle, SoftBodySet,
@@ -7,7 +8,6 @@ use crate::dynamics::{
 use crate::geometry::{ColliderSet, NarrowPhase};
 use crate::math::Real;
 use crate::utils::DotProduct;
-use crate::data::stamped_vec_map::StampedVecMap;
 
 /// System that manages which bodies are active (awake) vs sleeping to optimize performance.
 ///
@@ -488,7 +488,7 @@ impl IslandManager {
 #[cfg(feature = "serde-serialize")]
 mod snapshot_delta {
     use super::*;
-    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
+    use crate::data::delta::{ChangeTracker, DeltaComponent, DeltaError};
     use crate::data::stamped_vec_map::VecMapDelta;
     use crate::dynamics::island_manager::persistent::snapshot_delta::PersistentIslandsDelta;
 
@@ -549,4 +549,3 @@ mod snapshot_delta {
         }
     }
 }
-

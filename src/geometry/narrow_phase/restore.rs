@@ -65,7 +65,15 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
         if !clustered {
             let world_pos2 = manifold.subshape_pos2().prepend_to(&pos2_t);
             replay_manifold_contacts(
-                manifold, co1, co2, bodies, &world_pos1, &world_pos2, &pos1_t, &pos2_t, skins,
+                manifold,
+                co1,
+                co2,
+                bodies,
+                &world_pos1,
+                &world_pos2,
+                &pos1_t,
+                &pos2_t,
+                skins,
             );
         }
         replay_points_tangent_world(manifold, recompute_tangent.get(mi));

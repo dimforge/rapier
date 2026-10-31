@@ -89,7 +89,6 @@ impl<C> ChangeTick<C> {
             _component: PhantomData,
         }
     }
-
 }
 
 impl<C> Copy for ChangeTick<C> {}
@@ -464,7 +463,6 @@ impl<T: DeltaComponent> SnapshotDelta for T {
     }
 }
 
-
 /// Debug check of the passes writing arena slots without stamping them: with
 /// `RAPIER_DBG_VALIDATE` set, it hashes every slot before the pass, and [`Self::check`] panics
 /// if a slot left unstamped changed.
@@ -478,7 +476,10 @@ impl UnstampedWriteCheck {
             arena.stamps.is_enabled() && std::env::var_os("RAPIER_DBG_VALIDATE").is_some();
         Self(enabled.then(|| {
             let (entries, ..) = arena.raw_entries();
-            entries.iter().map(crate::utils::content_hash::content_key).collect()
+            entries
+                .iter()
+                .map(crate::utils::content_hash::content_key)
+                .collect()
         }))
     }
 
@@ -490,7 +491,8 @@ impl UnstampedWriteCheck {
         let (entries, ..) = arena.raw_entries();
         for (i, (entry, before)) in entries.iter().zip(&before).enumerate() {
             assert!(
-                arena.stamps.stamp(i) == now || crate::utils::content_hash::content_key(entry) == *before,
+                arena.stamps.stamp(i) == now
+                    || crate::utils::content_hash::content_key(entry) == *before,
                 "{pass}: slot {i} changed without being stamped for snapshot deltas"
             );
         }
@@ -545,7 +547,9 @@ impl<T> VecDelta<T> {
         if new_len > old_len {
             let mut covered = vec![false; new_len - old_len];
             for (i, _) in &self.slots {
-                if let Some(c) = (*i as usize).checked_sub(old_len).and_then(|i| covered.get_mut(i))
+                if let Some(c) = (*i as usize)
+                    .checked_sub(old_len)
+                    .and_then(|i| covered.get_mut(i))
                 {
                     *c = true;
                 }

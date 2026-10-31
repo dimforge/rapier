@@ -278,7 +278,10 @@ fn run(name: &str, mut world: PhysicsWorld, warmup: usize, timed: usize) {
         world.bodies.len(),
         world.colliders.len()
     );
-    println!("  total: {:>12} bytes (serialize {ser_ms:.1} ms)", bytes.len());
+    println!(
+        "  total: {:>12} bytes (serialize {ser_ms:.1} ms)",
+        bytes.len()
+    );
     for (part, size) in PART_NAMES.iter().zip(parts.iter()) {
         println!("  {part:>22}: {size:>12}");
     }

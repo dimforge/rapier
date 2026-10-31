@@ -782,7 +782,7 @@ mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
     use crate::data::coarena::CoarenaDelta;
-    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
+    use crate::data::delta::{ChangeTracker, DeltaComponent, DeltaError};
     use crate::data::graph::GraphDelta;
     use crate::dynamics::ImpulseJointIslandEvent;
 
@@ -867,4 +867,3 @@ mod snapshot_delta {
         }
     }
 }
-

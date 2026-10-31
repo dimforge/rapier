@@ -1143,7 +1143,11 @@ mod pair_serde {
     /// `recompute`: for a pair still awaiting its post-restore replay, whether this point's
     /// tangent world vector awaits recomputation (it was encoded without one), which
     /// reproduces the encoding it was restored from.
-    fn compact_point(pt: &Contact, manifold_normal: &Vector, recompute: Option<bool>) -> CompactPoint {
+    fn compact_point(
+        pt: &Contact,
+        manifold_normal: &Vector,
+        recompute: Option<bool>,
+    ) -> CompactPoint {
         // The tangent world vector is dropped when it bit-matches the recomputation
         // the post-restore replay will perform; kept verbatim otherwise.
         #[cfg(feature = "dim3")]

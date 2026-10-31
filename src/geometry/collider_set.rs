@@ -79,8 +79,13 @@ mod interned_colliders {
     #[derive(Serialize, Deserialize)]
     #[allow(clippy::large_enum_variant)] // Transient serialization form, never stored.
     enum EntryRepr {
-        Free { next_free: Option<u32> },
-        Occupied { generation: u32, value: InternedCollider },
+        Free {
+            next_free: Option<u32>,
+        },
+        Occupied {
+            generation: u32,
+            value: InternedCollider,
+        },
     }
 
     #[derive(Serialize, Deserialize)]
@@ -160,7 +165,9 @@ mod interned_colliders {
                 EntryRepr::Occupied { generation, value } => {
                     let shape = shapes
                         .get(value.shape_id() as usize)
-                        .ok_or_else(|| D::Error::custom("collider shape table index out of bounds"))?
+                        .ok_or_else(|| {
+                            D::Error::custom("collider shape table index out of bounds")
+                        })?
                         .clone();
                     Ok(Entry::Occupied {
                         generation,
@@ -761,7 +768,7 @@ mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
     use crate::data::change_stamps::stamp_is_newer;
-    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
+    use crate::data::delta::{ChangeTracker, DeltaComponent, DeltaError};
     use crate::geometry::ColliderShape;
     use crate::geometry::collider::InternedCollider;
     use crate::utils::content_hash::{ContentKey, content_key};
@@ -904,7 +911,10 @@ mod snapshot_delta {
         }
 
         /// The receiver-side registry, built from this set's own colliders on first use.
-        fn received(&mut self, colliders: &Arena<Collider>) -> &mut HashMap<ContentKey, ColliderShape> {
+        fn received(
+            &mut self,
+            colliders: &Arena<Collider>,
+        ) -> &mut HashMap<ContentKey, ColliderShape> {
             self.received.get_or_insert_with(|| {
                 let mut map = HashMap::new();
                 for (_, co) in colliders.iter() {
@@ -1024,15 +1034,16 @@ mod snapshot_delta {
                         key,
                         shape: Some(shape),
                     } => received.entry(key).or_insert(shape).clone(),
-                    DeltaShape::Keyed { key, shape: None } => received
-                        .get(&key)
-                        .ok_or(DeltaError::MissingShape)?
-                        .clone(),
+                    DeltaShape::Keyed { key, shape: None } => {
+                        received.get(&key).ok_or(DeltaError::MissingShape)?.clone()
+                    }
                 });
             }
 
             self.colliders.apply_delta_with(delta.colliders, |co| {
-                let shape = table.get(co.shape_id() as usize).ok_or(DeltaError::Malformed)?;
+                let shape = table
+                    .get(co.shape_id() as usize)
+                    .ok_or(DeltaError::Malformed)?;
                 Ok(co.into_collider(shape.clone()))
             })?;
             self.modified_colliders = delta.modified_colliders;
@@ -1047,4 +1058,3 @@ mod snapshot_delta {
         }
     }
 }
-

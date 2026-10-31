@@ -6,6 +6,8 @@
 #[cfg(feature = "alloc")]
 use crate::alloc_prelude::*;
 #[cfg(feature = "alloc")]
+use crate::data::change_stamps::ChangeStamps;
+#[cfg(feature = "alloc")]
 use alloc::vec;
 #[cfg(feature = "alloc")]
 use core::cmp;
@@ -13,8 +15,6 @@ use core::cmp;
 use core::iter::{self, Extend, FromIterator, FusedIterator};
 #[cfg(feature = "alloc")]
 use core::mem;
-#[cfg(feature = "alloc")]
-use crate::data::change_stamps::ChangeStamps;
 #[cfg(feature = "alloc")]
 use core::ops;
 #[cfg(feature = "alloc")]

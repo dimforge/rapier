@@ -524,13 +524,17 @@ mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
     use crate::data::coarena::CoarenaDelta;
-    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
+    use crate::data::delta::{ChangeTracker, DeltaComponent, DeltaError};
     use crate::data::graph::GraphDelta;
 
     impl MultibodyJointSet {
         /// Rebuilds the multibodies' jacobians and mass matrices, which a deserialization or a
         /// delta leaves empty until the next step. Restoring a `PhysicsWorld` calls it.
-        pub fn rebuild_derived_data(&mut self, bodies: &crate::dynamics::RigidBodySet, dt: crate::math::Real) {
+        pub fn rebuild_derived_data(
+            &mut self,
+            bodies: &crate::dynamics::RigidBodySet,
+            dt: crate::math::Real,
+        ) {
             // Only non-serialized fields change: nothing to stamp.
             let (multibodies, _) = self.multibodies.iter_mut_unstamped();
             for (_, multibody) in multibodies {
@@ -596,10 +600,7 @@ mod snapshot_delta {
             }
         }
 
-        fn apply_delta_payload(
-            &mut self,
-            delta: MultibodyJointSetDelta,
-        ) -> Result<(), DeltaError> {
+        fn apply_delta_payload(&mut self, delta: MultibodyJointSetDelta) -> Result<(), DeltaError> {
             self.multibodies.apply_delta(delta.multibodies)?;
             self.rb2mb.apply_delta(delta.rb2mb)?;
             self.connectivity_graph.graph.apply_delta(
@@ -615,4 +616,3 @@ mod snapshot_delta {
         }
     }
 }
-

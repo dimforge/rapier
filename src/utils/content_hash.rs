@@ -6,8 +6,8 @@
 
 use core::fmt::Display;
 use serde::ser::{
-    Serialize, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant,
-    SerializeTuple, SerializeTupleStruct, SerializeTupleVariant, Serializer,
+    Serialize, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
+    SerializeTupleStruct, SerializeTupleVariant, Serializer,
 };
 
 /// A 128-bit content key: two independent 64-bit accumulators over the same byte
@@ -424,7 +424,10 @@ mod tests {
 
     #[test]
     fn different_content_hashes_apart() {
-        assert_ne!(content_key(&vec![1.0f32, 2.0]), content_key(&vec![2.0f32, 1.0]));
+        assert_ne!(
+            content_key(&vec![1.0f32, 2.0]),
+            content_key(&vec![2.0f32, 1.0])
+        );
         assert_ne!(content_key(&vec![0u8]), content_key(&vec![0u8, 0]));
         // The serde call is hashed too: these have the same bytes.
         assert_ne!(content_key(&Some(0u8)), content_key(&1u8));

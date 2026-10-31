@@ -37,7 +37,13 @@ impl PhysicsPipeline {
             clear_delta_baseline(soft_bodies);
         }
         #[cfg(not(feature = "serde-serialize"))]
-        let _ = (broad_phase, narrow_phase, impulse_joints, multibody_joints, soft_bodies);
+        let _ = (
+            broad_phase,
+            narrow_phase,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+        );
         Self::stamp_active_set(islands, bodies, colliders);
     }
 
@@ -107,10 +113,15 @@ impl PhysicsPipeline {
                 }
             }
         }
-            #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        #[cfg(all(feature = "serde-serialize", debug_assertions))]
         {
-            checks.0.check(&bodies.bodies, "multibody forward kinematics");
-            checks.1.check(&multibody_joints.multibodies, "multibody forward kinematics");
+            checks
+                .0
+                .check(&bodies.bodies, "multibody forward kinematics");
+            checks.1.check(
+                &multibody_joints.multibodies,
+                "multibody forward kinematics",
+            );
         }
     }
 

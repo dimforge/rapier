@@ -454,10 +454,7 @@ pub(crate) fn pose_bits_eq(a: &crate::math::Pose, b: &crate::math::Pose) -> bool
         let r = [q.x, q.y, q.z, q.w];
         #[cfg(feature = "dim2")]
         let r = [q.re, q.im];
-        (
-            t.to_array().map(|x| x.to_bits()),
-            r.map(|x| x.to_bits()),
-        )
+        (t.to_array().map(|x| x.to_bits()), r.map(|x| x.to_bits()))
     };
     bits(a) == bits(b)
 }

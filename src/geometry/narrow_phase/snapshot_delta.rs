@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::data::coarena::CoarenaDelta;
-use crate::data::delta::{ChangeTracker, DeltaError, ShadowStamps, VecDelta, DeltaComponent};
+use crate::data::delta::{ChangeTracker, DeltaComponent, DeltaError, ShadowStamps, VecDelta};
 use crate::data::graph::GraphDelta;
 use crate::dynamics::solver::solver_contact_graph::ContactRef;
 
@@ -142,9 +142,11 @@ impl DeltaComponent for NarrowPhase {
             &mut self.body_solver_color_masks,
             || 0,
         )?;
-        state
-            .pair_solver_hints
-            .apply(delta.pair_solver_hints, &mut self.pair_solver_hints, || 0)?;
+        state.pair_solver_hints.apply(
+            delta.pair_solver_hints,
+            &mut self.pair_solver_hints,
+            || 0,
+        )?;
         state.solver_buckets.apply(
             delta.solver_buckets,
             self.solver_contact_graph.raw_buckets_mut(),
@@ -156,7 +158,9 @@ impl DeltaComponent for NarrowPhase {
         self.force_event_pairs = delta.force_event_pairs;
         state
             .force_event_pos
-            .apply(delta.force_event_pos, &mut self.force_event_pos, || u32::MAX)?;
+            .apply(delta.force_event_pos, &mut self.force_event_pos, || {
+                u32::MAX
+            })?;
         self.force_list_valid = delta.force_list_valid;
 
         // Like after a deserialization: the patched pairs replay their solver contacts at the

@@ -303,7 +303,11 @@ impl BroadPhaseBvh {
         // The refit resolved the flags of both frames' updated leaves (and moved the
         // current ones): their serialized state changed.
         if self.leaf_stamps.is_enabled() {
-            for leaf in self.prev_updated_leaves.iter().chain(&self.curr_updated_leaves) {
+            for leaf in self
+                .prev_updated_leaves
+                .iter()
+                .chain(&self.curr_updated_leaves)
+            {
                 self.leaf_stamps.mark(*leaf as usize);
             }
         }

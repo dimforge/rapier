@@ -856,4 +856,3 @@ impl<N, E> Graph<N, E> {
         )
     }
 }
-

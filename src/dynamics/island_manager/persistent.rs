@@ -4,11 +4,11 @@
 
 use super::global_split::SplitWorkspace;
 use crate::alloc_prelude::*;
+use crate::data::stamped_vec::StampedVec;
+use crate::data::stamped_vec_map::StampedVecMap;
 use crate::dynamics::{
     MultibodyIndex, MultibodyJointSet, RigidBodyHandle, RigidBodySet, SoftBodyHandle, SoftBodySet,
 };
-use crate::data::stamped_vec::StampedVec;
-use crate::data::stamped_vec_map::StampedVecMap;
 use parry::utils::hashmap::HashMap;
 
 use crate::dynamics::joint::ImpulseJointHandle;
@@ -970,18 +970,14 @@ pub(crate) mod snapshot_delta {
                 sleep_scan: _,
                 sleep_scan_touched: _,
             } = self;
-            let joint_links_changed =
-                since.is_none_or(|since| stamp_is_newer(self.joint_link_locs.stamp.stamp(0), since));
+            let joint_links_changed = since
+                .is_none_or(|since| stamp_is_newer(self.joint_link_locs.stamp.stamp(0), since));
             PersistentIslandsDelta {
                 islands: self.islands.collect_delta(since),
                 free_islands: self.free_islands.clone(),
                 contact_link_locs: self.contact_link_locs.collect_delta(since),
-                joint_link_locs: joint_links_changed.then(|| {
-                    self.joint_link_locs
-                        .iter()
-                        .map(|(k, v)| (*k, *v))
-                        .collect()
-                }),
+                joint_link_locs: joint_links_changed
+                    .then(|| self.joint_link_locs.iter().map(|(k, v)| (*k, *v)).collect()),
                 removal_journal: self.removal_journal.clone(),
                 split_island: self.split_island,
                 sleep_scan_stamp: self.sleep_scan_stamp,
@@ -989,7 +985,10 @@ pub(crate) mod snapshot_delta {
             }
         }
 
-        pub(crate) fn apply_delta(&mut self, delta: PersistentIslandsDelta) -> Result<(), DeltaError> {
+        pub(crate) fn apply_delta(
+            &mut self,
+            delta: PersistentIslandsDelta,
+        ) -> Result<(), DeltaError> {
             self.islands.apply_delta(delta.islands)?;
             self.free_islands = delta.free_islands;
             self.contact_link_locs
@@ -1005,4 +1004,3 @@ pub(crate) mod snapshot_delta {
         }
     }
 }
-

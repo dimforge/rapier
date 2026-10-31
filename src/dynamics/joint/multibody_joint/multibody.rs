@@ -120,7 +120,10 @@ pub struct Multibody {
     inv_augmented_mass: LU<Real, Dyn, Dyn>,
     // The indexing sequence for moving all kinematics degrees of
     // freedoms to the end of the generalized coordinates vector.
-    #[cfg_attr(feature = "serde-serialize", serde(skip, default = "IndexSequence::new"))]
+    #[cfg_attr(
+        feature = "serde-serialize",
+        serde(skip, default = "IndexSequence::new")
+    )]
     augmented_mass_indices: IndexSequence,
 
     #[cfg_attr(feature = "serde-serialize", serde(skip, default = "empty_matrix"))]

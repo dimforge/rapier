@@ -12,9 +12,9 @@
 //! otherwise.
 #![cfg(feature = "serde-serialize")]
 
-use rapier2d::prelude::*;
 use rapier2d::data::{ChangeTick, Delta, SnapshotDelta};
 use rapier2d::pipeline::{WorldChangeTick, WorldDelta};
+use rapier2d::prelude::*;
 
 /// Serializes the world — what a user's save file holds: the simulation inputs plus the
 /// seven structures, with the pipeline and CCD workspace left out.
@@ -443,7 +443,6 @@ fn replacing_the_pipeline_changes_nothing() {
  * sync, and simulating identically afterwards.
  */
 
-
 #[path = "../../rapier3d/tests/common/delta_replication.rs"]
 mod delta_replication;
 use delta_replication::check_delta_replication;
@@ -460,26 +459,34 @@ fn delta_sleeping_pile() {
 
 #[test]
 fn delta_structural_churn() {
-    check_delta_replication("delta structural churn", pile(true), 20, 120, |world, step, spawned| {
-        if step % 7 == 0 {
-            let rb = world.insert_body(
-                RigidBodyBuilder::dynamic().translation(Vector::new((step % 5) as Real - 2.0, 6.0)),
-            );
-            world.insert_collider(ColliderBuilder::ball(0.3), Some(rb));
-            spawned.push(rb);
-        }
-        if step % 11 == 0 && spawned.len() > 2 {
-            let rb = spawned.remove(0);
-            world.remove_body(rb);
-        }
-    });
+    check_delta_replication(
+        "delta structural churn",
+        pile(true),
+        20,
+        120,
+        |world, step, spawned| {
+            if step % 7 == 0 {
+                let rb = world.insert_body(
+                    RigidBodyBuilder::dynamic()
+                        .translation(Vector::new((step % 5) as Real - 2.0, 6.0)),
+                );
+                world.insert_collider(ColliderBuilder::ball(0.3), Some(rb));
+                spawned.push(rb);
+            }
+            if step % 11 == 0 && spawned.len() > 2 {
+                let rb = spawned.remove(0);
+                world.remove_body(rb);
+            }
+        },
+    );
 }
 
 #[test]
 fn delta_joints() {
     let mut world = pile(true);
     with_joints_and_sensor(&mut world);
-    let mut last = world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(6.0, 0.06)));
+    let mut last =
+        world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(6.0, 0.06)));
     world.insert_collider(ColliderBuilder::cuboid(0.2, 0.05), Some(last));
     for i in 1..6 {
         let rb = world.insert_body(
@@ -527,7 +534,8 @@ fn delta_soft_bodies() {
     );
     world.insert_soft_body(SoftBodyBuilder::disk(Vector::new(0.0, 1.5), 1.0, 16));
     world.insert_soft_body(
-        SoftBodyBuilder::rope(Vector::new(2.0, 2.0), Vector::new(4.0, 2.0), 10).pinned_particles([0]),
+        SoftBodyBuilder::rope(Vector::new(2.0, 2.0), Vector::new(4.0, 2.0), 10)
+            .pinned_particles([0]),
     );
     world.insert(
         RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 4.0)),

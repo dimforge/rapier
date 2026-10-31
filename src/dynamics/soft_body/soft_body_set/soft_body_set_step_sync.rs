@@ -272,7 +272,9 @@ impl SoftBodySet {
         #[cfg(not(feature = "parallel"))]
         outcomes.extend(soft_bodies.iter_mut().map(sync));
 
-        for (((sb, inactive), before), handle) in soft_bodies.iter().zip(&flags_before).zip(&handles) {
+        for (((sb, inactive), before), handle) in
+            soft_bodies.iter().zip(&flags_before).zip(&handles)
+        {
             if !*inactive || flags(sb) != *before || !sb.is_finite() {
                 stamps.mark(handle.0.into_raw_parts().0 as usize);
             }
@@ -509,8 +511,12 @@ impl SoftBodySet {
         {
             use rayon::prelude::*;
             // The caches are not serialized: no change stamps.
-            let mut bodies: Vec<&mut SoftBody> =
-                self.bodies.iter_mut_unstamped().0.map(|(_, sb)| sb).collect();
+            let mut bodies: Vec<&mut SoftBody> = self
+                .bodies
+                .iter_mut_unstamped()
+                .0
+                .map(|(_, sb)| sb)
+                .collect();
             bodies
                 .par_iter_mut()
                 .for_each(|sb| sb.refresh_vertex_caches());

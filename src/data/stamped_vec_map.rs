@@ -91,7 +91,6 @@ impl<V> StampedVecMap<V> {
             .enumerate()
             .filter_map(|(i, v)| v.as_ref().map(|v| (i, v)))
     }
-
 }
 
 /// The slots of a [`StampedVecMap`] written since a baseline.

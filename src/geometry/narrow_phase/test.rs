@@ -306,7 +306,11 @@ pub fn collider_removal_releases_solver_colors() {
     let mut colliders = Vec::new();
     for k in 0..4 {
         let (_, co) = world.insert(
-            RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 0.5 + k as crate::math::Real, 0.0)),
+            RigidBodyBuilder::dynamic().translation(Vector::new(
+                0.0,
+                0.5 + k as crate::math::Real,
+                0.0,
+            )),
             ColliderBuilder::cuboid(0.5, 0.5, 0.5),
         );
         colliders.push(co);
@@ -352,7 +356,11 @@ pub fn collision_pipeline_does_not_accumulate_force_event_flags() {
     let moving = colliders.insert_with_parent(ColliderBuilder::ball(0.5), body, &mut bodies);
 
     for i in 0..100 {
-        colliders[moving].set_translation(Vector::new(0.0, 0.5 + i as crate::math::Real * 1.0e-3, 0.0));
+        colliders[moving].set_translation(Vector::new(
+            0.0,
+            0.5 + i as crate::math::Real * 1.0e-3,
+            0.0,
+        ));
         pipeline.step(
             0.0,
             &mut islands,
@@ -366,5 +374,3 @@ pub fn collision_pipeline_does_not_accumulate_force_event_flags() {
     }
     assert!(narrow_phase.force_event_flagged.len() <= 1);
 }
-
-

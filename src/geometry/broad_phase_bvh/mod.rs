@@ -278,14 +278,19 @@ mod snapshot_serde {
 
     /// Builds the tree holding `leaves` (index, fattened AABB, resolved change flag), with the
     /// leaves of `pending_set_aabb` carrying a pending change flag.
-    pub(super) fn build_tree(leaves: &[(u32, Aabb, bool)], pending_set_aabb: &[ColliderHandle]) -> Bvh {
+    pub(super) fn build_tree(
+        leaves: &[(u32, Aabb, bool)],
+        pending_set_aabb: &[ColliderHandle],
+    ) -> Bvh {
         // Leaves touched by an end-of-step `set_aabb` carry a pending change flag
         // (`pending_set_aabb` records exactly the escaped updates), which the next
         // refit resolves to changed. Pending is not reproducible through an
         // existing leaf, but a fresh insert creates its leaf pending with verbatim
         // bounds: build the tree without those leaves, insert them after.
-        let pending: std::collections::HashSet<u32> =
-            pending_set_aabb.iter().map(|h| h.0.into_raw_parts().0).collect();
+        let pending: std::collections::HashSet<u32> = pending_set_aabb
+            .iter()
+            .map(|h| h.0.into_raw_parts().0)
+            .collect();
         let built: Vec<(usize, Aabb)> = leaves
             .iter()
             .filter(|(index, ..)| !pending.contains(index))
@@ -351,7 +356,7 @@ mod snapshot_serde {
 #[cfg(feature = "serde-serialize")]
 mod snapshot_delta {
     use super::*;
-    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
+    use crate::data::delta::{ChangeTracker, DeltaComponent, DeltaError};
     use serde::{Deserialize, Serialize};
 
     /// The pairs a collider takes part in, with their insertion frames.
@@ -373,7 +378,10 @@ mod snapshot_delta {
     impl BroadPhaseBvh {
         /// The pairs collider `index` takes part in.
         fn pairs_of(&self, index: u32) -> ColliderPairs {
-            let Some(generation) = self.pair_adjacency.get_gen(index).filter(|g| *g != u32::MAX)
+            let Some(generation) = self
+                .pair_adjacency
+                .get_gen(index)
+                .filter(|g| *g != u32::MAX)
             else {
                 return Vec::new();
             };
@@ -393,7 +401,10 @@ mod snapshot_delta {
 
         /// Drops every pair collider `index` takes part in.
         fn remove_pairs_of(&mut self, index: u32) {
-            let generation = self.pair_adjacency.get_gen(index).filter(|g| *g != u32::MAX);
+            let generation = self
+                .pair_adjacency
+                .get_gen(index)
+                .filter(|g| *g != u32::MAX);
             let others = self
                 .pair_adjacency
                 .get_mut_unknown_gen(index)
@@ -432,7 +443,6 @@ mod snapshot_delta {
             self.pair_stamps.set_now(now);
         }
 
-
         fn collect_delta(&mut self, since: Option<u32>) -> BroadPhaseBvhDelta {
             let leaf = |index: u32| {
                 self.tree
@@ -448,7 +458,9 @@ mod snapshot_delta {
                         .collect();
                     leaves.sort_unstable_by_key(|(index, _)| *index);
                     let mut pairs: Vec<_> = self.pairs.iter().map(|(k, v)| (*k, *v)).collect();
-                    pairs.sort_unstable_by_key(|((a, b), _)| (a.into_raw_parts(), b.into_raw_parts()));
+                    pairs.sort_unstable_by_key(|((a, b), _)| {
+                        (a.into_raw_parts(), b.into_raw_parts())
+                    });
                     (leaves, vec![(u32::MAX, pairs)])
                 }
                 Some(since) => (
@@ -493,7 +505,9 @@ mod snapshot_delta {
                     let pos = leaves.binary_search_by_key(&index, |(i, ..)| *i);
                     match (pos, leaf) {
                         (Ok(pos), Some((aabb, changed))) => leaves[pos] = (index, aabb, changed),
-                        (Err(pos), Some((aabb, changed))) => leaves.insert(pos, (index, aabb, changed)),
+                        (Err(pos), Some((aabb, changed))) => {
+                            leaves.insert(pos, (index, aabb, changed))
+                        }
                         (Ok(pos), None) => {
                             let _ = leaves.remove(pos);
                         }
@@ -699,4 +713,3 @@ mod test {
         }
     }
 }
-

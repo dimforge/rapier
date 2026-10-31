@@ -11,9 +11,9 @@
 //! difference waits to be read; the pyramid scene below was found exactly that way.
 #![cfg(feature = "serde-serialize")]
 
-use rapier3d::prelude::*;
 use rapier3d::data::{ChangeTick, Delta, SnapshotDelta};
 use rapier3d::pipeline::{WorldChangeTick, WorldDelta};
+use rapier3d::prelude::*;
 
 /// Serializes the world — what a user's save file holds: the simulation inputs plus the
 /// seven structures, with the pipeline and CCD workspace left out.
@@ -606,12 +606,20 @@ fn resting_boxes() -> (PhysicsWorld, RigidBodyHandle) {
 #[test]
 fn center_of_mass_change_while_recycling() {
     let (world, body) = resting_boxes();
-    check_roundtrip("center of mass change", world, 62, 30, false, |w, step, _| {
-        if step == 60 {
-            let props = MassProperties::new(Vector::new(0.05, 0.0, 0.0), 1.0, Vector::splat(0.2));
-            w.bodies[body].set_additional_mass_properties(props, true);
-        }
-    });
+    check_roundtrip(
+        "center of mass change",
+        world,
+        62,
+        30,
+        false,
+        |w, step, _| {
+            if step == 60 {
+                let props =
+                    MassProperties::new(Vector::new(0.05, 0.0, 0.0), 1.0, Vector::splat(0.2));
+                w.bodies[body].set_additional_mass_properties(props, true);
+            }
+        },
+    );
 }
 
 #[test]
@@ -649,7 +657,12 @@ fn snapshot_between_joint_insert_and_step() {
         for step in 0..60 {
             world.step();
             restored.step();
-            assert_same(step, &record(&world), &record(&restored), "joint insert then snapshot");
+            assert_same(
+                step,
+                &record(&world),
+                &record(&restored),
+                "joint insert then snapshot",
+            );
         }
     }
 }
@@ -659,7 +672,6 @@ fn snapshot_between_joint_insert_and_step() {
  * serialized deltas, which must leave each receiver byte-identical to the sender after every
  * sync, and simulating identically afterwards.
  */
-
 
 #[path = "common/delta_replication.rs"]
 mod delta_replication;
@@ -683,20 +695,27 @@ fn delta_sleeping_pile() {
 
 #[test]
 fn delta_shared_shapes_and_churn() {
-    check_delta_replication("delta structural churn", pile(true), 20, 120, |world, step, spawned| {
-        if step % 7 == 0 {
-            let rb = world.insert_body(
-                RigidBodyBuilder::dynamic()
-                    .translation(Vector::new((step % 5) as Real - 2.0, 6.0, 0.0)),
-            );
-            world.insert_collider(ColliderBuilder::ball(0.3), Some(rb));
-            spawned.push(rb);
-        }
-        if step % 11 == 0 && spawned.len() > 2 {
-            let rb = spawned.remove(0);
-            world.remove_body(rb);
-        }
-    });
+    check_delta_replication(
+        "delta structural churn",
+        pile(true),
+        20,
+        120,
+        |world, step, spawned| {
+            if step % 7 == 0 {
+                let rb = world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(
+                    (step % 5) as Real - 2.0,
+                    6.0,
+                    0.0,
+                )));
+                world.insert_collider(ColliderBuilder::ball(0.3), Some(rb));
+                spawned.push(rb);
+            }
+            if step % 11 == 0 && spawned.len() > 2 {
+                let rb = spawned.remove(0);
+                world.remove_body(rb);
+            }
+        },
+    );
 }
 
 /// Heavy shapes by content key: instanced hulls spawned and removed, shapes replaced, and a
@@ -706,7 +725,11 @@ fn delta_heavy_shapes() {
     let pts: Vec<_> = (0..10)
         .map(|i| {
             let a = i as Real * 0.7;
-            Vector::new(a.cos() * 0.25, ((i % 3) as Real - 1.0) * 0.2, a.sin() * 0.25)
+            Vector::new(
+                a.cos() * 0.25,
+                ((i % 3) as Real - 1.0) * 0.2,
+                a.sin() * 0.25,
+            )
         })
         .collect();
     let hull = ColliderBuilder::convex_hull(&pts).unwrap().build();
@@ -718,10 +741,11 @@ fn delta_heavy_shapes() {
         120,
         move |world, step, spawned| {
             if step % 9 == 0 {
-                let rb = world.insert_body(
-                    RigidBodyBuilder::dynamic()
-                        .translation(Vector::new((step % 4) as Real - 1.5, 5.0, 0.0)),
-                );
+                let rb = world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(
+                    (step % 4) as Real - 1.5,
+                    5.0,
+                    0.0,
+                )));
                 world.insert_collider(hull.clone(), Some(rb));
                 spawned.push(rb);
             }
@@ -760,12 +784,15 @@ fn delta_heavy_shapes() {
 fn joints_world() -> PhysicsWorld {
     let mut world = pile(true);
     with_joints_and_sensor(&mut world);
-    let mut last = world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(6.0, 0.06, 0.0)));
+    let mut last =
+        world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(6.0, 0.06, 0.0)));
     world.insert_collider(ColliderBuilder::cuboid(0.2, 0.05, 0.05), Some(last));
     for i in 1..6 {
-        let rb = world.insert_body(
-            RigidBodyBuilder::dynamic().translation(Vector::new(6.0 + i as Real * 0.4, 0.06, 0.0)),
-        );
+        let rb = world.insert_body(RigidBodyBuilder::dynamic().translation(Vector::new(
+            6.0 + i as Real * 0.4,
+            0.06,
+            0.0,
+        )));
         world.insert_collider(ColliderBuilder::cuboid(0.2, 0.05, 0.05), Some(rb));
         let joint = RevoluteJointBuilder::new(Vector::Z)
             .local_anchor1(Vector::new(0.2, 0.0, 0.0))
@@ -838,7 +865,6 @@ fn delta_soft_bodies() {
     check_delta_replication("delta soft bodies", soft_world(), 5, 240, no_edits);
 }
 
-
 /// Early in the soft scene most broad-phase leaves are pending (soft colliders resynced at
 /// the end of each step), leaving one or two plain leaves for the tree rebuild.
 #[test]
@@ -862,17 +888,26 @@ fn restore_then_save_is_identical() {
         }
         let bytes = save(&world);
         let restored = restore(&bytes);
-        assert!(save(&restored) == bytes, "{name}: re-saving a restored world changed its bytes");
+        assert!(
+            save(&restored) == bytes,
+            "{name}: re-saving a restored world changed its bytes"
+        );
     }
 }
-
 
 /// Impulse joints added at runtime next to a multibody: the multibody links' poses are
 /// rewritten by forward kinematics before their colliders follow, so the solver contacts of
 /// their pairs must not be replayed from the collider poses.
 #[test]
 fn multibody_with_joint_churn() {
-    check_roundtrip("multibody with joint churn", joints_world(), 160, 30, false, joint_churn);
+    check_roundtrip(
+        "multibody with joint churn",
+        joints_world(),
+        160,
+        30,
+        false,
+        joint_churn,
+    );
 }
 
 /// A collider moving with its body resends its record, not its (unchanged) heavy shape, even
@@ -1017,11 +1052,21 @@ fn stepped_receiver_recovers_with_a_full_delta() {
 
     let (full, _) = world.delta_since(None).unwrap();
     receiver.apply_delta(full).unwrap();
-    assert_same(0, &record(&world), &record(&receiver), "full delta after prediction");
+    assert_same(
+        0,
+        &record(&world),
+        &record(&receiver),
+        "full delta after prediction",
+    );
     for step in 0..60 {
         world.step();
         receiver.step();
-        assert_same(step, &record(&world), &record(&receiver), "after the full delta");
+        assert_same(
+            step,
+            &record(&world),
+            &record(&receiver),
+            "after the full delta",
+        );
     }
 }
 
@@ -1030,7 +1075,8 @@ fn stepped_receiver_recovers_with_a_full_delta() {
 #[test]
 fn restored_world_is_readable_before_stepping() {
     let mut world = pile(false);
-    let fixed = world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(6.0, 4.0, 0.0)));
+    let fixed =
+        world.insert_body(RigidBodyBuilder::fixed().translation(Vector::new(6.0, 4.0, 0.0)));
     let link = world.insert_body(RigidBodyBuilder::dynamic().can_sleep(false));
     world.insert_collider(ColliderBuilder::cuboid(0.05, 0.2, 0.05), Some(link));
     let joint = SphericalJointBuilder::new()
@@ -1055,5 +1101,8 @@ fn restored_world_is_readable_before_stepping() {
 
     let (multibody, link_id) = restored.multibody_joints.get(mb).unwrap();
     assert_eq!(multibody.body_jacobian(link_id).ncols(), multibody.ndofs());
-    assert_eq!(multibody.inv_augmented_mass().l().nrows(), multibody.ndofs());
+    assert_eq!(
+        multibody.inv_augmented_mass().l().nrows(),
+        multibody.ndofs()
+    );
 }

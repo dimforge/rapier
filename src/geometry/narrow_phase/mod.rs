@@ -4,13 +4,13 @@
 
 mod contacts;
 mod intersections;
+mod pair_management;
+mod pair_update;
+mod queries;
 #[cfg(feature = "serde-serialize")]
 mod restore;
 #[cfg(feature = "serde-serialize")]
 mod snapshot_delta;
-mod pair_management;
-mod pair_update;
-mod queries;
 pub(crate) mod soft_contacts;
 mod solver_graph;
 #[cfg(test)]

@@ -193,6 +193,8 @@ impl<T: Clone> Coarena<T> {
     where
         T: Default,
     {
-        delta.apply(&mut self.data, &mut self.stamps, || (u32::MAX, T::default()))
+        delta.apply(&mut self.data, &mut self.stamps, || {
+            (u32::MAX, T::default())
+        })
     }
 }

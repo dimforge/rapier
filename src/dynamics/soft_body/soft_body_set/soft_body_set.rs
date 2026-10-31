@@ -113,7 +113,7 @@ impl core::ops::IndexMut<SoftBodyHandle> for SoftBodySet {
 mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
-    use crate::data::delta::{ChangeTracker, DeltaError, DeltaComponent};
+    use crate::data::delta::{ChangeTracker, DeltaComponent, DeltaError};
 
     /// The content of a [`SoftBodySet`] delta.
     #[doc(hidden)]
@@ -161,4 +161,3 @@ mod snapshot_delta {
         }
     }
 }
-
