@@ -1736,3 +1736,15 @@ fn missing_shape_leaves_the_receiver_untouched() {
     );
     assert!(save(&receiver) == before);
 }
+
+/// The world reports tracking only while every component stamps its writes.
+#[test]
+fn tracking_is_enabled_only_on_every_component() {
+    let mut world = pile(true);
+    assert!(!world.is_change_tracking_enabled());
+    world.enable_change_tracking();
+    assert!(world.is_change_tracking_enabled());
+    world.colliders.disable_change_tracking();
+    assert!(!world.is_change_tracking_enabled());
+    assert!(!world.components_mut().is_change_tracking_enabled());
+}

@@ -4,11 +4,9 @@
 #[cfg(feature = "serde-serialize")]
 use crate::alloc_prelude::*;
 use crate::dynamics::{
-    ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
-    SoftBodySet,
+    ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodySet, SoftBodySet,
 };
 use crate::geometry::{BroadPhaseBvh, ColliderSet, NarrowPhase};
-use crate::math::Vector;
 
 use super::PhysicsPipeline;
 
@@ -19,8 +17,6 @@ impl PhysicsPipeline {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn begin_change_tracking(
         &mut self,
-        gravity: Vector,
-        integration_parameters: &IntegrationParameters,
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
@@ -33,33 +29,30 @@ impl PhysicsPipeline {
     ) {
         #[cfg(feature = "serde-serialize")]
         {
-            // Gravity and parameters are copies: only the component references are used.
-            let (mut gravity, mut integration_parameters) = (gravity, *integration_parameters);
-            let mut components = crate::pipeline::WorldComponentsMut {
-                gravity: &mut gravity,
-                integration_parameters: &mut integration_parameters,
-                islands: &mut *islands,
+            use crate::pipeline::physics_world_delta::{AnyDeltaComponent, delta_state_ids};
+            let mut components: [&mut dyn AnyDeltaComponent; _] = [
+                &mut *islands,
                 broad_phase,
                 narrow_phase,
-                bodies: &mut *bodies,
-                colliders: &mut *colliders,
+                &mut *bodies,
+                &mut *colliders,
                 impulse_joints,
                 multibody_joints,
                 soft_bodies,
-            };
-            let state_ids = components.delta_state_ids();
+            ];
+            let state_ids = delta_state_ids(&components);
             if state_ids != self.delta_state_ids {
                 self.delta_state_ids = state_ids;
                 self.joint_selection_primed = false;
                 self.staged_solver.invalidate_caches();
                 ccd_solver.invalidate_fixed_targets_cache();
             }
-            components.clear_delta_baselines();
+            for component in &mut components {
+                component.clear_baseline();
+            }
         }
         #[cfg(not(feature = "serde-serialize"))]
         let _ = (
-            gravity,
-            integration_parameters,
             broad_phase,
             narrow_phase,
             impulse_joints,

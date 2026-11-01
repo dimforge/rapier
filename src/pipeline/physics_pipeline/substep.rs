@@ -328,8 +328,6 @@ impl PhysicsPipeline {
         self.counters.step_started();
         self.quarantine.clear();
         self.begin_change_tracking(
-            gravity,
-            integration_parameters,
             islands,
             broad_phase,
             narrow_phase,

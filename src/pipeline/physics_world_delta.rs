@@ -10,43 +10,6 @@ use crate::math::Vector;
 use crate::pipeline::PhysicsWorld;
 use serde::{Deserialize, Serialize};
 
-/// Calls `$m!($args..., islands, broad_phase, ...)` with every component of a world that has
-/// deltas: the one list of them.
-macro_rules! delta_components {
-    ($m: ident $(, $arg: tt)*) => {
-        $m!(
-            $($arg,)*
-            islands,
-            broad_phase,
-            narrow_phase,
-            bodies,
-            colliders,
-            impulse_joints,
-            multibody_joints,
-            soft_bodies
-        )
-    };
-}
-
-/// Applies `$m!(field)` to every component of a world that has deltas.
-macro_rules! for_each_component {
-    ($m: ident) => {
-        delta_components!(apply_to_each, $m)
-    };
-}
-
-macro_rules! apply_to_each {
-    ($m: ident, $($field: ident),*) => {
-        $($m!($field);)*
-    };
-}
-
-macro_rules! count {
-    ($($field: ident),*) => {
-        [$(stringify!($field)),*].len()
-    };
-}
-
 /// A point in a world's change history: one [`ChangeTick`] per component.
 ///
 /// Returned by [`PhysicsWorld::delta_since`] and [`PhysicsWorld::apply_delta`]; serializable,
@@ -120,8 +83,51 @@ impl WorldDelta {
     }
 }
 
-/// The number of components `for_each_component` visits.
-pub(crate) const NUM_DELTA_COMPONENTS: usize = delta_components!(count);
+/// The number of world components with deltas.
+pub(crate) const NUM_DELTA_COMPONENTS: usize = 8;
+
+/// A delta component with its delta types erased, for the world operations that ignore them.
+pub(crate) trait AnyDeltaComponent {
+    fn enable_tracking(&mut self, seed: Option<u64>);
+    fn disable_tracking(&mut self);
+    fn is_tracking_enabled(&self) -> bool;
+    fn state_id(&self) -> u32;
+    fn clear_baseline(&mut self);
+    /// Whether a tick can be issued (see [`SnapshotDelta::change_tick`]).
+    fn check_can_issue(&self) -> Result<(), DeltaError>;
+}
+
+impl<T: crate::data::delta::DeltaComponent> AnyDeltaComponent for T {
+    fn enable_tracking(&mut self, seed: Option<u64>) {
+        match seed {
+            Some(seed) => self.enable_change_tracking_with_seed(seed),
+            None => self.enable_change_tracking(),
+        }
+    }
+    fn disable_tracking(&mut self) {
+        self.disable_change_tracking();
+    }
+    fn is_tracking_enabled(&self) -> bool {
+        self.is_change_tracking_enabled()
+    }
+    fn state_id(&self) -> u32 {
+        crate::data::delta::delta_state_id(self)
+    }
+    fn clear_baseline(&mut self) {
+        crate::data::delta::clear_delta_baseline(self);
+    }
+    fn check_can_issue(&self) -> Result<(), DeltaError> {
+        crate::data::delta::check_delta_since(self, None)
+    }
+}
+
+/// The ids of the components' current states, renewed by every applied delta (the pipeline
+/// drops its caches when they change).
+pub(crate) fn delta_state_ids(
+    components: &[&mut dyn AnyDeltaComponent; NUM_DELTA_COMPONENTS],
+) -> [u32; NUM_DELTA_COMPONENTS] {
+    core::array::from_fn(|i| components[i].state_id())
+}
 
 /// Mutable access to every part of a world that deltas cover, for code storing them outside a
 /// [`PhysicsWorld`] (like the language bindings).
@@ -143,34 +149,51 @@ pub struct WorldComponentsMut<'a> {
 }
 
 impl WorldComponentsMut<'_> {
+    /// Every component with deltas (the destructuring makes a new part a compile error here).
+    fn each_mut(&mut self) -> [&mut dyn AnyDeltaComponent; NUM_DELTA_COMPONENTS] {
+        let Self {
+            gravity: _,
+            integration_parameters: _,
+            islands,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+        } = self;
+        [
+            &mut **islands,
+            &mut **broad_phase,
+            &mut **narrow_phase,
+            &mut **bodies,
+            &mut **colliders,
+            &mut **impulse_joints,
+            &mut **multibody_joints,
+            &mut **soft_bodies,
+        ]
+    }
+
     /// See [`PhysicsWorld::enable_change_tracking`].
     pub fn enable_change_tracking(&mut self) {
-        macro_rules! enable {
-            ($field: ident) => {
-                self.$field.enable_change_tracking();
-            };
+        for component in self.each_mut() {
+            component.enable_tracking(None);
         }
-        for_each_component!(enable);
     }
 
     /// See [`PhysicsWorld::enable_change_tracking_with_seed`].
     pub fn enable_change_tracking_with_seed(&mut self, seed: u64) {
-        macro_rules! enable {
-            ($field: ident) => {
-                self.$field.enable_change_tracking_with_seed(seed);
-            };
+        for component in self.each_mut() {
+            component.enable_tracking(Some(seed));
         }
-        for_each_component!(enable);
     }
 
     /// See [`PhysicsWorld::disable_change_tracking`].
     pub fn disable_change_tracking(&mut self) {
-        macro_rules! disable {
-            ($field: ident) => {
-                self.$field.disable_change_tracking();
-            };
+        for component in self.each_mut() {
+            component.disable_tracking();
         }
-        for_each_component!(disable);
     }
 
     /// Rebuilds the derived data a deserialization or a delta leaves empty until the next step
@@ -186,46 +209,39 @@ impl WorldComponentsMut<'_> {
             .rebuild_derived_data(self.bodies, substep_dt);
     }
 
-    /// The ids of the components' current states, renewed by every applied delta (the pipeline
-    /// drops its caches when they change).
-    pub(crate) fn delta_state_ids(&self) -> [u32; NUM_DELTA_COMPONENTS] {
-        let mut ids = [0; NUM_DELTA_COMPONENTS];
-        let mut i = 0;
-        macro_rules! id {
-            ($field: ident) => {
-                ids[i] = crate::data::delta::delta_state_id(&*self.$field);
-                i += 1;
-            };
-        }
-        for_each_component!(id);
-        debug_assert_eq!(i, NUM_DELTA_COMPONENTS);
-        ids
-    }
-
-    /// Forgets the sender states the components mirrored, once they diverged (they were stepped).
-    pub(crate) fn clear_delta_baselines(&mut self) {
-        macro_rules! clear {
-            ($field: ident) => {
-                crate::data::delta::clear_delta_baseline(&mut *self.$field);
-            };
-        }
-        for_each_component!(clear);
-    }
-
     /// See [`PhysicsWorld::is_change_tracking_enabled`].
     pub fn is_change_tracking_enabled(&self) -> bool {
-        self.bodies.is_change_tracking_enabled()
+        let Self {
+            gravity: _,
+            integration_parameters: _,
+            islands,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+        } = self;
+        let components: [&dyn AnyDeltaComponent; NUM_DELTA_COMPONENTS] = [
+            &**islands,
+            &**broad_phase,
+            &**narrow_phase,
+            &**bodies,
+            &**colliders,
+            &**impulse_joints,
+            &**multibody_joints,
+            &**soft_bodies,
+        ];
+        components.iter().all(|c| c.is_tracking_enabled())
     }
 
     /// See [`PhysicsWorld::change_tick`].
     pub fn change_tick(&mut self) -> Result<WorldChangeTick, DeltaError> {
         // Every clock or none advances.
-        macro_rules! check {
-            ($field: ident) => {
-                crate::data::delta::check_delta_since(&*self.$field, None)?;
-            };
+        for component in self.each_mut() {
+            component.check_can_issue()?;
         }
-        for_each_component!(check);
         Ok(WorldChangeTick {
             islands: self.islands.change_tick()?,
             broad_phase: self.broad_phase.change_tick()?,
@@ -240,12 +256,24 @@ impl WorldComponentsMut<'_> {
 
     /// See [`PhysicsWorld::set_delta_baseline`].
     pub fn set_delta_baseline(&mut self, tick: WorldChangeTick) {
-        macro_rules! set {
-            ($field: ident) => {
-                self.$field.set_delta_baseline(tick.$field);
-            };
-        }
-        for_each_component!(set);
+        let WorldChangeTick {
+            islands,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+        } = tick;
+        self.islands.set_delta_baseline(islands);
+        self.broad_phase.set_delta_baseline(broad_phase);
+        self.narrow_phase.set_delta_baseline(narrow_phase);
+        self.bodies.set_delta_baseline(bodies);
+        self.colliders.set_delta_baseline(colliders);
+        self.impulse_joints.set_delta_baseline(impulse_joints);
+        self.multibody_joints.set_delta_baseline(multibody_joints);
+        self.soft_bodies.set_delta_baseline(soft_bodies);
     }
 
     /// See [`PhysicsWorld::delta_since`].
@@ -254,28 +282,40 @@ impl WorldComponentsMut<'_> {
         since: Option<WorldChangeTick>,
     ) -> Result<(WorldDelta, WorldChangeTick), DeltaError> {
         // Every clock or none advances.
-        macro_rules! check {
-            ($field: ident) => {
-                crate::data::delta::check_delta_since(&*self.$field, since.map(|t| t.$field))?;
-            };
-        }
-        for_each_component!(check);
-        macro_rules! delta {
-            ($field: ident) => {
-                self.$field.delta_since(since.map(|t| t.$field))?.0
-            };
-        }
+        use crate::data::delta::check_delta_since as check;
+        check(&*self.islands, since.map(|t| t.islands))?;
+        check(&*self.broad_phase, since.map(|t| t.broad_phase))?;
+        check(&*self.narrow_phase, since.map(|t| t.narrow_phase))?;
+        check(&*self.bodies, since.map(|t| t.bodies))?;
+        check(&*self.colliders, since.map(|t| t.colliders))?;
+        check(&*self.impulse_joints, since.map(|t| t.impulse_joints))?;
+        check(&*self.multibody_joints, since.map(|t| t.multibody_joints))?;
+        check(&*self.soft_bodies, since.map(|t| t.soft_bodies))?;
         let delta = WorldDelta {
             gravity: *self.gravity,
             integration_parameters: *self.integration_parameters,
-            islands: delta!(islands),
-            broad_phase: delta!(broad_phase),
-            narrow_phase: delta!(narrow_phase),
-            bodies: delta!(bodies),
-            colliders: delta!(colliders),
-            impulse_joints: delta!(impulse_joints),
-            multibody_joints: delta!(multibody_joints),
-            soft_bodies: delta!(soft_bodies),
+            islands: self.islands.delta_since(since.map(|t| t.islands))?.0,
+            broad_phase: self
+                .broad_phase
+                .delta_since(since.map(|t| t.broad_phase))?
+                .0,
+            narrow_phase: self
+                .narrow_phase
+                .delta_since(since.map(|t| t.narrow_phase))?
+                .0,
+            bodies: self.bodies.delta_since(since.map(|t| t.bodies))?.0,
+            colliders: self.colliders.delta_since(since.map(|t| t.colliders))?.0,
+            impulse_joints: self
+                .impulse_joints
+                .delta_since(since.map(|t| t.impulse_joints))?
+                .0,
+            multibody_joints: (self.multibody_joints)
+                .delta_since(since.map(|t| t.multibody_joints))?
+                .0,
+            soft_bodies: self
+                .soft_bodies
+                .delta_since(since.map(|t| t.soft_bodies))?
+                .0,
         };
         let tick = delta.target_tick();
         Ok((delta, tick))
@@ -358,10 +398,19 @@ impl PhysicsWorld {
         self.components_mut().disable_change_tracking();
     }
 
-    /// Whether writes are currently stamped (the world enables and disables every component
-    /// together).
+    /// Whether writes are currently stamped on every component.
     pub fn is_change_tracking_enabled(&self) -> bool {
-        self.bodies.is_change_tracking_enabled()
+        let components: [&dyn AnyDeltaComponent; NUM_DELTA_COMPONENTS] = [
+            &self.islands,
+            &self.broad_phase,
+            &self.narrow_phase,
+            &self.bodies,
+            &self.colliders,
+            &self.impulse_joints,
+            &self.multibody_joints,
+            &self.soft_bodies,
+        ];
+        components.iter().all(|c| c.is_tracking_enabled())
     }
 
     /// Issues a tick naming the current state without building a delta: send it with a full
@@ -396,7 +445,8 @@ impl PhysicsWorld {
     /// [`Self::set_delta_baseline`]), not stepped since. A full delta first resets the world's
     /// components, as a deserialization would. Returns the tick to acknowledge to the sender.
     ///
-    /// On error, the components applied before the failing one keep their new state: apply a
+    /// Baseline mismatches and missing shapes are reported before anything changes. A
+    /// malformed delta found while patching leaves the components before it patched: apply a
     /// full delta to recover.
     pub fn apply_delta(&mut self, delta: WorldDelta) -> Result<WorldChangeTick, DeltaError> {
         self.components_mut().apply_delta(delta)
