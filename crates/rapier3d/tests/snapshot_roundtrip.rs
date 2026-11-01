@@ -1416,3 +1416,57 @@ fn idle_fixed_rooted_multibody_is_not_resent() {
         assert!(bytes < 512, "a {bytes}-byte idle delta");
     }
 }
+
+/// Component deltas leave the patched pairs' replay to the next narrow-phase update: removals
+/// earlier in that step move contact-graph edges, and every pending pair must still replay.
+#[test]
+fn component_deltas_replay_pairs_moved_by_removals() {
+    let mut sender = PhysicsWorld::new();
+    sender.insert(RigidBodyBuilder::fixed(), ColliderBuilder::cuboid(20.0, 0.5, 20.0));
+    let (a, _) = sender.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(-5.0, 1.0, 0.0)),
+        ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+    );
+    for _ in 0..400 {
+        sender.step();
+    }
+    assert!(sender.bodies[a].is_sleeping());
+    sender.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(5.0, 1.0, 0.0))
+            .can_sleep(false),
+        ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+    );
+    for _ in 0..200 {
+        sender.step();
+    }
+
+    sender.enable_change_tracking();
+    let (full, tick) = sender.delta_since(None).unwrap();
+    let mut receiver = PhysicsWorld::new();
+    receiver.apply_delta(full).unwrap();
+    sender.step();
+    let (delta, _) = sender.delta_since(Some(tick)).unwrap();
+    let delta: WorldDelta = bincode::deserialize(&bincode::serialize(&delta).unwrap()).unwrap();
+    // Component by component: no eager replay.
+    let c = receiver.components_mut();
+    *c.gravity = delta.gravity;
+    *c.integration_parameters = delta.integration_parameters;
+    c.islands.apply_delta(delta.islands).unwrap();
+    c.broad_phase.apply_delta(delta.broad_phase).unwrap();
+    c.narrow_phase.apply_delta(delta.narrow_phase).unwrap();
+    c.bodies.apply_delta(delta.bodies).unwrap();
+    c.colliders.apply_delta(delta.colliders).unwrap();
+    c.impulse_joints.apply_delta(delta.impulse_joints).unwrap();
+    c.multibody_joints.apply_delta(delta.multibody_joints).unwrap();
+    c.soft_bodies.apply_delta(delta.soft_bodies).unwrap();
+
+    for world in [&mut sender, &mut receiver] {
+        world.remove_body(a);
+    }
+    for step in 0..5 {
+        sender.step();
+        receiver.step();
+        assert_same(step, &record(&sender), &record(&receiver), "pairs moved by removals");
+    }
+}

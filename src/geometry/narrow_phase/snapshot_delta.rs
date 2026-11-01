@@ -180,7 +180,9 @@ impl DeltaComponent for NarrowPhase {
 
         // Like after a deserialization: the patched pairs replay their solver contacts at the
         // next update, and the per-step caches are rebuilt.
-        self.pending_solver_replay.extend(patched.into_iter());
+        let num_edges = self.contact_graph.graph.edges.len();
+        self.pending_solver_replay
+            .extend(patched.into_iter(), num_edges);
         self.body_qualify_info.clear();
         self.retired_pairs.clear();
         self.soft_self.clear();

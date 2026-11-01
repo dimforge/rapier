@@ -174,6 +174,8 @@ impl NarrowPhase {
         // mirrored through node removal), so both must be rebuilt from scratch next step.
         self.solver_graph_valid = false;
         self.force_list_valid = false;
+        #[cfg(feature = "serde-serialize")]
+        self.pending_solver_replay.slots_moved();
         let pair_solver_hints = &mut self.pair_solver_hints;
         // Persistent islands can't be rebuilt lazily like the tables above:
         // unlink each removed edge and mirror each swap-remove exactly.
@@ -450,6 +452,8 @@ impl NarrowPhase {
                     let edges_ptr = self.contact_graph.graph.edges.as_mut_ptr();
                     let mut removed_index = usize::MAX;
                     let mut consistent = true;
+                    #[cfg(feature = "serde-serialize")]
+                    self.pending_solver_replay.slots_moved();
                     // Pairs whose bucket position the removal rewrote (pre-removal indices).
                     let mut fixed_up = Vec::new();
                     let contact_pair = self.contact_graph.remove_edge_with(

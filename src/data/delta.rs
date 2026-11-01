@@ -574,12 +574,23 @@ impl StaleSlots {
         matches!(self, Self::None)
     }
 
-    /// Adds `slots` to the stale set.
-    pub(crate) fn extend(&mut self, slots: impl Iterator<Item = u32>) {
+    /// Slots were swap-removed, so the listed indices may now name other slots.
+    pub(crate) fn slots_moved(&mut self) {
+        if matches!(self, Self::Some(_)) {
+            *self = Self::All;
+        }
+    }
+
+    /// Adds `slots` to the stale set of a storage of `capacity` slots (beyond which listing
+    /// them costs more than rebuilding them all).
+    pub(crate) fn extend(&mut self, slots: impl Iterator<Item = u32>, capacity: usize) {
         match self {
             Self::All => {}
             Self::None => *self = Self::Some(slots.collect()),
             Self::Some(list) => list.extend(slots),
+        }
+        if matches!(self, Self::Some(list) if list.len() > capacity) {
+            *self = Self::All;
         }
     }
 }
