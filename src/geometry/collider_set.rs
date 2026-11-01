@@ -856,15 +856,12 @@ mod snapshot_delta {
             // Colliders sharing a shape are hashed once per sync (the pointers stay valid
             // since the colliders hold the shapes during the call).
             let mut keys_by_ptr: HashMap<*const (), Option<ContentKey>> = HashMap::new();
-            let slots: Box<dyn Iterator<Item = usize>> = match self.synced {
-                Some(synced) => Box::new(
-                    stamps
-                        .changed_since(synced)
-                        .take_while(|i| *i < entries.len()),
-                ),
-                None => Box::new(0..entries.len()),
-            };
-            for i in slots {
+            // Every slot on the first sync, then only the slots stamped since.
+            let first_sync = self.synced.is_none().then_some(0..entries.len());
+            let changed = (self.synced.into_iter())
+                .flat_map(|synced| stamps.changed_since(synced))
+                .take_while(|i| *i < entries.len());
+            for i in first_sync.into_iter().flatten().chain(changed) {
                 let current = match &entries[i] {
                     crate::data::arena::Entry::Occupied { value, .. } if is_heavy(value) => {
                         Some(value)
