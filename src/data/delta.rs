@@ -34,8 +34,8 @@
 //!   between equally distant hits, in another order than on the sender.
 //! - Encoding clones the changed slots: about a full serialization when everything is awake.
 //! - Stamps are compared modulo 2^31 issued ticks (every `delta_since` and `change_tick` issues
-//!   one: about four days at 60 Hz for 100 receivers): a slot not rewritten for that long is then
-//!   resent by every delta until it is rewritten, and an older baseline is rejected.
+//!   one: about four days at 60 Hz for 100 receivers): a slot not rewritten for that long may then
+//!   be resent by every delta until it is rewritten, and an older baseline is rejected.
 //!
 //! # Example
 //!
