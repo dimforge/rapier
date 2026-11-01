@@ -3,7 +3,7 @@
 //! Every binary blob begins with an 8-byte header:
 //!   - 4 bytes magic naming the blob kind (see [`BlobKind`]): `b"RPYS"` for snapshots and
 //!     `to_bytes` blobs, `b"RPYD"` for snapshot deltas, `b"RPYT"` for change ticks
-//!   - 4 bytes little-endian `u32` version (currently 2, shared by every kind)
+//!   - 4 bytes little-endian `u32` format version of that blob's kind (see [`versions`])
 //!
 //! Anything that follows is the bincode-serialized payload (or for the JSON
 //! debug mode, a JSON object with a `"_rpys"` magic+version field, see below).
@@ -24,8 +24,19 @@ pub const MAGIC: &[u8; 4] = b"RPYS";
 pub const DELTA_MAGIC: &[u8; 4] = b"RPYD";
 /// Magic header marking a change tick ("Rapier PYthon Tick").
 pub const TICK_MAGIC: &[u8; 4] = b"RPYT";
-/// Current on-disk format version. Bumped on incompatible payload changes.
-pub const VERSION: u32 = 2;
+/// The format version of each kind of blob, bumped only when that kind's payload changes, so
+/// blobs of unchanged kinds written by earlier releases still load.
+pub mod versions {
+    /// World snapshots (binary and JSON), snapshot deltas and change ticks.
+    pub const WORLD: u32 = 2;
+    /// `ColliderSet`, `ImpulseJointSet` and `MultibodyJointSet` blobs.
+    pub const JOINT_AND_COLLIDER_SETS: u32 = 2;
+    /// `BroadPhaseBvh` and `NarrowPhase` blobs.
+    pub const PHASES: u32 = 2;
+    /// Every other `to_bytes` kind (math types, bodies, colliders, joints, controllers...),
+    /// unchanged since the first release.
+    pub const DEFAULT: u32 = 1;
+}
 /// Total size of the binary header (magic + u32 version).
 pub const HEADER_SIZE: usize = 8;
 
@@ -67,32 +78,48 @@ impl BlobKind {
     }
 }
 
-/// Prepend the 8-byte `RPYS` header to `payload`.
+/// Prepend the 8-byte `RPYS` header of a [`versions::DEFAULT`] kind to `payload`.
 #[inline]
 pub fn wrap_bincode(payload: Vec<u8>) -> Vec<u8> {
-    wrap_blob(BlobKind::Snapshot, payload)
+    wrap_bincode_versioned(versions::DEFAULT, payload)
 }
 
-/// Prepend the 8-byte header of `kind` to `payload`.
-fn wrap_blob(kind: BlobKind, payload: Vec<u8>) -> Vec<u8> {
+/// Prepend the 8-byte `RPYS` header with the given format `version` to `payload`.
+pub fn wrap_bincode_versioned(version: u32, payload: Vec<u8>) -> Vec<u8> {
     let mut out = Vec::with_capacity(HEADER_SIZE + payload.len());
-    out.extend_from_slice(&blob_header(kind));
+    out.extend_from_slice(&header(BlobKind::Snapshot, version));
     out.extend_from_slice(&payload);
     out
 }
 
-/// The 8-byte header (magic then little-endian version) opening blobs of `kind`.
+/// The 8-byte header (magic then little-endian version) opening a delta or tick blob.
 pub fn blob_header(kind: BlobKind) -> [u8; HEADER_SIZE] {
+    header(kind, versions::WORLD)
+}
+
+fn header(kind: BlobKind, version: u32) -> [u8; HEADER_SIZE] {
     let mut header = [0; HEADER_SIZE];
     header[..4].copy_from_slice(kind.magic());
-    header[4..].copy_from_slice(&VERSION.to_le_bytes());
+    header[4..].copy_from_slice(&version.to_le_bytes());
     header
 }
 
-/// Strip and validate the 8-byte `RPYS` header. Returns the body.
+/// Strip and validate the 8-byte `RPYS` header of a [`versions::DEFAULT`] kind. Returns the body.
 #[inline]
 pub fn unwrap_bincode(blob: &[u8]) -> PyResult<&[u8]> {
-    unwrap_blob(blob, BlobKind::Snapshot)
+    unwrap_bincode_versioned(blob, versions::DEFAULT)
+}
+
+/// Strip and validate the 8-byte `RPYS` header of a kind at format `version`. Returns the body.
+#[inline]
+pub fn unwrap_bincode_versioned(blob: &[u8], version: u32) -> PyResult<&[u8]> {
+    unwrap_header(blob, BlobKind::Snapshot, version)
+}
+
+/// Strip and validate the 8-byte header of a delta or tick blob. Returns the body.
+#[inline]
+pub fn unwrap_blob(blob: &[u8], expected: BlobKind) -> PyResult<&[u8]> {
+    unwrap_header(blob, expected, versions::WORLD)
 }
 
 /// Strip and validate the 8-byte header of a blob of kind `expected`. Returns the body.
@@ -100,8 +127,8 @@ pub fn unwrap_bincode(blob: &[u8]) -> PyResult<&[u8]> {
 /// Returns `SerializationError` on:
 ///  - Blob shorter than the header.
 ///  - Magic mismatch, naming the blob's kind when it is another rapier-py blob.
-///  - Unsupported version (`!= VERSION`).
-pub fn unwrap_blob(blob: &[u8], expected: BlobKind) -> PyResult<&[u8]> {
+///  - Unsupported version (`!= version`).
+fn unwrap_header(blob: &[u8], expected: BlobKind, version: u32) -> PyResult<&[u8]> {
     if blob.len() < HEADER_SIZE {
         return Err(crate::errors::SerializationError::new_err(format!(
             "serialized blob too short ({} bytes); expected at least {}",
@@ -125,10 +152,10 @@ pub fn unwrap_blob(blob: &[u8], expected: BlobKind) -> PyResult<&[u8]> {
     let mut ver_bytes = [0u8; 4];
     ver_bytes.copy_from_slice(&blob[4..8]);
     let ver = u32::from_le_bytes(ver_bytes);
-    if ver != VERSION {
+    if ver != version {
         return Err(crate::errors::SerializationError::new_err(format!(
             "unsupported serialization version {} (this build expects {})",
-            ver, VERSION
+            ver, version
         )));
     }
     Ok(&blob[HEADER_SIZE..])
@@ -157,11 +184,12 @@ pub fn bytes_to_py<'py>(py: Python<'py>, blob: &[u8]) -> Bound<'py, PyBytes> {
 /// fields so the file is self-describing for human readers.
 pub const JSON_MAGIC: &str = "RPYS";
 
-/// Build the JSON envelope `{"_magic": "RPYS", "_version": VERSION, "payload": <inner>}`.
+/// Build the JSON envelope `{"_magic": "RPYS", "_version": versions::WORLD, "payload": <inner>}`
+/// of a world snapshot.
 pub fn wrap_json(payload: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
         "_magic": JSON_MAGIC,
-        "_version": VERSION,
+        "_version": versions::WORLD,
         "payload": payload,
     })
 }
@@ -188,10 +216,11 @@ pub fn unwrap_json(envelope: serde_json::Value) -> PyResult<serde_json::Value> {
         .ok_or_else(|| {
             crate::errors::SerializationError::new_err("JSON envelope missing '_version' field")
         })?;
-    if ver as u32 != VERSION {
+    if ver != versions::WORLD as u64 {
         return Err(crate::errors::SerializationError::new_err(format!(
             "unsupported JSON serialization version {} (expected {})",
-            ver, VERSION
+            ver,
+            versions::WORLD
         )));
     }
     obj.get("payload").cloned().ok_or_else(|| {

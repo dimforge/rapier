@@ -294,8 +294,8 @@ export class World {
      * sender's `changeTick()` right before the snapshot this world was restored from. Deltas
      * produced against `tick` can then be applied with `applyDelta`.
      *
-     * Throws a `SnapshotDeltaError` of kind `"malformed"` if `tick` is not a tick serialized by
-     * this rapier.js build.
+     * Throws a `SnapshotDeltaError` of kind `"invalid_bytes"` if `tick` is not a tick serialized
+     * by this rapier.js build.
      */
     public setDeltaBaseline(tick: Uint8Array) {
         this.serializationPipeline.setDeltaBaseline(
@@ -308,42 +308,21 @@ export class World {
      * Takes a snapshot delta of this world: the changes made since the state identified by
      * `since`, a tick a receiver acknowledged. Requires `enableChangeTracking`.
      *
-     * The workflow, e.g. for network replication:
-     * 1. The sender calls `enableChangeTracking()`, then bootstraps each receiver with
-     *    `takeDelta()` (no baseline: the whole state) applied to any world (an empty
-     *    `new World(...)` works).
-     *    Alternatively, the sender calls `changeTick()` then `takeSnapshot()`, and the receiver
-     *    restores the snapshot and calls `setDeltaBaseline` with that tick.
-     * 2. Each receiver applies the deltas it gets with `applyDelta`, and sends the returned
-     *    tick back to acknowledge that state.
-     * 3. The sender produces the next delta for a receiver against the last tick that
-     *    receiver acknowledged, so a delta that was lost or is still in flight is just
-     *    included again in the next one.
+     * Bootstrap a receiver with a full delta (no `since`) applied to an empty world, or with a
+     * snapshot taken right after `changeTick()` and `setDeltaBaseline`. The receiver then
+     * acknowledges each delta with the tick `applyDelta` returns, and the next delta is taken
+     * against the last acknowledged tick, so a lost delta is included again in the next one.
+     * A receiver that applied every delta since its baseline keeps simulating identically, with
+     * the same `takeSnapshot()` bytes (only with the deterministic builds when composite shapes,
+     * like compounds or soft bodies, are in contact).
      *
-     * A receiver only accepts an incremental delta whose baseline is its current state (the
-     * target of the last delta it applied, or its `setDeltaBaseline`): stepping the receiver
-     * clears its baseline, and a full delta is then needed. Other local edits of a receiver are
-     * not detected: resynchronize it with a full delta.
+     * Deltas and ticks are only readable by the same rapier.js build (same package and version).
      *
-     * A receiver that applied every delta since its baseline keeps simulating identically, and
-     * has the same `takeSnapshot()` bytes as the sender (only with the deterministic builds
-     * when composite shapes, like compounds or soft bodies, are in contact).
+     * Throws a `SnapshotDeltaError` of kind `"tracking_disabled"`, `"unknown_baseline"` (send a
+     * full delta instead) or `"invalid_bytes"`, see `SnapshotDeltaErrorKind`.
      *
-     * Deltas and ticks are only readable by the same rapier.js build (same package and
-     * version) as the one that produced them. They start with a header naming their type, format
-     * version, dimension and scalar size, so mismatching bytes are rejected as `"malformed"`
-     * rather than misread, but a payload layout change across versions may go undetected.
-     *
-     * Throws a `SnapshotDeltaError` (see `SnapshotDeltaErrorKind`) of kind
-     * `"tracking_disabled"` (change tracking is disabled), `"unknown_baseline"` (`since` was not
-     * issued by this world's current change trackers, e.g. tracking was restarted, or is too
-     * old, with more than 2^31 ticks issued since: send a full delta instead) or `"malformed"`
-     * (`since` is not a tick of this rapier.js build, or the delta would exceed the 256 MiB
-     * size limit).
-     *
-     * @param since - The last tick acknowledged by the receiver (returned by its
-     *                `applyDelta`, or by the sender's `takeDelta` or `changeTick`). Omit it for
-     *                the whole state.
+     * @param since - The last tick acknowledged by the receiver. Omit it, or pass an empty
+     *                array, for the whole state.
      * @returns The serialized delta to send, and the tick the receiver is at once it applied it.
      *          Both are opaque byte arrays.
      */
@@ -359,34 +338,22 @@ export class World {
 
     /**
      * Applies a snapshot delta produced by the `takeDelta` of another world, and returns the
-     * tick to send back to that world to acknowledge this state.
+     * tick to send back to that world to acknowledge this state. Only apply deltas from a
+     * trusted sender running the same rapier.js build (see `SnapshotDeltaErrorKind`).
      *
-     * This world must hold the state the delta was produced against: the target of the last
-     * delta it applied, or the tick given to `setDeltaBaseline`, without being stepped since.
-     * Other local edits of this world are not detected: resynchronize it with a full delta.
-     * A full delta (taken without baseline) is accepted in any state and replaces the whole
-     * world. It should target an empty world or a replica of the same sender: this world's
-     * wrappers whose handle also names an object of the sender are kept (with their
-     * `userData`), while a joint wrapper whose joint type changed is replaced.
+     * An incremental delta requires this world to hold its baseline: the target of the last
+     * delta applied, or the tick given to `setDeltaBaseline`, without being stepped since.
+     * Other local edits are not detected: resynchronize with a full delta. A full delta replaces
+     * the whole world and should target an empty world or a replica of the same sender: wrappers
+     * whose handle also names an object of the sender are kept, so on an independent world an
+     * old handle may name a different object.
      *
-     * The delta must come from the same rapier.js build (same package and version), see
-     * `takeDelta`.
+     * The gravity, integration parameters and wrappers follow the patch; only the colliders whose
+     * shape may have changed drop their cached `shape`.
      *
-     * The gravity and the integration parameters are updated too, and the rigid-bodies,
-     * colliders, joints and soft bodies the delta added or removed are (un)mapped. Colliders
-     * whose parent changed get their `parent()` updated, and only the colliders whose shape may
-     * have changed (or which hold a deformable mesh) drop their cached `shape`: the other
-     * `Collider.shape` objects are kept. Finding these changes costs a native pass over every
-     * object of the world, while the JavaScript work is proportional to what changed.
-     *
-     * Throws a `SnapshotDeltaError` (see `SnapshotDeltaErrorKind`) of kind
-     * `"baseline_mismatch"` (the delta was produced against another state), `"malformed"` (the
-     * bytes are not a delta of this rapier.js build, or the decoded delta is inconsistent with
-     * this world) or `"missing_shape"` (a collider references a shape this world does not hold).
-     * A delta that does not decode or targets another baseline leaves the world untouched,
-     * including `gravity`; after any other error, including a `"malformed"` delta that decoded
-     * but failed while patching, the world may be partially patched (its wrappers follow the
-     * patched part): apply a full delta to recover.
+     * Throws a `SnapshotDeltaError` (see `SnapshotDeltaErrorKind`). Only a `"malformed"` delta
+     * may leave the world partially patched (its wrappers follow the patched part): apply a full
+     * delta to recover. Every other error leaves the world untouched.
      */
     public applyDelta(delta: Uint8Array): Uint8Array {
         return this.serializationPipeline.applyDelta(

@@ -341,7 +341,10 @@ impl ColliderSet {
         let payload = crate::bincode::serialize(inner).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
-            &crate::serde_io::wrap_bincode(payload),
+            &crate::serde_io::wrap_bincode_versioned(
+                crate::serde_io::versions::JOINT_AND_COLLIDER_SETS,
+                payload,
+            ),
         ))
     }
 
@@ -349,7 +352,10 @@ impl ColliderSet {
     #[staticmethod]
     fn from_bytes(blob: &Bound<'_, PyBytes>) -> PyResult<Self> {
         let buf = blob.as_bytes();
-        let body = crate::serde_io::unwrap_bincode(buf)?;
+        let body = crate::serde_io::unwrap_bincode_versioned(
+            buf,
+            crate::serde_io::versions::JOINT_AND_COLLIDER_SETS,
+        )?;
         let inner = crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
         Ok((ColliderSet)(inner))
     }
@@ -374,7 +380,10 @@ impl ImpulseJointSet {
         let payload = crate::bincode::serialize(inner).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
-            &crate::serde_io::wrap_bincode(payload),
+            &crate::serde_io::wrap_bincode_versioned(
+                crate::serde_io::versions::JOINT_AND_COLLIDER_SETS,
+                payload,
+            ),
         ))
     }
 
@@ -382,7 +391,10 @@ impl ImpulseJointSet {
     #[staticmethod]
     fn from_bytes(blob: &Bound<'_, PyBytes>) -> PyResult<Self> {
         let buf = blob.as_bytes();
-        let body = crate::serde_io::unwrap_bincode(buf)?;
+        let body = crate::serde_io::unwrap_bincode_versioned(
+            buf,
+            crate::serde_io::versions::JOINT_AND_COLLIDER_SETS,
+        )?;
         let inner = crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
         Ok((ImpulseJointSet)(inner))
     }
@@ -407,7 +419,10 @@ impl MultibodyJointSet {
         let payload = crate::bincode::serialize(inner).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
-            &crate::serde_io::wrap_bincode(payload),
+            &crate::serde_io::wrap_bincode_versioned(
+                crate::serde_io::versions::JOINT_AND_COLLIDER_SETS,
+                payload,
+            ),
         ))
     }
 
@@ -415,7 +430,10 @@ impl MultibodyJointSet {
     #[staticmethod]
     fn from_bytes(blob: &Bound<'_, PyBytes>) -> PyResult<Self> {
         let buf = blob.as_bytes();
-        let body = crate::serde_io::unwrap_bincode(buf)?;
+        let body = crate::serde_io::unwrap_bincode_versioned(
+            buf,
+            crate::serde_io::versions::JOINT_AND_COLLIDER_SETS,
+        )?;
         let inner = crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
         Ok(MultibodyJointSet::wrap(inner))
     }
@@ -542,7 +560,7 @@ impl BroadPhaseBvh {
         let payload = crate::bincode::serialize(inner).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
-            &crate::serde_io::wrap_bincode(payload),
+            &crate::serde_io::wrap_bincode_versioned(crate::serde_io::versions::PHASES, payload),
         ))
     }
 
@@ -550,7 +568,8 @@ impl BroadPhaseBvh {
     #[staticmethod]
     fn from_bytes(blob: &Bound<'_, PyBytes>) -> PyResult<Self> {
         let buf = blob.as_bytes();
-        let body = crate::serde_io::unwrap_bincode(buf)?;
+        let body =
+            crate::serde_io::unwrap_bincode_versioned(buf, crate::serde_io::versions::PHASES)?;
         let inner = crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
         Ok((BroadPhaseBvh)(inner))
     }
@@ -575,7 +594,7 @@ impl NarrowPhase {
         let payload = crate::bincode::serialize(inner).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
-            &crate::serde_io::wrap_bincode(payload),
+            &crate::serde_io::wrap_bincode_versioned(crate::serde_io::versions::PHASES, payload),
         ))
     }
 
@@ -583,7 +602,8 @@ impl NarrowPhase {
     #[staticmethod]
     fn from_bytes(blob: &Bound<'_, PyBytes>) -> PyResult<Self> {
         let buf = blob.as_bytes();
-        let body = crate::serde_io::unwrap_bincode(buf)?;
+        let body =
+            crate::serde_io::unwrap_bincode_versioned(buf, crate::serde_io::versions::PHASES)?;
         let inner = crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
         Ok((NarrowPhase)(inner))
     }
@@ -1588,7 +1608,7 @@ impl PhysicsWorld {
         let payload = crate::bincode::serialize(&tup).map_err(crate::serde_io::bincode_err)?;
         Ok(crate::serde_io::bytes_to_py(
             py,
-            &crate::serde_io::wrap_bincode(payload),
+            &crate::serde_io::wrap_bincode_versioned(crate::serde_io::versions::WORLD, payload),
         ))
     }
 
@@ -1596,7 +1616,8 @@ impl PhysicsWorld {
     #[staticmethod]
     fn restore(py: Python<'_>, blob: &Bound<'_, PyBytes>) -> PyResult<Py<PhysicsWorld>> {
         let buf = blob.as_bytes();
-        let body = crate::serde_io::unwrap_bincode(buf)?;
+        let body =
+            crate::serde_io::unwrap_bincode_versioned(buf, crate::serde_io::versions::WORLD)?;
         let owned: _PhysicsWorldOwned =
             crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
         let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g, sbs) = owned;
@@ -1759,6 +1780,16 @@ fn delta_to_py<'py, T: serde::Serialize>(
     })
 }
 
+/// The bytes of a delta or tick argument: `bytes`, or a copy of any other buffer-protocol
+/// object (`bytearray`, `memoryview`...).
+fn blob_bytes<'py>(blob: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyBytes>> {
+    if let Ok(bytes) = blob.downcast::<PyBytes>() {
+        return Ok(bytes.clone());
+    }
+    let view = crate::pyo3::types::PyMemoryView::from_bound(blob)?;
+    Ok(view.call_method0("tobytes")?.downcast_into::<PyBytes>()?)
+}
+
 /// Decodes a delta or tick blob of `kind`, rejecting oversized blobs and trailing bytes.
 fn delta_from_py<T: serde::de::DeserializeOwned>(
     blob: &Bound<'_, PyBytes>,
@@ -1865,11 +1896,12 @@ impl PhysicsWorld {
     /// :meth:`change_tick`. Stepping this world, or :meth:`detect_collisions`, clears the
     /// baseline again; other local edits are not detected and require a full delta.
     ///
-    /// :param tick: Bytes returned by the sender's :meth:`change_tick`.
+    /// :param tick: Bytes returned by the sender's :meth:`change_tick` (``bytes``, or any
+    ///     buffer such as ``bytearray`` or ``memoryview``).
     /// :raises SerializationError: if ``tick`` is not a valid tick blob.
-    fn set_delta_baseline(&self, py: Python<'_>, tick: &Bound<'_, PyBytes>) -> PyResult<()> {
+    fn set_delta_baseline(&self, py: Python<'_>, tick: &Bound<'_, PyAny>) -> PyResult<()> {
         let tick: rapier::pipeline::WorldChangeTick =
-            delta_from_py(tick, crate::serde_io::BlobKind::Tick)?;
+            delta_from_py(&blob_bytes(tick)?, crate::serde_io::BlobKind::Tick)?;
         let mut g = self.gravity_vector();
         self.with_components(py, &mut g, |c| c.set_delta_baseline(tick))
     }
@@ -1896,7 +1928,9 @@ impl PhysicsWorld {
     /// receiver that missed deltas catches up with one delta from its own tick.
     ///
     /// :param since: A tick returned by this method, :meth:`change_tick` or
-    ///     :meth:`apply_delta`, or ``None`` for the whole state (bootstraps a receiver).
+    ///     :meth:`apply_delta` (``bytes``, or any buffer such as ``bytearray`` or
+    ///     ``memoryview``), or ``None`` or an empty buffer for the whole state (bootstraps a
+    ///     receiver).
     /// :returns: ``(delta, tick)``: the delta bytes, and the tick (bytes) the receiver
     ///     is at once it applied the delta. Both are opaque and can be sent over the
     ///     network.
@@ -1910,10 +1944,13 @@ impl PhysicsWorld {
     fn delta_since<'py>(
         &self,
         py: Python<'py>,
-        since: Option<&Bound<'py, PyBytes>>,
+        since: Option<&Bound<'py, PyAny>>,
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let since = since.map(blob_bytes).transpose()?;
+        // An empty baseline is no baseline (a full delta), as in the C and TypeScript bindings.
         let since: Option<rapier::pipeline::WorldChangeTick> = since
-            .map(|t| delta_from_py(t, crate::serde_io::BlobKind::Tick))
+            .filter(|t| !t.as_bytes().is_empty())
+            .map(|t| delta_from_py(&t, crate::serde_io::BlobKind::Tick))
             .transpose()?;
         let mut g = self.gravity_vector();
         let (delta, tick) = self
@@ -1927,6 +1964,10 @@ impl PhysicsWorld {
 
     /// Patch a delta produced by :meth:`delta_since` into this world.
     ///
+    /// Only apply trusted deltas, produced by the same rapier build: the checks catch
+    /// corrupted headers and bytes that do not decode, but a corrupted delta that still
+    /// decodes may apply and make a later step panic (``PanicException``).
+    ///
     /// An incremental delta requires this world to hold the delta's baseline: the target
     /// of the last delta it applied, or the tick declared with :meth:`set_delta_baseline`,
     /// and not stepped (nor :meth:`detect_collisions`) since. Other local edits of this world
@@ -1934,23 +1975,31 @@ impl PhysicsWorld {
     /// can be applied to a world in any state, e.g. a fresh ``PhysicsWorld()``: it resets the
     /// world first. Change tracking is not needed on the receiver.
     ///
-    /// :param delta: Bytes returned by :meth:`delta_since`.
+    /// Replicated objects keep the sender's handles: a handle received from the sender
+    /// (e.g. rebuilt with ``RigidBodyHandle.from_raw_parts``) names the same object here. A
+    /// full delta applied to a non-empty world built independently replaces its objects, so
+    /// one of its old handles may stay valid but name a different object: apply it to an
+    /// empty world or a replica of the same sender.
+    ///
+    /// :param delta: Bytes returned by :meth:`delta_since` (``bytes``, or any buffer such as
+    ///     ``bytearray`` or ``memoryview``).
     /// :returns: The tick (bytes) to acknowledge to the sender, which passes it to its
     ///     next :meth:`delta_since`.
     /// :raises DeltaError: if this world does not hold the delta's baseline (``kind ==
-    ///     "baseline_mismatch"``), or the delta is inconsistent with this world
-    ///     (``"malformed"``, ``"missing_shape"``). A baseline mismatch leaves the world
-    ///     untouched; only ``"malformed"`` and ``"missing_shape"``, raised while patching,
-    ///     may leave it partially patched: recover by applying a full delta.
+    ///     "baseline_mismatch"``), or lacks a shape the delta references (``"missing_shape"``),
+    ///     both checked before anything is written, or if the patch found the delta
+    ///     inconsistent with this world (``"malformed"``). Only ``"malformed"``, raised while
+    ///     patching, may leave the world partially patched: recover by applying a full delta.
+    ///     Not every inconsistency is detected (see above).
     /// :raises SerializationError: if ``delta`` is not a valid delta blob (e.g. a tick
     ///     or a snapshot), the world then being untouched.
     fn apply_delta<'py>(
         &mut self,
         py: Python<'py>,
-        delta: &Bound<'py, PyBytes>,
+        delta: &Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyBytes>> {
         let delta: rapier::pipeline::WorldDelta =
-            delta_from_py(delta, crate::serde_io::BlobKind::Delta)?;
+            delta_from_py(&blob_bytes(delta)?, crate::serde_io::BlobKind::Delta)?;
         let mut g = self.gravity_vector();
         let result = self.with_components(py, &mut g, |c| c.apply_delta(delta))?;
         // Gravity may already be patched when a later component fails, so keep it either way.

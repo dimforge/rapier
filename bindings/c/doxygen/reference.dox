@@ -157,10 +157,19 @@ sender. It also serializes byte-identically,
 except when composite shapes are in contact in a build without `enhanced-determinism` (the
 default), where contact workspaces may be serialized in another order.
 Handles keep referring to the patched world; entities a delta removed report INVALID_HANDLE.
+Replicated entities keep the sender's index and generation, so a receiver addresses one by
+building a handle from the index and generation the sender sent, with the receiver's own
+world pointer (handles are checked against the world they carry, and a stale generation
+reports INVALID_HANDLE), or by enumerating handles such as with RigidBodyHandles.
+A full delta replaces every entity of the receiver: apply it to an empty world or a replica
+of the same sender. On a non-empty world built independently, an old handle may stay valid
+but name a different entity of the sender.
 Snapshots do not include change tracking, and restarting it invalidates every issued tick.
 
 Deltas and ticks carry a versioned header like snapshots, with the same 256 MiB limit
-(header included) and the same trust requirement: only apply bytes produced by the identical Rapier build.
+(header included) and the same trust requirement: only apply trusted bytes produced by the
+identical Rapier build. The checks catch damaged headers and bytes that do not decode, but a
+corrupted delta that still decodes may apply and make a later Step fail with PANIC.
 A NULL pointer with a nonzero count reports NULL_POINTER, and bytes with an incompatible
 header or truncated bytes report INVALID_ARGUMENT.
 SerializeWorldDelta and ChangeTick report UNSUPPORTED while change tracking is disabled.
@@ -170,13 +179,15 @@ receiver needs resynchronizing, the bytes are not corrupt. SerializeWorldDelta r
 for tick bytes from another world or tracking session, or too old (more than 2^31 ticks
 were issued since): produce a full delta instead.
 ApplyWorldDelta reports it for a delta built against a baseline the receiver does not
-hold (it was stepped, or never declared that baseline), without changing the world.
+hold (it was stepped, or never declared that baseline), or referencing a shape the receiver
+does not hold, without changing the world.
 
-ApplyWorldDelta reports INVALID_ARGUMENT for incompatible or truncated bytes without
-changing the world. It also reports INVALID_ARGUMENT for a delta whose content is
-inconsistent (malformed) and for a delta referencing a shape the receiver does not hold.
-These two are detected while patching, so they may leave the world partially patched:
-resynchronize it with a full delta, or a snapshot and SetDeltaBaseline. LastError names the
+ApplyWorldDelta reports INVALID_ARGUMENT for bytes that do not decode (incompatible header,
+truncated, trailing bytes, or inconsistent content such as a multibody whose degrees of
+freedom disagree with its links), without changing the world. It reports DELTA_INCONSISTENT
+when the patch itself finds the decoded delta inconsistent with the world: the world may then
+be partially patched, so resynchronize it with a full delta, or a snapshot and
+SetDeltaBaseline. Only the inconsistencies the patch checks are reported. LastError names the
 cause.
 */
 

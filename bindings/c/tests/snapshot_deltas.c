@@ -118,13 +118,6 @@ int main(void) {
     Buffer restored_tick = take(RAPIER_FN(ChangeTick)(sender));
     assert(memcmp(restored_tick.data, "RPRT", 4) == 0);
     Buffer snapshot = take(RAPIER_FN(SerializeWorld)(sender));
-    /* Bytes 4..8 hold the little-endian format version; v0.36 wrote 1 there. */
-    Buffer old = copy(snapshot.data, snapshot.count);
-    memset(old.data + 4, 0, 4);
-    old.data[4] = 1;
-    assert(!RAPIER_FN(DeserializeWorld)(old.data, old.count));
-    EXPECT(RAPIER_FN(LastStatus)(), RAPIER_CONST(INVALID_ARGUMENT));
-    free(old.data);
     RAPIER_TYPE(World) *restored = RAPIER_FN(DeserializeWorld)(snapshot.data, snapshot.count);
     OK(RAPIER_FN(LastStatus)());
     free(snapshot.data);

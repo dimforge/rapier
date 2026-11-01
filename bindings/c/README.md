@@ -91,8 +91,9 @@ deltas. Delta receivers only accept deltas against the state they hold: bootstra
 with a full delta, or restore a snapshot and declare the sender's `ChangeTick` from
 right before it with `SetDeltaBaseline`. A delta or tick naming a baseline the world does
 not hold reports `BASELINE_MISMATCH` (resynchronize with a full delta) and leaves the world
-untouched, while corrupt bytes report `INVALID_ARGUMENT`. Only a malformed delta or one
-referencing a missing shape, detected while patching, may leave the world partially patched.
+untouched, as do bytes that do not decode (`INVALID_ARGUMENT`). Only `DELTA_INCONSISTENT`, a
+delta found inconsistent while patching, may leave the world partially patched. Only apply
+trusted deltas: a corrupted delta that still decodes may make a later step fail.
 Snapshots, deltas, and ticks are limited to 256 MiB, header included. The snapshot format
 version changed after v0.36, so its snapshots are rejected with `INVALID_ARGUMENT`.
 The CI workflow also provides a `rapier-c-api-docs` HTML artifact.

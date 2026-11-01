@@ -74,6 +74,29 @@ def test_version_1_snapshot_is_rejected(ns):
         ns.PhysicsWorld.restore(old)
 
 
+def test_unchanged_kinds_keep_loading_version_1_blobs(ns):
+    # Versions are per kind: a Vec3 blob written by an earlier release (version 1) still loads.
+    import struct
+
+    old = b"RPYS" + (1).to_bytes(4, "little") + struct.pack("<3f", 1.0, 2.0, 3.0)
+    v = ns.Vec3.from_bytes(old)
+    assert (v.x, v.y, v.z) == (1.0, 2.0, 3.0)
+    assert ns.Vec3(1.0, 2.0, 3.0).to_bytes() == old
+    assert ns.Collider.ball(0.5).to_bytes()[4:8] == (1).to_bytes(4, "little")
+
+
+def test_changed_kinds_reject_version_1_blobs(ns):
+    w, _ = _build_small_world(ns)
+    for blob, load in (
+        (w.colliders.to_bytes(), ns.ColliderSet.from_bytes),
+        (w.narrow_phase.to_bytes(), ns.NarrowPhase.from_bytes),
+    ):
+        assert blob[4:8] == (2).to_bytes(4, "little")
+        load(blob)
+        with pytest.raises(ns.SerializationError, match="version 1"):
+            load(blob[:4] + (1).to_bytes(4, "little") + blob[8:])
+
+
 def test_truncated_blob_raises(ns):
     with pytest.raises(ns.SerializationError):
         ns.PhysicsWorld.restore(b"RPY")  # too short

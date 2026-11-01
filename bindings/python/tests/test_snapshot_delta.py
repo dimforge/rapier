@@ -140,35 +140,59 @@ def test_delta_since_rejects_foreign_or_stale_ticks():
     assert e.value.kind == "unknown_baseline"
 
 
-def test_apply_delta_rejects_wrong_baseline_then_recovers():
+def test_stale_delta_leaves_the_receiver_untouched_then_recovers():
     sender = _build_world()
     sender.enable_change_tracking()
     receiver = r.PhysicsWorld()
-    full, _ = sender.delta_since(None)
-    t0 = receiver.apply_delta(full)
-
+    t0 = receiver.apply_delta(sender.delta_since(None)[0])
     sender.step()
-    d1, _ = sender.delta_since(t0)
-    t1 = receiver.apply_delta(d1)
+    t1 = receiver.apply_delta(sender.delta_since(t0)[0])
 
-    # A delta against t0 no longer matches a receiver at t1.
+    # A delta against t0 no longer matches a receiver at t1, and its gravity change must not land.
+    sender.gravity = (1.0, -3.0, 0.5)
     sender.step()
     stale, _ = sender.delta_since(t0)
+    gravity, snapshot = tuple(receiver.gravity), receiver.snapshot()
     with pytest.raises(r.DeltaError) as e:
         receiver.apply_delta(stale)
     assert e.value.kind == "baseline_mismatch"
     assert isinstance(e.value, r.SerializationError)
     assert isinstance(e.value, r.RapierError)
+    assert tuple(receiver.gravity) == gravity
+    assert receiver.snapshot() == snapshot
 
-    # The matching delta still applies.
-    d2, _ = sender.delta_since(t1)
-    receiver.apply_delta(d2)
+    # The receiver still holds t1, so the matching delta applies.
+    receiver.apply_delta(sender.delta_since(t1)[0])
+    assert tuple(receiver.gravity) == tuple(sender.gravity)
     assert receiver.snapshot() == sender.snapshot()
 
     # A full delta always applies, whatever the receiver's state.
     sender.step()
-    full, _ = sender.delta_since(None)
-    receiver.apply_delta(full)
+    receiver.apply_delta(sender.delta_since(None)[0])
+    assert receiver.snapshot() == sender.snapshot()
+
+
+def test_missing_shape_leaves_the_receiver_untouched():
+    sender = _build_world()
+    sender.enable_change_tracking()
+    old_state = sender.snapshot()
+    # Hulls are sent by content, so a delta omits a hull its baseline already holds.
+    hull = r.SharedShape.convex_hull([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)])
+    sender.add_body(r.RigidBody.dynamic(translation=(0.0, 8.0, 0.0)), [r.Collider.new(hull)])
+    tick = sender.change_tick()
+    sender.step()
+    delta, _ = sender.delta_since(tick)
+
+    # A receiver wrongly declaring that baseline lacks the hull: nothing is patched.
+    receiver = r.PhysicsWorld.restore(old_state)
+    receiver.set_delta_baseline(tick)
+    before = receiver.snapshot()
+    with pytest.raises(r.DeltaError) as e:
+        receiver.apply_delta(delta)
+    assert e.value.kind == "missing_shape"
+    assert receiver.snapshot() == before
+
+    receiver.apply_delta(sender.delta_since(None)[0])
     assert receiver.snapshot() == sender.snapshot()
 
 
@@ -178,21 +202,24 @@ def test_malformed_delta_and_tick_blobs_raise():
     delta, tick = sender.delta_since(None)
     receiver = r.PhysicsWorld()
 
-    for garbage in (
-        b"",
-        b"not a delta",
-        b"RPYS" + (99).to_bytes(4, "little"),
-        b"RPYD" + (99).to_bytes(4, "little") + delta[8:],
-        delta[:-7],
-        delta + b"\x00",
-    ):
+    for garbage in (b"", b"not a delta", delta[:-7], delta + b"\x00"):
         with pytest.raises(r.SerializationError):
             receiver.apply_delta(garbage)
+    # Deltas and ticks of another format version, with the right magic.
+    for version in (1, 99):
+        header = version.to_bytes(4, "little")
+        with pytest.raises(r.SerializationError, match=f"version {version}"):
+            receiver.apply_delta(b"RPYD" + header + delta[8:])
+        with pytest.raises(r.SerializationError, match=f"version {version}"):
+            sender.delta_since(b"RPYT" + header + tick[8:])
     for garbage in (b"garbage", tick[:-1], tick + b"\x00"):
         with pytest.raises(r.SerializationError):
             sender.delta_since(garbage)
         with pytest.raises(r.SerializationError):
             receiver.set_delta_baseline(garbage)
+    # An empty tick is no baseline for delta_since, but not a baseline to declare.
+    with pytest.raises(r.SerializationError):
+        receiver.set_delta_baseline(b"")
     with pytest.raises(TypeError):
         receiver.apply_delta("not bytes")
 
@@ -201,29 +228,40 @@ def test_malformed_delta_and_tick_blobs_raise():
     assert receiver.snapshot() == sender.snapshot()
 
 
-def test_stale_delta_leaves_the_receiver_untouched():
+def test_empty_baseline_takes_a_full_delta():
     sender = _build_world()
     sender.enable_change_tracking()
+    sender.step()
+    for empty in (b"", bytearray(), memoryview(b"")):
+        delta, tick = sender.delta_since(empty)
+        receiver = r.PhysicsWorld()
+        assert receiver.apply_delta(delta) == tick
+        assert receiver.snapshot() == sender.snapshot()
+
+
+def test_delta_methods_accept_buffers():
+    sender = _build_world()
+    sender.enable_change_tracking()
+    full, acked = sender.delta_since(None)
     receiver = r.PhysicsWorld()
-    t0 = receiver.apply_delta(sender.delta_since(None)[0])
-    sender.step()
-    t1 = receiver.apply_delta(sender.delta_since(t0)[0])
+    assert receiver.apply_delta(bytearray(full)) == acked
+    for wrap in (bytearray, memoryview):
+        sender.step()
+        delta, tick = sender.delta_since(wrap(acked))
+        acked = receiver.apply_delta(wrap(delta))
+        assert acked == tick
+        assert receiver.snapshot() == sender.snapshot()
 
-    # The stale delta carries a gravity change, which must not reach the receiver.
-    sender.gravity = (1.0, -3.0, 0.5)
+    # A restored receiver declares its baseline from a buffer too.
+    tick = sender.change_tick()
+    restored = r.PhysicsWorld.restore(sender.snapshot())
+    restored.set_delta_baseline(memoryview(bytearray(tick)))
     sender.step()
-    stale, _ = sender.delta_since(t0)
-    gravity, snapshot = tuple(receiver.gravity), receiver.snapshot()
-    with pytest.raises(r.DeltaError) as e:
-        receiver.apply_delta(stale)
-    assert e.value.kind == "baseline_mismatch"
-    assert tuple(receiver.gravity) == gravity
-    assert receiver.snapshot() == snapshot
-
-    # The receiver still holds t1, so the matching delta applies.
-    receiver.apply_delta(sender.delta_since(t1)[0])
-    assert tuple(receiver.gravity) == tuple(sender.gravity)
-    assert receiver.snapshot() == sender.snapshot()
+    restored.apply_delta(memoryview(sender.delta_since(tick)[0]))
+    assert restored.snapshot() == sender.snapshot()
+    for not_a_buffer in ("not bytes", 3, None):
+        with pytest.raises(TypeError):
+            restored.apply_delta(not_a_buffer)
 
 
 def test_blob_kinds_have_their_own_magic():

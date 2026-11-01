@@ -4681,6 +4681,13 @@ typedef struct R2DebugRenderStyle {
  */
 #define R2_BASELINE_MISMATCH 9
 
+/**
+ * @ingroup errors
+ * A well-formed snapshot delta was found inconsistent with the world while patching it, which
+ * may be partially patched. Resynchronize with a full delta, or a snapshot and SetDeltaBaseline.
+ */
+#define R2_DELTA_INCONSISTENT 10
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -15659,6 +15666,13 @@ typedef struct R3DebugRenderStyle {
  * Resynchronize with a full delta, or a snapshot and SetDeltaBaseline.
  */
 #define R3_BASELINE_MISMATCH 9
+
+/**
+ * @ingroup errors
+ * A well-formed snapshot delta was found inconsistent with the world while patching it, which
+ * may be partially patched. Resynchronize with a full delta, or a snapshot and SetDeltaBaseline.
+ */
+#define R3_DELTA_INCONSISTENT 10
 
 #ifdef __cplusplus
 extern "C" {

@@ -20,21 +20,28 @@ import {World} from "./world";
  * The category of a snapshot-delta error, its `kind` property:
  * - `"tracking_disabled"`: change tracking is disabled on the sender.
  * - `"unknown_baseline"`: the tick was not issued by the sender's current change trackers, or
- *   is too old (more than 2^31 ticks were issued since).
+ *   is too old (more than 2^31 ticks were issued since): send a full delta instead.
  * - `"baseline_mismatch"`: the delta was produced against another state than the receiver's.
- * - `"malformed"`: the bytes are not a delta or tick of this rapier.js build, or a delta to
- *   encode exceeds the 256 MiB size limit. `applyDelta` also reports a delta that decodes but
- *   is inconsistent with the receiver as `"malformed"`: unlike bytes that fail to decode (the
- *   world is untouched), this is detected while patching and may leave the world partially
- *   patched.
- * - `"missing_shape"`: the delta references a shape the receiver does not hold.
+ *   The receiver is untouched.
+ * - `"missing_shape"`: the delta references a shape the receiver does not hold (it does not
+ *   hold the delta's baseline). The receiver is untouched.
+ * - `"invalid_bytes"`: the bytes are not a delta or tick of this rapier.js build (wrong header,
+ *   truncated, trailing bytes, over 256 MiB, or a payload that does not decode), or a delta to
+ *   encode would exceed 256 MiB. The world is untouched.
+ * - `"malformed"`: the delta decoded, but `applyDelta` found it inconsistent with the receiver
+ *   while patching it: the receiver may be partially patched, apply a full delta to recover.
+ *
+ * Only some corruptions are detected: a damaged delta that still decodes may apply without
+ * error and make a later step trap, which breaks every world of the WebAssembly module. Only
+ * apply deltas from a trusted sender.
  */
 export type SnapshotDeltaErrorKind =
     | "tracking_disabled"
     | "unknown_baseline"
     | "baseline_mismatch"
-    | "malformed"
-    | "missing_shape";
+    | "missing_shape"
+    | "invalid_bytes"
+    | "malformed";
 
 /**
  * The `Error` thrown by the snapshot-delta methods of `World`, with a machine-readable `kind`.
@@ -211,7 +218,8 @@ export class SerializationPipeline {
      * Declares that the components hold the sender's state at `tick` (see
      * `World.setDeltaBaseline`).
      *
-     * Throws a `SnapshotDeltaError` of kind `"malformed"` if `tick` is not a serialized tick.
+     * Throws a `SnapshotDeltaError` of kind `"invalid_bytes"` if `tick` is not a serialized
+     * tick.
      */
     public setDeltaBaseline(
         gravity: Vector,
@@ -250,7 +258,7 @@ export class SerializationPipeline {
      * Throws a `SnapshotDeltaError`, see `World.takeDelta`.
      *
      * @param since - A tick returned by an earlier `takeDelta`, by `changeTick`, or by
-     *                `applyDelta`.
+     *                `applyDelta`. An empty array is no baseline.
      * @returns The serialized delta, and the tick a receiver is at once it applied it.
      */
     public takeDelta(
@@ -290,12 +298,12 @@ export class SerializationPipeline {
      * Patches a delta serialized by `takeDelta` into the given components and integration
      * parameters, starting from the given gravity.
      *
-     * Throws a `SnapshotDeltaError`, see `World.applyDelta`. A delta that does not decode or
-     * targets another baseline changes nothing; after any other error, the gravity, integration
-     * parameters and the components patched before the error keep their new state.
+     * Throws a `SnapshotDeltaError`, see `World.applyDelta`. Only after a `"malformed"` error
+     * do the gravity, integration parameters and the components patched before the error keep
+     * their new state; the other errors change nothing.
      *
      * @param onGravity - Called with the resulting gravity, also when the patch fails partway,
-     *                    but not when the delta does not decode or targets another baseline.
+     *                    but not when the world is untouched.
      * @param onChanges - Called with the handles the patch added, removed or modified, also
      *                    when the patch fails partway. Only valid during the call.
      * @returns The tick to acknowledge to the sender.
@@ -332,7 +340,7 @@ export class SerializationPipeline {
                 multibodyJoints.raw,
             );
         } catch (e) {
-            // The delta did not decode or targets another baseline: the world is untouched.
+            // Rejected before any write: the world is untouched.
             rawGra.free();
             throw e;
         }

@@ -39,6 +39,10 @@ pub const RPR_WORLD_BUSY: RprStatus = 8;
 /// A snapshot delta or tick names a baseline the world did not issue or does not hold.
 /// Resynchronize with a full delta, or a snapshot and SetDeltaBaseline.
 pub const RPR_BASELINE_MISMATCH: RprStatus = 9;
+/// @ingroup errors
+/// A well-formed snapshot delta was found inconsistent with the world while patching it, which
+/// may be partially patched. Resynchronize with a full delta, or a snapshot and SetDeltaBaseline.
+pub const RPR_DELTA_INCONSISTENT: RprStatus = 10;
 pub(crate) type Result<T = ()> = std::result::Result<T, (RprStatus, String)>;
 thread_local! { static LAST_STATUS: Cell<RprStatus> = const { Cell::new(RPR_OK) }; }
 thread_local! { static LAST_ERROR: RefCell<CString> = RefCell::new(CString::default()); }

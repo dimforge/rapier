@@ -417,3 +417,71 @@ fn wrong_kind_bytes_name_both_kinds() {
         assert_eq!(rpr_free_world(world), RPR_OK);
     }
 }
+
+#[test]
+fn a_delta_missing_a_shape_leaves_the_world_untouched() {
+    unsafe {
+        let sender = pile();
+        assert_eq!(rpr_enable_change_tracking(sender), RPR_OK);
+        let old_state = snapshot(sender);
+        // Hulls are sent by content key, so a delta omits a hull its baseline already holds.
+        with_world(sender, |w| {
+            let body = w.insert_body(RigidBodyBuilder::dynamic().translation(Vector::Y * 8.0));
+            let points = [Vector::X, Vector::Y, -Vector::X, -Vector::Y, Vector::ZERO];
+            #[cfg(feature = "dim3")]
+            let points = [points[0], points[1], points[2], points[3], Vector::Z];
+            let hull = ColliderBuilder::convex_hull(&points).unwrap();
+            w.insert_collider(hull, Some(body));
+        });
+        let tick = change_tick(sender);
+        step(sender);
+        let (next, _) = delta(sender, Some(&tick));
+
+        // A receiver wrongly declaring that baseline lacks the hull: nothing is patched.
+        let receiver = restore(&old_state);
+        set_baseline(receiver, &tick);
+        let before = snapshot(receiver);
+        reject_apply(receiver, &next, RPR_BASELINE_MISMATCH);
+        assert!(last_error().contains("shape"), "{}", last_error());
+        assert!(snapshot(receiver) == before);
+
+        let (full, full_tick) = delta(sender, None);
+        assert_eq!(apply(receiver, &full), full_tick);
+        assert!(snapshot(receiver) == snapshot(sender));
+        for world in [sender, receiver] {
+            assert_eq!(rpr_free_world(world), RPR_OK);
+        }
+    }
+}
+
+#[test]
+fn replicas_resolve_the_sender_handles() {
+    unsafe {
+        let sender = pile();
+        assert_eq!(rpr_enable_change_tracking(sender), RPR_OK);
+        let added = with_world(sender, |w| ball(w, 3.0, 4.0));
+        let receiver = rpr_new_world();
+        let (full, _) = delta(sender, None);
+        apply(receiver, &full);
+
+        // The receiver keeps the sender's index and generation: only the world pointer differs.
+        let (index, generation) = added.into_raw_parts();
+        let local = RprRigidBodyHandle {
+            world: receiver,
+            index,
+            generation,
+        };
+        let expected = rpr_rigid_body_translation(RprRigidBodyHandle {
+            world: sender,
+            index,
+            generation,
+        });
+        assert_status(RPR_OK);
+        let translation = rpr_rigid_body_translation(local);
+        assert_status(RPR_OK);
+        assert!(translation.x == expected.x && translation.y == expected.y);
+        for world in [sender, receiver] {
+            assert_eq!(rpr_free_world(world), RPR_OK);
+        }
+    }
+}

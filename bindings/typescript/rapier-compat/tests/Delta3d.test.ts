@@ -418,7 +418,7 @@ describe("3d/snapshot deltas", () => {
         receiver.world.free();
     });
 
-    test("a partially applied delta resyncs the wrappers", () => {
+    test("a delta missing a shape leaves the receiver untouched", () => {
         const {world: sender} = buildWorld();
         sender.enableChangeTracking();
         const snapshot = sender.takeSnapshot();
@@ -439,18 +439,18 @@ describe("3d/snapshot deltas", () => {
         sender.step();
         const delta = sender.takeDelta(tick);
 
-        // A receiver wrongly declaring the baseline (it lacks the hull): the bodies are patched,
-        // then the colliders fail on the hull's shape, which the delta omits.
+        // A receiver wrongly declaring the baseline lacks the hull's shape, which the delta
+        // omits: the shapes are checked before anything is patched.
         const receiver = World.restoreSnapshot(snapshot);
         receiver.setDeltaBaseline(tick);
-        expect(receiver.getRigidBody(hullBody.handle)).toBeNull();
+        const before = receiver.takeSnapshot();
+        const gravity = receiver.gravity;
         expect(errorKind(() => receiver.applyDelta(delta.delta))).toBe(
             "missing_shape",
         );
-        expect(receiver.bodies.len()).toBe(receiver.bodies.raw.len());
-        const body = receiver.getRigidBody(hullBody.handle);
-        expect(body).not.toBeNull();
-        expect(body.isValid()).toBe(true);
+        expect(sameBytes(receiver.takeSnapshot(), before)).toBe(true);
+        expect(receiver.gravity).toBe(gravity);
+        expect(receiver.getRigidBody(hullBody.handle)).toBeNull();
 
         // A full delta recovers.
         receiver.applyDelta(sender.takeDelta().delta);
@@ -471,12 +471,12 @@ describe("3d/snapshot deltas", () => {
         sender.step();
         const second = sender.takeDelta(first.tick);
         expect(errorKind(() => sender.takeDelta(new Uint8Array([1, 2])))).toBe(
-            "malformed",
+            "invalid_bytes",
         );
         // Trailing bytes after a valid tick are rejected.
         const padded = new Uint8Array(first.tick.length + 1);
         padded.set(first.tick);
-        expect(errorKind(() => sender.takeDelta(padded))).toBe("malformed");
+        expect(errorKind(() => sender.takeDelta(padded))).toBe("invalid_bytes");
 
         // A delta applied to a receiver that does not hold its baseline.
         const receiver = new World(new Vector3(0, 0, 0));
@@ -487,10 +487,10 @@ describe("3d/snapshot deltas", () => {
         );
         expect(
             errorKind(() => receiver.applyDelta(new Uint8Array([1, 2, 3]))),
-        ).toBe("malformed");
+        ).toBe("invalid_bytes");
         expect(
             errorKind(() => receiver.setDeltaBaseline(new Uint8Array([1]))),
-        ).toBe("malformed");
+        ).toBe("invalid_bytes");
 
         // A delta against another baseline changes nothing, not even the gravity object.
         const gravity = receiver.gravity;
@@ -508,7 +508,7 @@ describe("3d/snapshot deltas", () => {
             mismatched.delta.length - 1,
         );
         expect(errorKind(() => receiver.applyDelta(truncated))).toBe(
-            "malformed",
+            "invalid_bytes",
         );
         expect(receiver.gravity).toBe(gravity);
 
@@ -550,6 +550,21 @@ describe("3d/snapshot deltas", () => {
         receiver.free();
     });
 
+    test("an empty baseline takes a full delta", () => {
+        const {world: sender} = buildWorld();
+        sender.enableChangeTracking();
+        sender.step();
+        const full = sender.takeDelta(new Uint8Array(0));
+        const receiver = new World(new Vector3(0, 0, 0));
+        expect(sameBytes(receiver.applyDelta(full.delta), full.tick)).toBe(
+            true,
+        );
+        expectSameState(sender, receiver);
+
+        sender.free();
+        receiver.free();
+    });
+
     test("deltas and ticks carry a header", () => {
         const {world: sender} = buildWorld();
         sender.enableChangeTracking();
@@ -557,7 +572,7 @@ describe("3d/snapshot deltas", () => {
         const receiver = new World(new Vector3(0, 0, 0));
         const rejected = (bytes: Uint8Array, message: RegExp) => {
             const error = deltaError(() => receiver.applyDelta(bytes));
-            expect(error.kind).toBe("malformed");
+            expect(error.kind).toBe("invalid_bytes");
             expect(error.message).toMatch(message);
         };
         const tampered = (offset: number, value: number) => {
@@ -582,10 +597,10 @@ describe("3d/snapshot deltas", () => {
         world2d.enableChangeTracking();
         const delta2d = world2d.takeDelta();
         const error2d = deltaError(() => receiver.applyDelta(delta2d.delta));
-        expect(error2d.kind).toBe("malformed");
+        expect(error2d.kind).toBe("invalid_bytes");
         expect(error2d.message).toMatch(/2D build, this is a 3D build/);
         expect(errorKind(() => receiver.setDeltaBaseline(delta2d.tick))).toBe(
-            "malformed",
+            "invalid_bytes",
         );
         world2d.free();
 

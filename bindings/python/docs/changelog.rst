@@ -19,12 +19,17 @@ Unreleased
   from a ``snapshot`` accept deltas from the tick taken right before it. Deltas and ticks have
   their own blob magics (``RPYD`` and ``RPYT``, next to ``RPYS`` for snapshots), so a blob of the
   wrong kind raises ``SerializationError`` naming both kinds. Delta and tick blobs are limited to
-  256 MiB, header included, on both ends.
+  256 MiB, header included, on both ends. The delta methods accept any buffer (``bytes``,
+  ``bytearray``, ``memoryview``...), and ``delta_since`` treats an empty tick like ``None``.
 
 **Changed**
 
-- The serialization format version is now 2: snapshots, pickles and ``to_bytes`` blobs written
-  by earlier releases raise ``SerializationError`` instead of being misread.
+- The serialization format version of world snapshots (``snapshot``, ``snapshot_json`` and
+  ``PhysicsWorld`` pickles) and of ``ColliderSet``, ``ImpulseJointSet``, ``MultibodyJointSet``,
+  ``BroadPhaseBvh`` and ``NarrowPhase`` blobs is now 2: their blobs written by earlier releases
+  raise ``SerializationError`` instead of being misread. Versions are per kind: the other pickles
+  and ``to_bytes`` blobs (math types, bodies, colliders, joints, controllers...) keep version 1
+  and still load.
 - A world returned by ``PhysicsWorld.restore`` (or ``restore_json``, or unpickled) has its contact
   normals, solver contacts and multibody jacobians rebuilt, so they can be read before the first step,
   except the solver contacts of pairs whose body center of mass changed since their last update

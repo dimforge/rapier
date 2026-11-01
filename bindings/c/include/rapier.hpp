@@ -17,7 +17,7 @@ class Error : public std::runtime_error {
     /** Capture the status and its LastError diagnostic. */
     Error(RAPIER_TYPE(Status) status, const char *message)
         : std::runtime_error(message), status_(status) {}
-    /** The failing status, e.g. BASELINE_MISMATCH. */
+    /** The failing status, e.g. BASELINE_MISMATCH or DELTA_INCONSISTENT. */
     RAPIER_TYPE(Status) status() const noexcept {
         return status_;
     }

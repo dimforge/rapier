@@ -1409,8 +1409,8 @@ unsafe fn decode_tick(data: *const u8, count: usize) -> Result<Option<WorldChang
     unsafe { decode_wire(TICK_MAGIC, "snapshot tick", data, count).map(Some) }
 }
 
-/// UNSUPPORTED without change tracking, BASELINE_MISMATCH for either baseline error, and
-/// INVALID_ARGUMENT for inconsistent deltas.
+/// UNSUPPORTED without change tracking, BASELINE_MISMATCH for the errors detected before any
+/// write, and DELTA_INCONSISTENT for a delta found inconsistent while patching.
 fn delta_error(error: rapier::data::DeltaError) -> (RprStatus, String) {
     use rapier::data::DeltaError;
     let (status, message) = match error {
@@ -1428,10 +1428,16 @@ fn delta_error(error: rapier::data::DeltaError) -> (RprStatus, String) {
             "this world does not hold the delta's baseline (it was stepped, or never declared \
              that baseline); resynchronize it with a full delta",
         ),
-        DeltaError::Malformed => (RPR_INVALID_ARGUMENT, "malformed snapshot delta"),
+        DeltaError::Malformed => (
+            RPR_DELTA_INCONSISTENT,
+            "the snapshot delta is inconsistent with this world, which may be partially patched; \
+             resynchronize it with a full delta",
+        ),
+        // Checked before any write: the world lacks state the delta's baseline holds.
         DeltaError::MissingShape => (
-            RPR_INVALID_ARGUMENT,
-            "the delta references a shape this world does not hold",
+            RPR_BASELINE_MISMATCH,
+            "the delta references a shape this world does not hold, so it does not hold the \
+             delta's baseline; resynchronize it with a full delta",
         ),
     };
     (status, message.into())
@@ -2613,12 +2619,23 @@ mod snapshot_header_tests {
             let change_tick = rpr_change_tick(world);
             assert!((*change_tick).0.starts_with(&tick));
             assert_eq!(rpr_free_bytes(change_tick), RPR_OK);
-            let applied = rpr_apply_world_delta(world, (*result.delta).0.as_ptr(), 0);
-            assert!(applied.is_null());
-            assert_eq!(rpr_last_status(), RPR_INVALID_ARGUMENT);
             assert_eq!(rpr_free_bytes(result.delta), RPR_OK);
             assert_eq!(rpr_free_bytes(result.tick), RPR_OK);
             assert_eq!(rpr_free_world(world), RPR_OK);
+        }
+    }
+
+    #[test]
+    fn delta_errors_tell_untouched_worlds_from_partial_patches() {
+        use rapier::data::DeltaError as E;
+        for (error, status) in [
+            (E::TrackingDisabled, RPR_UNSUPPORTED),
+            (E::UnknownBaseline, RPR_BASELINE_MISMATCH),
+            (E::BaselineMismatch, RPR_BASELINE_MISMATCH),
+            (E::MissingShape, RPR_BASELINE_MISMATCH),
+            (E::Malformed, RPR_DELTA_INCONSISTENT),
+        ] {
+            assert_eq!(delta_error(error).0, status);
         }
     }
 

@@ -11,24 +11,26 @@
 - Snapshot deltas: `World.enableChangeTracking()`, `World.takeDelta(since?)` and `World.applyDelta(delta)`
   serialize and apply only what changed since a state a receiver acknowledged (with the tick returned
   by `applyDelta`), e.g. for network replication. `World.disableChangeTracking()` stops recording changes.
-  `World.takeDelta()` without a baseline bootstraps a receiver with the whole state. A receiver that
-  applied every delta keeps simulating identically, and has the same `takeSnapshot()` bytes as the
-  sender (only with the deterministic builds when composite shapes are in contact).
+  `World.takeDelta()` without a baseline (or with an empty one) bootstraps a receiver with the whole
+  state. A receiver that applied every delta keeps simulating identically, and has the same
+  `takeSnapshot()` bytes as the sender (only with the deterministic builds when composite shapes are in
+  contact).
 - `World.changeTick()` names the current state without building a delta, and `World.setDeltaBaseline(tick)`
   declares it on a receiver restored from a snapshot taken right after, so it accepts deltas from that tick.
   An incremental delta is only accepted by a receiver holding its baseline (not stepped since).
 - Delta errors are `Error`s with a `kind` property: `"tracking_disabled"`, `"unknown_baseline"`,
-  `"baseline_mismatch"`, `"malformed"` or `"missing_shape"`, typed by the exported `SnapshotDeltaError`
-  and `SnapshotDeltaErrorKind`.
+  `"baseline_mismatch"`, `"missing_shape"`, `"invalid_bytes"` (bytes that do not decode) or `"malformed"`
+  (a delta found inconsistent while patching), typed by the exported `SnapshotDeltaError` and
+  `SnapshotDeltaErrorKind`. Only `"malformed"` may leave the receiver partially patched. Only apply deltas
+  from a trusted sender: a corrupted delta that still decodes may make a later step trap.
 - Deltas and ticks start with an 8-byte header (magic telling deltas from ticks, format version,
   dimension and scalar size): bytes from another dimension, format version or of the wrong type are
-  rejected as `"malformed"` instead of being misread. Deltas must still come from the same rapier.js
+  rejected as `"invalid_bytes"` instead of being misread. Deltas must still come from the same rapier.js
   build as the receiver. Deltas and ticks are limited to 256 MiB, header included (`takeDelta` throws
-  `"malformed"` past it).
+  `"invalid_bytes"` past it).
 - `World.applyDelta` only updates the wrappers of the objects the delta added, removed, reparented or
-  reshaped, and of the multibody and impulse joints it retyped: the engine diffs the sets natively
-  (O(world size)), and the JavaScript work is proportional to the changes. Colliders whose shape did
-  not change keep their cached `Collider.shape` object.
+  reshaped, and of the multibody and impulse joints it retyped. Colliders whose shape did not change keep
+  their cached `Collider.shape` object.
 
 ### Fixed
 

@@ -50,7 +50,8 @@ contact and the bindings were not built with ``enhanced-determinism``
    acked = client.apply_delta(delta)  # the receiver sends this tick back
 
 Deltas and ticks are opaque ``bytes``, so they can travel over the
-network. Each blob kind has its own 4-byte magic (``RPYS`` for snapshots
+network; the delta methods also accept any buffer (``bytearray``,
+``memoryview``...), and ``delta_since`` treats an empty tick like ``None``. Each blob kind has its own 4-byte magic (``RPYS`` for snapshots
 and ``to_bytes`` blobs, ``RPYD`` for deltas, ``RPYT`` for ticks), so
 passing one where another is expected raises a clear
 :class:`~rapier3d.SerializationError` (e.g. "expected a delta, got a
@@ -74,6 +75,13 @@ full delta first, and stepping a receiver (or running
 :meth:`~rapier3d.PhysicsWorld.detect_collisions` on it) clears its
 baseline: send it a full delta to resynchronize it. Other local edits of
 a receiver are not detected: resynchronize it with a full delta.
+
+Replicated objects keep the sender's handles: a handle the sender sends
+(e.g. as ``RigidBodyHandle.from_raw_parts(index, generation)``) names the
+same object on the receiver. A full delta replaces every object of the
+receiver, so apply it to an empty world or a replica of the same sender:
+on a non-empty world built independently, an old handle may stay valid
+but name a different object.
 
 A delta can be produced against any tick a receiver acknowledged, not
 only the last one: a receiver that missed some deltas catches up with a
@@ -113,11 +121,17 @@ produced or applied. Its ``kind`` attribute names the cause:
 - ``"baseline_mismatch"``: the receiver does not hold the delta's baseline
   (it never applied a full delta, was stepped or ran ``detect_collisions``,
   or applied another delta since).
-- ``"malformed"`` / ``"missing_shape"``: the delta is inconsistent with the
-  receiver.
+- ``"missing_shape"``: the delta references a shape the receiver does not
+  hold (it does not hold the delta's baseline).
+- ``"malformed"``: the patch found the delta inconsistent with the receiver.
 
-``apply_delta`` checks the delta's baseline against every component of the
-receiver before writing anything, so a blob that does not decode or a
-``"baseline_mismatch"`` leaves the receiver untouched. Only
-``"malformed"`` and ``"missing_shape"``, raised while patching, may leave it
+``apply_delta`` checks the delta's baseline and shapes against the
+receiver before writing anything, so a blob that does not decode, a
+``"baseline_mismatch"`` or a ``"missing_shape"`` leaves the receiver
+untouched. Only ``"malformed"``, raised while patching, may leave it
 partially patched: apply a full delta to recover.
+
+Only apply deltas from a trusted sender running the same rapier build. The
+checks catch damaged headers and blobs that do not decode, and some
+inconsistencies (``"malformed"``), but a corrupted delta that still decodes
+may apply without error and make a later step raise ``PanicException``.

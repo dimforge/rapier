@@ -514,7 +514,7 @@ fn header(magic: [u8; 4]) -> [u8; HEADER_LEN] {
 /// Checks the header of a serialized `what` opened by `magic`, and returns the payload.
 fn check_header<'a>(what: &str, magic: [u8; 4], bytes: &'a [u8]) -> Result<&'a [u8], JsValue> {
     let malformed =
-        |reason: String| kinded_error("malformed", &format!("malformed {what}: {reason}"));
+        |reason: String| kinded_error(INVALID_BYTES, &format!("malformed {what}: {reason}"));
     if bytes.len() < HEADER_LEN {
         return Err(malformed("too short for the rapier.js header".into()));
     }
@@ -561,6 +561,9 @@ fn delta_options() -> impl Options {
         .reject_trailing_bytes()
 }
 
+/// The error kind of bytes that are not a delta or tick of this build, rejected before any write.
+const INVALID_BYTES: &str = "invalid_bytes";
+
 /// A JS `Error` whose `kind` property is a machine-readable error category.
 fn kinded_error(kind: &str, message: &str) -> JsValue {
     let err = js_sys::Error::new(message);
@@ -580,7 +583,7 @@ fn delta_error(err: DeltaError) -> JsValue {
     kinded_error(kind, &format!("snapshot delta: {err}"))
 }
 
-/// Serializes `value` behind the `magic` header, failing (`kind`: `malformed`) past 256 MiB.
+/// Serializes `value` behind the `magic` header, failing (`kind`: `invalid_bytes`) past 256 MiB.
 fn encode<T: serde::Serialize>(what: &str, magic: [u8; 4], value: &T) -> Result<Vec<u8>, JsValue> {
     let mut bytes = header(magic).to_vec();
     delta_options()
@@ -590,7 +593,10 @@ fn encode<T: serde::Serialize>(what: &str, magic: [u8; 4], value: &T) -> Result<
                 bincode::ErrorKind::SizeLimit => "exceeds 256 MiB".to_string(),
                 e => e.to_string(),
             };
-            kinded_error("malformed", &format!("cannot encode the {what}: {reason}"))
+            kinded_error(
+                INVALID_BYTES,
+                &format!("cannot encode the {what}: {reason}"),
+            )
         })?;
     Ok(bytes)
 }
@@ -602,7 +608,7 @@ fn decode<T: serde::de::DeserializeOwned>(
 ) -> Result<T, JsValue> {
     if bytes.length() as usize > MAX_DELTA_BYTES {
         return Err(kinded_error(
-            "malformed",
+            INVALID_BYTES,
             &format!("malformed {what}: exceeds 256 MiB"),
         ));
     }
@@ -610,7 +616,7 @@ fn decode<T: serde::de::DeserializeOwned>(
     let payload = check_header(what, magic, &bytes)?;
     delta_options()
         .deserialize(payload)
-        .map_err(|e| kinded_error("malformed", &format!("malformed {what}: {e}")))
+        .map_err(|e| kinded_error(INVALID_BYTES, &format!("malformed {what}: {e}")))
 }
 
 fn decode_tick(bytes: &Uint8Array) -> Result<WorldChangeTick, JsValue> {
@@ -791,7 +797,7 @@ impl RawSerializationPipeline {
 
     /// Declares that the components hold the sender's state at the serialized `tick`.
     ///
-    /// Throws (`kind`: `malformed`) if the bytes are not a tick.
+    /// Throws (`kind`: `invalid_bytes`) if the bytes are not a tick.
     pub fn setDeltaBaseline(
         &self,
         gravity: &mut RawVector,
@@ -823,8 +829,8 @@ impl RawSerializationPipeline {
         Ok(())
     }
 
-    /// The changes since the serialized `WorldChangeTick` `since` (`undefined`: the whole
-    /// state), as a serialized `WorldDelta`, with the tick it brings receivers to.
+    /// The changes since the serialized `WorldChangeTick` `since` (`undefined` or empty: the
+    /// whole state), as a serialized `WorldDelta`, with the tick it brings receivers to.
     ///
     /// Throws an `Error` with a `kind` property (see `World.takeDelta`).
     pub fn takeDelta(
@@ -841,7 +847,11 @@ impl RawSerializationPipeline {
         multibody_joints: &mut RawMultibodyJointSet,
         since: Option<Uint8Array>,
     ) -> Result<RawWorldDelta, JsValue> {
-        let since = since.map(|bytes| decode_tick(&bytes)).transpose()?;
+        // An empty baseline is no baseline (a full delta), as in the C and Python bindings.
+        let since = since
+            .filter(|bytes| bytes.length() > 0)
+            .map(|bytes| decode_tick(&bytes))
+            .transpose()?;
         let (delta, tick) = components(
             gravity,
             integrationParameters,
@@ -867,9 +877,9 @@ impl RawSerializationPipeline {
     /// to acknowledge to the sender with the handles the patch added, removed or modified.
     ///
     /// Throws an `Error` with a `kind` property (see `World.applyDelta`) if the bytes do not
-    /// decode or target another baseline, leaving the world untouched. A patch failing
-    /// afterwards is reported by the result's `error`, with what the components applied before
-    /// the failing one changed.
+    /// decode, target another baseline or reference a missing shape, leaving the world
+    /// untouched. A patch failing afterwards is reported by the result's `error`, with what the
+    /// components applied before the failing one changed.
     pub fn applyDelta(
         &self,
         data: Uint8Array,
@@ -905,8 +915,8 @@ impl RawSerializationPipeline {
             multibody_joints,
         )
         .apply_delta(delta);
-        // The core checks every baseline before writing anything: nothing changed.
-        if let Err(err @ DeltaError::BaselineMismatch) = result {
+        // The core checks every baseline and shape before writing anything: nothing changed.
+        if let Err(err @ (DeltaError::BaselineMismatch | DeltaError::MissingShape)) = result {
             return Err(delta_error(err));
         }
         let result = result
