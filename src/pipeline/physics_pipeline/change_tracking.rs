@@ -87,39 +87,29 @@ impl PhysicsPipeline {
     }
 
     /// The per-step forward kinematics of every multibody, stamping for snapshot deltas only the
-    /// multibodies (and link bodies) it changes: awake ones, and the others whose content it moves
-    /// (an edit made before the last issued tick, say). On the rest it is bit-stable.
+    /// multibodies (and link bodies) it can change: awake ones, and the ones handed out mutably
+    /// since the last pass. On the others it recomputes the stored values bit for bit.
     #[cfg(feature = "serde-serialize")]
     pub(super) fn forward_kinematics_tracking_changes(
         bodies: &mut RigidBodySet,
         multibody_joints: &mut MultibodyJointSet,
     ) {
-        use crate::dynamics::{Multibody, RigidBodyChanges};
-        use crate::utils::content_hash::{ContentKey, content_key};
-
-        // The multibody's and its link bodies' content, to compare across the pass.
-        let content = |multibody: &Multibody, bodies: &RigidBodySet| -> Vec<Option<ContentKey>> {
-            core::iter::once(content_key(multibody))
-                .chain(
-                    multibody
-                        .links()
-                        .map(|link| bodies.get(link.rigid_body).and_then(content_key)),
-                )
-                .collect()
-        };
+        use crate::dynamics::RigidBodyChanges;
 
         #[cfg(debug_assertions)]
         let checks = (
             crate::data::delta::UnstampedWriteCheck::new(&bodies.bodies),
             crate::data::delta::UnstampedWriteCheck::new(&multibody_joints.multibodies),
         );
+        let topology_epoch = multibody_joints.topology_epoch;
+        let touched = &multibody_joints.fk_touched;
+        let all_touched = touched.begin(topology_epoch);
         let (multibodies, mb_stamps) = multibody_joints.multibodies.iter_mut_unstamped();
-        let mb_now = mb_stamps.stamp_now();
         let mut saved_stamps = Vec::new();
         for (index, multibody) in multibodies {
-            let slot = index.into_raw_parts().0 as usize;
-            let edited = mb_now != 0 && mb_stamps.stamp(slot) == mb_now;
-            let awake = edited
+            let slot = index.into_raw_parts().0;
+            let changed = all_touched
+                || touched.is_touched(slot)
                 || multibody.links().any(|link| {
                     bodies.get(link.rigid_body).is_some_and(|rb| {
                         (rb.is_dynamic_or_kinematic() && !rb.is_sleeping())
@@ -127,22 +117,17 @@ impl PhysicsPipeline {
                     })
                 });
             saved_stamps.clear();
-            let before = (!awake).then(|| {
+            if !changed {
                 saved_stamps.extend(
                     multibody
                         .links()
                         .map(|link| (link.rigid_body, bodies.bodies.stamp_of(link.rigid_body.0))),
                 );
-                content(multibody, bodies)
-            });
+            }
             multibody.forward_kinematics(bodies, true);
             multibody.update_rigid_bodies_internal(bodies, true, false, false);
-            let changed = match before {
-                None => true,
-                Some(before) => before != content(multibody, bodies),
-            };
             if changed {
-                mb_stamps.mark(slot);
+                mb_stamps.mark(slot as usize);
             } else {
                 for (handle, stamp) in &saved_stamps {
                     bodies
@@ -152,6 +137,7 @@ impl PhysicsPipeline {
                 }
             }
         }
+        multibody_joints.fk_touched.end(topology_epoch);
         #[cfg(debug_assertions)]
         {
             checks

@@ -463,6 +463,11 @@ impl PhysicsPipeline {
                     .1
                     .update_rigid_bodies_internal(bodies, true, false, false);
             }
+            // Untracked: the pass applied the edits, nothing is left to stamp.
+            #[cfg(feature = "serde-serialize")]
+            multibody_joints
+                .fk_touched
+                .end(multibody_joints.topology_epoch);
         }
 
         // The soft meshes' vertex caches, read by the soft contact passes.

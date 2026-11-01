@@ -94,6 +94,10 @@ pub struct MultibodyJointSet {
     #[cfg(feature = "serde-serialize")]
     #[serde(skip, default = "all_stale")]
     stale_derived: crate::data::delta::StaleSlots,
+    /// The multibodies handed out mutably since the last forward-kinematics pass.
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip)]
+    pub(crate) fk_touched: FkTouched,
     #[cfg(feature = "serde-serialize")]
     #[serde(skip)]
     change_tracker: crate::data::delta::ChangeTracker,
@@ -102,6 +106,48 @@ pub struct MultibodyJointSet {
 #[cfg(feature = "serde-serialize")]
 fn all_stale() -> crate::data::delta::StaleSlots {
     crate::data::delta::StaleSlots::All
+}
+
+/// The multibodies the user may have edited since the last forward-kinematics pass: that pass
+/// must stamp them for snapshot deltas even when they sleep.
+#[cfg(feature = "serde-serialize")]
+#[derive(Clone, Debug, Default)]
+pub(crate) struct FkTouched {
+    slots: Vec<bool>,
+    all: bool,
+    /// The set's `topology_epoch` at the last pass: structural changes touch every multibody.
+    topology_epoch: u32,
+}
+
+#[cfg(feature = "serde-serialize")]
+impl FkTouched {
+    pub(crate) fn touch(&mut self, slot: u32) {
+        let slot = slot as usize;
+        if slot >= self.slots.len() {
+            self.slots.resize(slot + 1, false);
+        }
+        self.slots[slot] = true;
+    }
+
+    pub(crate) fn touch_all(&mut self) {
+        self.all = true;
+    }
+
+    /// Starts a pass: whether every multibody counts as touched.
+    pub(crate) fn begin(&self, topology_epoch: u32) -> bool {
+        self.all || self.topology_epoch != topology_epoch
+    }
+
+    pub(crate) fn is_touched(&self, slot: u32) -> bool {
+        self.slots.get(slot as usize).copied().unwrap_or(false)
+    }
+
+    /// Ends a pass: nothing is touched anymore.
+    pub(crate) fn end(&mut self, topology_epoch: u32) {
+        self.slots.clear();
+        self.all = false;
+        self.topology_epoch = topology_epoch;
+    }
 }
 
 impl MultibodyJointSet {
@@ -117,6 +163,8 @@ impl MultibodyJointSet {
             topology_epoch: 0,
             #[cfg(feature = "serde-serialize")]
             stale_derived: Default::default(),
+            #[cfg(feature = "serde-serialize")]
+            fk_touched: Default::default(),
             #[cfg(feature = "serde-serialize")]
             change_tracker: Default::default(),
         }
@@ -351,6 +399,8 @@ impl MultibodyJointSet {
     /// `MultibodyJointSet`.
     pub fn get_multibody_mut(&mut self, index: MultibodyIndex) -> Option<&mut Multibody> {
         // TODO: modification tracking.
+        #[cfg(feature = "serde-serialize")]
+        self.fk_touched.touch(index.0.into_raw_parts().0);
         self.multibodies.get_mut(index.0)
     }
 
@@ -359,6 +409,8 @@ impl MultibodyJointSet {
     /// This method will bypass any modification-detection automatically done by the
     /// `MultibodyJointSet`.
     pub fn get_multibody_mut_internal(&mut self, index: MultibodyIndex) -> Option<&mut Multibody> {
+        #[cfg(feature = "serde-serialize")]
+        self.fk_touched.touch(index.0.into_raw_parts().0);
         self.multibodies.get_mut(index.0)
     }
 
@@ -372,6 +424,8 @@ impl MultibodyJointSet {
     /// Gets a mutable reference to the multibody identified by its `handle`.
     pub fn get_mut(&mut self, handle: MultibodyJointHandle) -> Option<(&mut Multibody, usize)> {
         let link = self.rb2mb.get(handle.0)?;
+        #[cfg(feature = "serde-serialize")]
+        self.fk_touched.touch(link.multibody.0.into_raw_parts().0);
         let multibody = self.multibodies.get_mut(link.multibody.0)?;
         Some((multibody, link.id))
     }
@@ -385,6 +439,8 @@ impl MultibodyJointSet {
     ) -> Option<(&mut Multibody, usize)> {
         // TODO: modification tracking?
         let link = self.rb2mb.get(handle.0)?;
+        #[cfg(feature = "serde-serialize")]
+        self.fk_touched.touch(link.multibody.0.into_raw_parts().0);
         let multibody = self.multibodies.get_mut(link.multibody.0)?;
         Some((multibody, link.id))
     }
@@ -609,6 +665,7 @@ mod snapshot_delta {
                 island_chain_events: _,
                 topology_epoch: _,
                 stale_derived: _,
+                fk_touched: _,
                 change_tracker: _,
             } = self;
             let mut to_wake_up: Vec<_> = self.to_wake_up.iter().copied().collect();
@@ -633,6 +690,7 @@ mod snapshot_delta {
                 .max(delta.multibodies.slot_indices().count());
             self.stale_derived
                 .extend(delta.multibodies.slot_indices(), capacity);
+            self.fk_touched.touch_all();
             self.multibodies.apply_delta(delta.multibodies)?;
             self.rb2mb.apply_delta(delta.rb2mb)?;
             self.connectivity_graph.graph.apply_delta(
