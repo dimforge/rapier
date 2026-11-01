@@ -46,13 +46,6 @@ impl<Handle, Object: HasModifiedFlag> ModifiedObjects<Handle, Object> {
         self.0.clear()
     }
 
-    /// Moves every handle of `other` into this set, leaving `other` empty.
-    ///
-    /// The caller guarantees the two sets are disjoint.
-    pub(crate) fn append(&mut self, other: &mut Self) {
-        self.0.append(&mut other.0)
-    }
-
     /// Pushes a object handle to this set after checking that it doesn’t have the MODIFIED
     /// flag set.
     ///

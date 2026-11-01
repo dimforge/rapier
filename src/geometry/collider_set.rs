@@ -221,14 +221,12 @@ impl ColliderSet {
         core::mem::take(&mut self.modified_colliders)
     }
 
-    pub(crate) fn set_modified(&mut self, mut modified: ModifiedColliders) {
-        // Keep the colliders flagged mid-step (quarantine, soft-body sync): only reuse the
-        // returned buffer when nothing was pushed in the meantime.
+    /// Returns the (cleared) buffer of [`Self::take_modified`] for reuse.
+    pub(crate) fn set_modified(&mut self, modified: ModifiedColliders) {
+        debug_assert!(modified.is_empty());
+        // Keep the colliders flagged mid-step (quarantine, soft-body sync).
         if self.modified_colliders.is_empty() {
             self.modified_colliders = modified;
-        } else {
-            // Still-flagged entries of `modified` cannot also be in our list (`push_once`).
-            self.modified_colliders.append(&mut modified);
         }
     }
 
@@ -1054,6 +1052,7 @@ mod snapshot_delta {
                     .ok_or(DeltaError::Malformed)?;
                 Ok(co.into_collider(shape.clone()))
             })?;
+            drop(table);
             self.modified_colliders = delta.modified_colliders;
             self.removed_colliders = delta.removed_colliders;
 
