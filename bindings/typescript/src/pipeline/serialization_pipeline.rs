@@ -520,13 +520,13 @@ fn check_header<'a>(what: &str, magic: [u8; 4], bytes: &'a [u8]) -> Result<&'a [
     }
     let (head, payload) = bytes.split_at(HEADER_LEN);
     if head[..4] != magic {
-        let other = if magic == DELTA_MAGIC {
-            (TICK_MAGIC, "a tick")
+        let (expected, other, found) = if magic == DELTA_MAGIC {
+            ("a delta", TICK_MAGIC, "a tick")
         } else {
-            (DELTA_MAGIC, "a delta")
+            ("a tick", DELTA_MAGIC, "a delta")
         };
-        return Err(malformed(if head[..4] == other.0 {
-            format!("got {} instead", other.1)
+        return Err(malformed(if head[..4] == other {
+            format!("expected {expected}, got {found}")
         } else {
             "not produced by rapier.js (bad magic)".into()
         }));

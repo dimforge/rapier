@@ -27,7 +27,8 @@
   `"malformed"` past it).
 - `World.applyDelta` only updates the wrappers of the objects the delta added, removed, reparented or
   reshaped, and of the multibody and impulse joints it retyped: the engine diffs the sets natively
-  (O(world size)), and the JavaScript work is proportional to the changes. Colliders whose shape did not change keep their cached `Collider.shape` object.
+  (O(world size)), and the JavaScript work is proportional to the changes. Colliders whose shape did
+  not change keep their cached `Collider.shape` object.
 
 ### Fixed
 

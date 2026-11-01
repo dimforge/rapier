@@ -544,10 +544,10 @@ describe("2d/snapshot deltas", () => {
             return bytes;
         };
 
-        rejected(tick, /got a tick instead/);
+        rejected(tick, /expected a delta, got a tick/);
         expect(
             deltaError(() => receiver.setDeltaBaseline(delta)).message,
-        ).toMatch(/got a delta instead/);
+        ).toMatch(/expected a tick, got a delta/);
         rejected(tampered(0, 0), /bad magic/);
         rejected(tampered(4, 99), /format version 99/);
         rejected(tampered(6, 3), /3D build, this is a 2D build/);
