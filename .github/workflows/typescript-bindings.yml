@@ -10,11 +10,17 @@ on:
         tags: ["js-v*"]
         paths:
             - "bindings/typescript/**"
+            - "src/**"
+            - "crates/rapier*/**"
+            - "Cargo.toml"
             - ".github/workflows/typescript-bindings.yml"
     pull_request:
         branches: [master]
         paths:
             - "bindings/typescript/**"
+            - "src/**"
+            - "crates/rapier*/**"
+            - "Cargo.toml"
             - ".github/workflows/typescript-bindings.yml"
     workflow_dispatch:
 

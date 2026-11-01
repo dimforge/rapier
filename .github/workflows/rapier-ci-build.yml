@@ -157,6 +157,8 @@ jobs:
         run: cargo test -p rapier3d --release --features serde-serialize --test snapshot_roundtrip
       - name: Test snapshot round-trip (2D)
         run: cargo test -p rapier2d --release --features serde-serialize --test snapshot_roundtrip
+      - name: Test serde-gated unit tests
+        run: cargo test -p rapier3d -p rapier2d --release --features serde-serialize --lib
       # The soft-body delta tests need insertion-ordered maps for byte-identical receivers.
       - name: Test snapshot round-trip with enhanced determinism (3D)
         run: cargo test -p rapier3d --release --features serde-serialize,enhanced-determinism --test snapshot_roundtrip
