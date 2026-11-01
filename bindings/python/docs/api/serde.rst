@@ -70,8 +70,10 @@ snapshot, and the receiver passes that tick to
 Baselines are strict: an incremental delta only applies to a receiver
 holding its baseline, i.e. the target of the last delta it applied, or
 the tick declared with ``set_delta_baseline``. A fresh receiver needs a
-full delta first, and stepping a receiver clears its baseline (send it a
-full delta to resynchronize it).
+full delta first, and stepping a receiver (or running
+:meth:`~rapier3d.PhysicsWorld.detect_collisions` on it) clears its
+baseline: send it a full delta to resynchronize it. Other local edits of
+a receiver are not detected: resynchronize it with a full delta.
 
 A delta can be produced against any tick a receiver acknowledged, not
 only the last one: a receiver that missed some deltas catches up with a
@@ -106,10 +108,11 @@ produced or applied. Its ``kind`` attribute names the cause:
 
 - ``"tracking_disabled"``: ``delta_since`` was called without change tracking.
 - ``"unknown_baseline"``: the tick was not issued by this world since change
-  tracking was last enabled; send a full state (``delta_since(None)``).
+  tracking was last enabled, or is too old (more than 2^31 ticks were issued
+  since); send a full state (``delta_since(None)``).
 - ``"baseline_mismatch"``: the receiver does not hold the delta's baseline
-  (it never applied a full delta, was stepped, or applied another delta
-  since).
+  (it never applied a full delta, was stepped or ran ``detect_collisions``,
+  or applied another delta since).
 - ``"malformed"`` / ``"missing_shape"``: the delta is inconsistent with the
   receiver.
 

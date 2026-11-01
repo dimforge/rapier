@@ -19,10 +19,14 @@ import {World} from "./world";
 /**
  * The category of a snapshot-delta error, its `kind` property:
  * - `"tracking_disabled"`: change tracking is disabled on the sender.
- * - `"unknown_baseline"`: the tick was not issued by the sender's current change trackers.
+ * - `"unknown_baseline"`: the tick was not issued by the sender's current change trackers, or
+ *   is too old (more than 2^31 ticks were issued since).
  * - `"baseline_mismatch"`: the delta was produced against another state than the receiver's.
  * - `"malformed"`: the bytes are not a delta or tick of this rapier.js build, or a delta to
- *   encode exceeds the 256 MiB size limit.
+ *   encode exceeds the 256 MiB size limit. `applyDelta` also reports a delta that decodes but
+ *   is inconsistent with the receiver as `"malformed"`: unlike bytes that fail to decode (the
+ *   world is untouched), this is detected while patching and may leave the world partially
+ *   patched.
  * - `"missing_shape"`: the delta references a shape the receiver does not hold.
  */
 export type SnapshotDeltaErrorKind =

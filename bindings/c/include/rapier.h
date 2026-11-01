@@ -6102,8 +6102,8 @@ R2Status RAPIER_CALL r2SetDeltaBaseline(struct R2World *world,
                                  size_t tick_count);
 
 /**
- * Return owned bytes of the changes since the `since` tick bytes (NULL with since_count 0: the
- * full state), and of the tick a receiver reaches once it applied them. Release both with
+ * Return owned bytes of the changes since the `since` tick bytes (since_count 0, with any pointer:
+ * the full state), and of the tick a receiver reaches once it applied them. Release both with
  * r2FreeBytes; both are NULL on failure. See @ref snapshot_deltas for the error codes.
  * @ingroup worlds
  */
@@ -17081,8 +17081,8 @@ R3Status RAPIER_CALL r3SetDeltaBaseline(struct R3World *world,
                                  size_t tick_count);
 
 /**
- * Return owned bytes of the changes since the `since` tick bytes (NULL with since_count 0: the
- * full state), and of the tick a receiver reaches once it applied them. Release both with
+ * Return owned bytes of the changes since the `since` tick bytes (since_count 0, with any pointer:
+ * the full state), and of the tick a receiver reaches once it applied them. Release both with
  * r3FreeBytes; both are NULL on failure. See @ref snapshot_deltas for the error codes.
  * @ingroup worlds
  */

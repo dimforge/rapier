@@ -1400,9 +1400,10 @@ fn owned_bytes(bytes: Vec<u8>) -> *mut RprBytes {
     Box::into_raw(Box::new(RprBytes(bytes)))
 }
 
-/// Decodes baseline tick bytes; NULL with a zero count is no baseline.
+/// Decodes baseline tick bytes; a zero count (with any pointer, e.g. an empty vector's data())
+/// is no baseline.
 unsafe fn decode_tick(data: *const u8, count: usize) -> Result<Option<WorldChangeTick>> {
-    if data.is_null() && count == 0 {
+    if count == 0 {
         return Ok(None);
     }
     unsafe { decode_wire(TICK_MAGIC, "snapshot tick", data, count).map(Some) }
@@ -1419,8 +1420,8 @@ fn delta_error(error: rapier::data::DeltaError) -> (RprStatus, String) {
         ),
         DeltaError::UnknownBaseline => (
             RPR_BASELINE_MISMATCH,
-            "the baseline tick was not issued by this world's change tracking; produce a full \
-             delta (NULL baseline) instead",
+            "the baseline tick was not issued by this world's change tracking, or is too old; \
+             produce a full delta (zero-length baseline) instead",
         ),
         DeltaError::BaselineMismatch => (
             RPR_BASELINE_MISMATCH,
@@ -1530,8 +1531,8 @@ pub unsafe extern "C" fn rpr_set_delta_baseline(
     })
 }
 
-/// Return owned bytes of the changes since the `since` tick bytes (NULL with since_count 0: the
-/// full state), and of the tick a receiver reaches once it applied them. Release both with
+/// Return owned bytes of the changes since the `since` tick bytes (since_count 0, with any pointer:
+/// the full state), and of the tick a receiver reaches once it applied them. Release both with
 /// rpr_free_bytes; both are NULL on failure. See @ref snapshot_deltas for the error codes.
 /// @ingroup worlds
 #[rapier_export]

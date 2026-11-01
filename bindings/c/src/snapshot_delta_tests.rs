@@ -243,6 +243,15 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
         );
         let (full, tick0) = delta(sender, None);
 
+        // A zero count is no baseline whatever the pointer (e.g. an empty C++ vector's data()).
+        let result = rpr_serialize_world_delta(sender, tick0.as_ptr(), 0);
+        assert_status(RPR_OK);
+        let (empty_since, empty_tick) = (take(result.delta), take(result.tick));
+        let bootstrapped = rpr_new_world();
+        assert_eq!(apply(bootstrapped, &empty_since), empty_tick);
+        assert!(snapshot(bootstrapped) == snapshot(sender));
+        assert_eq!(rpr_free_world(bootstrapped), RPR_OK);
+
         // Ticks of another world.
         let other = rpr_new_world();
         assert_eq!(rpr_enable_change_tracking(other), RPR_OK);
@@ -267,7 +276,7 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
                 RPR_INVALID_ARGUMENT,
             );
         }
-        for len in 0..tick0.len() {
+        for len in 1..tick0.len() {
             reject_delta(sender, tick0.as_ptr(), len, RPR_INVALID_ARGUMENT);
         }
         let mut trailing = tick0.clone();

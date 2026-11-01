@@ -322,7 +322,8 @@ export class World {
      *
      * A receiver only accepts an incremental delta whose baseline is its current state (the
      * target of the last delta it applied, or its `setDeltaBaseline`): stepping the receiver
-     * clears its baseline, and a full delta is then needed.
+     * clears its baseline, and a full delta is then needed. Other local edits of a receiver are
+     * not detected: resynchronize it with a full delta.
      *
      * A receiver that applied every delta since its baseline keeps simulating identically, and
      * has the same `takeSnapshot()` bytes as the sender (only with the deterministic builds
@@ -335,9 +336,10 @@ export class World {
      *
      * Throws a `SnapshotDeltaError` (see `SnapshotDeltaErrorKind`) of kind
      * `"tracking_disabled"` (change tracking is disabled), `"unknown_baseline"` (`since` was not
-     * issued by this world's current change trackers, e.g. tracking was restarted: send a full
-     * delta instead) or `"malformed"` (`since` is not a tick of this rapier.js build, or the
-     * delta would exceed the 256 MiB size limit).
+     * issued by this world's current change trackers, e.g. tracking was restarted, or is too
+     * old, with more than 2^31 ticks issued since: send a full delta instead) or `"malformed"`
+     * (`since` is not a tick of this rapier.js build, or the delta would exceed the 256 MiB
+     * size limit).
      *
      * @param since - The last tick acknowledged by the receiver (returned by its
      *                `applyDelta`, or by the sender's `takeDelta` or `changeTick`). Omit it for
@@ -361,6 +363,7 @@ export class World {
      *
      * This world must hold the state the delta was produced against: the target of the last
      * delta it applied, or the tick given to `setDeltaBaseline`, without being stepped since.
+     * Other local edits of this world are not detected: resynchronize it with a full delta.
      * A full delta (taken without baseline) is accepted in any state and replaces the whole
      * world. It should target an empty world or a replica of the same sender: this world's
      * wrappers whose handle also names an object of the sender are kept (with their
@@ -378,11 +381,12 @@ export class World {
      *
      * Throws a `SnapshotDeltaError` (see `SnapshotDeltaErrorKind`) of kind
      * `"baseline_mismatch"` (the delta was produced against another state), `"malformed"` (the
-     * bytes are not a delta of this rapier.js build) or `"missing_shape"` (a collider
-     * references a shape this world does not hold). A delta that does not decode or targets
-     * another baseline leaves the world untouched, including `gravity`; after any other error,
-     * the world may be partially patched (its wrappers follow the patched part): apply a full
-     * delta to recover.
+     * bytes are not a delta of this rapier.js build, or the decoded delta is inconsistent with
+     * this world) or `"missing_shape"` (a collider references a shape this world does not hold).
+     * A delta that does not decode or targets another baseline leaves the world untouched,
+     * including `gravity`; after any other error, including a `"malformed"` delta that decoded
+     * but failed while patching, the world may be partially patched (its wrappers follow the
+     * patched part): apply a full delta to recover.
      */
     public applyDelta(delta: Uint8Array): Uint8Array {
         return this.serializationPipeline.applyDelta(

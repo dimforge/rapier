@@ -163,7 +163,7 @@ inline void set_delta_baseline(RAPIER_TYPE(World) *world, const Bytes &tick) {
     set_delta_baseline(world, view.data, view.count);
 }
 
-/** Return the changes since received tick bytes (NULL and 0: a full delta); throw on failure. */
+/** Return the changes since received tick bytes (a zero count: a full delta); throw on failure. */
 inline WorldDelta serialize_world_delta(RAPIER_TYPE(World) *world, const uint8_t *since,
                                         size_t count) {
     WorldDelta delta(RAPIER_FN(SerializeWorldDelta)(world, since, count));

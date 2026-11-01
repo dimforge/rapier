@@ -26,7 +26,9 @@ Unreleased
 - The serialization format version is now 2: snapshots, pickles and ``to_bytes`` blobs written
   by earlier releases raise ``SerializationError`` instead of being misread.
 - A world returned by ``PhysicsWorld.restore`` (or ``restore_json``, or unpickled) has its contact
-  normals, solver contacts and multibody jacobians rebuilt, so they can be read before the first step.
+  normals, solver contacts and multibody jacobians rebuilt, so they can be read before the first step,
+  except the solver contacts of pairs whose body center of mass changed since their last update
+  (recomputed by that step).
 
 0.36.1 (4 October 2026)
 -----------------------

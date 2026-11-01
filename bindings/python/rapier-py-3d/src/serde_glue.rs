@@ -1862,7 +1862,8 @@ impl PhysicsWorld {
     /// from that tick can be applied.
     ///
     /// Call it on a world restored from a :meth:`snapshot` taken right after the sender's
-    /// :meth:`change_tick`. Stepping this world clears the baseline again.
+    /// :meth:`change_tick`. Stepping this world, or :meth:`detect_collisions`, clears the
+    /// baseline again; other local edits are not detected and require a full delta.
     ///
     /// :param tick: Bytes returned by the sender's :meth:`change_tick`.
     /// :raises SerializationError: if ``tick`` is not a valid tick blob.
@@ -1901,8 +1902,8 @@ impl PhysicsWorld {
     ///     network.
     /// :raises DeltaError: if change tracking is disabled (``kind ==
     ///     "tracking_disabled"``), or if ``since`` was not issued by this world since
-    ///     tracking was last enabled (``kind == "unknown_baseline"``: send a full state
-    ///     with ``since=None`` instead).
+    ///     tracking was last enabled or is too old (``kind == "unknown_baseline"``: send a
+    ///     full state with ``since=None`` instead).
     /// :raises SerializationError: if ``since`` is not a valid tick blob, or the delta would
     ///     exceed the 256 MiB blob limit.
     #[pyo3(signature = (since=None))]
@@ -1928,9 +1929,10 @@ impl PhysicsWorld {
     ///
     /// An incremental delta requires this world to hold the delta's baseline: the target
     /// of the last delta it applied, or the tick declared with :meth:`set_delta_baseline`,
-    /// and not stepped since. A full delta (``since=None``) can be applied to a world in
-    /// any state, e.g. a fresh ``PhysicsWorld()``: it resets the world first. Change
-    /// tracking is not needed on the receiver.
+    /// and not stepped (nor :meth:`detect_collisions`) since. Other local edits of this world
+    /// are not detected: resynchronize it with a full delta. A full delta (``since=None``)
+    /// can be applied to a world in any state, e.g. a fresh ``PhysicsWorld()``: it resets the
+    /// world first. Change tracking is not needed on the receiver.
     ///
     /// :param delta: Bytes returned by :meth:`delta_since`.
     /// :returns: The tick (bytes) to acknowledge to the sender, which passes it to its
@@ -1941,8 +1943,7 @@ impl PhysicsWorld {
     ///     untouched; only ``"malformed"`` and ``"missing_shape"``, raised while patching,
     ///     may leave it partially patched: recover by applying a full delta.
     /// :raises SerializationError: if ``delta`` is not a valid delta blob (e.g. a tick
-    ///     or a snapshot), the world then being untouched, or the acknowledged tick would exceed
-    ///     the 256 MiB blob limit.
+    ///     or a snapshot), the world then being untouched.
     fn apply_delta<'py>(
         &mut self,
         py: Python<'py>,

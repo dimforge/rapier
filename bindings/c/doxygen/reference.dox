@@ -134,16 +134,17 @@ state again; application-owned state is not reconstructed automatically.
 @section snapshot_deltas Snapshot deltas
 Deltas replicate a world by sending only what changed since a state the receiver
 acknowledged. The sender calls EnableChangeTracking once, then SerializeWorldDelta with
-the tick bytes the receiver last acknowledged, or NULL (with a zero count) for a full
-delta. The returned WorldDelta holds owned delta bytes and the tick bytes the receiver
-reaches once it applied them; release both with FreeBytes. The receiver passes the delta
-bytes to ApplyWorldDelta, which patches its world in place and returns owned tick bytes
-to send back as its acknowledgement.
+the tick bytes the receiver last acknowledged, or a zero count (with any pointer, NULL
+included) for a full delta. The returned WorldDelta holds owned delta bytes and the tick
+bytes the receiver reaches once it applied them; release both with FreeBytes. The
+receiver passes the delta bytes to ApplyWorldDelta, which patches its world in place and
+returns owned tick bytes to send back as its acknowledgement.
 
 Baselines are strict: ApplyWorldDelta only accepts an incremental delta built against the
 state the receiver holds, which is the tick of the last delta it applied or the tick
 declared with SetDeltaBaseline. Step and DetectCollisions clear a receiver's baseline,
-and a new world has none, so both need a full delta first. A full delta resets
+and a new world has none, so both need a full delta first. Other local edits of a
+receiver are not detected: resynchronize it with a full delta. A full delta resets
 the receiver before patching it, so it applies to any world.
 
 Bootstrap a receiver with a full delta applied to any world, such as a new empty one, or
@@ -166,7 +167,8 @@ SerializeWorldDelta and ChangeTick report UNSUPPORTED while change tracking is d
 
 BASELINE_MISMATCH means the bytes are well formed but name the wrong baseline: the
 receiver needs resynchronizing, the bytes are not corrupt. SerializeWorldDelta reports it
-for tick bytes from another world or tracking session: produce a full delta instead.
+for tick bytes from another world or tracking session, or too old (more than 2^31 ticks
+were issued since): produce a full delta instead.
 ApplyWorldDelta reports it for a delta built against a baseline the receiver does not
 hold (it was stepped, or never declared that baseline), without changing the world.
 
