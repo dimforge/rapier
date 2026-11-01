@@ -344,10 +344,8 @@ impl PhysicsPipeline {
         // Apply some of delayed wake-ups.
         self.counters.stages.user_changes.start();
         // In handle order, as snapshots store them: the wake order shapes the active set.
-        let mut to_wake_up: Vec<_> = impulse_joints.to_wake_up.iter().copied().collect();
-        to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
-        let mut mb_to_wake_up: Vec<_> = multibody_joints.to_wake_up.iter().copied().collect();
-        mb_to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
+        let to_wake_up = crate::dynamics::sorted_wake_ups(&impulse_joints.to_wake_up);
+        let mb_to_wake_up = crate::dynamics::sorted_wake_ups(&multibody_joints.to_wake_up);
         impulse_joints.to_wake_up.clear();
         multibody_joints.to_wake_up.clear();
         for handle in to_wake_up.into_iter().chain(mb_to_wake_up) {
@@ -410,14 +408,8 @@ impl PhysicsPipeline {
 
         // Join islands based on new joints.
         // In handle order, as snapshots store them.
-        let pair_key = |(a, b): &(
-            crate::dynamics::RigidBodyHandle,
-            crate::dynamics::RigidBodyHandle,
-        )| { (a.into_raw_parts(), b.into_raw_parts()) };
-        let mut to_join: Vec<_> = impulse_joints.to_join.iter().copied().collect();
-        to_join.sort_unstable_by_key(pair_key);
-        let mut mb_to_join: Vec<_> = multibody_joints.to_join.iter().copied().collect();
-        mb_to_join.sort_unstable_by_key(pair_key);
+        let to_join = crate::dynamics::sorted_joins(&impulse_joints.to_join);
+        let mb_to_join = crate::dynamics::sorted_joins(&multibody_joints.to_join);
         impulse_joints.to_join.clear();
         multibody_joints.to_join.clear();
         for (handle1, handle2) in to_join.into_iter().chain(mb_to_join) {

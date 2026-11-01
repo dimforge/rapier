@@ -64,7 +64,7 @@ pub struct MultibodyJointSet {
     #[cfg_attr(
         feature = "serde-serialize",
         serde(
-            serialize_with = "serialize_sorted_wake_up",
+            serialize_with = "crate::dynamics::joint::pending::serialize_sorted_wake_ups",
             deserialize_with = "crate::utils::serde::deserialize_from_vec"
         )
     )]
@@ -74,7 +74,7 @@ pub struct MultibodyJointSet {
     #[cfg_attr(
         feature = "serde-serialize",
         serde(
-            serialize_with = "serialize_sorted_join",
+            serialize_with = "crate::dynamics::joint::pending::serialize_sorted_joins",
             deserialize_with = "crate::utils::serde::deserialize_from_vec"
         )
     )]
@@ -570,26 +570,6 @@ impl core::ops::Index<MultibodyIndex> for MultibodyJointSet {
 // }
 
 #[cfg(feature = "serde-serialize")]
-fn serialize_sorted_wake_up<S: serde::Serializer>(
-    set: &HashSet<RigidBodyHandle>,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    crate::utils::serde::serialize_sorted_to_vec(set, |h| h.into_raw_parts(), s)
-}
-
-#[cfg(feature = "serde-serialize")]
-fn serialize_sorted_join<S: serde::Serializer>(
-    set: &HashSet<(RigidBodyHandle, RigidBodyHandle)>,
-    s: S,
-) -> Result<S::Ok, S::Error> {
-    crate::utils::serde::serialize_sorted_to_vec(
-        set,
-        |(a, b)| (a.into_raw_parts(), b.into_raw_parts()),
-        s,
-    )
-}
-
-#[cfg(feature = "serde-serialize")]
 mod snapshot_delta {
     use super::*;
     use crate::data::arena::ArenaDelta;
@@ -674,10 +654,8 @@ mod snapshot_delta {
                 fk_touched: _,
                 change_tracker: _,
             } = self;
-            let mut to_wake_up: Vec<_> = self.to_wake_up.iter().copied().collect();
-            to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
-            let mut to_join: Vec<_> = self.to_join.iter().copied().collect();
-            to_join.sort_unstable_by_key(|(a, b)| (a.into_raw_parts(), b.into_raw_parts()));
+            let to_wake_up = crate::dynamics::sorted_wake_ups(&self.to_wake_up);
+            let to_join = crate::dynamics::sorted_joins(&self.to_join);
             MultibodyJointSetDelta {
                 multibodies: self.multibodies.collect_delta(since),
                 rb2mb: self.rb2mb.collect_delta(since),
