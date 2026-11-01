@@ -1651,3 +1651,88 @@ fn pending_wake_ups_replay_in_a_canonical_order() {
     check_roundtrip("pending wake-ups", world(), 0, 30, false, no_edits);
     check_delta_replication("pending wake-ups", world(), 0, 30, no_edits);
 }
+
+/// A voxels shape whose chunk map grew and shrank serializes it in another hash-map order once
+/// restored: a late joiner must still name it by the sender's content key.
+#[test]
+fn late_joiner_holds_an_edited_voxels_shape() {
+    use rapier3d::parry::shape::Voxels;
+
+    let coords: Vec<_> = (0..4)
+        .flat_map(|x| (0..4).map(move |z| IVector::new(16 * x, 0, 16 * z)))
+        .collect();
+    let mut voxels = Voxels::new(Vector::splat(0.25), &coords);
+    let far = |i: i32| IVector::new(1000 + 40 * i, 0, 0);
+    for i in 0..200 {
+        voxels.set_voxel(far(i), true);
+    }
+    for i in 0..200 {
+        voxels.set_voxel(far(i), false);
+    }
+
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed(),
+        ColliderBuilder::cuboid(10.0, 0.1, 10.0),
+    );
+    world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 1.0, 0.0)),
+        ColliderBuilder::new(SharedShape::new(voxels)),
+    );
+    for _ in 0..3 {
+        world.step();
+    }
+
+    world.enable_change_tracking();
+    let tick = world.change_tick().unwrap();
+    let mut receiver = restore(&save(&world));
+    receiver.set_delta_baseline(tick);
+    let mut acked = tick;
+    for _ in 0..5 {
+        world.step();
+        let (delta, next) = world.delta_since(Some(acked)).unwrap();
+        acked = receiver.apply_delta(delta).unwrap();
+        assert_eq!(acked, next);
+    }
+}
+
+/// A delta naming a heavy shape the receiver lost (a local edit) is rejected before anything is
+/// patched.
+#[test]
+fn missing_shape_leaves_the_receiver_untouched() {
+    use rapier3d::data::DeltaError;
+
+    let pts: Vec<_> = (0..10)
+        .map(|i| {
+            let a = i as Real * 0.7;
+            Vector::new(
+                a.cos() * 0.25,
+                ((i % 3) as Real - 1.0) * 0.2,
+                a.sin() * 0.25,
+            )
+        })
+        .collect();
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed(),
+        ColliderBuilder::cuboid(10.0, 0.1, 10.0),
+    );
+    let (_, hull) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 1.0, 0.0)),
+        ColliderBuilder::convex_hull(&pts).unwrap(),
+    );
+    world.enable_change_tracking();
+    let tick = world.change_tick().unwrap();
+    let mut receiver = restore(&save(&world));
+    receiver.set_delta_baseline(tick);
+    receiver.remove_collider(hull);
+    let before = save(&receiver);
+
+    world.step();
+    let (delta, _) = world.delta_since(Some(tick)).unwrap();
+    assert_eq!(
+        receiver.apply_delta(delta).unwrap_err(),
+        DeltaError::MissingShape
+    );
+    assert!(save(&receiver) == before);
+}

@@ -303,6 +303,7 @@ impl WorldComponentsMut<'_> {
         check(&*self.impulse_joints, &impulse_joints)?;
         check(&*self.multibody_joints, &multibody_joints)?;
         check(&*self.soft_bodies, &soft_bodies)?;
+        self.colliders.check_delta_shapes(&colliders)?;
         *self.gravity = gravity;
         *self.integration_parameters = integration_parameters;
         self.islands.apply_delta(islands)?;

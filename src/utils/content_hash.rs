@@ -123,7 +123,7 @@ impl<'a> Serializer for &'a mut ContentHasher {
     type SerializeTuple = Self;
     type SerializeTupleStruct = Self;
     type SerializeTupleVariant = Self;
-    type SerializeMap = Self;
+    type SerializeMap = MapHasher<'a>;
     type SerializeStruct = Self;
     type SerializeStructVariant = Self;
 
@@ -290,10 +290,14 @@ impl<'a> Serializer for &'a mut ContentHasher {
         self.u64(len as u64);
         Ok(self)
     }
-    fn serialize_map(self, len: Option<usize>) -> Result<Self, ContentHashError> {
+    fn serialize_map(self, len: Option<usize>) -> Result<MapHasher<'a>, ContentHashError> {
         self.tag(28);
         self.u64(len.map(|l| l as u64).unwrap_or(u64::MAX));
-        Ok(self)
+        Ok(MapHasher {
+            parent: self,
+            entry: ContentHasher::new(),
+            sum: (0, 0),
+        })
     }
     fn serialize_struct(self, name: &'static str, len: usize) -> Result<Self, ContentHashError> {
         self.tag(29);
@@ -376,19 +380,32 @@ impl SerializeTupleVariant for &mut ContentHasher {
     }
 }
 
-impl SerializeMap for &mut ContentHasher {
+/// Hashes a map regardless of its entry order (hash maps serialize in iteration order): each
+/// entry is hashed on its own and the entry keys are summed.
+pub(crate) struct MapHasher<'a> {
+    parent: &'a mut ContentHasher,
+    entry: ContentHasher,
+    sum: (u64, u64),
+}
+
+impl SerializeMap for MapHasher<'_> {
     type Ok = ();
     type Error = ContentHashError;
     fn serialize_key<T: Serialize + ?Sized>(&mut self, key: &T) -> Result<(), ContentHashError> {
-        key.serialize(&mut **self)
+        key.serialize(&mut self.entry)
     }
     fn serialize_value<T: Serialize + ?Sized>(
         &mut self,
         value: &T,
     ) -> Result<(), ContentHashError> {
-        value.serialize(&mut **self)
+        value.serialize(&mut self.entry)?;
+        let ContentKey(k1, k2) = core::mem::replace(&mut self.entry, ContentHasher::new()).finish();
+        self.sum = (self.sum.0.wrapping_add(k1), self.sum.1.wrapping_add(k2));
+        Ok(())
     }
     fn end(self) -> Result<(), ContentHashError> {
+        self.parent.u64(self.sum.0);
+        self.parent.u64(self.sum.1);
         Ok(())
     }
 }
@@ -458,6 +475,32 @@ mod tests {
         };
         let (a, b) = (key(&[1, 2, 3]), key(&[1 ^ (1 << 63), 2 ^ (1 << 63), 3]));
         assert!(a.0 != b.0 && a.1 != b.1);
+    }
+
+    /// Map entries in another order (hash-map iteration order) give the same key.
+    #[test]
+    fn map_keys_do_not_depend_on_the_entry_order() {
+        struct Entries(Vec<(u32, f32)>);
+        impl serde::Serialize for Entries {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(self.0.len()))?;
+                for (k, v) in &self.0 {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
+        }
+        let entries = vec![(1, 0.5), (2, 1.5), (3, 2.5)];
+        let mut reversed = entries.clone();
+        reversed.reverse();
+        let key = content_key(&Entries(entries.clone()));
+        assert_eq!(key, content_key(&Entries(reversed)));
+        // Moving a value to another key still hashes apart.
+        assert_ne!(
+            key,
+            content_key(&Entries(vec![(1, 1.5), (2, 0.5), (3, 2.5)]))
+        );
     }
 
     #[test]

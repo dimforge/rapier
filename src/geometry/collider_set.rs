@@ -952,6 +952,38 @@ mod snapshot_delta {
         removed_colliders: Vec<ColliderHandle>,
     }
 
+    impl ColliderSet {
+        /// Fails with [`DeltaError::MissingShape`] if `delta` names a shape without bytes that
+        /// this set does not hold, before anything else is patched.
+        pub(crate) fn check_delta_shapes(
+            &mut self,
+            delta: &crate::data::Delta<ColliderSet>,
+        ) -> Result<(), DeltaError> {
+            let received = self.delta_state.received(&mut self.colliders);
+            let sent: std::collections::HashSet<_> = delta
+                .payload
+                .shapes
+                .iter()
+                .filter_map(|shape| match shape {
+                    DeltaShape::Keyed {
+                        key,
+                        shape: Some(_),
+                    } => Some(*key),
+                    _ => None,
+                })
+                .collect();
+            let missing = delta.payload.shapes.iter().any(|shape| {
+                matches!(shape, DeltaShape::Keyed { key, shape: None }
+                    if !received.contains_key(key) && !sent.contains(key))
+            });
+            if missing {
+                Err(DeltaError::MissingShape)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
     impl DeltaComponent for ColliderSet {
         type Payload = ColliderSetDelta;
 

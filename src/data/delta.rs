@@ -26,8 +26,9 @@
 //! # Limitations
 //!
 //! - Without the `enhanced-determinism` feature, parry serializes the contact workspaces of
-//!   composite shapes (compounds, soft-body surfaces, voxels) in hash-map order, so a receiver
-//!   may serialize them in another order than the sender (with identical content).
+//!   composite shapes (compounds, soft-body surfaces, voxels) and the chunk maps of edited voxels
+//!   in hash-map order, so a receiver (or a restored world) may serialize them in another order
+//!   than the sender, with identical content. Content keys do not depend on that order.
 //! - Applying a broad-phase delta that changes leaves rebuilds the receiver's tree, like a
 //!   deserialization (O(n log n)): spatial queries may then visit colliders, and break ties
 //!   between equally distant hits, in another order than on the sender.
@@ -142,7 +143,8 @@ pub enum DeltaError {
     /// The delta references storage it does not provide, or is otherwise inconsistent.
     #[error("malformed snapshot delta")]
     Malformed,
-    /// A collider references a shape the receiver does not hold.
+    /// A collider references a shape the receiver does not hold. A world-level apply reports it
+    /// before patching anything.
     #[error("the delta references a shape the receiver does not hold")]
     MissingShape,
 }
