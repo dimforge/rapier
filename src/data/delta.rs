@@ -249,13 +249,33 @@ mod internal {
     /// A component's change clock, plus the sender tick its state was last patched to.
     ///
     /// Ticks wrap after 2^32 deltas (see the module limitations).
-    #[derive(Debug, Default)]
+    #[derive(Debug)]
     pub struct ChangeTracker {
         /// `(tracker id, current tick)`; `None` while tracking is disabled.
         clock: Option<(u32, u32)>,
         /// The sender tick this component's state matches: the last delta applied, or the baseline
         /// set explicitly. Cleared when the component is stepped.
         applied: Option<RawTick>,
+        /// A process-unique id renewed whenever a delta replaces state behind the pipeline's back,
+        /// so the pipeline can drop caches derived from the previous state.
+        state_id: u32,
+    }
+
+    /// A fresh [`ChangeTracker::state_id`].
+    fn new_state_id() -> u32 {
+        use core::sync::atomic::{AtomicU32, Ordering};
+        static NEXT: AtomicU32 = AtomicU32::new(1);
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    }
+
+    impl Default for ChangeTracker {
+        fn default() -> Self {
+            Self {
+                clock: None,
+                applied: None,
+                state_id: new_state_id(),
+            }
+        }
     }
 
     impl Clone for ChangeTracker {
@@ -265,6 +285,7 @@ mod internal {
             let mut clone = Self {
                 clock: self.clock,
                 applied: self.applied,
+                state_id: new_state_id(),
             };
             clone.restart();
             clone
@@ -272,6 +293,14 @@ mod internal {
     }
 
     impl ChangeTracker {
+        /// See [`Self::state_id`](ChangeTracker#structfield.state_id).
+        pub(crate) fn state_id(&self) -> u32 {
+            self.state_id
+        }
+
+        pub(crate) fn renew_state_id(&mut self) {
+            self.state_id = new_state_id();
+        }
         pub(crate) fn is_enabled(&self) -> bool {
             self.clock.is_some()
         }
@@ -352,6 +381,11 @@ pub(crate) fn check_delta_baseline<C: DeltaComponent>(
     delta: &Delta<C>,
 ) -> Result<(), DeltaError> {
     component.change_tracker().check_apply(delta.from)
+}
+
+/// The id of `component`'s current state (see `ChangeTracker`), renewed by every applied delta.
+pub(crate) fn delta_state_id(component: &impl DeltaComponent) -> u32 {
+    component.change_tracker().state_id()
 }
 
 /// Forgets the sender state `component` mirrored, once it diverged from it (it was stepped).
@@ -468,6 +502,10 @@ impl<T: DeltaComponent> SnapshotDelta for T {
 
     fn apply_delta(&mut self, delta: Delta<Self>) -> Result<ChangeTick<Self>, DeltaError> {
         self.change_tracker().check_apply(delta.from)?;
+        // Until the patch succeeds, the state matches no baseline, and pipeline caches are stale.
+        let tracker = self.change_tracker_mut();
+        tracker.clear_applied();
+        tracker.renew_state_id();
         if delta.from.is_none() {
             let mut tracker = core::mem::take(self.change_tracker_mut());
             self.reset_for_full_delta();

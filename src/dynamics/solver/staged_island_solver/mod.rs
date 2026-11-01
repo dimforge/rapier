@@ -309,6 +309,12 @@ pub(crate) struct StagedIslandSolver {
 }
 
 impl StagedIslandSolver {
+    /// Drops the joint assembly reused across steps, for state replaced behind the solver.
+    #[cfg(feature = "serde-serialize")]
+    pub(crate) fn invalidate_caches(&mut self) {
+        self.staged_joints_valid = false;
+    }
+
     pub fn new() -> Self {
         Self {
             contact_constraints: ContactConstraintsSet::new(),

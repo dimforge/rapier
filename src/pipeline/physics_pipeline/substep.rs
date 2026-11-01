@@ -327,7 +327,7 @@ impl PhysicsPipeline {
         self.counters.reset();
         self.counters.step_started();
         self.quarantine.clear();
-        Self::begin_change_tracking(
+        self.begin_change_tracking(
             islands,
             broad_phase,
             narrow_phase,
@@ -336,6 +336,7 @@ impl PhysicsPipeline {
             impulse_joints,
             multibody_joints,
             soft_bodies,
+            ccd_solver,
         );
 
         // Apply some of delayed wake-ups.

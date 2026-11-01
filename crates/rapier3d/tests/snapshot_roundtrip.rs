@@ -1319,3 +1319,33 @@ fn unissued_ticks_are_rejected() {
     );
     assert!(bodies.delta_since(Some(tick)).is_ok());
 }
+
+/// A full delta resyncing a receiver that stepped on its own replaces state its pipeline and
+/// CCD solver cached (here, a removed fixed wall the CCD would still sweep against).
+#[test]
+fn full_delta_resync_drops_pipeline_caches() {
+    let mut sender = PhysicsWorld::new();
+    sender.gravity = Vector::ZERO;
+    // A ball fast enough for the automatic CCD against fixed colliders.
+    let ball = sender.insert_body(RigidBodyBuilder::dynamic().linvel(Vector::new(100.0, 0.0, 0.0)));
+    sender.insert_collider(ColliderBuilder::ball(0.1), Some(ball));
+    let wall = sender.insert_collider(
+        ColliderBuilder::cuboid(0.05, 5.0, 5.0).translation(Vector::new(3.0, 0.0, 0.0)),
+        None,
+    );
+    sender.enable_change_tracking();
+
+    let mut receiver = PhysicsWorld::new();
+    let (full, _) = sender.delta_since(None).unwrap();
+    receiver.apply_delta(full).unwrap();
+    receiver.step();
+    sender.remove_collider(wall);
+    sender.step();
+    let (full, _) = sender.delta_since(None).unwrap();
+    receiver.apply_delta(full).unwrap();
+    for step in 0..5 {
+        sender.step();
+        receiver.step();
+        assert_same(step, &record(&sender), &record(&receiver), "resynced receiver");
+    }
+}

@@ -803,6 +803,14 @@ mod snapshot_delta {
     impl DeltaComponent for ImpulseJointSet {
         type Payload = ImpulseJointSetDelta;
 
+        fn reset_for_full_delta(&mut self) {
+            // The epoch keys cached joint assemblies: keep it moving forward.
+            let epoch = self.assembly_epoch;
+            *self = Self::default();
+            self.assembly_epoch = epoch;
+            self.bump_assembly_epoch();
+        }
+
         fn change_tracker_mut(&mut self) -> &mut ChangeTracker {
             &mut self.change_tracker
         }

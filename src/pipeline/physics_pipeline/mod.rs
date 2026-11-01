@@ -52,6 +52,9 @@ pub struct PhysicsPipeline {
     /// pipeline that just came into existence must invalidate that memo before its first
     /// selection — otherwise it reuses a buffer it never filled.
     joint_selection_primed: bool,
+    /// The state ids of the components last stepped (see `begin_change_tracking`).
+    #[cfg(feature = "serde-serialize")]
+    delta_state_ids: [u32; 8],
     broad_phase_events: Vec<BroadPhasePairEvent>,
     /// Colliders moved by the last `advance_to_final_positions` with their fresh broad-phase
     /// AABBs, fed to the broad-phase update without the user-modification tracking. AABBs are
@@ -120,6 +123,8 @@ impl PhysicsPipeline {
             thread_pool: None,
             joint_constraint_indices: vec![],
             joint_selection_primed: false,
+            #[cfg(feature = "serde-serialize")]
+            delta_state_ids: [0; 8],
             broad_phase_events: vec![],
             end_step_collider_aabbs: vec![],
             soft_synced_colliders: vec![],

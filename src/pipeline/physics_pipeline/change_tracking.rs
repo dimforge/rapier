@@ -12,9 +12,10 @@ use super::PhysicsPipeline;
 impl PhysicsPipeline {
     /// Runs before a step: stepping diverges every component from the sender state it
     /// mirrored, and the bodies falling asleep this step are awake now (written before they
-    /// sleep).
+    /// sleep). State replaced by deltas since the last step invalidates the caches built on it.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn begin_change_tracking(
+        &mut self,
         islands: &mut IslandManager,
         broad_phase: &mut BroadPhaseBvh,
         narrow_phase: &mut NarrowPhase,
@@ -23,10 +24,27 @@ impl PhysicsPipeline {
         impulse_joints: &mut ImpulseJointSet,
         multibody_joints: &mut MultibodyJointSet,
         soft_bodies: &mut SoftBodySet,
+        ccd_solver: &mut crate::dynamics::CCDSolver,
     ) {
         #[cfg(feature = "serde-serialize")]
         {
-            use crate::data::delta::clear_delta_baseline;
+            use crate::data::delta::{clear_delta_baseline, delta_state_id as id};
+            let state_ids = [
+                id(islands),
+                id(broad_phase),
+                id(narrow_phase),
+                id(bodies),
+                id(colliders),
+                id(impulse_joints),
+                id(multibody_joints),
+                id(soft_bodies),
+            ];
+            if state_ids != self.delta_state_ids {
+                self.delta_state_ids = state_ids;
+                self.joint_selection_primed = false;
+                self.staged_solver.invalidate_caches();
+                ccd_solver.invalidate_fixed_targets_cache();
+            }
             clear_delta_baseline(islands);
             clear_delta_baseline(broad_phase);
             clear_delta_baseline(narrow_phase);
@@ -43,6 +61,7 @@ impl PhysicsPipeline {
             impulse_joints,
             multibody_joints,
             soft_bodies,
+            ccd_solver,
         );
         Self::stamp_active_set(islands, bodies, colliders);
     }
