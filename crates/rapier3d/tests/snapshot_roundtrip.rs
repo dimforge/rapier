@@ -1586,7 +1586,10 @@ fn joints_edited_through_iter_mut_are_sent() {
 #[test]
 fn bogus_multibody_index_is_a_cheap_miss() {
     let mut multibody_joints = MultibodyJointSet::new();
-    let bogus = MultibodyIndex(rapier3d::data::arena::Index::from_raw_parts(u32::MAX - 1, 0));
+    let bogus = MultibodyIndex(rapier3d::data::arena::Index::from_raw_parts(
+        u32::MAX - 1,
+        0,
+    ));
     assert!(multibody_joints.get_multibody_mut(bogus).is_none());
     assert!(multibody_joints.get_multibody_mut_internal(bogus).is_none());
 }
