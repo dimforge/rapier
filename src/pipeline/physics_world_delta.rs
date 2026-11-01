@@ -202,9 +202,17 @@ impl WorldComponentsMut<'_> {
     pub fn rebuild_derived_state(&mut self) {
         self.narrow_phase
             .rebuild_solver_contacts(self.bodies, self.colliders);
-        // The solver builds the mass matrices with the substep dt.
+        // The solver builds the mass matrices with the substep dt of its highest-cadence group.
+        let max_extra = self
+            .bodies
+            .iter()
+            .filter(|(_, rb)| rb.is_dynamic() && !rb.is_sleeping())
+            .map(|(_, rb)| rb.additional_solver_iterations().min(0xFFFF))
+            .max()
+            .unwrap_or(0);
         let params = &self.integration_parameters;
-        let substep_dt = params.dt / params.num_solver_iterations.max(1) as crate::math::Real;
+        let substeps = (params.num_solver_iterations + max_extra).max(1);
+        let substep_dt = params.dt / substeps as crate::math::Real;
         self.multibody_joints
             .rebuild_derived_data(self.bodies, substep_dt);
     }

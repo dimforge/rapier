@@ -702,41 +702,47 @@ mod test {
     fn restored_mass_matrices_use_the_substep_dt() {
         use crate::prelude::*;
 
-        let mut world = PhysicsWorld::new();
-        world.gravity = Vector::ZERO;
-        let root = world.insert_body(RigidBodyBuilder::fixed());
-        let link = world.insert_body(
-            RigidBodyBuilder::dynamic()
-                .translation(Vector::new(1.0, 0.0, 0.0))
-                .angvel(Vector::new(0.0, 20.0, 0.0))
-                .additional_mass_properties(MassProperties::new(
-                    Vector::ZERO,
-                    1.0,
-                    Vector::new(1.0, 2.0, 3.0),
-                )),
-        );
-        let joint = RevoluteJointBuilder::new(Vector::Y).local_anchor2(Vector::new(-1.0, 0.0, 0.0));
-        world.insert_multibody_joint(root, link, joint);
-        world.step();
+        // Extra solver iterations add substeps to the multibody's group.
+        for extra in [0, 3] {
+            let mut world = PhysicsWorld::new();
+            world.gravity = Vector::ZERO;
+            let root = world.insert_body(RigidBodyBuilder::fixed());
+            let link = world.insert_body(
+                RigidBodyBuilder::dynamic()
+                    .translation(Vector::new(1.0, 0.0, 0.0))
+                    .angvel(Vector::new(0.0, 20.0, 0.0))
+                    .additional_solver_iterations(extra)
+                    .additional_mass_properties(MassProperties::new(
+                        Vector::ZERO,
+                        1.0,
+                        Vector::new(1.0, 2.0, 3.0),
+                    )),
+            );
+            let joint =
+                RevoluteJointBuilder::new(Vector::Y).local_anchor2(Vector::new(-1.0, 0.0, 0.0));
+            world.insert_multibody_joint(root, link, joint);
+            world.step();
 
-        let index = world
-            .multibody_joints
-            .rigid_body_link(link)
-            .unwrap()
-            .multibody;
-        let mut expected = world.multibody_joints.get_multibody(index).unwrap().clone();
-        let params = world.integration_parameters;
-        expected.update_mass_matrix(
-            params.dt / params.num_solver_iterations as Real,
-            &world.bodies,
-        );
-        world.multibody_joints.stale_derived = crate::data::delta::StaleSlots::All;
-        world.components_mut().rebuild_derived_state();
-        let rebuilt = world.multibody_joints.get_multibody(index).unwrap();
-        assert_eq!(
-            rebuilt.inv_augmented_mass().lu_internal(),
-            expected.inv_augmented_mass().lu_internal()
-        );
+            let index = world
+                .multibody_joints
+                .rigid_body_link(link)
+                .unwrap()
+                .multibody;
+            let mut expected = world.multibody_joints.get_multibody(index).unwrap().clone();
+            let params = world.integration_parameters;
+            expected.update_mass_matrix(
+                params.dt / (params.num_solver_iterations + extra) as Real,
+                &world.bodies,
+            );
+            world.multibody_joints.stale_derived = crate::data::delta::StaleSlots::All;
+            world.components_mut().rebuild_derived_state();
+            let rebuilt = world.multibody_joints.get_multibody(index).unwrap();
+            assert_eq!(
+                rebuilt.inv_augmented_mass().lu_internal(),
+                expected.inv_augmented_mass().lu_internal(),
+                "extra solver iterations: {extra}"
+            );
+        }
     }
 
     /// A bogus index is a miss: it must not grow the edit tracking to its size.
