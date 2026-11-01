@@ -20,7 +20,8 @@
 //! An incremental delta applies only to its baseline state: the target of the last delta the
 //! receiver applied, or a tick declared with [`SnapshotDelta::set_delta_baseline`] (after
 //! restoring a snapshot the sender took right after [`SnapshotDelta::change_tick`]). Stepping
-//! the receiver, or cloning the sender, invalidates baselines; a full delta always applies.
+//! the receiver, or cloning the sender, invalidates baselines; a full delta always applies. Other
+//! local edits of a receiver are not detected: they also require a full delta.
 //!
 //! # Limitations
 //!
@@ -30,8 +31,9 @@
 //! - Applying a broad-phase delta that changes leaves rebuilds the receiver's tree, like a
 //!   deserialization (O(n log n)).
 //! - Encoding clones the changed slots: about a full serialization when everything is awake.
-//! - Ticks wrap after 2^32 deltas: a slot not rewritten for 2^31 ticks is then resent by every
-//!   delta until it is rewritten (or for 2^31 more ticks).
+//! - Ticks wrap after 2^32 issued ticks (every `delta_since` and `change_tick` issues one: four
+//!   days at 60 Hz for 100 receivers): a slot not rewritten for 2^31 ticks is then resent by
+//!   every delta until it is rewritten.
 //!
 //! # Example
 //!
@@ -214,6 +216,10 @@ mod internal {
         /// Brings up to date the bookkeeping that deltas from an issued tick rely on.
         fn sync_before_tick(&mut self) {}
 
+        /// Drops the receiver-side state only incremental deltas need, once the component
+        /// diverged from its baseline (only a full delta, which resets it, applies then).
+        fn forget_baseline_state(&mut self) {}
+
         /// Resets to the state a deserialization gives, before a full delta is applied (the change
         /// tracker is restored afterwards).
         fn reset_for_full_delta(&mut self) {
@@ -391,6 +397,7 @@ pub(crate) fn delta_state_id(component: &impl DeltaComponent) -> u32 {
 /// Forgets the sender state `component` mirrored, once it diverged from it (it was stepped).
 pub(crate) fn clear_delta_baseline(component: &mut impl DeltaComponent) {
     component.change_tracker_mut().clear_applied();
+    component.forget_baseline_state();
 }
 
 /// A physics component that can serialize the changes made since an earlier state.
@@ -477,6 +484,7 @@ impl<T: DeltaComponent> SnapshotDelta for T {
         since: Option<ChangeTick<Self>>,
     ) -> Result<(Delta<Self>, ChangeTick<Self>), DeltaError> {
         let (since_tick, issued, next) = self.change_tracker_mut().advance(since.map(|t| t.raw))?;
+        self.sync_before_tick();
         let payload = self.collect_delta(since_tick);
         self.set_stamp_tick(next);
         Ok((
@@ -646,6 +654,10 @@ impl<T> VecDelta<T> {
         let new_len = self.len as usize;
         let old_len = items.len();
         if new_len > old_len {
+            // Each appended slot must be provided: reject a bogus length before allocating.
+            if self.slots.len() < new_len - old_len {
+                return Err(DeltaError::Malformed);
+            }
             let mut covered = vec![false; new_len - old_len];
             for (i, _) in &self.slots {
                 if let Some(c) = (*i as usize)
@@ -723,9 +735,8 @@ impl<T: Clone + PartialEq> ShadowStamps<T> {
         }
     }
 
-    /// The slots of `current` changed since `since`.
-    pub(crate) fn collect(&mut self, current: &[T], since: Option<u32>) -> VecDelta<T> {
-        self.sync(current);
+    /// The slots of `current` changed since `since`, once [`Self::sync`] ran for this tick.
+    pub(crate) fn collect(&self, current: &[T], since: Option<u32>) -> VecDelta<T> {
         VecDelta::collect(current, &self.stamps, since)
     }
 

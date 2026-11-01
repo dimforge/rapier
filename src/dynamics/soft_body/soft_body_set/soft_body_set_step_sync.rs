@@ -243,14 +243,17 @@ impl SoftBodySet {
                 sb.rest_fit_pending,
             )
         };
-        let mut flags_before = Vec::with_capacity(self.bodies.len());
+        let tracked = self.bodies.stamps.is_enabled();
+        let mut flags_before = Vec::with_capacity(if tracked { self.bodies.len() } else { 0 });
         #[cfg(all(feature = "serde-serialize", debug_assertions))]
         let check = crate::data::delta::UnstampedWriteCheck::new(&self.bodies);
         let (soft_bodies, stamps) = self.bodies.iter_mut_unstamped();
         let mut soft_bodies: Vec<(&mut SoftBody, bool)> = soft_bodies
             .map(|(h, sb)| {
                 handles.push(SoftBodyHandle(h));
-                flags_before.push(flags(sb));
+                if tracked {
+                    flags_before.push(flags(sb));
+                }
                 let inactive = bodies
                     .get(sb.root_body)
                     .is_none_or(|rb| rb.is_sleeping() || !rb.is_enabled());
@@ -272,11 +275,12 @@ impl SoftBodySet {
         #[cfg(not(feature = "parallel"))]
         outcomes.extend(soft_bodies.iter_mut().map(sync));
 
-        for (((sb, inactive), before), handle) in
-            soft_bodies.iter().zip(&flags_before).zip(&handles)
-        {
-            if !*inactive || flags(sb) != *before || !sb.is_finite() {
-                stamps.mark(handle.0.into_raw_parts().0 as usize);
+        if tracked {
+            let changes = soft_bodies.iter().zip(&flags_before).zip(&outcomes);
+            for ((((sb, inactive), before), outcome), handle) in changes.zip(&handles) {
+                if !*inactive || flags(sb) != *before || !outcome.finite {
+                    stamps.mark(handle.0.into_raw_parts().0 as usize);
+                }
             }
         }
 

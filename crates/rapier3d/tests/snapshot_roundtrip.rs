@@ -1298,6 +1298,11 @@ fn applied_delta_rebuilds_patched_multibodies() {
         let (multibody, link_id) = receiver.multibody_joints.get(mb).unwrap();
         assert_eq!(multibody.body_jacobian(link_id).ncols(), multibody.ndofs());
     }
+    // The rebuilt jacobian is the one forward kinematics gives at the sender's state.
+    let (want, link_id) = world.multibody_joints.get_mut(mb).unwrap();
+    want.forward_kinematics(&world.bodies, true);
+    let (got, _) = receiver.multibody_joints.get(mb).unwrap();
+    assert_eq!(got.body_jacobian(link_id), want.body_jacobian(link_id));
 }
 
 /// A tick the sender has not issued yet is not a valid baseline.

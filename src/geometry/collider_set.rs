@@ -979,6 +979,11 @@ mod snapshot_delta {
             }
         }
 
+        fn forget_baseline_state(&mut self) {
+            // The registry resolves incremental deltas' shapes; keeping it would pin removed ones.
+            self.delta_state.received = None;
+        }
+
         fn sync_before_tick(&mut self) {
             // Every issued tick must be a sync point: `receiver_holds` relies on it.
             self.delta_state.sync(&self.colliders);
@@ -992,7 +997,7 @@ mod snapshot_delta {
                 removed_colliders: _,
                 delta_state: _,
             } = self;
-            self.delta_state.sync(&self.colliders);
+            // Synced by `sync_before_tick`.
             let state = &self.delta_state;
             let colliders = &self.colliders;
             let mut shapes = Vec::new();
