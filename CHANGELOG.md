@@ -26,7 +26,21 @@
   - Deltas are serde types: serialize them with any format. Heavy shapes (meshes, hulls,
     heightfields, compounds) are referenced by content and only sent when the receiver
     cannot hold them yet.
+  - Baseline mismatches and missing shapes are reported before the receiver changes. Apply
+    deltas only from trusted senders: a corrupted delta that still decodes may make a later
+    step panic.
   - The C, Python and TypeScript bindings expose world deltas.
+  - C bindings: `EnableChangeTracking`, `DisableChangeTracking`, `ChangeTick`,
+    `SetDeltaBaseline`, `SerializeWorldDelta` (returning a `WorldDelta` of owned delta and
+    tick bytes; a zero-count baseline requests a full delta) and `ApplyWorldDelta`, with the
+    statuses `BASELINE_MISMATCH = 9` (the world is untouched) and `DELTA_INCONSISTENT = 10`
+    (found while patching: resynchronize with a full delta). Bytes that do not decode still
+    report `INVALID_ARGUMENT`.
+  - C++ helpers (`rapier.hpp`): `rapier::check` throws `rapier::Error`, a
+    `std::runtime_error` exposing the failing `status()`; `rapier::Bytes` owns snapshot,
+    delta or tick bytes (`rapier::Snapshot` is now an alias of it), `rapier::WorldDelta` owns
+    both buffers of a `SerializeWorldDelta` result, and `change_tick`, `set_delta_baseline`,
+    `serialize_world_delta`, `apply_world_delta` and `bytes_view` wrap the delta API.
   - A `ContactPair` serialized on its own stores replayable solver contacts compactly: they
     are only recomputed within a `NarrowPhase`.
 - `NarrowPhase::rebuild_solver_contacts` and `MultibodyJointSet::rebuild_derived_data`:
@@ -38,7 +52,9 @@
 ### Changed
 
 - Snapshots are much smaller (roughly −30% on contact-heavy scenes, more with shared
-  shapes), with the same byte-identical restore guarantees:
+  shapes), with the same byte-identical restore guarantees (which, as before, need
+  `enhanced-determinism` for composite shapes in contact, soft-body surfaces and edited
+  voxels, whose hash maps parry serializes in iteration order):
   - collider shapes are interned by content, so N colliders over one shape serialize
     it once (restoring also rebuilds the `Arc` sharing);
   - solver contacts, contact lever arms, manifold normals, and the friction
@@ -58,8 +74,15 @@
 - Spawned broad-phase pairs are handed to the narrow phase in canonical collider-pair
   order instead of tree-traversal order, which slightly changes contact ordering
   (and therefore exact trajectories) compared to the previous version. Likewise, CCD
-  sweeps its broad-phase candidates in collider order, and pending joint wake-ups run in
-  handle order.
+  sweeps its broad-phase candidates in collider order, and pending joint wake-ups and
+  island joins run in handle order.
+- C bindings: the 16-byte snapshot header now stores a snapshot format version (2) where
+  v0.36 stored the ABI version (1), so `DeserializeWorld` rejects v0.36 snapshots with
+  `INVALID_ARGUMENT` instead of misreading them. Deltas (`RPRD`) and ticks (`RPRT`) use the
+  same versioned header with their own magic.
+- C bindings: `SerializeWorld` reports `INVALID_ARGUMENT` when the snapshot would exceed
+  256 MiB including its header (the limit applied to the payload alone, so a snapshot just
+  under it could be produced but not restored). Deltas and ticks share the limit.
 
 ### Fixed
 

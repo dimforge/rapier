@@ -407,8 +407,8 @@ impl MultibodyJointSet {
 
     /// Gets a mutable reference to a multibody, based on its temporary index.
     ///
-    /// This method will bypass any modification-detection automatically done by the
-    /// `MultibodyJointSet`.
+    /// Like [`Self::get_multibody_mut`], it records the multibody as edited for snapshot deltas
+    /// (the solver calls it on every awake multibody anyway).
     pub fn get_multibody_mut_internal(&mut self, index: MultibodyIndex) -> Option<&mut Multibody> {
         let multibody = self.multibodies.get_mut(index.0)?;
         #[cfg(feature = "serde-serialize")]

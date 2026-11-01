@@ -901,7 +901,9 @@ fn delta_soft_bodies() {
 }
 
 /// Early in the soft scene most broad-phase leaves are pending (soft colliders resynced at
-/// the end of each step), leaving one or two plain leaves for the tree rebuild.
+/// the end of each step), leaving one or two plain leaves for the tree rebuild. Deformable
+/// surfaces need `enhanced-determinism` for byte-identical restores, like `delta_soft_bodies`.
+#[cfg(feature = "enhanced-determinism")]
 #[test]
 fn soft_bodies_early_snapshot() {
     check_roundtrip("soft bodies early", soft_world(), 5, 60, false, no_edits);
