@@ -1600,7 +1600,7 @@ impl PhysicsWorld {
         let owned: _PhysicsWorldOwned =
             crate::bincode::deserialize(body).map_err(crate::serde_io::bincode_err)?;
         let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g, sbs) = owned;
-        let parts = crate::pipeline::PhysicsWorldParts {
+        let mut parts = crate::pipeline::PhysicsWorldParts {
             bodies: bs,
             colliders: cs,
             impulse_joints: ijs,
@@ -1613,7 +1613,6 @@ impl PhysicsWorld {
             gravity: g,
             soft_bodies: sbs,
         };
-        let mut parts = parts;
         rebuild_derived_state(&mut parts);
         Py::new(py, PhysicsWorld::from_parts(py, parts, false)?)
     }
@@ -1660,7 +1659,7 @@ impl PhysicsWorld {
         let owned: _PhysicsWorldOwned =
             crate::serde_json::from_value(payload).map_err(crate::serde_io::json_err)?;
         let (bs, cs, ijs, mjs, bps, nps, isl, ccd, ip, g, sbs) = owned;
-        let parts = crate::pipeline::PhysicsWorldParts {
+        let mut parts = crate::pipeline::PhysicsWorldParts {
             bodies: bs,
             colliders: cs,
             impulse_joints: ijs,
@@ -1673,7 +1672,6 @@ impl PhysicsWorld {
             gravity: g,
             soft_bodies: sbs,
         };
-        let mut parts = parts;
         rebuild_derived_state(&mut parts);
         Py::new(py, PhysicsWorld::from_parts(py, parts, false)?)
     }
@@ -1692,8 +1690,8 @@ impl PhysicsWorld {
 // ============================================================
 // PhysicsWorld: snapshot deltas.
 //
-// Deltas and ticks travel as `RPYS`-headed bincode blobs of rapier's
-// `WorldDelta` / `WorldChangeTick`, produced through `WorldComponentsMut`.
+// Deltas and ticks travel as bincode blobs of rapier's `WorldDelta` / `WorldChangeTick`
+// headed by `RPYD` / `RPYT`, produced through `WorldComponentsMut`.
 // ============================================================
 
 /// Converts a rapier delta error into a Python `DeltaError` with a `kind` attribute.
@@ -1712,45 +1710,57 @@ fn delta_err(py: Python<'_>, e: rapier::data::DeltaError) -> PyErr {
     err
 }
 
-/// Largest delta or tick blob accepted, as in the C bindings.
+/// Largest delta or tick blob accepted, header included.
+///
+/// The encoder caps the payload at `MAX_DELTA_BYTES - HEADER_SIZE` and the decoder checks the
+/// whole blob against `MAX_DELTA_BYTES`, so every blob this module writes is accepted on decode.
 const MAX_DELTA_BYTES: usize = 256 * 1024 * 1024;
+/// Largest bincode payload of a delta or tick blob (the blob minus its header).
+const MAX_DELTA_PAYLOAD_BYTES: usize = MAX_DELTA_BYTES - crate::serde_io::HEADER_SIZE;
 
-/// Encodes a delta or tick blob with the same options and size limit as `delta_from_py`.
+/// Encodes a delta or tick blob of `kind`, with the options and size limit of `delta_from_py`.
 fn delta_to_py<'py, T: serde::Serialize>(
     py: Python<'py>,
+    kind: crate::serde_io::BlobKind,
     value: &T,
 ) -> PyResult<Bound<'py, PyBytes>> {
     use crate::bincode::Options;
-    // The receiver's limit covers the header too.
     let payload = crate::bincode::DefaultOptions::new()
         .with_fixint_encoding()
-        .with_limit((MAX_DELTA_BYTES - crate::serde_io::HEADER_SIZE) as u64)
+        .with_limit(MAX_DELTA_PAYLOAD_BYTES as u64)
         .serialize(value)
         .map_err(|e| match *e {
-            crate::bincode::ErrorKind::SizeLimit => crate::errors::SerializationError::new_err(
-                "encoded delta exceeds the 256 MiB limit accepted by apply_delta",
-            ),
+            crate::bincode::ErrorKind::SizeLimit => {
+                crate::errors::SerializationError::new_err(format!(
+                    "encoded {} exceeds the 256 MiB limit (header included) accepted on decode",
+                    kind.name()
+                ))
+            }
             _ => crate::serde_io::bincode_err(e),
         })?;
     Ok(crate::serde_io::bytes_to_py(
         py,
-        &crate::serde_io::wrap_bincode(payload),
+        &crate::serde_io::wrap_blob(kind, payload),
     ))
 }
 
-/// Decodes a delta or tick blob, rejecting oversized blobs and trailing bytes.
-fn delta_from_py<T: serde::de::DeserializeOwned>(blob: &Bound<'_, PyBytes>) -> PyResult<T> {
+/// Decodes a delta or tick blob of `kind`, rejecting oversized blobs and trailing bytes.
+fn delta_from_py<T: serde::de::DeserializeOwned>(
+    blob: &Bound<'_, PyBytes>,
+    kind: crate::serde_io::BlobKind,
+) -> PyResult<T> {
     use crate::bincode::Options;
     let bytes = blob.as_bytes();
     if bytes.len() > MAX_DELTA_BYTES {
-        return Err(crate::errors::SerializationError::new_err(
-            "delta blob exceeds 256 MiB",
-        ));
+        return Err(crate::errors::SerializationError::new_err(format!(
+            "{} blob exceeds the 256 MiB limit (header included)",
+            kind.name()
+        )));
     }
-    let body = crate::serde_io::unwrap_bincode(bytes)?;
+    let body = crate::serde_io::unwrap_blob(bytes, kind)?;
     crate::bincode::DefaultOptions::new()
         .with_fixint_encoding()
-        .with_limit(MAX_DELTA_BYTES as u64)
+        .with_limit(MAX_DELTA_PAYLOAD_BYTES as u64)
         .reject_trailing_bytes()
         .deserialize(body)
         .map_err(crate::serde_io::bincode_err)
@@ -1830,7 +1840,7 @@ impl PhysicsWorld {
         let tick = self
             .with_components(py, &mut g, |c| c.change_tick())?
             .map_err(|e| delta_err(py, e))?;
-        delta_to_py(py, &tick)
+        delta_to_py(py, crate::serde_io::BlobKind::Tick, &tick)
     }
 
     /// Declare that this world holds the sender's state at ``tick``, so deltas produced
@@ -1842,7 +1852,8 @@ impl PhysicsWorld {
     /// :param tick: Bytes returned by the sender's :meth:`change_tick`.
     /// :raises SerializationError: if ``tick`` is not a valid tick blob.
     fn set_delta_baseline(&self, py: Python<'_>, tick: &Bound<'_, PyBytes>) -> PyResult<()> {
-        let tick: rapier::pipeline::WorldChangeTick = delta_from_py(tick)?;
+        let tick: rapier::pipeline::WorldChangeTick =
+            delta_from_py(tick, crate::serde_io::BlobKind::Tick)?;
         let mut g = self.gravity_vector();
         self.with_components(py, &mut g, |c| c.set_delta_baseline(tick))
     }
@@ -1884,13 +1895,17 @@ impl PhysicsWorld {
         py: Python<'py>,
         since: Option<&Bound<'py, PyBytes>>,
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-        let since: Option<rapier::pipeline::WorldChangeTick> =
-            since.map(delta_from_py).transpose()?;
+        let since: Option<rapier::pipeline::WorldChangeTick> = since
+            .map(|t| delta_from_py(t, crate::serde_io::BlobKind::Tick))
+            .transpose()?;
         let mut g = self.gravity_vector();
         let (delta, tick) = self
             .with_components(py, &mut g, |c| c.delta_since(since))?
             .map_err(|e| delta_err(py, e))?;
-        Ok((delta_to_py(py, &delta)?, delta_to_py(py, &tick)?))
+        Ok((
+            delta_to_py(py, crate::serde_io::BlobKind::Delta, &delta)?,
+            delta_to_py(py, crate::serde_io::BlobKind::Tick, &tick)?,
+        ))
     }
 
     /// Patch a delta produced by :meth:`delta_since` into this world.
@@ -1906,24 +1921,27 @@ impl PhysicsWorld {
     ///     next :meth:`delta_since`.
     /// :raises DeltaError: if this world does not hold the delta's baseline (``kind ==
     ///     "baseline_mismatch"``), or the delta is inconsistent with this world
-    ///     (``"malformed"``, ``"missing_shape"``). The world may then be partially
-    ///     patched: recover by applying a full delta.
-    /// :raises SerializationError: if ``delta`` is not a valid delta blob.
+    ///     (``"malformed"``, ``"missing_shape"``). A baseline mismatch leaves the world
+    ///     untouched; only ``"malformed"`` and ``"missing_shape"``, raised while patching,
+    ///     may leave it partially patched: recover by applying a full delta.
+    /// :raises SerializationError: if ``delta`` is not a valid delta blob (e.g. a tick
+    ///     or a snapshot); the world is then untouched.
     fn apply_delta<'py>(
         &mut self,
         py: Python<'py>,
         delta: &Bound<'py, PyBytes>,
     ) -> PyResult<Bound<'py, PyBytes>> {
-        let delta: rapier::pipeline::WorldDelta = delta_from_py(delta)?;
+        let delta: rapier::pipeline::WorldDelta =
+            delta_from_py(delta, crate::serde_io::BlobKind::Delta)?;
         let mut g = self.gravity_vector();
         let result = self.with_components(py, &mut g, |c| c.apply_delta(delta))?;
-        // The gravity is patched first, so it is kept even when a component fails.
+        // Gravity may already be patched when a later component fails, so keep it either way.
         self.gravity = Vec3(crate::na::Vector3::new(g.x, g.y, g.z));
         let tick = result.map_err(|e| delta_err(py, e))?;
         // Wake-ups queued by local joint edits are not part of the replicated state.
         crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?
             .1
             .clear();
-        delta_to_py(py, &tick)
+        delta_to_py(py, crate::serde_io::BlobKind::Tick, &tick)
     }
 }

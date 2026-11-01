@@ -16,7 +16,9 @@ Unreleased
   ``delta_since`` and ``apply_delta`` replicate a world by sending only what changed since a
   state the receiver acknowledged. Failures raise the new ``DeltaError`` (a
   ``SerializationError``). ``change_tick`` and ``set_delta_baseline`` let a receiver restored
-  from a ``snapshot`` accept deltas from the tick taken right before it.
+  from a ``snapshot`` accept deltas from the tick taken right before it. Deltas and ticks have
+  their own blob magics (``RPYD`` and ``RPYT``, next to ``RPYS`` for snapshots), so a blob of the
+  wrong kind raises ``SerializationError`` naming both kinds.
 
 **Changed**
 

@@ -1,8 +1,9 @@
 //! Shared (dim/scalar-agnostic) helpers used by pickle/snapshot serialization.
 //!
-//! The on-disk format always begins with an 8-byte header:
-//!   - 4 bytes magic = `b"RPYS"`
-//!   - 4 bytes little-endian `u32` version (currently 2)
+//! Every binary blob begins with an 8-byte header:
+//!   - 4 bytes magic naming the blob kind (see [`BlobKind`]): `b"RPYS"` for snapshots and
+//!     `to_bytes` blobs, `b"RPYD"` for snapshot deltas, `b"RPYT"` for change ticks
+//!   - 4 bytes little-endian `u32` version (currently 2, shared by every kind)
 //!
 //! Anything that follows is the bincode-serialized payload (or for the JSON
 //! debug mode, a JSON object with a `"_rpys"` magic+version field, see below).
@@ -17,30 +18,83 @@
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-/// Magic header marking a rapier-py blob ("Rapier PYthon Snapshot").
+/// Magic header marking a rapier-py snapshot or `to_bytes` blob ("Rapier PYthon Snapshot").
 pub const MAGIC: &[u8; 4] = b"RPYS";
+/// Magic header marking a snapshot delta ("Rapier PYthon Delta").
+pub const DELTA_MAGIC: &[u8; 4] = b"RPYD";
+/// Magic header marking a change tick ("Rapier PYthon Tick").
+pub const TICK_MAGIC: &[u8; 4] = b"RPYT";
 /// Current on-disk format version. Bumped on incompatible payload changes.
 pub const VERSION: u32 = 2;
 /// Total size of the binary header (magic + u32 version).
 pub const HEADER_SIZE: usize = 8;
 
-/// Prepend the 8-byte binary header to `payload`.
+/// The kind of a binary blob, as told by its magic.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlobKind {
+    /// A world snapshot or a `to_bytes` blob (`RPYS`).
+    Snapshot,
+    /// A snapshot delta (`RPYD`).
+    Delta,
+    /// A change tick (`RPYT`).
+    Tick,
+}
+
+impl BlobKind {
+    /// The 4-byte magic opening blobs of this kind.
+    pub fn magic(self) -> &'static [u8; 4] {
+        match self {
+            BlobKind::Snapshot => MAGIC,
+            BlobKind::Delta => DELTA_MAGIC,
+            BlobKind::Tick => TICK_MAGIC,
+        }
+    }
+
+    /// The kind whose magic is `magic`, if any.
+    pub fn from_magic(magic: &[u8]) -> Option<Self> {
+        [BlobKind::Snapshot, BlobKind::Delta, BlobKind::Tick]
+            .into_iter()
+            .find(|kind| kind.magic() == magic)
+    }
+
+    /// The name used in error messages, e.g. "delta".
+    pub fn name(self) -> &'static str {
+        match self {
+            BlobKind::Snapshot => "snapshot",
+            BlobKind::Delta => "delta",
+            BlobKind::Tick => "tick",
+        }
+    }
+}
+
+/// Prepend the 8-byte `RPYS` header to `payload`.
 #[inline]
 pub fn wrap_bincode(payload: Vec<u8>) -> Vec<u8> {
+    wrap_blob(BlobKind::Snapshot, payload)
+}
+
+/// Prepend the 8-byte header of `kind` to `payload`.
+pub fn wrap_blob(kind: BlobKind, payload: Vec<u8>) -> Vec<u8> {
     let mut out = Vec::with_capacity(HEADER_SIZE + payload.len());
-    out.extend_from_slice(MAGIC);
+    out.extend_from_slice(kind.magic());
     out.extend_from_slice(&VERSION.to_le_bytes());
     out.extend_from_slice(&payload);
     out
 }
 
-/// Strip and validate the 8-byte binary header. Returns the body.
+/// Strip and validate the 8-byte `RPYS` header. Returns the body.
+#[inline]
+pub fn unwrap_bincode(blob: &[u8]) -> PyResult<&[u8]> {
+    unwrap_blob(blob, BlobKind::Snapshot)
+}
+
+/// Strip and validate the 8-byte header of a blob of kind `expected`. Returns the body.
 ///
 /// Returns `SerializationError` on:
 ///  - Blob shorter than the header.
-///  - Magic mismatch (`!= b"RPYS"`).
+///  - Magic mismatch, naming the blob's kind when it is another rapier-py blob.
 ///  - Unsupported version (`!= VERSION`).
-pub fn unwrap_bincode(blob: &[u8]) -> PyResult<&[u8]> {
+pub fn unwrap_blob(blob: &[u8], expected: BlobKind) -> PyResult<&[u8]> {
     if blob.len() < HEADER_SIZE {
         return Err(crate::errors::SerializationError::new_err(format!(
             "serialized blob too short ({} bytes); expected at least {}",
@@ -48,12 +102,18 @@ pub fn unwrap_bincode(blob: &[u8]) -> PyResult<&[u8]> {
             HEADER_SIZE
         )));
     }
-    if &blob[..4] != MAGIC {
-        return Err(crate::errors::SerializationError::new_err(format!(
-            "bad magic in serialized blob: expected {:?} got {:?}",
-            std::str::from_utf8(MAGIC).unwrap_or("?"),
-            std::str::from_utf8(&blob[..4]).unwrap_or("<non-utf8>")
-        )));
+    let magic = &blob[..4];
+    if magic != expected.magic() {
+        let msg = match BlobKind::from_magic(magic) {
+            Some(found) => format!("expected a {}, got a {}", expected.name(), found.name()),
+            None => format!(
+                "bad magic in serialized blob: expected {:?} (a {}) got {:?}",
+                std::str::from_utf8(expected.magic()).unwrap_or("?"),
+                expected.name(),
+                std::str::from_utf8(magic).unwrap_or("<non-utf8>")
+            ),
+        };
+        return Err(crate::errors::SerializationError::new_err(msg));
     }
     let mut ver_bytes = [0u8; 4];
     ver_bytes.copy_from_slice(&blob[4..8]);

@@ -50,7 +50,11 @@ contact and the bindings were not built with ``enhanced-determinism``
    acked = client.apply_delta(delta)  # the receiver sends this tick back
 
 Deltas and ticks are opaque ``bytes``, so they can travel over the
-network. A receiver can also start from a world restored from a
+network. Each blob kind has its own 4-byte magic (``RPYS`` for snapshots
+and ``to_bytes`` blobs, ``RPYD`` for deltas, ``RPYT`` for ticks), so
+passing one where another is expected raises a clear
+:class:`~rapier3d.SerializationError` (e.g. "expected a delta, got a
+tick"). A receiver can also start from a world restored from a
 :meth:`~rapier3d.PhysicsWorld.snapshot`: the sender calls
 :meth:`~rapier3d.PhysicsWorld.change_tick` right before taking the
 snapshot, and the receiver passes that tick to
@@ -95,7 +99,8 @@ Errors
 :meth:`~rapier3d.PhysicsWorld.delta_since` and
 :meth:`~rapier3d.PhysicsWorld.apply_delta` raise
 :class:`~rapier3d.SerializationError` on malformed or truncated blobs (and
-on blobs over 256 MiB or with trailing bytes), and
+on blobs over 256 MiB, header included, or with trailing bytes, or of
+another kind), and
 its subclass :class:`~rapier3d.DeltaError` when the delta cannot be
 produced or applied. Its ``kind`` attribute names the cause:
 
@@ -108,5 +113,8 @@ produced or applied. Its ``kind`` attribute names the cause:
 - ``"malformed"`` / ``"missing_shape"``: the delta is inconsistent with the
   receiver.
 
-A failed ``apply_delta`` may leave the receiver partially patched: apply a
-full delta to recover.
+``apply_delta`` checks the delta's baseline against every component of the
+receiver before writing anything, so a blob that does not decode or a
+``"baseline_mismatch"`` leaves the receiver untouched. Only
+``"malformed"`` and ``"missing_shape"``, raised while patching, may leave it
+partially patched: apply a full delta to recover.

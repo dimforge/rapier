@@ -182,6 +182,7 @@ def test_malformed_delta_and_tick_blobs_raise():
         b"",
         b"not a delta",
         b"RPYS" + (99).to_bytes(4, "little"),
+        b"RPYD" + (99).to_bytes(4, "little") + delta[8:],
         delta[:-7],
         delta + b"\x00",
     ):
@@ -197,6 +198,69 @@ def test_malformed_delta_and_tick_blobs_raise():
 
     # The receiver is still usable.
     receiver.apply_delta(delta)
+    assert receiver.snapshot() == sender.snapshot()
+
+
+def test_stale_delta_leaves_the_receiver_untouched():
+    sender = _build_world()
+    sender.enable_change_tracking()
+    receiver = r.PhysicsWorld()
+    t0 = receiver.apply_delta(sender.delta_since(None)[0])
+    sender.step()
+    t1 = receiver.apply_delta(sender.delta_since(t0)[0])
+
+    # The stale delta carries a gravity change, which must not reach the receiver.
+    sender.gravity = (1.0, -3.0, 0.5)
+    sender.step()
+    stale, _ = sender.delta_since(t0)
+    gravity, snapshot = tuple(receiver.gravity), receiver.snapshot()
+    with pytest.raises(r.DeltaError) as e:
+        receiver.apply_delta(stale)
+    assert e.value.kind == "baseline_mismatch"
+    assert tuple(receiver.gravity) == gravity
+    assert receiver.snapshot() == snapshot
+
+    # The receiver still holds t1, so the matching delta applies.
+    receiver.apply_delta(sender.delta_since(t1)[0])
+    assert tuple(receiver.gravity) == tuple(sender.gravity)
+    assert receiver.snapshot() == sender.snapshot()
+
+
+def test_blob_kinds_have_their_own_magic():
+    sender = _build_world()
+    sender.enable_change_tracking()
+    delta, tick = sender.delta_since(None)
+    snapshot = sender.snapshot()
+    version = (2).to_bytes(4, "little")
+    assert delta[:8] == b"RPYD" + version
+    assert tick[:8] == b"RPYT" + version
+    assert sender.change_tick()[:8] == b"RPYT" + version
+    assert snapshot[:8] == b"RPYS" + version
+
+    receiver = r.PhysicsWorld()
+    acked = receiver.apply_delta(delta)
+    before = receiver.snapshot()
+    with pytest.raises(r.SerializationError, match="expected a delta, got a tick"):
+        receiver.apply_delta(tick)
+    with pytest.raises(r.SerializationError, match="expected a delta, got a snapshot"):
+        receiver.apply_delta(snapshot)
+    with pytest.raises(r.SerializationError, match="expected a delta, got a snapshot"):
+        receiver.apply_delta(r.Vec3(1.0, 2.0, 3.0).to_bytes())
+    with pytest.raises(r.SerializationError, match="expected a tick, got a delta"):
+        receiver.set_delta_baseline(delta)
+    with pytest.raises(r.SerializationError, match="expected a tick, got a delta"):
+        sender.delta_since(delta)
+    with pytest.raises(r.SerializationError, match="expected a tick, got a snapshot"):
+        sender.delta_since(snapshot)
+    with pytest.raises(r.SerializationError, match="expected a snapshot, got a delta"):
+        r.PhysicsWorld.restore(delta)
+    with pytest.raises(r.SerializationError, match="expected a snapshot, got a tick"):
+        r.PhysicsWorld.restore(tick)
+
+    # The rejected blobs left the receiver at its baseline.
+    assert receiver.snapshot() == before
+    sender.step()
+    receiver.apply_delta(sender.delta_since(acked)[0])
     assert receiver.snapshot() == sender.snapshot()
 
 
