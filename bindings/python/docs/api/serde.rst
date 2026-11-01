@@ -129,7 +129,10 @@ produced or applied. Its ``kind`` attribute names the cause:
 receiver before writing anything, so a blob that does not decode, a
 ``"baseline_mismatch"`` or a ``"missing_shape"`` leaves the receiver
 untouched. Only ``"malformed"``, raised while patching, may leave it
-partially patched: apply a full delta to recover.
+partially patched: apply a full delta to recover. Since
+:class:`~rapier3d.DeltaError` subclasses :class:`~rapier3d.SerializationError`,
+an ``except SerializationError`` handler should check ``kind`` before assuming
+the receiver is untouched.
 
 Only apply deltas from a trusted sender running the same rapier build. The
 checks catch damaged headers and blobs that do not decode, and some

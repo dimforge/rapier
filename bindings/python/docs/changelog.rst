@@ -14,12 +14,13 @@ Unreleased
 
 - Snapshot deltas: ``PhysicsWorld.enable_change_tracking``, ``disable_change_tracking``,
   ``delta_since`` and ``apply_delta`` replicate a world by sending only what changed since a
-  state the receiver acknowledged. Failures raise the new ``DeltaError`` (a
-  ``SerializationError``). ``change_tick`` and ``set_delta_baseline`` let a receiver restored
-  from a ``snapshot`` accept deltas from the tick taken right before it. Deltas and ticks have
-  their own blob magics (``RPYD`` and ``RPYT``, next to ``RPYS`` for snapshots), so a blob of the
-  wrong kind raises ``SerializationError`` naming both kinds. Delta and tick blobs are limited to
-  256 MiB, header included, on both ends. The delta methods accept any buffer (``bytes``,
+  state the receiver acknowledged. Deltas that cannot be produced or applied raise the new
+  ``DeltaError`` (a ``SerializationError`` subclass with a ``kind``); blobs that do not decode
+  raise a plain ``SerializationError``. ``change_tick`` and ``set_delta_baseline`` let a
+  receiver restored from a ``snapshot`` accept deltas from the tick taken right before it.
+  Deltas and ticks have their own blob magics (``RPYD`` and ``RPYT``, next to ``RPYS`` for
+  snapshots), so a blob of the wrong kind raises ``SerializationError`` naming both kinds. Delta
+  and tick blobs are limited to 256 MiB, header included, on both ends. The delta methods accept any buffer (``bytes``,
   ``bytearray``, ``memoryview``...), and ``delta_since`` treats an empty tick like ``None``.
 
 **Changed**

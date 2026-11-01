@@ -1992,7 +1992,8 @@ impl PhysicsWorld {
     ///     patching, may leave the world partially patched: recover by applying a full delta.
     ///     Not every inconsistency is detected (see above).
     /// :raises SerializationError: if ``delta`` is not a valid delta blob (e.g. a tick
-    ///     or a snapshot), the world then being untouched.
+    ///     or a snapshot), the world then being untouched. ``except SerializationError``
+    ///     also catches ``DeltaError``: check its ``kind`` for ``"malformed"``.
     fn apply_delta<'py>(
         &mut self,
         py: Python<'py>,
@@ -2004,11 +2005,14 @@ impl PhysicsWorld {
         let result = self.with_components(py, &mut g, |c| c.apply_delta(delta))?;
         // Gravity may already be patched when a later component fails, so keep it either way.
         self.gravity = Vec3(crate::na::Vector3::new(g.x, g.y, g.z));
+        // Wake-ups queued by local joint edits are not part of the replicated state, so they
+        // go once anything was patched (only `Malformed` fails after patching started).
+        if matches!(result, Ok(_) | Err(rapier::data::DeltaError::Malformed)) {
+            crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?
+                .1
+                .clear();
+        }
         let tick = result.map_err(|e| delta_err(py, e))?;
-        // Wake-ups queued by local joint edits are not part of the replicated state.
-        crate::errors::try_borrow_mut(self.multibody_joints.bind(py))?
-            .1
-            .clear();
         delta_to_py(py, crate::serde_io::BlobKind::Tick, &tick)
     }
 }
