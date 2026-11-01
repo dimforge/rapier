@@ -123,6 +123,8 @@ snapshots produced by the identical Rapier build. Snapshots are not a durable in
 Snapshot bytes start with a 16-byte header: a magic, a format version, the dimension,
 and the scalar size. DeserializeWorld reports INVALID_ARGUMENT when it does not match
 this build; the format version changed after v0.36, so v0.36 snapshots are rejected.
+Snapshots are limited to 256 MiB, header included: SerializeWorld reports INVALID_ARGUMENT
+for a world whose snapshot would be larger, so every snapshot it returns can be restored.
 
 Old handles still point to the original world. Discard them and enumerate handles
 from the restored world. Configure any thread pool and external callback/user
@@ -155,8 +157,8 @@ default), where contact workspaces may be serialized in another order.
 Handles keep referring to the patched world; entities a delta removed report INVALID_HANDLE.
 Snapshots do not include change tracking, and restarting it invalidates every issued tick.
 
-Deltas and ticks carry a versioned header like snapshots, with the same 256 MiB limit and
-the same trust requirement: only apply bytes produced by the identical Rapier build.
+Deltas and ticks carry a versioned header like snapshots, with the same 256 MiB limit
+(header included) and the same trust requirement: only apply bytes produced by the identical Rapier build.
 A NULL pointer with a nonzero count reports NULL_POINTER, and bytes with an incompatible
 header or truncated bytes report INVALID_ARGUMENT.
 SerializeWorldDelta and ChangeTick report UNSUPPORTED while change tracking is disabled.

@@ -1321,7 +1321,9 @@ const SNAPSHOT_FORMAT_VERSION: u32 = 2;
 const SNAPSHOT_MAGIC: &[u8; 4] = b"RPRS";
 const DELTA_MAGIC: &[u8; 4] = b"RPRD";
 const TICK_MAGIC: &[u8; 4] = b"RPRT";
+// Largest blob accepted, header included; encoding caps the payload so every output decodes.
 const MAX_SNAPSHOT_BYTES: usize = 256 * 1024 * 1024;
+const MAX_SNAPSHOT_PAYLOAD: u64 = (MAX_SNAPSHOT_BYTES - SNAPSHOT_HEADER_LEN) as u64;
 
 fn wire_header(magic: &[u8; 4], format_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
     let build = rpr_build_info();
@@ -1341,7 +1343,7 @@ fn snapshot_header(format_version: u32) -> [u8; SNAPSHOT_HEADER_LEN] {
 fn snapshot_options() -> impl Options {
     bincode::DefaultOptions::new()
         .with_fixint_encoding()
-        .with_limit(MAX_SNAPSHOT_BYTES as u64)
+        .with_limit(MAX_SNAPSHOT_PAYLOAD)
         .reject_trailing_bytes()
 }
 
@@ -2600,6 +2602,62 @@ mod snapshot_header_tests {
             assert_eq!(rpr_free_bytes(result.tick), RPR_OK);
             assert_eq!(rpr_free_world(world), RPR_OK);
         }
+    }
+
+    /// Bytes serialized as one length-prefixed run, so the 256 MiB probes stay fast.
+    struct Blob(Vec<u8>);
+
+    impl serde::Serialize for Blob {
+        fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+            s.serialize_bytes(&self.0)
+        }
+    }
+
+    impl<'de> serde::Deserialize<'de> for Blob {
+        fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+            struct Visitor;
+            impl serde::de::Visitor<'_> for Visitor {
+                type Value = Blob;
+                fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    f.write_str("bytes")
+                }
+                fn visit_byte_buf<E>(self, v: Vec<u8>) -> std::result::Result<Blob, E> {
+                    Ok(Blob(v))
+                }
+                fn visit_bytes<E>(self, v: &[u8]) -> std::result::Result<Blob, E> {
+                    Ok(Blob(v.to_vec()))
+                }
+            }
+            d.deserialize_byte_buf(Visitor)
+        }
+    }
+
+    #[test]
+    fn largest_encodable_blob_decodes() {
+        // The 256 MiB limit covers the header; a blob payload adds an 8-byte length prefix.
+        let largest = MAX_SNAPSHOT_BYTES - SNAPSHOT_HEADER_LEN - 8;
+        let bytes = encode_wire(DELTA_MAGIC, &Blob(vec![1; largest])).unwrap();
+        assert_eq!(bytes.len(), MAX_SNAPSHOT_BYTES);
+        let decoded: Blob =
+            unsafe { decode_wire(DELTA_MAGIC, "delta", bytes.as_ptr(), bytes.len()) }.unwrap();
+        assert_eq!(decoded.0.len(), largest);
+        drop(decoded);
+
+        // The size is checked before the bytes are read.
+        let (status, message) =
+            unsafe { decode_wire::<Blob>(DELTA_MAGIC, "delta", bytes.as_ptr(), bytes.len() + 1) }
+                .err()
+                .unwrap();
+        assert_eq!(
+            (status, message.as_str()),
+            (RPR_INVALID_ARGUMENT, "delta exceeds 256 MiB")
+        );
+        drop(bytes);
+
+        let (status, _) = encode_wire(DELTA_MAGIC, &Blob(vec![1; largest + 1]))
+            .err()
+            .unwrap();
+        assert_eq!(status, RPR_INVALID_ARGUMENT);
     }
 
     #[test]

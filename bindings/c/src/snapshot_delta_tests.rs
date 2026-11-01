@@ -2,6 +2,9 @@
 use crate::*;
 use std::ffi::CStr;
 
+/// One byte over the 256 MiB limit, which counts the 16-byte header.
+const TOO_LARGE: usize = 256 * 1024 * 1024 + 1;
+
 fn last_error() -> String {
     unsafe { CStr::from_ptr(rpr_last_error()) }
         .to_string_lossy()
@@ -276,12 +279,7 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
             RPR_INVALID_ARGUMENT,
         );
         reject_delta(sender, full.as_ptr(), full.len(), RPR_INVALID_ARGUMENT);
-        reject_delta(
-            sender,
-            tick0.as_ptr(),
-            256 * 1024 * 1024 + 1,
-            RPR_INVALID_ARGUMENT,
-        );
+        reject_delta(sender, tick0.as_ptr(), TOO_LARGE, RPR_INVALID_ARGUMENT);
         reject_delta(std::ptr::null_mut(), null, 0, RPR_NULL_POINTER);
         assert!(rpr_change_tick(std::ptr::null_mut()).is_null());
         assert_status(RPR_NULL_POINTER);
@@ -303,7 +301,7 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
             RPR_INVALID_ARGUMENT
         );
         assert_eq!(
-            declare(sender, tick0.as_ptr(), 256 * 1024 * 1024 + 1),
+            declare(sender, tick0.as_ptr(), TOO_LARGE),
             RPR_INVALID_ARGUMENT
         );
         assert_eq!(
@@ -326,7 +324,7 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
         let mut trailing = full.clone();
         trailing.push(0);
         reject_apply(receiver, &trailing, RPR_INVALID_ARGUMENT);
-        assert!(rpr_apply_world_delta(receiver, full.as_ptr(), 256 * 1024 * 1024 + 1).is_null());
+        assert!(rpr_apply_world_delta(receiver, full.as_ptr(), TOO_LARGE).is_null());
         assert_status(RPR_INVALID_ARGUMENT);
         assert!(rpr_apply_world_delta(std::ptr::null_mut(), full.as_ptr(), full.len()).is_null());
         assert_status(RPR_NULL_POINTER);
