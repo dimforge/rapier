@@ -808,7 +808,7 @@ mod snapshot_delta {
     /// process-unique `shape_revision` (holding the shape would make `shape_mut` copy it).
     #[derive(Copy, Clone, Debug)]
     struct SlotKey {
-        revision: u32,
+        revision: u64,
         key: ContentKey,
     }
 

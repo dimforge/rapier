@@ -66,7 +66,7 @@ pub struct Collider {
     /// so snapshot deltas can tell a shape changed without holding it. Not part of the state.
     #[cfg(feature = "serde-serialize")]
     #[serde(skip, default = "next_shape_revision")]
-    pub(crate) shape_revision: u32,
+    pub(crate) shape_revision: u64,
     /// User-defined data associated to this collider.
     pub user_data: u128,
 }
@@ -165,12 +165,21 @@ impl InternedCollider {
     }
 }
 
-/// A fresh value for [`Collider::shape_revision`] (wrapping after 2^32 shape writes).
-#[cfg(feature = "serde-serialize")]
-pub(crate) fn next_shape_revision() -> u32 {
+/// A fresh value for [`Collider::shape_revision`].
+#[cfg(all(feature = "serde-serialize", target_has_atomic = "64"))]
+pub(crate) fn next_shape_revision() -> u64 {
+    use core::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
+/// A fresh value for [`Collider::shape_revision`] (wrapping after 2^32 shape writes on targets
+/// without 64-bit atomics).
+#[cfg(all(feature = "serde-serialize", not(target_has_atomic = "64")))]
+pub(crate) fn next_shape_revision() -> u64 {
     use core::sync::atomic::{AtomicU32, Ordering};
     static NEXT: AtomicU32 = AtomicU32::new(1);
-    NEXT.fetch_add(1, Ordering::Relaxed)
+    NEXT.fetch_add(1, Ordering::Relaxed) as u64
 }
 
 impl Collider {
