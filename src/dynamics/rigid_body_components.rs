@@ -1259,8 +1259,13 @@ impl RigidBodyColliders {
             let mass_properties = co_mprops
                 .mass_properties(&**co_shape)
                 .transform_by(&co_parent.pos_wrt_parent);
+            let old_com = rb_mprops.local_mprops.local_com;
             rb_mprops.local_mprops += mass_properties;
             rb_mprops.update_world_mass_properties(rb_type, &rb_pos.position);
+            // Moved before the step sees it: flag it for the recycled contacts.
+            if rb_mprops.local_mprops.local_com != old_com {
+                rb_changes.insert(RigidBodyChanges::CENTER_OF_MASS);
+            }
         }
     }
 

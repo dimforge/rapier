@@ -620,6 +620,20 @@ fn center_of_mass_change_while_recycling() {
     );
 }
 
+/// The same, with the center of mass moved by attaching an off-center collider.
+#[test]
+fn center_of_mass_moved_by_an_attached_collider_while_recycling() {
+    let (world, body) = resting_boxes();
+    check_roundtrip("attached collider", world, 62, 30, false, |w, step, _| {
+        if step == 60 {
+            let ball = ColliderBuilder::ball(0.1)
+                .translation(Vector::new(0.4, 0.0, 0.0))
+                .density(50.0);
+            w.insert_collider(ball, Some(body));
+        }
+    });
+}
+
 /// The same, with the center of mass moved right away by
 /// `recompute_mass_properties_from_colliders` instead of by the next step.
 #[test]
