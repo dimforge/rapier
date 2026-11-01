@@ -549,3 +549,47 @@ fn delta_soft_bodies() {
     );
     check_delta_replication("delta soft bodies", world, 5, 240, no_edits);
 }
+
+/// Fast rotating bullets over overlapping fixed targets: each candidate narrows the next one's
+/// CCD cast bound, so the sweep must not depend on the order of the broad-phase tree, which a
+/// restore rebuilds.
+#[test]
+fn ccd_bullets_over_overlapping_targets() {
+    let world = |seed: u32| {
+        let mut world = PhysicsWorld::new();
+        let heights: Vec<Real> = (0..30).map(|i| ((i as Real) * 0.7).sin() * 0.3).collect();
+        world.insert(
+            RigidBodyBuilder::fixed(),
+            ColliderBuilder::heightfield(heights, Vector::new(40.0, 1.0)),
+        );
+        let polyline: Vec<Vector> = (0..10)
+            .map(|i| Vector::new(-12.0 + i as Real * 2.5, 0.5 + (i % 3) as Real * 0.2))
+            .collect();
+        world.insert(RigidBodyBuilder::fixed(), ColliderBuilder::polyline(polyline, None));
+        for i in 0..8 {
+            world.insert(
+                RigidBodyBuilder::fixed()
+                    .translation(Vector::new(-10.0 + 2.5 * i as Real, 0.2 + 0.1 * (i % 2) as Real)),
+                ColliderBuilder::cuboid(1.0, 0.1),
+            );
+        }
+        for i in 0..24u32 {
+            let x = -10.0 + ((i * 7 + seed) % 24) as Real * 0.9;
+            world.insert(
+                RigidBodyBuilder::dynamic()
+                    .translation(Vector::new(x, 3.0 + (i % 4) as Real))
+                    .linvel(Vector::new(0.5 * (i % 5) as Real - 1.0, -60.0))
+                    .angvel(3.0 + i as Real)
+                    .ccd_enabled(true),
+                ColliderBuilder::capsule_y(0.3, 0.1).contact_skin(0.02),
+            );
+        }
+        world
+    };
+    for seed in 0..3 {
+        for before in [1, 2] {
+            check_roundtrip("ccd bullets", world(seed), before, 30, false, no_edits);
+        }
+        check_delta_replication("ccd bullets", world(seed), 1, 30, no_edits);
+    }
+}

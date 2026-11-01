@@ -144,8 +144,8 @@ impl DeferredBvhOptimize {
 /// Custom serialization of the broad phase: the tree is stored as its sorted leaves and
 /// rebuilt on restore, and the pair adjacency is rebuilt from the sorted pair map.
 ///
-/// Pair discovery only depends on the leaves' fattened AABBs, and the pair batches are sorted
-/// at the source, so the rebuilt tree only changes spatial-query iteration order.
+/// The rebuilt tree has another topology: every simulation consumer of tree traversals (pair
+/// discovery, CCD candidates) sorts what it collects, so only user queries see the new order.
 #[cfg(feature = "serde-serialize")]
 mod snapshot_serde {
     use super::*;

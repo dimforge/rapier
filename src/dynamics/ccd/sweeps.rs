@@ -637,7 +637,12 @@ pub(super) fn sweep_fast_body(
                 }
             }
             CcdTargets::FullBvh(bvh) => {
-                for (ch2, co2) in intersect_swept_aabb(bvh, colliders, swept_aabb) {
+                // Each candidate narrows the next one's cast bound, so the result depends on the
+                // visit order: use collider order, not the tree's (restores rebuild the tree).
+                let mut candidates: Vec<_> =
+                    intersect_swept_aabb(bvh, colliders, swept_aabb).collect();
+                candidates.sort_unstable_by_key(|(ch2, _)| ch2.into_raw_parts());
+                for (ch2, co2) in candidates {
                     handle_candidate(ch2, co2);
                 }
             }
