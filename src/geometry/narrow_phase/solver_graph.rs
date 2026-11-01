@@ -258,73 +258,73 @@ impl NarrowPhase {
                 // Pass 2: scatter the refs at their exact offsets and stamp the manifolds
                 // (graph_pos, solver-body ids, color); layout identical to the serial walk's.
                 let track = changed.is_some();
-                let changed_chunks: Vec<Vec<u32>> = bases
-                    .into_par_iter()
-                    .enumerate()
-                    .map(|(c, mut cursors)| {
-                        let mut chunk_changed = Vec::new();
-                        for edge in (c * CHUNK)..((c + 1) * CHUNK).min(num_edges) {
-                            let hint = hints.get(edge).copied().unwrap_or(0);
-                            // SAFETY: each edge (and thus each manifold and each
-                            //         precomputed bucket range) is written by exactly
-                            //         one chunk.
-                            unsafe {
-                                let pair: *mut ContactPair =
-                                    &mut (*edges_ptr_sync.0.add(edge)).weight;
-                                let sm = (*pair).solver_manifolds_mut();
-                                let sm_ptr = sm.as_mut_ptr();
-                                Self::for_each_desired_manifold(
-                                    edges_ptr_sync.0,
-                                    bqi,
-                                    hint,
-                                    edge as u32,
-                                    has_multibodies,
-                                    multibody_joints,
-                                    |ordinal, desired| {
-                                        let mdata: *mut ContactManifoldData =
-                                            &mut (*sm_ptr.add(ordinal as usize)).data;
-                                        let old = (
-                                            (*mdata).graph_pos,
-                                            (*mdata).solver_body_ids,
-                                            (*mdata).solver_color,
-                                        );
-                                        match desired {
-                                            Some((bucket, solver_body_ids, color)) => {
-                                                let local = cursors[bucket as usize];
-                                                cursors[bucket as usize] += 1;
-                                                *bucket_ptrs[bucket as usize].add(local as usize) =
-                                                    ContactRef {
-                                                        edge: edge as u32,
-                                                        manifold: ordinal,
-                                                    };
-                                                (*mdata).graph_pos = GraphPos::new(bucket, local);
-                                                (*mdata).solver_body_ids = solver_body_ids;
-                                                (*mdata).solver_color = color;
-                                            }
-                                            None => {
-                                                (*mdata).graph_pos = GraphPos::NONE;
-                                            }
+                let scatter = |(c, mut cursors): (usize, Vec<u32>)| {
+                    let mut chunk_changed = Vec::new();
+                    for edge in (c * CHUNK)..((c + 1) * CHUNK).min(num_edges) {
+                        let hint = hints.get(edge).copied().unwrap_or(0);
+                        // SAFETY: each edge (and thus each manifold and each
+                        //         precomputed bucket range) is written by exactly
+                        //         one chunk.
+                        unsafe {
+                            let pair: *mut ContactPair = &mut (*edges_ptr_sync.0.add(edge)).weight;
+                            let sm = (*pair).solver_manifolds_mut();
+                            let sm_ptr = sm.as_mut_ptr();
+                            Self::for_each_desired_manifold(
+                                edges_ptr_sync.0,
+                                bqi,
+                                hint,
+                                edge as u32,
+                                has_multibodies,
+                                multibody_joints,
+                                |ordinal, desired| {
+                                    let mdata: *mut ContactManifoldData =
+                                        &mut (*sm_ptr.add(ordinal as usize)).data;
+                                    let old = (
+                                        (*mdata).graph_pos,
+                                        (*mdata).solver_body_ids,
+                                        (*mdata).solver_color,
+                                    );
+                                    match desired {
+                                        Some((bucket, solver_body_ids, color)) => {
+                                            let local = cursors[bucket as usize];
+                                            cursors[bucket as usize] += 1;
+                                            *bucket_ptrs[bucket as usize].add(local as usize) =
+                                                ContactRef {
+                                                    edge: edge as u32,
+                                                    manifold: ordinal,
+                                                };
+                                            (*mdata).graph_pos = GraphPos::new(bucket, local);
+                                            (*mdata).solver_body_ids = solver_body_ids;
+                                            (*mdata).solver_color = color;
                                         }
-                                        let new = (
-                                            (*mdata).graph_pos,
-                                            (*mdata).solver_body_ids,
-                                            (*mdata).solver_color,
-                                        );
-                                        if track
-                                            && old != new
-                                            && chunk_changed.last() != Some(&(edge as u32))
-                                        {
-                                            chunk_changed.push(edge as u32);
+                                        None => {
+                                            (*mdata).graph_pos = GraphPos::NONE;
                                         }
-                                    },
-                                );
-                            }
+                                    }
+                                    let new = (
+                                        (*mdata).graph_pos,
+                                        (*mdata).solver_body_ids,
+                                        (*mdata).solver_color,
+                                    );
+                                    if track
+                                        && old != new
+                                        && chunk_changed.last() != Some(&(edge as u32))
+                                    {
+                                        chunk_changed.push(edge as u32);
+                                    }
+                                },
+                            );
                         }
-                        chunk_changed
-                    })
-                    .collect();
+                    }
+                    chunk_changed
+                };
                 if let Some(changed) = changed.as_deref_mut() {
-                    changed.extend(changed_chunks.into_iter().flatten());
+                    let chunks: Vec<_> = bases.into_par_iter().enumerate().map(scatter).collect();
+                    changed.extend(chunks.into_iter().flatten());
+                } else {
+                    bases.into_par_iter().enumerate().for_each(|chunk| {
+                        scatter(chunk);
+                    });
                 }
             }
 
