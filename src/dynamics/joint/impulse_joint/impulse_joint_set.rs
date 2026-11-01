@@ -324,6 +324,7 @@ impl ImpulseJointSet {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (ImpulseJointHandle, &mut ImpulseJoint)> {
         self.bump_assembly_epoch();
         self.all_joints_modified = true;
+        self.joint_graph.graph.mark_all_edges();
         self.joint_graph
             .graph
             .edges

@@ -193,6 +193,11 @@ impl<N, E> Graph<N, E> {
         }
     }
 
+    /// Stamps every edge as written: for callers handing out all of `self.edges` mutably.
+    pub(crate) fn mark_all_edges(&mut self) {
+        self.edge_stamps.mark_range(0..self.edges.len());
+    }
+
     /// Stamps edge `e` as written: for callers mutating `self.edges` directly.
     #[inline]
     pub(crate) fn mark_edge(&mut self, e: usize) {

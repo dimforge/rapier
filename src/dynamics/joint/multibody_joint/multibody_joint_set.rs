@@ -399,9 +399,10 @@ impl MultibodyJointSet {
     /// `MultibodyJointSet`.
     pub fn get_multibody_mut(&mut self, index: MultibodyIndex) -> Option<&mut Multibody> {
         // TODO: modification tracking.
+        let multibody = self.multibodies.get_mut(index.0)?;
         #[cfg(feature = "serde-serialize")]
         self.fk_touched.touch(index.0.into_raw_parts().0);
-        self.multibodies.get_mut(index.0)
+        Some(multibody)
     }
 
     /// Gets a mutable reference to a multibody, based on its temporary index.
@@ -409,9 +410,10 @@ impl MultibodyJointSet {
     /// This method will bypass any modification-detection automatically done by the
     /// `MultibodyJointSet`.
     pub fn get_multibody_mut_internal(&mut self, index: MultibodyIndex) -> Option<&mut Multibody> {
+        let multibody = self.multibodies.get_mut(index.0)?;
         #[cfg(feature = "serde-serialize")]
         self.fk_touched.touch(index.0.into_raw_parts().0);
-        self.multibodies.get_mut(index.0)
+        Some(multibody)
     }
 
     /// Gets a reference to the multibody identified by its `handle`.

@@ -1534,3 +1534,59 @@ fn clustering_toggles_on_a_trimesh() {
     check_roundtrip("clustering toggles", terrain(), 45, 40, false, toggle);
     check_delta_replication("clustering toggles", terrain(), 5, 60, toggle);
 }
+
+/// Joints edited through `ImpulseJointSet::iter_mut`, while asleep, still reach receivers.
+#[test]
+fn joints_edited_through_iter_mut_are_sent() {
+    let mut world = PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5, 0.0)),
+        ColliderBuilder::cuboid(5.0, 0.5, 5.0),
+    );
+    let (a, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 0.5, 0.0)),
+        ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+    );
+    let (b, _) = world.insert(
+        RigidBodyBuilder::dynamic().translation(Vector::new(1.0, 0.5, 0.0)),
+        ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+    );
+    let joint = FixedJointBuilder::new()
+        .local_anchor1(Vector::new(0.5, 0.0, 0.0))
+        .local_anchor2(Vector::new(-0.5, 0.0, 0.0))
+        .build();
+    world.insert_impulse_joint(a, b, joint);
+    for _ in 0..400 {
+        world.step();
+    }
+    assert!(world.bodies[a].is_sleeping());
+
+    world.enable_change_tracking();
+    let (full, mut acked) = world.delta_since(None).unwrap();
+    let mut receiver = PhysicsWorld::new();
+    receiver.apply_delta(full).unwrap();
+    for (_, joint) in world.impulse_joints.iter_mut() {
+        joint.data.set_contacts_enabled(false);
+    }
+    for _ in 0..3 {
+        let (delta, tick) = world.delta_since(Some(acked)).unwrap();
+        receiver.apply_delta(delta).unwrap();
+        acked = tick;
+        world.step();
+    }
+    let (delta, _) = world.delta_since(Some(acked)).unwrap();
+    receiver.apply_delta(delta).unwrap();
+    assert!(
+        bincode::serialize(&world.impulse_joints).unwrap()
+            == bincode::serialize(&receiver.impulse_joints).unwrap()
+    );
+}
+
+/// A bogus multibody index is a miss, not a reason to grow the edit tracking to its size.
+#[test]
+fn bogus_multibody_index_is_a_cheap_miss() {
+    let mut multibody_joints = MultibodyJointSet::new();
+    let bogus = MultibodyIndex(rapier3d::data::arena::Index::from_raw_parts(u32::MAX - 1, 0));
+    assert!(multibody_joints.get_multibody_mut(bogus).is_none());
+    assert!(multibody_joints.get_multibody_mut_internal(bogus).is_none());
+}
