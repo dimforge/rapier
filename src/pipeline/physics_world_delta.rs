@@ -179,8 +179,11 @@ impl WorldComponentsMut<'_> {
     pub fn rebuild_derived_state(&mut self) {
         self.narrow_phase
             .rebuild_solver_contacts(self.bodies, self.colliders);
+        // The solver builds the mass matrices with the substep dt.
+        let params = &self.integration_parameters;
+        let substep_dt = params.dt / params.num_solver_iterations.max(1) as crate::math::Real;
         self.multibody_joints
-            .rebuild_derived_data(self.bodies, self.integration_parameters.dt);
+            .rebuild_derived_data(self.bodies, substep_dt);
     }
 
     /// The ids of the components' current states, renewed by every applied delta (the pipeline

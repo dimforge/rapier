@@ -47,8 +47,8 @@
     origin, soft-body surfaces, and worlds with contact recycling disabled keep the
     verbatim encoding);
   - the multibody mass matrices, jacobians and workspaces are rebuilt after a
-    restore instead of being stored (at the restored configuration, so their last bits
-    can differ from the original's until the next step recomputes them);
+    restore instead of being stored (at the restored configuration, so they differ from
+    the original's, computed one substep earlier, until the next step recomputes them);
   - the broad-phase BVH is stored as its leaves and rebuilt on restore. As a side
     effect, spatial-query iteration order (and the hit reported among equally distant
     ones) after a restore may differ from the uninterrupted run (the pair set and
