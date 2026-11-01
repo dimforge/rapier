@@ -111,7 +111,8 @@ Check LastStatus after both calls. Arrays may grow between calls if the applicat
 mutates the source. Returned counts use the declared element type; some geometry
 outputs are flattened scalar indices, explicitly documented by that function.
 String-copy functions count bytes including the terminating NUL. ByteView is an
-exception: it borrows snapshot storage directly until FreeBytes, with no copy.
+exception: it borrows snapshot, delta or tick storage directly until FreeBytes, with
+no copy.
 */
 
 /** @page snapshots Snapshots

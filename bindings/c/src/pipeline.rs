@@ -1281,8 +1281,8 @@ pub unsafe extern "C" fn rpr_detect_collisions(
 /// Immutable owned byte buffer. Release with the matching FreeBytes function.
 /// @ingroup worlds
 pub struct RprBytes(Vec<u8>);
-/// Borrow snapshot bytes without copying; valid until rpr_free_bytes. Never free the returned data
-/// pointer.
+/// Borrow snapshot, delta or tick bytes without copying; valid until rpr_free_bytes. Never free
+/// the returned data pointer.
 /// @ingroup worlds
 #[rapier_export(bytes)]
 pub unsafe extern "C" fn rpr_bytes_data(bytes: *const RprBytes) -> RprByteView {
@@ -1299,8 +1299,8 @@ pub unsafe extern "C" fn rpr_bytes_data(bytes: *const RprBytes) -> RprByteView {
         })
     })
 }
-/// Release an owned snapshot byte buffer. NULL is allowed. Do not pass borrowed pointers or free
-/// the object twice.
+/// Release an owned snapshot, delta or tick byte buffer. NULL is allowed. Do not pass borrowed
+/// pointers or free the object twice.
 /// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_free_bytes(bytes: *mut RprBytes) -> RprStatus {
@@ -1370,6 +1370,13 @@ unsafe fn decode_wire<T: serde::de::DeserializeOwned>(
         &format!("{what} exceeds 256 MiB"),
     )?;
     let bytes = unsafe { input(data, count)? };
+    let found = bytes.get(..4).and_then(wire_kind);
+    if let (Some(expected), Some(found)) = (wire_kind(magic), found) {
+        ensure(
+            expected == found,
+            &format!("expected a {expected}, got a {found}"),
+        )?;
+    }
     ensure(
         bytes.starts_with(&wire_header(magic, SNAPSHOT_FORMAT_VERSION)),
         &format!("incompatible {what}"),
@@ -1377,6 +1384,16 @@ unsafe fn decode_wire<T: serde::de::DeserializeOwned>(
     snapshot_options()
         .deserialize(&bytes[SNAPSHOT_HEADER_LEN..])
         .map_err(|e| invalid(format!("{what}: {e}")))
+}
+
+/// Names the blob kind of a known wire magic.
+fn wire_kind(magic: &[u8]) -> Option<&'static str> {
+    match magic {
+        m if m == SNAPSHOT_MAGIC => Some("snapshot"),
+        m if m == DELTA_MAGIC => Some("delta"),
+        m if m == TICK_MAGIC => Some("tick"),
+        _ => None,
+    }
 }
 
 fn owned_bytes(bytes: Vec<u8>) -> *mut RprBytes {
@@ -2521,12 +2538,12 @@ pub unsafe extern "C" fn rpr_deserialize_rigid_state(
         }
         ffi(|| unsafe {
             out_ptr(out)?;
-            ensure(count <= 256 * 1024 * 1024, "snapshot exceeds 256 MiB")?;
+            ensure(count <= MAX_SNAPSHOT_BYTES, "snapshot exceeds 256 MiB")?;
             let bytes = input(data, count)?;
             let state: PhysicsState = bincode::DefaultOptions::new()
                 .with_fixint_encoding()
                 .allow_trailing_bytes()
-                .with_limit(256 * 1024 * 1024)
+                .with_limit(MAX_SNAPSHOT_BYTES as u64)
                 .deserialize(bytes)
                 .map_err(|e| invalid(e.to_string()))?;
             let mut world = PhysicsWorld::new();

@@ -6041,15 +6041,15 @@ R2Status RAPIER_CALL r2DetectCollisions(struct R2World *world,
                                 const struct R2EventCollector *events);
 
 /**
- * Borrow snapshot bytes without copying; valid until r2FreeBytes. Never free the returned data
- * pointer.
+ * Borrow snapshot, delta or tick bytes without copying; valid until r2FreeBytes. Never free
+ * the returned data pointer.
  * @ingroup worlds
  */
 RAPIER_API struct R2ByteView RAPIER_CALL r2Bytes_Data(const struct R2Bytes *bytes);
 
 /**
- * Release an owned snapshot byte buffer. NULL is allowed. Do not pass borrowed pointers or free
- * the object twice.
+ * Release an owned snapshot, delta or tick byte buffer. NULL is allowed. Do not pass borrowed
+ * pointers or free the object twice.
  * @ingroup worlds
  */
 RAPIER_API R2Status RAPIER_CALL r2FreeBytes(struct R2Bytes *bytes);
@@ -17020,15 +17020,15 @@ R3Status RAPIER_CALL r3DetectCollisions(struct R3World *world,
                                 const struct R3EventCollector *events);
 
 /**
- * Borrow snapshot bytes without copying; valid until r3FreeBytes. Never free the returned data
- * pointer.
+ * Borrow snapshot, delta or tick bytes without copying; valid until r3FreeBytes. Never free
+ * the returned data pointer.
  * @ingroup worlds
  */
 RAPIER_API struct R3ByteView RAPIER_CALL r3Bytes_Data(const struct R3Bytes *bytes);
 
 /**
- * Release an owned snapshot byte buffer. NULL is allowed. Do not pass borrowed pointers or free
- * the object twice.
+ * Release an owned snapshot, delta or tick byte buffer. NULL is allowed. Do not pass borrowed
+ * pointers or free the object twice.
  * @ingroup worlds
  */
 RAPIER_API R3Status RAPIER_CALL r3FreeBytes(struct R3Bytes *bytes);

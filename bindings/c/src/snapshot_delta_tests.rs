@@ -369,3 +369,42 @@ fn world_deltas_reject_bad_baselines_and_bytes() {
         }
     }
 }
+
+#[test]
+fn wrong_kind_bytes_name_both_kinds() {
+    unsafe {
+        let world = pile();
+        assert_eq!(rpr_enable_change_tracking(world), RPR_OK);
+        let state = snapshot(world);
+        let (full, tick) = delta(world, None);
+
+        for (bytes, found) in [(&tick, "tick"), (&state, "snapshot")] {
+            reject_apply(world, bytes, RPR_INVALID_ARGUMENT);
+            assert_eq!(last_error(), format!("expected a delta, got a {found}"));
+        }
+        for (bytes, found) in [(&full, "delta"), (&state, "snapshot")] {
+            reject_delta(world, bytes.as_ptr(), bytes.len(), RPR_INVALID_ARGUMENT);
+            assert_eq!(last_error(), format!("expected a tick, got a {found}"));
+            let status = rpr_set_delta_baseline(world, bytes.as_ptr(), bytes.len());
+            assert_eq!(status, RPR_INVALID_ARGUMENT);
+            assert_eq!(last_error(), format!("expected a tick, got a {found}"));
+        }
+        for (bytes, found) in [(&full, "delta"), (&tick, "tick")] {
+            assert!(rpr_deserialize_world(bytes.as_ptr(), bytes.len()).is_null());
+            assert_status(RPR_INVALID_ARGUMENT);
+            assert_eq!(last_error(), format!("expected a snapshot, got a {found}"));
+        }
+
+        // Unknown magics and right-kind version mismatches stay generic.
+        let mut damaged = full.clone();
+        damaged[0] ^= 1;
+        reject_apply(world, &damaged, RPR_INVALID_ARGUMENT);
+        assert_eq!(last_error(), "incompatible snapshot delta");
+        let mut newer = full.clone();
+        newer[4] ^= 1;
+        reject_apply(world, &newer, RPR_INVALID_ARGUMENT);
+        assert_eq!(last_error(), "incompatible snapshot delta");
+
+        assert_eq!(rpr_free_world(world), RPR_OK);
+    }
+}
