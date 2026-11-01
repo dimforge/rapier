@@ -806,7 +806,7 @@ mod snapshot_delta {
             self.joint_graph.graph.set_stamp_tick(now);
         }
 
-        fn collect_delta(&mut self, since: Option<u32>) -> ImpulseJointSetDelta {
+        fn collect_delta(&self, since: Option<u32>) -> ImpulseJointSetDelta {
             // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
             let ImpulseJointSet {
                 rb_graph_ids: _,

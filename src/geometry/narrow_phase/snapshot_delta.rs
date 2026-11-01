@@ -86,7 +86,7 @@ impl DeltaComponent for NarrowPhase {
         }
     }
 
-    fn collect_delta(&mut self, since: Option<u32>) -> NarrowPhaseDelta {
+    fn collect_delta(&self, since: Option<u32>) -> NarrowPhaseDelta {
         // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
         let NarrowPhase {
             contact_graph: _,
@@ -113,7 +113,7 @@ impl DeltaComponent for NarrowPhase {
             pending_solver_replay: _,
             delta_state: _,
         } = self;
-        let state = &mut self.delta_state;
+        let state = &self.delta_state;
         NarrowPhaseDelta {
             contact_graph: self.contact_graph.graph.collect_delta(since),
             intersection_graph: self.intersection_graph.graph.collect_delta(since),

@@ -507,7 +507,7 @@ mod snapshot_delta {
             self.bodies.stamps.set_now(now);
         }
 
-        fn collect_delta(&mut self, since: Option<u32>) -> RigidBodySetDelta {
+        fn collect_delta(&self, since: Option<u32>) -> RigidBodySetDelta {
             // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
             let RigidBodySet {
                 bodies: _,

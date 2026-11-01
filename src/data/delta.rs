@@ -214,7 +214,7 @@ mod internal {
         fn set_stamp_tick(&mut self, now: u32);
 
         /// The slots written after `since` (all of them for `None`).
-        fn collect_delta(&mut self, since: Option<u32>) -> Self::Payload;
+        fn collect_delta(&self, since: Option<u32>) -> Self::Payload;
 
         fn apply_delta_payload(&mut self, payload: Self::Payload) -> Result<(), DeltaError>;
 

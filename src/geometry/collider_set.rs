@@ -788,11 +788,12 @@ mod snapshot_delta {
                     | ShapeType::RoundCuboid
                     | ShapeType::RoundTriangle
             )
-            && !is_light_3d(co.shape.shape_type())
+            && !is_light_3d_only_shape(co.shape.shape_type())
     }
 
+    /// Whether `ty` is one of the light shape types that only exist in 3D.
     #[cfg(feature = "dim3")]
-    fn is_light_3d(ty: ShapeType) -> bool {
+    fn is_light_3d_only_shape(ty: ShapeType) -> bool {
         matches!(
             ty,
             ShapeType::Cylinder | ShapeType::Cone | ShapeType::RoundCylinder | ShapeType::RoundCone
@@ -800,7 +801,7 @@ mod snapshot_delta {
     }
 
     #[cfg(feature = "dim2")]
-    fn is_light_3d(_: ShapeType) -> bool {
+    fn is_light_3d_only_shape(_: ShapeType) -> bool {
         false
     }
 
@@ -1041,7 +1042,7 @@ mod snapshot_delta {
             self.delta_state.sync(&self.colliders);
         }
 
-        fn collect_delta(&mut self, since: Option<u32>) -> ColliderSetDelta {
+        fn collect_delta(&self, since: Option<u32>) -> ColliderSetDelta {
             // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
             let ColliderSet {
                 colliders: _,

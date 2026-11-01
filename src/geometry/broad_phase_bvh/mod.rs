@@ -440,7 +440,7 @@ mod snapshot_delta {
             self.pair_stamps.set_now(now);
         }
 
-        fn collect_delta(&mut self, since: Option<u32>) -> BroadPhaseBvhDelta {
+        fn collect_delta(&self, since: Option<u32>) -> BroadPhaseBvhDelta {
             let leaf = |index: u32| {
                 self.tree
                     .leaf_node(index)

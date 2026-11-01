@@ -138,7 +138,7 @@ mod snapshot_delta {
             self.bodies.stamps.set_now(now);
         }
 
-        fn collect_delta(&mut self, since: Option<u32>) -> SoftBodySetDelta {
+        fn collect_delta(&self, since: Option<u32>) -> SoftBodySetDelta {
             // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
             let SoftBodySet {
                 bodies: _,

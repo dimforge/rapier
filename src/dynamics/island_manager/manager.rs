@@ -519,7 +519,7 @@ mod snapshot_delta {
             self.persistent.set_stamp_tick(now);
         }
 
-        fn collect_delta(&mut self, since: Option<u32>) -> IslandManagerDelta {
+        fn collect_delta(&self, since: Option<u32>) -> IslandManagerDelta {
             // Exhaustive: a field added later must be classified here (sent by deltas, or not state).
             let IslandManager {
                 active_set_epoch: _,
