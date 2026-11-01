@@ -97,7 +97,11 @@ pub struct MultibodyDofCoupling {
 /// restored configuration, so not bit-equal to the original's until the next step); a
 /// `MultibodyJointSet` restored alone leaves them empty until its first step (see
 /// [`MultibodyJointSet::rebuild_derived_data`](crate::dynamics::MultibodyJointSet::rebuild_derived_data)).
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "serde-serialize",
+    derive(Serialize, Deserialize),
+    serde(remote = "Self")
+)]
 #[derive(Clone, Debug)]
 pub struct Multibody {
     pub(crate) links: MultibodyLinkVec,
@@ -170,6 +174,36 @@ fn empty_lu() -> LU<Real, Dyn, Dyn> {
 #[cfg(feature = "serde-serialize")]
 fn empty_jacobian() -> Jacobian<Real> {
     Jacobian::zeros(0)
+}
+
+#[cfg(feature = "serde-serialize")]
+impl serde::Serialize for Multibody {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Multibody::serialize(self, serializer)
+    }
+}
+
+/// Rejects dof counts that disagree with the links, so corrupted bytes cannot size the rebuilt
+/// matrices.
+#[cfg(feature = "serde-serialize")]
+impl<'de> serde::Deserialize<'de> for Multibody {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let multibody = Multibody::deserialize(deserializer)?;
+        let link_ndofs: usize = multibody.links.iter().map(|l| l.joint().ndofs()).sum();
+        let per_dof = [
+            &multibody.velocities,
+            &multibody.damping,
+            &multibody.armature,
+            &multibody.frictions,
+            &multibody.accelerations,
+        ];
+        if multibody.ndofs != link_ndofs || per_dof.iter().any(|v| v.len() != link_ndofs) {
+            return Err(serde::de::Error::custom(
+                "multibody dof count inconsistent with its links",
+            ));
+        }
+        Ok(multibody)
+    }
 }
 impl Default for Multibody {
     fn default() -> Self {
@@ -1920,6 +1954,30 @@ mod test {
         RigidBodySet, SoftBodySet,
     };
     use na::{DVector, RowDVector};
+
+    /// A dof count disagreeing with the links fails to decode instead of sizing the rebuild.
+    #[cfg(feature = "serde-serialize")]
+    #[test]
+    fn inconsistent_dof_counts_are_rejected() {
+        let mut bodies = RigidBodySet::new();
+        let mut joints = MultibodyJointSet::new();
+        let a = bodies.insert(RigidBodyBuilder::dynamic());
+        let b = bodies.insert(RigidBodyBuilder::dynamic());
+        #[cfg(feature = "dim2")]
+        let joint = RevoluteJoint::new();
+        #[cfg(feature = "dim3")]
+        let joint = RevoluteJoint::new(Vector::X);
+        let handle = joints.insert(a, b, joint, true).unwrap();
+        let (multibody, _) = joints.get_mut(handle).unwrap();
+
+        let bytes = bincode::serialize(&*multibody).unwrap();
+        let decoded: super::Multibody = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(decoded.ndofs(), multibody.ndofs());
+
+        multibody.ndofs = 1 << 40;
+        let bytes = bincode::serialize(&*multibody).unwrap();
+        assert!(bincode::deserialize::<super::Multibody>(&bytes).is_err());
+    }
 
     #[test]
     fn test_multibody_append() {
