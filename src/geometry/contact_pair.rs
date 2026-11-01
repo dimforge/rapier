@@ -1128,7 +1128,7 @@ impl ContactManifoldData {
 /// The deterministic tangent basis the solver derives from a manifold normal (see
 /// `compute_tangent_contact_directions`), used to replay `warmstart_tangent_world`
 /// after a restore and to verify replayability at serialization.
-#[cfg(all(feature = "dim3", feature = "serde-serialize"))]
+#[cfg(feature = "dim3")]
 pub(crate) fn replay_tangent_basis(normal: &Vector) -> (Vector, Vector) {
     use crate::utils::CrossProduct;
     use crate::utils::OrthonormalBasis;
@@ -1139,7 +1139,7 @@ pub(crate) fn replay_tangent_basis(normal: &Vector) -> (Vector, Vector) {
 }
 
 /// Mirrors the solver writeback's `warmstart_tangent_world` expression exactly.
-#[cfg(all(feature = "dim3", feature = "serde-serialize"))]
+#[cfg(feature = "dim3")]
 pub(crate) fn replay_tangent_world(t1: &Vector, t2: &Vector, data: &ContactData) -> Vector {
     let imp = data.warmstart_tangent_impulse;
     crate::utils::canonicalize_zero(*t1 * imp.x + *t2 * imp.y)

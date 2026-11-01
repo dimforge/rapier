@@ -44,24 +44,18 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
     let Some(rigid) = pair.rigid_mut() else {
         return;
     };
-    // Only pairs that were compact-encoded are replayed; the encoder serialized every
-    // other pair verbatim precisely because a replay would not reproduce its values.
-    // The marker holds, per manifold, the points whose tangent world vector must be
-    // recomputed (the others were stored verbatim).
-    // The marker stays when the replay cannot run, so a re-save keeps the compact encoding.
     let (Some(co1), Some(co2)) = (colliders.get(handle1), colliders.get(handle2)) else {
         return;
     };
-    if rigid.recycle_state.is_none() {
+    let Some(rs) = rigid.recycle_state else {
         return;
-    }
+    };
+    // Only compact-encoded pairs carry the marker (taken only once the replay can run, so a
+    // re-save keeps the compact encoding); it lists the points whose tangent is recomputed.
     let Some(pending) = rigid.pending_replay.take() else {
         return;
     };
     let recompute_tangent = &pending.recompute_tangent;
-    let Some(rs) = &rigid.recycle_state else {
-        return;
-    };
 
     // The exact world poses of both colliders at the pair's last full update.
     let pos1_t = Pose::from_parts(rs.replay.translation1, rs.rot1);

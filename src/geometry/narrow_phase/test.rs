@@ -430,3 +430,62 @@ fn restored_recycle_states_keep_their_relative_pose() {
     }
     assert!(checked > 0);
 }
+
+/// While a pair is clustered, its plain manifolds keep the warm-start tangent a declustering
+/// reads back, with or without the `serde-serialize` feature.
+#[test]
+fn clustered_plain_manifolds_keep_their_warmstart_tangent() {
+    use crate::geometry::contact_pair::{replay_tangent_basis, replay_tangent_world};
+    let mut world = crate::pipeline::PhysicsWorld::new();
+    // A ground of many triangles under one box: several coplanar manifolds, clustered.
+    let (n, s) = (8u32, 1.0);
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+    for i in 0..=n {
+        for j in 0..=n {
+            vertices.push(Vector::new(i as f32 * s - 4.0, 0.0, j as f32 * s - 4.0));
+        }
+    }
+    for i in 0..n {
+        for j in 0..n {
+            let a = i * (n + 1) + j;
+            indices.push([a, a + 1, a + n + 1]);
+            indices.push([a + 1, a + n + 2, a + n + 1]);
+        }
+    }
+    world.insert_collider(ColliderBuilder::trimesh(vertices, indices).unwrap(), None);
+    let (body, _) = world.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(0.3, 0.5, 0.2))
+            .can_sleep(false),
+        ColliderBuilder::cuboid(1.5, 0.5, 1.5),
+    );
+    // Unclustered first, so the plain manifolds hold the solver's warm-start data, then
+    // clustered while the box tilts (the stored tangents no longer match the normals).
+    world.integration_parameters.contact_clustering = false;
+    for _ in 0..30 {
+        world.step();
+    }
+    world.integration_parameters.contact_clustering = true;
+    // Full updates every step, so clustering applies right away.
+    world.integration_parameters.contact_recycling = false;
+    world.bodies[body].set_angvel(Vector::new(0.05, 0.0, 0.03), true);
+    for _ in 0..5 {
+        world.step();
+    }
+    let mut checked = 0;
+    for pair in world.narrow_phase.contact_pairs() {
+        let Some(rigid) = pair.rigid() else { continue };
+        if rigid.solver_clusters.is_empty() {
+            continue;
+        }
+        for manifold in &rigid.manifolds {
+            let (t1, t2) = replay_tangent_basis(&manifold.data.normal);
+            for pt in &manifold.points {
+                assert_eq!(pt.data.warmstart_tangent_world, replay_tangent_world(&t1, &t2, &pt.data));
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 0, "no clustered pair in the scene");
+}

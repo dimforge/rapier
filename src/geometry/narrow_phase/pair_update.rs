@@ -488,10 +488,8 @@ pub(super) fn process_pair(
                 prediction_distance,
             );
 
-            // The plain manifolds won't be seen by the solver, but keep their
-            // user-facing data coherent. Their per-point solver fields are dead while
-            // clustered; canonicalize them (zero lever arms, tangent basis recompute)
-            // so a snapshot restore reproduces them bit-exactly.
+            // The solver reads the clusters, but keep the plain manifolds coherent: a
+            // declustering warm-starts from their tangents, and snapshots replay their values.
             for manifold in &mut rigid.manifolds {
                 let world_pos1 = manifold.subshape_pos1().prepend_to(&co1.pos);
                 manifold.data.solver_contacts.clear();
@@ -504,24 +502,23 @@ pub(super) fn process_pair(
                     dominance1.effective_group(&rb_type1) - dominance2.effective_group(&rb_type2);
                 manifold.data.normal = world_pos1.rotation * manifold.local_n1;
 
-                // Canonical values for snapshots, which the replay reproduces: the solver reads
-                // the clusters, not these.
-                #[cfg(feature = "serde-serialize")]
-                {
-                    #[cfg(feature = "dim3")]
-                    let (t1, t2) =
-                        crate::geometry::contact_pair::replay_tangent_basis(&manifold.data.normal);
-                    for pt in &mut manifold.points {
+                #[cfg(feature = "dim3")]
+                let (t1, t2) =
+                    crate::geometry::contact_pair::replay_tangent_basis(&manifold.data.normal);
+                for pt in &mut manifold.points {
+                    // The lever arms are dead while clustered: zeroed only for snapshots.
+                    #[cfg(feature = "serde-serialize")]
+                    {
                         pt.data.solver_dp1 = crate::math::Vector::ZERO;
                         pt.data.solver_dp2 = crate::math::Vector::ZERO;
-                        #[cfg(feature = "dim3")]
-                        {
-                            pt.data.warmstart_tangent_world =
-                                crate::geometry::contact_pair::replay_tangent_world(
-                                    &t1, &t2, &pt.data,
-                                );
-                        }
                     }
+                    #[cfg(feature = "dim3")]
+                    {
+                        pt.data.warmstart_tangent_world =
+                            crate::geometry::contact_pair::replay_tangent_world(&t1, &t2, &pt.data);
+                    }
+                    #[cfg(not(any(feature = "dim3", feature = "serde-serialize")))]
+                    let _ = pt;
                 }
             }
         } else if !rigid.solver_clusters.is_empty() {
