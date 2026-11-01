@@ -6114,8 +6114,8 @@ struct R2WorldDelta RAPIER_CALL r2SerializeWorldDelta(struct R2World *world,
 
 /**
  * Apply only trusted delta bytes from the identical Rapier build, and return owned bytes of the
- * tick to acknowledge to the sender (release with r2FreeBytes). See @ref snapshot_deltas for
- * the baseline this world must hold and for recovery after a failure.
+ * tick to acknowledge to the sender (release with r2FreeBytes; NULL on failure). See
+ * @ref snapshot_deltas for the baseline this world must hold and for recovery after a failure.
  * @ingroup worlds
  */
 RAPIER_API
@@ -17093,8 +17093,8 @@ struct R3WorldDelta RAPIER_CALL r3SerializeWorldDelta(struct R3World *world,
 
 /**
  * Apply only trusted delta bytes from the identical Rapier build, and return owned bytes of the
- * tick to acknowledge to the sender (release with r3FreeBytes). See @ref snapshot_deltas for
- * the baseline this world must hold and for recovery after a failure.
+ * tick to acknowledge to the sender (release with r3FreeBytes; NULL on failure). See
+ * @ref snapshot_deltas for the baseline this world must hold and for recovery after a failure.
  * @ingroup worlds
  */
 RAPIER_API

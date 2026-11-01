@@ -1560,8 +1560,8 @@ pub unsafe extern "C" fn rpr_serialize_world_delta(
 }
 
 /// Apply only trusted delta bytes from the identical Rapier build, and return owned bytes of the
-/// tick to acknowledge to the sender (release with rpr_free_bytes). See @ref snapshot_deltas for
-/// the baseline this world must hold and for recovery after a failure.
+/// tick to acknowledge to the sender (release with rpr_free_bytes; NULL on failure). See
+/// @ref snapshot_deltas for the baseline this world must hold and for recovery after a failure.
 /// @ingroup worlds
 #[rapier_export]
 pub unsafe extern "C" fn rpr_apply_world_delta(
