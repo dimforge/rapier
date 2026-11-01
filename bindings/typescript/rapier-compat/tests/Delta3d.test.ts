@@ -5,10 +5,13 @@ import {
     JointData,
     RigidBody,
     RigidBodyDesc,
+    SnapshotDeltaError,
+    SnapshotDeltaErrorKind,
     SoftBodyDesc,
     Vector3,
     World,
 } from "../builds/3d-deterministic/pkg";
+import * as RAPIER2D from "../builds/2d-deterministic/pkg";
 
 function buildWorld(): {world: World; bodies: RigidBody[]} {
     const world = new World(new Vector3(0, -9.81, 0));
@@ -54,19 +57,27 @@ function expectSameState(sender: World, receiver: World) {
     expect(receiver.timestep).toBe(sender.timestep);
 }
 
-/** The `kind` of the error `f` throws. */
-function errorKind(f: () => unknown): string {
+/** The snapshot-delta error `f` throws. */
+function deltaError(f: () => unknown): SnapshotDeltaError {
     try {
         f();
     } catch (e) {
         expect(e).toBeInstanceOf(Error);
-        return e.kind;
+        return e as SnapshotDeltaError;
     }
     throw new Error("expected an error");
 }
 
+/** The `kind` of the error `f` throws. */
+function errorKind(f: () => unknown): SnapshotDeltaErrorKind {
+    return deltaError(f).kind;
+}
+
 describe("3d/snapshot deltas", () => {
-    beforeAll(init);
+    beforeAll(async () => {
+        await init();
+        await RAPIER2D.init();
+    });
 
     test("replicate a world through deltas", () => {
         const {world: sender, bodies} = buildWorld();
@@ -236,15 +247,45 @@ describe("3d/snapshot deltas", () => {
         expect(receiver.getSoftBody(softBody.handle)).toBeNull();
         expect(receiver.softBodies.len()).toBe(0);
 
-        // A shape changed on the sender: the receiver's cached shape is dropped.
+        // A falling convex hull: a shape the engine deduplicates by content.
+        const hullBody = sender.createRigidBody(
+            RigidBodyDesc.dynamic().setTranslation(0, 8, 0),
+        );
+        sender.createCollider(
+            ColliderDesc.convexHull(
+                new Float32Array([
+                    -0.4, -0.3, -0.4, 0.4, -0.3, -0.4, 0.4, 0.3, -0.4, -0.4,
+                    0.3, -0.4, -0.4, -0.3, 0.4, 0.4, -0.3, 0.4, 0.4, 0.3, 0.4,
+                    -0.3, 0.4, 0.3,
+                ]),
+            ),
+            hullBody,
+        );
+        sender.step();
+        sync();
+
+        // A shape changed on the sender: only that collider's cached shape is dropped.
         const collider = bodies[1].collider(0);
-        const before = receiver.getCollider(collider.handle).shape as Ball;
+        const cached = new Map(
+            receiver.colliders.getAll().map((co) => [co.handle, co.shape]),
+        );
+        const before = cached.get(collider.handle) as Ball;
         expect(before.radius).toBe(0.5);
         collider.setShape(new Ball(0.25));
         sender.step();
         sync();
         const after = receiver.getCollider(collider.handle).shape as Ball;
         expect(after.radius).toBe(0.25);
+        // The other colliders, moving or not, keep their cached shape objects.
+        expect(cached.size).toBe(receiver.colliders.len());
+        for (const [handle, shape] of cached) {
+            if (handle != collider.handle) {
+                expect(receiver.getCollider(handle).shape).toBe(shape);
+            }
+        }
+        expect(
+            receiver.getCollider(hullBody.collider(0).handle).parent().handle,
+        ).toBe(hullBody.handle);
 
         sender.free();
         receiver.free();
@@ -281,15 +322,17 @@ describe("3d/snapshot deltas", () => {
             errorKind(() => receiver.setDeltaBaseline(new Uint8Array([1]))),
         ).toBe("malformed");
 
-        // A rejected delta still updates the gravity and the integration parameters.
+        // A delta against another baseline changes nothing, not even the gravity.
+        const gravity = receiver.gravity;
+        const timestep = receiver.timestep;
         sender.gravity = new Vector3(0, -5, 0.5);
         sender.timestep = 1 / 30;
         const mismatched = sender.takeDelta(first.tick);
         expect(errorKind(() => receiver.applyDelta(mismatched.delta))).toBe(
             "baseline_mismatch",
         );
-        expect(receiver.gravity).toEqual(new Vector3(0, -5, 0.5));
-        expect(receiver.timestep).toBe(sender.timestep);
+        expect(receiver.gravity).toEqual(gravity);
+        expect(receiver.timestep).toBe(timestep);
 
         // Restarting the tracking invalidates the ticks issued before.
         sender.disableChangeTracking();
@@ -323,6 +366,55 @@ describe("3d/snapshot deltas", () => {
         sender.step();
         const delta = sender.takeDelta(newAck);
         receiver.applyDelta(delta.delta);
+        expectSameState(sender, receiver);
+
+        sender.free();
+        receiver.free();
+    });
+
+    test("deltas and ticks carry a header", () => {
+        const {world: sender} = buildWorld();
+        sender.enableChangeTracking();
+        const {delta, tick} = sender.takeDelta();
+        const receiver = new World(new Vector3(0, 0, 0));
+        const rejected = (bytes: Uint8Array, message: RegExp) => {
+            const error = deltaError(() => receiver.applyDelta(bytes));
+            expect(error.kind).toBe("malformed");
+            expect(error.message).toMatch(message);
+        };
+        const tampered = (offset: number, value: number) => {
+            const bytes = delta.slice();
+            bytes[offset] = value;
+            return bytes;
+        };
+
+        rejected(tick, /got a tick instead/);
+        expect(
+            deltaError(() => receiver.setDeltaBaseline(delta)).message,
+        ).toMatch(/got a delta instead/);
+        rejected(tampered(0, 0), /bad magic/);
+        rejected(tampered(4, 99), /format version 99/);
+        rejected(tampered(6, 2), /2D build, this is a 3D build/);
+        rejected(tampered(7, 8), /8-byte scalars/);
+        rejected(delta.slice(0, 5), /too short/);
+
+        // A delta of the other dimension.
+        const world2d = new RAPIER2D.World(new RAPIER2D.Vector2(0, -9.81));
+        world2d.createCollider(RAPIER2D.ColliderDesc.ball(0.5));
+        world2d.enableChangeTracking();
+        const delta2d = world2d.takeDelta();
+        const error2d = deltaError(() => receiver.applyDelta(delta2d.delta));
+        expect(error2d.kind).toBe("malformed");
+        expect(error2d.message).toMatch(/2D build, this is a 3D build/);
+        expect(errorKind(() => receiver.setDeltaBaseline(delta2d.tick))).toBe(
+            "malformed",
+        );
+        world2d.free();
+
+        // A rejected header leaves the receiver untouched.
+        expect(receiver.bodies.len()).toBe(0);
+        expect(receiver.colliders.len()).toBe(0);
+        receiver.applyDelta(delta);
         expectSameState(sender, receiver);
 
         sender.free();

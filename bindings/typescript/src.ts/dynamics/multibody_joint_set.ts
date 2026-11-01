@@ -99,18 +99,6 @@ export class MultibodyJointSet {
     }
 
     /**
-     * Wraps the joints that have no JavaScript wrapper yet (the joints an applied snapshot
-     * delta added).
-     */
-    public mapNewJoints() {
-        this.raw.forEachJointHandle((handle: MultibodyJointHandle) => {
-            if (!this.map.get(handle)) {
-                this.map.set(handle, MultibodyJoint.newTyped(this.raw, handle));
-            }
-        });
-    }
-
-    /**
      * Drops the wrappers of the joints the engine removed on its own (the joints of removed
      * soft bodies and clusters).
      */
@@ -118,6 +106,30 @@ export class MultibodyJointSet {
         for (let joint of this.map.getAll()) {
             if (!this.raw.contains(joint.handle)) {
                 this.map.delete(joint.handle);
+            }
+        }
+    }
+
+    /**
+     * Wraps the given joints, which the engine added (e.g. through an applied snapshot delta).
+     * @internal
+     */
+    public mapHandles(handles: Iterable<number>) {
+        for (const handle of handles) {
+            this.map.set(handle, MultibodyJoint.newTyped(this.raw, handle));
+        }
+    }
+
+    /**
+     * Drops the wrappers of the given joints, which the engine no longer holds (e.g. after an
+     * applied snapshot delta removed them).
+     * @internal
+     */
+    public unmapHandles(handles: Iterable<number>) {
+        for (const handle of handles) {
+            // The map ignores generations: keep a wrapper that already took the slot.
+            if (this.map.get(handle)?.handle === handle) {
+                this.map.delete(handle);
             }
         }
     }

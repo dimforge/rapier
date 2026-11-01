@@ -189,9 +189,8 @@ export class Collider {
     }
 
     /** @internal */
-    public refreshParentAndShape(bodies: RigidBodySet) {
+    public refreshParent(bodies: RigidBodySet) {
         this._parent = this.lookUpParent(bodies);
-        this._shape = null;
     }
 
     private lookUpParent(bodies: RigidBodySet): RigidBody | null {

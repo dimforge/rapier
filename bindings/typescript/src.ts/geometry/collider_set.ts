@@ -256,11 +256,50 @@ export class ColliderSet {
     }
 
     /**
-     * Re-reads the parent of every collider wrapper and drops their cached shapes, after an
-     * applied snapshot delta modified the colliders.
+     * Wraps the given colliders, which the engine added (e.g. through an applied snapshot
+     * delta).
+     * @internal
      */
-    public refreshParentsAndShapes(bodies: RigidBodySet) {
-        this.map.forEach((collider) => collider.refreshParentAndShape(bodies));
+    public mapHandles(handles: Iterable<number>, bodies: RigidBodySet) {
+        for (const handle of handles) {
+            let parent = bodies.get(this.raw.coParent(handle));
+            this.map.set(handle, new Collider(this, handle, parent));
+        }
+    }
+
+    /**
+     * Re-reads the parent of the given colliders, after an applied snapshot delta changed it.
+     * @internal
+     */
+    public refreshParents(handles: Iterable<number>, bodies: RigidBodySet) {
+        for (const handle of handles) {
+            this.map.get(handle)?.refreshParent(bodies);
+        }
+    }
+
+    /**
+     * Drops the cached shapes of the given colliders, after an applied snapshot delta may have
+     * changed them.
+     * @internal
+     */
+    public clearShapeCaches(handles: Iterable<number>) {
+        for (const handle of handles) {
+            this.map.get(handle)?.clearShapeCache();
+        }
+    }
+
+    /**
+     * Drops the wrappers of the given colliders, which the engine no longer holds (e.g. after
+     * an applied snapshot delta removed them).
+     * @internal
+     */
+    public unmapHandles(handles: Iterable<number>) {
+        for (const handle of handles) {
+            // The map ignores generations: keep a wrapper that already took the slot.
+            if (this.map.get(handle)?.handle === handle) {
+                this.map.delete(handle);
+            }
+        }
     }
 
     /**

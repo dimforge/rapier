@@ -261,13 +261,33 @@ export class SoftBodySet {
     }
 
     /**
-     * Drops the wrappers of the soft bodies that no longer exist (the soft bodies an applied
-     * snapshot delta removed).
+     * Wraps the given soft bodies, which the engine added (e.g. through an applied snapshot
+     * delta).
+     * @internal
      */
-    public unmapRemovedSoftBodies() {
-        for (let body of this.map.getAll()) {
-            if (!this.raw.contains(body.handle)) {
-                this.map.delete(body.handle);
+    public mapHandles(
+        handles: Iterable<number>,
+        bodies: RigidBodySet,
+        colliders: ColliderSet,
+    ) {
+        for (const handle of handles) {
+            this.map.set(
+                handle,
+                new SoftBody(this.raw, bodies, colliders, handle),
+            );
+        }
+    }
+
+    /**
+     * Drops the wrappers of the given soft bodies, which the engine no longer holds (e.g.
+     * after an applied snapshot delta removed them).
+     * @internal
+     */
+    public unmapHandles(handles: Iterable<number>) {
+        for (const handle of handles) {
+            // The map ignores generations: keep a wrapper that already took the slot.
+            if (this.map.get(handle)?.handle === handle) {
+                this.map.delete(handle);
             }
         }
     }

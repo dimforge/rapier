@@ -12,7 +12,15 @@
   declares it on a receiver restored from a snapshot taken right after, so it accepts deltas from that tick.
   An incremental delta is only accepted by a receiver holding its baseline (not stepped since).
 - Delta errors are `Error`s with a `kind` property: `"tracking_disabled"`, `"unknown_baseline"`,
-  `"baseline_mismatch"`, `"malformed"` or `"missing_shape"`.
+  `"baseline_mismatch"`, `"malformed"` or `"missing_shape"`, typed by the exported `SnapshotDeltaError`
+  and `SnapshotDeltaErrorKind`.
+- Deltas and ticks start with an 8-byte header (magic telling deltas from ticks, format version,
+  dimension and scalar size): bytes from another dimension, format version or of the wrong type are
+  rejected as `"malformed"` instead of being misread. Deltas must still come from the same rapier.js
+  build as the receiver.
+- `World.applyDelta` only updates the wrappers of the objects the delta added, removed, reparented or
+  reshaped: the engine diffs the sets natively (O(world size)), and the JavaScript work is proportional
+  to the changes. Colliders whose shape did not change keep their cached `Collider.shape` object.
 
 ### Fixed
 

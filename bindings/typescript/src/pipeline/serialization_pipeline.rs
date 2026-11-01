@@ -4,16 +4,20 @@ use crate::dynamics::{
 };
 use crate::geometry::{RawBroadPhase, RawColliderSet, RawNarrowPhase};
 use crate::math::RawVector;
+use crate::utils::{self, FlatHandle};
 use bincode::Options;
 use js_sys::Uint8Array;
-use rapier::data::DeltaError;
+use rapier::data::{DeltaError, Index};
 use rapier::dynamics::{
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
     SoftBodySet,
 };
-use rapier::geometry::{ColliderSet, DefaultBroadPhase, NarrowPhase};
-use rapier::math::Vector;
+use rapier::geometry::{
+    Collider, ColliderSet, DefaultBroadPhase, NarrowPhase, ShapeType, SharedShape,
+};
+use rapier::math::{Real, Vector};
 use rapier::pipeline::{WorldChangeTick, WorldComponentsMut, WorldDelta};
+use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
 #[derive(Serialize)]
@@ -102,7 +106,8 @@ impl RawDeserializedWorld {
     }
 }
 
-/// A world delta and the tick a receiver is at once it applied it, both bincode-serialized.
+/// A world delta and the tick a receiver is at once it applied it, both serialized with their
+/// header.
 #[wasm_bindgen]
 pub struct RawWorldDelta {
     delta: Vec<u8>,
@@ -111,21 +116,409 @@ pub struct RawWorldDelta {
 
 #[wasm_bindgen]
 impl RawWorldDelta {
-    /// The bincode bytes of the `WorldDelta`.
+    /// The serialized `WorldDelta`.
     #[wasm_bindgen(getter)]
     pub fn delta(&self) -> Uint8Array {
         Uint8Array::from(&self.delta[..])
     }
 
-    /// The bincode bytes of the `WorldChangeTick` to acknowledge once the delta is applied.
+    /// The serialized `WorldChangeTick` to acknowledge once the delta is applied.
     #[wasm_bindgen(getter)]
     pub fn tick(&self) -> Uint8Array {
         Uint8Array::from(&self.tick[..])
     }
 }
 
+/// The handles a set gained and lost through an applied delta.
+#[derive(Default)]
+struct SetChanges {
+    added: Vec<FlatHandle>,
+    removed: Vec<FlatHandle>,
+}
+
+/// The outcome of `applyDelta`: the tick to acknowledge, or the error that stopped the patch,
+/// and what changed for the JS wrappers to follow (also when the patch failed partway).
+#[wasm_bindgen]
+pub struct RawAppliedDelta {
+    tick: Option<Vec<u8>>,
+    error: Option<JsValue>,
+    bodies: SetChanges,
+    colliders: SetChanges,
+    impulse_joints: SetChanges,
+    multibody_joints: SetChanges,
+    soft_bodies: SetChanges,
+    colliders_reparented: Vec<FlatHandle>,
+    colliders_reshaped: Vec<FlatHandle>,
+}
+
+#[wasm_bindgen]
+impl RawAppliedDelta {
+    /// The serialized tick to acknowledge, or `undefined` if the patch failed.
+    #[wasm_bindgen(getter)]
+    pub fn tick(&self) -> Option<Uint8Array> {
+        self.tick.as_ref().map(|tick| Uint8Array::from(&tick[..]))
+    }
+
+    /// The kinded `Error` that stopped the patch, or `undefined`.
+    #[wasm_bindgen(getter)]
+    pub fn error(&self) -> JsValue {
+        self.error.clone().unwrap_or(JsValue::UNDEFINED)
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn bodiesAdded(&self) -> Vec<FlatHandle> {
+        self.bodies.added.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn bodiesRemoved(&self) -> Vec<FlatHandle> {
+        self.bodies.removed.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn collidersAdded(&self) -> Vec<FlatHandle> {
+        self.colliders.added.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn collidersRemoved(&self) -> Vec<FlatHandle> {
+        self.colliders.removed.clone()
+    }
+
+    /// The colliders kept by the patch whose parent changed.
+    #[wasm_bindgen(getter)]
+    pub fn collidersReparented(&self) -> Vec<FlatHandle> {
+        self.colliders_reparented.clone()
+    }
+
+    /// The colliders kept by the patch whose shape may have changed (or which hold a deformable
+    /// collision mesh).
+    #[wasm_bindgen(getter)]
+    pub fn collidersReshaped(&self) -> Vec<FlatHandle> {
+        self.colliders_reshaped.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn impulseJointsAdded(&self) -> Vec<FlatHandle> {
+        self.impulse_joints.added.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn impulseJointsRemoved(&self) -> Vec<FlatHandle> {
+        self.impulse_joints.removed.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn multibodyJointsAdded(&self) -> Vec<FlatHandle> {
+        self.multibody_joints.added.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn multibodyJointsRemoved(&self) -> Vec<FlatHandle> {
+        self.multibody_joints.removed.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesAdded(&self) -> Vec<FlatHandle> {
+        self.soft_bodies.added.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn softBodiesRemoved(&self) -> Vec<FlatHandle> {
+        self.soft_bodies.removed.clone()
+    }
+}
+
+/// An occupied arena slot: index, generation and the data compared across the patch.
+type Slot<T> = (u32, u32, T);
+
+/// The occupied slots of a set, sorted by index.
+fn slots<T>(iter: impl Iterator<Item = (Index, T)>) -> Vec<Slot<T>> {
+    let mut slots: Vec<_> = iter
+        .map(|(handle, data)| {
+            let (index, generation) = handle.into_raw_parts();
+            (index, generation, data)
+        })
+        .collect();
+    slots.sort_unstable_by_key(|slot| slot.0);
+    slots
+}
+
+fn slot_handle<T>(slot: &Slot<T>) -> FlatHandle {
+    utils::flat_handle(Index::from_raw_parts(slot.0, slot.1))
+}
+
+/// Merges the sorted slots of a set before and after the patch into `changes`, and calls `kept`
+/// on the handles present in both.
+fn diff_slots<T>(
+    before: &[Slot<T>],
+    after: &[Slot<T>],
+    changes: &mut SetChanges,
+    mut kept: impl FnMut(FlatHandle, &T, &T),
+) {
+    use core::cmp::Ordering;
+    let (mut i, mut j) = (0, 0);
+    loop {
+        match (before.get(i), after.get(j)) {
+            (None, None) => break,
+            (Some(b), None) => {
+                changes.removed.push(slot_handle(b));
+                i += 1;
+            }
+            (None, Some(a)) => {
+                changes.added.push(slot_handle(a));
+                j += 1;
+            }
+            (Some(b), Some(a)) => match b.0.cmp(&a.0) {
+                Ordering::Less => {
+                    changes.removed.push(slot_handle(b));
+                    i += 1;
+                }
+                Ordering::Greater => {
+                    changes.added.push(slot_handle(a));
+                    j += 1;
+                }
+                Ordering::Equal => {
+                    if b.1 == a.1 {
+                        kept(slot_handle(a), &b.2, &a.2);
+                    } else {
+                        changes.removed.push(slot_handle(b));
+                        changes.added.push(slot_handle(a));
+                    }
+                    i += 1;
+                    j += 1;
+                }
+            },
+        }
+    }
+}
+
+/// What a patch may change of a collider wrapper: its parent, and its shape.
+///
+/// Comparing shape pointers is sound: the delta's shapes are allocated when it decodes, before
+/// the first record, so no new shape reuses the address of one the patch frees.
+struct ColliderSlotData {
+    parent: Option<Index>,
+    shape_ptr: usize,
+    /// A hash of the bytes of a light shape, which patches rebuild behind a new pointer.
+    light_shape: Option<u64>,
+    deformable: bool,
+}
+
+impl ColliderSlotData {
+    fn new(co: &Collider, buf: &mut Vec<u8>) -> Self {
+        let shape = co.shared_shape();
+        ColliderSlotData {
+            parent: co.parent().map(|p| p.0),
+            shape_ptr: Arc::as_ptr(&shape.0) as *const () as usize,
+            light_shape: light_shape_hash(shape, buf),
+            deformable: co.deformable_mesh_ref().is_some(),
+        }
+    }
+
+    /// Whether the wrapper's cached shape may be stale once `self` became `after`.
+    fn reshaped(&self, after: &Self) -> bool {
+        // A deformable mesh may be rewritten in place, behind the same pointer.
+        after.deformable
+            || (self.shape_ptr != after.shape_ptr
+                && (self.light_shape.is_none() || self.light_shape != after.light_shape))
+    }
+}
+
+/// Hashes the bytes of the shapes the engine sends inline in deltas (the ones it does not
+/// deduplicate by content), like `ColliderSet`'s light shapes.
+fn light_shape_hash(shape: &SharedShape, buf: &mut Vec<u8>) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+    let light = match shape.shape_type() {
+        ShapeType::Ball
+        | ShapeType::Cuboid
+        | ShapeType::Capsule
+        | ShapeType::Segment
+        | ShapeType::Triangle
+        | ShapeType::HalfSpace
+        | ShapeType::RoundCuboid
+        | ShapeType::RoundTriangle => true,
+        #[cfg(feature = "dim3")]
+        ShapeType::Cylinder | ShapeType::Cone | ShapeType::RoundCylinder | ShapeType::RoundCone => {
+            true
+        }
+        _ => false,
+    };
+    if !light {
+        return None;
+    }
+    buf.clear();
+    bincode::serialize_into(&mut *buf, shape).ok()?;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    buf.hash(&mut hasher);
+    Some(hasher.finish())
+}
+
+/// The occupied slots of every set, recorded before and after a patch.
+struct WorldSlots {
+    bodies: Vec<Slot<()>>,
+    colliders: Vec<Slot<ColliderSlotData>>,
+    impulse_joints: Vec<Slot<()>>,
+    multibody_joints: Vec<Slot<()>>,
+    soft_bodies: Vec<Slot<()>>,
+}
+
+impl WorldSlots {
+    fn record(
+        bodies: &RawRigidBodySet,
+        colliders: &RawColliderSet,
+        impulse_joints: &RawImpulseJointSet,
+        multibody_joints: &RawMultibodyJointSet,
+        soft_bodies: &RawSoftBodySet,
+    ) -> Self {
+        let mut buf = Vec::new();
+        WorldSlots {
+            bodies: slots(bodies.0.iter().map(|(h, _)| (h.0, ()))),
+            colliders: slots(
+                colliders
+                    .0
+                    .iter()
+                    .map(|(h, co)| (h.0, ColliderSlotData::new(co, &mut buf))),
+            ),
+            impulse_joints: slots(impulse_joints.0.iter().map(|(h, _)| (h.0, ()))),
+            multibody_joints: slots(multibody_joints.0.iter().map(|(h, ..)| (h.0, ()))),
+            soft_bodies: slots(soft_bodies.0.iter().map(|(h, _)| (h.0, ()))),
+        }
+    }
+
+    /// What changed from `self` (before the patch) to `after`.
+    fn changes(&self, after: &WorldSlots, result: Result<Vec<u8>, JsValue>) -> RawAppliedDelta {
+        let (tick, error) = match result {
+            Ok(tick) => (Some(tick), None),
+            Err(err) => (None, Some(err)),
+        };
+        let mut applied = RawAppliedDelta {
+            tick,
+            error,
+            bodies: SetChanges::default(),
+            colliders: SetChanges::default(),
+            impulse_joints: SetChanges::default(),
+            multibody_joints: SetChanges::default(),
+            soft_bodies: SetChanges::default(),
+            colliders_reparented: Vec::new(),
+            colliders_reshaped: Vec::new(),
+        };
+        diff_slots(
+            &self.bodies,
+            &after.bodies,
+            &mut applied.bodies,
+            |_, _, _| {},
+        );
+        let (reparented, reshaped) = (
+            &mut applied.colliders_reparented,
+            &mut applied.colliders_reshaped,
+        );
+        diff_slots(
+            &self.colliders,
+            &after.colliders,
+            &mut applied.colliders,
+            |handle, b, a| {
+                if b.parent != a.parent {
+                    reparented.push(handle);
+                }
+                if b.reshaped(a) {
+                    reshaped.push(handle);
+                }
+            },
+        );
+        diff_slots(
+            &self.impulse_joints,
+            &after.impulse_joints,
+            &mut applied.impulse_joints,
+            |_, _, _| {},
+        );
+        diff_slots(
+            &self.multibody_joints,
+            &after.multibody_joints,
+            &mut applied.multibody_joints,
+            |_, _, _| {},
+        );
+        diff_slots(
+            &self.soft_bodies,
+            &after.soft_bodies,
+            &mut applied.soft_bodies,
+            |_, _, _| {},
+        );
+        applied
+    }
+}
+
 /// The largest delta or tick accepted, like the C bindings.
 const MAX_DELTA_BYTES: usize = 256 * 1024 * 1024;
+
+/// The magic opening every serialized delta.
+const DELTA_MAGIC: [u8; 4] = *b"RJSD";
+/// The magic opening every serialized tick.
+const TICK_MAGIC: [u8; 4] = *b"RJST";
+/// The version of the delta and tick encoding, bumped whenever their layout changes.
+const FORMAT_VERSION: u16 = 1;
+#[cfg(feature = "dim2")]
+const DIMENSION: u8 = 2;
+#[cfg(feature = "dim3")]
+const DIMENSION: u8 = 3;
+const SCALAR_SIZE: u8 = core::mem::size_of::<Real>() as u8;
+/// The header: magic, little-endian format version, dimension and scalar size in bytes.
+const HEADER_LEN: usize = 8;
+
+fn header(magic: [u8; 4]) -> [u8; HEADER_LEN] {
+    let version = FORMAT_VERSION.to_le_bytes();
+    [
+        magic[0],
+        magic[1],
+        magic[2],
+        magic[3],
+        version[0],
+        version[1],
+        DIMENSION,
+        SCALAR_SIZE,
+    ]
+}
+
+/// Checks the header of a serialized `what` opened by `magic`, and returns the payload.
+fn check_header<'a>(what: &str, magic: [u8; 4], bytes: &'a [u8]) -> Result<&'a [u8], JsValue> {
+    let malformed =
+        |reason: String| kinded_error("malformed", &format!("malformed {what}: {reason}"));
+    if bytes.len() < HEADER_LEN {
+        return Err(malformed("too short for the rapier.js header".into()));
+    }
+    let (head, payload) = bytes.split_at(HEADER_LEN);
+    if head[..4] != magic {
+        let other = if magic == DELTA_MAGIC {
+            (TICK_MAGIC, "a tick")
+        } else {
+            (DELTA_MAGIC, "a delta")
+        };
+        return Err(malformed(if head[..4] == other.0 {
+            format!("got {} instead", other.1)
+        } else {
+            "not produced by rapier.js (bad magic)".into()
+        }));
+    }
+    let version = u16::from_le_bytes([head[4], head[5]]);
+    if version != FORMAT_VERSION {
+        return Err(malformed(format!(
+            "format version {version}, this rapier.js build reads version {FORMAT_VERSION}"
+        )));
+    }
+    if head[6] != DIMENSION {
+        return Err(malformed(format!(
+            "produced by a {}D build, this is a {DIMENSION}D build",
+            head[6]
+        )));
+    }
+    if head[7] != SCALAR_SIZE {
+        return Err(malformed(format!(
+            "produced by a build with {}-byte scalars, this build uses {SCALAR_SIZE}-byte scalars",
+            head[7]
+        )));
+    }
+    Ok(payload)
+}
 
 /// The bincode options of deltas and ticks: the encoding of `bincode::serialize`, with a size
 /// limit and no trailing bytes when decoding.
@@ -155,22 +548,38 @@ fn delta_error(err: DeltaError) -> JsValue {
     kinded_error(kind, &format!("snapshot delta: {err}"))
 }
 
-fn encode<T: serde::Serialize>(value: &T) -> Result<Vec<u8>, JsValue> {
+fn encode<T: serde::Serialize>(magic: [u8; 4], value: &T) -> Result<Vec<u8>, JsValue> {
+    let mut bytes = header(magic).to_vec();
     delta_options()
-        .serialize(value)
-        .map_err(|e| JsValue::from(js_sys::Error::new(&e.to_string())))
+        .serialize_into(&mut bytes, value)
+        .map_err(|e| JsValue::from(js_sys::Error::new(&e.to_string())))?;
+    Ok(bytes)
 }
 
-fn decode<T: serde::de::DeserializeOwned>(what: &str, bytes: &Uint8Array) -> Result<T, JsValue> {
-    if bytes.length() as usize > MAX_DELTA_BYTES {
+fn decode<T: serde::de::DeserializeOwned>(
+    what: &str,
+    magic: [u8; 4],
+    bytes: &Uint8Array,
+) -> Result<T, JsValue> {
+    if bytes.length() as usize > MAX_DELTA_BYTES + HEADER_LEN {
         return Err(kinded_error(
             "malformed",
             &format!("malformed {what}: exceeds 256 MiB"),
         ));
     }
+    let bytes = bytes.to_vec();
+    let payload = check_header(what, magic, &bytes)?;
     delta_options()
-        .deserialize(&bytes.to_vec()[..])
+        .deserialize(payload)
         .map_err(|e| kinded_error("malformed", &format!("malformed {what}: {e}")))
+}
+
+fn decode_tick(bytes: &Uint8Array) -> Result<WorldChangeTick, JsValue> {
+    decode("snapshot delta tick", TICK_MAGIC, bytes)
+}
+
+fn encode_tick(tick: &WorldChangeTick) -> Result<Vec<u8>, JsValue> {
+    encode(TICK_MAGIC, tick)
 }
 
 #[wasm_bindgen]
@@ -338,7 +747,7 @@ impl RawSerializationPipeline {
         )
         .change_tick()
         .map_err(delta_error)?;
-        Ok(Uint8Array::from(&encode(&tick)?[..]))
+        Ok(Uint8Array::from(&encode_tick(&tick)?[..]))
     }
 
     /// Declares that the components hold the sender's state at the serialized `tick`.
@@ -358,7 +767,7 @@ impl RawSerializationPipeline {
         multibody_joints: &mut RawMultibodyJointSet,
         tick: Uint8Array,
     ) -> Result<(), JsValue> {
-        let tick: WorldChangeTick = decode("snapshot delta tick", &tick)?;
+        let tick = decode_tick(&tick)?;
         components(
             gravity,
             integrationParameters,
@@ -393,9 +802,7 @@ impl RawSerializationPipeline {
         multibody_joints: &mut RawMultibodyJointSet,
         since: Option<Uint8Array>,
     ) -> Result<RawWorldDelta, JsValue> {
-        let since: Option<WorldChangeTick> = since
-            .map(|bytes| decode("snapshot delta tick", &bytes))
-            .transpose()?;
+        let since = since.map(|bytes| decode_tick(&bytes)).transpose()?;
         let (delta, tick) = components(
             gravity,
             integrationParameters,
@@ -411,18 +818,18 @@ impl RawSerializationPipeline {
         .delta_since(since)
         .map_err(delta_error)?;
         Ok(RawWorldDelta {
-            delta: encode(&delta)?,
-            tick: encode(&tick)?,
+            delta: encode(DELTA_MAGIC, &delta)?,
+            tick: encode_tick(&tick)?,
         })
     }
 
     /// Patches a serialized `WorldDelta` into the components, gravity and integration
     /// parameters, rebuilds their derived state, and returns the serialized `WorldChangeTick`
-    /// to acknowledge to the sender.
+    /// to acknowledge to the sender with the handles the patch added, removed or modified.
     ///
-    /// Throws an `Error` with a `kind` property (see `World.applyDelta`). Once the bytes
-    /// decoded, the gravity, integration parameters and the components applied before the
-    /// failing one keep their new state.
+    /// Throws an `Error` with a `kind` property (see `World.applyDelta`) if the bytes do not
+    /// decode, leaving the world untouched. A patch failing afterwards is reported by the
+    /// result's `error`, with what the components applied before the failing one changed.
     pub fn applyDelta(
         &self,
         data: Uint8Array,
@@ -436,9 +843,16 @@ impl RawSerializationPipeline {
         soft_bodies: &mut RawSoftBodySet,
         impulse_joints: &mut RawImpulseJointSet,
         multibody_joints: &mut RawMultibodyJointSet,
-    ) -> Result<Uint8Array, JsValue> {
-        let delta: WorldDelta = decode("snapshot delta", &data)?;
-        let tick = components(
+    ) -> Result<RawAppliedDelta, JsValue> {
+        let delta: WorldDelta = decode("snapshot delta", DELTA_MAGIC, &data)?;
+        let before = WorldSlots::record(
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+        );
+        let result = components(
             gravity,
             integrationParameters,
             islands,
@@ -451,8 +865,16 @@ impl RawSerializationPipeline {
             multibody_joints,
         )
         .apply_delta(delta)
-        .map_err(delta_error)?;
-        Ok(Uint8Array::from(&encode(&tick)?[..]))
+        .map_err(delta_error)
+        .and_then(|tick| encode_tick(&tick));
+        let after = WorldSlots::record(
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies,
+        );
+        Ok(before.changes(&after, result))
     }
 }
 

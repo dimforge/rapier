@@ -1,4 +1,9 @@
-import {RawSerializationPipeline, RawVector, RawWorldDelta} from "../raw";
+import {
+    RawAppliedDelta,
+    RawSerializationPipeline,
+    RawVector,
+    RawWorldDelta,
+} from "../raw";
 import {Vector, VectorOps} from "../math";
 import {
     IntegrationParameters,
@@ -10,6 +15,26 @@ import {
 } from "../dynamics";
 import {BroadPhase, ColliderSet, NarrowPhase} from "../geometry";
 import {World} from "./world";
+
+/**
+ * The category of a snapshot-delta error, its `kind` property:
+ * - `"tracking_disabled"`: change tracking is disabled on the sender.
+ * - `"unknown_baseline"`: the tick was not issued by the sender's current change trackers.
+ * - `"baseline_mismatch"`: the delta was produced against another state than the receiver's.
+ * - `"malformed"`: the bytes are not a delta or tick of this rapier.js build.
+ * - `"missing_shape"`: the delta references a shape the receiver does not hold.
+ */
+export type SnapshotDeltaErrorKind =
+    | "tracking_disabled"
+    | "unknown_baseline"
+    | "baseline_mismatch"
+    | "malformed"
+    | "missing_shape";
+
+/**
+ * The `Error` thrown by the snapshot-delta methods of `World`, with a machine-readable `kind`.
+ */
+export type SnapshotDeltaError = Error & {kind: SnapshotDeltaErrorKind};
 
 /**
  * A pipeline for serializing the physics scene.
@@ -146,7 +171,8 @@ export class SerializationPipeline {
     /**
      * The serialized tick naming the current physics state (see `World.changeTick`).
      *
-     * Throws an `Error` with `kind` `"tracking_disabled"` if change tracking is disabled.
+     * Throws a `SnapshotDeltaError` of kind `"tracking_disabled"` if change tracking is
+     * disabled.
      */
     public changeTick(
         gravity: Vector,
@@ -180,7 +206,7 @@ export class SerializationPipeline {
      * Declares that the components hold the sender's state at `tick` (see
      * `World.setDeltaBaseline`).
      *
-     * Throws an `Error` with `kind` `"malformed"` if `tick` is not a serialized tick.
+     * Throws a `SnapshotDeltaError` of kind `"malformed"` if `tick` is not a serialized tick.
      */
     public setDeltaBaseline(
         gravity: Vector,
@@ -216,7 +242,7 @@ export class SerializationPipeline {
      * Serializes the changes made to the physics state since the tick `since` (or the whole
      * state if `since` is not given). Requires change tracking.
      *
-     * Throws an `Error` with a `kind` property, see `World.takeDelta`.
+     * Throws a `SnapshotDeltaError`, see `World.takeDelta`.
      *
      * @param since - A tick returned by an earlier `takeDelta`, by `changeTick`, or by
      *                `applyDelta`.
@@ -259,11 +285,14 @@ export class SerializationPipeline {
      * Patches a delta serialized by `takeDelta` into the given components and integration
      * parameters, starting from the given gravity.
      *
-     * Throws an `Error` with a `kind` property, see `World.applyDelta`. Once the delta decoded,
-     * the gravity, integration parameters and the components patched before the error keep
-     * their new state.
+     * Throws a `SnapshotDeltaError`, see `World.applyDelta`. A delta that does not decode or
+     * targets another baseline changes nothing; after any other error, the gravity, integration
+     * parameters and the components patched before the error keep their new state.
      *
      * @param onGravity - Called with the resulting gravity, also when the delta fails to apply.
+     * @param onChanges - Called with the handles the patch added, removed or modified, also
+     *                    when the delta fails to apply after it decoded. Only valid during the
+     *                    call.
      * @returns The tick to acknowledge to the sender.
      */
     public applyDelta(
@@ -279,10 +308,12 @@ export class SerializationPipeline {
         impulseJoints: ImpulseJointSet,
         multibodyJoints: MultibodyJointSet,
         onGravity: (gravity: Vector) => void,
+        onChanges?: (changes: RawAppliedDelta) => void,
     ): Uint8Array {
         let rawGra = VectorOps.intoRaw(gravity);
+        let applied: RawAppliedDelta;
         try {
-            return this.raw.applyDelta(
+            applied = this.raw.applyDelta(
                 delta,
                 rawGra,
                 integrationParameters.raw,
@@ -297,6 +328,14 @@ export class SerializationPipeline {
             );
         } finally {
             onGravity(VectorOps.fromRaw(rawGra));
+        }
+        try {
+            if (onChanges) onChanges(applied);
+            const error = applied.error;
+            if (error !== undefined) throw error;
+            return applied.tick;
+        } finally {
+            applied.free();
         }
     }
 

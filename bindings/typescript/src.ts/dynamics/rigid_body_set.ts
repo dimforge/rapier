@@ -212,6 +212,31 @@ export class RigidBodySet {
     }
 
     /**
+     * Wraps the given rigid-bodies, which the engine added (e.g. through an applied snapshot
+     * delta).
+     * @internal
+     */
+    public mapHandles(handles: Iterable<number>, colliders: ColliderSet) {
+        for (const handle of handles) {
+            this.map.set(handle, new RigidBody(this.raw, colliders, handle));
+        }
+    }
+
+    /**
+     * Drops the wrappers of the given rigid-bodies, which the engine no longer holds (e.g.
+     * after an applied snapshot delta removed them).
+     * @internal
+     */
+    public unmapHandles(handles: Iterable<number>) {
+        for (const handle of handles) {
+            // The map ignores generations: keep a wrapper that already took the slot.
+            if (this.map.get(handle)?.handle === handle) {
+                this.map.delete(handle);
+            }
+        }
+    }
+
+    /**
      * The number of rigid-bodies on this set.
      */
     public len(): number {

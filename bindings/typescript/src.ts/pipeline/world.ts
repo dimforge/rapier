@@ -1,4 +1,5 @@
 import {
+    RawAppliedDelta,
     RawBroadPhase,
     RawCCDSolver,
     RawColliderSet,
@@ -252,8 +253,8 @@ export class World {
      * Starts recording which parts of this world change, so `takeDelta` can serialize only
      * what changed since a state a receiver acknowledged.
      *
-     * Restarting it (after `disableChangeTracking`) invalidates every tick issued before:
-     * receivers must then be bootstrapped again with a full delta.
+     * Restarting it invalidates every tick issued before: receivers must then be bootstrapped
+     * again with a full delta.
      */
     public enableChangeTracking() {
         this.serializationPipeline.enableChangeTracking(
@@ -279,7 +280,8 @@ export class World {
      * snapshot with `World.restoreSnapshot`, then calls `setDeltaBaseline(tick)`, and can
      * apply the deltas `takeDelta(tick)` produces.
      *
-     * Throws an `Error` with `kind` `"tracking_disabled"` if change tracking is disabled.
+     * Throws a `SnapshotDeltaError` of kind `"tracking_disabled"` if change tracking is
+     * disabled.
      *
      * @returns The serialized tick, an opaque byte array.
      */
@@ -292,7 +294,8 @@ export class World {
      * sender's `changeTick()` right before the snapshot this world was restored from. Deltas
      * produced against `tick` can then be applied with `applyDelta`.
      *
-     * Throws an `Error` with `kind` `"malformed"` if `tick` is not a serialized tick.
+     * Throws a `SnapshotDeltaError` of kind `"malformed"` if `tick` is not a tick serialized by
+     * this rapier.js build.
      */
     public setDeltaBaseline(tick: Uint8Array) {
         this.serializationPipeline.setDeltaBaseline(
@@ -325,10 +328,15 @@ export class World {
      * has the same `takeSnapshot()` bytes as the sender (only with the deterministic builds
      * when composite shapes, like compounds or soft bodies, are in contact).
      *
-     * Throws an `Error` whose `kind` property is `"tracking_disabled"` (change tracking is
-     * disabled), `"unknown_baseline"` (`since` was not issued by this world's current change
-     * trackers, e.g. tracking was restarted: send a full delta instead) or `"malformed"`
-     * (`since` is not a serialized tick).
+     * Deltas and ticks are only readable by the same rapier.js build (same package and
+     * version) as the one that produced them. They start with a header naming their type, format
+     * version, dimension and scalar size, so mismatching bytes are rejected as `"malformed"`
+     * rather than misread, but a payload layout change across versions may go undetected.
+     *
+     * Throws a `SnapshotDeltaError` (see `SnapshotDeltaErrorKind`) of kind
+     * `"tracking_disabled"` (change tracking is disabled), `"unknown_baseline"` (`since` was not
+     * issued by this world's current change trackers, e.g. tracking was restarted: send a full
+     * delta instead) or `"malformed"` (`since` is not a tick of this rapier.js build).
      *
      * @param since - The last tick acknowledged by the receiver (returned by its
      *                `applyDelta`, or by the sender's `takeDelta` or `changeTick`). Omit it for
@@ -353,27 +361,36 @@ export class World {
      * This world must hold the state the delta was produced against: the target of the last
      * delta it applied, or the tick given to `setDeltaBaseline`, without being stepped since.
      * A full delta (taken without baseline) is accepted in any state and replaces the whole
-     * world. The gravity and the integration parameters are updated too, and the
-     * rigid-bodies, colliders, joints and soft bodies the delta added or removed are
-     * (un)mapped.
+     * world. It should target an empty world or a replica of the same sender: this world's
+     * wrappers whose handle also names an object of the sender are kept as they are, even if
+     * that object differs (e.g. an `ImpulseJoint` wrapper keeps its joint type).
      *
-     * Throws an `Error` whose `kind` property is `"baseline_mismatch"` (the delta was produced
-     * against another state), `"malformed"` (the bytes are not a valid delta) or
-     * `"missing_shape"` (a collider references a shape this world does not hold). Once the
-     * delta decoded, the world may be partially patched: apply a full delta to recover.
+     * The delta must come from the same rapier.js build (same package and version), see
+     * `takeDelta`.
+     *
+     * The gravity and the integration parameters are updated too, and the rigid-bodies,
+     * colliders, joints and soft bodies the delta added or removed are (un)mapped. Colliders
+     * whose parent changed get their `parent()` updated, and only the colliders whose shape may
+     * have changed (or which hold a deformable mesh) drop their cached `shape`: the other
+     * `Collider.shape` objects are kept. Finding these changes costs a native pass over every
+     * object of the world, while the JavaScript work is proportional to what changed.
+     *
+     * Throws a `SnapshotDeltaError` (see `SnapshotDeltaErrorKind`) of kind
+     * `"baseline_mismatch"` (the delta was produced against another state), `"malformed"` (the
+     * bytes are not a delta of this rapier.js build) or `"missing_shape"` (a collider
+     * references a shape this world does not hold). A delta that does not decode or targets
+     * another baseline leaves the world untouched; after any other error, the world may be
+     * partially patched: apply a full delta to recover.
      */
     public applyDelta(delta: Uint8Array): Uint8Array {
-        try {
-            return this.serializationPipeline.applyDelta(
-                delta,
-                ...this.deltaComponents(),
-                (gravity) => {
-                    this.gravity = gravity;
-                },
-            );
-        } finally {
-            this.syncWrappersAfterDelta();
-        }
+        return this.serializationPipeline.applyDelta(
+            delta,
+            ...this.deltaComponents(),
+            (gravity) => {
+                this.gravity = gravity;
+            },
+            (changes) => this.syncWrappersAfterDelta(changes),
+        );
     }
 
     private deltaComponents(): [
@@ -403,25 +420,27 @@ export class World {
     }
 
     /**
-     * Updates the JavaScript wrappers of the bodies, colliders, joints and soft bodies after
-     * an applied delta added, removed or modified some of them.
-     *
-     * This visits every wrapper and every engine object, so it costs O(world size) per
-     * applied delta, however small the delta.
+     * Updates the JavaScript wrappers of the bodies, colliders, joints and soft bodies the
+     * applied delta added, removed or modified, as reported by the engine.
      */
-    private syncWrappersAfterDelta() {
+    private syncWrappersAfterDelta(changes: RawAppliedDelta) {
         // Unmap first: a removed object's index may have been reused by an added one.
-        this.bodies.unmapRemovedBodies();
-        this.colliders.unmapRemovedColliders();
-        this.impulseJoints.unmapRemovedJoints();
-        this.multibodyJoints.unmapRemovedJoints();
-        this.softBodies.unmapRemovedSoftBodies();
-        this.bodies.mapNewBodies(this.colliders);
-        this.colliders.mapNewColliders(this.bodies);
-        this.impulseJoints.mapNewJoints(this.bodies);
-        this.multibodyJoints.mapNewJoints();
-        this.softBodies.mapNewSoftBodies(this.bodies, this.colliders);
-        this.colliders.refreshParentsAndShapes(this.bodies);
+        this.bodies.unmapHandles(changes.bodiesRemoved);
+        this.colliders.unmapHandles(changes.collidersRemoved);
+        this.impulseJoints.unmapHandles(changes.impulseJointsRemoved);
+        this.multibodyJoints.unmapHandles(changes.multibodyJointsRemoved);
+        this.softBodies.unmapHandles(changes.softBodiesRemoved);
+        this.bodies.mapHandles(changes.bodiesAdded, this.colliders);
+        this.colliders.mapHandles(changes.collidersAdded, this.bodies);
+        this.impulseJoints.mapHandles(changes.impulseJointsAdded, this.bodies);
+        this.multibodyJoints.mapHandles(changes.multibodyJointsAdded);
+        this.softBodies.mapHandles(
+            changes.softBodiesAdded,
+            this.bodies,
+            this.colliders,
+        );
+        this.colliders.refreshParents(changes.collidersReparented, this.bodies);
+        this.colliders.clearShapeCaches(changes.collidersReshaped);
     }
 
     /**
