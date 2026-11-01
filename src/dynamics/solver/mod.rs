@@ -2,6 +2,8 @@ use self::velocity_solver::VelocitySolver;
 use crate::alloc_prelude::*;
 
 use contact_constraint::*;
+#[cfg(all(feature = "dim3", feature = "serde-serialize"))]
+pub(crate) use contact_constraint::compute_tangent_contact_directions;
 pub(crate) use joint_constraint::MotorParameters;
 pub use joint_constraint::*;
 use solver_body::SolverVel;

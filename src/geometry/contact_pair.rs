@@ -1130,12 +1130,10 @@ impl ContactManifoldData {
 /// after a restore and to verify replayability at serialization.
 #[cfg(all(feature = "dim3", feature = "serde-serialize"))]
 pub(crate) fn replay_tangent_basis(normal: &Vector) -> (Vector, Vector) {
-    use crate::utils::CrossProduct;
-    use crate::utils::OrthonormalBasis;
-    let force_dir1 = -*normal;
-    let tangent1 = force_dir1.orthonormal_vector();
-    let tangent2 = force_dir1.gcross(tangent1);
-    (tangent1, tangent2)
+    use crate::dynamics::solver::compute_tangent_contact_directions;
+    let [t1, t2] =
+        compute_tangent_contact_directions::<Real>(&-*normal, &Vector::ZERO, &Vector::ZERO);
+    (t1, t2)
 }
 
 /// Mirrors the solver writeback's `warmstart_tangent_world` expression exactly.
@@ -1145,12 +1143,9 @@ pub(crate) fn replay_tangent_world(t1: &Vector, t2: &Vector, data: &ContactData)
     crate::utils::canonicalize_zero(*t1 * imp.x + *t2 * imp.y)
 }
 
-/// Custom serialization of [`ContactPair`]: identical to the old derive except for each
-/// manifold's `normal` + `solver_contacts`, which shrink to one byte per solver contact
-/// when they can be replayed from the recycle state's frozen poses after a restore (see
-/// `narrow_phase::restore`). Replay applies when the pair's last full update did not run
-/// the `modify_solver_contacts` hook and both body poses at that update derive
-/// bit-exactly from the stored collider poses (the `PairEventStatus` solver bits).
+/// Custom serialization of [`ContactPair`]: each manifold's `normal` and `solver_contacts` shrink
+/// to one byte per solver contact when [`ContactReplayState::replayable`] says the restore can
+/// replay them from the recycle state's frozen poses (see `narrow_phase::restore`).
 #[cfg(feature = "serde-serialize")]
 mod pair_serde {
     use super::*;
@@ -1214,7 +1209,7 @@ mod pair_serde {
     /// reproduces the encoding it was restored from.
     fn compact_point(
         pt: &Contact,
-        manifold_normal: &Vector,
+        tangent_basis: &(Vector, Vector),
         recompute: Option<bool>,
     ) -> CompactPoint {
         // The tangent world vector is dropped when it bit-matches the recomputation
@@ -1223,8 +1218,7 @@ mod pair_serde {
         let tangent_world = if let Some(recompute) = recompute {
             (!recompute).then_some(pt.data.warmstart_tangent_world)
         } else {
-            let (t1, t2) = replay_tangent_basis(manifold_normal);
-            let r = replay_tangent_world(&t1, &t2, &pt.data);
+            let r = replay_tangent_world(&tangent_basis.0, &tangent_basis.1, &pt.data);
             let w = pt.data.warmstart_tangent_world;
             if r.x.to_bits() == w.x.to_bits()
                 && r.y.to_bits() == w.y.to_bits()
@@ -1236,7 +1230,7 @@ mod pair_serde {
             }
         };
         #[cfg(feature = "dim2")]
-        let _ = (manifold_normal, recompute);
+        let _ = (tangent_basis, recompute);
         CompactPoint {
             local_p1: pt.local_p1,
             local_p2: pt.local_p2,
@@ -1486,6 +1480,10 @@ mod pair_serde {
                 contacts: solver_contacts,
             }
         };
+        #[cfg(feature = "dim3")]
+        let tangent_basis = replay_tangent_basis(normal);
+        #[cfg(feature = "dim2")]
+        let tangent_basis = (Vector::ZERO, Vector::ZERO);
         ManifoldSer {
             points: if replay {
                 PointsSer::Compact(
@@ -1494,7 +1492,7 @@ mod pair_serde {
                         .enumerate()
                         .map(|(i, pt)| {
                             let recompute = pending.map(|p| p.contains(&(i as u32)));
-                            compact_point(pt, normal, recompute)
+                            compact_point(pt, &tangent_basis, recompute)
                         })
                         .collect(),
                 )
