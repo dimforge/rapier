@@ -342,12 +342,9 @@ mod internal {
         pub(crate) fn check_since(&self, since: Option<RawTick>) -> Result<(), DeltaError> {
             let (tracker, now) = self.clock.ok_or(DeltaError::TrackingDisabled)?;
             match since {
-                // The current tick has not been issued yet.
-                Some(since)
-                    if since.tracker != tracker
-                        || since.tick == now
-                        || stamp_is_newer(since.tick, now) =>
-                {
+                // Stamps written now must compare as newer, which excludes the unissued current
+                // tick and baselines 2^31 or more ticks old.
+                Some(since) if since.tracker != tracker || !stamp_is_newer(now, since.tick) => {
                     Err(DeltaError::UnknownBaseline)
                 }
                 _ => Ok(()),
@@ -384,6 +381,37 @@ mod internal {
         /// Forgets the sender baseline, once the state diverged from it (the component was stepped).
         pub(crate) fn clear_applied(&mut self) {
             self.applied = None;
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        /// A baseline is accepted exactly when a stamp written at the current tick is newer.
+        #[test]
+        fn baselines_at_the_wrapping_horizon_are_rejected() {
+            let mut tracker = ChangeTracker::default();
+            tracker.enable(Some(0));
+            let id = tracker.clock.unwrap().0;
+            let since = |tick| Some(RawTick { tracker: id, tick });
+            let now = (1u32 << 31) + 10;
+            tracker.clock = Some((id, now));
+            assert_eq!(
+                tracker.check_since(since(now)),
+                Err(DeltaError::UnknownBaseline)
+            );
+            assert_eq!(
+                tracker.check_since(since(now + 1)),
+                Err(DeltaError::UnknownBaseline)
+            );
+            assert_eq!(
+                tracker.check_since(since(10)),
+                Err(DeltaError::UnknownBaseline)
+            );
+            assert_eq!(tracker.check_since(since(11)), Ok(()));
+            assert_eq!(tracker.check_since(since(now - 1)), Ok(()));
+            assert!(stamp_is_newer(now, 11));
         }
     }
 }
