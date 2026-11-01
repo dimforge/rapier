@@ -431,13 +431,11 @@ fn restored_recycle_states_keep_their_relative_pose() {
     assert!(checked > 0);
 }
 
-/// While a pair is clustered, its plain manifolds keep the warm-start tangent a declustering
-/// reads back, with or without the `serde-serialize` feature.
+/// A clustered pair's plain manifolds keep the warm-start tangents the solver last wrote: the
+/// clustered update leaves them as they are (they seed a later declustering).
 #[test]
-fn clustered_plain_manifolds_keep_their_warmstart_tangent() {
-    use crate::geometry::contact_pair::{replay_tangent_basis, replay_tangent_world};
+fn clustered_updates_keep_plain_warmstart_tangents() {
     let mut world = crate::pipeline::PhysicsWorld::new();
-    // A ground of many triangles under one box: several coplanar manifolds, clustered.
     let (n, s) = (8u32, 1.0);
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
@@ -453,42 +451,39 @@ fn clustered_plain_manifolds_keep_their_warmstart_tangent() {
             indices.push([a + 1, a + n + 2, a + n + 1]);
         }
     }
-    world.insert_collider(ColliderBuilder::trimesh(vertices, indices).unwrap(), None);
+    // The box first: it is the pairs' first collider, whose rotation gives the normals.
     let (body, _) = world.insert(
         RigidBodyBuilder::dynamic()
             .translation(Vector::new(0.3, 0.5, 0.2))
             .can_sleep(false),
         ColliderBuilder::cuboid(1.5, 0.5, 1.5),
     );
-    // Unclustered first, so the plain manifolds hold the solver's warm-start data, then
-    // clustered while the box tilts (the stored tangents no longer match the normals).
+    world.insert_collider(ColliderBuilder::trimesh(vertices, indices).unwrap(), None);
+    // Unclustered first, so the plain manifolds hold the solver's warm-start data.
     world.integration_parameters.contact_clustering = false;
     for _ in 0..30 {
         world.step();
     }
     world.integration_parameters.contact_clustering = true;
-    // Full updates every step, so clustering applies right away.
     world.integration_parameters.contact_recycling = false;
+    world.step();
+    let tangents = |world: &crate::pipeline::PhysicsWorld| -> Vec<[u32; 3]> {
+        world
+            .narrow_phase
+            .contact_pairs()
+            .filter_map(|pair| pair.rigid())
+            .filter(|rigid| !rigid.solver_clusters.is_empty())
+            .flat_map(|rigid| rigid.manifolds.iter())
+            .flat_map(|m| m.points.iter())
+            .map(|pt| pt.data.warmstart_tangent_world.to_array().map(f32::to_bits))
+            .collect()
+    };
+    let before = tangents(&world);
+    assert!(!before.is_empty(), "no clustered pair in the scene");
+    // The box tilts: a recomputation from the new normals would change the tangents.
     world.bodies[body].set_angvel(Vector::new(0.05, 0.0, 0.03), true);
-    for _ in 0..5 {
+    for _ in 0..3 {
         world.step();
+        assert_eq!(tangents(&world), before);
     }
-    let mut checked = 0;
-    for pair in world.narrow_phase.contact_pairs() {
-        let Some(rigid) = pair.rigid() else { continue };
-        if rigid.solver_clusters.is_empty() {
-            continue;
-        }
-        for manifold in &rigid.manifolds {
-            let (t1, t2) = replay_tangent_basis(&manifold.data.normal);
-            for pt in &manifold.points {
-                assert_eq!(
-                    pt.data.warmstart_tangent_world,
-                    replay_tangent_world(&t1, &t2, &pt.data)
-                );
-                checked += 1;
-            }
-        }
-    }
-    assert!(checked > 0, "no clustered pair in the scene");
 }

@@ -488,8 +488,8 @@ pub(super) fn process_pair(
                 prediction_distance,
             );
 
-            // The solver reads the clusters, but keep the plain manifolds coherent: a
-            // declustering warm-starts from their tangents, and snapshots replay their values.
+            // The solver reads the clusters, but keep the plain manifolds' user-facing data
+            // coherent (their warm-start data stays for a later declustering).
             for manifold in &mut rigid.manifolds {
                 let world_pos1 = manifold.subshape_pos1().prepend_to(&co1.pos);
                 manifold.data.solver_contacts.clear();
@@ -502,23 +502,11 @@ pub(super) fn process_pair(
                     dominance1.effective_group(&rb_type1) - dominance2.effective_group(&rb_type2);
                 manifold.data.normal = world_pos1.rotation * manifold.local_n1;
 
-                #[cfg(feature = "dim3")]
-                let (t1, t2) =
-                    crate::geometry::contact_pair::replay_tangent_basis(&manifold.data.normal);
+                // The lever arms are dead while clustered: zeroed for snapshots, which replay them.
+                #[cfg(feature = "serde-serialize")]
                 for pt in &mut manifold.points {
-                    // The lever arms are dead while clustered: zeroed only for snapshots.
-                    #[cfg(feature = "serde-serialize")]
-                    {
-                        pt.data.solver_dp1 = crate::math::Vector::ZERO;
-                        pt.data.solver_dp2 = crate::math::Vector::ZERO;
-                    }
-                    #[cfg(feature = "dim3")]
-                    {
-                        pt.data.warmstart_tangent_world =
-                            crate::geometry::contact_pair::replay_tangent_world(&t1, &t2, &pt.data);
-                    }
-                    #[cfg(not(any(feature = "dim3", feature = "serde-serialize")))]
-                    let _ = pt;
+                    pt.data.solver_dp1 = crate::math::Vector::ZERO;
+                    pt.data.solver_dp2 = crate::math::Vector::ZERO;
                 }
             }
         } else if !rigid.solver_clusters.is_empty() {

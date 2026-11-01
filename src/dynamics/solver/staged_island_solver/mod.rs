@@ -309,10 +309,15 @@ pub(crate) struct StagedIslandSolver {
 }
 
 impl StagedIslandSolver {
-    /// Drops the joint assembly reused across steps, for state replaced behind the solver.
+    /// Drops what the solver reuses across steps (the joint assembly, the soft-body FEM systems
+    /// keyed by handle), for state replaced behind it.
     #[cfg(feature = "serde-serialize")]
     pub(crate) fn invalidate_caches(&mut self) {
         self.staged_joints_valid = false;
+        #[cfg(feature = "fem")]
+        {
+            self.soft_fem = crate::dynamics::solver::soft_fem::SoftFemSet::new();
+        }
     }
 
     pub fn new() -> Self {

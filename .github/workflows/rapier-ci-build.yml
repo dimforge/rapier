@@ -57,6 +57,9 @@ jobs:
         run: cargo clippy -p rapier-examples-2d --features parallel
       - name: Clippy rapier3d examples (parallel)
         run: cargo clippy -p rapier-examples-3d --features parallel
+      # Needs `serde-serialize`, which bare clippy leaves off.
+      - name: Clippy rapier3d snapshot_size example
+        run: cargo clippy -p rapier3d --features serde-serialize --example snapshot_size
       - name: Clippy mjcf-rs
         run: cargo clippy -p mjcf-rs --all-targets --features msh
       - name: Clippy rapier3d-mjcf

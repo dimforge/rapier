@@ -115,7 +115,7 @@ pub(crate) struct SoftFemSystem {
     /// positions by the step-start factorization: the first substep's predict reuses it.
     pub(super) operator_fresh: bool,
     pub(super) rhs: Vec<Vector>,
-    /// Solution of the last predictor solve (the warm start of the next one).
+    /// Solution of the last predictor solve (each solve starts from zero).
     pub(super) delta: Vec<Vector>,
     /// `A` at the step's start (the substep length of the body's group): the operator every
     /// constraint of the step sees the body through, kept for the PCG fallback.

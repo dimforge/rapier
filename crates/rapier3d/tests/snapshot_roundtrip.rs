@@ -1490,3 +1490,47 @@ fn component_deltas_replay_pairs_moved_by_removals() {
         );
     }
 }
+
+/// Boxes on a trimesh with contact clustering toggled: clustered pairs' plain manifolds keep
+/// stale warm-start data, which snapshots and deltas store verbatim where replay would differ.
+#[test]
+fn clustering_toggles_on_a_trimesh() {
+    let terrain = || {
+        let mut world = PhysicsWorld::new();
+        let (n, s) = (10u32, 1.0);
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        for i in 0..=n {
+            for j in 0..=n {
+                let y = 0.05 * ((i * 7 + j * 3) % 4) as Real;
+                vertices.push(Vector::new(i as Real * s - 5.0, y, j as Real * s - 5.0));
+            }
+        }
+        for i in 0..n {
+            for j in 0..n {
+                let a = i * (n + 1) + j;
+                indices.push([a, a + 1, a + n + 1]);
+                indices.push([a + 1, a + n + 2, a + n + 1]);
+            }
+        }
+        world.insert_collider(ColliderBuilder::trimesh(vertices, indices).unwrap(), None);
+        for i in 0..6 {
+            world.insert(
+                RigidBodyBuilder::dynamic()
+                    .translation(Vector::new(i as Real * 1.4 - 3.5, 1.0, 0.3))
+                    .rotation(Vector::new(0.1, 0.2 * i as Real, 0.05))
+                    .can_sleep(false),
+                ColliderBuilder::cuboid(0.6, 0.3, 0.6),
+            );
+        }
+        world
+    };
+    let toggle = |world: &mut PhysicsWorld, step: usize, _: &mut Vec<RigidBodyHandle>| {
+        if step % 13 == 0 {
+            let clustering = &mut world.integration_parameters.contact_clustering;
+            *clustering = !*clustering;
+        }
+    };
+    check_roundtrip("clustering toggles", terrain(), 45, 40, false, toggle);
+    check_delta_replication("clustering toggles", terrain(), 5, 60, toggle);
+}
