@@ -306,10 +306,6 @@ fn pyramid_stress_scene_full() {
     check_roundtrip("pyramid50", world, 100, 20, false, no_edits);
 }
 
-/// Shape sharing: many colliders referencing the same `SharedShape` `Arc` (a trimesh and
-/// an instanced convex hull). The collider serialization interns shapes by `Arc`
-/// identity, and a restore must rebuild the same sharing structure or the next snapshot
-/// re-serializes with a different table.
 /// A trimesh tiled four times and a convex hull on 25 bodies, all sharing their `Arc`s.
 fn shared_shapes_world() -> PhysicsWorld {
     let mut world = PhysicsWorld::new();
@@ -368,6 +364,10 @@ fn shared_shapes_world() -> PhysicsWorld {
     world
 }
 
+/// Shape sharing: many colliders referencing the same `SharedShape` `Arc` (a trimesh and
+/// an instanced convex hull). The collider serialization interns shapes by `Arc`
+/// identity, and a restore must rebuild the same sharing structure or the next snapshot
+/// re-serializes with a different table.
 #[test]
 fn shared_shapes() {
     let world = shared_shapes_world();
@@ -575,8 +575,6 @@ fn replacing_the_pipeline_changes_nothing() {
     }
 }
 
-/// A snapshot taken between a joint insertion and the next step: the joint's pending
-/// persistent-island link events are part of the state.
 /// A box and a stack of four resting on a ground, so their contact pairs recycle.
 fn resting_boxes() -> (PhysicsWorld, RigidBodyHandle) {
     let mut world = PhysicsWorld::new();
@@ -667,6 +665,8 @@ fn contact_recycling_disabled_at_runtime() {
     });
 }
 
+/// A snapshot taken between a joint insertion and the next step: the joint's pending
+/// persistent-island link events are part of the state.
 #[test]
 fn snapshot_between_joint_insert_and_step() {
     for multibody in [false, true] {
@@ -729,7 +729,7 @@ fn delta_sleeping_pile() {
 }
 
 #[test]
-fn delta_shared_shapes_and_churn() {
+fn delta_structural_churn() {
     check_delta_replication(
         "delta structural churn",
         pile(true),
@@ -1596,18 +1596,6 @@ fn joints_edited_through_iter_mut_are_sent() {
     );
 }
 
-/// A bogus multibody index is a miss, not a reason to grow the edit tracking to its size.
-#[test]
-fn bogus_multibody_index_is_a_cheap_miss() {
-    let mut multibody_joints = MultibodyJointSet::new();
-    let bogus = MultibodyIndex(rapier3d::data::arena::Index::from_raw_parts(
-        u32::MAX - 1,
-        0,
-    ));
-    assert!(multibody_joints.get_multibody_mut(bogus).is_none());
-    assert!(multibody_joints.get_multibody_mut_internal(bogus).is_none());
-}
-
 /// A collision-only step diverges a receiver from its baseline too.
 #[test]
 fn collision_detection_clears_the_baseline() {
@@ -1640,7 +1628,11 @@ fn pending_wake_ups_replay_in_a_canonical_order() {
         let mut handles = vec![];
         for i in 0..6 {
             let (h, _) = world.insert(
-                RigidBodyBuilder::dynamic().translation(Vector::new(i as Real * 5.0 - 12.0, 0.5, 0.0)),
+                RigidBodyBuilder::dynamic().translation(Vector::new(
+                    i as Real * 5.0 - 12.0,
+                    0.5,
+                    0.0,
+                )),
                 ColliderBuilder::cuboid(0.5, 0.5, 0.5),
             );
             handles.push(h);
@@ -1649,7 +1641,11 @@ fn pending_wake_ups_replay_in_a_canonical_order() {
             world.step();
         }
         assert!(handles.iter().all(|h| world.bodies[*h].is_sleeping()));
-        world.insert_impulse_joint(handles[4], handles[1], SphericalJointBuilder::new().build().data);
+        world.insert_impulse_joint(
+            handles[4],
+            handles[1],
+            SphericalJointBuilder::new().build().data,
+        );
         world
     };
     check_roundtrip("pending wake-ups", world(), 0, 30, false, no_edits);

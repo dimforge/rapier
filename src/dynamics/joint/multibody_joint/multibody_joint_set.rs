@@ -711,3 +711,19 @@ mod snapshot_delta {
         }
     }
 }
+
+#[cfg(all(test, feature = "serde-serialize"))]
+mod test {
+    use super::*;
+    use crate::data::arena::Index;
+
+    /// A bogus index is a miss: it must not grow the edit tracking to its size.
+    #[test]
+    fn bogus_multibody_index_is_a_cheap_miss() {
+        let mut multibody_joints = MultibodyJointSet::new();
+        let bogus = MultibodyIndex(Index::from_raw_parts(u32::MAX - 1, 0));
+        assert!(multibody_joints.get_multibody_mut(bogus).is_none());
+        assert!(multibody_joints.get_multibody_mut_internal(bogus).is_none());
+        assert!(multibody_joints.fk_touched.slots.is_empty());
+    }
+}
