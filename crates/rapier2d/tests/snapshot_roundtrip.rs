@@ -565,11 +565,16 @@ fn ccd_bullets_over_overlapping_targets() {
         let polyline: Vec<Vector> = (0..10)
             .map(|i| Vector::new(-12.0 + i as Real * 2.5, 0.5 + (i % 3) as Real * 0.2))
             .collect();
-        world.insert(RigidBodyBuilder::fixed(), ColliderBuilder::polyline(polyline, None));
+        world.insert(
+            RigidBodyBuilder::fixed(),
+            ColliderBuilder::polyline(polyline, None),
+        );
         for i in 0..8 {
             world.insert(
-                RigidBodyBuilder::fixed()
-                    .translation(Vector::new(-10.0 + 2.5 * i as Real, 0.2 + 0.1 * (i % 2) as Real)),
+                RigidBodyBuilder::fixed().translation(Vector::new(
+                    -10.0 + 2.5 * i as Real,
+                    0.2 + 0.1 * (i % 2) as Real,
+                )),
                 ColliderBuilder::cuboid(1.0, 0.1),
             );
         }

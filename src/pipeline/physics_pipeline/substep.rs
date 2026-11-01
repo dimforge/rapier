@@ -410,9 +410,10 @@ impl PhysicsPipeline {
 
         // Join islands based on new joints.
         // In handle order, as snapshots store them.
-        let pair_key = |(a, b): &(crate::dynamics::RigidBodyHandle, crate::dynamics::RigidBodyHandle)| {
-            (a.into_raw_parts(), b.into_raw_parts())
-        };
+        let pair_key = |(a, b): &(
+            crate::dynamics::RigidBodyHandle,
+            crate::dynamics::RigidBodyHandle,
+        )| { (a.into_raw_parts(), b.into_raw_parts()) };
         let mut to_join: Vec<_> = impulse_joints.to_join.iter().copied().collect();
         to_join.sort_unstable_by_key(pair_key);
         let mut mb_to_join: Vec<_> = multibody_joints.to_join.iter().copied().collect();
