@@ -59,8 +59,9 @@ int main() {
             mismatch = error.status();
         }
         assert(mismatch == RAPIER_CONST(BASELINE_MISMATCH));
-        // A full delta resynchronizes it.
-        full = rapier::serialize_world_delta(moved.get());
+        // A full delta resynchronizes it; no acknowledged tick yet also asks for one.
+        rapier::Bytes noBaseline;
+        full = rapier::serialize_world_delta(moved.get(), noBaseline);
         acked = rapier::apply_world_delta(replica.get(), full.delta);
         // A replica restored from a snapshot declares the tick issued right before it.
         rapier::Bytes tick = rapier::change_tick(moved.get());

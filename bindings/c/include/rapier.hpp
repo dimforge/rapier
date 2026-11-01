@@ -176,8 +176,11 @@ inline WorldDelta serialize_world_delta(RAPIER_TYPE(World) *world) {
     return serialize_world_delta(world, nullptr, 0);
 }
 
-/** Return the changes since owned tick bytes; throw on failure. */
+/** Return the changes since owned tick bytes (empty bytes: a full delta); throw on failure. */
 inline WorldDelta serialize_world_delta(RAPIER_TYPE(World) *world, const Bytes &since) {
+    if (!since) {
+        return serialize_world_delta(world);
+    }
     RAPIER_TYPE(ByteView) view = bytes_view(since);
     return serialize_world_delta(world, view.data, view.count);
 }
