@@ -21,12 +21,7 @@ pub(crate) struct ContentKey(u64, u64);
 /// impl itself errors (a custom shape refusing serialization); callers fall back to
 /// identity-only grouping for such values.
 pub(crate) fn content_key<T: Serialize + ?Sized>(value: &T) -> Option<ContentKey> {
-    let mut hasher = ContentHasher {
-        h1: 0xcbf2_9ce4_8422_2325,
-        h2: 0x9e37_79b9_7f4a_7c15,
-        word: 0,
-        len: 0,
-    };
+    let mut hasher = ContentHasher::new();
     value.serialize(&mut hasher).ok()?;
     Some(hasher.finish())
 }
@@ -44,6 +39,15 @@ struct ContentHasher {
 }
 
 impl ContentHasher {
+    fn new() -> Self {
+        Self {
+            h1: 0xcbf2_9ce4_8422_2325,
+            h2: 0x9e37_79b9_7f4a_7c15,
+            word: 0,
+            len: 0,
+        }
+    }
+
     #[inline]
     fn write(&mut self, bytes: &[u8]) {
         for &b in bytes {
@@ -58,20 +62,22 @@ impl ContentHasher {
 
     #[inline]
     fn mix(&mut self, w: u64) {
+        // The xor-shift carries the multiply's high bits back down, so no bit flip can cancel.
         self.h1 = (self.h1 ^ w).wrapping_mul(0x100_0000_01b3);
+        self.h1 ^= self.h1 >> 29;
         self.h2 = self
             .h2
             .wrapping_mul(0x9e37_79b9_7f4a_7c15)
             .wrapping_add(w ^ (self.h2 >> 47));
     }
 
-    /// Mixes the partial last word and the length, so streams differing only by trailing zero
-    /// bytes hash apart.
+    /// Mixes the partial last word and the length (so streams differing only by trailing zero
+    /// bytes hash apart), then avalanches both halves.
     fn finish(mut self) -> ContentKey {
         let (word, len) = (self.word, self.len);
         self.mix(word);
         self.mix(len);
-        ContentKey(self.h1, self.h2)
+        ContentKey(fmix64(self.h1), fmix64(self.h2))
     }
 
     /// A one-byte tag distinguishing the serde call that produced the following bytes,
@@ -85,6 +91,15 @@ impl ContentHasher {
     fn u64(&mut self, v: u64) {
         self.write(&v.to_le_bytes());
     }
+}
+
+/// MurmurHash3's 64-bit finalizer.
+fn fmix64(mut k: u64) -> u64 {
+    k ^= k >> 33;
+    k = k.wrapping_mul(0xff51_afd7_ed55_8ccd);
+    k ^= k >> 33;
+    k = k.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+    k ^ (k >> 33)
 }
 
 #[derive(Debug)]
@@ -435,12 +450,26 @@ mod tests {
     }
 
     #[test]
+    fn top_bit_flips_hash_apart() {
+        // Flipping the top bit of two consecutive words cancels out in a plain xor-multiply.
+        let key = |words: &[u64]| {
+            let mut hasher = super::ContentHasher::new();
+            for w in words {
+                hasher.mix(*w);
+            }
+            hasher.finish()
+        };
+        let (a, b) = (key(&[1, 2, 3]), key(&[1 ^ (1 << 63), 2 ^ (1 << 63), 3]));
+        assert!(a.0 != b.0 && a.1 != b.1);
+    }
+
+    #[test]
     fn keys_do_not_depend_on_the_platform() {
         // Lengths are hashed as `u64` and scalars little-endian: this key holds on every target.
         let key = content_key(&(vec![7u16; 3], 0.5f32, usize::MAX >> 1 > 0)).unwrap();
         assert_eq!(
             key,
-            super::ContentKey(11827449033226041678, 5958386826564172422)
+            super::ContentKey(8780902226574128264, 11824366988356022364)
         );
     }
 }

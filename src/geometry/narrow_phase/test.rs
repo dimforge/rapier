@@ -374,3 +374,55 @@ pub fn collision_pipeline_does_not_accumulate_force_event_flags() {
     }
     assert!(narrow_phase.force_event_flagged.len() <= 1);
 }
+
+/// The recycle state's relative pose is not serialized but recomputed from the stored collider
+/// poses: it must come back bit for bit.
+#[cfg(feature = "serde-serialize")]
+#[test]
+fn restored_recycle_states_keep_their_relative_pose() {
+    use crate::math::Real;
+    let mut world = crate::pipeline::PhysicsWorld::new();
+    world.insert(
+        RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5, 0.0)),
+        ColliderBuilder::cuboid(5.0, 0.5, 5.0),
+    );
+    for i in 0..6 {
+        world.insert(
+            RigidBodyBuilder::dynamic()
+                .translation(Vector::new(i as Real * 0.7 - 2.0, 0.6 + i as Real * 1.1, 0.1))
+                .rotation(Vector::new(0.1 * i as Real, 0.2, 0.3)),
+            ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+        );
+    }
+    for _ in 0..40 {
+        world.step();
+    }
+    let bytes = bincode::serialize(&world.narrow_phase).unwrap();
+    let restored: NarrowPhase = bincode::deserialize(&bytes).unwrap();
+    let bits = |pose: &crate::math::Pose| {
+        let (t, r) = (pose.translation, pose.rotation);
+        #[cfg(feature = "dim3")]
+        let r = [r.x, r.y, r.z, r.w];
+        #[cfg(feature = "dim2")]
+        let r = [r.re, r.im];
+        (t.to_array().map(Real::to_bits), r.map(Real::to_bits))
+    };
+    let mut checked = 0;
+    for (a, b) in world
+        .narrow_phase
+        .contact_graph
+        .graph
+        .edges
+        .iter()
+        .zip(restored.contact_graph.graph.edges.iter())
+    {
+        let states = (a.weight.rigid(), b.weight.rigid());
+        if let (Some(a), Some(b)) = states {
+            if let (Some(a), Some(b)) = (&a.recycle_state, &b.recycle_state) {
+                assert_eq!(bits(&a.pos12), bits(&b.pos12));
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 0);
+}

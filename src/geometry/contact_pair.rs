@@ -206,6 +206,10 @@ fn default_solver_color_bodies() -> [u32; 2] {
 ///     println!("Contact normal: {:?}", manifold.data.normal);
 /// }
 /// ```
+///
+/// Its serde form stores replayable solver contacts compactly: a pair deserialized on its own
+/// has zero manifold normals and solver contacts until a `NarrowPhase` holding it replays them
+/// ([`NarrowPhase::rebuild_solver_contacts`](crate::geometry::NarrowPhase::rebuild_solver_contacts)).
 pub struct ContactPair {
     /// The first collider involved in the contact pair.
     pub collider1: ColliderHandle,
@@ -368,8 +372,9 @@ impl RigidPairContacts {
 
 /// The relative configuration of a contact pair at its last full narrow-phase
 /// update, used by contact recycling to bound how much the pair moved since.
+///
+/// Serialized without `pos12`, which the replay state's collider poses give back bit for bit.
 #[derive(Copy, Clone, Debug)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub(crate) struct ContactRecycleState {
     /// Pose of the second collider relative to the first at the last full update.
     pub pos12: Pose,
@@ -389,6 +394,70 @@ pub(crate) struct ContactRecycleState {
     /// The state only the post-restore solver-contact replay reads.
     #[cfg(feature = "serde-serialize")]
     pub replay: ContactReplayState,
+}
+
+#[cfg(feature = "serde-serialize")]
+mod recycle_state_serde {
+    use super::{ContactRecycleState, ContactReplayState};
+    use crate::math::{Pose, Real, Rotation};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize)]
+    struct Ser<'a> {
+        rot1: &'a Rotation,
+        rot2: &'a Rotation,
+        max_extent: Real,
+        max_drift: Real,
+        replay: &'a ContactReplayState,
+    }
+
+    #[derive(Deserialize)]
+    struct De {
+        rot1: Rotation,
+        rot2: Rotation,
+        max_extent: Real,
+        max_drift: Real,
+        replay: ContactReplayState,
+    }
+
+    impl Serialize for ContactRecycleState {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let ContactRecycleState {
+                // Recomputed on deserialization.
+                pos12: _,
+                rot1,
+                rot2,
+                max_extent,
+                max_drift,
+                replay,
+            } = self;
+            Ser {
+                rot1,
+                rot2,
+                max_extent: *max_extent,
+                max_drift: *max_drift,
+                replay,
+            }
+            .serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for ContactRecycleState {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            let de = De::deserialize(deserializer)?;
+            // The same expression as the full update's `co1.pos.inv_mul(&co2.pos)`.
+            let pos1 = Pose::from_parts(de.replay.translation1, de.rot1);
+            let pos2 = Pose::from_parts(de.replay.translation2, de.rot2);
+            Ok(ContactRecycleState {
+                pos12: pos1.inv_mul(&pos2),
+                rot1: de.rot1,
+                rot2: de.rot2,
+                max_extent: de.max_extent,
+                max_drift: de.max_drift,
+                replay: de.replay,
+            })
+        }
+    }
 }
 
 /// The configuration of a pair's last full update that the post-restore solver-contact
@@ -1059,7 +1128,7 @@ impl ContactManifoldData {
 /// The deterministic tangent basis the solver derives from a manifold normal (see
 /// `compute_tangent_contact_directions`), used to replay `warmstart_tangent_world`
 /// after a restore and to verify replayability at serialization.
-#[cfg(feature = "dim3")]
+#[cfg(all(feature = "dim3", feature = "serde-serialize"))]
 pub(crate) fn replay_tangent_basis(normal: &Vector) -> (Vector, Vector) {
     use crate::utils::CrossProduct;
     use crate::utils::OrthonormalBasis;
@@ -1070,7 +1139,7 @@ pub(crate) fn replay_tangent_basis(normal: &Vector) -> (Vector, Vector) {
 }
 
 /// Mirrors the solver writeback's `warmstart_tangent_world` expression exactly.
-#[cfg(feature = "dim3")]
+#[cfg(all(feature = "dim3", feature = "serde-serialize"))]
 pub(crate) fn replay_tangent_world(t1: &Vector, t2: &Vector, data: &ContactData) -> Vector {
     let imp = data.warmstart_tangent_impulse;
     crate::utils::canonicalize_zero(*t1 * imp.x + *t2 * imp.y)
@@ -1578,14 +1647,14 @@ mod pair_serde {
                         manifolds: manifolds
                             .iter()
                             .enumerate()
-                            .map(|(i, m)| manifold_ser(m, replay, pending.map(|p| &p[i][..])))
+                            .map(|(i, m)| manifold_ser(m, replay, pending.and_then(|p| p.get(i)).map(|p| &p[..])))
                             .collect(),
                         solver_clusters: solver_clusters
                             .iter()
                             .enumerate()
                             .map(|(i, m)| {
                                 let i = i + manifolds.len();
-                                manifold_ser(m, replay, pending.map(|p| &p[i][..]))
+                                manifold_ser(m, replay, pending.and_then(|p| p.get(i)).map(|p| &p[..]))
                             })
                             .collect(),
                         solver_color: *solver_color,

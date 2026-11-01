@@ -504,16 +504,23 @@ pub(super) fn process_pair(
                     dominance1.effective_group(&rb_type1) - dominance2.effective_group(&rb_type2);
                 manifold.data.normal = world_pos1.rotation * manifold.local_n1;
 
-                #[cfg(feature = "dim3")]
-                let (t1, t2) =
-                    crate::geometry::contact_pair::replay_tangent_basis(&manifold.data.normal);
-                for pt in &mut manifold.points {
-                    pt.data.solver_dp1 = crate::math::Vector::ZERO;
-                    pt.data.solver_dp2 = crate::math::Vector::ZERO;
+                // Canonical values for snapshots, which the replay reproduces: the solver reads
+                // the clusters, not these.
+                #[cfg(feature = "serde-serialize")]
+                {
                     #[cfg(feature = "dim3")]
-                    {
-                        pt.data.warmstart_tangent_world =
-                            crate::geometry::contact_pair::replay_tangent_world(&t1, &t2, &pt.data);
+                    let (t1, t2) =
+                        crate::geometry::contact_pair::replay_tangent_basis(&manifold.data.normal);
+                    for pt in &mut manifold.points {
+                        pt.data.solver_dp1 = crate::math::Vector::ZERO;
+                        pt.data.solver_dp2 = crate::math::Vector::ZERO;
+                        #[cfg(feature = "dim3")]
+                        {
+                            pt.data.warmstart_tangent_world =
+                                crate::geometry::contact_pair::replay_tangent_world(
+                                    &t1, &t2, &pt.data,
+                                );
+                        }
                     }
                 }
             }

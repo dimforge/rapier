@@ -288,7 +288,8 @@ impl PhysicsWorld {
         self.components_mut().disable_change_tracking();
     }
 
-    /// Whether writes are currently stamped.
+    /// Whether writes are currently stamped (the world enables and disables every component
+    /// together).
     pub fn is_change_tracking_enabled(&self) -> bool {
         self.bodies.is_change_tracking_enabled()
     }

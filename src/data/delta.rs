@@ -30,8 +30,11 @@
 //! - Applying a broad-phase delta that changes leaves rebuilds the receiver's tree, like a
 //!   deserialization (O(n log n)).
 //! - Encoding clones the changed slots: about a full serialization when everything is awake.
-//! - Ticks wrap after 2^32 deltas; slots not rewritten for 2^31 ticks are then resent once.
-
+//! - Ticks wrap after 2^32 deltas: a slot not rewritten for 2^31 ticks is then resent by every
+//!   delta until it is rewritten (or for 2^31 more ticks).
+//!
+//! # Example
+//!
 //! ```
 //! # #[cfg(feature = "serde-serialize")] {
 //! # use rapier3d::prelude::*;
@@ -245,7 +248,7 @@ mod internal {
 
     /// A component's change clock, plus the sender tick its state was last patched to.
     ///
-    /// Ticks wrap after 2^32 deltas; slots not rewritten for 2^31 ticks are then resent once.
+    /// Ticks wrap after 2^32 deltas (see the module limitations).
     #[derive(Debug, Default)]
     pub struct ChangeTracker {
         /// `(tracker id, current tick)`; `None` while tracking is disabled.
@@ -288,7 +291,8 @@ mod internal {
         pub(crate) fn restart(&mut self) -> u32 {
             match &mut self.clock {
                 Some((tracker, now)) => {
-                    *tracker = new_tracker_id(None);
+                    // Derived from the previous identity, so a seeded clock stays seeded.
+                    *tracker = new_tracker_id(Some(*tracker as u64));
                     *now
                 }
                 None => 0,
@@ -305,7 +309,8 @@ mod internal {
             let since = match since {
                 None => None,
                 Some(since) => {
-                    if since.tracker != tracker || stamp_is_newer(since.tick, now) {
+                    // The current tick has not been issued yet.
+                    if since.tracker != tracker || since.tick == now || stamp_is_newer(since.tick, now) {
                         return Err(DeltaError::UnknownBaseline);
                     }
                     Some(since.tick)

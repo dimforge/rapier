@@ -26,6 +26,8 @@
     heightfields, compounds) are referenced by content and only sent when the receiver
     cannot hold them yet.
   - The C, Python and TypeScript bindings expose world deltas.
+  - A `ContactPair` serialized on its own stores replayable solver contacts compactly: they
+    are only recomputed within a `NarrowPhase`.
 - `NarrowPhase::rebuild_solver_contacts` and `MultibodyJointSet::rebuild_derived_data`:
   rebuild the derived data snapshots no longer store. Restoring a `PhysicsWorld` runs both, so
   it can be read before its first step; call them only for components restored on their own.
@@ -65,9 +67,13 @@
 - A collider quarantined at the end of a step (non-finite AABB) has its disabling processed
   by the next step.
 - Contact pairs no longer keep recycling solver anchors computed for an old center of mass
-  after a body's center of mass moves (additional mass properties, collider density): the
-  body's colliders get the new `ColliderChanges::PARENT_CENTER_OF_MASS` flag and their pairs
-  a full update.
+  after a body's center of mass moves (additional mass properties, collider density, or
+  `RigidBody::recompute_mass_properties_from_colliders`, which now sets the new
+  `RigidBodyChanges::CENTER_OF_MASS` flag): the body's colliders get the new
+  `ColliderChanges::PARENT_CENTER_OF_MASS` flag and their pairs a full update, without waking
+  anything.
+- Turning `IntegrationParameters::contact_recycling` off drops the pairs' recycle states, so
+  turning it back on no longer measures drift from a stale pose.
 
 ## v0.36.1 (4 October 2026)
 

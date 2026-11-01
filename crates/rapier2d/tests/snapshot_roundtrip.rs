@@ -454,7 +454,13 @@ fn delta_awake_pile() {
 
 #[test]
 fn delta_sleeping_pile() {
-    check_delta_replication("delta sleeping pile", pile(true), 200, 60, no_edits);
+    let (max_delta, snapshot) =
+        check_delta_replication("delta sleeping pile", pile(true), 600, 60, no_edits);
+    // Only the permanent movers and their contacts change once the pile sleeps.
+    assert!(
+        max_delta * 10 < snapshot,
+        "a {max_delta}-byte delta for a {snapshot}-byte snapshot"
+    );
 }
 
 #[test]

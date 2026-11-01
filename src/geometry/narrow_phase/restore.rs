@@ -48,13 +48,17 @@ fn replay_pair(pair: &mut ContactPair, bodies: &RigidBodySet, colliders: &Collid
     // other pair verbatim precisely because a replay would not reproduce its values.
     // The marker holds, per manifold, the points whose tangent world vector must be
     // recomputed (the others were stored verbatim).
+    // The marker stays when the replay cannot run, so a re-save keeps the compact encoding.
+    let (Some(co1), Some(co2)) = (colliders.get(handle1), colliders.get(handle2)) else {
+        return;
+    };
+    if rigid.recycle_state.is_none() {
+        return;
+    }
     let Some(pending) = rigid.pending_replay.take() else {
         return;
     };
     let recompute_tangent = &pending.recompute_tangent;
-    let (Some(co1), Some(co2)) = (colliders.get(handle1), colliders.get(handle2)) else {
-        return;
-    };
     let Some(rs) = &rigid.recycle_state else {
         return;
     };

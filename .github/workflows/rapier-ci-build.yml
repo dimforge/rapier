@@ -159,6 +159,11 @@ jobs:
         run: cargo test -p rapier3d --release --features serde-serialize,enhanced-determinism --test snapshot_roundtrip
       - name: Test snapshot round-trip with enhanced determinism (2D)
         run: cargo test -p rapier2d --release --features serde-serialize,enhanced-determinism --test snapshot_roundtrip
+      # Debug build: checks that the passes writing without change stamps leave the data unchanged.
+      - name: Test snapshot deltas with unstamped-write validation (3D, parallel)
+        env:
+          RAPIER_DBG_VALIDATE: 1
+        run: cargo test -p rapier3d --features serde-serialize,parallel --test snapshot_roundtrip
       - name: Test single-worker deferred BVH
         run: cargo test -p rapier3d --release --features parallel --test single_worker_deferred_bvh
       # `unsync-callbacks` drops the `Sync` bound off the hooks/event traits; the test's

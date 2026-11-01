@@ -63,11 +63,9 @@ pub struct Collider {
     /// body keeps its mesh (automatic skinning, tearing) and syncs it into the shape each frame.
     pub(crate) deformable_mesh_ref: Option<crate::dynamics::SoftMeshRef>,
     /// A process-wide unique id of the shape's current content, renewed by every shape write,
-    /// so caches can tell a shape changed without holding it. Not part of the collider's state.
-    #[cfg_attr(
-        feature = "serde-serialize",
-        serde(skip, default = "next_shape_revision")
-    )]
+    /// so snapshot deltas can tell a shape changed without holding it. Not part of the state.
+    #[cfg(feature = "serde-serialize")]
+    #[serde(skip, default = "next_shape_revision")]
     pub(crate) shape_revision: u32,
     /// User-defined data associated to this collider.
     pub user_data: u128,
@@ -168,6 +166,7 @@ impl InternedCollider {
 }
 
 /// A fresh value for [`Collider::shape_revision`] (wrapping after 2^32 shape writes).
+#[cfg(feature = "serde-serialize")]
 pub(crate) fn next_shape_revision() -> u32 {
     use core::sync::atomic::{AtomicU32, Ordering};
     static NEXT: AtomicU32 = AtomicU32::new(1);
@@ -175,6 +174,14 @@ pub(crate) fn next_shape_revision() -> u32 {
 }
 
 impl Collider {
+    #[inline]
+    fn renew_shape_revision(&mut self) {
+        #[cfg(feature = "serde-serialize")]
+        {
+            self.shape_revision = next_shape_revision();
+        }
+    }
+
     pub(crate) fn reset_internal_references(&mut self) {
         self.changes = ColliderChanges::all();
         self.deformable_mesh_ref = None;
@@ -203,7 +210,7 @@ impl Collider {
     /// Deforms the shape of a soft-body surface collider in place through `f` without
     /// invalidating the narrow-phase pair workspaces (its topology and identity are unchanged).
     pub(crate) fn deform_shape(&mut self, f: impl FnOnce(&mut dyn Shape)) {
-        self.shape_revision = next_shape_revision();
+        self.renew_shape_revision();
         f(self.shape.make_mut());
         self.changes.insert(ColliderChanges::DEFORMED);
     }
@@ -212,7 +219,7 @@ impl Collider {
     /// deformation: no narrow-phase pair workspace invalidation, no wake-up.
     pub(crate) fn replace_deformed_shape(&mut self, shape: SharedShape) {
         self.shape = shape;
-        self.shape_revision = next_shape_revision();
+        self.renew_shape_revision();
         self.changes.insert(ColliderChanges::DEFORMED);
     }
 
@@ -291,6 +298,7 @@ impl Collider {
             user_data,
             contact_skin,
             deformable_mesh_ref: _soft_mesh, // The soft-body markers belong to the collider's identity.
+            #[cfg(feature = "serde-serialize")]
             shape_revision: _,
         } = other;
 
@@ -300,7 +308,7 @@ impl Collider {
 
         self.coll_type = *coll_type;
         self.shape = shape.clone();
-        self.shape_revision = next_shape_revision();
+        self.renew_shape_revision();
         self.mprops = mprops.clone();
         self.material = *material;
         self.contact_force_event_threshold = *contact_force_event_threshold;
@@ -686,7 +694,7 @@ impl Collider {
     /// shape that you can modify.
     pub fn shape_mut(&mut self) -> &mut dyn Shape {
         self.changes.insert(ColliderChanges::SHAPE);
-        self.shape_revision = next_shape_revision();
+        self.renew_shape_revision();
         self.shape.make_mut()
     }
 
@@ -694,7 +702,7 @@ impl Collider {
     pub fn set_shape(&mut self, shape: SharedShape) {
         self.changes.insert(ColliderChanges::SHAPE);
         self.shape = shape;
-        self.shape_revision = next_shape_revision();
+        self.renew_shape_revision();
     }
 
     /// Returns the shape as a `SharedShape` (reference-counted shape).
@@ -1629,6 +1637,7 @@ impl ColliderBuilder {
             contact_force_event_threshold: self.contact_force_event_threshold,
             contact_skin: self.contact_skin,
             deformable_mesh_ref: None,
+            #[cfg(feature = "serde-serialize")]
             shape_revision: next_shape_revision(),
             user_data: self.user_data,
         }

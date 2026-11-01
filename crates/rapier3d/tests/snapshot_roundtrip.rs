@@ -402,10 +402,8 @@ fn shared_shapes() {
     );
 }
 
-/// The stored-solver-contacts fallback paths of the snapshot format: with contact
-/// recycling disabled, pairs carry no recycle state, and colliders attached away from
-/// their body's origin have non-replayable anchors — both serialize their solver
-/// contacts verbatim instead of the compact replayed form.
+/// The verbatim solver-contact encoding, used without contact recycling and for colliders
+/// attached away from their body's origin (their anchors are not replayable).
 #[test]
 fn stored_solver_contacts() {
     let mut world = pile(true);
@@ -1114,12 +1112,13 @@ fn restored_world_is_readable_before_stepping() {
     assert!(want.iter().any(|n| *n != Vector::ZERO));
     assert_eq!(normals(&restored), want);
 
-    let (multibody, link_id) = restored.multibody_joints.get(mb).unwrap();
-    assert_eq!(multibody.body_jacobian(link_id).ncols(), multibody.ndofs());
-    assert_eq!(
-        multibody.inv_augmented_mass().l().nrows(),
-        multibody.ndofs()
-    );
+    // The restored jacobian is the one forward kinematics gives at the sender's state.
+    let mut sender = world;
+    let (want, link_id) = sender.multibody_joints.get_mut(mb).unwrap();
+    want.forward_kinematics(&sender.bodies, true);
+    let (got, _) = restored.multibody_joints.get(mb).unwrap();
+    assert_eq!(got.body_jacobian(link_id), want.body_jacobian(link_id));
+    assert_eq!(got.inv_augmented_mass().l().nrows(), got.ndofs());
 }
 
 /// A receiver bootstrapped from `change_tick` + snapshot after the sender already sent deltas
@@ -1288,4 +1287,24 @@ fn applied_delta_rebuilds_patched_multibodies() {
         let (multibody, link_id) = receiver.multibody_joints.get(mb).unwrap();
         assert_eq!(multibody.body_jacobian(link_id).ncols(), multibody.ndofs());
     }
+}
+
+/// A tick the sender has not issued yet is not a valid baseline.
+#[test]
+fn unissued_ticks_are_rejected() {
+    use rapier3d::data::DeltaError;
+
+    let mut bodies = RigidBodySet::new();
+    bodies.enable_change_tracking();
+    let tick = bodies.change_tick().unwrap();
+    // The tick is serialized as its tracker id then its counter: forge the next one.
+    let mut bytes = bincode::serialize(&tick).unwrap();
+    let next = u32::from_le_bytes(bytes[4..8].try_into().unwrap()) + 1;
+    bytes[4..8].copy_from_slice(&next.to_le_bytes());
+    let forged: ChangeTick<RigidBodySet> = bincode::deserialize(&bytes).unwrap();
+    assert_eq!(
+        bodies.delta_since(Some(forged)).unwrap_err(),
+        DeltaError::UnknownBaseline
+    );
+    assert!(bodies.delta_since(Some(tick)).is_ok());
 }
