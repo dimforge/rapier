@@ -13,10 +13,10 @@ use crate::dynamics::{
     RigidBodyType,
 };
 use crate::geometry::{
-    BoundingVolume, ColliderChanges, ColliderSet, ContactData, ContactManifoldData, ContactPair,
-    SolverContact, SolverFlags,
+    BoundingVolume, ColliderChanges, ColliderSet, ContactData, ContactManifold,
+    ContactManifoldData, ContactPair, SolverContact, SolverFlags,
 };
-use crate::math::{MAX_MANIFOLD_POINTS, Real};
+use crate::math::{MAX_MANIFOLD_POINTS, Pose, Real, Vector};
 use crate::pipeline::{
     ActiveHooks, ContactModificationContext, ModifiableContacts, ModifiableManifold,
     PairFilterContext, PhysicsHooks,
@@ -662,56 +662,13 @@ pub(super) fn process_pair(
             // Localize solver contacts: bake skins (and hook-written `dist`) into the anchors, then
             // express each in its body's CoM frame (world-attached/dominance-superior sides keep world
             // anchors, matching the solver's identity pose). Riding rigidly lets recycled steps skip updates.
-            {
-                let normal = manifold.data.normal;
-                let rel_dom = manifold.data.relative_dominance;
-                let com_pose = |rb: &&crate::dynamics::RigidBody| {
-                    rb.pos
-                        .position
-                        .prepend_translation(rb.mprops.local_mprops.local_com)
-                };
-                let com_pose1 = rb1.as_ref().filter(|_| rel_dom <= 0).map(com_pose);
-                let com_pose2 = rb2.as_ref().filter(|_| rel_dom >= 0).map(com_pose);
-                // Split-borrow: the frozen solver arms are written to the
-                // manifold points while iterating the solver contacts.
-                let manifold_points = &mut manifold.points;
-                // Zero every point's lever arms first: the non-selected points' values
-                // are dead (only selected contact ids are ever gathered), and leaving
-                // them stale would make a restored world's snapshots diverge.
-                for pt in manifold_points.iter_mut() {
-                    pt.data.solver_dp1 = crate::math::Vector::ZERO;
-                    pt.data.solver_dp2 = crate::math::Vector::ZERO;
-                }
-                for sc in &mut manifold.data.solver_contacts {
-                    let shift = (sc.anchor2 - sc.anchor1).dot(normal) - sc.dist;
-                    let p1 = sc.anchor1 + normal * shift;
-
-                    // Freeze the solver's lever arms (world-space, CoM-relative; plain
-                    // world for a world-attached side) at this full update. They stay
-                    // verbatim while recycled: anchor freezing (see `ContactData::solver_dp1`).
-                    let point = (p1 + sc.anchor2) * 0.5;
-                    let cid = (sc.contact_id[0] & !crate::geometry::contact_pair::NEW_CONTACT_BIT)
-                        as usize;
-                    let pt_data = &mut manifold_points[cid].data;
-                    pt_data.solver_dp1 = match &com_pose1 {
-                        Some(pose) => point - pose.translation,
-                        None => point,
-                    };
-                    pt_data.solver_dp2 = match &com_pose2 {
-                        Some(pose) => point - pose.translation,
-                        None => point,
-                    };
-
-                    sc.anchor1 = match &com_pose1 {
-                        Some(pose) => pose.inverse_transform_point(p1),
-                        None => p1,
-                    };
-
-                    if let Some(pose) = &com_pose2 {
-                        sc.anchor2 = pose.inverse_transform_point(sc.anchor2);
-                    }
-                }
-            }
+            let rel_dom = manifold.data.relative_dominance;
+            let com_pose = |rb: &&crate::dynamics::RigidBody| {
+                com_frame(&rb.pos.position, rb.mprops.local_mprops.local_com)
+            };
+            let com_pose1 = rb1.as_ref().filter(|_| rel_dom <= 0).map(com_pose);
+            let com_pose2 = rb2.as_ref().filter(|_| rel_dom >= 0).map(com_pose);
+            localize_solver_contacts(manifold, com_pose1.as_ref(), com_pose2.as_ref());
         }
 
         // Remember the relative configuration this full update ran at, so
@@ -853,5 +810,57 @@ fn replay_state(
         replayable: !active_hooks.contains(ActiveHooks::MODIFY_SOLVER_CONTACTS)
             && anchors_replayable(co1, rb1)
             && anchors_replayable(co2, rb2),
+    }
+}
+
+/// The pose of a body's center-of-mass frame, from its pose and local center of mass.
+pub(super) fn com_frame(body_pose: &Pose, local_com: Vector) -> Pose {
+    body_pose.prepend_translation(local_com)
+}
+
+/// Bakes the solver contacts' distances into world anchors, expresses them in their body's CoM
+/// frame (`None`: kept in world space), and freezes the matching lever arms.
+///
+/// Snapshot restores replay this exact function, so it must only read the manifold and the poses.
+pub(super) fn localize_solver_contacts(
+    manifold: &mut ContactManifold,
+    com_pose1: Option<&Pose>,
+    com_pose2: Option<&Pose>,
+) {
+    let normal = manifold.data.normal;
+    // Split-borrow: the frozen solver arms are written to the manifold points while iterating
+    // the solver contacts.
+    let manifold_points = &mut manifold.points;
+    // Only selected contact ids are ever gathered: zero the other points' dead lever arms so
+    // restored snapshots match.
+    for pt in manifold_points.iter_mut() {
+        pt.data.solver_dp1 = Vector::ZERO;
+        pt.data.solver_dp2 = Vector::ZERO;
+    }
+    for sc in &mut manifold.data.solver_contacts {
+        let shift = (sc.anchor2 - sc.anchor1).dot(normal) - sc.dist;
+        let p1 = sc.anchor1 + normal * shift;
+
+        // Freeze the solver's lever arms (world-space, CoM-relative; plain world for a
+        // world-attached side). They stay verbatim while recycled (see `ContactData::solver_dp1`).
+        let point = (p1 + sc.anchor2) * 0.5;
+        let cid = (sc.contact_id[0] & !crate::geometry::contact_pair::NEW_CONTACT_BIT) as usize;
+        let pt_data = &mut manifold_points[cid].data;
+        pt_data.solver_dp1 = match com_pose1 {
+            Some(pose) => point - pose.translation,
+            None => point,
+        };
+        pt_data.solver_dp2 = match com_pose2 {
+            Some(pose) => point - pose.translation,
+            None => point,
+        };
+
+        sc.anchor1 = match com_pose1 {
+            Some(pose) => pose.inverse_transform_point(p1),
+            None => p1,
+        };
+        if let Some(pose) = com_pose2 {
+            sc.anchor2 = pose.inverse_transform_point(sc.anchor2);
+        }
     }
 }

@@ -119,9 +119,8 @@ fn replay_points_tangent_world(manifold: &mut ContactManifold, marked: Option<&V
     }
 }
 
-/// Mirrors the solver-contact generation and localization of
-/// `pair_update::process_pair` for the contacts selected at the last full update,
-/// expression for expression so the results are bit-identical.
+/// Regenerates the world anchors of the contacts selected at the last full update, then
+/// localizes them with the same function as `pair_update::process_pair`.
 #[allow(clippy::too_many_arguments)]
 fn replay_manifold_contacts(
     manifold: &mut ContactManifold,
@@ -134,62 +133,28 @@ fn replay_manifold_contacts(
     pos2_t: &Pose,
     (skin1, skin2): (crate::math::Real, crate::math::Real),
 ) {
-    let normal = manifold.data.normal;
     let rel_dom = manifold.data.relative_dominance;
-
     // Body poses at the last full update equal the collider poses (identity
     // `pos_wrt_parent`, guaranteed by `ContactReplayState::replayable`).
     let com_pose = |co: &Collider, pose_t: &Pose| {
         co.parent
             .as_ref()
             .and_then(|p| bodies.get(p.handle))
-            .map(|rb| pose_t.prepend_translation(rb.mprops.local_mprops.local_com))
+            .map(|rb| super::pair_update::com_frame(pose_t, rb.mprops.local_mprops.local_com))
     };
-    let com_pose1 = if rel_dom <= 0 {
-        com_pose(co1, pos1_t)
-    } else {
-        None
-    };
-    let com_pose2 = if rel_dom >= 0 {
-        com_pose(co2, pos2_t)
-    } else {
-        None
-    };
+    let com_pose1 = (rel_dom <= 0).then(|| com_pose(co1, pos1_t)).flatten();
+    let com_pose2 = (rel_dom >= 0).then(|| com_pose(co2, pos2_t)).flatten();
 
-    let manifold_points = &mut manifold.points;
+    let manifold_points = &manifold.points;
     for sc in &mut manifold.data.solver_contacts {
         let cid = (sc.contact_id[0] & !NEW_CONTACT_BIT) as usize;
         let Some(contact) = manifold_points.get(cid) else {
             continue;
         };
-        let effective_contact_dist = contact.dist - skin1 - skin2;
-        let world_pt1 = *world_pos1 * contact.local_p1;
-        let world_pt2 = *world_pos2 * contact.local_p2;
-        sc.anchor1 = world_pt1;
-        sc.anchor2 = world_pt2;
-        sc.dist = effective_contact_dist;
+        sc.anchor1 = *world_pos1 * contact.local_p1;
+        sc.anchor2 = *world_pos2 * contact.local_p2;
+        sc.dist = contact.dist - skin1 - skin2;
         sc.tangent_velocity = Default::default();
-
-        let shift = (sc.anchor2 - sc.anchor1).dot(normal) - sc.dist;
-        let p1 = sc.anchor1 + normal * shift;
-
-        let point = (p1 + sc.anchor2) * 0.5;
-        let pt_data = &mut manifold_points[cid].data;
-        pt_data.solver_dp1 = match &com_pose1 {
-            Some(pose) => point - pose.translation,
-            None => point,
-        };
-        pt_data.solver_dp2 = match &com_pose2 {
-            Some(pose) => point - pose.translation,
-            None => point,
-        };
-
-        sc.anchor1 = match &com_pose1 {
-            Some(pose) => pose.inverse_transform_point(p1),
-            None => p1,
-        };
-        if let Some(pose) = &com_pose2 {
-            sc.anchor2 = pose.inverse_transform_point(sc.anchor2);
-        }
     }
+    super::pair_update::localize_solver_contacts(manifold, com_pose1.as_ref(), com_pose2.as_ref());
 }
