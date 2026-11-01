@@ -600,6 +600,9 @@ mod snapshot_delta {
     impl MultibodyJointSet {
         /// Rebuilds the multibodies' jacobians and mass matrices, which a deserialization or a
         /// delta leaves empty until the next step. Restoring a `PhysicsWorld` calls it.
+        ///
+        /// They are computed at the restored configuration, so their last bits can differ from the
+        /// original's until the next step recomputes them (simulation never reads the old ones).
         pub fn rebuild_derived_data(
             &mut self,
             bodies: &crate::dynamics::RigidBodySet,

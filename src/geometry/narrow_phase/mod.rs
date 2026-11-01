@@ -393,7 +393,8 @@ pub struct NarrowPhase {
     /// Workspace: edges flagged for force-event membership reconciliation because a collider
     /// was user-modified this step (an `ActiveEvents`/threshold flip has no change flag
     /// and need not trigger a contact update, so it would otherwise go unnoticed mid-epoch).
-    /// Always empty between steps.
+    /// Cleared before every user-change pass reads it, so snapshots skip it (a collision-only
+    /// step leaves it filled).
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     force_event_flagged: Vec<u32>,
     /// Whether the force-event pair list is intact. It is maintained incrementally

@@ -12,16 +12,12 @@ use crate::math::Pose;
 use parry::utils::PoseOpt;
 
 impl super::NarrowPhase {
-    /// Recomputes the solver-facing contact data (solver contacts, manifold normals,
-    /// frozen lever arms) that snapshots store in compact form.
+    /// Recomputes the solver contacts, manifold normals and frozen lever arms that snapshots
+    /// store in compact form (a no-op when nothing is pending).
     ///
-    /// Restoring a `PhysicsWorld` (or applying a world delta) runs it, as does the first
-    /// narrow-phase update after a deserialization; otherwise call it to read the contacts of a
-    /// freshly restored narrow phase before its first step. It does nothing if not needed.
-    ///
-    /// A pair whose body center of mass (or collider parent) changed since its last update is
-    /// replayed against the new value: its solver contacts differ from the uninterrupted run's
-    /// until the next step updates it, which serialization and simulation never see.
+    /// World restores, delta applies and the first narrow-phase update run it; call it to read
+    /// restored contacts before the first step. Pairs whose center of mass moved since their last
+    /// update replay against the new one, differing from the original until the next step.
     pub fn rebuild_solver_contacts(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
         use crate::data::delta::StaleSlots;
         let edges = &mut self.contact_graph.graph.edges;

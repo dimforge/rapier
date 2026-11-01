@@ -89,12 +89,8 @@ impl PhysicsPipeline {
         Self::stamp_active_set(islands, bodies, colliders);
     }
 
-    /// The per-step forward kinematics of every multibody, stamping for snapshot deltas only the
-    /// multibodies (and link bodies) it can change: awake ones, and the ones handed out mutably
-    /// since the last pass. On the others it recomputes the stored values bit for bit.
-    ///
-    /// A multibody falling asleep is stamped by one more pass because the solver's
-    /// `get_multibody_mut_internal` touched it during its last awake step.
+    /// Runs every multibody's forward kinematics, stamping only the awake ones and those handed
+    /// out mutably since the last pass (the others get bit-identical values back).
     #[cfg(feature = "serde-serialize")]
     pub(super) fn forward_kinematics_tracking_changes(
         bodies: &mut RigidBodySet,

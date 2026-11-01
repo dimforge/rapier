@@ -20,8 +20,9 @@
     the components without `PhysicsWorld`.
   - An incremental delta applies only to its baseline state: the target of the last delta
     applied, or a tick declared with `set_delta_baseline` (after restoring a snapshot taken
-    right after `change_tick`). Stepping a receiver clears its baseline; a full delta
-    recovers it.
+    right after `change_tick`). Stepping a receiver (with either pipeline) clears its
+    baseline; a full delta recovers it. Edits made on a receiver between steps are not
+    detected: send it a full delta after them.
   - Deltas are serde types: serialize them with any format. Heavy shapes (meshes, hulls,
     heightfields, compounds) are referenced by content and only sent when the receiver
     cannot hold them yet.
@@ -46,15 +47,19 @@
     origin, soft-body surfaces, and worlds with contact recycling disabled keep the
     verbatim encoding);
   - the multibody mass matrices, jacobians and workspaces are rebuilt after a
-    restore instead of being stored;
+    restore instead of being stored (at the restored configuration, so their last bits
+    can differ from the original's until the next step recomputes them);
   - the broad-phase BVH is stored as its leaves and rebuilt on restore. As a side
-    effect, spatial-query iteration order after a restore may differ from the
-    uninterrupted run (the pair set and simulation results do not).
+    effect, spatial-query iteration order (and the hit reported among equally distant
+    ones) after a restore may differ from the uninterrupted run (the pair set and
+    simulation results do not).
 - The serialization format changed: snapshots taken with previous versions cannot be
   restored by this one.
 - Spawned broad-phase pairs are handed to the narrow phase in canonical collider-pair
   order instead of tree-traversal order, which slightly changes contact ordering
-  (and therefore exact trajectories) compared to the previous version.
+  (and therefore exact trajectories) compared to the previous version. Likewise, CCD
+  sweeps its broad-phase candidates in collider order, and pending joint wake-ups run in
+  handle order.
 
 ### Fixed
 

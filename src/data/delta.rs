@@ -29,11 +29,12 @@
 //!   composite shapes (compounds, soft-body surfaces, voxels) in hash-map order, so a receiver
 //!   may serialize them in another order than the sender (with identical content).
 //! - Applying a broad-phase delta that changes leaves rebuilds the receiver's tree, like a
-//!   deserialization (O(n log n)).
+//!   deserialization (O(n log n)): spatial queries may then visit colliders, and break ties
+//!   between equally distant hits, in another order than on the sender.
 //! - Encoding clones the changed slots: about a full serialization when everything is awake.
 //! - Stamps are compared modulo 2^31 issued ticks (every `delta_since` and `change_tick` issues
 //!   one: about four days at 60 Hz for 100 receivers): a slot not rewritten for that long is then
-//!   resent by every delta until it is rewritten.
+//!   resent by every delta until it is rewritten, and an older baseline is rejected.
 //!
 //! # Example
 //!
@@ -129,9 +130,11 @@ pub enum DeltaError {
     #[error("change tracking is not enabled on this component")]
     TrackingDisabled,
     /// The baseline tick was not issued by this component's current change clock (the clock
-    /// was restarted, or the tick comes from another component): send a full state instead
-    /// (`delta_since(None)`).
-    #[error("the baseline tick was not issued by this change tracker; send a full state")]
+    /// was restarted, or the tick comes from another component), or is more than 2^31 ticks
+    /// old: send a full state instead (`delta_since(None)`).
+    #[error(
+        "the baseline tick was not issued by this change tracker or is too old; send a full state"
+    )]
     UnknownBaseline,
     /// The delta was produced against a baseline other than the state it is applied to.
     #[error("the delta's baseline does not match the state it is applied to")]

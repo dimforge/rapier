@@ -93,7 +93,8 @@ pub struct MultibodyDofCoupling {
 /// An articulated body simulated using the reduced-coordinates approach.
 ///
 /// Serialization only stores the state fields (links, generalized velocities and per-dof
-/// parameters). Restoring a `PhysicsWorld` rebuilds the jacobians and mass matrices; a
+/// parameters). Restoring a `PhysicsWorld` rebuilds the jacobians and mass matrices (at the
+/// restored configuration, so not bit-equal to the original's until the next step); a
 /// `MultibodyJointSet` restored alone leaves them empty until its first step (see
 /// [`MultibodyJointSet::rebuild_derived_data`](crate::dynamics::MultibodyJointSet::rebuild_derived_data)).
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]

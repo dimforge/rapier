@@ -1,8 +1,5 @@
-//! A serde serializer that hashes a value's serialized content instead of writing it.
-//!
-//! Used by the collider shape interning and by snapshot deltas to name shapes by content. The
-//! key may change across versions but not across platforms: lengths are hashed as `u64` and
-//! scalars as little-endian bytes.
+//! A serde serializer hashing a value's serialized content, used to name shapes by content.
+//! Lengths hash as `u64` and scalars as little-endian bytes, so keys are platform-independent.
 
 use core::fmt::Display;
 use serde::ser::{

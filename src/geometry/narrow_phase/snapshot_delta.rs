@@ -1,7 +1,5 @@
-//! Snapshot deltas of the narrow phase.
-//!
-//! Pairs are stamped where they are written. The small side arrays, written from many places
-//! (some in parallel), are diffed against a copy instead (see [`ShadowStamps`]).
+//! Snapshot deltas of the narrow phase: pairs are stamped where they are written, while the side
+//! arrays (written from many places) are diffed against a copy ([`ShadowStamps`]).
 
 use super::*;
 use crate::data::coarena::CoarenaDelta;
