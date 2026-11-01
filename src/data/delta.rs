@@ -31,9 +31,9 @@
 //! - Applying a broad-phase delta that changes leaves rebuilds the receiver's tree, like a
 //!   deserialization (O(n log n)).
 //! - Encoding clones the changed slots: about a full serialization when everything is awake.
-//! - Ticks wrap after 2^32 issued ticks (every `delta_since` and `change_tick` issues one: four
-//!   days at 60 Hz for 100 receivers): a slot not rewritten for 2^31 ticks is then resent by
-//!   every delta until it is rewritten.
+//! - Stamps are compared modulo 2^31 issued ticks (every `delta_since` and `change_tick` issues
+//!   one: about four days at 60 Hz for 100 receivers): a slot not rewritten for that long is then
+//!   resent by every delta until it is rewritten.
 //!
 //! # Example
 //!

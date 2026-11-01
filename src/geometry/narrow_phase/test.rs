@@ -405,10 +405,7 @@ fn restored_recycle_states_keep_their_relative_pose() {
     let restored: NarrowPhase = bincode::deserialize(&bytes).unwrap();
     let bits = |pose: &crate::math::Pose| {
         let (t, r) = (pose.translation, pose.rotation);
-        #[cfg(feature = "dim3")]
         let r = [r.x, r.y, r.z, r.w];
-        #[cfg(feature = "dim2")]
-        let r = [r.re, r.im];
         (t.to_array().map(Real::to_bits), r.map(Real::to_bits))
     };
     let mut checked = 0;

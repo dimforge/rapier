@@ -33,7 +33,7 @@ impl PhysicsPipeline {
     ) {
         #[cfg(feature = "serde-serialize")]
         {
-            // Copies: the components list is what matters here.
+            // Gravity and parameters are copies: only the component references are used.
             let (mut gravity, mut integration_parameters) = (gravity, *integration_parameters);
             let mut components = crate::pipeline::WorldComponentsMut {
                 gravity: &mut gravity,
@@ -92,6 +92,9 @@ impl PhysicsPipeline {
     /// The per-step forward kinematics of every multibody, stamping for snapshot deltas only the
     /// multibodies (and link bodies) it can change: awake ones, and the ones handed out mutably
     /// since the last pass. On the others it recomputes the stored values bit for bit.
+    ///
+    /// A multibody falling asleep is stamped by one more pass because the solver's
+    /// `get_multibody_mut_internal` touched it during its last awake step.
     #[cfg(feature = "serde-serialize")]
     pub(super) fn forward_kinematics_tracking_changes(
         bodies: &mut RigidBodySet,

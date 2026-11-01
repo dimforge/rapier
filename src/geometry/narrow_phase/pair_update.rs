@@ -502,7 +502,7 @@ pub(super) fn process_pair(
                     dominance1.effective_group(&rb_type1) - dominance2.effective_group(&rb_type2);
                 manifold.data.normal = world_pos1.rotation * manifold.local_n1;
 
-                // The lever arms are dead while clustered: zeroed for snapshots, which replay them.
+                // The lever arms are dead while clustered: zeroed to match what a restore gives them.
                 #[cfg(feature = "serde-serialize")]
                 for pt in &mut manifold.points {
                     pt.data.solver_dp1 = crate::math::Vector::ZERO;

@@ -10,17 +10,40 @@ use crate::math::Vector;
 use crate::pipeline::PhysicsWorld;
 use serde::{Deserialize, Serialize};
 
+/// Calls `$m!($args..., islands, broad_phase, ...)` with every component of a world that has
+/// deltas: the one list of them.
+macro_rules! delta_components {
+    ($m: ident $(, $arg: tt)*) => {
+        $m!(
+            $($arg,)*
+            islands,
+            broad_phase,
+            narrow_phase,
+            bodies,
+            colliders,
+            impulse_joints,
+            multibody_joints,
+            soft_bodies
+        )
+    };
+}
+
 /// Applies `$m!(field)` to every component of a world that has deltas.
 macro_rules! for_each_component {
     ($m: ident) => {
-        $m!(islands);
-        $m!(broad_phase);
-        $m!(narrow_phase);
-        $m!(bodies);
-        $m!(colliders);
-        $m!(impulse_joints);
-        $m!(multibody_joints);
-        $m!(soft_bodies);
+        delta_components!(apply_to_each, $m)
+    };
+}
+
+macro_rules! apply_to_each {
+    ($m: ident, $($field: ident),*) => {
+        $($m!($field);)*
+    };
+}
+
+macro_rules! count {
+    ($($field: ident),*) => {
+        [$(stringify!($field)),*].len()
     };
 }
 
@@ -97,8 +120,8 @@ impl WorldDelta {
     }
 }
 
-/// The number of components [`for_each_component`] visits.
-pub(crate) const NUM_DELTA_COMPONENTS: usize = 8;
+/// The number of components `for_each_component` visits.
+pub(crate) const NUM_DELTA_COMPONENTS: usize = delta_components!(count);
 
 /// Mutable access to every part of a world that deltas cover, for code storing them outside a
 /// [`PhysicsWorld`] (like the language bindings).

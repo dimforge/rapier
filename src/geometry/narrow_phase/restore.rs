@@ -18,6 +18,10 @@ impl super::NarrowPhase {
     /// Restoring a `PhysicsWorld` (or applying a world delta) runs it, as does the first
     /// narrow-phase update after a deserialization; otherwise call it to read the contacts of a
     /// freshly restored narrow phase before its first step. It does nothing if not needed.
+    ///
+    /// A pair whose body center of mass (or collider parent) changed since its last update is
+    /// replayed against the new value: its solver contacts differ from the uninterrupted run's
+    /// until the next step updates it, which serialization and simulation never see.
     pub fn rebuild_solver_contacts(&mut self, bodies: &RigidBodySet, colliders: &ColliderSet) {
         use crate::data::delta::StaleSlots;
         let edges = &mut self.contact_graph.graph.edges;
@@ -138,7 +142,7 @@ fn replay_manifold_contacts(
     let rel_dom = manifold.data.relative_dominance;
 
     // Body poses at the last full update equal the collider poses (identity
-    // `pos_wrt_parent`, guaranteed by `ContactRecycleState::replayable`).
+    // `pos_wrt_parent`, guaranteed by `ContactReplayState::replayable`).
     let com_pose = |co: &Collider, pose_t: &Pose| {
         co.parent
             .as_ref()

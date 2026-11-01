@@ -30,7 +30,9 @@
     are only recomputed within a `NarrowPhase`.
 - `NarrowPhase::rebuild_solver_contacts` and `MultibodyJointSet::rebuild_derived_data`:
   rebuild the derived data snapshots no longer store. Restoring a `PhysicsWorld` runs both, so
-  it can be read before its first step; call them only for components restored on their own.
+  it can be read before its first step (except the solver contacts of pairs whose body center of
+  mass changed since their last update, which that step recomputes); call them only for
+  components restored on their own.
 
 ### Changed
 

@@ -1182,7 +1182,7 @@ mod pair_serde {
     /// The serialized subset of [`ContactData`]: the frozen lever arms are replayed by
     /// the same pass as the solver contacts, and the world-space friction warm-start is
     /// recomputed from `warmstart_tangent_impulse` and the manifold normal's tangent
-    /// basis (bit-verified at serialization; see [`points_replayable`]).
+    /// basis (bit-verified at serialization, see `compact_point`).
     #[derive(Serialize, Deserialize)]
     struct CompactContactData {
         impulse: Real,

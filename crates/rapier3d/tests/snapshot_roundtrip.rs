@@ -1590,3 +1590,22 @@ fn bogus_multibody_index_is_a_cheap_miss() {
     assert!(multibody_joints.get_multibody_mut(bogus).is_none());
     assert!(multibody_joints.get_multibody_mut_internal(bogus).is_none());
 }
+
+/// A collision-only step diverges a receiver from its baseline too.
+#[test]
+fn collision_detection_clears_the_baseline() {
+    use rapier3d::data::DeltaError;
+
+    let mut world = pile(true);
+    world.enable_change_tracking();
+    let (full, acked) = world.delta_since(None).unwrap();
+    let mut receiver = PhysicsWorld::new();
+    receiver.apply_delta(full).unwrap();
+    receiver.detect_collisions(&(), &());
+    world.step();
+    let (delta, _) = world.delta_since(Some(acked)).unwrap();
+    assert_eq!(
+        receiver.apply_delta(delta).unwrap_err(),
+        DeltaError::BaselineMismatch
+    );
+}
