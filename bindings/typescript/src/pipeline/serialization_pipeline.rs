@@ -360,13 +360,25 @@ fn joint_type(data: &GenericJoint) -> u32 {
     RawJointType::from(data.locked_axes) as u32
 }
 
+/// Diffs joint slots, reporting a joint whose type changed as removed and added.
+fn diff_joint_slots(before: &[Slot<u32>], after: &[Slot<u32>], changes: &mut SetChanges) {
+    let mut retyped = Vec::new();
+    diff_slots(before, after, changes, |handle, b, a| {
+        if b != a {
+            retyped.push(handle);
+        }
+    });
+    changes.removed.extend_from_slice(&retyped);
+    changes.added.extend(retyped);
+}
+
 /// The occupied slots of every set, recorded before and after a patch.
 struct WorldSlots {
     bodies: Vec<Slot<()>>,
     colliders: Vec<Slot<ColliderSlotData>>,
-    /// A removed impulse joint's slot gets a new generation, so a replacement never keeps its
-    /// handle.
-    impulse_joints: Vec<Slot<()>>,
+    /// The joint types (as `RawJointType`): a full delta onto an independently built world can
+    /// put a joint of another type behind a handle the receiver already uses.
+    impulse_joints: Vec<Slot<u32>>,
     /// The joint types (as `RawJointType`): a multibody joint's handle is its child body's, so
     /// it survives the joint's replacement by one of another type.
     multibody_joints: Vec<Slot<u32>>,
@@ -389,7 +401,12 @@ impl WorldSlots {
                     .iter()
                     .map(|(h, co)| (h.0, ColliderSlotData::new(co))),
             ),
-            impulse_joints: slots(impulse_joints.0.iter().map(|(h, _)| (h.0, ()))),
+            impulse_joints: slots(
+                impulse_joints
+                    .0
+                    .iter()
+                    .map(|(h, joint)| (h.0, joint_type(&joint.data))),
+            ),
             multibody_joints: slots(
                 multibody_joints
                     .0
@@ -440,26 +457,17 @@ impl WorldSlots {
                 }
             },
         );
-        diff_slots(
+        // The JS wrapper's class follows the joint type: rebuild it.
+        diff_joint_slots(
             &self.impulse_joints,
             &after.impulse_joints,
             &mut applied.impulse_joints,
-            |_, _, _| {},
         );
-        let mut retyped = Vec::new();
-        diff_slots(
+        diff_joint_slots(
             &self.multibody_joints,
             &after.multibody_joints,
             &mut applied.multibody_joints,
-            |handle, b, a| {
-                if b != a {
-                    retyped.push(handle);
-                }
-            },
         );
-        // The JS wrapper's class follows the joint type: rebuild it.
-        applied.multibody_joints.removed.extend_from_slice(&retyped);
-        applied.multibody_joints.added.extend(retyped);
         diff_slots(
             &self.soft_bodies,
             &after.soft_bodies,

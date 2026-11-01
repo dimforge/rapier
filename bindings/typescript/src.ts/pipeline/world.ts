@@ -363,8 +363,8 @@ export class World {
      * delta it applied, or the tick given to `setDeltaBaseline`, without being stepped since.
      * A full delta (taken without baseline) is accepted in any state and replaces the whole
      * world. It should target an empty world or a replica of the same sender: this world's
-     * wrappers whose handle also names an object of the sender are kept as they are, even if
-     * that object differs (e.g. an `ImpulseJoint` wrapper keeps its joint type).
+     * wrappers whose handle also names an object of the sender are kept (with their
+     * `userData`), while a joint wrapper whose joint type changed is replaced.
      *
      * The delta must come from the same rapier.js build (same package and version), see
      * `takeDelta`.

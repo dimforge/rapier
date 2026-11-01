@@ -3,7 +3,9 @@ import {
     Ball,
     ColliderDesc,
     JointData,
+    PrismaticImpulseJoint,
     PrismaticMultibodyJoint,
+    RevoluteImpulseJoint,
     RevoluteMultibodyJoint,
     RigidBody,
     RigidBodyDesc,
@@ -342,6 +344,42 @@ describe("3d/snapshot deltas", () => {
 
         sender.free();
         receiver.free();
+    });
+
+    test("a full delta retypes the impulse joint wrappers of an independent world", () => {
+        const anchor1 = new Vector3(0, 0.5, 0);
+        const anchor2 = new Vector3(0, -0.5, 0);
+        const axis = new Vector3(1, 0, 0);
+        const build = (gravity: Vector3, data: JointData) => {
+            const world = new World(gravity);
+            const a = world.createRigidBody(RigidBodyDesc.dynamic());
+            const b = world.createRigidBody(
+                RigidBodyDesc.dynamic().setTranslation(0, 1, 0),
+            );
+            const joint = world.createImpulseJoint(data, a, b, true);
+            return {world, joint};
+        };
+        const sender = build(
+            new Vector3(0, -9.81, 0),
+            JointData.revolute(anchor1, anchor2, axis),
+        );
+        const receiver = build(
+            new Vector3(0, 0, 0),
+            JointData.prismatic(anchor1, anchor2, axis),
+        );
+        // Same handle, another joint type.
+        expect(receiver.joint.handle).toBe(sender.joint.handle);
+        expect(receiver.joint).toBeInstanceOf(PrismaticImpulseJoint);
+
+        sender.world.enableChangeTracking();
+        receiver.world.applyDelta(sender.world.takeDelta().delta);
+        expectSameState(sender.world, receiver.world);
+        const replicated = receiver.world.getImpulseJoint(sender.joint.handle);
+        expect(replicated).toBeInstanceOf(RevoluteImpulseJoint);
+        expect(replicated.isValid()).toBe(true);
+
+        sender.world.free();
+        receiver.world.free();
     });
 
     test("a reparented collider keeps its wrapper", () => {
