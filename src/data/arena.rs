@@ -887,6 +887,7 @@ impl<T> Arena<T> {
     }
 
     /// The tick slot `i` was last stamped at (zero if never).
+    #[cfg(feature = "serde-serialize")]
     #[inline]
     pub(crate) fn stamp_of(&self, i: Index) -> u32 {
         self.stamps.stamp(i.index as usize)

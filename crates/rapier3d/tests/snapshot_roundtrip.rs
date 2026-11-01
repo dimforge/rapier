@@ -1349,3 +1349,70 @@ fn full_delta_resync_drops_pipeline_caches() {
         assert_same(step, &record(&sender), &record(&receiver), "resynced receiver");
     }
 }
+
+/// A sleeping two-link multibody (revolute), on a fixed or a sleeping dynamic root.
+fn sleeping_multibody(root_dynamic: bool) -> (PhysicsWorld, MultibodyJointHandle) {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let root = world.insert_body(if root_dynamic {
+        RigidBodyBuilder::dynamic().sleeping(true)
+    } else {
+        RigidBodyBuilder::fixed()
+    });
+    world.insert_collider(ColliderBuilder::ball(0.1), Some(root));
+    let link = world.insert_body(
+        RigidBodyBuilder::dynamic()
+            .translation(Vector::new(1.0, 0.0, 0.0))
+            .sleeping(true),
+    );
+    world.insert_collider(ColliderBuilder::ball(0.1), Some(link));
+    let joint = RevoluteJointBuilder::new(Vector::Z)
+        .local_anchor2(Vector::new(-1.0, 0.0, 0.0))
+        .build()
+        .data;
+    let mb = world.insert_multibody_joint(root, link, joint).unwrap();
+    for _ in 0..400 {
+        world.step();
+    }
+    (world, mb)
+}
+
+/// A sleeping multibody edited before an issued tick, then stepped: forward kinematics moves
+/// it, and the next delta must carry the move.
+#[test]
+fn multibody_edited_before_a_tick_then_stepped() {
+    let (mut world, mb) = sleeping_multibody(true);
+    world.enable_change_tracking();
+    let (full, mut acked) = world.delta_since(None).unwrap();
+    let mut receiver = PhysicsWorld::new();
+    receiver.apply_delta(full).unwrap();
+
+    let (multibody, _) = world.multibody_joints.get_mut(mb).unwrap();
+    let mut displacement = vec![0.0; multibody.ndofs()];
+    *displacement.last_mut().unwrap() = 0.5;
+    multibody.apply_displacements(&displacement);
+    let (delta, tick) = world.delta_since(Some(acked)).unwrap();
+    receiver.apply_delta(delta).unwrap();
+    acked = tick;
+
+    world.step();
+    let (delta, _) = world.delta_since(Some(acked)).unwrap();
+    receiver.apply_delta(delta).unwrap();
+    assert_same(0, &record(&world), &record(&receiver), "edited multibody");
+}
+
+/// An idle fixed-rooted multibody costs nothing in deltas.
+#[test]
+fn idle_fixed_rooted_multibody_is_not_resent() {
+    let (mut world, _) = sleeping_multibody(false);
+    world.enable_change_tracking();
+    let (_, mut acked) = world.delta_since(None).unwrap();
+    for _ in 0..3 {
+        world.step();
+        let (delta, tick) = world.delta_since(Some(acked)).unwrap();
+        acked = tick;
+        let bytes = bincode::serialize(&delta.multibody_joints).unwrap().len()
+            + bincode::serialize(&delta.bodies).unwrap().len();
+        assert!(bytes < 512, "a {bytes}-byte idle delta");
+    }
+}

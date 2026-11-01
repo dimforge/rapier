@@ -448,7 +448,13 @@ impl PhysicsPipeline {
 
         // TODO: do this only on user-change.
         // TODO: do we want some kind of automatic inverse kinematics?
-        if bodies.bodies.stamps.is_enabled() || multibody_joints.multibodies.stamps.is_enabled() {
+        #[cfg(feature = "serde-serialize")]
+        let tracked =
+            bodies.bodies.stamps.is_enabled() || multibody_joints.multibodies.stamps.is_enabled();
+        #[cfg(not(feature = "serde-serialize"))]
+        let tracked = false;
+        if tracked {
+            #[cfg(feature = "serde-serialize")]
             Self::forward_kinematics_tracking_changes(bodies, multibody_joints);
         } else {
             for multibody in &mut multibody_joints.multibodies {

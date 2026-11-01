@@ -1,6 +1,7 @@
 //! The physics pipeline's bookkeeping for snapshot deltas: the stamps of the writes that
 //! bypass the containers' per-slot stamping, and the delta baselines a step invalidates.
 
+#[cfg(feature = "serde-serialize")]
 use crate::alloc_prelude::*;
 use crate::dynamics::{
     ImpulseJointSet, IslandManager, MultibodyJointSet, RigidBodySet, SoftBodySet,
@@ -85,16 +86,29 @@ impl PhysicsPipeline {
         Self::stamp_active_set(islands, bodies, colliders);
     }
 
-    /// The per-step forward kinematics of every multibody, stamping for snapshot deltas only
-    /// the multibodies (and link bodies) it can change: awake or user-edited ones. On the others
-    /// it recomputes the stored values bit for bit, so stamping them would bloat every delta.
+    /// The per-step forward kinematics of every multibody, stamping for snapshot deltas only the
+    /// multibodies (and link bodies) it changes: awake ones, and the others whose content it moves
+    /// (an edit made before the last issued tick, say). On the rest it is bit-stable.
+    #[cfg(feature = "serde-serialize")]
     pub(super) fn forward_kinematics_tracking_changes(
         bodies: &mut RigidBodySet,
         multibody_joints: &mut MultibodyJointSet,
     ) {
-        use crate::dynamics::RigidBodyChanges;
+        use crate::dynamics::{Multibody, RigidBodyChanges};
+        use crate::utils::content_hash::{ContentKey, content_key};
 
-        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        // The multibody's and its link bodies' content, to compare across the pass.
+        let content = |multibody: &Multibody, bodies: &RigidBodySet| -> Vec<Option<ContentKey>> {
+            core::iter::once(content_key(multibody))
+                .chain(
+                    multibody
+                        .links()
+                        .map(|link| bodies.get(link.rigid_body).and_then(content_key)),
+                )
+                .collect()
+        };
+
+        #[cfg(debug_assertions)]
         let checks = (
             crate::data::delta::UnstampedWriteCheck::new(&bodies.bodies),
             crate::data::delta::UnstampedWriteCheck::new(&multibody_joints.multibodies),
@@ -105,22 +119,28 @@ impl PhysicsPipeline {
         for (index, multibody) in multibodies {
             let slot = index.into_raw_parts().0 as usize;
             let edited = mb_now != 0 && mb_stamps.stamp(slot) == mb_now;
-            let changed = edited
+            let awake = edited
                 || multibody.links().any(|link| {
                     bodies.get(link.rigid_body).is_some_and(|rb| {
-                        !rb.is_sleeping() || rb.changes.contains(RigidBodyChanges::IN_MODIFIED_SET)
+                        (rb.is_dynamic_or_kinematic() && !rb.is_sleeping())
+                            || rb.changes.contains(RigidBodyChanges::IN_MODIFIED_SET)
                     })
                 });
             saved_stamps.clear();
-            if !changed {
+            let before = (!awake).then(|| {
                 saved_stamps.extend(
                     multibody
                         .links()
                         .map(|link| (link.rigid_body, bodies.bodies.stamp_of(link.rigid_body.0))),
                 );
-            }
+                content(multibody, bodies)
+            });
             multibody.forward_kinematics(bodies, true);
             multibody.update_rigid_bodies_internal(bodies, true, false, false);
+            let changed = match before {
+                None => true,
+                Some(before) => before != content(multibody, bodies),
+            };
             if changed {
                 mb_stamps.mark(slot);
             } else {
@@ -132,7 +152,7 @@ impl PhysicsPipeline {
                 }
             }
         }
-        #[cfg(all(feature = "serde-serialize", debug_assertions))]
+        #[cfg(debug_assertions)]
         {
             checks
                 .0

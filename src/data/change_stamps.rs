@@ -36,11 +36,6 @@ impl ChangeStamps {
     }
 
     #[inline(always)]
-    pub(crate) fn stamp_now(&self) -> u32 {
-        0
-    }
-
-    #[inline(always)]
     pub(crate) fn is_enabled(&self) -> bool {
         false
     }
@@ -57,13 +52,6 @@ impl ChangeStamps {
     #[inline(always)]
     pub(crate) fn truncate(&mut self, _: usize) {}
 
-    #[inline(always)]
-    pub(crate) fn stamp(&self, _: usize) -> u32 {
-        0
-    }
-
-    #[inline(always)]
-    pub(crate) fn set_stamp(&mut self, _: usize, _: u32) {}
 }
 
 #[cfg(feature = "serde-serialize")]
