@@ -812,6 +812,23 @@ mod snapshot_delta {
         key: ContentKey,
     }
 
+    /// A shape of the receiver-side registry, with the `shape_revision` given to every collider
+    /// resolved to it (so a relaying receiver does not re-hash it each time it is patched).
+    #[derive(Clone, Debug)]
+    struct ReceivedShape {
+        shape: ColliderShape,
+        revision: u64,
+    }
+
+    impl ReceivedShape {
+        fn new(shape: ColliderShape) -> Self {
+            Self {
+                shape,
+                revision: crate::geometry::collider::next_shape_revision(),
+            }
+        }
+    }
+
     /// Per-set delta bookkeeping (never serialized).
     #[derive(Clone, Debug, Default)]
     pub(super) struct ColliderDeltaState {
@@ -823,7 +840,7 @@ mod snapshot_delta {
         /// and how many colliders hold it now.
         held: HashMap<ContentKey, (u32, u32)>,
         /// Receiver side: shapes the receiver holds or received, by content.
-        received: Option<HashMap<ContentKey, ColliderShape>>,
+        received: Option<HashMap<ContentKey, ReceivedShape>>,
     }
 
     impl ColliderDeltaState {
@@ -916,15 +933,19 @@ mod snapshot_delta {
         fn received(
             &mut self,
             colliders: &mut Arena<Collider>,
-        ) -> &mut HashMap<ContentKey, ColliderShape> {
+        ) -> &mut HashMap<ContentKey, ReceivedShape> {
             self.received.get_or_insert_with(|| {
-                let mut map: HashMap<ContentKey, ColliderShape> = HashMap::new();
+                let mut map: HashMap<ContentKey, ReceivedShape> = HashMap::new();
                 // Unstamped: the shapes' content does not change.
                 let (colliders, _) = colliders.iter_mut_unstamped();
                 for (_, co) in colliders {
                     if is_heavy(co) {
                         if let Some(key) = content_key(&co.shape) {
-                            co.shape = map.entry(key).or_insert_with(|| co.shape.clone()).clone();
+                            let entry = map
+                                .entry(key)
+                                .or_insert_with(|| ReceivedShape::new(co.shape.clone()));
+                            co.shape = entry.shape.clone();
+                            co.shape_revision = entry.revision;
                         }
                     }
                 }
@@ -1070,22 +1091,32 @@ mod snapshot_delta {
             let mut table = Vec::with_capacity(delta.shapes.len());
             for shape in delta.shapes {
                 table.push(match shape {
-                    DeltaShape::Inline(shape) => shape,
+                    DeltaShape::Inline(shape) => (shape, None),
                     DeltaShape::Keyed {
                         key,
                         shape: Some(shape),
-                    } => received.entry(key).or_insert(shape).clone(),
+                    } => {
+                        let entry = received
+                            .entry(key)
+                            .or_insert_with(|| ReceivedShape::new(shape));
+                        (entry.shape.clone(), Some(entry.revision))
+                    }
                     DeltaShape::Keyed { key, shape: None } => {
-                        received.get(&key).ok_or(DeltaError::MissingShape)?.clone()
+                        let entry = received.get(&key).ok_or(DeltaError::MissingShape)?;
+                        (entry.shape.clone(), Some(entry.revision))
                     }
                 });
             }
 
             self.colliders.apply_delta_with(delta.colliders, |co| {
-                let shape = table
+                let (shape, revision) = table
                     .get(co.shape_id() as usize)
                     .ok_or(DeltaError::Malformed)?;
-                Ok(co.into_collider(shape.clone()))
+                let mut co = co.into_collider(shape.clone());
+                if let Some(revision) = revision {
+                    co.shape_revision = *revision;
+                }
+                Ok(co)
             })?;
             drop(table);
             self.modified_colliders = delta.modified_colliders;
@@ -1094,9 +1125,49 @@ mod snapshot_delta {
             // Forget the received shapes no collider holds anymore: the sender never omits the
             // bytes of content the receiver's colliders didn't hold at its baseline.
             if let Some(received) = &mut self.delta_state.received {
-                received.retain(|_, shape| Arc::strong_count(&shape.0) > 1);
+                received.retain(|_, entry| Arc::strong_count(&entry.shape.0) > 1);
             }
             Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use crate::alloc_prelude::*;
+        use crate::data::SnapshotDelta;
+        use crate::prelude::*;
+
+        #[test]
+        fn relayed_heavy_shape_keeps_its_revision() {
+            let vertices = vec![Vector::ZERO, Vector::X, Vector::Y, Vector::X + Vector::Y];
+            #[cfg(feature = "dim2")]
+            let builder = ColliderBuilder::polyline(vertices, None);
+            #[cfg(feature = "dim3")]
+            let builder = ColliderBuilder::trimesh(vertices, vec![[0, 1, 2], [1, 3, 2]]).unwrap();
+
+            let mut sender = ColliderSet::new();
+            sender.enable_change_tracking();
+            let handle = sender.insert(builder);
+            let mut relay = ColliderSet::new();
+            relay.enable_change_tracking();
+            let mut receiver = ColliderSet::new();
+
+            let (mut acked, mut relay_acked) = (None, None);
+            let mut revision = None;
+            for i in 0..4 {
+                sender[handle].set_translation(Vector::X * i as Real);
+                let (delta, tick) = sender.delta_since(acked).unwrap();
+                relay.apply_delta(delta).unwrap();
+                acked = Some(tick);
+                // The relay sees the same content each tick: same revision, no re-hash.
+                let current = relay[handle].shape_revision;
+                assert_eq!(*revision.get_or_insert(current), current);
+
+                let (delta, tick) = relay.delta_since(relay_acked).unwrap();
+                receiver.apply_delta(delta).unwrap();
+                relay_acked = Some(tick);
+                assert_eq!(receiver[handle].translation(), sender[handle].translation());
+            }
         }
     }
 }
