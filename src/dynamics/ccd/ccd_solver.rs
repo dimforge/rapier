@@ -133,7 +133,7 @@ impl CCDSolver {
             .filter(|h| bodies[*h].ccd.ccd_active)
             .collect();
 
-        let fractions = map_bodies_parallel(&fast_bodies, hooks, |handle, hooks| {
+        let fractions = map_bodies_parallel(&fast_bodies, hooks, |candidates, handle, hooks| {
             let rb1 = &bodies[handle];
             // `next_position` isn't solved yet: sweep to the forces/velocities integration.
             let predicted_body_pos =
@@ -150,6 +150,7 @@ impl CCDSolver {
                 dt,
                 linear_slop,
                 PseudoHitMode::Ignore,
+                candidates,
             )
             .fraction
         });
@@ -221,7 +222,7 @@ impl CCDSolver {
                 Some(fixed) => CcdTargets::Lists { fixed, soft: &soft },
                 None => CcdTargets::FullBvh(bvh),
             };
-            let results = map_bodies_parallel(&non_bullets, hooks, |handle, hooks| {
+            let results = map_bodies_parallel(&non_bullets, hooks, |candidates, handle, hooks| {
                 sweep_fast_body(
                     handle,
                     bodies,
@@ -233,6 +234,7 @@ impl CCDSolver {
                     dt,
                     linear_slop,
                     PseudoHitMode::Record,
+                    candidates,
                 )
             });
             all_results.extend(results);
@@ -250,7 +252,7 @@ impl CCDSolver {
                     QueryFilter::default(),
                 );
                 let (bvh, dispatcher) = (query_pipeline.bvh, query_pipeline.dispatcher);
-                map_bodies_parallel(&bullets, hooks, |handle, hooks| {
+                map_bodies_parallel(&bullets, hooks, |candidates, handle, hooks| {
                     sweep_fast_body(
                         handle,
                         bodies,
@@ -262,6 +264,7 @@ impl CCDSolver {
                         dt,
                         linear_slop,
                         PseudoHitMode::Record,
+                        candidates,
                     )
                 })
             };

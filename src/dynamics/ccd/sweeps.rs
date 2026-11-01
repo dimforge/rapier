@@ -550,12 +550,11 @@ pub(super) fn sweep_fast_body(
     dt: Real,
     linear_slop: Real,
     pseudo_mode: PseudoHitMode,
+    candidates: &mut Vec<ColliderHandle>,
 ) -> BodyContinuousResult {
     let rb1 = &bodies[handle];
     let mut fraction: Real = 1.0;
     let mut pseudo_hits = Vec::new();
-    // Reused by every collider of the body (see `CcdTargets::FullBvh` below).
-    let mut candidates = Vec::new();
 
     for ch1 in &rb1.colliders.0 {
         let co1 = &colliders[*ch1];
@@ -642,10 +641,10 @@ pub(super) fn sweep_fast_body(
                 // Each candidate narrows the next one's cast bound, so the result depends on the
                 // visit order: use collider order, not the tree's (restores rebuild the tree).
                 candidates.clear();
-                candidates.extend(intersect_swept_aabb(bvh, colliders, swept_aabb));
-                candidates.sort_unstable_by_key(|(ch2, _)| ch2.into_raw_parts());
-                for &(ch2, co2) in &candidates {
-                    handle_candidate(ch2, co2);
+                candidates.extend(intersect_swept_aabb(bvh, colliders, swept_aabb).map(|c| c.0));
+                candidates.sort_unstable_by_key(|ch2| ch2.into_raw_parts());
+                for &ch2 in candidates.iter() {
+                    handle_candidate(ch2, &colliders[ch2]);
                 }
             }
         }
@@ -681,21 +680,26 @@ impl PhysicsHooks for HookProbe {
 /// in parallel when the `parallel` feature is enabled.
 ///
 /// `f` takes the hooks rather than capturing them, so that a non-`Sync` build can hand the
-/// workers a stand-in and keep the user's callback on this thread.
+/// workers a stand-in and keep the user's callback on this thread. It also gets a per-worker
+/// candidate buffer for [`sweep_fast_body`].
 #[cfg(feature = "parallel")]
 pub(super) fn map_bodies_parallel<T: Send>(
     handles: &[RigidBodyHandle],
     hooks: &dyn PhysicsHooks,
-    f: impl Fn(RigidBodyHandle, &dyn PhysicsHooks) -> T + Sync + Send,
+    f: impl Fn(&mut Vec<ColliderHandle>, RigidBodyHandle, &dyn PhysicsHooks) -> T + Sync + Send,
 ) -> Vec<T> {
     // Below a few dozen bodies the rayon fan-out (pool wake + join) costs more
     // than the sweeps themselves.
     let map_with = |hooks: &(dyn PhysicsHooks + Sync)| {
         if handles.len() >= 64 {
             use rayon::prelude::*;
-            return handles.par_iter().map(|h| f(*h, hooks)).collect();
+            return handles
+                .par_iter()
+                .map_init(Vec::new, |buffer, h| f(buffer, *h, hooks))
+                .collect();
         }
-        handles.iter().map(|h| f(*h, hooks)).collect()
+        let mut buffer = Vec::new();
+        handles.iter().map(|h| f(&mut buffer, *h, hooks)).collect()
     };
 
     #[cfg(not(feature = "unsync-callbacks"))]
@@ -713,7 +717,8 @@ pub(super) fn map_bodies_parallel<T: Send>(
         // collider sets and return their result — the caller applies it — so throwing the
         // first pass away is free of side effects.
         drop(swept);
-        handles.iter().map(|h| f(*h, hooks)).collect()
+        let mut buffer = Vec::new();
+        handles.iter().map(|h| f(&mut buffer, *h, hooks)).collect()
     }
 }
 
@@ -723,7 +728,8 @@ pub(super) fn map_bodies_parallel<T: Send>(
 pub(super) fn map_bodies_parallel<T>(
     handles: &[RigidBodyHandle],
     hooks: &dyn PhysicsHooks,
-    f: impl Fn(RigidBodyHandle, &dyn PhysicsHooks) -> T,
+    f: impl Fn(&mut Vec<ColliderHandle>, RigidBodyHandle, &dyn PhysicsHooks) -> T,
 ) -> Vec<T> {
-    handles.iter().map(|h| f(*h, hooks)).collect()
+    let mut buffer = Vec::new();
+    handles.iter().map(|h| f(&mut buffer, *h, hooks)).collect()
 }
