@@ -1647,14 +1647,24 @@ mod pair_serde {
                         manifolds: manifolds
                             .iter()
                             .enumerate()
-                            .map(|(i, m)| manifold_ser(m, replay, pending.and_then(|p| p.get(i)).map(|p| &p[..])))
+                            .map(|(i, m)| {
+                                manifold_ser(
+                                    m,
+                                    replay,
+                                    pending.and_then(|p| p.get(i)).map(|p| &p[..]),
+                                )
+                            })
                             .collect(),
                         solver_clusters: solver_clusters
                             .iter()
                             .enumerate()
                             .map(|(i, m)| {
                                 let i = i + manifolds.len();
-                                manifold_ser(m, replay, pending.and_then(|p| p.get(i)).map(|p| &p[..]))
+                                manifold_ser(
+                                    m,
+                                    replay,
+                                    pending.and_then(|p| p.get(i)).map(|p| &p[..]),
+                                )
                             })
                             .collect(),
                         solver_color: *solver_color,

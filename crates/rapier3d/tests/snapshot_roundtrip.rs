@@ -625,14 +625,22 @@ fn center_of_mass_change_while_recycling() {
 #[test]
 fn center_of_mass_recomputed_by_the_user_while_recycling() {
     let (world, body) = resting_boxes();
-    check_roundtrip("recomputed center of mass", world, 62, 30, false, |w, step, _| {
-        if step == 60 {
-            let props = MassProperties::new(Vector::new(0.05, 0.0, 0.0), 1.0, Vector::splat(0.2));
-            let rb = &mut w.bodies[body];
-            rb.set_additional_mass_properties(props, true);
-            rb.recompute_mass_properties_from_colliders(&w.colliders);
-        }
-    });
+    check_roundtrip(
+        "recomputed center of mass",
+        world,
+        62,
+        30,
+        false,
+        |w, step, _| {
+            if step == 60 {
+                let props =
+                    MassProperties::new(Vector::new(0.05, 0.0, 0.0), 1.0, Vector::splat(0.2));
+                let rb = &mut w.bodies[body];
+                rb.set_additional_mass_properties(props, true);
+                rb.recompute_mass_properties_from_colliders(&w.colliders);
+            }
+        },
+    );
 }
 
 #[test]
@@ -1227,8 +1235,11 @@ fn locally_built_receiver_keeps_shared_content() {
     let tick = sender.change_tick().unwrap();
     receiver.set_delta_baseline(tick);
 
-    let (mut islands, mut bodies, mut soft) =
-        (IslandManager::new(), RigidBodySet::new(), SoftBodySet::new());
+    let (mut islands, mut bodies, mut soft) = (
+        IslandManager::new(),
+        RigidBodySet::new(),
+        SoftBodySet::new(),
+    );
     sender.remove(a, &mut islands, &mut bodies, &mut soft, false);
     let (delta, tick) = sender.delta_since(Some(tick)).unwrap();
     receiver.apply_delta(delta_roundtrip(delta)).unwrap();

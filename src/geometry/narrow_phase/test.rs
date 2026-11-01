@@ -389,7 +389,11 @@ fn restored_recycle_states_keep_their_relative_pose() {
     for i in 0..6 {
         world.insert(
             RigidBodyBuilder::dynamic()
-                .translation(Vector::new(i as Real * 0.7 - 2.0, 0.6 + i as Real * 1.1, 0.1))
+                .translation(Vector::new(
+                    i as Real * 0.7 - 2.0,
+                    0.6 + i as Real * 1.1,
+                    0.1,
+                ))
                 .rotation(Vector::new(0.1 * i as Real, 0.2, 0.3)),
             ColliderBuilder::cuboid(0.5, 0.5, 0.5),
         );

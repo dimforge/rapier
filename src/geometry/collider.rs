@@ -299,7 +299,7 @@ impl Collider {
             contact_skin,
             deformable_mesh_ref: _soft_mesh, // The soft-body markers belong to the collider's identity.
             #[cfg(feature = "serde-serialize")]
-            shape_revision: _,
+                shape_revision: _,
         } = other;
 
         if self.parent.is_none() {

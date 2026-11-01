@@ -310,7 +310,10 @@ mod internal {
                 None => None,
                 Some(since) => {
                     // The current tick has not been issued yet.
-                    if since.tracker != tracker || since.tick == now || stamp_is_newer(since.tick, now) {
+                    if since.tracker != tracker
+                        || since.tick == now
+                        || stamp_is_newer(since.tick, now)
+                    {
                         return Err(DeltaError::UnknownBaseline);
                     }
                     Some(since.tick)
