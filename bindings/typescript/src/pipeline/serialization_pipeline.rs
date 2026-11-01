@@ -1,6 +1,6 @@
 use crate::dynamics::{
-    RawImpulseJointSet, RawIntegrationParameters, RawIslandManager, RawMultibodyJointSet,
-    RawRigidBodySet, RawSoftBodySet,
+    RawImpulseJointSet, RawIntegrationParameters, RawIslandManager, RawJointType,
+    RawMultibodyJointSet, RawRigidBodySet, RawSoftBodySet,
 };
 use crate::geometry::{RawBroadPhase, RawColliderSet, RawNarrowPhase};
 use crate::math::RawVector;
@@ -9,12 +9,10 @@ use bincode::Options;
 use js_sys::Uint8Array;
 use rapier::data::{DeltaError, Index};
 use rapier::dynamics::{
-    ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
-    SoftBodySet,
+    GenericJoint, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet,
+    RigidBodySet, SoftBodySet,
 };
-use rapier::geometry::{
-    Collider, ColliderSet, DefaultBroadPhase, NarrowPhase, ShapeType, SharedShape,
-};
+use rapier::geometry::{Collider, ColliderSet, DefaultBroadPhase, NarrowPhase, SharedShape};
 use rapier::math::{Real, Vector};
 use rapier::pipeline::{WorldChangeTick, WorldComponentsMut, WorldDelta};
 use std::sync::Arc;
@@ -294,72 +292,84 @@ fn diff_slots<T>(
 }
 
 /// What a patch may change of a collider wrapper: its parent, and its shape.
-///
-/// Comparing shape pointers is sound: the delta's shapes are allocated when it decodes, before
-/// the first record, so no new shape reuses the address of one the patch frees.
 struct ColliderSlotData {
     parent: Option<Index>,
-    shape_ptr: usize,
-    /// A hash of the bytes of a light shape, which patches rebuild behind a new pointer.
-    light_shape: Option<u64>,
-    deformable: bool,
+    /// The shape (`None` for a deformable collider), kept alive across the patch so that equal
+    /// pointers mean the same shape. This delays the core's pruning of unused received shapes
+    /// by one patch.
+    shape: Option<SharedShape>,
 }
 
 impl ColliderSlotData {
-    fn new(co: &Collider, buf: &mut Vec<u8>) -> Self {
-        let shape = co.shared_shape();
+    fn new(co: &Collider) -> Self {
         ColliderSlotData {
             parent: co.parent().map(|p| p.0),
-            shape_ptr: Arc::as_ptr(&shape.0) as *const () as usize,
-            light_shape: light_shape_hash(shape, buf),
-            deformable: co.deformable_mesh_ref().is_some(),
+            // A clone would make the deformable mesh's next in-place update copy it.
+            shape: co
+                .deformable_mesh_ref()
+                .is_none()
+                .then(|| co.shared_shape().clone()),
         }
     }
 
     /// Whether the wrapper's cached shape may be stale once `self` became `after`.
     fn reshaped(&self, after: &Self) -> bool {
-        // A deformable mesh may be rewritten in place, behind the same pointer.
-        after.deformable
-            || (self.shape_ptr != after.shape_ptr
-                && (self.light_shape.is_none() || self.light_shape != after.light_shape))
+        match (&self.shape, &after.shape) {
+            (Some(before), Some(after)) => {
+                // Patches rebuild the shapes they carry inline behind a new pointer.
+                Arc::as_ptr(&before.0) as *const () != Arc::as_ptr(&after.0) as *const ()
+                    && !same_content(before, after)
+            }
+            // A deformable mesh may be rewritten in place, behind the same pointer.
+            _ => true,
+        }
     }
 }
 
-/// Hashes the bytes of the shapes the engine sends inline in deltas (the ones it does not
-/// deduplicate by content), like `ColliderSet`'s light shapes.
-fn light_shape_hash(shape: &SharedShape, buf: &mut Vec<u8>) -> Option<u64> {
-    use std::hash::{Hash, Hasher};
-    let light = match shape.shape_type() {
-        ShapeType::Ball
-        | ShapeType::Cuboid
-        | ShapeType::Capsule
-        | ShapeType::Segment
-        | ShapeType::Triangle
-        | ShapeType::HalfSpace
-        | ShapeType::RoundCuboid
-        | ShapeType::RoundTriangle => true,
-        #[cfg(feature = "dim3")]
-        ShapeType::Cylinder | ShapeType::Cone | ShapeType::RoundCylinder | ShapeType::RoundCone => {
-            true
+/// Whether two shapes serialize to the same bytes (`false` if either does not serialize).
+fn same_content(a: &SharedShape, b: &SharedShape) -> bool {
+    /// A writer that checks the bytes written against `expected`, failing at the first mismatch.
+    struct Compare<'a>(&'a [u8]);
+    impl std::io::Write for Compare<'_> {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            match self.0.strip_prefix(buf) {
+                Some(rest) => {
+                    self.0 = rest;
+                    Ok(buf.len())
+                }
+                None => Err(std::io::ErrorKind::InvalidData.into()),
+            }
         }
-        _ => false,
-    };
-    if !light {
-        return None;
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
     }
-    buf.clear();
-    bincode::serialize_into(&mut *buf, shape).ok()?;
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    buf.hash(&mut hasher);
-    Some(hasher.finish())
+
+    if a.shape_type() != b.shape_type() {
+        return false;
+    }
+    let Ok(expected) = bincode::serialize(a) else {
+        return false;
+    };
+    let mut compare = Compare(&expected);
+    bincode::serialize_into(&mut compare, b).is_ok() && compare.0.is_empty()
+}
+
+/// The type of a joint, as `RawJointType` (which the JS wrapper classes follow).
+fn joint_type(data: &GenericJoint) -> u32 {
+    RawJointType::from(data.locked_axes) as u32
 }
 
 /// The occupied slots of every set, recorded before and after a patch.
 struct WorldSlots {
     bodies: Vec<Slot<()>>,
     colliders: Vec<Slot<ColliderSlotData>>,
+    /// A removed impulse joint's slot gets a new generation, so a replacement never keeps its
+    /// handle.
     impulse_joints: Vec<Slot<()>>,
-    multibody_joints: Vec<Slot<()>>,
+    /// The joint types (as `RawJointType`): a multibody joint's handle is its child body's, so
+    /// it survives the joint's replacement by one of another type.
+    multibody_joints: Vec<Slot<u32>>,
     soft_bodies: Vec<Slot<()>>,
 }
 
@@ -371,17 +381,21 @@ impl WorldSlots {
         multibody_joints: &RawMultibodyJointSet,
         soft_bodies: &RawSoftBodySet,
     ) -> Self {
-        let mut buf = Vec::new();
         WorldSlots {
             bodies: slots(bodies.0.iter().map(|(h, _)| (h.0, ()))),
             colliders: slots(
                 colliders
                     .0
                     .iter()
-                    .map(|(h, co)| (h.0, ColliderSlotData::new(co, &mut buf))),
+                    .map(|(h, co)| (h.0, ColliderSlotData::new(co))),
             ),
             impulse_joints: slots(impulse_joints.0.iter().map(|(h, _)| (h.0, ()))),
-            multibody_joints: slots(multibody_joints.0.iter().map(|(h, ..)| (h.0, ()))),
+            multibody_joints: slots(
+                multibody_joints
+                    .0
+                    .iter()
+                    .map(|(h, _, _, link)| (h.0, joint_type(&link.joint().data))),
+            ),
             soft_bodies: slots(soft_bodies.0.iter().map(|(h, _)| (h.0, ()))),
         }
     }
@@ -432,12 +446,20 @@ impl WorldSlots {
             &mut applied.impulse_joints,
             |_, _, _| {},
         );
+        let mut retyped = Vec::new();
         diff_slots(
             &self.multibody_joints,
             &after.multibody_joints,
             &mut applied.multibody_joints,
-            |_, _, _| {},
+            |handle, b, a| {
+                if b != a {
+                    retyped.push(handle);
+                }
+            },
         );
+        // The JS wrapper's class follows the joint type: rebuild it.
+        applied.multibody_joints.removed.extend_from_slice(&retyped);
+        applied.multibody_joints.added.extend(retyped);
         diff_slots(
             &self.soft_bodies,
             &after.soft_bodies,
@@ -448,8 +470,10 @@ impl WorldSlots {
     }
 }
 
-/// The largest delta or tick accepted, like the C bindings.
+/// The largest delta or tick accepted, header included, like the C and Python bindings.
 const MAX_DELTA_BYTES: usize = 256 * 1024 * 1024;
+/// The largest payload encoded or decoded, so that every encoded delta or tick decodes.
+const MAX_PAYLOAD_BYTES: usize = MAX_DELTA_BYTES - HEADER_LEN;
 
 /// The magic opening every serialized delta.
 const DELTA_MAGIC: [u8; 4] = *b"RJSD";
@@ -525,7 +549,7 @@ fn check_header<'a>(what: &str, magic: [u8; 4], bytes: &'a [u8]) -> Result<&'a [
 fn delta_options() -> impl Options {
     bincode::DefaultOptions::new()
         .with_fixint_encoding()
-        .with_limit(MAX_DELTA_BYTES as u64)
+        .with_limit(MAX_PAYLOAD_BYTES as u64)
         .reject_trailing_bytes()
 }
 
@@ -548,11 +572,18 @@ fn delta_error(err: DeltaError) -> JsValue {
     kinded_error(kind, &format!("snapshot delta: {err}"))
 }
 
-fn encode<T: serde::Serialize>(magic: [u8; 4], value: &T) -> Result<Vec<u8>, JsValue> {
+/// Serializes `value` behind the `magic` header, failing (`kind`: `malformed`) past 256 MiB.
+fn encode<T: serde::Serialize>(what: &str, magic: [u8; 4], value: &T) -> Result<Vec<u8>, JsValue> {
     let mut bytes = header(magic).to_vec();
     delta_options()
         .serialize_into(&mut bytes, value)
-        .map_err(|e| JsValue::from(js_sys::Error::new(&e.to_string())))?;
+        .map_err(|e| {
+            let reason = match *e {
+                bincode::ErrorKind::SizeLimit => "exceeds 256 MiB".to_string(),
+                e => e.to_string(),
+            };
+            kinded_error("malformed", &format!("cannot encode the {what}: {reason}"))
+        })?;
     Ok(bytes)
 }
 
@@ -561,7 +592,7 @@ fn decode<T: serde::de::DeserializeOwned>(
     magic: [u8; 4],
     bytes: &Uint8Array,
 ) -> Result<T, JsValue> {
-    if bytes.length() as usize > MAX_DELTA_BYTES + HEADER_LEN {
+    if bytes.length() as usize > MAX_DELTA_BYTES {
         return Err(kinded_error(
             "malformed",
             &format!("malformed {what}: exceeds 256 MiB"),
@@ -579,7 +610,7 @@ fn decode_tick(bytes: &Uint8Array) -> Result<WorldChangeTick, JsValue> {
 }
 
 fn encode_tick(tick: &WorldChangeTick) -> Result<Vec<u8>, JsValue> {
-    encode(TICK_MAGIC, tick)
+    encode("snapshot delta tick", TICK_MAGIC, tick)
 }
 
 #[wasm_bindgen]
@@ -818,7 +849,7 @@ impl RawSerializationPipeline {
         .delta_since(since)
         .map_err(delta_error)?;
         Ok(RawWorldDelta {
-            delta: encode(DELTA_MAGIC, &delta)?,
+            delta: encode("snapshot delta", DELTA_MAGIC, &delta)?,
             tick: encode_tick(&tick)?,
         })
     }
@@ -828,8 +859,9 @@ impl RawSerializationPipeline {
     /// to acknowledge to the sender with the handles the patch added, removed or modified.
     ///
     /// Throws an `Error` with a `kind` property (see `World.applyDelta`) if the bytes do not
-    /// decode, leaving the world untouched. A patch failing afterwards is reported by the
-    /// result's `error`, with what the components applied before the failing one changed.
+    /// decode or target another baseline, leaving the world untouched. A patch failing
+    /// afterwards is reported by the result's `error`, with what the components applied before
+    /// the failing one changed.
     pub fn applyDelta(
         &self,
         data: Uint8Array,
@@ -864,9 +896,14 @@ impl RawSerializationPipeline {
             impulse_joints,
             multibody_joints,
         )
-        .apply_delta(delta)
-        .map_err(delta_error)
-        .and_then(|tick| encode_tick(&tick));
+        .apply_delta(delta);
+        // The core checks every baseline before writing anything: nothing changed.
+        if let Err(err @ DeltaError::BaselineMismatch) = result {
+            return Err(delta_error(err));
+        }
+        let result = result
+            .map_err(delta_error)
+            .and_then(|tick| encode_tick(&tick));
         let after = WorldSlots::record(
             bodies,
             colliders,

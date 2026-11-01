@@ -3,6 +3,8 @@ import {
     Ball,
     ColliderDesc,
     JointData,
+    PrismaticMultibodyJoint,
+    RevoluteMultibodyJoint,
     RigidBody,
     RigidBodyDesc,
     SnapshotDeltaError,
@@ -291,6 +293,136 @@ describe("3d/snapshot deltas", () => {
         receiver.free();
     });
 
+    test("a multibody joint replaced by another type gets a new wrapper", () => {
+        const sender = new World(new Vector3(0, -9.81, 0));
+        sender.enableChangeTracking();
+        const receiver = new World(new Vector3(0, 0, 0));
+        let ack = receiver.applyDelta(sender.takeDelta().delta);
+        const sync = () => {
+            const delta = sender.takeDelta(ack);
+            ack = receiver.applyDelta(delta.delta);
+            expectSameState(sender, receiver);
+        };
+
+        const root = sender.createRigidBody(RigidBodyDesc.fixed());
+        const child = sender.createRigidBody(
+            RigidBodyDesc.dynamic().setTranslation(0, -1, 0),
+        );
+        sender.createCollider(ColliderDesc.ball(0.3), child);
+        const anchor1 = new Vector3(0, 0, 0);
+        const anchor2 = new Vector3(0, 1, 0);
+        const axis = new Vector3(1, 0, 0);
+        const revolute = sender.createMultibodyJoint(
+            JointData.revolute(anchor1, anchor2, axis),
+            root,
+            child,
+            true,
+        );
+        sender.step();
+        sync();
+        expect(receiver.getMultibodyJoint(revolute.handle)).toBeInstanceOf(
+            RevoluteMultibodyJoint,
+        );
+
+        // Within one ack window: the same child, so the same handle, with another joint type.
+        sender.removeMultibodyJoint(revolute, true);
+        const prismatic = sender.createMultibodyJoint(
+            JointData.prismatic(anchor1, anchor2, axis),
+            root,
+            child,
+            true,
+        );
+        expect(prismatic.handle).toBe(revolute.handle);
+        expect(prismatic).toBeInstanceOf(PrismaticMultibodyJoint);
+        sender.step();
+        sync();
+        const replicated = receiver.getMultibodyJoint(prismatic.handle);
+        expect(replicated).toBeInstanceOf(PrismaticMultibodyJoint);
+        expect(replicated.isValid()).toBe(true);
+
+        sender.free();
+        receiver.free();
+    });
+
+    test("a reparented collider keeps its wrapper", () => {
+        // rapier.js cannot reparent a collider: a full delta onto a world built with another
+        // parent for the same collider handle does it instead.
+        const build = (parentIndex: number) => {
+            const world = new World(new Vector3(0, -9.81, 0));
+            const parents = [0, 1].map((i) =>
+                world.createRigidBody(
+                    RigidBodyDesc.dynamic().setTranslation(i * 3, 2, 0),
+                ),
+            );
+            const collider = world.createCollider(
+                ColliderDesc.ball(0.5),
+                parents[parentIndex],
+            );
+            return {world, parents, collider};
+        };
+        const sender = build(1);
+        sender.world.enableChangeTracking();
+        const receiver = build(0);
+        const wrapper = receiver.collider;
+        const shape = wrapper.shape;
+        expect(wrapper.parent()).toBe(receiver.parents[0]);
+
+        receiver.world.applyDelta(sender.world.takeDelta().delta);
+        expectSameState(sender.world, receiver.world);
+        const replicated = receiver.world.getCollider(sender.collider.handle);
+        expect(replicated).toBe(wrapper);
+        expect(replicated.parent()).toBe(receiver.parents[1]);
+        expect(replicated.parent().handle).toBe(sender.parents[1].handle);
+        // The shape did not change: the cached shape object is kept.
+        expect(replicated.shape).toBe(shape);
+
+        sender.world.free();
+        receiver.world.free();
+    });
+
+    test("a partially applied delta resyncs the wrappers", () => {
+        const {world: sender} = buildWorld();
+        sender.enableChangeTracking();
+        const snapshot = sender.takeSnapshot();
+        const hullBody = sender.createRigidBody(
+            RigidBodyDesc.dynamic().setTranslation(0, 8, 0),
+        );
+        sender.createCollider(
+            ColliderDesc.convexHull(
+                new Float32Array([
+                    -0.4, -0.3, -0.4, 0.4, -0.3, -0.4, 0.4, 0.3, -0.4, -0.4,
+                    0.3, -0.4, -0.4, -0.3, 0.4, 0.4, -0.3, 0.4, 0.4, 0.3, 0.4,
+                    -0.3, 0.4, 0.3,
+                ]),
+            ),
+            hullBody,
+        );
+        const tick = sender.changeTick();
+        sender.step();
+        const delta = sender.takeDelta(tick);
+
+        // A receiver wrongly declaring the baseline (it lacks the hull): the bodies are patched,
+        // then the colliders fail on the hull's shape, which the delta omits.
+        const receiver = World.restoreSnapshot(snapshot);
+        receiver.setDeltaBaseline(tick);
+        expect(receiver.getRigidBody(hullBody.handle)).toBeNull();
+        expect(errorKind(() => receiver.applyDelta(delta.delta))).toBe(
+            "missing_shape",
+        );
+        expect(receiver.bodies.len()).toBe(receiver.bodies.raw.len());
+        const body = receiver.getRigidBody(hullBody.handle);
+        expect(body).not.toBeNull();
+        expect(body.isValid()).toBe(true);
+
+        // A full delta recovers.
+        receiver.applyDelta(sender.takeDelta().delta);
+        expectSameState(sender, receiver);
+        expect(receiver.getRigidBody(hullBody.handle).numColliders()).toBe(1);
+
+        sender.free();
+        receiver.free();
+    });
+
     test("delta errors throw with a kind", () => {
         const {world: sender} = buildWorld();
         expect(errorKind(() => sender.takeDelta())).toBe("tracking_disabled");
@@ -322,7 +454,7 @@ describe("3d/snapshot deltas", () => {
             errorKind(() => receiver.setDeltaBaseline(new Uint8Array([1]))),
         ).toBe("malformed");
 
-        // A delta against another baseline changes nothing, not even the gravity.
+        // A delta against another baseline changes nothing, not even the gravity object.
         const gravity = receiver.gravity;
         const timestep = receiver.timestep;
         sender.gravity = new Vector3(0, -5, 0.5);
@@ -331,8 +463,16 @@ describe("3d/snapshot deltas", () => {
         expect(errorKind(() => receiver.applyDelta(mismatched.delta))).toBe(
             "baseline_mismatch",
         );
-        expect(receiver.gravity).toEqual(gravity);
+        expect(receiver.gravity).toBe(gravity);
         expect(receiver.timestep).toBe(timestep);
+        const truncated = mismatched.delta.slice(
+            0,
+            mismatched.delta.length - 1,
+        );
+        expect(errorKind(() => receiver.applyDelta(truncated))).toBe(
+            "malformed",
+        );
+        expect(receiver.gravity).toBe(gravity);
 
         // Restarting the tracking invalidates the ticks issued before.
         sender.disableChangeTracking();

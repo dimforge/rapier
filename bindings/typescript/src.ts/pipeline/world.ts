@@ -336,7 +336,8 @@ export class World {
      * Throws a `SnapshotDeltaError` (see `SnapshotDeltaErrorKind`) of kind
      * `"tracking_disabled"` (change tracking is disabled), `"unknown_baseline"` (`since` was not
      * issued by this world's current change trackers, e.g. tracking was restarted: send a full
-     * delta instead) or `"malformed"` (`since` is not a tick of this rapier.js build).
+     * delta instead) or `"malformed"` (`since` is not a tick of this rapier.js build, or the
+     * delta would exceed the 256 MiB size limit).
      *
      * @param since - The last tick acknowledged by the receiver (returned by its
      *                `applyDelta`, or by the sender's `takeDelta` or `changeTick`). Omit it for
@@ -379,8 +380,9 @@ export class World {
      * `"baseline_mismatch"` (the delta was produced against another state), `"malformed"` (the
      * bytes are not a delta of this rapier.js build) or `"missing_shape"` (a collider
      * references a shape this world does not hold). A delta that does not decode or targets
-     * another baseline leaves the world untouched; after any other error, the world may be
-     * partially patched: apply a full delta to recover.
+     * another baseline leaves the world untouched, including `gravity`; after any other error,
+     * the world may be partially patched (its wrappers follow the patched part): apply a full
+     * delta to recover.
      */
     public applyDelta(delta: Uint8Array): Uint8Array {
         return this.serializationPipeline.applyDelta(

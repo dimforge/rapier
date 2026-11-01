@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Breaking changes
+
+- The snapshot format changed: snapshots taken with previous rapier.js versions cannot be restored.
+  `World.restoreSnapshot` returns `null` for them, or may misread them, since snapshots carry no
+  version header.
+
 ### Added
 
 - Snapshot deltas: `World.enableChangeTracking()`, `World.takeDelta(since?)` and `World.applyDelta(delta)`
@@ -17,7 +23,8 @@
 - Deltas and ticks start with an 8-byte header (magic telling deltas from ticks, format version,
   dimension and scalar size): bytes from another dimension, format version or of the wrong type are
   rejected as `"malformed"` instead of being misread. Deltas must still come from the same rapier.js
-  build as the receiver.
+  build as the receiver. Deltas and ticks are limited to 256 MiB, header included (`takeDelta` throws
+  `"malformed"` past it).
 - `World.applyDelta` only updates the wrappers of the objects the delta added, removed, reparented or
   reshaped: the engine diffs the sets natively (O(world size)), and the JavaScript work is proportional
   to the changes. Colliders whose shape did not change keep their cached `Collider.shape` object.

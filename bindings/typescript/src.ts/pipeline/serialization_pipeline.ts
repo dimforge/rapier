@@ -21,7 +21,8 @@ import {World} from "./world";
  * - `"tracking_disabled"`: change tracking is disabled on the sender.
  * - `"unknown_baseline"`: the tick was not issued by the sender's current change trackers.
  * - `"baseline_mismatch"`: the delta was produced against another state than the receiver's.
- * - `"malformed"`: the bytes are not a delta or tick of this rapier.js build.
+ * - `"malformed"`: the bytes are not a delta or tick of this rapier.js build, or a delta to
+ *   encode exceeds the 256 MiB size limit.
  * - `"missing_shape"`: the delta references a shape the receiver does not hold.
  */
 export type SnapshotDeltaErrorKind =
@@ -289,10 +290,10 @@ export class SerializationPipeline {
      * targets another baseline changes nothing; after any other error, the gravity, integration
      * parameters and the components patched before the error keep their new state.
      *
-     * @param onGravity - Called with the resulting gravity, also when the delta fails to apply.
+     * @param onGravity - Called with the resulting gravity, also when the patch fails partway,
+     *                    but not when the delta does not decode or targets another baseline.
      * @param onChanges - Called with the handles the patch added, removed or modified, also
-     *                    when the delta fails to apply after it decoded. Only valid during the
-     *                    call.
+     *                    when the patch fails partway. Only valid during the call.
      * @returns The tick to acknowledge to the sender.
      */
     public applyDelta(
@@ -310,7 +311,7 @@ export class SerializationPipeline {
         onGravity: (gravity: Vector) => void,
         onChanges?: (changes: RawAppliedDelta) => void,
     ): Uint8Array {
-        let rawGra = VectorOps.intoRaw(gravity);
+        const rawGra = VectorOps.intoRaw(gravity);
         let applied: RawAppliedDelta;
         try {
             applied = this.raw.applyDelta(
@@ -326,9 +327,13 @@ export class SerializationPipeline {
                 impulseJoints.raw,
                 multibodyJoints.raw,
             );
-        } finally {
-            onGravity(VectorOps.fromRaw(rawGra));
+        } catch (e) {
+            // The delta did not decode or targets another baseline: the world is untouched.
+            rawGra.free();
+            throw e;
         }
+        // The world may be patched, even if `applied.error` is set.
+        onGravity(VectorOps.fromRaw(rawGra));
         try {
             if (onChanges) onChanges(applied);
             const error = applied.error;
