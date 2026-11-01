@@ -1351,7 +1351,12 @@ fn full_delta_resync_drops_pipeline_caches() {
     for step in 0..5 {
         sender.step();
         receiver.step();
-        assert_same(step, &record(&sender), &record(&receiver), "resynced receiver");
+        assert_same(
+            step,
+            &record(&sender),
+            &record(&receiver),
+            "resynced receiver",
+        );
     }
 }
 
@@ -1427,7 +1432,10 @@ fn idle_fixed_rooted_multibody_is_not_resent() {
 #[test]
 fn component_deltas_replay_pairs_moved_by_removals() {
     let mut sender = PhysicsWorld::new();
-    sender.insert(RigidBodyBuilder::fixed(), ColliderBuilder::cuboid(20.0, 0.5, 20.0));
+    sender.insert(
+        RigidBodyBuilder::fixed(),
+        ColliderBuilder::cuboid(20.0, 0.5, 20.0),
+    );
     let (a, _) = sender.insert(
         RigidBodyBuilder::dynamic().translation(Vector::new(-5.0, 1.0, 0.0)),
         ColliderBuilder::cuboid(0.5, 0.5, 0.5),
@@ -1463,7 +1471,9 @@ fn component_deltas_replay_pairs_moved_by_removals() {
     c.bodies.apply_delta(delta.bodies).unwrap();
     c.colliders.apply_delta(delta.colliders).unwrap();
     c.impulse_joints.apply_delta(delta.impulse_joints).unwrap();
-    c.multibody_joints.apply_delta(delta.multibody_joints).unwrap();
+    c.multibody_joints
+        .apply_delta(delta.multibody_joints)
+        .unwrap();
     c.soft_bodies.apply_delta(delta.soft_bodies).unwrap();
 
     for world in [&mut sender, &mut receiver] {
@@ -1472,6 +1482,11 @@ fn component_deltas_replay_pairs_moved_by_removals() {
     for step in 0..5 {
         sender.step();
         receiver.step();
-        assert_same(step, &record(&sender), &record(&receiver), "pairs moved by removals");
+        assert_same(
+            step,
+            &record(&sender),
+            &record(&receiver),
+            "pairs moved by removals",
+        );
     }
 }

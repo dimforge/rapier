@@ -51,7 +51,6 @@ impl ChangeStamps {
 
     #[inline(always)]
     pub(crate) fn truncate(&mut self, _: usize) {}
-
 }
 
 #[cfg(feature = "serde-serialize")]

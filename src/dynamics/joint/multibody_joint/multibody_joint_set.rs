@@ -627,7 +627,10 @@ mod snapshot_delta {
         }
 
         fn apply_delta_payload(&mut self, delta: MultibodyJointSetDelta) -> Result<(), DeltaError> {
-            let capacity = self.multibodies.capacity().max(delta.multibodies.slot_indices().count());
+            let capacity = self
+                .multibodies
+                .capacity()
+                .max(delta.multibodies.slot_indices().count());
             self.stale_derived
                 .extend(delta.multibodies.slot_indices(), capacity);
             self.multibodies.apply_delta(delta.multibodies)?;

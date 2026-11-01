@@ -482,7 +482,10 @@ fn clustered_plain_manifolds_keep_their_warmstart_tangent() {
         for manifold in &rigid.manifolds {
             let (t1, t2) = replay_tangent_basis(&manifold.data.normal);
             for pt in &manifold.points {
-                assert_eq!(pt.data.warmstart_tangent_world, replay_tangent_world(&t1, &t2, &pt.data));
+                assert_eq!(
+                    pt.data.warmstart_tangent_world,
+                    replay_tangent_world(&t1, &t2, &pt.data)
+                );
                 checked += 1;
             }
         }
