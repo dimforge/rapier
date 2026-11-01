@@ -1612,3 +1612,32 @@ fn collision_detection_clears_the_baseline() {
         DeltaError::BaselineMismatch
     );
 }
+
+/// A joint inserted between separately sleeping bodies, higher handle first, then snapshotted
+/// before the step that wakes them: the wake order must not depend on the insertion order.
+#[test]
+fn pending_wake_ups_replay_in_a_canonical_order() {
+    let world = || {
+        let mut world = PhysicsWorld::new();
+        world.insert(
+            RigidBodyBuilder::fixed().translation(Vector::new(0.0, -0.5, 0.0)),
+            ColliderBuilder::cuboid(50.0, 0.5, 50.0),
+        );
+        let mut handles = vec![];
+        for i in 0..6 {
+            let (h, _) = world.insert(
+                RigidBodyBuilder::dynamic().translation(Vector::new(i as Real * 5.0 - 12.0, 0.5, 0.0)),
+                ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+            );
+            handles.push(h);
+        }
+        for _ in 0..400 {
+            world.step();
+        }
+        assert!(handles.iter().all(|h| world.bodies[*h].is_sleeping()));
+        world.insert_impulse_joint(handles[4], handles[1], SphericalJointBuilder::new().build().data);
+        world
+    };
+    check_roundtrip("pending wake-ups", world(), 0, 30, false, no_edits);
+    check_delta_replication("pending wake-ups", world(), 0, 30, no_edits);
+}

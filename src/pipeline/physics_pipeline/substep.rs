@@ -343,17 +343,14 @@ impl PhysicsPipeline {
 
         // Apply some of delayed wake-ups.
         self.counters.stages.user_changes.start();
-        #[cfg(feature = "enhanced-determinism")]
-        let to_wake_up_iterator = impulse_joints
-            .to_wake_up
-            .drain(..)
-            .chain(multibody_joints.to_wake_up.drain(..));
-        #[cfg(not(feature = "enhanced-determinism"))]
-        let to_wake_up_iterator = impulse_joints
-            .to_wake_up
-            .drain()
-            .chain(multibody_joints.to_wake_up.drain());
-        for handle in to_wake_up_iterator {
+        // In handle order, as snapshots store them: the wake order shapes the active set.
+        let mut to_wake_up: Vec<_> = impulse_joints.to_wake_up.iter().copied().collect();
+        to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
+        let mut mb_to_wake_up: Vec<_> = multibody_joints.to_wake_up.iter().copied().collect();
+        mb_to_wake_up.sort_unstable_by_key(|h| h.into_raw_parts());
+        impulse_joints.to_wake_up.clear();
+        multibody_joints.to_wake_up.clear();
+        for handle in to_wake_up.into_iter().chain(mb_to_wake_up) {
             islands.wake_up(bodies, handle, true);
         }
 
@@ -412,17 +409,17 @@ impl PhysicsPipeline {
         }
 
         // Join islands based on new joints.
-        #[cfg(feature = "enhanced-determinism")]
-        let to_join_iterator = impulse_joints
-            .to_join
-            .drain(..)
-            .chain(multibody_joints.to_join.drain(..));
-        #[cfg(not(feature = "enhanced-determinism"))]
-        let to_join_iterator = impulse_joints
-            .to_join
-            .drain()
-            .chain(multibody_joints.to_join.drain());
-        for (handle1, handle2) in to_join_iterator {
+        // In handle order, as snapshots store them.
+        let pair_key = |(a, b): &(crate::dynamics::RigidBodyHandle, crate::dynamics::RigidBodyHandle)| {
+            (a.into_raw_parts(), b.into_raw_parts())
+        };
+        let mut to_join: Vec<_> = impulse_joints.to_join.iter().copied().collect();
+        to_join.sort_unstable_by_key(pair_key);
+        let mut mb_to_join: Vec<_> = multibody_joints.to_join.iter().copied().collect();
+        mb_to_join.sort_unstable_by_key(pair_key);
+        impulse_joints.to_join.clear();
+        multibody_joints.to_join.clear();
+        for (handle1, handle2) in to_join.into_iter().chain(mb_to_join) {
             islands.interaction_changed(bodies, Some(handle1), Some(handle2), false);
         }
 
