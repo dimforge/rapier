@@ -18,7 +18,8 @@ Unreleased
   ``SerializationError``). ``change_tick`` and ``set_delta_baseline`` let a receiver restored
   from a ``snapshot`` accept deltas from the tick taken right before it. Deltas and ticks have
   their own blob magics (``RPYD`` and ``RPYT``, next to ``RPYS`` for snapshots), so a blob of the
-  wrong kind raises ``SerializationError`` naming both kinds.
+  wrong kind raises ``SerializationError`` naming both kinds. Delta and tick blobs are limited to
+  256 MiB, header included, on both ends.
 
 **Changed**
 

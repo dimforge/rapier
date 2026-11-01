@@ -74,7 +74,7 @@ pub fn wrap_bincode(payload: Vec<u8>) -> Vec<u8> {
 }
 
 /// Prepend the 8-byte header of `kind` to `payload`.
-pub fn wrap_blob(kind: BlobKind, payload: Vec<u8>) -> Vec<u8> {
+fn wrap_blob(kind: BlobKind, payload: Vec<u8>) -> Vec<u8> {
     let mut out = Vec::with_capacity(HEADER_SIZE + payload.len());
     out.extend_from_slice(&blob_header(kind));
     out.extend_from_slice(&payload);

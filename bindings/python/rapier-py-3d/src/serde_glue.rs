@@ -1903,7 +1903,8 @@ impl PhysicsWorld {
     ///     "tracking_disabled"``), or if ``since`` was not issued by this world since
     ///     tracking was last enabled (``kind == "unknown_baseline"``: send a full state
     ///     with ``since=None`` instead).
-    /// :raises SerializationError: if ``since`` is not a valid tick blob.
+    /// :raises SerializationError: if ``since`` is not a valid tick blob, or the delta would
+    ///     exceed the 256 MiB blob limit.
     #[pyo3(signature = (since=None))]
     fn delta_since<'py>(
         &self,
@@ -1940,7 +1941,8 @@ impl PhysicsWorld {
     ///     untouched; only ``"malformed"`` and ``"missing_shape"``, raised while patching,
     ///     may leave it partially patched: recover by applying a full delta.
     /// :raises SerializationError: if ``delta`` is not a valid delta blob (e.g. a tick
-    ///     or a snapshot); the world is then untouched.
+    ///     or a snapshot), the world then being untouched, or the acknowledged tick would exceed
+    ///     the 256 MiB blob limit.
     fn apply_delta<'py>(
         &mut self,
         py: Python<'py>,

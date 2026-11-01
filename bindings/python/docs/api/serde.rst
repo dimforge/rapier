@@ -100,7 +100,7 @@ Errors
 :meth:`~rapier3d.PhysicsWorld.apply_delta` raise
 :class:`~rapier3d.SerializationError` on malformed or truncated blobs (and
 on blobs over 256 MiB, header included, or with trailing bytes, or of
-another kind), and
+another kind), or when the delta they would produce exceeds that limit, and
 its subclass :class:`~rapier3d.DeltaError` when the delta cannot be
 produced or applied. Its ``kind`` attribute names the cause:
 
