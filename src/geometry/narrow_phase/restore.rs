@@ -148,9 +148,7 @@ fn replay_manifold_contacts(
     let manifold_points = &manifold.points;
     for sc in &mut manifold.data.solver_contacts {
         let cid = (sc.contact_id[0] & !NEW_CONTACT_BIT) as usize;
-        let Some(contact) = manifold_points.get(cid) else {
-            continue;
-        };
+        let contact = &manifold_points[cid];
         sc.anchor1 = *world_pos1 * contact.local_p1;
         sc.anchor2 = *world_pos2 * contact.local_p2;
         sc.dist = contact.dist - skin1 - skin2;
