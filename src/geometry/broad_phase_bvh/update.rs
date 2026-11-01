@@ -410,9 +410,7 @@ impl BroadPhaseBvh {
                     Some((handle1, handle2))
                 };
 
-            // rayon's ordered collect keeps the new pairs in traversal order, so the pair
-            // set, adjacency lists and emitted events stay deterministic — and identical to
-            // the sequential filter below.
+            // The new pairs are sorted right after, so the collection order does not matter.
             // TODO(perf): avoid systematic `Vec` allocation.
             #[cfg(feature = "parallel")]
             let new_pairs: Vec<(ColliderHandle, ColliderHandle)> = {

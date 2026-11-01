@@ -103,10 +103,8 @@ mod interned_colliders {
     ) -> Result<S::Ok, S::Error> {
         let (entries, generation, free_list_head, len) = arena.raw_entries();
         let mut shapes = Vec::new();
-        // Grouping is by content key; the identity map only memoizes the (relatively
-        // costly) content hashing per distinct `Arc`. A shape whose content cannot be
-        // hashed (a custom shape refusing serialization) falls back to one table entry
-        // per `Arc`, keyed on a unique per-pointer id.
+        // Grouped by content key, memoized per `Arc` (hashing is costly); an unhashable shape gets
+        // one table entry per `Arc`.
         let mut by_identity: HashMap<*const u8, u32> = HashMap::new();
         let mut by_content: HashMap<ContentKey, u32> = HashMap::new();
         let items = entries

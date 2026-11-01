@@ -54,7 +54,7 @@ pub struct PhysicsPipeline {
     joint_selection_primed: bool,
     /// The state ids of the components last stepped (see `begin_change_tracking`).
     #[cfg(feature = "serde-serialize")]
-    delta_state_ids: [u32; 8],
+    delta_state_ids: [u32; crate::pipeline::physics_world_delta::NUM_DELTA_COMPONENTS],
     broad_phase_events: Vec<BroadPhasePairEvent>,
     /// Colliders moved by the last `advance_to_final_positions` with their fresh broad-phase
     /// AABBs, fed to the broad-phase update without the user-modification tracking. AABBs are
@@ -124,7 +124,7 @@ impl PhysicsPipeline {
             joint_constraint_indices: vec![],
             joint_selection_primed: false,
             #[cfg(feature = "serde-serialize")]
-            delta_state_ids: [0; 8],
+            delta_state_ids: [0; crate::pipeline::physics_world_delta::NUM_DELTA_COMPONENTS],
             broad_phase_events: vec![],
             end_step_collider_aabbs: vec![],
             soft_synced_colliders: vec![],

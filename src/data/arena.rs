@@ -690,8 +690,6 @@ impl<T> Arena<T> {
             return (self.get_mut(i1), None);
         }
 
-        self.stamps.mark(i1.index as usize);
-        self.stamps.mark(i2.index as usize);
         let (raw_item1, raw_item2) = {
             let (xs, ys) = self
                 .items
@@ -713,6 +711,13 @@ impl<T> Arena<T> {
             _ => None,
         };
 
+        // Stamped once found, so a miss grows no stamp storage.
+        if item1.is_some() {
+            self.stamps.mark(i1.index as usize);
+        }
+        if item2.is_some() {
+            self.stamps.mark(i2.index as usize);
+        }
         (item1, item2)
     }
 

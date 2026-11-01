@@ -97,6 +97,9 @@ impl WorldDelta {
     }
 }
 
+/// The number of components [`for_each_component`] visits.
+pub(crate) const NUM_DELTA_COMPONENTS: usize = 8;
+
 /// Mutable access to every part of a world that deltas cover, for code storing them outside a
 /// [`PhysicsWorld`] (like the language bindings).
 ///
@@ -157,6 +160,32 @@ impl WorldComponentsMut<'_> {
             .rebuild_derived_data(self.bodies, self.integration_parameters.dt);
     }
 
+    /// The ids of the components' current states, renewed by every applied delta (the pipeline
+    /// drops its caches when they change).
+    pub(crate) fn delta_state_ids(&self) -> [u32; NUM_DELTA_COMPONENTS] {
+        let mut ids = [0; NUM_DELTA_COMPONENTS];
+        let mut i = 0;
+        macro_rules! id {
+            ($field: ident) => {
+                ids[i] = crate::data::delta::delta_state_id(&*self.$field);
+                i += 1;
+            };
+        }
+        for_each_component!(id);
+        debug_assert_eq!(i, NUM_DELTA_COMPONENTS);
+        ids
+    }
+
+    /// Forgets the sender states the components mirrored, once they diverged (they were stepped).
+    pub(crate) fn clear_delta_baselines(&mut self) {
+        macro_rules! clear {
+            ($field: ident) => {
+                crate::data::delta::clear_delta_baseline(&mut *self.$field);
+            };
+        }
+        for_each_component!(clear);
+    }
+
     /// See [`PhysicsWorld::is_change_tracking_enabled`].
     pub fn is_change_tracking_enabled(&self) -> bool {
         self.bodies.is_change_tracking_enabled()
@@ -164,6 +193,13 @@ impl WorldComponentsMut<'_> {
 
     /// See [`PhysicsWorld::change_tick`].
     pub fn change_tick(&mut self) -> Result<WorldChangeTick, DeltaError> {
+        // Every clock or none advances.
+        macro_rules! check {
+            ($field: ident) => {
+                crate::data::delta::check_delta_since(&*self.$field, None)?;
+            };
+        }
+        for_each_component!(check);
         Ok(WorldChangeTick {
             islands: self.islands.change_tick()?,
             broad_phase: self.broad_phase.change_tick()?,
@@ -191,6 +227,13 @@ impl WorldComponentsMut<'_> {
         &mut self,
         since: Option<WorldChangeTick>,
     ) -> Result<(WorldDelta, WorldChangeTick), DeltaError> {
+        // Every clock or none advances.
+        macro_rules! check {
+            ($field: ident) => {
+                crate::data::delta::check_delta_since(&*self.$field, since.map(|t| t.$field))?;
+            };
+        }
+        for_each_component!(check);
         macro_rules! delta {
             ($field: ident) => {
                 self.$field.delta_since(since.map(|t| t.$field))?.0

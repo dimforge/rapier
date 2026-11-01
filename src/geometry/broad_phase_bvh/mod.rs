@@ -282,11 +282,8 @@ mod snapshot_serde {
         leaves: &[(u32, Aabb, bool)],
         pending_set_aabb: &[ColliderHandle],
     ) -> Bvh {
-        // Leaves touched by an end-of-step `set_aabb` carry a pending change flag
-        // (`pending_set_aabb` records exactly the escaped updates), which the next
-        // refit resolves to changed. Pending is not reproducible through an
-        // existing leaf, but a fresh insert creates its leaf pending with verbatim
-        // bounds: build the tree without those leaves, insert them after.
+        // Leaves of an end-of-step `set_aabb` carry a pending change flag that only a fresh insert
+        // reproduces: build the tree without them, then insert them.
         let pending: std::collections::HashSet<u32> = pending_set_aabb
             .iter()
             .map(|h| h.0.into_raw_parts().0)

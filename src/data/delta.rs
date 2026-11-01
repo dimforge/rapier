@@ -254,7 +254,7 @@ mod internal {
 
     /// A component's change clock, plus the sender tick its state was last patched to.
     ///
-    /// Ticks wrap after 2^32 deltas (see the module limitations).
+    /// Ticks wrap after 2^32 issued ticks (see the module limitations).
     #[derive(Debug)]
     pub struct ChangeTracker {
         /// `(tracker id, current tick)`; `None` while tracking is disabled.
@@ -307,6 +307,7 @@ mod internal {
         pub(crate) fn renew_state_id(&mut self) {
             self.state_id = new_state_id();
         }
+
         pub(crate) fn is_enabled(&self) -> bool {
             self.clock.is_some()
         }
@@ -334,26 +335,31 @@ mod internal {
             }
         }
 
+        /// Checks that tracking is on and `since` (if any) is a tick this clock issued.
+        pub(crate) fn check_since(&self, since: Option<RawTick>) -> Result<(), DeltaError> {
+            let (tracker, now) = self.clock.ok_or(DeltaError::TrackingDisabled)?;
+            match since {
+                // The current tick has not been issued yet.
+                Some(since)
+                    if since.tracker != tracker
+                        || since.tick == now
+                        || stamp_is_newer(since.tick, now) =>
+                {
+                    Err(DeltaError::UnknownBaseline)
+                }
+                _ => Ok(()),
+            }
+        }
+
         /// Validates `since`, returns `(since tick, issued tick, next stamp tick)` and advances
         /// the clock past the issued tick.
         pub(crate) fn advance(
             &mut self,
             since: Option<RawTick>,
         ) -> Result<(Option<u32>, RawTick, u32), DeltaError> {
+            self.check_since(since)?;
             let (tracker, now) = self.clock.ok_or(DeltaError::TrackingDisabled)?;
-            let since = match since {
-                None => None,
-                Some(since) => {
-                    // The current tick has not been issued yet.
-                    if since.tracker != tracker
-                        || since.tick == now
-                        || stamp_is_newer(since.tick, now)
-                    {
-                        return Err(DeltaError::UnknownBaseline);
-                    }
-                    Some(since.tick)
-                }
-            };
+            let since = since.map(|since| since.tick);
             let issued = RawTick { tracker, tick: now };
             let next = now.wrapping_add(1).max(1);
             self.clock = Some((tracker, next));
@@ -380,6 +386,14 @@ mod internal {
 }
 
 pub(crate) use internal::{ChangeTracker, DeltaComponent};
+
+/// Checks that `component` can produce a delta from `since`, without producing it.
+pub(crate) fn check_delta_since<C: DeltaComponent>(
+    component: &C,
+    since: Option<ChangeTick<C>>,
+) -> Result<(), DeltaError> {
+    component.change_tracker().check_since(since.map(|t| t.raw))
+}
 
 /// Checks that `delta` can be applied to `component`, without applying it.
 pub(crate) fn check_delta_baseline<C: DeltaComponent>(
