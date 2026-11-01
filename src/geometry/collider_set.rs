@@ -981,28 +981,29 @@ mod snapshot_delta {
             &mut self,
             delta: &crate::data::Delta<ColliderSet>,
         ) -> Result<(), DeltaError> {
-            let received = self.delta_state.received(&mut self.colliders);
-            let sent: std::collections::HashSet<_> = delta
-                .payload
-                .shapes
-                .iter()
-                .filter_map(|shape| match shape {
+            // A full delta resets the set first, so only the shapes it sends are held.
+            let received =
+                (!delta.is_full()).then(|| &*self.delta_state.received(&mut self.colliders));
+            // Same order as the table resolution in `apply_delta_payload`.
+            let mut sent = std::collections::HashSet::new();
+            for shape in &delta.payload.shapes {
+                match shape {
                     DeltaShape::Keyed {
                         key,
                         shape: Some(_),
-                    } => Some(*key),
-                    _ => None,
-                })
-                .collect();
-            let missing = delta.payload.shapes.iter().any(|shape| {
-                matches!(shape, DeltaShape::Keyed { key, shape: None }
-                    if !received.contains_key(key) && !sent.contains(key))
-            });
-            if missing {
-                Err(DeltaError::MissingShape)
-            } else {
-                Ok(())
+                    } => {
+                        sent.insert(*key);
+                    }
+                    DeltaShape::Keyed { key, shape: None }
+                        if !sent.contains(key)
+                            && !received.is_some_and(|received| received.contains_key(key)) =>
+                    {
+                        return Err(DeltaError::MissingShape);
+                    }
+                    _ => {}
+                }
             }
+            Ok(())
         }
     }
 
@@ -1135,17 +1136,48 @@ mod snapshot_delta {
         use crate::data::SnapshotDelta;
         use crate::prelude::*;
 
-        #[test]
-        fn relayed_heavy_shape_keeps_its_revision() {
+        use super::DeltaShape;
+        use crate::data::DeltaError;
+
+        fn heavy_collider() -> ColliderBuilder {
             let vertices = vec![Vector::ZERO, Vector::X, Vector::Y, Vector::X + Vector::Y];
             #[cfg(feature = "dim2")]
-            let builder = ColliderBuilder::polyline(vertices, None);
+            return ColliderBuilder::polyline(vertices, None);
             #[cfg(feature = "dim3")]
-            let builder = ColliderBuilder::trimesh(vertices, vec![[0, 1, 2], [1, 3, 2]]).unwrap();
+            return ColliderBuilder::trimesh(vertices, vec![[0, 1, 2], [1, 3, 2]]).unwrap();
+        }
 
+        #[test]
+        fn shape_check_follows_the_table_order() {
             let mut sender = ColliderSet::new();
             sender.enable_change_tracking();
-            let handle = sender.insert(builder);
+            sender.insert(heavy_collider());
+            let (mut delta, _) = sender.delta_since(None).unwrap();
+            let DeltaShape::Keyed { key, .. } = delta.payload.shapes[0] else {
+                panic!("heavy shapes are keyed");
+            };
+            // A crafted table naming the shape before the entry carrying its bytes.
+            delta
+                .payload
+                .shapes
+                .insert(0, DeltaShape::Keyed { key, shape: None });
+
+            let mut receiver = ColliderSet::new();
+            assert_eq!(
+                receiver.check_delta_shapes(&delta),
+                Err(DeltaError::MissingShape)
+            );
+            assert_eq!(
+                receiver.apply_delta(delta).err(),
+                Some(DeltaError::MissingShape)
+            );
+        }
+
+        #[test]
+        fn relayed_heavy_shape_keeps_its_revision() {
+            let mut sender = ColliderSet::new();
+            sender.enable_change_tracking();
+            let handle = sender.insert(heavy_collider());
             let mut relay = ColliderSet::new();
             relay.enable_change_tracking();
             let mut receiver = ColliderSet::new();
