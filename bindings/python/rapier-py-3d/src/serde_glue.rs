@@ -1719,29 +1719,44 @@ const MAX_DELTA_BYTES: usize = 256 * 1024 * 1024;
 const MAX_DELTA_PAYLOAD_BYTES: usize = MAX_DELTA_BYTES - crate::serde_io::HEADER_SIZE;
 
 /// Encodes a delta or tick blob of `kind`, with the options and size limit of `delta_from_py`.
+///
+/// Like `bincode::serialize`, a limited size pass runs first, then the payload is written
+/// straight into the Python bytes object, so no intermediate copy of the payload exists.
 fn delta_to_py<'py, T: serde::Serialize>(
     py: Python<'py>,
     kind: crate::serde_io::BlobKind,
     value: &T,
 ) -> PyResult<Bound<'py, PyBytes>> {
     use crate::bincode::Options;
-    let payload = crate::bincode::DefaultOptions::new()
+    let options = crate::bincode::DefaultOptions::new()
         .with_fixint_encoding()
-        .with_limit(MAX_DELTA_PAYLOAD_BYTES as u64)
-        .serialize(value)
-        .map_err(|e| match *e {
-            crate::bincode::ErrorKind::SizeLimit => {
-                crate::errors::SerializationError::new_err(format!(
-                    "encoded {} exceeds the 256 MiB limit (header included) accepted on decode",
-                    kind.name()
-                ))
-            }
-            _ => crate::serde_io::bincode_err(e),
-        })?;
-    Ok(crate::serde_io::bytes_to_py(
-        py,
-        &crate::serde_io::wrap_blob(kind, payload),
-    ))
+        .with_limit(MAX_DELTA_PAYLOAD_BYTES as u64);
+    let payload_len = options.serialized_size(value).map_err(|e| match *e {
+        crate::bincode::ErrorKind::SizeLimit => {
+            crate::errors::SerializationError::new_err(format!(
+                "encoded {} exceeds the 256 MiB limit (header included) accepted on decode",
+                kind.name()
+            ))
+        }
+        _ => crate::serde_io::bincode_err(e),
+    })? as usize;
+    let header = crate::serde_io::blob_header(kind);
+    PyBytes::new_bound_with(py, header.len() + payload_len, |buf| {
+        let (head, mut body) = buf.split_at_mut(header.len());
+        head.copy_from_slice(&header);
+        // The size pass already enforced the limit.
+        options
+            .with_no_limit()
+            .serialize_into(&mut body, value)
+            .map_err(crate::serde_io::bincode_err)?;
+        if !body.is_empty() {
+            return Err(crate::errors::SerializationError::new_err(format!(
+                "encoded {} is shorter than its computed size",
+                kind.name()
+            )));
+        }
+        Ok(())
+    })
 }
 
 /// Decodes a delta or tick blob of `kind`, rejecting oversized blobs and trailing bytes.
