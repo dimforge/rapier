@@ -20,13 +20,20 @@ use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCom
 ///
 /// # Example
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # let mut bodies = RigidBodySet::new();
 /// # let mut colliders = ColliderSet::new();
 /// # let broad_phase = BroadPhaseBvh::new();
 /// # let narrow_phase = NarrowPhase::new();
 /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
-/// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+/// # #[cfg(feature = "dim2")]
+/// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+/// # #[cfg(feature = "dim3")]
+/// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
+/// # colliders.insert_with_parent(shape_builder, ground, &mut bodies);
 /// let query_pipeline = broad_phase.as_query_pipeline(
 ///     narrow_phase.query_dispatcher(),
 ///     &bodies,
@@ -35,7 +42,7 @@ use parry::shape::{CompositeShape, CompositeShapeRef, FeatureId, Shape, TypedCom
 /// );
 ///
 /// // Cast a ray downward
-/// let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
+/// let ray = Ray::new(Vector::Y * 10.0, -Vector::Y);
 /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, false) {
 ///     println!("Hit collider {:?} at distance {}", handle, toi);
 /// }
@@ -198,16 +205,23 @@ impl<'a> QueryPipeline<'a> {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
     /// # let broad_phase = BroadPhaseBvh::new();
     /// # let narrow_phase = NarrowPhase::new();
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+    /// # #[cfg(feature = "dim2")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+    /// # #[cfg(feature = "dim3")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
+    /// # colliders.insert_with_parent(shape_builder, ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// // Raycast downward from (0, 10, 0)
-    /// let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
+    /// let ray = Ray::new(Vector::Y * 10.0, -Vector::Y);
     /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, true) {
     ///     let hit_point = ray.origin + ray.dir * toi;
     ///     println!("Hit at {:?}, distance = {}", hit_point, toi);
@@ -239,15 +253,22 @@ impl<'a> QueryPipeline<'a> {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
     /// # let broad_phase = BroadPhaseBvh::new();
     /// # let narrow_phase = NarrowPhase::new();
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+    /// # #[cfg(feature = "dim2")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+    /// # #[cfg(feature = "dim3")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
+    /// # colliders.insert_with_parent(shape_builder, ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// # let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
+    /// # let ray = Ray::new(Vector::Y * 10.0, -Vector::Y);
     /// if let Some((handle, hit)) = query_pipeline.cast_ray_and_get_normal(&ray, 100.0, true) {
     ///     println!("Hit at distance {}, surface normal: {:?}", hit.time_of_impact, hit.normal);
     /// }
@@ -276,15 +297,22 @@ impl<'a> QueryPipeline<'a> {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
     /// # let broad_phase = BroadPhaseBvh::new();
     /// # let narrow_phase = NarrowPhase::new();
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+    /// # #[cfg(feature = "dim2")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+    /// # #[cfg(feature = "dim3")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
+    /// # colliders.insert_with_parent(shape_builder, ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// # let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
+    /// # let ray = Ray::new(Vector::Y * 10.0, -Vector::Y);
     /// for (handle, collider, hit) in query_pipeline.intersect_ray(ray, 100.0, true) {
     ///     println!("Ray passed through {:?} at distance {}", handle, hit.time_of_impact);
     /// }
@@ -328,6 +356,9 @@ impl<'a> QueryPipeline<'a> {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let params = IntegrationParameters::default();
     /// # let mut bodies = RigidBodySet::new();
@@ -335,13 +366,17 @@ impl<'a> QueryPipeline<'a> {
     /// # let mut broad_phase = BroadPhaseBvh::new();
     /// # let narrow_phase = NarrowPhase::new();
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
-    /// # let ground_collider = ColliderBuilder::cuboid(10.0, 0.1, 10.0).build();
+    /// # #[cfg(feature = "dim2")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+    /// # #[cfg(feature = "dim3")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
+    /// # let ground_collider = shape_builder.build();
     /// # let ground_aabb = ground_collider.compute_aabb();
     /// # let collider_handle = colliders.insert_with_parent(ground_collider, ground, &mut bodies);
     /// # broad_phase.set_aabb(&params, collider_handle, ground_aabb);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// let point = Vector::new(5.0, 0.0, 0.0);
-    /// if let Some((handle, projection)) = query_pipeline.project_point(point, std::f32::MAX, true) {
+    /// let point = Vector::X * 5.0;
+    /// if let Some((handle, projection)) = query_pipeline.project_point(point, rapier3d::math::Real::MAX, true) {
     ///     println!("Closest collider: {:?}", handle);
     ///     println!("Closest point: {:?}", projection.point);
     ///     println!("Distance: {}", (point - projection.point).length());
@@ -367,6 +402,9 @@ impl<'a> QueryPipeline<'a> {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
@@ -375,7 +413,7 @@ impl<'a> QueryPipeline<'a> {
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
     /// # colliders.insert_with_parent(ColliderBuilder::ball(5.0), ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
-    /// let point = Vector::new(0.0, 0.0, 0.0);
+    /// let point = Vector::ZERO;
     /// for (handle, collider) in query_pipeline.intersect_point(point) {
     ///     println!("Point is inside {:?}", handle);
     /// }
@@ -466,6 +504,9 @@ impl<'a> QueryPipeline<'a> {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # use rapier3d::parry::{query::ShapeCastOptions, shape::Ball};
     /// # let mut bodies = RigidBodySet::new();
@@ -473,12 +514,16 @@ impl<'a> QueryPipeline<'a> {
     /// # let narrow_phase = NarrowPhase::new();
     /// # let broad_phase = BroadPhaseBvh::new();
     /// # let ground = bodies.insert(RigidBodyBuilder::fixed());
-    /// # colliders.insert_with_parent(ColliderBuilder::cuboid(10.0, 0.1, 10.0), ground, &mut bodies);
+    /// # #[cfg(feature = "dim2")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+    /// # #[cfg(feature = "dim3")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
+    /// # colliders.insert_with_parent(shape_builder, ground, &mut bodies);
     /// # let query_pipeline = broad_phase.as_query_pipeline(narrow_phase.query_dispatcher(), &bodies, &colliders, QueryFilter::default());
     /// // Sweep a sphere downward
     /// let shape = Ball::new(0.5);
-    /// let start_pos = Pose::translation(0.0, 10.0, 0.0);
-    /// let velocity = Vector::new(0.0, -1.0, 0.0);
+    /// let start_pos = Pose::from_translation(Vector::Y * 10.0);
+    /// let velocity = -Vector::Y;
     /// let options = ShapeCastOptions::default();
     ///
     /// if let Some((handle, hit)) = query_pipeline.cast_shape(&start_pos, velocity, &shape, options) {
@@ -583,6 +628,9 @@ bitflags::bitflags! {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// // Raycast that only hits dynamic objects (ignore walls/floors)
     /// let filter = QueryFilter::from(QueryFilterFlags::ONLY_DYNAMIC);
@@ -654,6 +702,9 @@ impl QueryFilterFlags {
 /// # Common filters
 ///
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # let player_collider = ColliderHandle::from_raw_parts(0, 0);
 /// # let enemy_groups = InteractionGroups::all();

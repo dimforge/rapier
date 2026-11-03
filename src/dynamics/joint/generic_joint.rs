@@ -188,9 +188,16 @@ impl<N: SimdRealCopy> From<[N; 2]> for JointLimits<N> {
 ///
 /// # Example
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # use rapier3d::dynamics::{RevoluteJoint, PrismaticJoint};
-/// # let mut revolute_joint = RevoluteJoint::new(Vector::X);
+/// # #[cfg(feature = "dim2")]
+/// # let revolute = RevoluteJoint::new();
+/// # #[cfg(feature = "dim3")]
+/// # let revolute = RevoluteJoint::new(Vector::X);
+/// # let mut revolute_joint = revolute;
 /// # let mut prismatic_joint = PrismaticJoint::new(Vector::X);
 /// // Motor that spins a wheel at 10 rad/s
 /// revolute_joint.set_motor_velocity(10.0, 0.8);

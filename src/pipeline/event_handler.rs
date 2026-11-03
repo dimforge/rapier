@@ -17,15 +17,26 @@ bitflags::bitflags! {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// // Enable collision start/stop events for a trigger zone
-    /// let trigger = ColliderBuilder::cuboid(5.0, 5.0, 5.0)
+    /// #[cfg(feature = "dim2")]
+    /// let shape_builder = ColliderBuilder::cuboid(5.0, 5.0);
+    /// #[cfg(feature = "dim3")]
+    /// let shape_builder = ColliderBuilder::cuboid(5.0, 5.0, 5.0);
+    /// let trigger = shape_builder
     ///     .sensor(true)
     ///     .active_events(ActiveEvents::COLLISION_EVENTS)
     ///     .build();
     ///
     /// // Enable force events for breakable glass
-    /// let glass = ColliderBuilder::cuboid(1.0, 2.0, 0.1)
+    /// #[cfg(feature = "dim2")]
+    /// let shape_builder = ColliderBuilder::cuboid(1.0, 2.0);
+    /// #[cfg(feature = "dim3")]
+    /// let shape_builder = ColliderBuilder::cuboid(1.0, 2.0, 0.1);
+    /// let glass = shape_builder
     ///     .active_events(ActiveEvents::CONTACT_FORCE_EVENTS)
     ///     .contact_force_event_threshold(1000.0)
     ///     .build();
@@ -68,6 +79,9 @@ impl Default for ActiveEvents {
 ///
 /// # Example
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # use rapier3d::geometry::ContactPair;
 /// struct MyEventHandler;
@@ -179,6 +193,9 @@ impl EventHandler for () {
 ///
 /// # Example
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// use std::sync::mpsc::channel;
 ///

@@ -17,6 +17,9 @@ impl IslandManager {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut islands = IslandManager::new();
@@ -24,7 +27,7 @@ impl IslandManager {
     /// islands.wake_up(&mut bodies, body_handle, true);
     /// let body = bodies.get_mut(body_handle).unwrap();
     /// // Wake up a body before applying force to it
-    /// body.add_force(Vector::new(100.0, 0.0, 0.0), false);
+    /// body.add_force(Vector::X * 100.0, false);
     /// ```
     ///
     /// Only affects dynamic bodies (kinematic and fixed bodies don't sleep).

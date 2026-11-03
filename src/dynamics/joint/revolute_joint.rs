@@ -197,11 +197,18 @@ impl RevoluteJoint {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # use rapier3d::dynamics::RevoluteJoint;
-    /// # let mut joint = RevoluteJoint::new(Vector::Y);
+    /// # #[cfg(feature = "dim2")]
+    /// # let revolute = RevoluteJoint::new();
+    /// # #[cfg(feature = "dim3")]
+    /// # let revolute = RevoluteJoint::new(Vector::Y);
+    /// # let mut joint = revolute;
     /// // Door that opens 0° to 90°
-    /// joint.set_limits([0.0, std::f32::consts::PI / 2.0]);
+    /// joint.set_limits([0.0, std::f64::consts::FRAC_PI_2 as rapier3d::math::Real]);
     /// ```
     pub fn set_limits(&mut self, limits: [Real; 2]) -> &mut Self {
         self.data.set_limits(JointAxis::AngX, limits);

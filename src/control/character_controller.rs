@@ -132,6 +132,9 @@ pub struct CharacterCollision {
 /// # Example
 ///
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # use rapier3d::control::{CharacterAutostep, KinematicCharacterController};
 /// # let mut bodies = RigidBodySet::new();
@@ -152,12 +155,16 @@ pub struct CharacterCollision {
 /// let controller = KinematicCharacterController {
 ///     slide: true,  // Slide along walls instead of stopping
 ///     autostep: Some(CharacterAutostep::default()),  // Auto-climb stairs
-///     max_slope_climb_angle: 45.0_f32.to_radians(),  // Max climbable slope
+///     max_slope_climb_angle: (45.0 as rapier3d::math::Real).to_radians(),  // Max climbable slope
 ///     ..Default::default()
 /// };
 ///
 /// // In your game loop:
-/// let desired_movement = Vector::new(input_x, 0.0, input_z) * speed * dt;
+/// #[cfg(feature = "dim2")]
+/// let direction = Vector::X * input_x;
+/// #[cfg(feature = "dim3")]
+/// let direction = Vector::new(input_x, 0.0, input_z);
+/// let desired_movement = direction * speed * dt;
 /// let movement = controller.move_shape(
 ///     dt,
 ///     &query_pipeline,

@@ -56,6 +56,9 @@ impl HasModifiedFlag for RigidBody {
 /// # Example
 ///
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// let mut bodies = RigidBodySet::new();
 ///
@@ -64,7 +67,7 @@ impl HasModifiedFlag for RigidBody {
 ///
 /// // Access it later
 /// if let Some(body) = bodies.get_mut(handle) {
-///     body.apply_impulse(Vector::new(0.0, 10.0, 0.0), true);
+///     body.apply_impulse(Vector::Y * 10.0, true);
 /// }
 /// ```
 pub struct RigidBodySet {
@@ -98,6 +101,9 @@ impl RigidBodySet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// // You know you'll have ~1000 bodies
     /// let mut bodies = RigidBodySet::with_capacity(1000);
@@ -138,11 +144,14 @@ impl RigidBodySet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// let handle = bodies.insert(
     ///     RigidBodyBuilder::dynamic()
-    ///         .translation(Vector::new(0.0, 5.0, 0.0))
+    ///         .translation(Vector::Y * 5.0)
     ///         .build()
     /// );
     /// // Store `handle` to access this body later
@@ -178,6 +187,9 @@ impl RigidBodySet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut islands = IslandManager::new();
@@ -295,12 +307,15 @@ impl RigidBodySet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// if let Some(body) = bodies.get_mut(handle) {
-    ///     body.set_linvel(Vector::new(1.0, 0.0, 0.0), true);
-    ///     body.apply_impulse(Vector::new(0.0, 100.0, 0.0), true);
+    ///     body.set_linvel(Vector::X, true);
+    ///     body.apply_impulse(Vector::Y * 100.0, true);
     /// }
     /// ```
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
@@ -318,6 +333,9 @@ impl RigidBodySet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let handle1 = bodies.insert(RigidBodyBuilder::dynamic());
@@ -325,8 +343,8 @@ impl RigidBodySet {
     /// let (body1, body2) = bodies.get_pair_mut(handle1, handle2);
     /// if let (Some(b1), Some(b2)) = (body1, body2) {
     ///     // Can modify both bodies at once
-    ///     b1.apply_impulse(Vector::new(10.0, 0.0, 0.0), true);
-    ///     b2.apply_impulse(Vector::new(-10.0, 0.0, 0.0), true);
+    ///     b1.apply_impulse(Vector::X * 10.0, true);
+    ///     b2.apply_impulse(-Vector::X * 10.0, true);
     /// }
     /// ```
     #[cfg(not(feature = "dev-remove-slow-accessors"))]
@@ -375,6 +393,9 @@ impl RigidBodySet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # bodies.insert(RigidBodyBuilder::dynamic());
@@ -393,13 +414,16 @@ impl RigidBodySet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # bodies.insert(RigidBodyBuilder::dynamic());
     /// // Apply gravity manually to all dynamic bodies
     /// for (handle, body) in bodies.iter_mut() {
     ///     if body.is_dynamic() {
-    ///         body.add_force(Vector::new(0.0, -9.81 * body.mass(), 0.0), true);
+    ///         body.add_force(-Vector::Y * (9.81 * body.mass()), true);
     ///     }
     /// }
     /// ```
