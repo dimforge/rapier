@@ -49,7 +49,7 @@ fn staged_overflow_chunk_no_shared_dynamic_body() {
         for i in 1..=3 {
             let _ = world.insert(
                 RigidBodyBuilder::dynamic()
-                    .translation(Vector::new(0.0, 0.98 * i as f32))
+                    .translation(Vector::new(0.0, 0.98 * i as crate::math::Real))
                     .can_sleep(false),
                 tribox(),
             );
