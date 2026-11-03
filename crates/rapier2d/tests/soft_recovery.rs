@@ -210,7 +210,7 @@ fn make_asym_eight(
 ) {
     let n = world.soft_bodies[h].particles().len();
     let n_big = (n as Real * rb / (rb + rs)) as usize;
-    let tau = core::f32::consts::TAU as Real;
+    let tau = core::f32::consts::TAU;
     for i in 0..n {
         let p = if i < n_big {
             let t = tau * i as Real / n_big as Real;
