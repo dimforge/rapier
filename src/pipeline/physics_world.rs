@@ -38,18 +38,25 @@ use crate::pipeline::{DebugRenderBackend, DebugRenderPipeline};
 ///
 /// # Example
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// let mut world = PhysicsWorld::default();
 ///
 /// // Create a ground plane
+/// #[cfg(feature = "dim2")]
+/// let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+/// #[cfg(feature = "dim3")]
+/// let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
 /// let (_ground, _) = world.insert(
 ///     RigidBodyBuilder::fixed(),
-///     ColliderBuilder::cuboid(10.0, 0.1, 10.0),
+///     shape_builder,
 /// );
 ///
 /// // Create a falling ball
 /// let (ball, _) = world.insert(
-///     RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 5.0, 0.0)),
+///     RigidBodyBuilder::dynamic().translation(Vector::Y * 5.0),
 ///     ColliderBuilder::ball(0.5),
 /// );
 ///
@@ -135,6 +142,9 @@ impl PhysicsWorld {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
     /// # use std::sync::mpsc::channel;
@@ -204,10 +214,13 @@ impl PhysicsWorld {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
     /// let (body, collider) = world.insert(
-    ///     RigidBodyBuilder::dynamic().translation(Vector::new(0.0, 5.0, 0.0)),
+    ///     RigidBodyBuilder::dynamic().translation(Vector::Y * 5.0),
     ///     ColliderBuilder::ball(0.5),
     /// );
     /// ```
@@ -232,6 +245,9 @@ impl PhysicsWorld {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
     /// let anchor = world.insert_body(RigidBodyBuilder::fixed());
@@ -297,6 +313,9 @@ impl PhysicsWorld {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
     /// let body = world.insert_body(RigidBodyBuilder::dynamic());
@@ -305,7 +324,11 @@ impl PhysicsWorld {
     /// let attached = world.insert_collider(ColliderBuilder::ball(0.5), Some(body));
     ///
     /// // Standalone collider (e.g. static geometry).
-    /// let standalone = world.insert_collider(ColliderBuilder::cuboid(10.0, 0.1, 10.0), None);
+    /// #[cfg(feature = "dim2")]
+    /// let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+    /// #[cfg(feature = "dim3")]
+    /// let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
+    /// let standalone = world.insert_collider(shape_builder, None);
     /// ```
     pub fn insert_collider(
         &mut self,
@@ -339,11 +362,18 @@ impl PhysicsWorld {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
     /// let body1 = world.insert_body(RigidBodyBuilder::dynamic());
     /// let body2 = world.insert_body(RigidBodyBuilder::dynamic());
-    /// let joint = world.insert_impulse_joint(body1, body2, RevoluteJointBuilder::new(Vector::Z));
+    /// #[cfg(feature = "dim2")]
+    /// let revolute = RevoluteJointBuilder::new();
+    /// #[cfg(feature = "dim3")]
+    /// let revolute = RevoluteJointBuilder::new(Vector::Z);
+    /// let joint = world.insert_impulse_joint(body1, body2, revolute);
     /// ```
     pub fn insert_impulse_joint(
         &mut self,
@@ -553,15 +583,22 @@ impl PhysicsWorld {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
+    /// # #[cfg(feature = "dim2")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+    /// # #[cfg(feature = "dim3")]
+    /// # let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
     /// # let (ground, _) = world.insert(
     /// #     RigidBodyBuilder::fixed(),
-    /// #     ColliderBuilder::cuboid(10.0, 0.1, 10.0),
+    /// #     shape_builder,
     /// # );
     /// # world.step();
     /// let query_pipeline = world.query_pipeline();
-    /// let ray = Ray::new(Vector::new(0.0, 10.0, 0.0), Vector::new(0.0, -1.0, 0.0));
+    /// let ray = Ray::new(Vector::Y * 10.0, -Vector::Y);
     /// if let Some((handle, toi)) = query_pipeline.cast_ray(&ray, Real::MAX, true) {
     ///     println!("Hit {:?} at distance {}", handle, toi);
     /// }
@@ -839,6 +876,9 @@ impl PhysicsWorld {
     /// on [`self.colliders`](Self#structfield.colliders):
     ///
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
     /// # let collider = ColliderHandle::invalid();
@@ -881,6 +921,9 @@ impl PhysicsWorld {
     /// on [`self.colliders`](Self#structfield.colliders):
     ///
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut world = PhysicsWorld::default();
     /// let pairs: Vec<_> = world

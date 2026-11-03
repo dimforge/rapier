@@ -199,6 +199,9 @@ fn default_solver_color_bodies() -> [u32; 2] {
 ///
 /// # Example
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # use rapier3d::geometry::ContactPair;
 /// # let contact_pair = ContactPair::default();
@@ -615,6 +618,9 @@ impl ContactPair {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # use rapier3d::geometry::ContactPair;
     /// # let pair = ContactPair::default();

@@ -23,9 +23,16 @@ use simba::scalar::ComplexField as _;
 ///
 /// ## Example
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// // Ice collider that makes everything slippery
-/// let ice = ColliderBuilder::cuboid(10.0, 0.1, 10.0)
+/// #[cfg(feature = "dim2")]
+/// let shape_builder = ColliderBuilder::cuboid(10.0, 0.1);
+/// #[cfg(feature = "dim3")]
+/// let shape_builder = ColliderBuilder::cuboid(10.0, 0.1, 10.0);
+/// let ice = shape_builder
 ///     .friction(0.0)
 ///     .friction_combine_rule(CoefficientCombineRule::Min)  // Ice wins!
 ///     .build();

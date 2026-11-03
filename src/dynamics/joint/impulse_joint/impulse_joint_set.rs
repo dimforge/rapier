@@ -29,6 +29,9 @@ pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
 ///
 /// # Example
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # let mut bodies = RigidBodySet::new();
 /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
@@ -36,9 +39,13 @@ pub(crate) type JointGraphEdge = crate::data::graph::Edge<ImpulseJoint>;
 /// let mut joints = ImpulseJointSet::new();
 ///
 /// // Create a hinge connecting two bodies
-/// let joint = RevoluteJointBuilder::new(Vector::Y)
-///     .local_anchor1(Vector::new(1.0, 0.0, 0.0))
-///     .local_anchor2(Vector::new(-1.0, 0.0, 0.0))
+/// #[cfg(feature = "dim2")]
+/// let revolute = RevoluteJointBuilder::new();
+/// #[cfg(feature = "dim3")]
+/// let revolute = RevoluteJointBuilder::new(Vector::Y);
+/// let joint = revolute
+///     .local_anchor1(Vector::X)
+///     .local_anchor2(-Vector::X)
 ///     .build();
 /// let handle = joints.insert(body1, body2, joint, true);
 /// ```
@@ -134,12 +141,19 @@ impl ImpulseJointSet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
-    /// # let joint = RevoluteJointBuilder::new(Vector::Y);
+    /// # #[cfg(feature = "dim2")]
+    /// # let revolute = RevoluteJointBuilder::new();
+    /// # #[cfg(feature = "dim3")]
+    /// # let revolute = RevoluteJointBuilder::new(Vector::Y);
+    /// # let joint = revolute;
     /// # joints.insert(body1, body2, joint, true);
     /// for (handle, joint) in joints.joints_between(body1, body2) {
     ///     println!("Found joint {:?}", handle);
@@ -165,12 +179,19 @@ impl ImpulseJointSet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body_handle = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let other_body = bodies.insert(RigidBodyBuilder::dynamic());
-    /// # let joint = RevoluteJointBuilder::new(Vector::Y);
+    /// # #[cfg(feature = "dim2")]
+    /// # let revolute = RevoluteJointBuilder::new();
+    /// # #[cfg(feature = "dim3")]
+    /// # let revolute = RevoluteJointBuilder::new(Vector::Y);
+    /// # let joint = revolute;
     /// # joints.insert(body_handle, other_body, joint, true);
     /// for (b1, b2, j_handle, joint) in joints.attached_joints(body_handle) {
     ///     println!("Body connected to {:?} via {:?}", b2, j_handle);
@@ -367,14 +388,21 @@ impl ImpulseJointSet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
-    /// let joint = RevoluteJointBuilder::new(Vector::Y)
-    ///     .local_anchor1(Vector::new(1.0, 0.0, 0.0))
-    ///     .local_anchor2(Vector::new(-1.0, 0.0, 0.0))
+    /// #[cfg(feature = "dim2")]
+    /// let revolute = RevoluteJointBuilder::new();
+    /// #[cfg(feature = "dim3")]
+    /// let revolute = RevoluteJointBuilder::new(Vector::Y);
+    /// let joint = revolute
+    ///     .local_anchor1(Vector::X)
+    ///     .local_anchor2(-Vector::X)
     ///     .build();
     /// let handle = joints.insert(body1, body2, joint, true);
     /// ```
@@ -464,13 +492,20 @@ impl ImpulseJointSet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body3 = bodies.insert(RigidBodyBuilder::dynamic());
-    /// # let joint = RevoluteJointBuilder::new(Vector::Y).build();
+    /// # #[cfg(feature = "dim2")]
+    /// # let revolute = RevoluteJointBuilder::new();
+    /// # #[cfg(feature = "dim3")]
+    /// # let revolute = RevoluteJointBuilder::new(Vector::Y);
+    /// # let joint = revolute.build();
     /// let joint_handle = joints.insert(body1, body2, joint, true);
     /// // Swap body2 for body3 without losing the handle or the joint data.
     /// joints.set_bodies(joint_handle, body1, body3, true);
@@ -633,12 +668,19 @@ impl ImpulseJointSet {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut joints = ImpulseJointSet::new();
     /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
     /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
-    /// # let joint = RevoluteJointBuilder::new(Vector::Y).build();
+    /// # #[cfg(feature = "dim2")]
+    /// # let revolute = RevoluteJointBuilder::new();
+    /// # #[cfg(feature = "dim3")]
+    /// # let revolute = RevoluteJointBuilder::new(Vector::Y);
+    /// # let joint = revolute.build();
     /// # let joint_handle = joints.insert(body1, body2, joint, true);
     /// if let Some(joint) = joints.remove(joint_handle, true) {
     ///     println!("Removed joint between {:?} and {:?}", joint.body1(), joint.body2());

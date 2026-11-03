@@ -35,10 +35,13 @@ use crate::num::Zero;
 /// Always use [`RigidBodyBuilder`] to create new rigid bodies:
 ///
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # let mut bodies = RigidBodySet::new();
 /// let body = RigidBodyBuilder::dynamic()
-///     .translation(Vector::new(0.0, 10.0, 0.0))
+///     .translation(Vector::Y * 10.0)
 ///     .build();
 /// let handle = bodies.insert(body);
 /// ```
@@ -673,6 +676,9 @@ impl RigidBody {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
@@ -747,6 +753,9 @@ impl RigidBody {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let mut colliders = ColliderSet::new();
@@ -836,6 +845,9 @@ impl RigidBody {
     ///
     /// # Examples
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
@@ -1007,11 +1019,14 @@ impl RigidBody {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Make the body move to the right at 5 units/second
-    /// bodies[body].set_linvel(Vector::new(5.0, 0.0, 0.0), true);
+    /// bodies[body].set_linvel(Vector::X * 5.0, true);
     /// ```
     pub fn set_linvel(&mut self, linvel: Vector, wake_up: bool) {
         if self.is_soft_frame() {
@@ -1345,11 +1360,14 @@ impl RigidBody {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Apply thrust every frame
-    /// bodies[body].add_force(Vector::new(0.0, 100.0, 0.0), true);
+    /// bodies[body].add_force(Vector::Y * 100.0, true);
     /// ```
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
@@ -1439,11 +1457,14 @@ impl RigidBody {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Make a character jump
-    /// bodies[body].apply_impulse(Vector::new(0.0, 300.0, 0.0), true);
+    /// bodies[body].apply_impulse(Vector::Y * 300.0, true);
     /// ```
     ///
     /// Only affects dynamic bodies (does nothing for kinematic/fixed bodies).
@@ -1496,13 +1517,16 @@ impl RigidBody {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// # let mut bodies = RigidBodySet::new();
     /// # let body = bodies.insert(RigidBodyBuilder::dynamic());
     /// // Hit the top-left corner of a box
     /// bodies[body].apply_impulse_at_point(
-    ///     Vector::new(100.0, 0.0, 0.0),
-    ///     Vector::new(-0.5, 0.5, 0.0),  // Top-left of a 1x1 box
+    ///     Vector::X * 100.0,
+    ///     (Vector::Y - Vector::X) * 0.5,  // Top-left of a 1x1 box
     ///     true
     /// );
     /// // Box will move right AND spin
@@ -1626,10 +1650,13 @@ impl RigidBody {
 /// # Example
 ///
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// let body = RigidBodyBuilder::dynamic()
-///     .translation(Vector::new(0.0, 5.0, 0.0))  // Start 5 units above ground
-///     .linvel(Vector::new(1.0, 0.0, 0.0))       // Initial velocity to the right
+///     .translation(Vector::Y * 5.0)  // Start 5 units above ground
+///     .linvel(Vector::X)       // Initial velocity to the right
 ///     .can_sleep(false)                          // Keep always active
 ///     .build();
 /// ```
@@ -1832,13 +1859,16 @@ impl RigidBodyBuilder {
         self
     }
 
-    /// Sets the initial position (XYZ coordinates) where this body will be created.
+    /// Sets the initial position (XY or XYZ coordinates) where this body will be created.
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// let body = RigidBodyBuilder::dynamic()
-    ///     .translation(Vector::new(10.0, 5.0, -3.0))
+    ///     .translation(Vector::X * 10.0 + Vector::Y * 5.0)
     ///     .build();
     /// ```
     pub fn translation(mut self, translation: Vector) -> Self {
@@ -1850,10 +1880,18 @@ impl RigidBodyBuilder {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// // Rotate 45 degrees around Y axis (in 3D)
+    /// let angle = std::f64::consts::FRAC_PI_4 as rapier3d::math::Real;
+    /// #[cfg(feature = "dim2")]
+    /// let rotation = angle;
+    /// #[cfg(feature = "dim3")]
+    /// let rotation = Vector::Y * angle;
     /// let body = RigidBodyBuilder::dynamic()
-    ///     .rotation(Vector::new(0.0, std::f32::consts::PI / 4.0, 0.0))
+    ///     .rotation(rotation)
     ///     .build();
     /// ```
     pub fn rotation(mut self, angle: AngVector) -> Self {
@@ -1938,11 +1976,17 @@ impl RigidBodyBuilder {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
-    /// // 2D game in 3D: lock Z movement
-    /// let body = RigidBodyBuilder::dynamic()
-    ///     .enabled_translations(true, true, false)  // X, Y free; Z locked
-    ///     .build();
+    /// // Lock Y in 2D, or Z in 3D.
+    /// let builder = RigidBodyBuilder::dynamic();
+    /// #[cfg(feature = "dim2")]
+    /// let builder = builder.enabled_translations(true, false); // Only X is free
+    /// #[cfg(feature = "dim3")]
+    /// let builder = builder.enabled_translations(true, true, false); // X and Y are free
+    /// let body = builder.build();
     /// ```
     pub fn enabled_translations(
         mut self,
@@ -2067,6 +2111,9 @@ impl RigidBodyBuilder {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+    /// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+    /// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
     /// # use rapier3d::prelude::*;
     /// // Bullet that should never tunnel through walls or other moving bodies
     /// let bullet = RigidBodyBuilder::dynamic()

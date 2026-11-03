@@ -9,6 +9,14 @@
 //!   are compliant with the IEEE 754-2008 floating point standard.
 //!
 //! User documentation for Rapier is on [the official Rapier site](https://rapier.rs/docs/).
+//!
+//! # Documentation examples
+//!
+//! The examples use the `rapier3d` crate name. For `rapier2d`, `rapier2d-f64`, or
+//! `rapier3d-f64`, use the corresponding Rust crate name (`rapier2d`, `rapier2d_f64`,
+//! or `rapier3d_f64`) in imports. Shared examples select dimension-specific API calls
+//! with `dim2`/`dim3` feature guards; use the branch matching your crate's dimension.
+//! [`math::Real`] and the vector basis constants work with either scalar precision.
 
 #![no_std]
 #![deny(bare_trait_objects)]
@@ -321,6 +329,9 @@ pub mod math {
 /// so the macros can be used without declaring `nalgebra` as an explicit dependency:
 ///
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// use rapier3d::prelude::*;
 ///
 /// // No `use nalgebra` anywhere: the macros must still resolve.

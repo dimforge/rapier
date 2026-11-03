@@ -13,12 +13,19 @@ use crate::geometry::{InteractionGraph, RigidBodyGraphIndex};
 /// Indexes usable to get a multibody link from a `MultibodyJointSet`.
 ///
 /// ```
+/// # #[cfg(all(feature = "dim2", feature = "f32"))] use rapier2d as rapier3d;
+/// # #[cfg(all(feature = "dim2", feature = "f64"))] use rapier2d_f64 as rapier3d;
+/// # #[cfg(all(feature = "dim3", feature = "f64"))] use rapier3d_f64 as rapier3d;
 /// # use rapier3d::prelude::*;
 /// # let mut bodies = RigidBodySet::new();
 /// # let mut multibody_joint_set = MultibodyJointSet::new();
 /// # let body1 = bodies.insert(RigidBodyBuilder::dynamic());
 /// # let body2 = bodies.insert(RigidBodyBuilder::dynamic());
-/// # let joint = RevoluteJointBuilder::new(Vector::Y);
+/// # #[cfg(feature = "dim2")]
+/// # let revolute = RevoluteJointBuilder::new();
+/// # #[cfg(feature = "dim3")]
+/// # let revolute = RevoluteJointBuilder::new(Vector::Y);
+/// # let joint = revolute;
 /// # multibody_joint_set.insert(body1, body2, joint, true);
 /// # let multibody_link_id = multibody_joint_set.rigid_body_link(body2).unwrap();
 /// // With:
