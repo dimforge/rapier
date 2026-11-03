@@ -635,8 +635,11 @@ impl KinematicCharacterController {
         // An object is trying to slip if the tangential movement induced by its vertical movement
         // points downward.
         let slipping_intent = self.up.dot(horiz_input_decomp.vertical_tangent) < 0.0;
-        // An object is slipping if its vertical movement points downward.
-        let slipping = self.up.dot(decomp.vertical_tangent) < 0.0;
+        // An object is slipping if its vertical movement points downward. The tolerance keeps a
+        // rounding error from counting as a slip: on a flat floor the whole tangent counts as
+        // vertical, and a normal one ulp shorter than 1 gives it a ~1e-9 downward part.
+        let slipping =
+            self.up.dot(decomp.vertical_tangent) < -1.0e-5 * decomp.vertical_tangent.length();
 
         // An object is trying to climb if its vertical input motion points upward.
         let climbing_intent = self.up.dot(_vertical_input) > 0.0;
@@ -1492,5 +1495,69 @@ mod test {
         // left alone.
         assert!(bodies[box_ahead].linvel().x > 0.0);
         assert_eq!(bodies[box_beside].linvel(), Vector::ZERO);
+    }
+
+    #[test]
+    fn character_controller_flat_ground_keeps_horizontal_motion() {
+        // Regression test for issue #809: a capsule walking along z on a flat floor used to
+        // lose part or all of its horizontal motion on some steps, and drift along x. The cast
+        // returns the floor normal one ulp short of unit length, which gave the tangent motion
+        // a ~1e-9 downward part that `handle_slopes` treated as slipping.
+        let dt = 1.0 / 30.0;
+        let gravity = Vector::Y * -30.0;
+        let mut world = PhysicsWorld::new();
+        world.integration_parameters.dt = dt;
+        world.colliders.insert(
+            ColliderBuilder::cuboid(100.0, 15.0, 100.0).translation(Vector::new(0.0, -15.0, 0.0)),
+        );
+        world.step();
+
+        let controller = KinematicCharacterController {
+            offset: CharacterLength::Absolute(0.01),
+            ..Default::default()
+        };
+        let shape = Capsule::new_y(1.1, 0.34);
+        let query_pipeline = world.broad_phase.as_query_pipeline(
+            world.narrow_phase.query_dispatcher(),
+            &world.bodies,
+            &world.colliders,
+            QueryFilter::default(),
+        );
+
+        let mut position = Vector::new(0.0, 1.45, 0.0);
+        let mut velocity = Vector::ZERO;
+        let mut walk_dir = -1.0;
+        for i in 0..200 {
+            if (position.z + walk_dir * 9.0 * dt).abs() >= 15.0 {
+                walk_dir = -walk_dir;
+            }
+            let walk = Vector::Z * walk_dir * 9.0 * dt;
+            let desired = walk + (velocity + gravity * (0.5 * dt)) * dt;
+            let movement = controller.move_shape(
+                dt,
+                &query_pipeline,
+                &shape,
+                &Pose::from_translation(position),
+                desired,
+                |_| {},
+            );
+            position += movement.translation;
+            velocity = if movement.grounded {
+                Vector::ZERO
+            } else {
+                velocity + gravity * dt
+            };
+            assert!(
+                (movement.translation.z - walk.z).abs() < 1.0e-3,
+                "step {i}: moved {} along z instead of {}",
+                movement.translation.z,
+                walk.z
+            );
+            assert!(
+                position.x.abs() < 1.0e-2,
+                "step {i}: drifted to x = {}",
+                position.x
+            );
+        }
     }
 }
