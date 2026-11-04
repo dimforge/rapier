@@ -254,22 +254,10 @@ impl PersistentIslands {
         island.sleeping = rb.activation.sleeping;
     }
 
-    /// Removes `handle` from its island (body removed, disabled, or turned fixed). Links
-    /// referencing the body are *not* eagerly removed: contact links die with their pairs, joint
-    /// links when joint edits drain; the split treats their endpoints as non-connecting meanwhile.
-    pub fn remove_body(&mut self, bodies: &mut RigidBodySet, handle: RigidBodyHandle) {
-        let Some(rb) = bodies.get_mut_internal(handle) else {
-            return;
-        };
-        let island_id = rb.ids.island_id;
-        let island_index = rb.ids.island_index;
-        rb.ids.island_id = INVALID_ISLAND;
-        rb.ids.island_index = u32::MAX;
-        self.remove_body_raw(bodies, island_id, island_index);
-    }
-
-    /// Like [`Self::remove_body`], for a body that is already gone from the
-    /// body set (its ids were captured before removal).
+    /// Removes a body from its persistent island using ids captured before the
+    /// body was removed, disabled, or made fixed. Links referencing the body are not eagerly
+    /// removed: contact links die with their pairs, joint links when joint edits drain;
+    /// the split treats their endpoints as non-connecting meanwhile.
     pub fn remove_body_raw(
         &mut self,
         bodies: &mut RigidBodySet,

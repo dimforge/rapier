@@ -280,6 +280,60 @@ fn type_change_bridges_and_unbridges() {
     );
 }
 
+/// Bodies changed to fixed must leave both persistent and active islands;
+/// changing them back to dynamic must register them exactly once again.
+#[test]
+fn fixed_bodies_leave_the_active_set_and_reactivate() {
+    let mut world = PhysicsWorld::new();
+    world.gravity = Vector::ZERO;
+    let handles: Vec<_> = (0..8)
+        .map(|i| {
+            world
+                .insert(
+                    RigidBodyBuilder::dynamic()
+                        .can_sleep(false)
+                        .translation(Vector::new(i as Real * 2.0, 10.0, 0.0)),
+                    ColliderBuilder::cuboid(0.5, 0.5, 0.5),
+                )
+                .0
+        })
+        .collect();
+    let frozen = &handles[..handles.len() - 1];
+    let survivor = *handles.last().unwrap();
+
+    world.step();
+    assert_eq!(world.islands.num_active_bodies(), handles.len());
+
+    for &handle in frozen {
+        world.bodies[handle].set_body_type(RigidBodyType::Fixed, false);
+    }
+    world.step();
+
+    assert_eq!(
+        world.islands.active_bodies().collect::<Vec<_>>(),
+        [survivor]
+    );
+    for &handle in frozen {
+        assert_eq!(island_of(&world, handle), None);
+    }
+
+    for &handle in frozen {
+        world.bodies[handle].set_body_type(RigidBodyType::Dynamic, true);
+    }
+    world.gravity = Vector::new(0.0, -9.81, 0.0);
+    for _ in 0..30 {
+        world.step();
+    }
+
+    assert_eq!(world.islands.num_active_bodies(), handles.len());
+    let active: std::collections::HashSet<_> = world.islands.active_bodies().collect();
+    assert_eq!(active.len(), handles.len());
+    for handle in handles {
+        assert!(active.contains(&handle));
+        assert!(world.bodies[handle].translation().y < 9.0);
+    }
+}
+
 /// Disabling the middle box must split the row; re-enabling must re-merge it.
 #[test]
 fn disable_enable_bridges_and_unbridges() {
