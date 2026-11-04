@@ -6,12 +6,20 @@ use core::{
 #[cfg(feature = "profiler")]
 use web_time::Instant;
 
+#[cfg(feature = "profiler")]
+#[derive(Copy, Clone, Debug)]
+enum TimerState {
+    Disabled,
+    Stopped,
+    Running(Instant),
+}
+
 /// A timer.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct Timer {
     time: Duration,
     #[cfg(feature = "profiler")]
-    start: Option<Instant>,
+    state: TimerState,
 }
 
 impl Timer {
@@ -20,8 +28,28 @@ impl Timer {
         Timer {
             time: Duration::from_secs(0),
             #[cfg(feature = "profiler")]
-            start: None,
+            state: TimerState::Stopped,
         }
+    }
+
+    pub(crate) fn set_enabled(&mut self, enabled: bool) {
+        #[cfg(feature = "profiler")]
+        {
+            if !enabled {
+                // Discard an open interval without reading the clock. Re-enabling must
+                // never charge time spent with profiling disabled to the next pause.
+                self.state = TimerState::Disabled;
+            } else if matches!(self.state, TimerState::Disabled) {
+                self.state = TimerState::Stopped;
+            }
+        }
+        #[cfg(not(feature = "profiler"))]
+        let _ = enabled;
+    }
+
+    #[cfg(feature = "profiler")]
+    pub(crate) fn is_enabled(&self) -> bool {
+        !matches!(self.state, TimerState::Disabled)
     }
 
     /// Resets the timer to 0.
@@ -33,8 +61,11 @@ impl Timer {
     pub fn start(&mut self) {
         #[cfg(feature = "profiler")]
         {
+            if !self.is_enabled() {
+                return;
+            }
             self.time = Duration::from_secs(0);
-            self.start = Some(Instant::now());
+            self.state = TimerState::Running(Instant::now());
         }
     }
 
@@ -42,10 +73,10 @@ impl Timer {
     pub fn pause(&mut self) {
         #[cfg(feature = "profiler")]
         {
-            if let Some(start) = self.start {
+            if let TimerState::Running(start) = self.state {
                 self.time += Instant::now().duration_since(start);
+                self.state = TimerState::Stopped;
             }
-            self.start = None;
         }
     }
 
@@ -53,7 +84,9 @@ impl Timer {
     pub fn resume(&mut self) {
         #[cfg(feature = "profiler")]
         {
-            self.start = Some(Instant::now());
+            if self.is_enabled() {
+                self.state = TimerState::Running(Instant::now());
+            }
         }
     }
 
@@ -65,6 +98,12 @@ impl Timer {
     /// The measured time in milliseconds between the last `.start()` and `.pause()` calls.
     pub fn time_ms(&self) -> f64 {
         self.time.as_secs_f64() * 1000.0
+    }
+}
+
+impl Default for Timer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
