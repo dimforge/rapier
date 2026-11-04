@@ -37,7 +37,7 @@ pub struct Counters {
 impl Counters {
     /// Create a new set of counters initialized to zero.
     pub fn new(enabled: bool) -> Self {
-        Counters {
+        let mut counters = Counters {
             enabled,
             step_time: Timer::new(),
             custom: Timer::new(),
@@ -45,12 +45,17 @@ impl Counters {
             cd: CollisionDetectionCounters::new(),
             solver: SolverCounters::new(),
             ccd: CCDCounters::new(),
+        };
+        if !enabled {
+            counters.disable();
         }
+        counters
     }
 
     /// Enable all the counters.
     pub fn enable(&mut self) {
         self.enabled = true;
+        self.set_timers_enabled(true);
     }
 
     /// Return `true` if the counters are enabled.
@@ -61,6 +66,36 @@ impl Counters {
     /// Disable all the counters.
     pub fn disable(&mut self) {
         self.enabled = false;
+        self.set_timers_enabled(false);
+    }
+
+    fn set_timers_enabled(&mut self, enabled: bool) {
+        for timer in [
+            &mut self.step_time,
+            &mut self.custom,
+            &mut self.stages.update_time,
+            &mut self.stages.collision_detection_time,
+            &mut self.stages.island_construction_time,
+            &mut self.stages.island_constraints_collection_time,
+            &mut self.stages.solver_time,
+            &mut self.stages.ccd_time,
+            &mut self.stages.user_changes,
+            &mut self.cd.broad_phase_time,
+            &mut self.cd.final_broad_phase_time,
+            &mut self.cd.narrow_phase_time,
+            &mut self.solver.velocity_resolution_time,
+            &mut self.solver.velocity_assembly_time,
+            &mut self.solver.velocity_assembly_time_solver_bodies,
+            &mut self.solver.velocity_assembly_time_constraints_init,
+            &mut self.solver.velocity_update_time,
+            &mut self.solver.velocity_writeback_time,
+            &mut self.ccd.toi_computation_time,
+            &mut self.ccd.solver_time,
+            &mut self.ccd.broad_phase_time,
+            &mut self.ccd.narrow_phase_time,
+        ] {
+            timer.set_enabled(enabled);
+        }
     }
 
     /// Notify that the time-step has started.
@@ -128,6 +163,12 @@ impl Counters {
 
     /// Resets all the counters and timers.
     pub fn reset(&mut self) {
+        // Preserve the public `enabled` field's behavior for callers assigning it
+        // directly: synchronize timer state before a pipeline step starts timing.
+        #[cfg(feature = "profiler")]
+        if self.step_time.is_enabled() != self.enabled {
+            self.set_timers_enabled(self.enabled);
+        }
         if self.enabled {
             self.step_time.reset();
             self.custom.reset();

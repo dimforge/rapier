@@ -64,7 +64,8 @@ impl PhysicsPipeline {
         hooks: &dyn PhysicsHooks,
         events: &dyn EventHandler,
     ) {
-        self.counters.ccd.toi_computation_time.start();
+        // Counters::reset clears the whole step; accumulate every internal pass.
+        self.counters.ccd.toi_computation_time.resume();
         // Handle CCD: sweep the fast bodies and clamp their `next_position` to their
         // earliest time of impact (velocities are preserved).
         ccd_solver.solve_continuous(
