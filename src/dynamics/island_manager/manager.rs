@@ -305,9 +305,11 @@ impl IslandManager {
         };
 
         if rb.is_fixed() {
-            // A body turned fixed leaves the persistent islands (fixed bodies
-            // are never island members).
-            self.persistent.remove_body(bodies, handle);
+            // Fixed bodies belong to neither persistent nor active/sleeping islands.
+            // Capture both sets of ids before removal clears them, just as when disabling
+            // a body. Leaving the active entry behind keeps fixed colliders in every step.
+            let ids = rb.ids;
+            self.rigid_body_removed_or_disabled(handle, &ids, bodies);
             return;
         }
 
