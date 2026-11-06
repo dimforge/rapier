@@ -478,6 +478,9 @@ impl PhysicsPipeline {
                 multibody_joints,
             );
             colliders.set_modified(modified_colliders);
+            // Scene queries read the broad-phase between steps: put back the tree that a
+            // deferred optimization pass moved out, as the end of a full step does.
+            self.join_deferred_bvh_optimize(broad_phase);
             self.counters.step_completed();
             return;
         }
