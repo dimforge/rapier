@@ -46,6 +46,10 @@ pub(crate) struct ContactWithCoulombFrictionBuilder {
     /// The pair's restitution coefficient (needed by `update` to recompute the
     /// restitution rhs seed).
     restitution: SimdReal,
+    /// 1 on lanes whose first/second side is a centred ball
+    /// ([`crate::geometry::ContactManifoldData::centered_ball`]), else 0: `update` then tracks
+    /// that side's separation from the body centre instead of the body-fixed anchor.
+    centered_ball: [SimdReal; 2],
 }
 
 impl ContactWithCoulombFrictionBuilder {
@@ -139,6 +143,11 @@ impl ContactWithCoulombFrictionBuilder {
 
         let manifold_points = array![|ii| &manifolds[ii].data.solver_contacts[..counts[ii]]];
 
+        let centered_ball = super::centered_ball_lanes(&manifolds, ids1, ids2);
+        let ball1 = centered_ball[0].simd_gt(SimdReal::zero());
+        let ball2 = centered_ball[1].simd_gt(SimdReal::zero());
+        out_builder.centered_ball = centered_ball;
+
         out_constraint.dir1 = force_dir1;
         out_constraint.im1 = poses1.im;
         out_constraint.im2 = poses2.im;
@@ -193,13 +202,6 @@ impl ContactWithCoulombFrictionBuilder {
             let warmstart_tangent_impulse =
                 warmstart_tangent_impulse.map(|x| x.select(active, SimdReal::zero()));
 
-            // Reconstruct the world contact points and separation from the body-local anchors
-            // and solver poses (a world-attached side gathers the identity pose, so its anchor
-            // passes through). Recycled contacts are updated here, not per frame by the narrow phase.
-            let p1 = poses1.transform_point(solver_contact.anchor1);
-            let p2 = poses2.transform_point(solver_contact.anchor2);
-            let dist = (p1 - p2).gdot(force_dir1);
-
             // Lever arms are the world-space arms frozen at the pair's last full narrow-phase
             // update (anchor freezing, `ContactData::solver_dp1`) — NOT re-derived
             // from current poses: time-invariance across recycled steps is load-bearing for
@@ -208,6 +210,22 @@ impl ContactWithCoulombFrictionBuilder {
                 <SimdReal as ScalarType>::Vector::from(gather![|ii| pt_data(ii).solver_dp1.into()]);
             let dp2 =
                 <SimdReal as ScalarType>::Vector::from(gather![|ii| pt_data(ii).solver_dp2.into()]);
+
+            // Reconstruct the world contact points and separation from the body-local anchors
+            // and solver poses (a world-attached side gathers the identity pose, so its anchor
+            // passes through). Recycled contacts are updated here, not per frame by the narrow phase.
+            let (p1, p2) = super::separation_points(
+                poses1.transform_point(solver_contact.anchor1),
+                poses2.transform_point(solver_contact.anchor2),
+                world_com1,
+                world_com2,
+                dp1,
+                dp2,
+                solver_contact.dist,
+                force_dir1,
+                [ball1, ball2],
+            );
+            let dist = (p1 - p2).gdot(force_dir1);
 
             let vel1 = vels1.linear + vels1.angular.gcross(dp1);
             let vel2 = vels2.linear + vels2.angular.gcross(dp2);
@@ -309,8 +327,10 @@ impl ContactWithCoulombFrictionBuilder {
             // Rebased so the per-substep tracking `info.dist + (p1 - p2)·n` is a pure delta
             // from the build-time poses (a base separation): with frozen arms, `p1 - p2`
             // is non-zero at build time on recycled pairs (drift since the freeze, already in `dist`).
-            out_builder.infos[k].dist =
-                dist - ((world_com1 + dp1) - (world_com2 + dp2)).gdot(force_dir1);
+            // A centred-ball side is tracked from its body centre (see `update`).
+            let ref1 = world_com1.select(ball1, world_com1 + dp1);
+            let ref2 = world_com2.select(ball2, world_com2 + dp2);
+            out_builder.infos[k].dist = dist - (ref1 - ref2).gdot(force_dir1);
             out_builder.infos[k].restitution_seed = restitution_seed;
         }
 
@@ -401,6 +421,8 @@ impl ContactWithCoulombFrictionBuilder {
         ];
 
         let solved_dt = SimdReal::splat(solved_dt);
+        let ball1 = self.centered_ball[0].simd_gt(SimdReal::zero());
+        let ball2 = self.centered_ball[1].simd_gt(SimdReal::zero());
 
         for ((info, normal_part), tangent_part) in all_infos
             .iter()
@@ -410,7 +432,12 @@ impl ContactWithCoulombFrictionBuilder {
             // NOTE: the tangent velocity is equivalent to an additional movement of the first body’s surface.
             let p1 = poses1.transform_point(info.local_p1) + info.tangent_vel * solved_dt;
             let p2 = poses2.transform_point(info.local_p2);
-            let dist = info.dist + (p1 - p2).gdot(constraint.dir1);
+            // A centred ball's contact point translates with the body but does not rotate with
+            // it, so its separation is tracked from the body centre. Friction keeps the
+            // body-fixed anchor: a rolling ball's material contact point does not slide.
+            let s1 = (poses1.translation + info.tangent_vel * solved_dt).select(ball1, p1);
+            let s2 = poses2.translation.select(ball2, p2);
+            let dist = info.dist + (s1 - s2).gdot(constraint.dir1);
 
             // Normal part.
             {
@@ -471,6 +498,8 @@ impl ContactWithCoulombFrictionBuilder {
         let normal_parts = &mut constraint.normal_part[..constraint.num_contacts as usize];
         let tangent_parts = &mut constraint.tangent_part[..constraint.num_contacts as usize];
         let solved_dt = SimdReal::splat(solved_dt);
+        let ball1 = self.centered_ball[0].simd_gt(SimdReal::zero());
+        let ball2 = self.centered_ball[1].simd_gt(SimdReal::zero());
 
         for ((info, normal_part), tangent_part) in all_infos
             .iter()
@@ -479,7 +508,10 @@ impl ContactWithCoulombFrictionBuilder {
         {
             let p1 = poses1.transform_point(info.local_p1) + info.tangent_vel * solved_dt;
             let p2 = poses2.transform_point(info.local_p2);
-            let dist = info.dist + (p1 - p2).gdot(constraint.dir1);
+            // See `update`: a centred-ball side is tracked from its body centre.
+            let s1 = (poses1.translation + info.tangent_vel * solved_dt).select(ball1, p1);
+            let s2 = poses2.translation.select(ball2, p2);
+            let dist = info.dist + (s1 - s2).gdot(constraint.dir1);
             // See `update`: the restitution seed is applied by `apply_restitution`, not here.
             normal_part.rhs = dist.simd_max(SimdReal::zero()) * inv_dt;
             normal_part.cfm_factor = SimdReal::splat(1.0);

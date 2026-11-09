@@ -666,6 +666,17 @@ pub(super) fn process_pair(
                 };
                 let com_pose1 = rb1.as_ref().filter(|_| rel_dom <= 0).map(com_pose);
                 let com_pose2 = rb2.as_ref().filter(|_| rel_dom >= 0).map(com_pose);
+                // A ball centred on its body's CoM (see `ContactManifoldData::centered_ball`).
+                let centered_ball =
+                    |co: &crate::geometry::Collider, pose: Option<&crate::math::Pose>| {
+                        co.shape.as_ball().zip(pose).is_some_and(|(ball, pose)| {
+                            (co.pos.translation - pose.translation).length() <= ball.radius * 1.0e-4
+                        })
+                    };
+                manifold.data.centered_ball = [
+                    centered_ball(co1, com_pose1.as_ref()),
+                    centered_ball(co2, com_pose2.as_ref()),
+                ];
                 // Split-borrow: the frozen solver arms are written to the
                 // manifold points while iterating the solver contacts.
                 let manifold_points = &mut manifold.points;

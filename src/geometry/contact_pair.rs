@@ -744,6 +744,13 @@ pub struct ContactManifoldData {
     /// The effective restitution coefficient of this manifold's contacts.
     #[cfg_attr(feature = "serde-serialize", serde(default))]
     pub restitution: Real,
+    /// Whether each side is a solver body whose collider is a ball centred on the body's
+    /// centre of mass. Such a side's contact point translates with the body but never rotates
+    /// with it, so the solver measures its separation from the body centre instead of from a
+    /// body-fixed anchor (which, on a spinning ball, rotates away from the true contact point
+    /// and lifts by `r·(1 − cos θ)`, letting a rolling ball sink).
+    #[cfg_attr(feature = "serde-serialize", serde(default))]
+    pub(crate) centered_ball: [bool; 2],
 }
 
 /// A single solver contact.
@@ -799,7 +806,8 @@ pub struct SolverContactGeneric<N: ScalarType, const LANES: usize> {
     /// Distance between the contact points along the normal at the last full contact
     /// update (negative = penetration), minus the contact skins. Writable from
     /// [`PhysicsHooks::modify_solver_contacts`] (the delta is baked into the anchors after
-    /// the hook); afterwards the solver re-derives the live separation and never reads this.
+    /// the hook); afterwards the solver re-derives the live separation and reads this only to
+    /// rebuild a centred-ball side's point (`ContactManifoldData::centered_ball`).
     ///
     /// [`PhysicsHooks::modify_solver_contacts`]: crate::pipeline::PhysicsHooks::modify_solver_contacts
     pub dist: N, // 1/1
@@ -968,6 +976,7 @@ impl ContactManifoldData {
             user_data: 0,
             friction: 0.0,
             restitution: 0.0,
+            centered_ball: [false; 2],
         }
     }
 
