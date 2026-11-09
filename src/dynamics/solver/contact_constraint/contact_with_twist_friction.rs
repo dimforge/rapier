@@ -141,6 +141,10 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
 
         let manifold_points = array![|ii| &manifolds[ii].data.solver_contacts[..counts[ii]]];
 
+        let centered_ball = super::centered_ball_lanes(&manifolds, ids1, ids2);
+        let ball1 = centered_ball[0].simd_gt(SimdReal::zero());
+        let ball2 = centered_ball[1].simd_gt(SimdReal::zero());
+
         // Per-manifold averages (friction center, warm starts, tangent
         // velocity) weigh each lane by ITS point count, with inactive slots
         // contributing nothing.
@@ -218,13 +222,6 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
             let is_new = SimdReal::from(gather![|ii| (pt_data(ii).impulse == 0.0) as u32 as Real]);
             let is_bouncy = crate::geometry::is_bouncy_simd(restitution, is_new);
 
-            // Reconstruct the world contact points and separation from the body-local anchors
-            // and solver poses (a world-attached side gathers the identity pose, so its anchor
-            // passes through). Recycled contacts are updated here, not per frame by the narrow phase.
-            let p1 = poses1.transform_point(solver_contact.anchor1);
-            let p2 = poses2.transform_point(solver_contact.anchor2);
-            let dist = (p1 - p2).gdot(force_dir1);
-
             // World-space lever arms frozen at the pair's last full narrow-phase
             // update (anchor freezing, see `ContactData::solver_dp1`),
             // NOT re-derived per step: time-invariance stabilizes large stacks.
@@ -232,6 +229,22 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
                 <SimdReal as ScalarType>::Vector::from(gather![|ii| pt_data(ii).solver_dp1.into()]);
             let dp2 =
                 <SimdReal as ScalarType>::Vector::from(gather![|ii| pt_data(ii).solver_dp2.into()]);
+
+            // Reconstruct the world contact points and separation from the body-local anchors
+            // and solver poses (a world-attached side gathers the identity pose, so its anchor
+            // passes through). Recycled contacts are updated here, not per frame by the narrow phase.
+            let (p1, p2) = super::separation_points(
+                poses1.transform_point(solver_contact.anchor1),
+                poses2.transform_point(solver_contact.anchor2),
+                world_com1,
+                world_com2,
+                dp1,
+                dp2,
+                solver_contact.dist,
+                force_dir1,
+                [ball1, ball2],
+            );
+            let dist = (p1 - p2).gdot(force_dir1);
 
             // Each body's frozen contact point, riding its own rigid motion.
             let point = world_com1 + dp1;
@@ -292,9 +305,13 @@ impl ContactWithTwistFrictionBuilder<SimdReal> {
             // Builder: substep anchors are the frozen per-body arms (fixed-anchor
             // separation tracking); `dist` is rebased so the substep
             // tracking `info.dist + (p1 - p2)·n` is a delta from build-time poses.
-            out_builder.infos[k].local_p1 = poses1.inverse_transform_point(point);
-            out_builder.infos[k].local_p2 = poses2.inverse_transform_point(world_com2 + dp2);
-            out_builder.infos[k].dist = dist - (point - (world_com2 + dp2)).gdot(force_dir1);
+            // A centred ball's contact point translates with the body but does not rotate
+            // with it, so that side is anchored at its body centre (local origin) instead.
+            let ref1 = world_com1.select(ball1, point);
+            let ref2 = world_com2.select(ball2, world_com2 + dp2);
+            out_builder.infos[k].local_p1 = poses1.inverse_transform_point(ref1);
+            out_builder.infos[k].local_p2 = poses2.inverse_transform_point(ref2);
+            out_builder.infos[k].dist = dist - (ref1 - ref2).gdot(force_dir1);
             out_builder.infos[k].restitution_seed = restitution_seed;
         }
 

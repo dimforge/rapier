@@ -738,3 +738,58 @@ fn contact_force_events_follow_runtime_active_events_flips() {
     }
     assert_eq!(events.0.load(Ordering::Relaxed), after_enable);
 }
+
+/// A ball rolling without slipping on flat ground must not sink deeper than a sliding one. Its
+/// contact point stays at the bottom of the ball, while a body-fixed anchor rotates away with the
+/// spin and lifts by `r·(1 − cos θ)`, which the solver would read as separation.
+#[test]
+#[cfg(feature = "dim3")]
+fn rolling_ball_does_not_sink_into_the_ground() {
+    use crate::dynamics::FrictionModel;
+    use crate::math::Real;
+    use crate::pipeline::PhysicsWorld;
+
+    let r: Real = 0.1;
+    let v: Real = 2.0;
+    // Deepest penetration over the second half of a 2 s run (0.33 rad of spin per step).
+    let max_penetration = |rolling: bool, model: FrictionModel, ball_first: bool| -> Real {
+        let mut world = PhysicsWorld::new();
+        world.integration_parameters.friction_model = model;
+        let ground = ColliderBuilder::cuboid(100.0, 0.5, 100.0)
+            .translation(Vector::new(0.0, -0.5, 0.0))
+            .build();
+        if !ball_first {
+            world.colliders.insert(ground.clone());
+        }
+        let (h, _) = world.insert(
+            RigidBodyBuilder::dynamic()
+                .translation(Vector::new(-50.0, r, 0.0))
+                .linvel(Vector::new(v, 0.0, 0.0))
+                .angvel(Vector::new(0.0, 0.0, if rolling { -v / r } else { 0.0 }))
+                .can_sleep(false),
+            ColliderBuilder::ball(r).friction(if rolling { 0.5 } else { 0.0 }),
+        );
+        if ball_first {
+            world.colliders.insert(ground);
+        }
+        let mut max_pen: Real = 0.0;
+        for i in 0..120 {
+            world.step();
+            if i >= 60 {
+                max_pen = max_pen.max(r - world.bodies[h].translation().y);
+            }
+        }
+        max_pen
+    };
+
+    for model in [FrictionModel::Simplified, FrictionModel::Coulomb] {
+        for ball_first in [true, false] {
+            let sliding = max_penetration(false, model, ball_first);
+            let rolling = max_penetration(true, model, ball_first);
+            assert!(
+                rolling - sliding < 1.0e-4,
+                "{model:?}, ball first {ball_first}: rolling penetration {rolling} vs sliding {sliding}"
+            );
+        }
+    }
+}

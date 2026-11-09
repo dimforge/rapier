@@ -1,3 +1,11 @@
+## Unreleased
+
+### Fixed
+
+- Rolling balls no longer sink into the ground. Each substep measured a contact's separation from a
+  body-fixed anchor that rotates with the ball and lifts by `r(1 - cos θ)`, which the solver read as
+  separation. Balls centred on their body's centre of mass now track separation by translation only.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added
