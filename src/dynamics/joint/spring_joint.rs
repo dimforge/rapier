@@ -91,19 +91,28 @@ impl SpringJoint {
         self
     }
 
-    // /// The maximum distance allowed between the attached objects.
-    // #[must_use]
-    // pub fn rest_length(&self) -> Option<Real> {
-    //     self.data.limits(JointAxis::X).map(|l| l.max)
-    // }
-    //
-    // /// Sets the maximum allowed distance between the attached objects.
-    // ///
-    // /// The `max_dist` must be strictly greater than 0.0.
-    // pub fn set_rest_length(&mut self, max_dist: Real) -> &mut Self {
-    //     self.data.set_limits(JointAxis::X, [0.0, max_dist]);
-    //     self
-    // }
+    /// The distance the spring tries to reach between the two anchors.
+    #[must_use]
+    pub fn rest_length(&self) -> Real {
+        self.data
+            .motor(JointAxis::LinX)
+            .map(|m| m.target_pos)
+            .unwrap_or(0.0)
+    }
+
+    /// Sets the distance the spring tries to reach between the two anchors.
+    ///
+    /// The stiffness, damping and spring model are left unchanged.
+    pub fn set_rest_length(&mut self, rest_length: Real) -> &mut Self {
+        let (target_vel, stiffness, damping) = self
+            .data
+            .motor(JointAxis::LinX)
+            .map(|m| (m.target_vel, m.stiffness, m.damping))
+            .unwrap_or((0.0, 0.0, 0.0));
+        self.data
+            .set_motor(JointAxis::LinX, rest_length, target_vel, stiffness, damping);
+        self
+    }
 }
 
 impl From<SpringJoint> for GenericJoint {
@@ -161,14 +170,12 @@ impl SpringJointBuilder {
         self
     }
 
-    // /// Sets the maximum allowed distance between the attached bodies.
-    // ///
-    // /// The `max_dist` must be strictly greater than 0.0.
-    // #[must_use]
-    // pub fn max_distance(mut self, max_dist: Real) -> Self {
-    //     self.0.set_max_distance(max_dist);
-    //     self
-    // }
+    /// Sets the distance the spring tries to reach between the two anchors.
+    #[must_use]
+    pub fn rest_length(mut self, rest_length: Real) -> Self {
+        self.0.set_rest_length(rest_length);
+        self
+    }
 
     /// Builds the spring joint.
     #[must_use]
@@ -180,5 +187,32 @@ impl SpringJointBuilder {
 impl From<SpringJointBuilder> for GenericJoint {
     fn from(val: SpringJointBuilder) -> GenericJoint {
         val.0.into()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::dynamics::MotorModel;
+
+    #[test]
+    fn set_rest_length_keeps_spring_constants() {
+        let mut joint = SpringJoint::new(1.0, 20.0, 3.0);
+        joint.set_spring_model(MotorModel::AccelerationBased);
+        assert_eq!(joint.rest_length(), 1.0);
+        joint.set_rest_length(2.5);
+        assert_eq!(joint.rest_length(), 2.5);
+        let motor = joint.data.motor(JointAxis::LinX).unwrap();
+        assert_eq!(motor.stiffness, 20.0);
+        assert_eq!(motor.damping, 3.0);
+        assert_eq!(motor.model, MotorModel::AccelerationBased);
+    }
+
+    #[test]
+    fn builder_rest_length() {
+        let joint = SpringJointBuilder::new(1.0, 20.0, 3.0)
+            .rest_length(4.0)
+            .build();
+        assert_eq!(joint.rest_length(), 4.0);
     }
 }
