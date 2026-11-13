@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fixed
+
+- `DynamicRayCastVehicleController`: `Wheel::rotation` now responds to the engine and the brake
+  when the wheel isn't simply rolling with the ground. Engine force spins up an airborne or
+  slipping wheel (burnout), and braking slows down an airborne wheel and locks a skidding
+  one. The spin is driven by the wheel's share of the chassis mass, so no new tuning
+  parameter is needed. The free spin is no longer damped while the engine drives the wheel.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added
