@@ -275,7 +275,11 @@ impl SoftBodyBuilder {
             let center = origin + axis * t;
             for k in 0..na {
                 let a = k as Real / na as Real * Real::simd_two_pi();
-                positions.push(center + (u * a.cos() + v * a.sin()) * radius);
+                let (sin, cos) = (
+                    <Real as simba::scalar::ComplexField>::sin(a),
+                    <Real as simba::scalar::ComplexField>::cos(a),
+                );
+                positions.push(center + (u * cos + v * sin) * radius);
             }
         }
         let mut edges = Vec::new();
@@ -558,7 +562,11 @@ impl SoftBodyBuilder {
         let points = (0..n)
             .map(|i| {
                 let angle = i as Real / n as Real * Real::simd_two_pi();
-                center + Vector::new(angle.cos(), angle.sin()) * radius
+                center
+                    + Vector::new(
+                        <Real as simba::scalar::ComplexField>::cos(angle),
+                        <Real as simba::scalar::ComplexField>::sin(angle),
+                    ) * radius
             })
             .collect();
         Self::polygon(points)

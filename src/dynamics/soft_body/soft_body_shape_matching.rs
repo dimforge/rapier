@@ -20,7 +20,9 @@ pub(crate) fn extract_rotation(a: Matrix, warm: Rotation) -> Rotation {
         if sin == 0.0 && cos == 0.0 {
             warm
         } else {
-            Rotation::new(sin.atan2(cos))
+            Rotation::new(<crate::math::Real as simba::scalar::RealField>::atan2(
+                sin, cos,
+            ))
         }
     }
     #[cfg(feature = "dim3")]

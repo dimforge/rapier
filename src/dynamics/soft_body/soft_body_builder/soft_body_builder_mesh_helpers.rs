@@ -290,7 +290,7 @@ pub(crate) fn dihedral_angle(p0: Vector, p1: Vector, p2: Vector, p3: Vector) -> 
     if l1 == 0.0 || l2 == 0.0 {
         return 0.0;
     }
-    (n1.dot(n2) / (l1 * l2)).clamp(-1.0, 1.0).acos()
+    <Real as simba::scalar::ComplexField>::acos((n1.dot(n2) / (l1 * l2)).clamp(-1.0, 1.0))
 }
 
 /// An icosphere: vertices on the sphere of the given center and radius, outward-oriented

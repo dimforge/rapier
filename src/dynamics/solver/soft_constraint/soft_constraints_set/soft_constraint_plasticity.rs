@@ -42,7 +42,7 @@ pub(crate) fn plastic_flow(
     if det <= 1.0e-6 {
         return false;
     }
-    let s_p = s_p * (1.0 / det.powf(1.0 / DIM as Real));
+    let s_p = s_p * (1.0 / <Real as simba::scalar::ComplexField>::powf(det, 1.0 / DIM as Real));
     let total = s_p * cell.plastic_stretch;
     let deviation = total - Matrix::IDENTITY;
     let deviation_norm = frobenius_norm(&deviation);
@@ -55,7 +55,8 @@ pub(crate) fn plastic_flow(
     if total_det <= 1.0e-6 {
         return false;
     }
-    let total = total * (1.0 / total_det.powf(1.0 / DIM as Real));
+    let total =
+        total * (1.0 / <Real as simba::scalar::ComplexField>::powf(total_det, 1.0 / DIM as Real));
     // The new rest edge matrix `P' Dm₀` and its signed volume (`det(Dm) / DIM!`).
     let dm = total * SoftBody::cell_edge_matrix(*rest0);
     let factorial = if DIM == 2 { 2.0 } else { 6.0 };

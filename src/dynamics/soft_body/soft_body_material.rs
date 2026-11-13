@@ -195,7 +195,7 @@ impl SoftBodyMaterial {
         if self.tear_smoothing <= 0.0 {
             load
         } else {
-            let blend = 1.0 - (-dt / self.tear_smoothing).exp();
+            let blend = 1.0 - <Real as simba::scalar::ComplexField>::exp(-dt / self.tear_smoothing);
             stress + (load - stress) * blend
         }
     }
