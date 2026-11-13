@@ -461,10 +461,20 @@ impl DynamicRayCastVehicleController {
             .get_mut_internal_with_modification_tracking(self.chassis)
             .unwrap();
 
+        // The wheels have no inertia of their own: the engine force spins a wheel up as if
+        // it were driving its share of the chassis mass. This is the same response the
+        // engine has on the vehicle while it has traction, so the spin stays continuous
+        // when the wheel leaves the ground or loses grip.
+        let inv_mass_per_wheel = crate::utils::inv(chassis.mass() / num_wheels as Real);
+        let inv_dt = crate::utils::inv(dt);
+
         for wheel in &mut self.wheels {
             let vel = chassis.velocity_at_point(wheel.raycast_info.hard_point_ws);
+            // Linear speed of the tire's surface at the end of the previous step.
+            let prev_spin_speed = wheel.delta_rotation * wheel.radius * inv_dt;
+            let drive_impulse = wheel.engine_force * dt;
 
-            if wheel.raycast_info.is_in_contact {
+            let spin_speed = if wheel.raycast_info.is_in_contact {
                 // Use the same per-wheel forward direction as `update_friction` (rolling
                 // direction on the contact plane) instead of the chassis' forward axis:
                 // the latter yields a zero or sign-flipped rotation whenever it doesn't
@@ -474,16 +484,50 @@ impl DynamicRayCastVehicleController {
                     .contact_normal_ws
                     .cross(wheel.wheel_axle_ws)
                     .normalize_or_zero();
+                let ground_speed = fwd.dot(vel);
 
-                let proj2 = fwd.dot(vel);
-
-                wheel.delta_rotation = (proj2 * dt) / (wheel.radius);
-                wheel.rotation += wheel.delta_rotation;
+                if wheel.skid_info >= 1.0 {
+                    // Full traction: the wheel rolls with the ground.
+                    ground_speed
+                } else if wheel.engine_force != 0.0 {
+                    // Wheelspin: the friction circle only let `forward_impulse` reach the
+                    // ground, the rest of the engine impulse spins the wheel up.
+                    let excess_impulse = drive_impulse - wheel.forward_impulse;
+                    let spun = prev_spin_speed + excess_impulse * inv_mass_per_wheel;
+                    // A wheel under power never spins slower than the ground under it.
+                    if wheel.engine_force > 0.0 {
+                        spun.max(ground_speed)
+                    } else {
+                        spun.min(ground_speed)
+                    }
+                } else if wheel.brake != 0.0 {
+                    // Skidding under braking (the brake, like the engine, only acts when
+                    // `engine_force` is zero): the ground only pushes the wheel with
+                    // `forward_impulse`, the rest of the brake impulse slows it down,
+                    // until it locks.
+                    let excess_impulse = wheel.brake.abs() - wheel.forward_impulse.abs();
+                    let slowed =
+                        move_toward_zero(prev_spin_speed, excess_impulse * inv_mass_per_wheel);
+                    // A braked wheel never spins faster than the ground under it.
+                    slowed.clamp(ground_speed.min(0.0), ground_speed.max(0.0))
+                } else {
+                    ground_speed
+                }
+            } else if wheel.engine_force != 0.0 {
+                // Airborne: the whole engine impulse goes into spinning the wheel.
+                prev_spin_speed + drive_impulse * inv_mass_per_wheel
             } else {
-                wheel.rotation += wheel.delta_rotation;
-            }
+                // Airborne: the whole brake impulse goes into stopping the wheel.
+                move_toward_zero(prev_spin_speed, wheel.brake.abs() * inv_mass_per_wheel)
+            };
 
-            wheel.delta_rotation *= 0.99; //damping of rotation when not in contact
+            wheel.delta_rotation = spin_speed * dt / wheel.radius;
+            wheel.rotation += wheel.delta_rotation;
+            // Damping of the free spin. A wheel driven by the engine isn't damped, otherwise
+            // its free spin would be capped (and spin down after a jump) under throttle.
+            if wheel.engine_force == 0.0 {
+                wheel.delta_rotation *= 0.99;
+            }
         }
     }
 
@@ -710,6 +754,11 @@ impl DynamicRayCastVehicleController {
             }
         }
     }
+}
+
+/// Reduces the magnitude of `value` by `amount`, without crossing zero.
+fn move_toward_zero(value: Real, amount: Real) -> Real {
+    value.signum() * (value.abs() - amount).max(0.0)
 }
 
 struct WheelContactPoint<'a> {
