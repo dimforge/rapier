@@ -59,9 +59,9 @@ impl AngularLimitParams<Real> {
 
         let center = (min + max) * 0.5;
         #[cfg(feature = "dim2")]
-        let (sin, cos) = center.sin_cos();
+        let (sin, cos) = <Real as simba::scalar::ComplexField>::sin_cos(center);
         #[cfg(feature = "dim3")]
-        let (sin, cos) = (center * 0.5).sin_cos();
+        let (sin, cos) = <Real as simba::scalar::ComplexField>::sin_cos(center * 0.5);
 
         Self {
             center: [cos, sin],

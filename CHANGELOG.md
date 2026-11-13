@@ -1,3 +1,14 @@
+## Unreleased
+
+### Fixed
+
+- `enhanced-determinism` now also covers the transcendental functions that were called as inherent
+  float methods (`x.sin()`, `x.acos()`…), which go to the platform's math library in `std` builds
+  (the default, and what `serde-serialize` needs) and made results differ across platforms:
+  angular joint limits, the position-target motor of an impulse joint attached to a multibody link,
+  `RevoluteJoint::angle` (3D), and the soft-body solver, materials and builders.
+  ([#1054](https://github.com/dimforge/rapier/issues/1054))
+
 ## v0.36.1 (4 October 2026)
 
 ### Added

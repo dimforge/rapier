@@ -125,6 +125,15 @@ print_step "Running snapshot portability test (2D)..."
 cargo test -p rapier2d --release --features enhanced-determinism,serde-serialize --test snapshot_portability || print_error "Snapshot portability (2D)"
 print_success "Snapshot portability (2D)"
 
+# Platform math goldens (libm under `enhanced-determinism`).
+print_step "Running platform math determinism test (3D)..."
+cargo test -p rapier3d --release --features enhanced-determinism --test platform_math_determinism || print_error "Platform math determinism (3D)"
+print_success "Platform math determinism (3D)"
+
+print_step "Running platform math determinism test (2D)..."
+cargo test -p rapier2d --release --features enhanced-determinism --test platform_math_determinism || print_error "Platform math determinism (2D)"
+print_success "Platform math determinism (2D)"
+
 # The same two goldens under wasm32 — the check that makes them portability tests rather
 # than regression tests. Skipped rather than failed when the target or Node is missing,
 # since neither is needed for the rest of this script; CI's `wasm-determinism` job always
@@ -138,6 +147,14 @@ if rustup target list --installed | grep -q '^wasm32-wasip1$' && command -v node
     print_step "Running snapshot portability test (2D, wasm32-wasip1)..."
     cargo test -p rapier2d --release --features enhanced-determinism,serde-serialize --target wasm32-wasip1 --test snapshot_portability || print_error "Snapshot portability (2D, wasm32)"
     print_success "Snapshot portability (2D, wasm32)"
+
+    print_step "Running platform math determinism test (3D, wasm32-wasip1)..."
+    cargo test -p rapier3d --release --features enhanced-determinism --target wasm32-wasip1 --test platform_math_determinism || print_error "Platform math determinism (3D, wasm32)"
+    print_success "Platform math determinism (3D, wasm32)"
+
+    print_step "Running platform math determinism test (2D, wasm32-wasip1)..."
+    cargo test -p rapier2d --release --features enhanced-determinism --target wasm32-wasip1 --test platform_math_determinism || print_error "Platform math determinism (2D, wasm32)"
+    print_success "Platform math determinism (2D, wasm32)"
     unset CARGO_TARGET_WASM32_WASIP1_RUNNER
 else
     print_step "Skipping wasm32 snapshot portability (needs 'rustup target add wasm32-wasip1' and node >= 22)"
