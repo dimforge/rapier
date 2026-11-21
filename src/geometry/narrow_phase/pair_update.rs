@@ -539,12 +539,33 @@ pub(super) fn process_pair(
             #[allow(unused_mut)] // Mut not needed in 2D.
             let mut num_selected = MAX_MANIFOLD_POINTS.min(manifold.points.len());
 
+            // Whether a point becomes a solver contact: it is close, or its relative velocity
+            // closes the gap within the step (a speculative contact).
+            let is_solver_contact = |manifold: &crate::geometry::ContactManifold, i: usize| {
+                let contact = &manifold.points[i];
+                let effective_contact_dist = contact.dist - co1.contact_skin() - co2.contact_skin();
+                effective_contact_dist < prediction_distance + soft_body_prediction || {
+                    let world_pt1 = world_pos1 * contact.local_p1;
+                    let world_pt2 = world_pos2 * contact.local_p2;
+                    let vel1 = rb1
+                        .map(|rb| rb.velocity_at_point(world_pt1))
+                        .unwrap_or_default();
+                    let vel2 = rb2
+                        .map(|rb| rb.velocity_at_point(world_pt2))
+                        .unwrap_or_default();
+                    effective_contact_dist + (vel2 - vel1).dot(manifold.data.normal) * dt
+                        < prediction_distance
+                }
+            };
+
+            // Only the points that can become solver contacts may be kept, or a fast body
+            // touching at one point would lose the rest of its face, still closing in.
             #[cfg(feature = "dim3")]
             crate::geometry::manifold_reduction::reduce_manifold_naive(
                 manifold,
                 &mut selected,
                 &mut num_selected,
-                prediction_distance,
+                |i| is_solver_contact(manifold, i),
             );
 
             // Sort points lexicographically on the contact plane (in `local_n1`'s orthonormal-
@@ -579,23 +600,10 @@ pub(super) fn process_pair(
             for contact_id in &selected[..num_selected] {
                 //     // manifold.points.iter().enumerate() {
                 let contact = &manifold.points[*contact_id];
-                let effective_contact_dist = contact.dist - co1.contact_skin() - co2.contact_skin();
 
-                let keep_solver_contact =
-                    effective_contact_dist < prediction_distance + soft_body_prediction || {
-                        let world_pt1 = world_pos1 * contact.local_p1;
-                        let world_pt2 = world_pos2 * contact.local_p2;
-                        let vel1 = rb1
-                            .map(|rb| rb.velocity_at_point(world_pt1))
-                            .unwrap_or_default();
-                        let vel2 = rb2
-                            .map(|rb| rb.velocity_at_point(world_pt2))
-                            .unwrap_or_default();
-                        effective_contact_dist + (vel2 - vel1).dot(manifold.data.normal) * dt
-                            < prediction_distance
-                    };
-
-                if keep_solver_contact {
+                if is_solver_contact(manifold, *contact_id) {
+                    let effective_contact_dist =
+                        contact.dist - co1.contact_skin() - co2.contact_skin();
                     // The anchors hold world-space points until the localization pass
                     // below, so the contact-modification hook sees fresh world data.
                     let world_pt1 = world_pos1 * contact.local_p1;

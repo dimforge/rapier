@@ -1,3 +1,12 @@
+## Unreleased
+
+### Fixed
+
+- Fast cylinders no longer go through the ground after CCD stops them. A cylinder touching at
+  one point of its cap's rim gets a contact manifold with more points than the solver takes, and
+  the reduction kept only the points already touching, dropping the rest of the cap while it
+  was still closing in. It now keeps any point that can become a solver contact.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added

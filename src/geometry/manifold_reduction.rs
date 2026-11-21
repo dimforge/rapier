@@ -5,7 +5,7 @@ pub(crate) fn reduce_manifold_naive(
     manifold: &ContactManifold,
     selected: &mut [usize; 4],
     num_selected: &mut usize,
-    prediction_distance: Real,
+    is_solver_contact: impl Fn(usize) -> bool,
 ) {
     if manifold.points.len() <= 4 {
         return;
@@ -32,7 +32,7 @@ pub(crate) fn reduce_manifold_naive(
     let mut furthest_dist = -Real::MAX;
     for (i, pt) in manifold.points.iter().enumerate() {
         let dist = (pt.local_p1 - selected_a).length_squared();
-        if i != selected[0] && pt.dist <= prediction_distance && dist > furthest_dist {
+        if i != selected[0] && dist > furthest_dist && is_solver_contact(i) {
             furthest_dist = dist;
             selected[1] = i;
         }
@@ -58,7 +58,7 @@ pub(crate) fn reduce_manifold_naive(
     let mut min_dot = Real::MAX;
     let mut max_dot = -Real::MAX;
     for (i, pt) in manifold.points.iter().enumerate() {
-        if i == selected[0] || i == selected[1] || pt.dist > prediction_distance {
+        if i == selected[0] || i == selected[1] || !is_solver_contact(i) {
             continue;
         }
 
