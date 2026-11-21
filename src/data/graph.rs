@@ -490,6 +490,49 @@ impl<N, E> Graph<N, E> {
         self.find_edge_undirected(a, b).map(|(ix, _)| ix)
     }
 
+    /// Lookup the edge between `a` and `b`, in either direction, for graphs that hold at
+    /// most one edge per pair of nodes.
+    ///
+    /// The edge lists of `a` and `b` are walked in turn, one edge each, so the cost is the
+    /// smaller of the two degrees instead of the degree of `a`. A fixed ground touched by
+    /// thousands of colliders then costs as little as the collider it is paired with. With
+    /// parallel edges, which one is returned is unspecified: use [`Self::find_edge`].
+    pub fn find_unique_edge(&self, a: NodeIndex, b: NodeIndex) -> Option<EdgeIndex> {
+        let na = self.nodes.get(a.index())?;
+        let nb = self.nodes.get(b.index())?;
+        let mut from_a = na.next;
+        let mut from_b = nb.next;
+        loop {
+            // Once either node's lists are walked to the end, no edge joins them.
+            let mut a_left = false;
+            for k in 0..2 {
+                if let Some(edge) = self.edges.get(from_a[k].index()) {
+                    if edge.node[1 - k] == b {
+                        return Some(from_a[k]);
+                    }
+                    from_a[k] = edge.next[k];
+                    a_left = true;
+                }
+            }
+            if !a_left {
+                return None;
+            }
+            let mut b_left = false;
+            for k in 0..2 {
+                if let Some(edge) = self.edges.get(from_b[k].index()) {
+                    if edge.node[1 - k] == a {
+                        return Some(from_b[k]);
+                    }
+                    from_b[k] = edge.next[k];
+                    b_left = true;
+                }
+            }
+            if !b_left {
+                return None;
+            }
+        }
+    }
+
     /// Return an iterator over all the edges connecting `a` and `b`, in either direction.
     ///
     /// Unlike [`Self::find_edge`], this yields every parallel edge between the two
@@ -782,5 +825,49 @@ where
 {
     fn eq(&self, rhs: &Self) -> bool {
         self.index == rhs.index && self.weight == rhs.weight
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{EdgeIndex, Graph, NodeIndex};
+    use crate::alloc_prelude::*;
+
+    /// `find_unique_edge` finds the same edge as `find_edge`, from either end, on a graph
+    /// without parallel edges: a hub joined to every node (like a ground touched by many
+    /// shapes) plus scattered edges, some of them removed again.
+    #[test]
+    fn find_unique_edge_matches_find_edge() {
+        let mut graph = Graph::<u32, ()>::with_capacity(0, 0);
+        let nodes: Vec<NodeIndex> = (0..40).map(|i| graph.add_node(i)).collect();
+        let hub = nodes[0];
+        for &n in &nodes[1..] {
+            graph.add_edge(hub, n, ());
+        }
+        let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for _ in 0..200 {
+            let (a, b) = (
+                nodes[1 + (next() % 39) as usize],
+                nodes[1 + (next() % 39) as usize],
+            );
+            if a != b && graph.find_edge(a, b).is_none() {
+                graph.add_edge(a, b, ());
+            }
+        }
+        for _ in 0..60 {
+            let e = EdgeIndex::new((next() % graph.edges.len() as u64) as u32);
+            graph.remove_edge(e);
+        }
+        for &a in &nodes {
+            for &b in &nodes {
+                assert_eq!(graph.find_unique_edge(a, b), graph.find_edge(a, b));
+            }
+        }
     }
 }
