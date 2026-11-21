@@ -1,3 +1,11 @@
+## Unreleased
+
+### Fixed
+
+- A sleeping island woken by a new contact now has its contacts solved in that same step.
+  It used to fall freely for one step, so a box landing on a sleeping pile made the whole
+  pile sink by about 2 mm.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added

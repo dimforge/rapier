@@ -8,15 +8,16 @@ use super::pair_update::{
 };
 use super::soft_contacts::SoftDetectionCtx;
 use super::{
-    NarrowPhase, assign_pair_solver_color, clear_pair_solver_color, collect_pairs_to_update,
-    pack_color_body_info, strong_wake_sleeping_side, unpack_color_body_info,
+    NarrowPhase, PAIR_HINT_COUNT_MASK, PAIR_HINT_DYN_BIT, assign_pair_solver_color,
+    clear_pair_solver_color, collect_pairs_to_update, pack_color_body_info,
+    pair_qualified_manifold_count, strong_wake_sleeping_side, unpack_color_body_info,
 };
 use crate::alloc_prelude::*;
 use crate::dynamics::{
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, RigidBodySet,
     SoftBodySet,
 };
-use crate::geometry::{ColliderHandle, ColliderSet, ContactPair};
+use crate::geometry::{ColliderHandle, ColliderSet, ContactPair, InteractionGraph};
 use crate::math::Real;
 #[cfg(all(feature = "parallel", feature = "unsync-callbacks"))]
 use crate::pipeline::ActiveHooks;
@@ -321,6 +322,53 @@ impl NarrowPhase {
                 self.solver_graph_valid = false;
             }
         }
+        self.requalify_contact_woken_pairs(bodies);
+    }
+
+    /// A new contact woke a sleeping island after this step's pair update, which skipped its
+    /// pairs: they still have the solver hints falling asleep count-cleared. Restore them so the
+    /// island's contacts are solved this step, instead of the island falling freely for a step.
+    fn requalify_contact_woken_pairs(&mut self, bodies: &RigidBodySet) {
+        if self.contact_woken_bodies.is_empty() {
+            return;
+        }
+        let first_flagged = self.force_event_flagged.len();
+        for handle in &self.contact_woken_bodies {
+            let Some(rb) = bodies.get(*handle) else {
+                continue;
+            };
+            for co_handle in rb.colliders.0.iter() {
+                let Some(gid) = self.graph_indices.get(co_handle.0) else {
+                    continue;
+                };
+                if !InteractionGraph::<ColliderHandle, ContactPair>::is_graph_index_valid(
+                    gid.contact_graph_index,
+                ) {
+                    continue;
+                }
+                for edge in self.contact_graph.graph.edges(gid.contact_graph_index) {
+                    let id = edge.id().index();
+                    let Some(hint) = self.pair_solver_hints.get_mut(id) else {
+                        continue;
+                    };
+                    if *hint & PAIR_HINT_COUNT_MASK == 0 {
+                        // The woken body is dynamic and awake now.
+                        *hint = pair_qualified_manifold_count(edge.weight()) | PAIR_HINT_DYN_BIT;
+                        if *hint & PAIR_HINT_COUNT_MASK != 0 {
+                            // Back in the solver's selection: flagged, so that the next graph
+                            // maintenance, in this step or a later one (the collision
+                            // pipeline runs none), puts it back in the force-event list.
+                            self.force_event_flagged.push(id as u32);
+                        }
+                    }
+                }
+            }
+        }
+        self.contact_woken_bodies.clear();
+        if self.force_event_flagged.len() != first_flagged {
+            self.force_event_flagged[first_flagged..].sort_unstable();
+            self.solver_graph_valid = false;
+        }
     }
 
     /// Applies the begin/end-touch transitions recorded by the pair update, in
@@ -365,6 +413,9 @@ impl NarrowPhase {
             // never wake (touching implies same island, so a moving support means the
             // island is already awake — support loss can't strand a sleeping body).
             if any_active_contact {
+                for h in [parent1, parent2].into_iter().flatten() {
+                    islands.collect_bodies_woken_with(bodies, h, &mut self.contact_woken_bodies);
+                }
                 strong_wake_sleeping_side(islands, bodies, parent1, parent2);
                 let body_info = |h: Option<crate::dynamics::RigidBodyHandle>| {
                     h.map(|h| {
