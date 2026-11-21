@@ -908,6 +908,13 @@ impl RigidBody {
     /// Sleeping bodies are excluded from physics simulation until disturbed. Use to manually
     /// deactivate bodies you know won't move for a while.
     ///
+    /// Islands sleep as a whole, so on a body that touches others (directly or through
+    /// other bodies or joints), this puts every one of them to sleep at the next step, where
+    /// they are. If one of them cannot sleep then, the call does nothing more than stop this
+    /// body: when another body of the island was woken up since the call (`wake_up(true)`, or
+    /// a setter called with `wake_up = true`), is a kinematic body in motion, never sleeps
+    /// (see [`RigidBodyBuilder::can_sleep`]) or belongs to a soft body.
+    ///
     /// The body will auto-wake if:
     /// - Hit by a moving object
     /// - Connected via joint to a moving body
@@ -925,7 +932,9 @@ impl RigidBody {
     ///
     /// Use after manually moving a sleeping body or to keep it active temporarily.
     pub fn wake_up(&mut self, strong: bool) {
-        if self.activation.sleeping {
+        // A strong wake is recorded on an awake body too: it cancels a `sleep` asked for in
+        // the same step on a body of its island.
+        if self.activation.sleeping || strong {
             self.changes.insert(RigidBodyChanges::SLEEP);
         }
 

@@ -431,6 +431,9 @@ impl PhysicsPipeline {
         }
         sb_events.clear();
         soft_bodies.island_events = sb_events;
+        // `RigidBody::sleep` on bodies that were awake: their islands go to sleep now, before
+        // the collision detection, so a new contact wakes them like any sleeping island.
+        islands.commit_manual_sleeps(bodies, narrow_phase);
         self.counters.stages.user_changes.pause();
 
         // TODO: do this only on user-change.

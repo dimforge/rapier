@@ -48,6 +48,10 @@ pub struct IslandManager {
     /// The persistent islands: connected components of the touching-contact/joint
     /// graph, maintained incrementally.
     pub(crate) persistent: super::PersistentIslands,
+    /// The bodies still simulated on which `RigidBody::sleep` was called since the last step,
+    /// until [`Self::commit_manual_sleeps`] settles them in that same step.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    manual_sleep_requests: Vec<RigidBodyHandle>,
 }
 
 impl IslandManager {
@@ -343,6 +347,14 @@ impl IslandManager {
         self.persistent.ensure_body(bodies, handle);
         let rb = bodies.index_mut_internal(handle);
 
+        // `RigidBody::sleep` on a body that is still simulated. Islands sleep whole, so this
+        // is a request to put its whole island to sleep: `commit_manual_sleeps` settles it
+        // once all of this step's user changes are known.
+        if rb.activation.sleeping && self.awake_island == Some(rb.ids.active_island_id as usize) {
+            self.manual_sleep_requests.push(handle);
+            return;
+        }
+
         // Push the body to the active set if it is not inside the active set yet, and
         // is not longer sleeping or became dynamic.
         if (rb.changes.contains(RigidBodyChanges::SLEEP)
@@ -352,6 +364,104 @@ impl IslandManager {
             && !rb.activation.sleeping
         {
             self.wake_up(bodies, handle, false);
+        }
+    }
+
+    /// Settles this step's `RigidBody::sleep` requests made on bodies that were still simulated.
+    ///
+    /// Islands sleep whole, so a request puts the body's whole island to sleep, at once and
+    /// where it is. An island that lost constraints is split first, so that only the bodies
+    /// still connected to the requester follow it. The request is dropped, and the requester
+    /// stays awake, when another body of the island cannot sleep now: one the user woke in
+    /// this same step, a kinematic body in motion, a body that never sleeps, or a soft body.
+    ///
+    /// Must run after this step's user changes were applied to the bodies and to the
+    /// islands' joints, and before the bodies' change flags are cleared.
+    pub(crate) fn commit_manual_sleeps(
+        &mut self,
+        bodies: &mut RigidBodySet,
+        narrow_phase: &mut NarrowPhase,
+    ) {
+        if self.manual_sleep_requests.is_empty() {
+            return;
+        }
+
+        let mut requests = core::mem::take(&mut self.manual_sleep_requests);
+        let mut chunks: Vec<Vec<RigidBodyHandle>> = Vec::new();
+
+        for handle in requests.drain(..) {
+            let Some(awake_id) = self.awake_island else {
+                break;
+            };
+            let Some(rb) = bodies.get(handle) else {
+                continue;
+            };
+            // Dropped already, with an earlier request of the same island.
+            if !rb.activation.sleeping || rb.ids.active_island_id as usize != awake_id {
+                continue;
+            }
+            let mut island_id = rb.ids.island_id;
+            match self.persistent.islands.get(island_id as usize) {
+                // Committed already, by an earlier request of the same island.
+                Some(island) if island.sleeping => continue,
+                Some(_) => {}
+                None => {
+                    // Not tracked by the persistent islands: nothing to put to sleep with it.
+                    bodies.index_mut_internal(handle).activation.sleeping = false;
+                    continue;
+                }
+            }
+
+            // The island's body list is only exact once its lost constraints were looked at.
+            if self.persistent.islands[island_id as usize].constraint_remove_count > 0
+                || !self.persistent.removal_journal.is_empty()
+            {
+                self.persistent.split_island_now(bodies, island_id);
+                island_id = bodies[handle].ids.island_id;
+            }
+
+            let members = self.persistent.islands[island_id as usize].bodies.clone();
+            let can_sleep_now = members.iter().all(|member| {
+                let Some(rb) = bodies.get(*member) else {
+                    return false;
+                };
+                if rb.ids.active_island_id as usize != awake_id {
+                    return false;
+                }
+                if rb.activation.sleeping {
+                    // Another requester.
+                    return true;
+                }
+                let woken_by_user = rb.changes.contains(RigidBodyChanges::SLEEP);
+                let moving_kinematic = rb.is_kinematic()
+                    && (rb.is_moving() || rb.pos.next_position != rb.pos.position);
+                let never_sleeps = rb.activation.normalized_linear_threshold < 0.0
+                    || rb.activation.angular_threshold < 0.0;
+                !(woken_by_user || moving_kinematic || never_sleeps || rb.is_soft_frame())
+            });
+
+            if can_sleep_now {
+                self.persistent.mark_island_sleeping(island_id);
+                chunks.push(members);
+            } else {
+                // Dropped: the requesters of this island stay awake.
+                for member in members {
+                    let rb = bodies.index_mut_internal(member);
+                    if rb.activation.sleeping && rb.ids.active_island_id as usize == awake_id {
+                        rb.activation.sleeping = false;
+                    }
+                }
+            }
+        }
+
+        self.manual_sleep_requests = requests;
+
+        if !chunks.is_empty() {
+            let awake_id = self
+                .awake_island
+                .expect("a request implies an awake island");
+            let awake_len = self.islands[awake_id].len();
+            self.commit_sleeping_chunks(bodies, narrow_phase, awake_id, awake_len, chunks);
         }
     }
 
