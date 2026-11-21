@@ -604,7 +604,7 @@ impl NarrowPhase {
                 if self
                     .intersection_graph
                     .graph
-                    .find_edge(gid1.intersection_graph_index, gid2.intersection_graph_index)
+                    .find_unique_edge(gid1.intersection_graph_index, gid2.intersection_graph_index)
                     .is_none()
                 {
                     let _ = self.intersection_graph.add_edge(
@@ -630,7 +630,7 @@ impl NarrowPhase {
                 if self
                     .contact_graph
                     .graph
-                    .find_edge(gid1.contact_graph_index, gid2.contact_graph_index)
+                    .find_unique_edge(gid1.contact_graph_index, gid2.contact_graph_index)
                     .is_none()
                 {
                     let interaction = if let Some(mut retired) = self.retired_pairs.pop() {

@@ -1,3 +1,12 @@
+## Unreleased
+
+### Modified
+
+- Adding or removing a contact pair no longer walks every contact of the collider it is listed
+  under. With a ground touched by 20,000 boxes, the step where one box leaves it goes from about
+  0.1-0.3 ms to 0.01 ms. The pair is found by walking the shorter of the two colliders' edge
+  lists, and results don't change.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added

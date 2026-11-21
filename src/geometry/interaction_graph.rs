@@ -67,7 +67,9 @@ impl<N: Copy, E> InteractionGraph<N, E> {
         index2: ColliderGraphIndex,
         on_remove: &mut dyn FnMut(TemporaryInteractionIndex),
     ) -> Option<E> {
-        let id = self.graph.find_edge(index1, index2)?;
+        // Only the narrow-phase's contact graph removes edges this way, and it holds at most
+        // one edge per pair of colliders.
+        let id = self.graph.find_unique_edge(index1, index2)?;
         self.graph.remove_edge_with(id, on_remove)
     }
 
