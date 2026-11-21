@@ -353,6 +353,9 @@ pub struct NarrowPhase {
     /// narrow-phase's it-may-have-moved signal for pair updates.
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     awake_body_mask: Vec<bool>,
+    /// Workspace: the edges a full solver-graph rebuild visits, kept between rebuilds.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    rebuild_edges: Vec<u32>,
     /// Per-pair solver-qualification hints (contact-graph edge index): bit 15 = has a
     /// dynamic body, low bits = qualified solver-manifold count. Maintained incrementally
     /// (count-cleared on sleep, mirrored on removals) so selection never re-walks every pair.
@@ -365,6 +368,13 @@ pub struct NarrowPhase {
     /// set. `false` forces a full rebuild on the next maintenance pass (the very first
     /// step, or after a change that invalidates the whole graph).
     solver_graph_valid: bool,
+    /// Whether the solver contact graph's buckets still name every contact-graph edge
+    /// holding a stored `graph_pos` (cleared when edges move without being mirrored into
+    /// the buckets, or after a deserialization). While it holds, a full rebuild only
+    /// visits those edges and the pairs whose hint makes them selectable, not every edge:
+    /// a wake or sleep among many sleeping pairs then costs what is awake, not the world.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    solver_graph_refs_trusted: bool,
     /// The [`IslandManager::active_set_epoch`] the solver contact graph was last
     /// (re)built at. A mismatch means the awake set / solver-body indices shifted
     /// (sleep, wake, body add/remove), so the graph is fully rebuilt.
@@ -439,9 +449,11 @@ impl NarrowPhase {
             body_solver_color_masks: Vec::new(),
             body_qualify_info: Vec::new(),
             awake_body_mask: Vec::new(),
+            rebuild_edges: Vec::new(),
             pair_solver_hints: Vec::new(),
             solver_contact_graph: SolverContactGraph::new(),
             solver_graph_valid: false,
+            solver_graph_refs_trusted: false,
             solver_graph_epoch: 0,
             solver_graph_mb_epoch: 0,
             solver_graph_dirty: Vec::new(),

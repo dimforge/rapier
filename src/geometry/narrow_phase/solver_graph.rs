@@ -159,6 +159,29 @@ impl NarrowPhase {
             // (insert the qualified, reset the rest, never trust a prior position). Large parallel scenes
             // rebuild with two rayon passes (count -> prefix-sum -> scatter): a serial walk on every epoch bump would dwarf the collection stage.
             let num_edges = self.contact_graph.graph.edges.len();
+            // The edges to visit, in increasing order. An edge that is not selectable and
+            // holds no stored position adds nothing to the graph (every manifold stays
+            // `NONE`), so it can be left out. While the buckets are trusted, they name every
+            // edge that holds a stored position.
+            let mut edge_list = core::mem::take(&mut self.rebuild_edges);
+            edge_list.clear();
+            if self.solver_graph_refs_trusted {
+                edge_list.extend(
+                    hints
+                        .iter()
+                        .take(num_edges)
+                        .enumerate()
+                        .filter(|(_, h)| {
+                            **h & PAIR_HINT_DYN_BIT != 0 && **h & PAIR_HINT_COUNT_MASK != 0
+                        })
+                        .map(|(i, _)| i as u32),
+                );
+                edge_list.extend(graph.stored_edges().filter(|&e| (e as usize) < num_edges));
+                edge_list.sort_unstable();
+                edge_list.dedup();
+            } else {
+                edge_list.extend(0..num_edges as u32);
+            }
 
             #[cfg(feature = "parallel")]
             {
@@ -168,7 +191,8 @@ impl NarrowPhase {
                 // Small enough that mid-size scenes (10-20k edges) split across every
                 // worker, large enough that the per-chunk bucket-count vectors stay cheap.
                 const CHUNK: usize = 1024;
-                let num_chunks = num_edges.div_ceil(CHUNK);
+                let num_chunks = edge_list.len().div_ceil(CHUNK);
+                let edge_list = &edge_list;
 
                 let edges_ptr_sync = crate::utils::SyncPtr(edges_ptr);
                 let edges_ptr_sync = &edges_ptr_sync;
@@ -178,7 +202,9 @@ impl NarrowPhase {
                     .into_par_iter()
                     .map(|c| {
                         let mut counts = alloc::vec![0u32; NUM_BUCKETS_WITH_GENERIC];
-                        for edge in (c * CHUNK)..((c + 1) * CHUNK).min(num_edges) {
+                        for &edge in &edge_list[(c * CHUNK)..((c + 1) * CHUNK).min(edge_list.len())]
+                        {
+                            let edge = edge as usize;
                             let hint = hints.get(edge).copied().unwrap_or(0);
                             // SAFETY: each edge read by exactly one chunk.
                             unsafe {
@@ -226,7 +252,9 @@ impl NarrowPhase {
                     .into_par_iter()
                     .enumerate()
                     .for_each(|(c, mut cursors)| {
-                        for edge in (c * CHUNK)..((c + 1) * CHUNK).min(num_edges) {
+                        for &edge in &edge_list[(c * CHUNK)..((c + 1) * CHUNK).min(edge_list.len())]
+                        {
+                            let edge = edge as usize;
                             let hint = hints.get(edge).copied().unwrap_or(0);
                             // SAFETY: each edge (and thus each manifold and each
                             //         precomputed bucket range) is written by exactly
@@ -273,7 +301,7 @@ impl NarrowPhase {
             #[cfg(not(feature = "parallel"))]
             {
                 graph.clear();
-                for edge in 0..num_edges as u32 {
+                for &edge in &edge_list {
                     let hint = hints.get(edge as usize).copied().unwrap_or(0);
                     // SAFETY: single-threaded; each edge visited once; `reconcile_pair`
                     //         never aliases a live reference across a graph mutation.
@@ -294,6 +322,27 @@ impl NarrowPhase {
             self.solver_graph_epoch = epoch;
             self.solver_graph_mb_epoch = mb_epoch;
             self.solver_graph_valid = true;
+            // Every edge left out must hold no stored position (the shortcut's premise).
+            #[cfg(debug_assertions)]
+            if edge_list.len() != num_edges {
+                let mut visited = alloc::vec![false; num_edges];
+                for &e in &edge_list {
+                    visited[e as usize] = true;
+                }
+                for (e, edge) in self.contact_graph.graph.edges.iter().enumerate() {
+                    if !visited[e] {
+                        assert!(
+                            edge.weight
+                                .solver_manifolds()
+                                .iter()
+                                .all(|m| !m.data.graph_pos.is_some()),
+                            "solver graph rebuild skipped edge {e}, which holds a stored position"
+                        );
+                    }
+                }
+            }
+            self.solver_graph_refs_trusted = true;
+            self.rebuild_edges = edge_list;
             // `solver_graph_dirty` is intentionally NOT cleared: the force-event reconcile
             // below still needs this step's dirty edges, and the next contact update
             // clears the list at its start anyway.

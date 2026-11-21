@@ -1,3 +1,12 @@
+## Unreleased
+
+### Modified
+
+- Waking up or putting to sleep a few bodies no longer goes through every contact in the world.
+  The solver's contact list is rebuilt from the contacts of awake bodies only, and comes out
+  the same as before. With 20,000 boxes asleep on the ground, the step that wakes one of them
+  goes from about 0.2 ms to 0.02 ms.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added

@@ -163,6 +163,7 @@ impl NarrowPhase {
         // solver graph's `ContactRef`s and the force-event list are keyed by (neither is
         // mirrored through node removal), so both must be rebuilt from scratch next step.
         self.solver_graph_valid = false;
+        self.solver_graph_refs_trusted = false;
         self.force_list_valid = false;
         let pair_solver_hints = &mut self.pair_solver_hints;
         // Persistent islands can't be rebuilt lazily like the tables above:
@@ -499,9 +500,15 @@ impl NarrowPhase {
                         },
                     );
 
+                    if !solver_graph_valid {
+                        // The fixups below are skipped while a rebuild is pending, so the
+                        // buckets no longer name every edge holding a stored position.
+                        self.solver_graph_refs_trusted = false;
+                    }
                     if !consistent {
                         // Deserialized/degenerate bookkeeping: rebuild from scratch.
                         self.solver_graph_valid = false;
+                        self.solver_graph_refs_trusted = false;
                         self.force_list_valid = false;
                     } else if removed_index < self.contact_graph.graph.edges.len() {
                         // A pair was swap-moved into the removed slot: rewrite the
