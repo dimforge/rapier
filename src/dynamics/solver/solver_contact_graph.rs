@@ -175,6 +175,16 @@ impl SolverContactGraph {
             .collect()
     }
 
+    /// Every contact-graph edge index held in the buckets (padding left out), with
+    /// repeats for pairs with several manifolds.
+    pub(crate) fn stored_edges(&self) -> impl Iterator<Item = u32> + '_ {
+        self.buckets
+            .iter()
+            .flatten()
+            .filter(|r| !r.is_padding())
+            .map(|r| r.edge)
+    }
+
     /// Rewrites the contact-graph edge index of the entry at `pos` (the edges
     /// vec swap-remove moved its pair to a new index).
     #[inline]

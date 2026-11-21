@@ -283,6 +283,7 @@ impl NarrowPhase {
                 // A composite pair rebuilt its manifolds: invalidate the graph so
                 // the next maintenance pass rebuilds it from scratch.
                 self.solver_graph_valid = false;
+                self.solver_graph_refs_trusted = false;
             }
         }
 
@@ -319,6 +320,7 @@ impl NarrowPhase {
                 // the next maintenance pass rebuilds it from scratch (see
                 // `OUTCOME_FULL_COMPOSITE`).
                 self.solver_graph_valid = false;
+                self.solver_graph_refs_trusted = false;
             }
         }
     }
