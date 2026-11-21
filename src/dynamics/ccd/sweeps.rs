@@ -569,10 +569,15 @@ pub(super) fn sweep_fast_body(
         let local_com = parent1
             .pos_wrt_parent
             .inverse_transform_point(rb1.mprops.local_mprops.local_com);
-        let Some(fast) = FastColliderInfo::new(co1, rb1, &start, &end, local_com) else {
+        if shape_never_ccd_swept(co1.shape.as_ref()) {
             // Never-swept shape (mesh, heightfield, polyline, voxels): no CCD.
             continue;
-        };
+        }
+        // Built on the first candidate only: for most colliders of a fast body with many
+        // colliders the swept AABB meets no target, and building it (`mass_properties` of
+        // the shape or of each compound child) would be wasted. The inner `None` is a
+        // compound without any child that can be swept.
+        let mut fast_info: Option<Option<FastColliderInfo>> = None;
 
         // Swept box: union of the collider's AABBs at the start and end poses.
         let start_aabb = co1.shape.compute_aabb(&start);
@@ -606,9 +611,14 @@ pub(super) fn sweep_fast_body(
             ) {
                 return;
             }
+            let Some(fast) = fast_info
+                .get_or_insert_with(|| FastColliderInfo::new(co1, rb1, &start, &end, local_com))
+            else {
+                return;
+            };
             if let Some(hit_fraction) = cast_collider_pair(
                 dispatcher,
-                &fast,
+                fast,
                 co2,
                 rb2,
                 fraction,
