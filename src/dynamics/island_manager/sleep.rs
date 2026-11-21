@@ -75,6 +75,45 @@ impl IslandManager {
         }
     }
 
+    /// Pushes to `out` the bodies that `wake_up(handle)` would add to the active set, if
+    /// `handle` is a sleeping dynamic body: its whole persistent island's chunks.
+    pub(crate) fn collect_bodies_woken_with(
+        &self,
+        bodies: &RigidBodySet,
+        handle: RigidBodyHandle,
+        out: &mut Vec<RigidBodyHandle>,
+    ) {
+        let Some(rb) = bodies.get(handle) else {
+            return;
+        };
+        if !rb.is_dynamic() || !rb.activation.sleeping {
+            return;
+        }
+        let mut chunks = vec![rb.ids.active_island_id];
+        if let Some(island) = self
+            .persistent
+            .islands
+            .get(rb.ids.island_id as usize)
+            .filter(|island| island.sleeping)
+        {
+            chunks.extend(
+                island
+                    .bodies
+                    .iter()
+                    .filter_map(|h| bodies.get(*h).map(|rb| rb.ids.active_island_id)),
+            );
+            chunks.sort_unstable();
+            chunks.dedup();
+        }
+        for chunk in chunks {
+            if self.awake_island != Some(chunk as usize) {
+                if let Some(island) = self.islands.get(chunk as usize) {
+                    out.extend_from_slice(&island.bodies);
+                }
+            }
+        }
+    }
+
     /// Puts `chunks` (disjoint subsets of the awake island's bodies, all
     /// sleep-eligible) to sleep: in place if they cover the entire awake
     /// island, otherwise by extracting each chunk into a new sleeping island.

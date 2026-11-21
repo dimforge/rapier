@@ -399,6 +399,9 @@ pub struct NarrowPhase {
     /// Entries are `(edge id, packed body infos)`, see [`pack_color_body_info`].
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
     solver_color_todo: Vec<(u32, u32, u32)>,
+    /// Workspace: the bodies a new contact woke during this step's pair transitions.
+    #[cfg_attr(feature = "serde-serialize", serde(skip))]
+    contact_woken_bodies: Vec<crate::dynamics::RigidBodyHandle>,
     /// The self contact detection of the soft collision meshes (by collider), rebuilt by
     /// every update for the awake bodies (see `soft_contacts`).
     #[cfg_attr(feature = "serde-serialize", serde(skip))]
@@ -450,6 +453,7 @@ impl NarrowPhase {
             force_event_flagged: Vec::new(),
             force_list_valid: false,
             solver_color_todo: Vec::new(),
+            contact_woken_bodies: Vec::new(),
             soft_self: Default::default(),
         }
     }
