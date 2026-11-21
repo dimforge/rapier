@@ -1,3 +1,11 @@
+## Unreleased
+
+### Modified
+
+- The continuous collision detection of a fast body no longer computes the mass properties of
+  every one of its colliders each step: a collider's sweep data is now built only once its swept
+  AABB meets a CCD target. Faster steps for fast bodies with many colliders; results unchanged.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added
