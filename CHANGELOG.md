@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fixed
+
+- `RigidBody::sleep` on a body that touches awake bodies now puts its whole island to sleep where
+  it is. It used to set the flag only, so the body kept moving with the bodies under it while
+  `is_sleeping` reported `true`, then froze in the air once they separated. The call does nothing
+  when a body of the island cannot sleep: a kinematic body in motion, a body that never sleeps,
+  or one that was woken up in the same step.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added
