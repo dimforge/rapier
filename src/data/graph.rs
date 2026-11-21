@@ -827,3 +827,47 @@ where
         self.index == rhs.index && self.weight == rhs.weight
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{EdgeIndex, Graph, NodeIndex};
+    use crate::alloc_prelude::*;
+
+    /// `find_unique_edge` finds the same edge as `find_edge`, from either end, on a graph
+    /// without parallel edges: a hub joined to every node (like a ground touched by many
+    /// shapes) plus scattered edges, some of them removed again.
+    #[test]
+    fn find_unique_edge_matches_find_edge() {
+        let mut graph = Graph::<u32, ()>::with_capacity(0, 0);
+        let nodes: Vec<NodeIndex> = (0..40).map(|i| graph.add_node(i)).collect();
+        let hub = nodes[0];
+        for &n in &nodes[1..] {
+            graph.add_edge(hub, n, ());
+        }
+        let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for _ in 0..200 {
+            let (a, b) = (
+                nodes[1 + (next() % 39) as usize],
+                nodes[1 + (next() % 39) as usize],
+            );
+            if a != b && graph.find_edge(a, b).is_none() {
+                graph.add_edge(a, b, ());
+            }
+        }
+        for _ in 0..60 {
+            let e = EdgeIndex::new((next() % graph.edges.len() as u64) as u32);
+            graph.remove_edge(e);
+        }
+        for &a in &nodes {
+            for &b in &nodes {
+                assert_eq!(graph.find_unique_edge(a, b), graph.find_edge(a, b));
+            }
+        }
+    }
+}
