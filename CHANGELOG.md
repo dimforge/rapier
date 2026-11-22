@@ -1,3 +1,16 @@
+## Unreleased
+
+### Fixed
+
+- Fast cylinders no longer go through the ground after CCD stops them. A cylinder touching at
+  one point of its cap's rim gets a contact manifold with more points than the solver takes, and
+  the reduction kept only the points already touching, dropping the rest of the cap while it
+  was still closing in. It now keeps any point that can become a solver contact.
+- Stacks of round cylinders no longer topple. Their flat contacts can rank the point at the
+  cap's center as the deepest, and the reduction kept it with three rim points on one side, so
+  part of the cap had no support. A deepest point surrounded by the other kept points is now
+  swapped for the rim point that widens the kept area most.
+
 ## v0.36.1 (4 October 2026)
 
 ### Added
