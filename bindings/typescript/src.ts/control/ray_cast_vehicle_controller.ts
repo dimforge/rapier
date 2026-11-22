@@ -111,7 +111,7 @@ export class DynamicRayCastVehicleController {
     /**
      * Sets the chassis’ local _forward_ direction (`0 = x, 1 = y, 2 = z`).
      */
-    set setIndexForwardAxis(axis: number) {
+    set indexForwardAxis(axis: number) {
         this.raw.set_index_forward_axis(axis);
     }
 
