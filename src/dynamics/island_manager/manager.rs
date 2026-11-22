@@ -305,9 +305,15 @@ impl IslandManager {
         };
 
         if rb.is_fixed() {
-            // A body turned fixed leaves the persistent islands (fixed bodies
-            // are never island members).
-            self.persistent.remove_body(bodies, handle);
+            // Fixed bodies belong to neither persistent nor active/sleeping islands.
+            if rb.ids.active_island_id == u32::MAX {
+                self.persistent.remove_body(bodies, handle);
+            } else {
+                // A body turned fixed must also leave its active/sleeping island,
+                // just like a disabled body, or it keeps being processed every step.
+                let ids = rb.ids;
+                self.rigid_body_removed_or_disabled(handle, &ids, bodies);
+            }
             return;
         }
 
