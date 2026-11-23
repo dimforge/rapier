@@ -116,7 +116,7 @@ anyhow = "1"
 # Loaders / assets
 urdf-rs = "0.9"
 mesh-loader = "0.1.13"
-roxmltree = "0.20"
+roxmltree = "0.21"
 
 # Example-only
 lyon = "0.17"
