@@ -1,3 +1,10 @@
+## Unreleased
+
+### Added
+
+- `RigidBody.setNextKinematicPosition(translation, rotation)` to set both the next kinematic
+  translation and rotation in one call.
+
 ## 0.21.0 (24 September 2026)
 
 ### Breaking changes
