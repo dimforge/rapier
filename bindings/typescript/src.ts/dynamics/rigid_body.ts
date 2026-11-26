@@ -583,6 +583,42 @@ export class RigidBody {
 
     // #endif
 
+    // #if DIM2
+    /**
+     * If this rigid body is kinematic, sets both its future translation and rotation after the
+     * next timestep integration.
+     *
+     * This is equivalent to calling `setNextKinematicTranslation` followed by
+     * `setNextKinematicRotation`.
+     *
+     * @param translation - The kinematic translation to set.
+     * @param rotation - The kinematic rotation angle, in radians.
+     */
+    public setNextKinematicPosition(translation: Vector, rotation: number) {
+        this.setNextKinematicTranslation(translation);
+        this.setNextKinematicRotation(rotation);
+    }
+
+    // #endif
+
+    // #if DIM3
+    /**
+     * If this rigid body is kinematic, sets both its future translation and rotation after the
+     * next timestep integration.
+     *
+     * This is equivalent to calling `setNextKinematicTranslation` followed by
+     * `setNextKinematicRotation`.
+     *
+     * @param translation - The kinematic translation to set.
+     * @param rotation - The kinematic rotation to set.
+     */
+    public setNextKinematicPosition(translation: Vector, rotation: Rotation) {
+        this.setNextKinematicTranslation(translation);
+        this.setNextKinematicRotation(rotation);
+    }
+
+    // #endif
+
     /**
      * The linear velocity of this rigid-body.
      *
