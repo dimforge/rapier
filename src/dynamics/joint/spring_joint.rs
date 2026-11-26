@@ -26,9 +26,15 @@ pub struct SpringJoint {
 }
 
 impl SpringJoint {
-    /// Creates a new spring joint limiting the max distance between two bodies.
+    /// Creates a spring-damper joint that pulls the two anchors towards `rest_length` apart.
     ///
-    /// The `max_dist` must be strictly greater than 0.0.
+    /// Along the line joining the anchors, a force proportional to `distance - rest_length`,
+    /// scaled by `stiffness`, pulls the anchors together when the spring is stretched and pushes
+    /// them apart when it is compressed; a force proportional to their relative speed along that
+    /// line, scaled by `damping`, opposes the motion. The spring is created with
+    /// [`MotorModel::ForceBased`] (see [`Self::set_spring_model`]): `stiffness` is a force per
+    /// unit length (N/m in SI units) and `damping` a force per unit speed (N·s/m), so the motion
+    /// depends on the bodies' masses as for a physical spring.
     pub fn new(rest_length: Real, stiffness: Real, damping: Real) -> Self {
         let data = GenericJointBuilder::new(JointAxesMask::empty())
             .coupled_axes(JointAxesMask::LIN_AXES)
@@ -123,7 +129,7 @@ pub struct SpringJointBuilder(pub SpringJoint);
 impl SpringJointBuilder {
     /// Creates a new builder for spring joints.
     ///
-    /// This axis is expressed in the local-space of both rigid-bodies.
+    /// See [`SpringJoint::new`] for the meaning of `rest_length`, `stiffness` and `damping`.
     pub fn new(rest_length: Real, stiffness: Real, damping: Real) -> Self {
         Self(SpringJoint::new(rest_length, stiffness, damping))
     }
